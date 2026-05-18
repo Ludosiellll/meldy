@@ -63,15 +63,6 @@ function Hero() {
       <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px]
         bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* Бейдж */}
-      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full
-        bg-indigo-950/80 border border-indigo-800/60 mb-8">
-        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-        <span className="text-xs font-medium text-indigo-300">
-          Работает на базе Llama 3.3 70B
-        </span>
-      </div>
-
       {/* Заголовок */}
       <h1 className="text-5xl md:text-[72px] font-black leading-[1.05]
         tracking-tight mb-6 max-w-4xl mx-auto">
@@ -86,7 +77,7 @@ function Hero() {
       {/* Подзаголовок */}
       <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto
         mb-10 leading-relaxed">
-        Загрузи PDF или текст лекции — три AI-агента параллельно создадут
+        Загрузи PDF или текст лекции — алгоритмы параллельно создадут
         конспект, карточки и тест. Повторяй по алгоритму spaced repetition
         и планируй подготовку к экзаменам.
       </p>
@@ -169,7 +160,7 @@ function Hero() {
 function Stats() {
   const items = [
     { value: '15 сек', label: 'среднее время анализа' },
-    { value: '3', label: 'AI-агента работают параллельно' },
+    { value: '3', label: 'алгоритма работают параллельно' },
     { value: 'SM-2', label: 'алгоритм повторения как в Anki' },
     { value: '∞', label: 'материалов в библиотеке' },
   ];
@@ -263,7 +254,7 @@ function Features() {
       icon: Zap,
       color: 'indigo',
       title: 'Мультиагентный анализ',
-      desc: 'Три AI-агента работают параллельно и создают конспект, карточки и тест одновременно.',
+      desc: 'Три алгоритма работают параллельно и создают конспект, карточки и тест одновременно.',
     },
     {
       icon: Brain,
@@ -274,8 +265,8 @@ function Features() {
     {
       icon: Calendar,
       color: 'amber',
-      title: 'AI-планировщик',
-      desc: 'Введи предметы и даты экзаменов — AI составит конкретный план подготовки на каждый день.',
+      title: 'Персональный планировщик',
+      desc: 'Введи предметы и даты экзаменов — сервис составит конкретный план подготовки на каждый день.',
     },
     {
       icon: BookOpen,
@@ -286,8 +277,8 @@ function Features() {
     {
       icon: MessageSquare,
       color: 'sky',
-      title: 'AI-чат по лекции',
-      desc: 'Задавай вопросы по любому материалу из библиотеки. AI отвечает строго по теме.',
+      title: 'Умный чат по лекции',
+      desc: 'Задавай вопросы по любому материалу из библиотеки. Получай ответы строго по теме.',
     },
     {
       icon: BarChart2,
@@ -388,7 +379,7 @@ function Footer() {
           <span className="text-slate-400 text-sm font-medium">StudyForge</span>
         </div>
         <p className="text-slate-600 text-sm">
-          © 2025 StudyForge · Создано с AI для студентов
+          © 2025 StudyForge
         </p>
       </div>
     </footer>
