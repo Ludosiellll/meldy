@@ -4358,7 +4358,7 @@ export default function Planner() {
 FILE: frontend/src/pages/Chat.tsx
 ================================================================================
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, Trash2 } from 'lucide-react';
+import { MessageSquare, Send, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -4372,6 +4372,7 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -4478,7 +4479,11 @@ export default function Chat() {
   };
 
   return (
-    <div className="h-full flex flex-col p-4 md:p-6 bg-slate-50/50">
+    <div className={`flex flex-col bg-slate-50/50 transition-all duration-300 ${
+      isFullScreen 
+        ? 'fixed inset-0 z-[100] p-4 md:p-8 h-screen w-screen' 
+        : 'h-full p-4 md:p-6'
+    }`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -4491,11 +4496,21 @@ export default function Chat() {
           </div>
         </div>
         
-        {messages.length > 0 && (
-          <button onClick={clearChat} className="p-2 text-slate-400 hover:text-rose-500 transition rounded-lg hover:bg-rose-50">
-            <Trash2 className="w-5 h-5" />
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsFullScreen(!isFullScreen)}
+            className="p-2 text-slate-400 hover:text-indigo-600 transition rounded-lg hover:bg-indigo-50"
+            title={isFullScreen ? "Уменьшить" : "На весь экран"}
+          >
+            {isFullScreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
-        )}
+          
+          {messages.length > 0 && (
+            <button onClick={clearChat} className="p-2 text-slate-400 hover:text-rose-500 transition rounded-lg hover:bg-rose-50" title="Очистить чат">
+              <Trash2 className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Material select */}
