@@ -1,0 +1,4300 @@
+================================================================================
+FILE: Dockerfile
+================================================================================
+# ---- Stage 1: Build frontend ----
+FROM node:20-alpine AS frontend-build
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
+RUN npm run build
+
+# ---- Stage 2: Production ----
+FROM python:3.12-slim
+
+# Install nginx
+RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
+
+# Copy backend
+WORKDIR /app/backend
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/ .
+
+# Copy built frontend to nginx
+COPY --from=frontend-build /app/frontend/dist /usr/share/nginx/html
+
+# Nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/sites-enabled/default
+
+# Expose HF Spaces port
+EXPOSE 7860
+
+# Start nginx + uvicorn
+CMD ["sh", "-c", "nginx && uvicorn main:app --host 127.0.0.1 --port 8000"]
+
+================================================================================
+FILE: nginx.conf
+================================================================================
+server {
+    listen 7860;
+    server_name _;
+
+    client_max_body_size 50m;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # API proxy → FastAPI
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+================================================================================
+FILE: README.md
+================================================================================
+# AI Student Assistant — Мультиагентный анализ конспектов
+
+Веб-приложение для автоматического структурирования и анализа текстовых данных.
+Загрузите PDF/DOCX/TXT файл лекции, и три AI-агента параллельно создадут:
+- 📝 **Саммари** — краткая выжимка материала
+- 🃏 **Карточки** — вопрос-ответ для запоминания
+- ❓ **Тест** — проверочный тест из 5 вопросов
+
+## Архитектура
+
+```
+┌──────────────┐     SSE      ┌──────────────┐
+│   React UI   │ ◄────────── │   FastAPI    │
+│  (Vite+TW)   │             │  (Python)    │
+└──────────────┘             └──────┬───────┘
+                                    │
+                          ┌─────────┼─────────┐
+                          ▼         ▼         ▼
+                     ┌────────┐┌────────┐┌────────┐
+                     │Summary ││Flash   ││Quiz    │
+                     │Agent   ││cards   ││Agent   │
+                     └────────┘│Agent   │└────────┘
+                               └────────┘
+                          Groq API (Llama 3.3 70B)
+```
+
+## Быстрый старт
+
+### 1. Получите API-ключ Groq (бесплатно)
+
+1. Зайдите на https://console.groq.com
+2. Зарегистрируйтесь
+3. Создайте API-ключ
+
+### 2. Запустите бэкенд
+
+```bash
+cd backend
+set GROQ_API_KEY=ваш_ключ_здесь
+python -m uvicorn main:app --reload --port 8000
+```
+
+### 3. Запустите фронтенд (в новом терминале)
+
+```bash
+cd frontend
+npm run dev
+```
+
+### 4. Откройте http://localhost:3000
+
+## Технологии
+
+- **Фронтенд:** React 18, TypeScript, Vite, TailwindCSS, Framer Motion, Lucide Icons
+- **Бэкенд:** Python, FastAPI, asyncio, Groq API (Llama 3.3 70B)
+- **Real-time:** Server-Sent Events (SSE) для потокового отображения прогресса
+- **Парсинг:** PyPDF2, python-docx
+
+## Ключевые концепции
+
+- **Мультиагентность:** 3 независимых AI-агента работают параллельно через asyncio
+- **Асинхронность:** SSE-стриминг прогресса в реальном времени
+- **Prompt Engineering:** тщательно настроенные системные промпты для каждого агента
+- **Координатор:** агент-оркестратор собирает результаты в единый ответ
+
+================================================================================
+FILE: README_HF.md
+================================================================================
+---
+title: StudyForge — AI-анализ учебных материалов
+emoji: 🎓
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+# StudyForge — AI-анализ учебных материалов
+
+Три AI-агента параллельно создают конспект, карточки и тест из любой лекции.
+
+## Использование
+
+1. Откройте приложение
+2. Загрузите PDF/DOCX/TXT файл или нажмите «Демо без файла»
+3. Дождитесь завершения анализа (~15 сек)
+4. Изучайте конспект, карточки и тест
+
+## Переменные окружения
+
+Установите в Settings → Repository secrets:
+
+- `GROQ_API_KEY` — ключ API от [console.groq.com](https://console.groq.com) (бесплатно)
+
+================================================================================
+FILE: start.bat
+================================================================================
+@echo off
+echo ================================
+echo  AI Student Assistant Launcher
+echo ================================
+echo.
+
+set /p GROQ_API_KEY="Введите Groq API Key: "
+
+echo.
+echo Запуск бэкенда на http://localhost:8000 ...
+start "Backend" cmd /k "cd /d %~dp0backend && set GROQ_API_KEY=%GROQ_API_KEY% && python -m uvicorn main:app --reload --port 8000"
+
+timeout /t 3 /nobreak >nul
+
+echo Запуск фронтенда на http://localhost:3000 ...
+start "Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
+
+echo.
+echo ================================
+echo  Готово! Откройте http://localhost:3000
+echo ================================
+pause
+
+================================================================================
+FILE: backend/requirements.txt
+================================================================================
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.18
+python-dotenv>=1.0.0
+groq>=0.9.0
+google-generativeai
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+aiofiles>=24.0.0
+pydantic>=2.0.0
+
+================================================================================
+FILE: backend/main.py
+================================================================================
+import asyncio
+import json
+import os
+from typing import AsyncGenerator, List
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+from parser import extract_text
+from agents.coordinator import CoordinatorAgent
+
+app = FastAPI(title="AI Student Assistant", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # HF Spaces uses same origin via nginx
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+
+class HealthResponse(BaseModel):
+    status: str
+    groq_configured: bool
+
+
+@app.get("/api/health", response_model=HealthResponse)
+async def health():
+    return HealthResponse(
+        status="ok",
+        groq_configured=bool(GROQ_API_KEY),
+    )
+
+
+async def event_stream(
+    file: UploadFile,
+    summary_detail: str = "medium",
+    flashcard_count: int = 6,
+    quiz_count: int = 5,
+    quiz_difficulty: str = "mixed",
+    quiz_type: str = "multiple",
+) -> AsyncGenerator[str, None]:
+    """SSE stream of agent progress."""
+    try:
+        contents = await file.read()
+        text = extract_text(contents, file.filename or "file.txt")
+
+        if not text.strip():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось извлечь текст из файла'})}\n\n"
+            return
+
+        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text)})}\n\n"
+
+        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
+
+        async for event in coordinator.process(
+            text,
+            summary_detail=summary_detail,
+            flashcard_count=flashcard_count,
+            quiz_count=quiz_count,
+            quiz_difficulty=quiz_difficulty,
+            quiz_type=quiz_type,
+        ):
+            yield f"data: {json.dumps(event)}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+
+@app.post("/api/analyze")
+async def analyze(
+    file: UploadFile = File(...),
+    summary_detail: str = Form("medium"),
+    flashcard_count: int = Form(6),
+    quiz_count: int = Form(5),
+    quiz_difficulty: str = Form("mixed"),
+    quiz_type: str = Form("multiple"),
+):
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY не настроен на сервере",
+        )
+
+    allowed_extensions = (".pdf", ".txt", ".docx", ".md", ".doc")
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Неподдерживаемый формат. Поддерживаются: {', '.join(allowed_extensions)}",
+        )
+
+    return StreamingResponse(
+        event_stream(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    context: str
+    history: List[ChatMessage]
+
+
+class PlanSubject(BaseModel):
+    name: str
+    exam_date: str
+    color: str
+
+
+class PlanRequest(BaseModel):
+    subjects: List[PlanSubject]
+    available_hours_per_day: int = 2
+    context_materials: str = ""
+    user_goals: str = ""
+
+
+from agents.base import BaseAgent
+
+@app.post("/api/chat")
+async def chat(req: ChatRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — умный AI-ассистент студента. 
+Ты помогаешь разобраться в учебном материале, предоставленном ниже.
+Отвечай на вопросы развёрнуто и понятно. 
+Если вопрос вообще не касается темы материала, всё равно попытайся помочь, но упомяни, что в материале этого нет.
+
+МАТЕРИАЛ ДЛЯ СПРАВКИ:
+{req.context[:25000]}"""
+
+    history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-5:]])
+    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС: {req.message}"
+
+    reply = await agent.run(system_prompt, full_user_query)
+    return {"reply": reply}
+
+
+@app.post("/api/plan")
+async def plan(req: PlanRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    subjects_text = "\n".join([
+        f"- {s.name}: экзамен {s.exam_date}"
+        for s in req.subjects
+    ])
+    today = __import__('datetime').date.today().isoformat()
+
+    materials_section = ""
+    if req.context_materials:
+        materials_section = f"""
+
+КОНСПЕКТЫ СТУДЕНТА (используй их для составления конкретных тем и задач):
+{req.context_materials[:20000]}"""
+
+    goals_section = ""
+    if req.user_goals:
+        goals_section = f"""
+
+ПОЖЕЛАНИЯ СТУДЕНТА (учи́тывай при планировании):
+{req.user_goals}"""
+
+    system_prompt = f"""Ты — опытный учебный планировщик.
+Сегодняшняя дата: {today}
+Доступно часов для учебы в день: {req.available_hours_per_day}
+
+Предметы и даты экзаменов:
+{subjects_text}{materials_section}{goals_section}
+
+Создай детальный ежедневный план подготовки до даты ближайшего экзамена.
+Распредели время между предметами пропорционально их сложности и близости экзамена.
+Дай конкретные темы или задачи для изучения на каждый день, основываясь на конспектах студента.
+
+ОБЯЗАТЕЛЬНО верни ответ в формате JSON:
+{{
+  "plan": [
+    {{
+      "date": "YYYY-MM-DD",
+      "tasks": [
+        {{"subject": "Название предмета", "task": "Что именно сделать", "hours": 1}}
+      ]
+    }}
+  ]
+}}"""
+
+    raw = await agent.run(system_prompt, "Сгенерируй план подготовки.")
+    
+    try:
+        json_str = raw.strip()
+        if "```json" in json_str:
+            json_str = json_str.split("```json")[1].split("```")[0]
+        elif "```" in json_str:
+            json_str = json_str.split("```")[1].split("```")[0]
+        
+        # Находим JSON если вокруг есть текст
+        if not (json_str.startswith('{') or json_str.startswith('[')):
+            start = json_str.find('{')
+            end = json_str.rfind('}')
+            if start != -1 and end != -1:
+                json_str = json_str[start:end+1]
+                
+        return json.loads(json_str.strip())
+    except:
+        return {"plan": []}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+================================================================================
+FILE: backend/parser.py
+================================================================================
+import io
+from typing import Optional
+
+
+def extract_text(contents: bytes, filename: str) -> str:
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else "txt"
+
+    if ext == "pdf":
+        return _extract_pdf(contents)
+    elif ext == "docx":
+        return _extract_docx(contents)
+    elif ext in ("txt", "md", "doc"):
+        return _extract_text(contents)
+    else:
+        return _extract_text(contents)
+
+
+def _extract_pdf(contents: bytes) -> str:
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(io.BytesIO(contents))
+        text_parts = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text_parts.append(page_text)
+        return "\n\n".join(text_parts)
+    except Exception as e:
+        raise ValueError(f"Ошибка чтения PDF: {e}")
+
+
+def _extract_docx(contents: bytes) -> str:
+    try:
+        from docx import Document
+        doc = Document(io.BytesIO(contents))
+        text_parts = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text_parts.append(para.text)
+        return "\n".join(text_parts)
+    except Exception as e:
+        raise ValueError(f"Ошибка чтения DOCX: {e}")
+
+
+def _extract_text(contents: bytes) -> str:
+    for encoding in ("utf-8", "cp1251", "latin-1"):
+        try:
+            return contents.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return contents.decode("utf-8", errors="replace")
+
+================================================================================
+FILE: backend/agents/__init__.py
+================================================================================
+
+
+================================================================================
+FILE: backend/agents/base.py
+================================================================================
+from groq import AsyncGroq
+
+
+def build_summarizer_prompt(detail: str = "medium") -> str:
+    detail_map = {
+        "brief": "краткий конспект: заголовок + 3-5 ключевых тезисов + 1 абзац выводов",
+        "medium": "средний конспект: заголовок + ключевые тезисы + основное содержание 3-4 абзаца + термины + выводы",
+        "detailed": "подробный конспект: заголовок + ключевые тезисы + развёрнутое содержание 5-6 абзацев + все термины и определения + выводы + рекомендации по изучению",
+    }
+    body = detail_map.get(detail, detail_map["medium"])
+    return f"""Ты — опытный преподаватель, который создаёт структурированные конспекты лекций.
+Проанализируй предоставленный текст и создай {body}.
+
+ОБЯЗАТЕЛЬНАЯ структура ответа (используй эти заголовки):
+## 📌 Тема
+(одна строка — главная тема материала)
+
+## 🔑 Ключевые тезисы
+(нумерованный список 3-7 пунктов, каждый — 1 предложение)
+
+## 📖 Основное содержание
+(2-5 абзацев с главными идеями, каждый абзац начинается с жирного подзаголовка)
+
+## 📚 Термины и определения
+(нумерованный список: **термин** — определение)
+
+## 💡 Выводы
+(2-3 предложения, подводящие итог)
+
+Форматируй строго в Markdown с заголовками уровня ##. Пиши на языке исходного текста."""
+
+
+def build_flashcards_prompt(count: int = 6) -> str:
+    return f"""Ты — эксперт по созданию обучающих карточек.
+На основе предоставленного текста создай ровно {count} карточек «вопрос-ответ» для запоминания ключевых концепций.
+
+Требования:
+1. Каждая карточка: чёткий вопрос → развёрнутый ответ (2-4 предложения)
+2. Покрывай ключевые концепции текста
+3. Карточки разного уровня сложности: примерно треть лёгкие, треть средние, треть сложные
+4. Формулируй вопросы так, чтобы ответ требовал понимания, а не простого копирования
+
+Верни результат ТОЛЬКО в формате JSON (без markdown-обёрток):
+{{"flashcards": [{{"id": 1, "question": "...", "answer": "..."}}]}}
+
+Пиши на языке исходного текста."""
+
+
+def build_quiz_prompt(count: int = 5, difficulty: str = "mixed", qtype: str = "multiple") -> str:
+    diff_map = {
+        "easy": "все вопросы лёгкого уровня (базовые факты)",
+        "medium": "все вопросы среднего уровня (понимание и применение)",
+        "hard": "все вопросы сложного уровня (анализ и синтез)",
+        "mixed": f"вопросы разной сложности: примерно {max(1, count//3)} лёгких, {max(1, count//3)} средних, остальные сложные",
+    }
+    diff_text = diff_map.get(difficulty, diff_map["mixed"])
+
+    if qtype == "truefalse":
+        type_text = 'Каждый вопрос — утверждение, на которое нужно ответить «Верно» или «Неверно». Формат вариантов: ["A) Верно", "B) Неверно"]'
+    else:
+        type_text = "Каждый вопрос имеет 4 варианта ответа (A, B, C, D). Только один правильный. Варианты должны быть правдоподобными, без очевидно нелепых дистракторов."
+
+    return f"""Ты — эксперт по созданию проверочных тестов.
+На основе предоставленного текста создай тест из {count} вопросов.
+{diff_text}. {type_text}
+
+ВАЖНО: Верни ТОЛЬКО JSON-объект. Не добавляй никаких вступительных или заключительных слов, пояснений или markdown-разметки (никаких ```json).
+
+{{
+  "quiz": [
+    {{
+      "id": 1,
+      "question": "...",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+      "correct": "A",
+      "explanation": "..."
+    }}
+  ]
+}}
+
+Пиши на языке исходного текста."""
+
+import os
+import random
+import asyncio
+from groq import AsyncGroq
+import google.generativeai as genai
+from google.generativeai.types import SafetySettingDict, HarmCategory, HarmBlockThreshold
+
+# ... (промпты без изменений)
+
+class BaseAgent:
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+        self.groq_api_key = api_key
+        self.model = model
+        
+        # Читаем ключи
+        raw_keys = os.getenv("GEMINI_API_KEY", "")
+        self.gemini_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+        
+        if self.groq_api_key:
+            self.groq_client = AsyncGroq(api_key=self.groq_api_key)
+        else:
+            self.groq_client = None
+
+        self.safety_settings: list[SafetySettingDict] = [
+            {"category": HarmCategory.HARM_CATEGORY_HARASSMENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            {"category": HarmCategory.HARM_CATEGORY_HATE_SPEECH, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            {"category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+            {"category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+        ]
+
+    async def run(self, system_prompt: str, user_text: str) -> str:
+        max_chars = 300000 if self.gemini_keys else 80000
+        truncated = user_text[:max_chars]
+        if len(user_text) > max_chars:
+            truncated += f"\n\n[Текст сокращён с {len(user_text)} до {max_chars} символов]"
+
+        gemini_errors = []
+
+        if self.gemini_keys:
+            # Пробуем ключи по очереди
+            shuffled_keys = list(self.gemini_keys)
+            random.shuffle(shuffled_keys)
+            
+            for key in shuffled_keys:
+                try:
+                    # Настраиваем библиотеку под конкретный ключ
+                    genai.configure(api_key=key)
+                    
+                    GEMINI_MODELS = [
+                        "gemini-3.1-flash-lite",
+                        "gemini-2.5-flash-preview-05-20",
+                        "gemini-2.0-flash",
+                        "gemini-1.5-flash",
+                    ]
+                    
+                    model_loaded = None
+                    model_error = None
+                    for model_name in GEMINI_MODELS:
+                        try:
+                            model_loaded = genai.GenerativeModel(model_name)
+                            break
+                        except Exception as e:
+                            model_error = str(e)
+                            continue
+                    
+                    if not model_loaded:
+                        gemini_errors.append(f"Не удалось загрузить ни одну Gemini модель: {model_error}")
+                        continue  # переходим к следующему ключу
+                    
+                    full_prompt = f"{system_prompt}\n\nТЕКСТ ДЛЯ АНАЛИЗА:\n{truncated}"
+                    
+                    # Делаем запрос
+                    response = await model_loaded.generate_content_async(
+                        full_prompt,
+                        generation_config=genai.types.GenerationConfig(
+                            temperature=0.3,
+                            max_output_tokens=8192,
+                        ),
+                        safety_settings=self.safety_settings
+                    )
+                    
+                    if response and response.text:
+                        return response.text
+                    
+                    gemini_errors.append(f"Key {key[:6]}... returned empty text")
+                except Exception as e:
+                    err_msg = str(e)
+                    gemini_errors.append(f"Key {key[:6]}... error: {err_msg[:100]}")
+                    continue
+
+        # Если дошли сюда - Gemini не сработал. Пробуем Groq.
+        if self.groq_client:
+            try:
+                response = await self.groq_client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": truncated},
+                    ],
+                    temperature=0.3,
+                    max_tokens=8192,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                groq_err = str(e)
+                if "429" in groq_err:
+                    debug_info = "\n".join(gemini_errors) if gemini_errors else "Ключи Gemini не найдены"
+                    return f"Ошибка: Лимиты ИИ исчерпаны.\n\nGemini ошибки:\n{debug_info}\n\nGroq ошибка: 429."
+                return f"Ошибка ИИ (Groq): {groq_err}"
+        
+        return "Ошибка: API ключи не настроены."
+
+================================================================================
+FILE: backend/agents/coordinator.py
+================================================================================
+import asyncio
+import json
+from typing import AsyncGenerator, Dict, Any, Optional
+
+from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt
+
+
+class CoordinatorAgent:
+    def __init__(self, api_key: str):
+        self.base = BaseAgent(api_key)
+
+    async def process(
+        self,
+        text: str,
+        summary_detail: str = "medium",
+        flashcard_count: int = 6,
+        quiz_count: int = 5,
+        quiz_difficulty: str = "mixed",
+        quiz_type: str = "multiple",
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        results: Dict[str, Any] = {}
+
+        prompts = {
+            "summarizer": build_summarizer_prompt(summary_detail),
+            "flashcards": build_flashcards_prompt(flashcard_count),
+            "quiz": build_quiz_prompt(quiz_count, quiz_difficulty, quiz_type),
+        }
+
+        async def run_agent(name: str, prompt: str) -> tuple:
+            try:
+                raw = await self.base.run(prompt, text)
+                return (name, self._parse_result(name, raw))
+            except Exception as e:
+                return (name, {"error": str(e)})
+
+        agent_names = ["summarizer", "flashcards", "quiz"]
+        agent_labels = {
+            "summarizer": "📝 Конспект",
+            "flashcards": "🃏 Карточки",
+            "quiz": "❓ Тест",
+        }
+
+        # Запускаем агентов ПОСЛЕДОВАТЕЛЬНО для стабильности (особенно для Gemini Free)
+        done_count = 0
+        for name in agent_names:
+            yield {
+                "type": "agent_start",
+                "agent": name,
+                "label": agent_labels[name],
+            }
+            
+            # Выполняем запрос
+            agent_name, result = await run_agent(name, prompts[name])
+            results[agent_name] = result
+            
+            done_count += 1
+            yield {
+                "type": "agent_done",
+                "agent": agent_name,
+                "label": agent_labels[agent_name],
+                "progress": done_count,
+                "total": 3,
+            }
+            
+            # Небольшая пауза между запросами для обхода лимитов
+            if done_count < 3:
+                await asyncio.sleep(1)
+
+        yield {
+            "type": "results",
+            "summarizer": results.get("summarizer", {"error": "Нет результата"}),
+            "flashcards": results.get("flashcards", {"error": "Нет результата"}),
+            "quiz": results.get("quiz", {"error": "Нет результата"}),
+        }
+
+    def _parse_result(self, name: str, raw: str) -> Any:
+        if name in ("flashcards", "quiz"):
+            try:
+                json_str = raw.strip()
+                # Try to extract from markdown blocks
+                if "```json" in json_str:
+                    json_str = json_str.split("```json")[1].split("```")[0]
+                elif "```" in json_str:
+                    json_str = json_str.split("```")[1].split("```")[0]
+                
+                # If still no luck, try to find the first '{' or '[' and last '}' or ']'
+                if not (json_str.startswith('{') or json_str.startswith('[')):
+                    start_idx = -1
+                    for char in ('{', '['):
+                        idx = json_str.find(char)
+                        if idx != -1 and (start_idx == -1 or idx < start_idx):
+                            start_idx = idx
+                    
+                    if start_idx != -1:
+                        end_char = '}' if json_str[start_idx] == '{' else ']'
+                        end_idx = json_str.rfind(end_char)
+                        if end_idx != -1:
+                            json_str = json_str[start_idx:end_idx+1]
+
+                parsed = json.loads(json_str.strip())
+                
+                # Normalize results: ensure {"quiz": [...]} or {"flashcards": [...]}
+                if isinstance(parsed, list):
+                    return {name: parsed}
+                if isinstance(parsed, dict):
+                    if name not in parsed and any(isinstance(v, list) for v in parsed.values()):
+                        # If the key is different but contains a list, rename the first list found
+                        for k, v in parsed.items():
+                            if isinstance(v, list):
+                                return {name: v}
+                    return parsed
+                
+                return {"error": "Invalid format", "raw": raw}
+            except Exception as e:
+                return {"error": f"Parse error: {str(e)}", "raw": raw}
+        return {"content": raw}
+
+================================================================================
+FILE: frontend/package.json
+================================================================================
+{
+  "name": "ai-student-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "framer-motion": "^11.15.0",
+    "lucide-react": "^0.383.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.3",
+    "canvas-confetti": "^1.9.2",
+    "react-router-dom": "^6.26.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "recharts": "^2.12.0",
+    "date-fns": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.14",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.5",
+    "@types/canvas-confetti": "^1.6.4"
+  }
+}
+
+================================================================================
+FILE: frontend/index.html
+================================================================================
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyForge — AI-анализ учебных материалов</title>
+    <meta name="description" content="Три AI-агента параллельно создают конспект, карточки и тест из любой лекции">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-slate-50">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+================================================================================
+FILE: frontend/vite.config.ts
+================================================================================
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
+})
+
+================================================================================
+FILE: frontend/tsconfig.json
+================================================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
+
+================================================================================
+FILE: frontend/tailwind.config.js
+================================================================================
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4F46E5',
+          700: '#4338ca',
+          800: '#3730a3',
+          900: '#312e81',
+        },
+      },
+    },
+  },
+  plugins: [],
+}
+
+================================================================================
+FILE: frontend/postcss.config.js
+================================================================================
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+
+================================================================================
+FILE: frontend/src/main.tsx
+================================================================================
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './index.css'
+import { AuthProvider } from './contexts/AuthContext'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  </React.StrictMode>,
+)
+
+================================================================================
+FILE: frontend/src/index.css
+================================================================================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f8fafc;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+.card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+  border-color: #cbd5e1;
+}
+
+================================================================================
+FILE: frontend/src/types.ts
+================================================================================
+export interface AgentStatus {
+  id: string;
+  label: string;
+  status: 'idle' | 'running' | 'done';
+  progress: number;
+}
+
+export interface AnalysisSettings {
+  summaryDetail: 'brief' | 'medium' | 'detailed';
+  flashcardCount: number;
+  quizCount: number;
+  quizDifficulty: 'easy' | 'medium' | 'hard' | 'mixed';
+  quizType: 'multiple' | 'truefalse';
+}
+
+export interface AnalysisState {
+  phase: 'upload' | 'extracting' | 'analyzing' | 'done' | 'error';
+  agents: AgentStatus[];
+  results: AnalysisResults | null;
+  settings: AnalysisSettings;
+  textLength?: number;
+
+  analysisDuration?: number;
+  sourceFileName?: string;
+  error?: string;
+}
+
+export interface AnalysisResults {
+  summarizer: any;
+  flashcards: any;
+  quiz: any;
+}
+
+export interface HistoryItem {
+  id: string;
+  date: string;
+  fileName: string;
+  textLength: number;
+  duration: number;
+  results: AnalysisResults;
+  settings: AnalysisSettings;
+}
+
+export const DEFAULT_SETTINGS: AnalysisSettings = {
+  summaryDetail: 'medium',
+  flashcardCount: 6,
+  quizCount: 5,
+  quizDifficulty: 'mixed',
+  quizType: 'multiple',
+};
+
+================================================================================
+FILE: frontend/src/demo.ts
+================================================================================
+export const DEMO_TEXT = `Нейронные сети и глубокое обучение
+
+Нейронная сеть — это математическая модель, вдохновлённая структурой биологического мозга. Она состоит из слоёв искусственных нейронов, каждый из которых получает входные сигналы, умножает их на веса, суммирует и пропускает через функцию активации. Результат передаётся следующему слою, образуя цепочку преобразований от входа к выходу.
+
+Архитектура нейронной сети
+
+Типичная полносвязная нейронная сеть включает три типа слоёв. Входной слой принимает исходные данные — например, пиксели изображения или признаки объекта. Скрытые слои выполняют последовательные нелинейные преобразования, извлекая всё более абстрактные представления. Выходной слой выдаёт результат: класс объекта, числовое предсказание или распределение вероятностей.
+
+Количество скрытых слоёв определяет глубину сети. Сети с одним-двумя скрытыми слоями называются неглубокими, а сети с десятками слоёв — глубокими. Именно глубокие сети способны автоматически выделять сложные иерархические признаки, что делает их столь эффективными в задачах распознавания образов.
+
+Функции активации
+
+Функция активации определяет выход нейрона и вводит нелинейность в модель. Без нелинейности многослойная сеть сводилась бы к одному линейному преобразованию. Наиболее распространённые функции:
+
+Сигмоида преобразует выход в интервал от нуля до единицы, что удобно для вероятностной интерпретации. Однако она страдает от проблемы затухающего градиента: при больших по модулю аргументах производная стремится к нулю, замедляя обучение глубоких сетей.
+
+ReLU (Rectified Linear Unit) возвращает максимум из нуля и входного значения. Она вычислительно проста и устраняет затухание градиента для положительных значений, но может приводить к мёртвым нейронам, которые перестают активироваться.
+
+GELU и Swish — современные функции, сочетающие преимущества ReLU с плавным переходом через ноль. Они показывают лучшие результаты в трансформерных архитектурах.
+
+Обучение нейронной сети
+
+Обучение сети заключается в подборе весов, минимизирующих функцию потерь — меру расхождения между предсказаниями и истинными значениями. Процесс состоит из повторяющихся шагов.
+
+Прямой проход: данные подаются на вход, проходят через все слои, и сеть выдаёт предсказание. Вычисляется функция потерь.
+
+Обратное распространение ошибки: с помощью правила дифференцирования сложной функции градиент потерь по каждому весу распространяется от выходного слоя к входному. Этот градиент показывает, как изменение веса повлияет на ошибку.
+
+Градиентный спуск: веса обновляются в направлении, противоположном градиенту, с шагом, определяемым скоростью обучения. Маленькая скорость обеспечивает стабильность, но замедляет сходимость; большая ускоряет обучение, но может вызвать осцилляции.
+
+Оптимизаторы Adam и RMSProp адаптируют скорость обучения для каждого параметра индивидуально, учитывая историю градиентов. Это значительно ускоряет сходимость по сравнению с ванильным градиентным спуском.
+
+Регуляризация и борьба с переобучением
+
+Переобучение — главная проблема глубоких сетей. Модель с большим числом параметров может запомнить обучающую выборку вместо выявления общих закономерностей. Для борьбы применяют несколько методов.
+
+Dropout случайно отключает часть нейронов во время обучения, заставляя сеть распределять информацию между разными путями. На этапе вывода все нейроны активны, но их выходы масштабируются.
+
+L2-регуляризация добавляет к функции потерь штраф за большие значения весов, предпочтая простые модели. Ранняя остановка прекращает обучение, когда ошибка на валидационной выборке начинает расти.
+
+Аугментация данных искусственно расширяет обучающую выборку путём случайных преобразований: поворотов, отражений, обрезки изображений. Это особенно эффективно в задачах компьютерного зрения.
+
+Сверточные нейронные сети
+
+Сверточные сети специализируются на обработке данных с пространственной структурой — изображений и сигналов. Их ключевая особенность — свёрточные слои, которые применяют обучаемые фильтры к небольшым участкам входа, сканируя его целиком.
+
+Фильтр нижних слоёв выделяет простые признаки: границы, углы, текстуры. Фильтры более глубоких слоёв комбинируют их в сложные паттерны: глаза, колёса, лица. Пулинг уменьшает пространственное разрешение, повышая инвариантность к сдвигам.
+
+Архитектуры ResNet, VGG и EfficientNet демонстрируют, как увеличение глубины и остаточные связи позволяют обучать сети из сотен слоёв, достигая сверхчеловеческой точности в классификации изображений.
+
+Трансформеры и механизм внимания
+
+Механизм внимания позволяет сети взвешивать значимость различных элементов входной последовательности. Самовнимание вычисляет три представления для каждого токена: запрос, ключ и значение. Совпадение запроса с ключом определяет вес, с которым значение одного токена учитывается при формировании представления другого.
+
+Трансформер полностью отказывается от рекуррентности и строится на самовнимании. Это обеспечивает параллелизацию вычислений и возможность моделировать дальние зависимости в тексте. Модели GPT и BERT, основанные на трансформерах, совершили революцию в обработке естественного языка.
+
+Заключение
+
+Нейронные сети прошли путь от теоретической модели до технологии, определяющей целые отрасли. Понимание их архитектуры, принципов обучения и методов регуляризации необходимо для эффективного применения и развития новых подходов в машинном обучении.`;
+
+================================================================================
+FILE: frontend/src/App.tsx
+================================================================================
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
+import Layout from './components/Layout';
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Analyze from './pages/Analyze';
+import Library from './pages/Library';
+import MaterialDetail from './pages/MaterialDetail';
+import Review from './pages/Review';
+import Planner from './pages/Planner';
+import Chat from './pages/Chat';
+import AuthCallback from './pages/AuthCallback';
+
+function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/" element={
+          <PrivateRoute><Layout /></PrivateRoute>
+        }>
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="analyze" element={<Analyze />} />
+          <Route path="library" element={<Library />} />
+          <Route path="library/:id" element={<MaterialDetail />} />
+          <Route path="review" element={<Review />} />
+          <Route path="planner" element={<Planner />} />
+          <Route path="chat" element={<Chat />} />
+        </Route>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+================================================================================
+FILE: frontend/src/lib/supabase.ts
+================================================================================
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://daunnytubqbzafjnpfnw.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhdW5ueXR1YnFiemFmam5wZm53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMzUxMDQsImV4cCI6MjA5NDYxMTEwNH0.1VLX3fW8NSmXlP6yknWbwslyrMMkc9TgA-oP3T_NzWE';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+================================================================================
+FILE: frontend/src/contexts/AuthContext.tsx
+================================================================================
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType>({
+  user: null, session: null, loading: true,
+  signOut: async () => {}
+});
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signOut = async () => { await supabase.auth.signOut(); };
+
+  return (
+    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthContext);
+
+================================================================================
+FILE: frontend/src/hooks/useAuth.ts
+================================================================================
+export { useAuth } from '../contexts/AuthContext';
+
+================================================================================
+FILE: frontend/src/hooks/useHistory.ts
+================================================================================
+import { useState } from 'react';
+import { HistoryItem } from '../types';
+
+const STORAGE_KEY = 'studyforge_history';
+const MAX_ITEMS = 10;
+
+export function useHistory() {
+  const load = (): HistoryItem[] => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch { return []; }
+  };
+
+  const [items, setItems] = useState<HistoryItem[]>(load);
+
+  const add = (item: HistoryItem) => {
+    setItems(prev => {
+      const next = [item, ...prev].slice(0, MAX_ITEMS);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const remove = (id: string) => {
+    setItems(prev => {
+      const next = prev.filter(i => i.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const clear = () => {
+    setItems([]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
+  return { items, add, remove, clear };
+}
+
+================================================================================
+FILE: frontend/src/api/materials.ts
+================================================================================
+import { supabase } from '../lib/supabase';
+
+export async function getMaterials(userId: string) {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('id, title, subject, created_at, flashcards_json, quiz_json')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getMaterialById(id: string) {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMaterial(id: string) {
+  const { error } = await supabase.from('materials').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateMaterialSubject(id: string, subject: string) {
+  const { error } = await supabase.from('materials').update({ subject }).eq('id', id);
+  if (error) throw error;
+}
+
+================================================================================
+FILE: frontend/src/api/flashcards.ts
+================================================================================
+import { supabase } from '../lib/supabase';
+
+export async function getDueCards(userId: string) {
+  const { data, error } = await supabase
+    .from('flashcard_progress')
+    .select('*')
+    .eq('user_id', userId)
+    .lte('next_review', new Date().toISOString())
+    .order('next_review', { ascending: true })
+    .limit(20);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function syncFlashcards(userId: string, materialId: string, cards: any[]) {
+  // Добавляет карточки только если их ещё нет
+  const existing = await supabase
+    .from('flashcard_progress')
+    .select('question')
+    .eq('material_id', materialId);
+  const existingQ = new Set((existing.data || []).map((r: any) => r.question));
+  const toInsert = cards
+    .filter((c: any) => !existingQ.has(c.question))
+    .map((c: any) => ({ user_id: userId, material_id: materialId, question: c.question, answer: c.answer }));
+  if (toInsert.length > 0) {
+    await supabase.from('flashcard_progress').insert(toInsert);
+  }
+}
+
+export async function updateCardProgress(cardId: string, quality: number) {
+  // SM-2 алгоритм
+  const { data: card } = await supabase.from('flashcard_progress').select('*').eq('id', cardId).single();
+  if (!card) return;
+
+  let { ease_factor, interval_days, repetitions } = card;
+  if (quality >= 3) {
+    if (repetitions === 0) interval_days = 1;
+    else if (repetitions === 1) interval_days = 6;
+    else interval_days = Math.round(interval_days * ease_factor);
+    repetitions += 1;
+    ease_factor = Math.max(1.3, ease_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+  } else {
+    repetitions = 0;
+    interval_days = 1;
+  }
+
+  const next_review = new Date();
+  next_review.setDate(next_review.getDate() + interval_days);
+
+  await supabase.from('flashcard_progress').update({
+    ease_factor, interval_days, repetitions,
+    next_review: next_review.toISOString()
+  }).eq('id', cardId);
+}
+
+================================================================================
+FILE: frontend/src/components/Layout.tsx
+================================================================================
+import { NavLink, Outlet } from 'react-router-dom';
+import { GraduationCap, LayoutDashboard, Zap, BookOpen, Brain, Calendar, MessageSquare, LogOut } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+
+const navItems = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Дашборд' },
+  { to: '/analyze', icon: Zap, label: 'Анализ материалов' },
+  { to: '/library', icon: BookOpen, label: 'Библиотека' },
+  { to: '/review', icon: Brain, label: 'Повторение' },
+  { to: '/planner', icon: Calendar, label: 'Планировщик' },
+  { to: '/chat', icon: MessageSquare, label: 'AI-чат' },
+];
+
+export default function Layout() {
+  const { user, signOut } = useAuth();
+  const email = user?.email ?? '';
+  const initial = email ? email[0].toUpperCase() : '?';
+
+  return (
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar */}
+      <aside className="w-64 bg-slate-900 flex flex-col shrink-0">
+        {/* Logo */}
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <GraduationCap className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-bold text-white text-lg">StudyForge</span>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 space-y-1">
+          {navItems.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition ' +
+                (isActive
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white')
+              }
+            >
+              <item.icon className="w-4 h-4" />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* User section */}
+        <div className="p-4 border-t border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+              {initial}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-slate-400 text-xs truncate">{email}</p>
+            </div>
+            <button
+              onClick={signOut}
+              className="text-slate-500 hover:text-rose-400 transition"
+              title="Выйти"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 overflow-auto">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/Header.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { GraduationCap, RotateCcw } from 'lucide-react';
+
+export default function Header({ onReset }: { onReset: () => void }) {
+  const [status, setStatus] = useState<'ok' | 'error' | 'checking'>('checking');
+
+  useEffect(() => {
+    const check = () => {
+      fetch('/api/health')
+        .then(r => r.json())
+        .then(d => setStatus(d.status === 'ok' ? 'ok' : 'error'))
+        .catch(() => setStatus('error'));
+    };
+    check();
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const dotClass = status === 'ok'
+    ? 'w-2 h-2 rounded-full bg-emerald-400'
+    : status === 'error'
+    ? 'w-2 h-2 rounded-full bg-rose-400 animate-pulse'
+    : 'w-2 h-2 rounded-full bg-slate-300 animate-pulse';
+  const dotTitle = status === 'ok' ? 'Бэкенд работает' : status === 'error' ? 'Бэкенд недоступен' : 'Проверка...';
+
+  return (
+    <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm sticky top-0 z-50">
+      <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+            <GraduationCap className="w-4 h-4 text-white" />
+          </div>
+          <span className="font-semibold text-slate-900 text-[15px]">StudyForge</span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
+            Мультиагентный AI · Llama 3.3 70B
+            <span className={dotClass} title={dotTitle} />
+          </span>
+        </div>
+        <button onClick={onReset}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition text-sm">
+          <RotateCcw className="w-3.5 h-3.5" />Заново
+        </button>
+      </div>
+    </header>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/UploadZone.tsx
+================================================================================
+import { useCallback, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Upload, FileText, X, Zap } from 'lucide-react';
+import SettingsPanel from './SettingsPanel';
+import { AnalysisSettings } from '../types';
+
+interface Props {
+  settings: AnalysisSettings;
+  onSettingsChange: (s: AnalysisSettings) => void;
+  onUpload: (f: File) => void;
+  onDemo: () => void;
+}
+
+export default function UploadZone({ settings, onSettingsChange, onUpload, onDemo }: Props) {
+  const [dragOver, setDragOver] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [sizeError, setSizeError] = useState('');
+
+  const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+
+  const validateAndSet = (f: File) => {
+    if (f.size > MAX_SIZE) {
+      setSizeError(`Файл слишком большой (${(f.size / 1024 / 1024).toFixed(1)} МБ). Максимум — 50 МБ.`);
+      setFile(null);
+    } else {
+      setSizeError('');
+      setFile(f);
+    }
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false);
+    const d = e.dataTransfer.files[0];
+    if (d) validateAndSet(d);
+  }, []);
+
+  const handleStart = () => { if (file) onUpload(file); };
+
+  return (
+    <div className="py-10 space-y-10">
+      {/* Hero */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3 leading-tight">
+          Превратите любую лекцию<br />в готовый учебный материал
+        </h1>
+        <p className="text-slate-500 text-lg mb-8">
+          Три AI-агента параллельно создают конспект, карточки и тест — за 15 секунд
+        </p>
+        <div className="flex flex-wrap justify-center gap-6">
+          <div className="flex items-center gap-2 text-slate-700">
+            <span className="text-xl">📝</span>
+            <span className="text-sm font-medium">Структурированный конспект</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-700">
+            <span className="text-xl">🃏</span>
+            <span className="text-sm font-medium">Карточки для запоминания</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-700">
+            <span className="text-xl">✅</span>
+            <span className="text-sm font-medium">Проверочный тест</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Шаг 1: Загрузка файла */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-7 h-7 rounded-full bg-brand-600 text-white text-sm flex items-center justify-center font-bold">1</span>
+          <span className="font-medium text-slate-800">Выберите файл</span>
+        </div>
+
+        {file ? (
+          <div className="card p-5 flex items-center gap-4">
+            <FileText className="w-10 h-10 text-brand-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-slate-900 font-medium truncate text-lg">{file.name}</p>
+              <p className="text-slate-400 text-sm">{(file.size / 1024).toFixed(1)} KB</p>
+              <p className="text-slate-400 text-sm">~{Math.round(file.size / 6)} слов · ~{Math.round(Math.round(file.size / 6) / 200)} мин чтения</p>
+            </div>
+            <button onClick={() => setFile(null)}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById('fi')?.click()}
+            className={'card p-14 text-center cursor-pointer transition border-2 border-dashed ' +
+              (dragOver ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:border-brand-300 hover:bg-slate-50')}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
+              <Upload className="w-7 h-7 text-brand-500" />
+            </div>
+            <p className="text-slate-800 font-semibold text-lg mb-1">Перетащите файл сюда</p>
+            <p className="text-slate-400">или нажмите для выбора</p>
+            <p className="text-slate-300 text-sm mt-3">Поддерживаются PDF, DOCX, TXT, MD — до 50 МБ</p>
+          </div>
+        )}
+        <input id="fi" type="file" className="hidden" accept=".pdf,.docx,.txt,.md,.doc"
+          onChange={e => { if (e.target.files?.[0]) validateAndSet(e.target.files[0]); }} />
+        {sizeError && (
+          <p className="mt-3 text-center text-sm text-rose-600">{sizeError}</p>
+        )}
+        <div className="mt-3 text-center">
+          <button onClick={onDemo}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm text-slate-500 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition font-medium">
+            ▶ Демо без файла
+          </button>
+        </div>
+      </motion.div>
+
+      {/* Шаг 2: Настройки */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-7 h-7 rounded-full bg-brand-600 text-white text-sm flex items-center justify-center font-bold">2</span>
+          <span className="font-medium text-slate-800">Настройте параметры</span>
+        </div>
+        <div className="card p-6">
+          <SettingsPanel settings={settings} onChange={onSettingsChange} />
+        </div>
+      </motion.div>
+
+      {/* Кнопка запуска */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+        <button
+          onClick={handleStart}
+          disabled={!file}
+          className={'w-full h-14 rounded-xl font-semibold flex items-center justify-center gap-2 transition text-base ' +
+            (file
+              ? 'bg-brand-600 hover:bg-brand-700 text-white cursor-pointer shadow-sm hover:shadow-md active:scale-[1.01]'
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed')}
+        >
+          <Zap className="w-5 h-5" />
+          {file ? 'Запустить анализ' : 'Сначала выберите файл'}
+        </button>
+      </motion.div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/AgentCards.tsx
+================================================================================
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { Loader2, CheckCircle2, Clock, Zap } from 'lucide-react';
+import { AgentStatus } from '../types';
+
+function CircularProgress({ value, size = 80, strokeWidth = 6 }: { value: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+  return (
+    <svg width={size} height={size} className="transform -rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
+      <motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#4F46E5" strokeWidth={strokeWidth}
+        strokeLinecap="round" strokeDasharray={circumference} initial={{ strokeDashoffset: circumference }}
+        animate={{ strokeDashoffset: offset }} transition={{ duration: 0.6, ease: 'easeOut' }} />
+    </svg>
+  );
+}
+
+function AgentTimer({ status }: { status: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef<number | null>(null);
+  const frameRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (status === 'running') {
+      startRef.current = Date.now();
+      const tick = () => {
+        if (startRef.current) setElapsed((Date.now() - startRef.current) / 1000);
+        frameRef.current = requestAnimationFrame(tick);
+      };
+      frameRef.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(frameRef.current);
+    } else {
+      cancelAnimationFrame(frameRef.current);
+    }
+  }, [status]);
+
+  if (status === 'idle') return null;
+  return status === 'done'
+    ? <span className="text-xs text-emerald-500 tabular-nums">{elapsed.toFixed(1)}с ✓</span>
+    : <span className="text-xs text-slate-400 tabular-nums">{elapsed.toFixed(1)}с</span>;
+}
+
+export default function AgentCards({ agents, phase, isDemo }: { agents: AgentStatus[]; phase: string; isDemo?: boolean }) {
+  const barColors: Record<string, string> = {
+    summarizer: 'bg-brand-500',
+    flashcards: 'bg-emerald-500',
+    quiz: 'bg-amber-500',
+  };
+  const trackColors: Record<string, string> = {
+    summarizer: 'bg-brand-100',
+    flashcards: 'bg-emerald-100',
+    quiz: 'bg-amber-100',
+  };
+  const borderColors: Record<string, string> = {
+    summarizer: 'border-brand-200',
+    flashcards: 'border-emerald-200',
+    quiz: 'border-amber-200',
+  };
+  const icons: Record<string, string> = { summarizer: '📝', flashcards: '🃏', quiz: '❓' };
+  const statusText: Record<string, Record<string, string>> = {
+    idle: { summarizer: 'Ожидание...', flashcards: 'Ожидание...', quiz: 'Ожидание...' },
+    running: { summarizer: 'Составляю конспект...', flashcards: 'Генерирую карточки...', quiz: 'Создаю вопросы...' },
+    done: { summarizer: 'Конспект готов', flashcards: 'Карточки готовы', quiz: 'Тест готов' },
+  };
+
+  // Гонка агентов — порядок финиша
+  const doneOrderRef = useRef<string[]>([]);
+  const prevDoneSet = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    agents.forEach(a => {
+      if (a.status === 'done' && !prevDoneSet.current.has(a.id)) {
+        prevDoneSet.current.add(a.id);
+        doneOrderRef.current.push(a.id);
+      }
+    });
+  }, [agents]);
+  const placeLabels = ['🏆 1й', '2й', '3й'];
+  const donePlace: Record<string, string> = {};
+  doneOrderRef.current.forEach((id, idx) => { donePlace[id] = placeLabels[idx]; });
+
+  const doneCount = agents.filter(a => a.status === 'done').length;
+  const pct = Math.round((doneCount / 3) * 100);
+
+  return (
+    <div className="py-10 relative">
+      {isDemo && (
+        <span className="absolute top-0 right-0 px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-bold tracking-wide">
+          ДЕМО
+        </span>
+      )}
+      {/* Центральный прогресс */}
+      <div className="flex flex-col items-center mb-10">
+        <div className="relative mb-3">
+          <CircularProgress value={pct} size={80} strokeWidth={6} />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-lg font-bold text-slate-800">{pct}%</span>
+          </div>
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-1">
+          {phase === 'extracting' ? 'Извлекаем текст из файла...' : 'Анализируем материал...'}
+        </h2>
+        <p className="text-slate-500 text-sm">
+          {phase === 'extracting'
+            ? 'Подготавливаем данные для анализа'
+            : `${doneCount} из 3 агентов завершили работу`}
+        </p>
+      </div>
+
+      {/* Гонка агентов */}
+      <div className="mb-8">
+        <div className="flex items-center gap-1.5 mb-3">
+          <Zap className="w-3 h-3 text-slate-400" />
+          <span className="text-xs text-slate-400 uppercase tracking-wider font-medium">Гонка агентов</span>
+        </div>
+        <div className="space-y-2">
+          {agents.map(agent => (
+            <div key={agent.id} className="flex items-center gap-2">
+              <div className="w-[90px] flex items-center gap-1.5 shrink-0">
+                <span className="text-sm">{icons[agent.id]}</span>
+                <span className="text-xs font-medium text-slate-700 truncate">{agent.label}</span>
+              </div>
+              <div className={'flex-1 h-3 rounded-full overflow-hidden ' + trackColors[agent.id]}>
+                {agent.status === 'idle' && (
+                  <div className={'h-full rounded-full w-0 ' + barColors[agent.id]} />
+                )}
+                {agent.status === 'running' && (
+                  <motion.div
+                    className={'h-full rounded-full ' + barColors[agent.id]}
+                    initial={{ width: '0%' }}
+                    animate={{ width: '88%' }}
+                    transition={{ duration: 8, ease: 'easeOut' }}
+                  />
+                )}
+                {agent.status === 'done' && (
+                  <motion.div
+                    className={'h-full rounded-full ' + barColors[agent.id]}
+                    initial={{ width: '88%', opacity: 0.5 }}
+                    animate={{ width: '100%', opacity: 1 }}
+                    transition={{ width: { duration: 0.3 }, opacity: { duration: 0.2 } }}
+                  />
+                )}
+              </div>
+              <div className="w-[60px] text-right shrink-0">
+                {agent.status === 'done' && donePlace[agent.id] ? (
+                  <span className={'text-xs font-bold tabular-nums ' + (donePlace[agent.id].startsWith('🏆') ? 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded' : 'text-slate-400')}>{donePlace[agent.id]}</span>
+                ) : (
+                  <AgentTimer status={agent.status} />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Карточки агентов */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {agents.map((agent, i) => (
+          <motion.div key={agent.id}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.12 }}
+            className={'card p-6 border-2 transition-colors ' + borderColors[agent.id]}>
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{icons[agent.id]}</span>
+                <span className="font-semibold text-lg text-slate-900">{agent.label}</span>
+              </div>
+              {agent.status === 'running' && <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />}
+              {agent.status === 'done' && <CheckCircle2 className="w-6 h-6 text-emerald-500" />}
+              {agent.status === 'idle' && <Clock className="w-5 h-5 text-slate-300" />}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">
+                {statusText[agent.status]?.[agent.id] || 'Ожидание...'}
+              </p>
+              <AgentTimer status={agent.status} />
+            </div>
+
+            <div className={'h-2 rounded-full overflow-hidden ' + trackColors[agent.id]}>
+              {agent.status === 'idle' && (
+                <div className={'h-full rounded-full w-0 ' + barColors[agent.id]} />
+              )}
+              {agent.status === 'running' && (
+                <motion.div
+                  className={'h-full rounded-full ' + barColors[agent.id]}
+                  initial={{ width: '0%' }}
+                  animate={{ width: '92%' }}
+                  transition={{ duration: 8, ease: 'easeInOut' }}
+                />
+              )}
+              {agent.status === 'done' && (
+                <motion.div
+                  className={'h-full rounded-full ' + barColors[agent.id]}
+                  initial={{ width: '92%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 0.4 }}
+                />
+              )}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/ResultsPanel.tsx
+================================================================================
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu } from 'lucide-react';
+import { AnalysisResults } from '../types';
+import SummaryView from './SummaryView';
+import FlashcardsView from './FlashcardsView';
+import QuizView from './QuizView';
+
+type Tab = 'summary' | 'flashcards' | 'quiz';
+
+function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): string {
+  const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const summaryContent = results.summarizer?.content || results.summarizer?.raw || '<p>Нет данных</p>';
+  const flashcards = results.flashcards?.flashcards || [];
+  const quiz = results.quiz?.quiz || [];
+
+  const flashcardsHtml = flashcards.map((c: any, i: number) =>
+    `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px">
+      <p style="font-weight:600;margin:0 0 8px 0">Вопрос ${i+1}: ${c.question}</p>
+      <p style="margin:0;color:#475569;border-top:1px solid #f1f5f9;padding-top:8px">${c.answer}</p>
+    </div>`
+  ).join('\n');
+
+  const quizHtml = quiz.map((q: any, i: number) => {
+    const options = (q.options || []).map((o: string) => {
+      const isCorrect = o.startsWith(q.correct);
+      return `<li style="padding:6px 12px;margin:4px 0;border-radius:6px;${isCorrect ? 'background:#d1fae5;font-weight:600' : 'background:#f8fafc'}">${o}${isCorrect ? ' ✓' : ''}</li>`;
+    }).join('\n');
+    return `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px">
+      <p style="font-weight:600;margin:0 0 8px 0">${i+1}. ${q.question}</p>
+      <ul style="list-style:none;padding:0;margin:0">${options}</ul>
+      ${q.explanation ? `<p style="margin:8px 0 0;color:#64748b;font-style:italic;border-top:1px solid #f1f5f9;padding-top:8px">💡 ${q.explanation}</p>` : ''}
+    </div>`;
+  }).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>StudyForge — Анализ материала</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1e293b; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 40px 24px; background: #fff; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; color: #0f172a; }
+  .meta { color: #94a3b8; font-size: 13px; margin-bottom: 32px; }
+  h2 { font-size: 18px; font-weight: 700; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #4F46E5; color: #1e293b; }
+  .section { margin-bottom: 24px; }
+  @media print {
+    body { padding: 0; }
+    h2 { page-break-after: avoid; }
+    .section { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<h1>StudyForge — Анализ материала</h1>
+<p class="meta">${sourceFileName || 'Демо'} · ${date} ${time}</p>
+
+<div class="section">
+<h2>📝 Конспект</h2>
+<div style="white-space:pre-wrap;font-size:15px;color:#334155;line-height:1.7">${summaryContent}</div>
+</div>
+
+<div class="section">
+<h2>🃏 Карточки (${flashcards.length})</h2>
+${flashcardsHtml || '<p style="color:#94a3b8">Нет данных</p>'}
+</div>
+
+<div class="section">
+<h2>❓ Тест (${quiz.length})</h2>
+${quizHtml || '<p style="color:#94a3b8">Нет данных</p>'}
+</div>
+
+</body>
+</html>`;
+}
+
+export default function ResultsPanel({ results, onReset, textLength, analysisDuration, sourceFileName }: {
+  results: AnalysisResults; onReset: () => void; textLength?: number; analysisDuration?: number; sourceFileName?: string;
+}) {
+  const [tab, setTab] = useState<Tab>('summary');
+  const [copied, setCopied] = useState(false);
+
+  const flashcardCount = results.flashcards?.flashcards?.length || 0;
+  const quizCount = results.quiz?.quiz?.length || 0;
+
+  const tabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
+    { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
+    { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
+    { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
+  ];
+
+  const getContent = () => {
+    if (tab === 'summary') return results.summarizer?.content || results.summarizer?.raw || '';
+    if (tab === 'flashcards') return JSON.stringify(results.flashcards?.flashcards || results.flashcards, null, 2);
+    return JSON.stringify(results.quiz?.quiz || results.quiz, null, 2);
+  };
+
+  const handleCopy = () => { navigator.clipboard.writeText(getContent()); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+
+  const handleDownload = () => {
+    const baseName = (sourceFileName || 'demo').replace(/\.[^.]+$/, '');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const html = buildHtmlExport(results, sourceFileName);
+    const b = new Blob([html], { type: 'text/html' });
+    const u = URL.createObjectURL(b);
+    const a = document.createElement('a');
+    a.href = u;
+    a.download = `studyforge_${baseName}_${dateStr}.html`;
+    a.click();
+    URL.revokeObjectURL(u);
+  };
+
+  return (
+    <div className="py-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-slate-900">Результаты</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={handleCopy}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200">
+            <Copy className="w-3.5 h-3.5" />{copied ? 'Скопировано' : 'Копировать'}
+          </button>
+          <button onClick={handleDownload}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200">
+            <Download className="w-3.5 h-3.5" />Скачать HTML
+          </button>
+          <button onClick={onReset}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition">
+            <RotateCcw className="w-3.5 h-3.5" />Новый анализ
+          </button>
+        </div>
+      </div>
+
+      {/* Статистика */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="card p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
+            <Hash className="w-4 h-4 text-brand-500" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Символов</p>
+            <p className="text-sm font-semibold text-slate-800">{textLength?.toLocaleString() || '—'}</p>
+            <p className="text-xs text-slate-400">{textLength ? `~${Math.round(textLength / 5)} слов` : '—'}</p>
+          </div>
+        </div>
+        <div className="card p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+            <Clock className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Время</p>
+            <p className="text-sm font-semibold text-slate-800">{analysisDuration ? `${analysisDuration} сек` : '—'}</p>
+          </div>
+        </div>
+        <div className="card p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+            <Cpu className="w-4 h-4 text-amber-500" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Агенты</p>
+            <p className="text-sm font-semibold text-slate-800">3 параллельно</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pill-вкладки */}
+      <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm transition font-medium ' +
+              (tab === t.id
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-white')}>
+            {t.icon}
+            {t.label}
+            {t.count !== undefined && (
+              <span className={'ml-0.5 text-xs ' + (tab === t.id ? 'text-brand-200' : 'text-slate-400')}>
+                ({t.count})
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px]">
+        {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} /></div>}
+        {tab === 'flashcards' && <FlashcardsView data={results.flashcards} />}
+        {tab === 'quiz' && <QuizView data={results.quiz} />}
+      </motion.div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/SummaryView.tsx
+================================================================================
+import ReactMarkdown from 'react-markdown';
+
+function SectionBlock({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-5">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-lg">{icon}</span>
+        <h3 className="font-semibold text-slate-900">{title}</h3>
+      </div>
+      <div className="pl-7 text-slate-700 text-[15px] leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+export default function SummaryView({ data }: { data: any }) {
+  const content = data?.content || data?.raw || '';
+  if (!content) return <p className="text-slate-400">Нет данных</p>;
+
+  const sections = content.split(/(?=^## )/gm).filter(Boolean);
+
+  const iconMap: Record<string, string> = {
+    '📌': '📌', '🔑': '🔑', '📖': '📖', '📚': '📚', '💡': '💡',
+  };
+
+  return (
+    <div className="space-y-1">
+      {sections.map((sec: string, i: number) => {
+        const match = sec.match(/^## (.+)/);
+        if (!match) return (
+          <div key={i} className="prose prose-slate max-w-none text-slate-700">
+            <ReactMarkdown>{sec}</ReactMarkdown>
+          </div>
+        );
+        const title = match[1].trim();
+        const body = sec.replace(/^## .+\n?/, '');
+        const icon = Object.keys(iconMap).find(k => title.includes(k)) || '📄';
+        const cleanTitle = title.replace(/[📌🔑📖📚💡]/g, '').trim();
+
+        return (
+          <SectionBlock key={i} icon={icon} title={cleanTitle}>
+            <div className="prose prose-slate prose-sm max-w-none">
+              <ReactMarkdown>{body}</ReactMarkdown>
+            </div>
+          </SectionBlock>
+        );
+      })}
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/FlashcardsView.tsx
+================================================================================
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Eye, EyeOff, GraduationCap, ArrowLeft, Check, X, Copy } from 'lucide-react';
+
+export default function FlashcardsView({ data }: { data: any }) {
+  const cards = data?.flashcards;
+
+  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [studyMode, setStudyMode] = useState(false);
+  const [studyIdx, setStudyIdx] = useState(0);
+  const [studyRevealed, setStudyRevealed] = useState(false);
+  const [studyResults, setStudyResults] = useState<Record<number, boolean>>({});
+  const [studyDone, setStudyDone] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState(-1);
+
+  const toggle = (i: number) => setRevealed({ ...revealed, [i]: !revealed[i] });
+  const revealAll = () => {
+    if (!cards || !Array.isArray(cards)) return;
+    const r: Record<number, boolean> = {};
+    cards.forEach((_: any, i: number) => { r[i] = true; });
+    setRevealed(r);
+  };
+  const hideAll = () => setRevealed({});
+
+  const startStudy = () => {
+    setStudyMode(true);
+    setStudyIdx(0);
+    setStudyRevealed(false);
+    setStudyResults({});
+    setStudyDone(false);
+  };
+
+  const exitStudy = () => setStudyMode(false);
+
+  const markCard = (known: boolean) => {
+    if (!cards) return;
+    const next = { ...studyResults, [studyIdx]: known };
+    if (studyIdx + 1 < cards.length) {
+      setStudyResults(next);
+      setStudyIdx(studyIdx + 1);
+      setStudyRevealed(false);
+    } else {
+      setStudyResults(next);
+      setStudyDone(true);
+    }
+  };
+
+  if (!cards || !Array.isArray(cards)) return <p className="text-slate-400">Нет данных</p>;
+
+  // Study mode
+  if (studyMode) {
+    const knownCount = Object.values(studyResults).filter(Boolean).length;
+
+    if (studyDone) {
+      return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="card p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+            <GraduationCap className="w-8 h-8 text-emerald-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900 mb-2">
+            Результат: {knownCount} из {cards.length}
+          </h3>
+          <p className="text-slate-500 mb-6">
+            {knownCount === cards.length ? 'Отлично! Вы знаете все карточки!' :
+             knownCount >= cards.length / 2 ? 'Неплохо, но есть что подтянуть.' :
+             'Стоит повторить материал ещё раз.'}
+          </p>
+          <div className="flex justify-center gap-3">
+            <button onClick={startStudy}
+              className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition">
+              Пройти снова
+            </button>
+            <button onClick={exitStudy}
+              className="px-5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition">
+              К списку
+            </button>
+          </div>
+        </motion.div>
+      );
+    }
+
+    const card = cards[studyIdx];
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={exitStudy}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition">
+            <ArrowLeft className="w-4 h-4" />К списку
+          </button>
+          <span className="text-sm text-slate-400">{studyIdx + 1} / {cards.length}</span>
+        </div>
+
+        <div className="card p-8 min-h-[260px] flex flex-col justify-center">
+          <p className="text-lg font-semibold text-slate-900 text-center mb-6">{card.question}</p>
+          <AnimatePresence mode="wait">
+            {studyRevealed ? (
+              <motion.p key="answer" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="text-slate-700 text-center border-t border-slate-100 pt-4">
+                {card.answer}
+              </motion.p>
+            ) : (
+              <motion.button key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                onClick={() => setStudyRevealed(true)}
+                className="mx-auto px-5 py-2 text-sm text-brand-600 border border-brand-200 rounded-lg hover:bg-brand-50 transition">
+                Показать ответ
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {studyRevealed && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex gap-3 mt-4">
+            <button onClick={() => markCard(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium hover:bg-emerald-100 transition">
+              <Check className="w-5 h-5" />Знаю
+            </button>
+            <button onClick={() => markCard(false)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-medium hover:bg-rose-100 transition">
+              <X className="w-5 h-5" />Ещё раз
+            </button>
+          </motion.div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // Normal mode
+  return (
+    <div>
+      <div className="flex gap-2 mb-4">
+        <button onClick={revealAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200">
+          <Eye className="w-3.5 h-3.5" />Показать все
+        </button>
+        <button onClick={hideAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200">
+          <EyeOff className="w-3.5 h-3.5" />Скрыть все
+        </button>
+        <button onClick={startStudy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition border border-brand-200">
+          <GraduationCap className="w-3.5 h-3.5" />Начать обучение
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {cards.map((c: any, i: number) => (
+          <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+            className="card p-4 cursor-pointer hover:border-slate-300 transition group"
+            onClick={() => toggle(i)}>
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-medium text-slate-900 mb-2">Q{i+1}: {c.question}</p>
+              <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(`Q: ${c.question}\nA: ${c.answer}`); setCopiedIdx(i); setTimeout(() => setCopiedIdx(-1), 1500); }}
+                className="shrink-0 opacity-0 group-hover:opacity-100 transition p-1 text-slate-300 hover:text-slate-500">
+                {copiedIdx === i ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            {revealed[i] ? (
+              <p className="text-slate-700 text-sm border-t border-slate-100 pt-2">{c.answer}</p>
+            ) : (
+              <p className="text-slate-400 text-sm border-t border-slate-100 pt-2 italic">Нажмите, чтобы увидеть ответ</p>
+            )}
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/QuizView.tsx
+================================================================================
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, XCircle, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import confetti from 'canvas-confetti';
+
+export default function QuizView({ data }: { data: any }) {
+  const quiz = data?.quiz;
+
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+
+  // Fullscreen mode state (separate from normal)
+  const [fsOpen, setFsOpen] = useState(false);
+  const [fsIdx, setFsIdx] = useState(0);
+  const [fsAnswers, setFsAnswers] = useState<Record<number, string>>({});
+  const [fsSubmitted, setFsSubmitted] = useState(false);
+
+  const handleSelect = (qi: number, option: string) => {
+    if (submitted) return;
+    setAnswers({ ...answers, [qi]: option });
+  };
+
+  const handleSubmit = () => {
+    setSubmitted(true);
+    const score = quiz.filter((q: any, i: number) => answers[i]?.startsWith(q.correct)).length;
+    if (score === quiz.length) {
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#4F46E5', '#10b981', '#f59e0b'] });
+    }
+  };
+  const handleRetry = () => { setAnswers({}); setSubmitted(false); };
+
+  if (!quiz || !Array.isArray(quiz)) {
+    return (
+      <div className="card p-6 bg-slate-50 border-slate-200">
+        <p className="text-slate-500 mb-2 font-medium">Тест не удалось сгенерировать корректно</p>
+        {data?.error && <p className="text-rose-500 text-xs mb-3">Ошибка: {data.error}</p>}
+        {data?.raw && (
+          <details className="text-xs">
+            <summary className="text-indigo-600 cursor-pointer hover:underline mb-2">Показать сырой ответ AI</summary>
+            <pre className="p-3 bg-slate-900 text-slate-300 rounded overflow-x-auto whitespace-pre-wrap max-h-64">
+              {data.raw}
+            </pre>
+          </details>
+        )}
+        {!data?.raw && !data?.error && <p className="text-slate-400 text-sm">Нет данных для отображения</p>}
+      </div>
+    );
+  }
+
+  const correct = quiz.filter((q: any, i: number) => answers[i]?.startsWith(q.correct)).length;
+  const total = quiz.length;
+  const pct = Math.round((correct / total) * 100);
+
+  const gradeInfo = pct >= 90 ? { label: 'Отлично', color: 'text-emerald-600', bg: 'bg-emerald-50' }
+    : pct >= 70 ? { label: 'Хорошо', color: 'text-brand-600', bg: 'bg-brand-50' }
+    : pct >= 50 ? { label: 'Удовлетворительно', color: 'text-amber-600', bg: 'bg-amber-50' }
+    : { label: 'Нужно подтянуть', color: 'text-rose-600', bg: 'bg-rose-50' };
+
+  // Fullscreen mode
+  if (fsOpen && quiz) {
+    const fsQ = quiz[fsIdx];
+    const fsTotal = quiz.length;
+    const fsCorrect = quiz.filter((q: any, i: number) => fsAnswers[i]?.startsWith(q.correct)).length;
+
+    const fsSelect = (opt: string) => {
+      if (fsSubmitted) return;
+      setFsAnswers({ ...fsAnswers, [fsIdx]: opt });
+    };
+
+    const fsNext = () => {
+      if (fsIdx + 1 < fsTotal) setFsIdx(fsIdx + 1);
+      else setFsSubmitted(true);
+    };
+
+    const fsExit = () => { setFsOpen(false); setFsIdx(0); setFsAnswers({}); setFsSubmitted(false); };
+
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900 overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-4 border-b border-slate-700">
+          <span className="text-white font-semibold text-lg">StudyForge — Тест для аудитории</span>
+          <button onClick={fsExit} className="flex items-center gap-1.5 text-white/70 hover:text-white transition text-sm">
+            <Minimize2 className="w-4 h-4" />Выйти
+          </button>
+        </div>
+
+        {!fsSubmitted ? (
+          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] px-8 py-12">
+            <p className="text-slate-400 text-2xl mb-6">Вопрос {fsIdx + 1} / {fsTotal}</p>
+            <p className="text-white text-3xl font-bold text-center max-w-3xl mx-auto mb-12">{fsQ.question}</p>
+            <div className="grid grid-cols-2 gap-4 max-w-3xl w-full">
+              {fsQ.options?.map((opt: string, j: number) => {
+                const selected = fsAnswers[fsIdx] === opt;
+                return (
+                  <div key={j} onClick={() => fsSelect(opt)}
+                    className={'rounded-2xl p-6 text-xl cursor-pointer transition border ' +
+                      (selected ? 'bg-brand-600 border-brand-500 text-white' : 'bg-slate-800 border-slate-700 text-white hover:bg-slate-700 hover:border-brand-500')}>
+                    {opt}
+                  </div>
+                );
+              })}
+            </div>
+            {fsAnswers[fsIdx] && (
+              <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                onClick={fsNext}
+                className="mt-10 px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-lg font-medium transition">
+                {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест'}
+              </motion.button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center px-8 py-12">
+            <p className="text-4xl font-bold text-white mb-2">Правильных ответов: {fsCorrect} из {fsTotal}</p>
+            <p className="text-slate-400 text-lg mb-10">{Math.round((fsCorrect / fsTotal) * 100)}%</p>
+            <div className="max-w-3xl w-full space-y-4">
+              {quiz.map((q: any, i: number) => {
+                const isCorrect = fsAnswers[i]?.startsWith(q.correct);
+                return (
+                  <div key={i} className={'rounded-xl p-5 border ' + (isCorrect ? 'bg-emerald-900/30 border-emerald-700' : 'bg-rose-900/20 border-rose-800')}>
+                    <p className="text-white font-medium mb-2">{i + 1}. {q.question}</p>
+                    <p className={isCorrect ? 'text-emerald-400 text-sm' : 'text-rose-400 text-sm'}>
+                      {isCorrect ? '✓ Верно' : `✗ Правильный ответ: ${q.correct}) ${q.options?.find((o: string) => o.startsWith(q.correct))?.replace(/^[A-D]\)\s*/, '') || q.correct}`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={fsExit}
+              className="mt-8 px-6 py-2.5 bg-white text-slate-900 rounded-lg font-medium hover:bg-slate-100 transition">
+              Закрыть
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {!submitted && (
+        <button onClick={() => setFsOpen(true)}
+          className="absolute top-0 right-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 border border-brand-200 hover:bg-brand-50 transition">
+          <Maximize2 className="w-3.5 h-3.5" />Показать аудитории
+        </button>
+      )}
+
+      {submitted && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className={'card p-5 mb-6 flex items-center justify-between ' + gradeInfo.bg}>
+          <div>
+            <p className={'font-bold text-lg ' + gradeInfo.color}>{correct} из {total} — {gradeInfo.label}</p>
+            <p className="text-slate-500 text-sm">{pct}% правильных ответов</p>
+          </div>
+          <button onClick={handleRetry}
+            className="flex items-center gap-1.5 px-4 py-2 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition border border-slate-200">
+            <RotateCcw className="w-3.5 h-3.5" />Пройти снова
+          </button>
+        </motion.div>
+      )}
+
+      <div className="space-y-4">
+        {quiz.map((q: any, i: number) => {
+          const selected = answers[i];
+          const isCorrect = selected?.startsWith(q.correct);
+          const isWrong = submitted && selected && !isCorrect;
+
+          return (
+            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+              className="card p-5">
+              <p className="font-medium text-slate-900 mb-3">{i+1}. {q.question}</p>
+              <div className="space-y-2">
+                {q.options?.map((opt: string, j: number) => {
+                  const isSelected = selected === opt;
+                  const isCorrectOpt = submitted && opt.startsWith(q.correct);
+                  const isWrongOpt = submitted && isSelected && !isCorrect;
+
+                  let cls = 'p-3 rounded-lg text-sm cursor-pointer transition border ';
+                  if (!submitted) {
+                    cls += isSelected ? 'bg-brand-50 border-brand-300 text-slate-900' : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-slate-300';
+                  } else if (isCorrectOpt) {
+                    cls += 'bg-emerald-50 border-emerald-300 text-emerald-800';
+                  } else if (isWrongOpt) {
+                    cls += 'bg-rose-50 border-rose-300 text-rose-800 line-through';
+                  } else {
+                    cls += 'bg-slate-50 border-slate-100 text-slate-400';
+                  }
+
+                  return (
+                    <div key={j} className={'flex items-center gap-2 ' + cls}
+                      onClick={() => handleSelect(i, opt)}>
+                      {isCorrectOpt && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
+                      {isWrongOpt && <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
+                      <span>{opt}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {submitted && q.explanation && (
+                <p className="mt-3 text-sm text-slate-500 italic border-t border-slate-100 pt-3">💡 {q.explanation}</p>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {!submitted && (
+        <div className="mt-6 text-center">
+          <p className="text-sm text-slate-400 mb-2">
+            Отвечено {Object.keys(answers).length} из {total} вопросов
+          </p>
+          {Object.keys(answers).length === total && (
+            <button onClick={handleSubmit}
+              className="px-8 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition">
+              Проверить ответы
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/HistoryPanel.tsx
+================================================================================
+import { motion } from 'framer-motion';
+import { FileText, X, Trash2 } from 'lucide-react';
+import { HistoryItem } from '../types';
+
+interface Props {
+  items: HistoryItem[];
+  onRestore: (item: HistoryItem) => void;
+  onRemove: (id: string) => void;
+  onClear: () => void;
+}
+
+export default function HistoryPanel({ items, onRestore, onRemove, onClear }: Props) {
+  if (items.length === 0) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-medium text-slate-800">История анализов</span>
+        <button onClick={onClear}
+          className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition">
+          <Trash2 className="w-3 h-3" />Очистить
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {items.map(item => (
+          <div key={item.id} className="card p-4 flex items-center gap-3">
+            <FileText className="w-5 h-5 text-brand-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-900 truncate">{item.fileName}</p>
+              <p className="text-xs text-slate-400">{item.date} · {item.textLength.toLocaleString()} символов · {item.duration} сек</p>
+            </div>
+            <button onClick={() => onRestore(item)}
+              className="px-3 py-1 rounded-lg text-xs font-medium text-brand-600 border border-brand-200 hover:bg-brand-50 transition">
+              Открыть
+            </button>
+            <button onClick={() => onRemove(item.id)}
+              className="p-1 text-slate-300 hover:text-rose-500 transition">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/components/SettingsPanel.tsx
+================================================================================
+import { AnalysisSettings } from '../types';
+
+interface Props {
+  settings: AnalysisSettings;
+  onChange: (s: AnalysisSettings) => void;
+}
+
+const detailLabels: Record<string, string> = { brief: 'Краткий', medium: 'Средний', detailed: 'Подробный' };
+const diffLabels: Record<string, string> = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный', mixed: 'Смешанный' };
+const typeLabels: Record<string, string> = { multiple: 'Выбор ответа', truefalse: 'Верно / Неверно' };
+
+function SegmentedControl({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex bg-slate-100 rounded-lg p-0.5">
+      {options.map(o => (
+        <button key={o.key} onClick={() => onChange(o.key)}
+          className={'px-3 py-1.5 rounded-md text-sm transition ' + (value === o.key ? 'bg-white text-slate-900 font-medium shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function SettingsPanel({ settings, onChange }: Props) {
+  const set = (patch: Partial<AnalysisSettings>) => onChange({ ...settings, ...patch });
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <label className="text-sm font-medium text-slate-700 mb-2 block">Детализация конспекта</label>
+        <SegmentedControl
+          options={Object.entries(detailLabels).map(([k, v]) => ({ key: k, label: v }))}
+          value={settings.summaryDetail}
+          onChange={v => set({ summaryDetail: v as any })}
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-slate-700 mb-2 block">Количество карточек: {settings.flashcardCount}</label>
+        <input type="range" min={3} max={12} value={settings.flashcardCount}
+          onChange={e => set({ flashcardCount: +e.target.value })}
+          className="w-full accent-brand-600" />
+        <div className="flex justify-between text-xs text-slate-400 mt-1"><span>3</span><span>12</span></div>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-slate-700 mb-2 block">Количество вопросов: {settings.quizCount}</label>
+        <input type="range" min={3} max={10} value={settings.quizCount}
+          onChange={e => set({ quizCount: +e.target.value })}
+          className="w-full accent-brand-600" />
+        <div className="flex justify-between text-xs text-slate-400 mt-1"><span>3</span><span>10</span></div>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-slate-700 mb-2 block">Сложность теста</label>
+        <SegmentedControl
+          options={Object.entries(diffLabels).map(([k, v]) => ({ key: k, label: v }))}
+          value={settings.quizDifficulty}
+          onChange={v => set({ quizDifficulty: v as any })}
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-slate-700 mb-2 block">Тип вопросов</label>
+        <SegmentedControl
+          options={Object.entries(typeLabels).map(([k, v]) => ({ key: k, label: v }))}
+          value={settings.quizType}
+          onChange={v => set({ quizType: v as any })}
+        />
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Landing.tsx
+================================================================================
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
+
+const features = [
+  { icon: '📊', title: 'Анализ материалов', desc: 'Загрузи лекцию и получи конспект, карточки и тест за 15 секунд' },
+  { icon: '🃏', title: 'Умное повторение', desc: 'Алгоритм spaced repetition показывает карточки в нужный момент' },
+  { icon: '📅', title: 'Планировщик', desc: 'AI строит план подготовки с учётом дат экзаменов' },
+  { icon: '📚', title: 'Библиотека', desc: 'Все твои материалы в одном месте с поиском' },
+  { icon: '💬', title: 'AI-чат', desc: 'Задавай вопросы по любой лекции из библиотеки' },
+  { icon: '📈', title: 'Прогресс', desc: 'Streak, графики активности, статистика по предметам' },
+];
+
+export default function Landing() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user) navigate('/dashboard');
+  }, [user]);
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] text-white">
+      {/* Hero */}
+      <section className="py-32 text-center px-6">
+        <motion.h1
+          initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-6xl font-black mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
+        >
+          StudyForge
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="text-2xl font-semibold text-slate-200 mb-4"
+        >
+          AI-платформа нового поколения для студентов
+        </motion.p>
+        <motion.p
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="text-lg text-slate-400 mb-10 max-w-xl mx-auto"
+        >
+          Анализируй лекции, повторяй карточки, планируй учёбу — всё в одном месте
+        </motion.p>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.45 }}
+          className="flex items-center justify-center gap-4"
+        >
+          <button
+            onClick={() => navigate('/register')}
+            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold text-white transition shadow-lg shadow-indigo-500/25"
+          >
+            Начать бесплатно →
+          </button>
+          <button
+            onClick={() => navigate('/login')}
+            className="px-8 py-3 border border-white/20 hover:border-white/40 rounded-xl font-semibold text-white transition"
+          >
+            Войти
+          </button>
+        </motion.div>
+      </section>
+
+      {/* Features */}
+      <section className="max-w-5xl mx-auto px-6 pb-24">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {features.map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 * i }}
+              className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6"
+            >
+              <span className="text-3xl mb-3 block">{f.icon}</span>
+              <h3 className="text-lg font-bold text-white mb-2">{f.title}</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="text-center py-8 text-slate-500 text-sm border-t border-slate-800">
+        StudyForge © 2025 · Создано с AI
+      </footer>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Login.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user) navigate('/dashboard');
+  }, [user]);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setError(error.message);
+    else navigate('/dashboard');
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+      <div className="bg-slate-800 rounded-2xl p-8 w-full max-w-md">
+        <h1 className="text-2xl font-bold text-white mb-6">Вход в StudyForge</h1>
+
+        {error && (
+          <p className="text-rose-400 text-sm mb-4">{error}</p>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-slate-400 mb-1 block">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-400 mb-1 block">Пароль</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              placeholder="••••••••"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="w-full h-11 mt-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition disabled:opacity-50"
+        >
+          {loading ? 'Входим...' : 'Войти'}
+        </button>
+
+        <p className="text-center text-sm text-slate-400 mt-4">
+          Нет аккаунта?{' '}
+          <button onClick={() => navigate('/register')} className="text-indigo-400 hover:text-indigo-300 transition">
+            Зарегистрироваться
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Register.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+
+export default function Register() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user) navigate('/dashboard');
+  }, [user]);
+
+  const handleRegister = async () => {
+    setLoading(true);
+    setError('');
+    if (password !== confirm) {
+      setError('Пароли не совпадают');
+      setLoading(false);
+      return;
+    }
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: window.location.origin + '/dashboard',
+      },
+    });
+    if (error) setError(error.message);
+    else navigate('/dashboard');
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+      <div className="bg-slate-800 rounded-2xl p-8 w-full max-w-md">
+        <h1 className="text-2xl font-bold text-white mb-6">Регистрация в StudyForge</h1>
+
+        {error && (
+          <p className="text-rose-400 text-sm mb-4">{error}</p>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-slate-400 mb-1 block">Имя</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              placeholder="Ваше имя"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-400 mb-1 block">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-400 mb-1 block">Пароль</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              placeholder="••••••••"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-slate-400 mb-1 block">Повтор пароля</label>
+            <input
+              type="password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              placeholder="••••••••"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleRegister}
+          disabled={loading}
+          className="w-full h-11 mt-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition disabled:opacity-50"
+        >
+          {loading ? 'Регистрируем...' : 'Зарегистрироваться'}
+        </button>
+
+        <p className="text-center text-sm text-slate-400 mt-4">
+          Уже есть аккаунт?{' '}
+          <button onClick={() => navigate('/login')} className="text-indigo-400 hover:text-indigo-300 transition">
+            Войти
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/AuthCallback.tsx
+================================================================================
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+
+export default function AuthCallback() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Обрабатываем токены из URL (email confirmation, magic link)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        // Слушаем событие входа после обработки токена
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if (event === 'SIGNED_IN' && session) {
+            navigate('/dashboard', { replace: true });
+            subscription.unsubscribe();
+          } else if (event === 'TOKEN_REFRESHED') {
+            navigate('/dashboard', { replace: true });
+            subscription.unsubscribe();
+          }
+        });
+        // Если через 3 секунды ничего — на логин
+        setTimeout(() => {
+          navigate('/login', { replace: true });
+          subscription.unsubscribe();
+        }, 3000);
+      }
+    });
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-4">
+      <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <p className="text-slate-400 text-sm">Выполняем вход...</p>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Dashboard.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar } from 'lucide-react';
+import { format, subDays } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { getMaterials } from '../api/materials';
+import { getDueCards } from '../api/flashcards';
+
+function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
+  const bgMap: Record<string, string> = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', rose: 'bg-rose-50' };
+  const textMap: Record<string, string> = { indigo: 'text-indigo-600', emerald: 'text-emerald-600', amber: 'text-amber-600', rose: 'text-rose-600' };
+  return (
+    <div className="card p-4 flex items-center gap-3">
+      <div className={`w-10 h-10 ${bgMap[color]} rounded-xl flex items-center justify-center`}>
+        <Icon className={`w-5 h-5 ${textMap[color]}`} />
+      </div>
+      <div>
+        <p className="text-2xl font-bold text-slate-900">{value}</p>
+        <p className="text-xs text-slate-500">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [dueCards, setDueCards] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([
+      getMaterials(user.id),
+      getDueCards(user.id),
+      supabase.from('subjects').select('*').eq('user_id', user.id),
+      supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
+    ]).then(([mats, cards, subRes, sessRes]) => {
+      setMaterials(mats);
+      setDueCards(cards);
+      setSubjects(subRes.data || []);
+      setSessions(sessRes.data || []);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, [user]);
+
+  const streak = (() => {
+    const dates = new Set(sessions.map((s: any) => s.date));
+    let count = 0;
+    let d = new Date();
+    while (dates.has(format(d, 'yyyy-MM-dd'))) {
+      count++;
+      d = subDays(d, 1);
+    }
+    return count;
+  })();
+
+  const chartData = (() => {
+    const map: Record<string, number> = {};
+    sessions.forEach((s: any) => { map[s.date] = s.cards_reviewed; });
+    const days = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = subDays(new Date(), i);
+      const key = format(d, 'yyyy-MM-dd');
+      days.push({ day: format(d, 'dd.MM'), cards_reviewed: map[key] || 0 });
+    }
+    return days;
+  })();
+
+  if (loading) return (
+    <div className="p-6 flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  const name = user?.user_metadata?.full_name || 'Студент';
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Greeting */}
+      <h1 className="text-2xl font-bold text-slate-900 mb-1">Привет, {name}! 👋</h1>
+      <p className="text-slate-500 mb-6 capitalize">{format(new Date(), 'EEEE, d MMMM', { locale: ru })}</p>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard icon={BookOpen} label="Материалов" value={materials.length} color="indigo" />
+        <StatCard icon={Brain} label="Карточек сегодня" value={dueCards.length} color="emerald" />
+        <StatCard icon={GraduationCap} label="Предметов" value={subjects.length} color="amber" />
+        <StatCard icon={Flame} label="Дней подряд" value={streak} color="rose" />
+      </div>
+
+      {/* Two columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        {/* Due cards */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-900">На повторение сегодня</h2>
+            <button onClick={() => navigate('/review')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Начать →</button>
+          </div>
+          {dueCards.length === 0 ? (
+            <p className="text-emerald-600 text-sm">Все карточки повторены! ✅</p>
+          ) : (
+            <div className="space-y-2">
+              {dueCards.slice(0, 3).map((c: any) => (
+                <div key={c.id} className="flex items-center gap-2 text-sm text-slate-600">
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="truncate">{c.question}</span>
+                </div>
+              ))}
+              {dueCards.length > 3 && (
+                <p className="text-xs text-slate-400">+ ещё {dueCards.length - 3}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Recent materials */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-900">Последние материалы</h2>
+            <button onClick={() => navigate('/library')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Все →</button>
+          </div>
+          {materials.length === 0 ? (
+            <button onClick={() => navigate('/analyze')} className="text-sm text-indigo-600 hover:text-indigo-700">Загрузи первую лекцию →</button>
+          ) : (
+            <div className="space-y-2">
+              {materials.slice(0, 3).map((m: any) => (
+                <div
+                  key={m.id}
+                  onClick={() => navigate('/library/' + m.id)}
+                  className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-900 transition"
+                >
+                  <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="truncate flex-1">{m.title}</span>
+                  <span className="text-xs text-slate-400 shrink-0">{format(new Date(m.created_at), 'dd.MM.yy')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Activity chart */}
+      <div className="card p-5 mt-6">
+        <h2 className="font-semibold text-slate-900 mb-4">Активность за 2 недели</h2>
+        <div style={{ height: 200 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#94a3b8" />
+              <Tooltip
+                contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}
+                labelFormatter={(l: string) => l}
+                formatter={(v: number) => [v, 'Карточек']}
+              />
+              <Bar dataKey="cards_reviewed" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-3 gap-4 mt-6">
+        <button
+          onClick={() => navigate('/analyze')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-indigo-100 transition">
+            <Zap className="w-5 h-5 text-indigo-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Загрузить лекцию</p>
+        </button>
+        <button
+          onClick={() => navigate('/review')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition">
+            <Brain className="w-5 h-5 text-emerald-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Повторить карточки</p>
+        </button>
+        <button
+          onClick={() => navigate('/planner')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-amber-100 transition">
+            <Calendar className="w-5 h-5 text-amber-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Открыть планировщик</p>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Analyze.tsx
+================================================================================
+import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import UploadZone from '../components/UploadZone';
+import AgentCards from '../components/AgentCards';
+import ResultsPanel from '../components/ResultsPanel';
+import { AnalysisState, AgentStatus, DEFAULT_SETTINGS } from '../types';
+import { DEMO_TEXT } from '../demo';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+import { syncFlashcards } from '../api/flashcards';
+
+const initAgents: AgentStatus[] = [
+  { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
+  { id: 'flashcards', label: 'Карточки', status: 'idle', progress: 0 },
+  { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
+];
+
+interface Toast {
+  id: number;
+  text: string;
+}
+
+export default function Analyze() {
+  const [state, setState] = useState<AnalysisState>({
+    phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS,
+  });
+  const [isDemo, setIsDemo] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastId = useRef(0);
+  const analysisStartRef = useRef<number>(0);
+  const sourceFileNameRef = useRef<string>('');
+  const textLengthRef = useRef<number>(0);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const addToast = (text: string) => {
+    const id = ++toastId.current;
+    setToasts(prev => [...prev, { id, text }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+  };
+
+  const handleUpload = async (file: File) => {
+    analysisStartRef.current = Date.now();
+    sourceFileNameRef.current = file.name;
+    setState({ phase: 'extracting', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: file.name });
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('summary_detail', state.settings.summaryDetail);
+    fd.append('flashcard_count', String(state.settings.flashcardCount));
+    fd.append('quiz_count', String(state.settings.quizCount));
+    fd.append('quiz_difficulty', state.settings.quizDifficulty);
+    fd.append('quiz_type', state.settings.quizType);
+    try {
+      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Ошибка сервера'); }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No body');
+      const dec = new TextDecoder(); let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n'); buf = lines.pop() || '';
+        for (const l of lines) {
+          if (l.startsWith('data: ')) {
+            try { handleSSE(JSON.parse(l.slice(6))); } catch {}
+          }
+        }
+      }
+    } catch (err: any) { setState(p => ({ ...p, phase: 'error', error: err.message })); }
+  };
+
+  const agentDoneLabels: Record<string, string> = {
+    summarizer: '✅ Конспект готов',
+    flashcards: '✅ Карточки готовы',
+    quiz: '✅ Тест готов',
+  };
+
+  const handleSSE = (d: any) => {
+    if (d.type === 'text_extracted') { setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); textLengthRef.current = d.length; }
+    else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
+    else if (d.type === 'agent_done') {
+      addToast(agentDoneLabels[d.agent] || '✅ Агент завершён');
+      setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
+    }
+    else if (d.type === 'results') {
+      const results = { summarizer: d.summarizer, flashcards: d.flashcards, quiz: d.quiz };
+      const dur = analysisStartRef.current
+        ? Math.round((Date.now() - analysisStartRef.current) / 1000)
+        : 0;
+      setState(p => ({ ...p, phase: 'done', results, analysisDuration: dur || undefined }));
+
+      if (user) {
+        const title = sourceFileNameRef.current
+          ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
+          : 'Без названия';
+
+        (async () => {
+          const { data: inserted, error } = await supabase
+            .from('materials')
+            .insert({
+              user_id: user.id,
+              title,
+              subject: '',
+              original_text: '',
+              summary_json: results.summarizer,
+              flashcards_json: results.flashcards,
+              quiz_json: results.quiz,
+            })
+            .select('id')
+            .single();
+
+          if (error) {
+            console.error('Supabase insert error:', error);
+            return;
+          }
+
+          const cards = results.flashcards?.flashcards || [];
+          if (cards.length > 0 && inserted?.id) {
+            await syncFlashcards(user.id, inserted.id, cards);
+          }
+        })();
+      }
+    }
+    else if (d.type === 'error') setState(p => ({ ...p, phase: 'error', error: d.message }));
+  };
+
+  const reset = () => { setState({ phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS }); setIsDemo(false); };
+
+  const handleDemo = () => {
+    setIsDemo(true);
+    const file = new File([DEMO_TEXT], 'demo_lecture.txt', { type: 'text/plain' });
+    handleUpload(file);
+  };
+
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      <AnimatePresence mode="wait">
+        {state.phase === 'upload' && (
+          <motion.div key="upload" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+            <UploadZone settings={state.settings} onSettingsChange={s => setState(p => ({ ...p, settings: s }))} onUpload={handleUpload} onDemo={handleDemo} />
+          </motion.div>
+        )}
+        {(state.phase === 'extracting' || state.phase === 'analyzing') && (
+          <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <AgentCards agents={state.agents} phase={state.phase} isDemo={isDemo} />
+          </motion.div>
+        )}
+        {state.phase === 'done' && state.results && (
+          <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <ResultsPanel results={state.results} onReset={reset} textLength={state.textLength} analysisDuration={state.analysisDuration} sourceFileName={state.sourceFileName} />
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => navigate('/library')}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
+              >
+                📚 Перейти в библиотеку
+              </button>
+            </div>
+          </motion.div>
+        )}
+        {state.phase === 'error' && (
+          <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
+            <p className="text-4xl mb-3">⚠️</p>
+            <h2 className="text-lg font-semibold text-slate-900 mb-1">Ошибка</h2>
+            <p className="text-slate-500 mb-4 text-sm">{state.error}</p>
+            <button onClick={reset} className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition">Попробовать снова</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toasts */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div key={t.id}
+              initial={{ opacity: 0, x: 40, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 40, scale: 0.95 }}
+              className="bg-white border border-slate-200 shadow-lg rounded-lg px-4 py-2.5 text-sm text-slate-700 font-medium">
+              {t.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Library.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, BookOpen, Trash2, Plus } from 'lucide-react';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { useAuth } from '../hooks/useAuth';
+import { getMaterials, deleteMaterial } from '../api/materials';
+
+export default function Library() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [subjectFilter, setSubjectFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    getMaterials(user.id)
+      .then(data => setMaterials(data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
+
+  const filtered = materials.filter(m => {
+    const matchSearch = m.title.toLowerCase().includes(search.toLowerCase());
+    const matchSubject = !subjectFilter || m.subject === subjectFilter;
+    return matchSearch && matchSubject;
+  });
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm('Удалить материал?')) return;
+    await deleteMaterial(id);
+    setMaterials(prev => prev.filter(m => m.id !== id));
+  };
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Библиотека знаний</h1>
+        <button
+          onClick={() => navigate('/analyze')}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
+        >
+          <Plus className="w-4 h-4" />
+          Новый анализ →
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Поиск по названию..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+          />
+        </div>
+        {subjects.length > 0 && (
+          <select
+            value={subjectFilter}
+            onChange={e => setSubjectFilter(e.target.value)}
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+          >
+            <option value="">Все предметы</option>
+            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="animate-pulse bg-slate-200 h-24 rounded-xl" />
+          ))}
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && materials.length === 0 && (
+        <div className="text-center py-20">
+          <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-700 mb-2">Библиотека пуста</h2>
+          <p className="text-slate-400 text-sm mb-6">Загрузите первую лекцию, чтобы начать</p>
+          <button
+            onClick={() => navigate('/analyze')}
+            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
+          >
+            Загрузить первый материал
+          </button>
+        </div>
+      )}
+
+      {/* Grid */}
+      {!loading && filtered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(m => {
+            const fcCount = m.flashcards_json?.flashcards?.length || 0;
+            const qCount = m.quiz_json?.quiz?.length || 0;
+            return (
+              <div
+                key={m.id}
+                onClick={() => navigate('/library/' + m.id)}
+                className="card p-5 cursor-pointer hover:shadow-md transition group"
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-semibold text-slate-900 truncate">{m.title}</h3>
+                  <button
+                    onClick={e => handleDelete(e, m.id)}
+                    className="shrink-0 text-slate-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                {m.subject && (
+                  <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-md mb-2">{m.subject}</span>
+                )}
+                <div className="flex items-center gap-3 text-sm text-slate-500 mb-2">
+                  <span>📝</span>
+                  <span>🃏 {fcCount}</span>
+                  <span>❓ {qCount}</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* No results for filter */}
+      {!loading && materials.length > 0 && filtered.length === 0 && (
+        <p className="text-center text-slate-400 py-10">Ничего не найдено</p>
+      )}
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/MaterialDetail.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Edit3, Check, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import ResultsPanel from '../components/ResultsPanel';
+import { getMaterialById, updateMaterialSubject } from '../api/materials';
+
+export default function MaterialDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [material, setMaterial] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [editingSubject, setEditingSubject] = useState(false);
+  const [subjectInput, setSubjectInput] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    getMaterialById(id)
+      .then(data => {
+        setMaterial(data);
+        setSubjectInput(data.subject || '');
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const saveSubject = async () => {
+    if (!id) return;
+    await updateMaterialSubject(id, subjectInput);
+    setMaterial((prev: any) => ({ ...prev, subject: subjectInput }));
+    setEditingSubject(false);
+  };
+
+  if (loading) return (
+    <div className="p-6 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!material) return (
+    <div className="p-6 text-center">
+      <p className="text-slate-400">Материал не найден</p>
+      <button onClick={() => navigate('/library')} className="mt-4 text-indigo-600 text-sm hover:underline">← Библиотека</button>
+    </div>
+  );
+
+  const hasFlashcards = material.flashcards_json?.flashcards?.length > 0;
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Back */}
+      <button
+        onClick={() => navigate('/library')}
+        className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 text-sm mb-4 transition"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Библиотека
+      </button>
+
+      {/* Title & Subject */}
+      <div className="mb-2">
+        <h1 className="text-2xl font-bold text-slate-900">{material.title}</h1>
+      </div>
+
+      <div className="flex items-center gap-3 mb-2">
+        {editingSubject ? (
+          <div className="flex items-center gap-2">
+            <input
+              value={subjectInput}
+              onChange={e => setSubjectInput(e.target.value)}
+              className="px-3 py-1 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Предмет"
+              autoFocus
+            />
+            <button onClick={saveSubject} className="text-emerald-600 hover:text-emerald-700"><Check className="w-4 h-4" /></button>
+            <button onClick={() => { setEditingSubject(false); setSubjectInput(material.subject || ''); }} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setEditingSubject(true)}
+            className="flex items-center gap-1.5 text-sm"
+          >
+            {material.subject ? (
+              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">{material.subject}</span>
+            ) : (
+              <span className="text-slate-400 flex items-center gap-1"><Edit3 className="w-3 h-3" />Добавить предмет</span>
+            )}
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs text-slate-400 mb-6">
+        {format(new Date(material.created_at), 'dd.MM.yyyy', { locale: ru })}
+      </p>
+
+      {/* Results */}
+      <ResultsPanel
+        results={{
+          summarizer: material.summary_json,
+          flashcards: material.flashcards_json,
+          quiz: material.quiz_json,
+        }}
+        onReset={() => navigate('/library')}
+        textLength={0}
+      />
+
+      {/* Review CTA */}
+      {hasFlashcards && (
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => navigate('/review')}
+            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition"
+          >
+            🧠 Начать повторение карточек
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Review.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { CheckCircle2, Zap } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { getDueCards, updateCardProgress } from '../api/flashcards';
+
+function CircularProgress({ value, size = 100, strokeWidth = 8 }: { value: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+  const color = value >= 80 ? '#10b981' : value >= 50 ? '#f59e0b' : '#ef4444';
+  return (
+    <svg width={size} height={size} className="transform -rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+        strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} />
+    </svg>
+  );
+}
+
+export default function Review() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [cards, setCards] = useState<any[]>([]);
+  const [idx, setIdx] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0 });
+  const [done, setDone] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const loadCards = () => {
+    if (!user?.id) return;
+    setLoading(true);
+    getDueCards(user.id)
+      .then(data => { setCards(data); setIdx(0); setRevealed(false); setSessionStats({ correct: 0, wrong: 0 }); setDone(false); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadCards(); }, [user?.id]);
+
+  const handleAnswer = async (quality: number) => {
+    if (processing || !cards[idx]) return;
+    setProcessing(true);
+    try {
+      await updateCardProgress(cards[idx].id, quality);
+      if (quality >= 3) setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
+      else setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
+
+      if (idx + 1 >= cards.length) setDone(true);
+      else { setIdx(p => p + 1); setRevealed(false); }
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="p-6 flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  // No cards due
+  if (cards.length === 0) return (
+    <div className="p-6 text-center py-20">
+      <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+      <h2 className="text-xl font-bold text-slate-900 mb-2">Отличная работа!</h2>
+      <p className="text-slate-500 mb-6">На сегодня карточек нет. Приходите завтра!</p>
+      <div className="flex justify-center gap-3">
+        <button onClick={() => navigate('/library')} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+          В библиотеку
+        </button>
+        <button onClick={() => navigate('/analyze')} className="px-5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition">
+          Новый анализ
+        </button>
+      </div>
+    </div>
+  );
+
+  // Session done
+  if (done) {
+    const total = sessionStats.correct + sessionStats.wrong;
+    const pct = total > 0 ? Math.round((sessionStats.correct / total) * 100) : 0;
+    return (
+      <div className="p-6 text-center py-16">
+        <h2 className="text-2xl font-bold text-slate-900 mb-6">Сессия завершена! 🎉</h2>
+        <div className="relative inline-block mb-4">
+          <CircularProgress value={pct} size={120} strokeWidth={10} />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-2xl font-bold text-slate-800">{pct}%</span>
+          </div>
+        </div>
+        <p className="text-slate-500 mb-1">Правильно: <span className="font-semibold text-emerald-600">{sessionStats.correct}</span> из {total}</p>
+        <p className="text-slate-400 text-sm mb-8">Карточки будут показаны снова по расписанию spaced repetition</p>
+        <div className="flex justify-center gap-3">
+          <button onClick={loadCards} className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition">
+            <Zap className="w-4 h-4" />Повторить ещё
+          </button>
+          <button onClick={() => navigate('/dashboard')} className="px-5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition">
+            На дашборд
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const card = cards[idx];
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto">
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
+          <span>{idx + 1} / {cards.length} карточек</span>
+          <span>{sessionStats.correct} ✓ · {sessionStats.wrong} ✗</span>
+        </div>
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${((idx) / cards.length) * 100}%` }} />
+        </div>
+      </div>
+
+      {/* Card */}
+      <motion.div
+        key={idx}
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="card min-h-48 p-8 flex flex-col items-center justify-center cursor-pointer"
+        onClick={() => !revealed && setRevealed(true)}
+      >
+        <span className="text-xs uppercase text-slate-400 tracking-wider mb-3">Вопрос</span>
+        <p className="text-xl font-medium text-slate-900 text-center mb-6">{card.question}</p>
+
+        {revealed && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full border-t border-slate-100 pt-6">
+            <span className="text-xs uppercase text-emerald-500 tracking-wider mb-2 block text-center">Ответ</span>
+            <p className="text-slate-700 text-center">{card.answer}</p>
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* Actions */}
+      <div className="mt-6">
+        {!revealed ? (
+          <button
+            onClick={() => setRevealed(true)}
+            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition"
+          >
+            Показать ответ
+          </button>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => handleAnswer(1)}
+              className="h-12 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl font-medium transition"
+            >
+              Не знал 😕
+            </button>
+            <button
+              onClick={() => handleAnswer(3)}
+              className="h-12 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-xl font-medium transition"
+            >
+              Затруднялся 🤔
+            </button>
+            <button
+              onClick={() => handleAnswer(5)}
+              className="h-12 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-xl font-medium transition"
+            >
+              Знал! 😎
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Planner.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { Calendar, Trash2, Sparkles, CheckSquare, Square, Info } from 'lucide-react';
+import { format, differenceInDays } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+
+export default function Planner() {
+  const { user } = useAuth();
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  const [goals, setGoals] = useState('');
+  const [plan, setPlan] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hours, setHours] = useState(2);
+  const [newName, setNewName] = useState('');
+  const [newDate, setNewDate] = useState('');
+  const [newColor, setNewColor] = useState('#4F46E5');
+
+  const loadData = async () => {
+    if (!user) return;
+    const { data: sub } = await supabase.from('subjects').select('*').eq('user_id', user.id).order('exam_date');
+    const { data: mat } = await supabase.from('materials').select('id, title, summary_json').eq('user_id', user.id);
+    setSubjects(sub || []);
+    setMaterials(mat || []);
+  };
+
+  useEffect(() => { loadData(); }, [user]);
+
+  const addSubject = async () => {
+    if (!newName || !newDate) return;
+    await supabase.from('subjects').insert({ user_id: user!.id, name: newName, exam_date: newDate, color: newColor });
+    setNewName('');
+    setNewDate('');
+    loadData();
+  };
+
+  const deleteSubject = async (id: string) => {
+    await supabase.from('subjects').delete().eq('id', id);
+    loadData();
+  };
+
+  const generatePlan = async () => {
+    setLoading(true);
+    try {
+      const selectedContent = materials
+        .filter(m => selectedMaterials.includes(m.id))
+        .map(m => `Документ "${m.title}": ${m.summary_json?.content || ''}`)
+        .join('\n\n');
+
+      const res = await fetch('/api/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjects: subjects.map(s => ({ name: s.name, exam_date: s.exam_date, color: s.color })),
+          available_hours_per_day: hours,
+          context_materials: selectedContent,
+          user_goals: goals
+        }),
+      });
+      const data = await res.json();
+      setPlan(data.plan || []);
+    } catch {
+      setPlan([]);
+    }
+    setLoading(false);
+  };
+
+  const toggleMaterial = (id: string) => {
+    setSelectedMaterials(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const getColorForSubject = (name: string) => {
+    const s = subjects.find((s: any) => s.name === name);
+    return s?.color || '#4F46E5';
+  };
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-2 mb-6">
+        <Calendar className="w-5 h-5 text-indigo-600" />
+        <h1 className="text-xl font-bold text-slate-900">Персональный планировщик</h1>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="card p-5">
+            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-slate-400" /> Экзамены
+            </h2>
+            <div className="space-y-3 mb-4">
+              {subjects.map(s => (
+                <div key={s.id} className="flex items-center justify-between text-sm p-2 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                    <span className="font-medium truncate">{s.name}</span>
+                  </div>
+                  <button onClick={() => deleteSubject(s.id)} className="text-slate-300 hover:text-rose-500 ml-2">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название" className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              <button onClick={addSubject} className="w-full py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition">Добавить предмет</button>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-slate-400" /> Часы в день
+            </h2>
+            <input type="number" min={1} max={12} value={hours} onChange={e => setHours(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          <div className="card p-6">
+            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-500" /> На чем основывать план?
+            </h2>
+            
+            <p className="text-sm text-slate-500 mb-4">Выберите материалы из библиотеки, которые нужно изучить:</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+              {materials.map(m => (
+                <div 
+                  key={m.id} 
+                  onClick={() => toggleMaterial(m.id)}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    selectedMaterials.includes(m.id) 
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                    : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {selectedMaterials.includes(m.id) ? <CheckSquare className="w-4 h-4 shrink-0" /> : <Square className="w-4 h-4 shrink-0" />}
+                  <span className="text-sm font-medium truncate">{m.title}</span>
+                </div>
+              ))}
+              {materials.length === 0 && <p className="text-xs text-slate-400 col-span-2 italic">В библиотеке пока пусто</p>}
+            </div>
+
+            <h2 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+              <Info className="w-4 h-4 text-slate-400" /> Ваши цели и пожелания
+            </h2>
+            <textarea 
+              value={goals}
+              onChange={e => setGoals(e.target.value)}
+              placeholder="Например: 'Я плохо знаю тему массивов, удели ей больше времени' или 'Мне нужно выучить только теорию для зачета'"
+              className="w-full h-24 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none mb-6"
+            />
+
+            <button
+              onClick={generatePlan}
+              disabled={subjects.length === 0 || loading}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-5 h-5" />}
+              {loading ? 'Создаем персональный план...' : 'Сформировать план обучения'}
+            </button>
+          </div>
+
+          {plan.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="font-bold text-slate-900 text-lg">Ваш план подготовки</h2>
+              <div className="space-y-3">
+                {plan.map((day: any, i: number) => {
+                  const totalHours = day.tasks?.reduce((sum: number, t: any) => sum + (t.hours || 0), 0) || 0;
+                  return (
+                    <div key={i} className="card p-5 bg-white border-l-4 border-l-indigo-500">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-bold text-slate-800 capitalize">
+                          {format(new Date(day.date + 'T12:00:00'), 'EEEE, d MMMM', { locale: ru })}
+                        </h3>
+                        <span className="px-2.5 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-500">{totalHours}ч учебы</span>
+                      </div>
+                      <div className="space-y-3">
+                        {day.tasks?.map((task: any, j: number) => (
+                          <div key={j} className="flex items-start gap-3 text-sm">
+                            <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: getColorForSubject(task.subject) }} />
+                            <div className="flex-1">
+                              <span className="font-bold text-slate-700">{task.subject}</span>
+                              <p className="text-slate-500 mt-0.5">{task.task}</p>
+                            </div>
+                            <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">{task.hours}ч</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/Chat.tsx
+================================================================================
+import { useState, useEffect, useRef } from 'react';
+import { MessageSquare, Send } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { getMaterials } from '../api/materials';
+
+export default function Chat() {
+  const { user } = useAuth();
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    getMaterials(user.id).then(setMaterials).catch(console.error);
+  }, [user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const selectedMaterial = materials.find(m => m.id === selectedId);
+  const context = selectedMaterial?.summary_json?.content || '';
+
+  const handleSend = async () => {
+    if (!input.trim() || !selectedId || loading) return;
+    const userMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input, context, history: messages }),
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Ошибка при обращении к AI. Попробуйте снова.' }]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="h-full flex flex-col p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-5 h-5 text-indigo-600" />
+          <h1 className="text-xl font-bold text-slate-900">AI-чат по материалам</h1>
+        </div>
+      </div>
+
+      {/* Material select */}
+      <select
+        value={selectedId}
+        onChange={e => { setSelectedId(e.target.value); setMessages([]); }}
+        className="w-full max-w-md bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition mb-4"
+      >
+        <option value="">Выберите материал для обсуждения</option>
+        {materials.map(m => (
+          <option key={m.id} value={m.id}>{m.title}</option>
+        ))}
+      </select>
+
+      {/* No material selected */}
+      {!selectedId && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <MessageSquare className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+            <p className="text-slate-400">Выберите материал чтобы начать диалог</p>
+          </div>
+        </div>
+      )}
+
+      {/* Chat area */}
+      {selectedId && (
+        <>
+          <div className="flex-1 overflow-y-auto space-y-3 py-4">
+            {messages.length === 0 && (
+              <div className="text-center text-slate-400 text-sm py-8">
+                Задай вопрос по материалу «{selectedMaterial?.title}»
+              </div>
+            )}
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[80%] p-3 text-sm rounded-2xl ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-600 text-white rounded-tr-sm'
+                      : 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm'
+                  }`}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm p-3 flex gap-1">
+                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-slate-100 pt-4 flex gap-2">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder="Напишите вопрос..."
+              className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+            />
+            <button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl transition disabled:opacity-50"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+================================================================================
+SUPABASE SCHEMA — Project: StudyForge (daunnytubqbzafjnpfnw)
+================================================================================
+
+-- 1. materials — Проанализированные материалы
+CREATE TABLE materials (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title           text NOT NULL DEFAULT '',
+  subject         text NOT NULL DEFAULT '',
+  original_text   text NOT NULL DEFAULT '',
+  summary_json    jsonb,
+  flashcards_json jsonb,
+  quiz_json       jsonb,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE materials ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own materials" ON materials FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own materials" ON materials FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own materials" ON materials FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own materials" ON materials FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_materials_user_id ON materials(user_id);
+
+-- 2. profiles — Профиль пользователя (автосоздание при регистрации)
+CREATE TABLE profiles (
+  id               uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name        text NOT NULL DEFAULT '',
+  streak_days      int NOT NULL DEFAULT 0,
+  last_active_date date,
+  total_reviews    int NOT NULL DEFAULT 0,
+  total_materials  int NOT NULL DEFAULT 0,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- 3. flashcard_progress — Spaced repetition (SM-2)
+CREATE TABLE flashcard_progress (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id     uuid NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+  question        text NOT NULL DEFAULT '',
+  answer          text NOT NULL DEFAULT '',
+  ease_factor     real NOT NULL DEFAULT 2.5,
+  interval_days   int NOT NULL DEFAULT 1,
+  repetitions     int NOT NULL DEFAULT 0,
+  next_review     timestamptz NOT NULL DEFAULT now(),
+  last_reviewed_at timestamptz
+);
+ALTER TABLE flashcard_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own progress" ON flashcard_progress FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own progress" ON flashcard_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own progress" ON flashcard_progress FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own progress" ON flashcard_progress FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_flashcard_progress_user ON flashcard_progress(user_id);
+CREATE INDEX idx_flashcard_progress_next ON flashcard_progress(user_id, next_review);
+
+-- 4. subjects — Предметы для планировщика
+CREATE TABLE subjects (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       text NOT NULL DEFAULT '',
+  exam_date  date,
+  color      text NOT NULL DEFAULT '#4F46E5',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own subjects" ON subjects FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own subjects" ON subjects FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own subjects" ON subjects FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own subjects" ON subjects FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_subjects_user ON subjects(user_id);
+
+-- 5. study_plans — Планы подготовки
+CREATE TABLE study_plans (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title      text NOT NULL DEFAULT '',
+  subject    text NOT NULL DEFAULT '',
+  exam_date  date,
+  notes      text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE study_plans ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own plans" ON study_plans FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own plans" ON study_plans FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own plans" ON study_plans FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own plans" ON study_plans FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_study_plans_user ON study_plans(user_id);
+
+-- 6. chat_messages — AI-чат по материалам
+CREATE TABLE chat_messages (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id uuid REFERENCES materials(id) ON DELETE CASCADE,
+  role        text NOT NULL CHECK (role IN ('user', 'assistant')),
+  content     text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own messages" ON chat_messages FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own messages" ON chat_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own messages" ON chat_messages FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_chat_messages_user ON chat_messages(user_id);
+CREATE INDEX idx_chat_messages_material ON chat_messages(material_id);
+
+-- 7. study_sessions — Сессии повторения (для streak и графиков)
+CREATE TABLE study_sessions (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date            date NOT NULL DEFAULT CURRENT_DATE,
+  cards_reviewed  int NOT NULL DEFAULT 0,
+  materials_added int NOT NULL DEFAULT 0,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, date)
+);
+ALTER TABLE study_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own sessions" ON study_sessions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own sessions" ON study_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own sessions" ON study_sessions FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own sessions" ON study_sessions FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_study_sessions_user ON study_sessions(user_id);
+
+-- Триггер: автосоздание профиля при регистрации
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS 
+BEGIN
+  INSERT INTO public.profiles (id, full_name)
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'full_name', ''));
+  RETURN NEW;
+END;
+ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
