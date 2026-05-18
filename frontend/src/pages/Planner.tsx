@@ -98,14 +98,14 @@ export default function Planner() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <Calendar className="w-5 h-5 text-indigo-600" />
         <h1 className="text-xl font-bold text-slate-900">Персональный планировщик</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           <div className="card p-5">
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" /> Экзамены
@@ -171,7 +171,7 @@ export default function Planner() {
           )}
         </div>
 
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-9 space-y-6">
           <div className="card p-6">
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500" /> На чем основывать план?
@@ -219,7 +219,7 @@ export default function Planner() {
           {plan.length > 0 && (
             <div className="space-y-4">
               <h2 className="font-bold text-slate-900 text-lg">Ваш план подготовки</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {plan.map((day: any, i: number) => {
                   const totalHours = day.tasks?.reduce((sum: number, t: any) => sum + (t.hours || 0), 0) || 0;
                   return (
