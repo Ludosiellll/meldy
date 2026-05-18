@@ -57,7 +57,7 @@ async def event_stream(
             yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось извлечь текст из файла'})}\n\n"
             return
 
-        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text)})}\n\n"
+        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
 
         coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
 

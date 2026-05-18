@@ -78,7 +78,11 @@ export default function Analyze() {
   };
 
   const handleSSE = (d: any) => {
-    if (d.type === 'text_extracted') { setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); textLengthRef.current = d.length; }
+    if (d.type === 'text_extracted') { 
+      setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); 
+      textLengthRef.current = d.length;
+      (window as any)._lastExtractedText = d.text; // Сохраняем текст из события
+    }
     else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
     else if (d.type === 'agent_done') {
       addToast(agentDoneLabels[d.agent] || '✅ Агент завершён');
@@ -103,7 +107,7 @@ export default function Analyze() {
               user_id: user.id,
               title,
               subject: '',
-              original_text: '',
+              original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
               summary_json: results.summarizer,
               flashcards_json: results.flashcards,
               quiz_json: results.quiz,

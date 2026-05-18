@@ -22,7 +22,8 @@ export default function Chat() {
   }, [messages]);
 
   const selectedMaterial = materials.find(m => m.id === selectedId);
-  const context = selectedMaterial?.summary_json?.content || '';
+  const context = selectedMaterial?.original_text || 
+                 (typeof selectedMaterial?.summary_json === 'string' ? selectedMaterial.summary_json : selectedMaterial?.summary_json?.content || '');
 
   const handleSend = async () => {
     if (!input.trim() || !selectedId || loading) return;
