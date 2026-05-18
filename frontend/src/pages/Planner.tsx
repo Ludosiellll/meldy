@@ -17,13 +17,21 @@ export default function Planner() {
   const [newName, setNewName] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newColor, setNewColor] = useState('#4F46E5');
+  const [historyPlans, setHistoryPlans] = useState<any[]>([]);
 
   const loadData = async () => {
     if (!user) return;
     const { data: sub } = await supabase.from('subjects').select('*').eq('user_id', user.id).order('exam_date');
     const { data: mat } = await supabase.from('materials').select('id, title, summary_json').eq('user_id', user.id);
+    const { data: plans } = await supabase.from('study_plans').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+    
     setSubjects(sub || []);
     setMaterials(mat || []);
+    setHistoryPlans(plans || []);
+    if (plans && plans.length > 0 && plan.length === 0) {
+      setPlan(plans[0].plan_json);
+      setGoals(plans[0].notes || '');
+    }
   };
 
   useEffect(() => { loadData(); }, [user]);
@@ -60,8 +68,19 @@ export default function Planner() {
         }),
       });
       const data = await res.json();
-      setPlan(data.plan || []);
-    } catch {
+      const generatedPlan = data.plan || [];
+      setPlan(generatedPlan);
+
+      if (user && generatedPlan.length > 0) {
+        await supabase.from('study_plans').insert({
+          user_id: user.id,
+          title: `План от ${format(new Date(), 'd MMMM HH:mm', { locale: ru })}`,
+          plan_json: generatedPlan,
+          notes: goals
+        });
+      }
+    } catch (err) {
+      console.error('Error generating/saving plan:', err);
       setPlan([]);
     }
     setLoading(false);
@@ -117,6 +136,39 @@ export default function Planner() {
             </h2>
             <input type="number" min={1} max={12} value={hours} onChange={e => setHours(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
+
+          {historyPlans.length > 0 && (
+            <div className="card p-5">
+              <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" /> История планов
+              </h2>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                {historyPlans.map(p => (
+                  <div key={p.id} className="group relative">
+                    <button
+                      onClick={() => { setPlan(p.plan_json); setGoals(p.notes || ''); }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs transition border ${
+                        plan === p.plan_json 
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' 
+                        : 'bg-slate-50 border-transparent text-slate-600 hover:border-slate-200'
+                      }`}
+                    >
+                      {p.title}
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        await supabase.from('study_plans').delete().eq('id', p.id);
+                        loadData();
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-8 space-y-6">
