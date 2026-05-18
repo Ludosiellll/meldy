@@ -616,7 +616,7 @@ class BaseAgent:
                         gemini_errors.append(f"Не удалось загрузить ни одну Gemini модель: {model_error}")
                         continue  # переходим к следующему ключу
                     
-                    full_prompt = f"{system_prompt}\n\nТЕКСТ ДЛЯ АНАЛИЗА:\n{truncated}"
+                    full_prompt = f"{system_prompt}\n\nЗАПРОС:\n{truncated}"
                     
                     # Делаем запрос
                     response = await model_loaded.generate_content_async(
