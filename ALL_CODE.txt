@@ -72,70 +72,32 @@ server {
 ================================================================================
 FILE: README.md
 ================================================================================
-# AI Student Assistant — Мультиагентный анализ конспектов
+---
+title: StudyForge — AI-анализ учебных материалов
+emoji: 🎓
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
-Веб-приложение для автоматического структурирования и анализа текстовых данных.
-Загрузите PDF/DOCX/TXT файл лекции, и три AI-агента параллельно создадут:
-- 📝 **Саммари** — краткая выжимка материала
-- 🃏 **Карточки** — вопрос-ответ для запоминания
-- ❓ **Тест** — проверочный тест из 5 вопросов
+# StudyForge — AI-анализ учебных материалов
 
-## Архитектура
+Три AI-агента параллельно создают конспект, карточки и тест из любой лекции.
 
-```
-┌──────────────┐     SSE      ┌──────────────┐
-│   React UI   │ ◄────────── │   FastAPI    │
-│  (Vite+TW)   │             │  (Python)    │
-└──────────────┘             └──────┬───────┘
-                                    │
-                          ┌─────────┼─────────┐
-                          ▼         ▼         ▼
-                     ┌────────┐┌────────┐┌────────┐
-                     │Summary ││Flash   ││Quiz    │
-                     │Agent   ││cards   ││Agent   │
-                     └────────┘│Agent   │└────────┘
-                               └────────┘
-                          Groq API (Llama 3.3 70B)
-```
+## Использование
 
-## Быстрый старт
+1. Откройте приложение
+2. Загрузите PDF/DOCX/TXT файл или нажмите «Демо без файла»
+3. Дождитесь завершения анализа (~15 сек)
+4. Изучайте конспект, карточки и тест
 
-### 1. Получите API-ключ Groq (бесплатно)
+## Переменные окружения
 
-1. Зайдите на https://console.groq.com
-2. Зарегистрируйтесь
-3. Создайте API-ключ
+Установите в Settings → Repository secrets:
 
-### 2. Запустите бэкенд
-
-```bash
-cd backend
-set GROQ_API_KEY=ваш_ключ_здесь
-python -m uvicorn main:app --reload --port 8000
-```
-
-### 3. Запустите фронтенд (в новом терминале)
-
-```bash
-cd frontend
-npm run dev
-```
-
-### 4. Откройте http://localhost:3000
-
-## Технологии
-
-- **Фронтенд:** React 18, TypeScript, Vite, TailwindCSS, Framer Motion, Lucide Icons
-- **Бэкенд:** Python, FastAPI, asyncio, Groq API (Llama 3.3 70B)
-- **Real-time:** Server-Sent Events (SSE) для потокового отображения прогресса
-- **Парсинг:** PyPDF2, python-docx
-
-## Ключевые концепции
-
-- **Мультиагентность:** 3 независимых AI-агента работают параллельно через asyncio
-- **Асинхронность:** SSE-стриминг прогресса в реальном времени
-- **Prompt Engineering:** тщательно настроенные системные промпты для каждого агента
-- **Координатор:** агент-оркестратор собирает результаты в единый ответ
+- `GROQ_API_KEY` — ключ API от [console.groq.com](https://console.groq.com) (бесплатно)
 
 ================================================================================
 FILE: README_HF.md
@@ -1374,7 +1336,7 @@ export async function updateCardProgress(cardId: string, quality: number) {
 ================================================================================
 FILE: frontend/src/components/Layout.tsx
 ================================================================================
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { GraduationCap, LayoutDashboard, Zap, BookOpen, Brain, Calendar, MessageSquare, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -1389,6 +1351,7 @@ const navItems = [
 
 export default function Layout() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const email = user?.email ?? '';
   const initial = email ? email[0].toUpperCase() : '?';
 
@@ -1397,12 +1360,15 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 flex flex-col shrink-0">
         {/* Logo */}
-        <div className="p-6 flex items-center gap-3">
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="p-6 flex items-center gap-3 hover:opacity-80 transition w-full text-left"
+        >
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-white text-lg">StudyForge</span>
-        </div>
+        </button>
 
         {/* Navigation */}
         <nav className="flex-1 px-3 space-y-1">
@@ -2638,93 +2604,389 @@ FILE: frontend/src/pages/Landing.tsx
 ================================================================================
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-
-const features = [
-  { icon: '📊', title: 'Анализ материалов', desc: 'Загрузи лекцию и получи конспект, карточки и тест за 15 секунд' },
-  { icon: '🃏', title: 'Умное повторение', desc: 'Алгоритм spaced repetition показывает карточки в нужный момент' },
-  { icon: '📅', title: 'Планировщик', desc: 'AI строит план подготовки с учётом дат экзаменов' },
-  { icon: '📚', title: 'Библиотека', desc: 'Все твои материалы в одном месте с поиском' },
-  { icon: '💬', title: 'AI-чат', desc: 'Задавай вопросы по любой лекции из библиотеки' },
-  { icon: '📈', title: 'Прогресс', desc: 'Streak, графики активности, статистика по предметам' },
-];
+import { GraduationCap, Zap, Brain, Calendar, BookOpen,
+         MessageSquare, BarChart2, Sparkles, ArrowRight,
+         CheckCircle, Upload, Cpu, Trophy } from 'lucide-react';
 
 export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  useEffect(() => {
-    if (user) navigate('/dashboard');
-  }, [user]);
+  useEffect(() => { if (user) navigate('/dashboard'); }, [user]);
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white">
-      {/* Hero */}
-      <section className="py-32 text-center px-6">
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-6xl font-black mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
-        >
-          StudyForge
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-          className="text-2xl font-semibold text-slate-200 mb-4"
-        >
-          AI-платформа нового поколения для студентов
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="text-lg text-slate-400 mb-10 max-w-xl mx-auto"
-        >
-          Анализируй лекции, повторяй карточки, планируй учёбу — всё в одном месте
-        </motion.p>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.45 }}
-          className="flex items-center justify-center gap-4"
-        >
-          <button
-            onClick={() => navigate('/register')}
-            className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-semibold text-white transition shadow-lg shadow-indigo-500/25"
-          >
-            Начать бесплатно →
-          </button>
-          <button
-            onClick={() => navigate('/login')}
-            className="px-8 py-3 border border-white/20 hover:border-white/40 rounded-xl font-semibold text-white transition"
-          >
-            Войти
-          </button>
-        </motion.div>
-      </section>
+    <div className="min-h-screen bg-[#080c14] text-white overflow-x-hidden">
+      <Navbar />
+      <Hero />
+      <Stats />
+      <HowItWorks />
+      <Features />
+      <CtaSection />
+      <Footer />
+    </div>
+  );
+}
 
-      {/* Features */}
-      <section className="max-w-5xl mx-auto px-6 pb-24">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {features.map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 * i }}
-              className="bg-slate-800/50 border border-slate-700 rounded-2xl p-6"
-            >
-              <span className="text-3xl mb-3 block">{f.icon}</span>
-              <h3 className="text-lg font-bold text-white mb-2">{f.title}</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
-            </motion.div>
+function Navbar() {
+  const navigate = useNavigate();
+  return (
+    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center
+      justify-between px-6 md:px-12 py-4
+      bg-[#080c14]/80 backdrop-blur-xl border-b border-white/[0.06]">
+
+      {/* Logo */}
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <GraduationCap className="w-4 h-4 text-white" />
+        </div>
+        <span className="font-bold text-white text-lg">StudyForge</span>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/login')}
+          className="text-sm text-slate-400 hover:text-white transition px-3 py-2">
+          Войти
+        </button>
+        <button onClick={() => navigate('/register')}
+          className="text-sm font-semibold px-4 py-2 bg-indigo-600
+            hover:bg-indigo-500 text-white rounded-lg transition">
+          Начать бесплатно
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function Hero() {
+  const navigate = useNavigate();
+  return (
+    <section className="pt-36 pb-20 px-6 text-center relative">
+
+      {/* Фоновый glow */}
+      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px]
+        bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" />
+
+      {/* Заголовок */}
+      <h1 className="text-5xl md:text-[72px] font-black leading-[1.05]
+        tracking-tight mb-6 max-w-4xl mx-auto">
+        <span className="text-white">Превращай лекции</span>
+        <br />
+        <span className="bg-gradient-to-r from-indigo-400 via-purple-400
+          to-indigo-300 bg-clip-text text-transparent">
+          в знания за секунды
+        </span>
+      </h1>
+
+      {/* Подзаголовок */}
+      <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto
+        mb-10 leading-relaxed">
+        Загрузи PDF или текст лекции — три AI-агента параллельно создадут
+        конспект, карточки и тест. Повторяй по алгоритму spaced repetition
+        и планируй подготовку к экзаменам.
+      </p>
+
+      {/* CTA кнопки */}
+      <div className="flex items-center justify-center gap-4 flex-wrap">
+        <button onClick={() => navigate('/register')}
+          className="group flex items-center gap-2 px-8 py-4 bg-indigo-600
+            hover:bg-indigo-500 text-white font-bold text-base rounded-xl
+            transition shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50">
+          Начать бесплатно
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+        </button>
+        <button onClick={() => navigate('/analyze')}
+          className="flex items-center gap-2 px-8 py-4 bg-white/[0.06]
+            hover:bg-white/[0.1] border border-white/[0.1]
+            hover:border-white/20 text-white font-bold text-base
+            rounded-xl transition">
+          <Zap className="w-4 h-4 text-indigo-400" />
+          Попробовать демо
+        </button>
+      </div>
+
+      {/* Мок интерфейса */}
+      <div className="mt-16 max-w-4xl mx-auto relative">
+        {/* Внешний glow */}
+        <div className="absolute inset-0 bg-indigo-600/10 rounded-2xl
+          blur-xl scale-105 pointer-events-none" />
+
+        {/* Фейковый интерфейс приложения */}
+        <div className="relative bg-[#0f1623] border border-white/[0.08]
+          rounded-2xl overflow-hidden shadow-2xl">
+
+          {/* Топбар мока */}
+          <div className="flex items-center gap-2 px-4 py-3
+            border-b border-white/[0.06] bg-[#0d1420]">
+            <div className="w-3 h-3 rounded-full bg-rose-500/70" />
+            <div className="w-3 h-3 rounded-full bg-amber-500/70" />
+            <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
+            <div className="flex-1 mx-4 h-5 bg-white/[0.04] rounded-md" />
+          </div>
+
+          {/* Контент мока — три агента */}
+          <div className="p-6 grid grid-cols-3 gap-4">
+            {[
+              { name: 'Конспект', icon: '📝', color: 'indigo', done: true },
+              { name: 'Карточки', icon: '🃏', color: 'emerald', done: true },
+              { name: 'Тест', icon: '✅', color: 'amber', done: false },
+            ].map((agent, i) => (
+              <div key={i} className="bg-white/[0.03] border border-white/[0.06]
+                rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-lg">{agent.icon}</span>
+                  {agent.done
+                    ? <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    : <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  }
+                </div>
+                <p className="text-white text-sm font-medium mb-2">{agent.name}</p>
+                <div className="space-y-1.5">
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${
+                      agent.done
+                        ? 'bg-emerald-500 w-full'
+                        : 'bg-amber-400 w-3/4 animate-pulse'
+                    }`} />
+                  </div>
+                  <div className="h-2 bg-white/[0.06] rounded-full w-3/4" />
+                  <div className="h-2 bg-white/[0.04] rounded-full w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Stats() {
+  const items = [
+    { value: '15 сек', label: 'среднее время анализа' },
+    { value: '3', label: 'AI-агента работают параллельно' },
+    { value: 'SM-2', label: 'алгоритм повторения как в Anki' },
+    { value: '∞', label: 'материалов в библиотеке' },
+  ];
+  return (
+    <section className="py-16 px-6 border-y border-white/[0.06]
+      bg-white/[0.02]">
+      <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+        {items.map((s, i) => (
+          <div key={i} className="text-center">
+            <p className="text-3xl font-black text-white mb-1">{s.value}</p>
+            <p className="text-slate-500 text-sm">{s.label}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HowItWorks() {
+  const steps = [
+    {
+      icon: Upload,
+      num: '01',
+      title: 'Загрузи материал',
+      desc: 'PDF, DOCX, TXT или MD. Просто перетащи файл — размер до 50 МБ.',
+    },
+    {
+      icon: Cpu,
+      num: '02',
+      title: 'AI обрабатывает',
+      desc: 'Три агента параллельно создают конспект, карточки и тест. Занимает 15–30 секунд.',
+    },
+    {
+      icon: Trophy,
+      num: '03',
+      title: 'Учись и повторяй',
+      desc: 'Используй карточки с алгоритмом spaced repetition и AI-чат для вопросов по материалу.',
+    },
+  ];
+  return (
+    <section className="py-24 px-6">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+            Как это работает
+          </h2>
+          <p className="text-slate-500 text-lg">Три шага от лекции до знаний</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+          {/* Линия между шагами */}
+          <div className="hidden md:block absolute top-8 left-1/6 right-1/6
+            h-px bg-gradient-to-r from-transparent via-indigo-500/40
+            to-transparent" />
+          {steps.map((step, i) => (
+            <div key={i} className="relative text-center md:text-left">
+              <div className="flex md:flex-col items-center md:items-start
+                gap-4 md:gap-0">
+                <div className="relative mb-0 md:mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-950/80
+                    border border-indigo-800/50 flex items-center
+                    justify-center shrink-0">
+                    <step.icon className="w-7 h-7 text-indigo-400" />
+                  </div>
+                  <span className="absolute -top-2 -right-2 text-xs
+                    font-black text-indigo-400 bg-[#080c14]
+                    border border-indigo-800/50 rounded-full
+                    w-6 h-6 flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-lg mb-2">
+                    {step.title}
+                  </h3>
+                  <p className="text-slate-500 text-sm leading-relaxed">
+                    {step.desc}
+                  </p>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Footer */}
-      <footer className="text-center py-8 text-slate-500 text-sm border-t border-slate-800">
-        StudyForge © 2025 · Создано с AI
-      </footer>
-    </div>
+function Features() {
+  const features = [
+    {
+      icon: Zap,
+      color: 'indigo',
+      title: 'Мультиагентный анализ',
+      desc: 'Три AI-агента работают параллельно и создают конспект, карточки и тест одновременно.',
+    },
+    {
+      icon: Brain,
+      color: 'emerald',
+      title: 'Spaced Repetition',
+      desc: 'Алгоритм SM-2 как в Anki определяет когда показать карточку для оптимального запоминания.',
+    },
+    {
+      icon: Calendar,
+      color: 'amber',
+      title: 'AI-планировщик',
+      desc: 'Введи предметы и даты экзаменов — AI составит конкретный план подготовки на каждый день.',
+    },
+    {
+      icon: BookOpen,
+      color: 'purple',
+      title: 'Библиотека знаний',
+      desc: 'Все материалы хранятся в облаке. Поиск по содержимому, фильтр по предметам.',
+    },
+    {
+      icon: MessageSquare,
+      color: 'sky',
+      title: 'AI-чат по лекции',
+      desc: 'Задавай вопросы по любому материалу из библиотеки. AI отвечает строго по теме.',
+    },
+    {
+      icon: BarChart2,
+      color: 'rose',
+      title: 'Аналитика прогресса',
+      desc: 'Streak учёбы, графики активности, статистика правильных ответов по предметам.',
+    },
+  ];
+
+  const colorMap: Record<string, string> = {
+    indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+    rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  };
+
+  return (
+    <section className="py-24 px-6 bg-white/[0.02] border-t border-white/[0.06]">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+            Всё для эффективной учёбы
+          </h2>
+          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+            Платформа объединяет лучшие инструменты для студентов в одном месте
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {features.map((f, i) => (
+            <div key={i}
+              className="group p-6 rounded-2xl bg-white/[0.03]
+                border border-white/[0.06] hover:border-white/[0.12]
+                hover:bg-white/[0.05] transition-all duration-300">
+              <div className={`w-10 h-10 rounded-xl border flex items-center
+                justify-center mb-4 ${colorMap[f.color]}`}>
+                <f.icon className="w-5 h-5" />
+              </div>
+              <h3 className="text-white font-bold text-base mb-2">{f.title}</h3>
+              <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CtaSection() {
+  const navigate = useNavigate();
+  return (
+    <section className="py-24 px-6">
+      <div className="max-w-3xl mx-auto text-center relative">
+        <div className="absolute inset-0 bg-indigo-600/10 rounded-3xl
+          blur-3xl pointer-events-none" />
+        <div className="relative bg-gradient-to-b from-indigo-950/50
+          to-slate-900/30 border border-indigo-800/30 rounded-3xl p-12">
+          <div className="flex justify-center gap-2 mb-6">
+            {['✓ Бесплатно', '✓ Без привязки карты', '✓ Все функции сразу'].map(t => (
+              <span key={t}
+                className="text-xs text-indigo-300 bg-indigo-950/60
+                  border border-indigo-800/50 px-3 py-1 rounded-full">
+                {t}
+              </span>
+            ))}
+          </div>
+          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+            Готов учиться умнее?
+          </h2>
+          <p className="text-slate-400 text-lg mb-8">
+            Зарегистрируйся и загрузи первую лекцию прямо сейчас
+          </p>
+          <button onClick={() => navigate('/register')}
+            className="group inline-flex items-center gap-2 px-10 py-4
+              bg-indigo-600 hover:bg-indigo-500 text-white font-bold
+              text-lg rounded-xl transition shadow-2xl
+              shadow-indigo-500/30">
+            Начать бесплатно
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="py-8 px-6 border-t border-white/[0.06]">
+      <div className="max-w-5xl mx-auto flex items-center
+        justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-indigo-600 rounded-md flex
+            items-center justify-center">
+            <GraduationCap className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="text-slate-400 text-sm font-medium">StudyForge</span>
+        </div>
+        <p className="text-slate-600 text-sm">
+          © 2025 StudyForge
+        </p>
+      </div>
+    </footer>
   );
 }
 
@@ -2815,6 +3077,26 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
+const validateEmail = (email: string) => {
+  if (!email) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return 'Некорректный email адрес';
+  return '';
+};
+
+const validatePassword = (pwd: string) => {
+  if (!pwd) return '';
+  if (pwd.length < 6) return `Слишком короткий — ещё ${6 - pwd.length} символов`;
+  if (pwd.length < 8) return 'Слабый пароль — добавь ещё символы';
+  return '';
+};
+
+const validateName = (name: string) => {
+  if (!name) return '';
+  if (name.trim().length < 2) return 'Имя слишком короткое';
+  return '';
+};
+
 export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -2822,6 +3104,9 @@ export default function Register() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
   useEffect(() => {
@@ -2831,6 +3116,14 @@ export default function Register() {
   const handleRegister = async () => {
     setLoading(true);
     setError('');
+    const ne = validateName(name);
+    const ee = validateEmail(email);
+    const pe = validatePassword(password);
+    if (ne || ee || pe) {
+      setNameError(ne); setEmailError(ee); setPasswordError(pe);
+      setLoading(false);
+      return;
+    }
     if (password !== confirm) {
       setError('Пароли не совпадают');
       setLoading(false);
@@ -2864,30 +3157,54 @@ export default function Register() {
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              onChange={e => {
+                setName(e.target.value);
+                setNameError(validateName(e.target.value));
+              }}
+              className={`w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 border ${nameError ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'} transition`}
               placeholder="Ваше имя"
             />
+            {nameError && <p className="text-rose-400 text-xs mt-1">{nameError}</p>}
           </div>
           <div>
             <label className="text-sm text-slate-400 mb-1 block">Email</label>
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              onChange={e => {
+                setEmail(e.target.value);
+                setEmailError(validateEmail(e.target.value));
+              }}
+              className={`w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 border ${emailError ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'} transition`}
               placeholder="you@example.com"
             />
+            {emailError && <p className="text-rose-400 text-xs mt-1">{emailError}</p>}
           </div>
           <div>
             <label className="text-sm text-slate-400 mb-1 block">Пароль</label>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              onChange={e => {
+                setPassword(e.target.value);
+                setPasswordError(validatePassword(e.target.value));
+              }}
+              className={`w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 outline-none focus:ring-2 border ${passwordError ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-700 focus:ring-indigo-500'} transition`}
               placeholder="••••••••"
             />
+            {passwordError && <p className="text-amber-400 text-xs mt-1">{passwordError}</p>}
+            <div className="mt-1.5 flex gap-1">
+              {[1,2,3].map(level => (
+                <div key={level}
+                  className={`h-1 flex-1 rounded-full transition-all ${
+                    password.length === 0 ? 'bg-slate-700' :
+                    password.length < 6 ? (level === 1 ? 'bg-rose-500' : 'bg-slate-700') :
+                    password.length < 10 ? (level <= 2 ? 'bg-amber-400' : 'bg-slate-700') :
+                    'bg-emerald-400'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
           <div>
             <label className="text-sm text-slate-400 mb-1 block">Повтор пароля</label>
