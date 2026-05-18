@@ -378,9 +378,6 @@ function Footer() {
           </div>
           <span className="text-slate-400 text-sm font-medium">StudyForge</span>
         </div>
-        <p className="text-slate-600 text-sm">
-          © 2025 StudyForge
-        </p>
       </div>
     </footer>
   );

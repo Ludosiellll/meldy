@@ -32,7 +32,7 @@ export default function Header({ onReset }: { onReset: () => void }) {
           </div>
           <span className="font-semibold text-slate-900 text-[15px]">StudyForge</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
-            Мультиагентный AI · Llama 3.3 70B
+            Статус системы
             <span className={dotClass} title={dotTitle} />
           </span>
         </div>
