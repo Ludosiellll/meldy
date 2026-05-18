@@ -4182,18 +4182,30 @@ export default function Planner() {
     const { data: plans } = await supabase.from('study_plans').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     
     const subList = sub || [];
+    const plansList = plans || [];
     setSubjects(subList);
     setMaterials(mat || []);
-    setHistoryPlans(plans || []);
+    setHistoryPlans(plansList);
     
+    // Если предметов больше нет — очищаем всё
+    if (subList.length === 0) {
+      setPlan([]);
+      setHistoryPlans([]);
+      setSelectedSubjectIds([]);
+      setSelectedSubject('');
+      return;
+    }
+
     // По умолчанию выбираем все предметы для планирования, если еще не выбраны
-    if (selectedSubjectIds.length === 0 && subList.length > 0) {
+    if (selectedSubjectIds.length === 0) {
       setSelectedSubjectIds(subList.map(s => s.id));
     }
 
-    if (plans && plans.length > 0 && plan.length === 0) {
-      setPlan(plans[0].plan_json);
-      setGoals(plans[0].notes || '');
+    if (plansList.length > 0 && plan.length === 0) {
+      setPlan(plansList[0].plan_json);
+      setGoals(plansList[0].notes || '');
+    } else if (plansList.length === 0) {
+      setPlan([]);
     }
   };
 
@@ -4211,7 +4223,13 @@ export default function Planner() {
   };
 
   const deleteSubject = async (id: string) => {
+    const subToDelete = subjects.find(s => s.id === id);
     await supabase.from('subjects').delete().eq('id', id);
+    
+    if (subToDelete?.name === selectedSubject) {
+      setSelectedSubject('');
+    }
+    
     setSelectedSubjectIds(prev => prev.filter(sid => sid !== id));
     loadData();
   };
@@ -4275,12 +4293,15 @@ export default function Planner() {
     return s?.color || '#4F46E5';
   };
 
-  const filteredPlan = selectedSubject
-    ? plan.map(day => ({
-        ...day,
-        tasks: day.tasks?.filter((t: any) => t.subject === selectedSubject) || []
-      })).filter(day => day.tasks.length > 0)
-    : plan;
+  // Filter plan by selected subject and ensure subject still exists
+  const filteredPlan = plan.map(day => ({
+    ...day,
+    tasks: day.tasks?.filter((t: any) => {
+      const exists = subjects.some(s => s.name === t.subject);
+      if (!exists) return false;
+      return selectedSubject ? t.subject === selectedSubject : true;
+    }) || []
+  })).filter(day => day.tasks.length > 0);
 
   const subjectTaskCounts: Record<string, number> = {};
   plan.forEach(day => {
