@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, Trash2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
@@ -188,8 +189,8 @@ export default function Chat() {
                           : 'bg-slate-100 border border-slate-200 text-slate-800 rounded-tl-none'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap leading-relaxed">
-                        {msg.content}
+                      <div className={`markdown-content ${msg.role === 'user' ? 'white-text' : ''}`}>
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
                     </div>
                   </div>
