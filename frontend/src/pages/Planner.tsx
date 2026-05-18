@@ -22,6 +22,9 @@ export default function Planner() {
   const [historyPlans, setHistoryPlans] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<any>(null);
+  const [dateError, setDateError] = useState('');
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const loadData = async () => {
     if (!user) return;
@@ -35,7 +38,6 @@ export default function Planner() {
     setMaterials(mat || []);
     setHistoryPlans(plansList);
     
-    // Если предметов больше нет — очищаем всё
     if (subList.length === 0) {
       setPlan([]);
       setHistoryPlans([]);
@@ -44,9 +46,10 @@ export default function Planner() {
       return;
     }
 
-    // По умолчанию выбираем все предметы для планирования, если еще не выбраны
-    if (selectedSubjectIds.length === 0) {
-      setSelectedSubjectIds(subList.map(s => s.id));
+    // НЕ выбираем автоматически — пользователь должен сам отметить нужные
+    // Только если ровно 1 предмет и ничего не выбрано — выбираем его
+    if (subList.length === 1 && selectedSubjectIds.length === 0) {
+      setSelectedSubjectIds([subList[0].id]);
     }
 
     if (plansList.length > 0 && plan.length === 0) {
@@ -61,6 +64,11 @@ export default function Planner() {
 
   const addSubject = async () => {
     if (!newName || !newDate) return;
+    if (newDate < todayStr) {
+      setDateError('Дата экзамена не может быть в прошлом');
+      return;
+    }
+    setDateError('');
     const { data, error } = await supabase.from('subjects').insert({ user_id: user!.id, name: newName, exam_date: newDate, color: newColor }).select().single();
     if (!error && data) {
       setSelectedSubjectIds(prev => [...prev, data.id]);
@@ -171,6 +179,7 @@ export default function Planner() {
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" /> Экзамены
             </h2>
+            <p className="text-[10px] text-slate-400 mb-3">Отметьте галочкой предметы для плана</p>
             <div className="space-y-3 mb-4">
               {subjects.map(s => {
                 const taskCount = subjectTaskCounts[s.name] || 0;
@@ -215,8 +224,17 @@ export default function Planner() {
               })}
             </div>
             <div className="space-y-2">
-              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название" className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название предмета" className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              <div>
+                <input 
+                  type="date" 
+                  value={newDate} 
+                  min={todayStr}
+                  onChange={e => { setNewDate(e.target.value); setDateError(''); }} 
+                  className={`w-full px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${dateError ? 'border-rose-300' : 'border-slate-200'}`} 
+                />
+                {dateError && <p className="text-rose-500 text-[10px] mt-1">{dateError}</p>}
+              </div>
               <button onClick={addSubject} className="w-full py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition">Добавить предмет</button>
             </div>
           </div>
@@ -299,11 +317,11 @@ export default function Planner() {
 
             <button
               onClick={generatePlan}
-              disabled={subjects.length === 0 || loading}
+              disabled={subjects.length === 0 || loading || selectedSubjectIds.length === 0}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-5 h-5" />}
-              {loading ? 'Создаем персональный план...' : 'Сформировать план обучения'}
+              {loading ? 'Создаем персональный план...' : selectedSubjectIds.length === 0 ? 'Выберите предметы для плана' : `Сформировать план (${selectedSubjectIds.length} предм.)`}
             </button>
           </div>
 
