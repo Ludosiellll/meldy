@@ -4740,24 +4740,24 @@ export default function Chat() {
   };
 
   return (
-    <div className={`flex flex-col bg-slate-50/50 transition-all duration-300 ${
+    <div className={`flex flex-col transition-all duration-300 ${
       isFullScreen 
-        ? 'fixed inset-0 z-[100] p-4 md:p-8 h-screen w-screen' 
-        : 'h-full p-4 md:p-6'
+        ? 'fixed inset-0 z-[150] bg-slate-50 p-4 md:p-8 h-screen w-screen' 
+        : 'h-full p-4 md:p-6 bg-slate-50/50'
     }`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className={`flex items-center justify-between mb-4 ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}>
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
             <MessageSquare className="w-5 h-5 text-indigo-600" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">AI-чат</h1>
-            <p className="text-xs text-slate-500">Задавайте вопросы по вашим материалам</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 truncate">AI-чат</h1>
+            <p className="text-xs text-slate-500 truncate">Задавайте вопросы по вашим материалам</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button 
             onClick={() => setIsFullScreen(!isFullScreen)}
             className="p-2 text-slate-400 hover:text-indigo-600 transition rounded-lg hover:bg-indigo-50"
@@ -4775,7 +4775,7 @@ export default function Chat() {
       </div>
 
       {/* Material select */}
-      <div className="mb-4">
+      <div className={`mb-4 ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}>
         <select
           value={selectedId}
           onChange={e => setSelectedId(e.target.value)}
@@ -4789,7 +4789,7 @@ export default function Chat() {
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
+      <div className={`flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}>
         {!selectedId ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
