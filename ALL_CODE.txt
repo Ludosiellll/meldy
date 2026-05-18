@@ -4163,6 +4163,7 @@ export default function Planner() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
   const [goals, setGoals] = useState('');
   const [plan, setPlan] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -4180,9 +4181,16 @@ export default function Planner() {
     const { data: mat } = await supabase.from('materials').select('id, title, summary_json').eq('user_id', user.id);
     const { data: plans } = await supabase.from('study_plans').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     
-    setSubjects(sub || []);
+    const subList = sub || [];
+    setSubjects(subList);
     setMaterials(mat || []);
     setHistoryPlans(plans || []);
+    
+    // По умолчанию выбираем все предметы для планирования, если еще не выбраны
+    if (selectedSubjectIds.length === 0 && subList.length > 0) {
+      setSelectedSubjectIds(subList.map(s => s.id));
+    }
+
     if (plans && plans.length > 0 && plan.length === 0) {
       setPlan(plans[0].plan_json);
       setGoals(plans[0].notes || '');
@@ -4193,7 +4201,10 @@ export default function Planner() {
 
   const addSubject = async () => {
     if (!newName || !newDate) return;
-    await supabase.from('subjects').insert({ user_id: user!.id, name: newName, exam_date: newDate, color: newColor });
+    const { data, error } = await supabase.from('subjects').insert({ user_id: user!.id, name: newName, exam_date: newDate, color: newColor }).select().single();
+    if (!error && data) {
+      setSelectedSubjectIds(prev => [...prev, data.id]);
+    }
     setNewName('');
     setNewDate('');
     loadData();
@@ -4201,10 +4212,12 @@ export default function Planner() {
 
   const deleteSubject = async (id: string) => {
     await supabase.from('subjects').delete().eq('id', id);
+    setSelectedSubjectIds(prev => prev.filter(sid => sid !== id));
     loadData();
   };
 
   const generatePlan = async () => {
+    if (selectedSubjectIds.length === 0) return alert('Выберите хотя бы один предмет для планирования');
     setLoading(true);
     try {
       const selectedContent = materials
@@ -4212,11 +4225,13 @@ export default function Planner() {
         .map(m => `Документ "${m.title}": ${m.summary_json?.content || ''}`)
         .join('\n\n');
 
+      const selectedSubs = subjects.filter(s => selectedSubjectIds.includes(s.id));
+
       const res = await fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subjects: subjects.map(s => ({ name: s.name, exam_date: s.exam_date, color: s.color })),
+          subjects: selectedSubs.map(s => ({ name: s.name, exam_date: s.exam_date, color: s.color })),
           available_hours_per_day: hours,
           context_materials: selectedContent,
           user_goals: goals
@@ -4227,12 +4242,14 @@ export default function Planner() {
       setPlan(generatedPlan);
 
       if (user && generatedPlan.length > 0) {
+        const subNames = selectedSubs.map(s => s.name).join(', ');
         await supabase.from('study_plans').insert({
           user_id: user.id,
-          title: `План от ${format(new Date(), 'd MMMM HH:mm', { locale: ru })}`,
+          title: `${subNames.length > 20 ? subNames.slice(0, 20) + '...' : subNames} (${format(new Date(), 'dd.MM')})`,
           plan_json: generatedPlan,
           notes: goals
         });
+        loadData(); // Reload history
       }
     } catch (err) {
       console.error('Error generating/saving plan:', err);
@@ -4243,6 +4260,12 @@ export default function Planner() {
 
   const toggleMaterial = (id: string) => {
     setSelectedMaterials(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSubjectSelect = (id: string) => {
+    setSelectedSubjectIds(prev => 
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
   };
@@ -4283,32 +4306,42 @@ export default function Planner() {
               {subjects.map(s => {
                 const taskCount = subjectTaskCounts[s.name] || 0;
                 const isSelected = selectedSubject === s.name;
+                const isPlanned = selectedSubjectIds.includes(s.id);
                 return (
-                  <button
-                    key={s.id}
-                    onClick={() => setSelectedSubject(isSelected ? '' : s.name)}
-                    className={`w-full flex items-center justify-between text-sm p-2 rounded-lg transition border ${
-                      isSelected
-                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
-                        : 'bg-slate-50 border-transparent hover:border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                      <span className="font-medium truncate">{s.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {taskCount > 0 && (
-                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px]">{taskCount}</span>
-                      )}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); deleteSubject(s.id); }} 
-                        className="text-slate-300 hover:text-rose-500 transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </button>
+                  <div key={s.id} className="group relative">
+                    <button
+                      onClick={() => setSelectedSubject(isSelected ? '' : s.name)}
+                      className={`w-full flex items-center justify-between text-sm p-2 rounded-lg transition border ${
+                        isSelected
+                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
+                          : 'bg-slate-50 border-transparent hover:border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); toggleSubjectSelect(s.id); }}
+                          className={`w-4 h-4 rounded border flex items-center justify-center transition ${
+                            isPlanned ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'
+                          }`}
+                        >
+                          {isPlanned && <CheckSquare className="w-3 h-3" />}
+                        </div>
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        <span className="font-medium truncate">{s.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {taskCount > 0 && (
+                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px]">{taskCount}</span>
+                        )}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); deleteSubject(s.id); }} 
+                          className="text-slate-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -4432,7 +4465,10 @@ export default function Planner() {
                         <h3 className="font-bold text-slate-800 capitalize text-sm group-hover:text-indigo-600 transition-colors">
                           {format(new Date(day.date + 'T12:00:00'), 'EEEE, d MMMM', { locale: ru })}
                         </h3>
-                        <span className="px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 whitespace-nowrap">{totalHours}ч</span>
+                        <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded-full">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{totalHours}ч</span>
+                        </div>
                       </div>
                       <div className="space-y-3 flex-1">
                         {day.tasks?.map((task: any, j: number) => (
@@ -4442,7 +4478,6 @@ export default function Planner() {
                               <span className="font-bold text-slate-700 truncate block">{task.subject}</span>
                               <p className="text-slate-500 mt-0.5 leading-relaxed line-clamp-3">{task.task}</p>
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded shrink-0">{task.hours}ч</span>
                           </div>
                         ))}
                       </div>
