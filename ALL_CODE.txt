@@ -4619,6 +4619,7 @@ export default function Planner() {
 FILE: frontend/src/pages/Chat.tsx
 ================================================================================
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { MessageSquare, Send, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
@@ -4669,6 +4670,13 @@ export default function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [isFullScreen]);
 
   const selectedMaterial = materials.find(m => m.id === selectedId);
   
@@ -4739,10 +4747,10 @@ export default function Chat() {
     setMessages([]);
   };
 
-  return (
+  const chatContent = (
     <div className={`flex flex-col transition-all duration-300 ${
       isFullScreen 
-        ? 'fixed inset-0 z-[150] bg-slate-50 p-4 md:p-8 h-screen w-screen' 
+        ? 'fixed inset-0 z-[200] bg-slate-50 p-4 md:p-8 h-screen w-screen' 
         : 'h-full p-4 md:p-6 bg-slate-50/50'
     }`}>
       {/* Header */}
@@ -4868,6 +4876,8 @@ export default function Chat() {
       </div>
     </div>
   );
+
+  return isFullScreen ? createPortal(chatContent, document.body) : chatContent;
 }
 
 ================================================================================
