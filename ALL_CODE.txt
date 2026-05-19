@@ -4636,12 +4636,13 @@ export default function Chat() {
   const [fetchingHistory, setFetchingHistory] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isFirstLoad = useRef(true);
+  const prevMsgCount = useRef(0);
 
   useEffect(() => {
     if (!user) return;
     getMaterials(user.id).then(setMaterials).catch(console.error);
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Загрузка истории при выборе материала
   useEffect(() => {
@@ -4661,23 +4662,24 @@ export default function Chat() {
       
       if (!error && data) {
         setMessages(data);
+        prevMsgCount.current = data.length;
       }
       setFetchingHistory(false);
     };
 
     loadHistory();
-  }, [selectedId, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, user?.id]);
 
+  // Auto-scroll only when a NEW message is added (count increases)
   useEffect(() => {
-    // Only auto-scroll on first load or new messages, not on window focus
-    if (messages.length > 0) {
-      if (isFirstLoad.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-        isFirstLoad.current = false;
-      } else {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
+    if (messages.length > prevMsgCount.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else if (messages.length > 0 && prevMsgCount.current === 0) {
+      // First load of history — instant scroll
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
+    prevMsgCount.current = messages.length;
   }, [messages]);
 
   useEffect(() => {
