@@ -16,6 +16,7 @@ export default function Chat() {
   const [fetchingHistory, setFetchingHistory] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     if (!user) return;
@@ -48,7 +49,15 @@ export default function Chat() {
   }, [selectedId, user]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only auto-scroll on first load or new messages, not on window focus
+    if (messages.length > 0) {
+      if (isFirstLoad.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        isFirstLoad.current = false;
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -134,7 +143,7 @@ export default function Chat() {
         : 'h-full p-4 md:p-6 bg-slate-50/50'
     }`}>
       {/* Header */}
-      <div className={`flex items-center justify-between mb-4 ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}>
+      <div className={`flex items-center justify-between mb-4 ${isFullScreen ? 'max-w-7xl mx-auto w-full' : ''}`}>
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
             <MessageSquare className="w-5 h-5 text-indigo-600" />
@@ -163,7 +172,7 @@ export default function Chat() {
       </div>
 
       {/* Material select */}
-      <div className={`mb-4 ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}>
+      <div className={`mb-4 ${isFullScreen ? 'max-w-7xl mx-auto w-full' : ''}`}>
         <select
           value={selectedId}
           onChange={e => setSelectedId(e.target.value)}
@@ -177,7 +186,7 @@ export default function Chat() {
       </div>
 
       {/* Chat area */}
-      <div className={`flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative ${isFullScreen ? 'max-w-5xl mx-auto w-full' : ''}`}>
+      <div className={`flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative ${isFullScreen ? 'max-w-7xl mx-auto w-full h-full' : ''}`}>
         {!selectedId ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
@@ -206,7 +215,7 @@ export default function Chat() {
                 messages.map((msg, i) => (
                   <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div
-                      className={`max-w-[85%] md:max-w-[75%] p-3.5 text-sm rounded-2xl shadow-sm ${
+                      className={`max-w-[85%] md:max-w-[75%] lg:max-w-[65%] p-3.5 text-sm rounded-2xl shadow-sm ${
                         msg.role === 'user'
                           ? 'bg-indigo-600 text-white rounded-tr-none'
                           : 'bg-slate-100 border border-slate-200 text-slate-800 rounded-tl-none'
