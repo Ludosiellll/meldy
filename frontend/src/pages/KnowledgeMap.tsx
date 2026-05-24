@@ -245,11 +245,11 @@ export default function KnowledgeMap() {
           
           // Минимальное комфортное расстояние
           const minDist = nodeA.type === 'material' && nodeB.type === 'material' 
-            ? 280 
-            : (nodeA.type === 'material' || nodeB.type === 'material' ? 180 : 130);
+            ? 300 
+            : (nodeA.type === 'material' || nodeB.type === 'material' ? 200 : 160);
 
           if (dist < minDist) {
-            const force = (minDist - dist) * 0.28; // Более сильное отталкивание
+            const force = (minDist - dist) * 0.45; // Ещё более сильное отталкивание
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
             
@@ -274,8 +274,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.type === 'material' && target.type === 'material' ? 260 : 130;
-          const force = (dist - desiredDist) * 0.03; // Мягче притягивание
+          const desiredDist = source.type === 'material' && target.type === 'material' ? 280 : 160;
+          const force = (dist - desiredDist) * 0.025; // Очень мягкое притягивание
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
