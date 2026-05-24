@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
 import { getDueCards } from '../api/flashcards';
-import { getQuestsWithProgress } from '../api/quests';
+import { getQuestsWithProgress, getUserXP, calcLevel } from '../api/quests';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
   const bgMap: Record<string, string> = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', rose: 'bg-rose-50' };
@@ -36,6 +37,9 @@ export default function Dashboard() {
   const [mood, setMood] = useState<any>(null);
   const [quests, setQuests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [xp, setXp] = useState(0);
+  const [levelInfo, setLevelInfo] = useState(calcLevel(0));
+  const [nextExam, setNextExam] = useState<any>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -46,13 +50,26 @@ export default function Dashboard() {
       supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
       supabase.from('mood_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1).maybeSingle(),
       getQuestsWithProgress(user.id),
-    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData]) => {
+      getUserXP(user.id),
+      supabase.from('study_plans').select('subjects').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData, xpVal, planRes]) => {
       setMaterials(mats);
       setDueCards(cards);
       setSubjects(subRes.data || []);
       setSessions(sessRes.data || []);
       setMood(moodRes.data);
       setQuests(questsData);
+      const lvl = calcLevel(xpVal);
+      setXp(xpVal);
+      setLevelInfo(lvl);
+      // Ближайший экзамен из плана
+      if (planRes.data?.subjects) {
+        const today = new Date().toISOString().split('T')[0];
+        const upcoming = (planRes.data.subjects as any[])
+          .filter(s => s.exam_date >= today)
+          .sort((a, b) => a.exam_date.localeCompare(b.exam_date));
+        if (upcoming.length > 0) setNextExam(upcoming[0]);
+      }
     }).catch(console.error).finally(() => setLoading(false));
   }, [user?.id]);
 
@@ -102,21 +119,88 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      {/* Greeting */}
-      <h1 className="text-2xl font-bold text-slate-900 mb-1">Привет, {name}! 👋</h1>
-      <p className="text-slate-500 mb-6 capitalize">{format(new Date(), 'EEEE, d MMMM', { locale: ru })}</p>
+      {/* Greeting + XP */}
+      <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-0.5">Привет, {name}! 👋</h1>
+          <p className="text-slate-500 capitalize">{format(new Date(), 'EEEE, d MMMM', { locale: ru })}</p>
+        </div>
+        {/* XP / Level mini-badge */}
+        <motion.button
+          onClick={() => navigate('/analytics')}
+          whileHover={{ scale: 1.02 }}
+          className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-shadow"
+        >
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Уровень {levelInfo.level} · {levelInfo.name}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-white rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${levelInfo.progress}%` }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
+                />
+              </div>
+              <span className="text-xs font-black">{xp} XP</span>
+            </div>
+          </div>
+          <BarChart2 className="w-5 h-5 text-indigo-200" />
+        </motion.button>
+      </div>
+
+      {/* Виджет ближайшего экзамена */}
+      {nextExam && (() => {
+        const daysLeft = Math.ceil((new Date(nextExam.exam_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        const urgency = daysLeft <= 3 ? 'rose' : daysLeft <= 7 ? 'amber' : 'indigo';
+        const urgencyBg = urgency === 'rose' ? 'bg-rose-50 border-rose-200' : urgency === 'amber' ? 'bg-amber-50 border-amber-200' : 'bg-indigo-50 border-indigo-200';
+        const urgencyText = urgency === 'rose' ? 'text-rose-700' : urgency === 'amber' ? 'text-amber-700' : 'text-indigo-700';
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => navigate('/planner')}
+            className={`mb-6 p-4 border rounded-2xl cursor-pointer flex items-center gap-4 ${urgencyBg} hover:shadow-md transition`}
+          >
+            <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black ${urgency === 'rose' ? 'bg-rose-500' : urgency === 'amber' ? 'bg-amber-500' : 'bg-indigo-500'} text-white shrink-0`}>
+              <span className="text-lg leading-none">{daysLeft}</span>
+              <span className="text-[8px] font-bold uppercase">дн.</span>
+            </div>
+            <div className="flex-1">
+              <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${urgencyText}`}>
+                {daysLeft <= 3 ? '🔥 Срочно!' : daysLeft <= 7 ? '⚡ Скоро экзамен' : '📅 Ближайший экзамен'}
+              </p>
+              <p className="text-sm font-bold text-slate-800">{nextExam.name}</p>
+              <p className="text-xs text-slate-500">{new Date(nextExam.exam_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-300" />
+          </motion.div>
+        );
+      })()}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={BookOpen} label="Материалов" value={materials.length} color="indigo" />
         <StatCard icon={Brain} label="Карточек сегодня" value={dueCards.length} color="emerald" />
         <StatCard icon={GraduationCap} label="Предметов" value={subjects.length} color="amber" />
-        <StatCard icon={Flame} label="Дней подряд" value={streak} color="rose" />
+        {/* Стрик с анимацией огня */}
+        <motion.div
+          className="card p-4 flex items-center gap-3 cursor-default"
+          whileHover={{ scale: 1.02 }}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${streak >= 3 ? 'bg-rose-500' : 'bg-rose-50'}`}>
+            <Flame className={`w-5 h-5 ${streak >= 3 ? 'text-white' : 'text-rose-400'} ${streak >= 3 ? 'animate-pulse' : ''}`} />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-slate-900">{streak}</p>
+            <p className="text-xs text-slate-500">{streak >= 3 ? '🔥 Дней подряд!' : 'Дней подряд'}</p>
+          </div>
+        </motion.div>
       </div>
 
       {/* Mood Recommendation */}
       {mood && (
-        <div 
+        <div
           onClick={() => navigate('/mood')}
           className="mt-6 p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm cursor-pointer hover:shadow-md transition flex items-center gap-4"
         >
@@ -129,6 +213,26 @@ export default function Dashboard() {
           </div>
           <ChevronRight className="w-5 h-5 text-slate-300" />
         </div>
+      )}
+
+      {/* Быстрый повтор за 5 минут */}
+      {materials.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => navigate('/quick-prep')}
+          className="mt-3 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl cursor-pointer hover:shadow-md transition flex items-center gap-4"
+        >
+          <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-0.5">⚡ Экспресс-режим</p>
+            <p className="text-sm font-bold text-slate-800">Повторить материал за 5 минут</p>
+            <p className="text-xs text-slate-500">Шпаргалка + 2 разогревочных вопроса</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300" />
+        </motion.div>
       )}
 
       {/* Two columns */}

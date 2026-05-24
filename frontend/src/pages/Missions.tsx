@@ -6,7 +6,10 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
-import { updateQuestProgress } from '../api/quests';
+import { updateQuestProgress, checkAndAwardAchievements } from '../api/quests';
+import ConfettiCelebration from '../components/ConfettiCelebration';
+import AchievementToast from '../components/AchievementToast';
+import type { Achievement } from '../components/AchievementToast';
 
 interface Mission {
   id: number;
@@ -22,18 +25,39 @@ export default function Missions() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Восстановление состояния из sessionStorage
+  const savedStateStr = sessionStorage.getItem('studyforge_missions_state');
+  const savedState = savedStateStr ? JSON.parse(savedStateStr) : null;
+
   // Состояние материалов
   const [materials, setMaterials] = useState<any[]>([]);
-  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(savedState?.selectedMaterialId || '');
   
   // Состояние игры
-  const [phase, setPhase] = useState<'select' | 'loading' | 'game' | 'completed'>('select');
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [activeStep, setActiveStep] = useState(0); // индекс текущей миссии (0, 1, 2)
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [showHint, setShowHint] = useState(false);
-  const [shake, setShake] = useState(false);
+  const [phase, setPhase] = useState<'select' | 'loading' | 'game' | 'completed'>(
+    savedState?.phase === 'loading' ? 'select' : (savedState?.phase || 'select')
+  );
+  const [missions, setMissions] = useState<Mission[]>(savedState?.missions || []);
+  const [activeStep, setActiveStep] = useState<number>(savedState?.activeStep !== undefined ? savedState.activeStep : 0); // индекс текущей миссии (0, 1, 2)
+  const [selectedOption, setSelectedOption] = useState<string | null>(savedState?.selectedOption || null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(savedState?.isCorrect !== undefined ? savedState.isCorrect : null);
+  const [showHint, setShowHint] = useState<boolean>(savedState?.showHint || false);
+  const [shake, setShake] = useState<boolean>(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [achievement, setAchievement] = useState<Achievement | null>(null);
+
+  // Сохранение состояния в sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('studyforge_missions_state', JSON.stringify({
+      selectedMaterialId,
+      phase,
+      missions,
+      activeStep,
+      selectedOption,
+      isCorrect,
+      showHint
+    }));
+  }, [selectedMaterialId, phase, missions, activeStep, selectedOption, isCorrect, showHint]);
 
   // Загрузка материалов
   useEffect(() => {
@@ -107,16 +131,23 @@ export default function Missions() {
 
     if (activeStep + 1 >= missions.length) {
       // Все миссии пройдены!
+      setShowConfetti(true);
       setPhase('completed');
+      setTimeout(() => setShowConfetti(false), 100);
       
       // Запись сессии в Supabase для начисления XP и активности
       if (user) {
         await updateQuestProgress(user.id, 'quiz', 1);
         await supabase.from('study_sessions').insert({
           user_id: user.id,
-          cards_reviewed: 3, // активность для графиков
+          cards_reviewed: 3,
           date: new Date().toISOString().split('T')[0]
         });
+        // Проверяем достижения
+        const newAchs = await checkAndAwardAchievements(user.id);
+        if (newAchs.length > 0) {
+          setAchievement({ id: newAchs[0].id, title: newAchs[0].title, description: newAchs[0].description, icon: newAchs[0].icon, xp: newAchs[0].xp });
+        }
       }
     } else {
       setActiveStep(prev => prev + 1);
@@ -127,6 +158,8 @@ export default function Missions() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
+      <ConfettiCelebration trigger={showConfetti} type="quest" />
+      <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
       {/* Шапка */}
       <div className="flex items-center gap-2 mb-6 justify-between">
         <div className="flex items-center gap-2">
@@ -140,7 +173,16 @@ export default function Missions() {
         </div>
         {phase !== 'select' && (
           <button
-            onClick={() => { if (confirm('Вы уверены, что хотите выйти из игры? Весь прогресс будет потерян.')) setPhase('select'); }}
+            onClick={() => {
+              if (confirm('Вы уверены, что хотите выйти из игры? Весь прогресс будет потерян.')) {
+                setPhase('select');
+                setMissions([]);
+                setActiveStep(0);
+                setSelectedOption(null);
+                setIsCorrect(null);
+                setShowHint(false);
+              }
+            }}
             className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
           >
             <X className="w-3.5 h-3.5" /> Выйти из игры
@@ -174,7 +216,7 @@ export default function Missions() {
                   onChange={e => setSelectedMaterialId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm"
                 >
-                  <option value="">-- Выберите лекцию для игры --</option>
+                  <option value="">Выберите лекцию для игры</option>
                   {materials.map(m => (
                     <option key={m.id} value={m.id}>{m.title}</option>
                   ))}

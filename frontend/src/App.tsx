@@ -15,6 +15,8 @@ import ProfessorExam from './pages/ProfessorExam';
 import Missions from './pages/Missions';
 import MistakeDiary from './pages/MistakeDiary';
 import MoodTracker from './pages/MoodTracker';
+import Analytics from './pages/Analytics';
+import QuickPrep from './pages/QuickPrep';
 import AuthCallback from './pages/AuthCallback';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -48,6 +50,8 @@ export default function App() {
           <Route path="play" element={<Missions />} />
           <Route path="mistakes" element={<MistakeDiary />} />
           <Route path="mood" element={<MoodTracker />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="quick-prep" element={<QuickPrep />} />
         </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />

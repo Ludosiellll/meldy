@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from datetime import date
 from typing import AsyncGenerator, List
 
 from dotenv import load_dotenv
@@ -246,6 +247,7 @@ class ProfessorQuestionRequest(BaseModel):
     context: str
     history_text: str = ""
     mood: dict = None
+    socratic_mode: bool = False
 
 
 class ProfessorEvaluateRequest(BaseModel):
@@ -258,7 +260,7 @@ class MissionsGenerateRequest(BaseModel):
     context: str
 
 
-from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt
+from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt, build_quick_prep_prompt
 
 @app.post("/api/professor/question")
 async def professor_question(req: ProfessorQuestionRequest):
@@ -271,9 +273,26 @@ async def professor_question(req: ProfessorQuestionRequest):
         elif req.mood['energy_level'] >= 4:
             mood_instr = "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
 
+    # Сократовский режим
+    if req.socratic_mode:
+        socratic_instr = """
+
+СОКРАТОВСКИЙ РЕЖИМ АКТИВЕН:
+Не просто задавай вопрос — веди Сократовский диалог. Это означает:
+1. Задай первый вопрос по теме.
+2. После каждого ответа студента (из истории) — НЕ принимай ответ просто так. Задавай уточняющий вопрос, который:
+   - Оспаривает ответ («А почему именно так?»)
+   - Просит пример («Можешь привести конкретный пример?»)
+   - Углубляет понимание («А что будет, если условие X изменится?»)
+   - Проверяет границы знания («Верно ли это всегда, или есть исключения?»)
+Цель — не поймать на ошибке, а помочь студенту самому дойти до глубокого понимания."""
+    else:
+        socratic_instr = ""
+
     system_prompt = build_professor_question_prompt(req.context, req.history_text)
     if mood_instr:
         system_prompt += f"\n\nКОНТЕКСТ СОСТОЯНИЯ СТУДЕНТА: {mood_instr}"
+    system_prompt += socratic_instr
         
     question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.")
     return {"question": question.strip()}
@@ -342,6 +361,41 @@ async def generate_missions(req: MissionsGenerateRequest):
                     "correct": "A",
                     "hint": "Выберите вариант А"
                 }
+            ]
+        }
+
+
+class QuickPrepRequest(BaseModel):
+    context: str
+
+
+@app.post("/api/quick-prep")
+async def quick_prep(req: QuickPrepRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_quick_prep_prompt()
+    raw = await agent.run(system_prompt, req.context[:15000])
+
+    def parse_json(r):
+        js = r.strip()
+        if "```json" in js:
+            js = js.split("```json")[1].split("```")[0]
+        elif "```" in js:
+            js = js.split("```")[1].split("```")[0]
+        if not (js.startswith('{') or js.startswith('[')):
+            start, end = js.find('{'), js.rfind('}')
+            if start != -1 and end != -1:
+                js = js[start:end+1]
+        return json.loads(js.strip())
+
+    try:
+        return parse_json(raw)
+    except Exception:
+        return {
+            "key_points": ["Изучите основные термины темы", "Разберитесь с ключевыми определениями", "Повторите главные выводы лекции"],
+            "cheatsheet": "Не удалось автоматически создать шпаргалку. Обратитесь к оригинальному материалу.",
+            "questions": [
+                {"question": "Какие главные понятия этой темы вы знаете?", "answer": "Обратитесь к тексту лекции для детального ответа."},
+                {"question": "Как вы можете применить эти знания на практике?", "answer": "Подумайте о конкретных примерах из материала."}
             ]
         }
 

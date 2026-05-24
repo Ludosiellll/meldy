@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2 } from 'lucide-react';
+import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
-import { updateQuestProgress } from '../api/quests';
+import { updateQuestProgress, checkAndAwardAchievements } from '../api/quests';
+import ConfettiCelebration from '../components/ConfettiCelebration';
+import AchievementToast from '../components/AchievementToast';
+import type { Achievement } from '../components/AchievementToast';
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -24,22 +27,47 @@ export default function ProfessorExam() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Восстановление состояния из sessionStorage
+  const savedStateStr = sessionStorage.getItem('studyforge_professor_exam_state');
+  const savedState = savedStateStr ? JSON.parse(savedStateStr) : null;
+
   // Состояние материалов
   const [materials, setMaterials] = useState<any[]>([]);
-  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(savedState?.selectedMaterialId || '');
   
   // Состояние экзамена
-  const [phase, setPhase] = useState<'select' | 'question' | 'evaluation' | 'loading'>('select');
-  const [currentQuestion, setCurrentQuestion] = useState('');
-  const [answerText, setAnswerText] = useState('');
-  const [history, setHistory] = useState<{ question: string; answer: string; grade: string }[]>([]);
-  const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
+  const [phase, setPhase] = useState<'select' | 'question' | 'evaluation' | 'loading'>(
+    savedState?.phase === 'loading' ? 'select' : (savedState?.phase || 'select')
+  );
+  const [currentQuestion, setCurrentQuestion] = useState<string>(savedState?.currentQuestion || '');
+  const [answerText, setAnswerText] = useState<string>(savedState?.answerText || '');
+  const [interimText, setInterimText] = useState<string>('');
+  const [history, setHistory] = useState<{ question: string; answer: string; grade: string }[]>(savedState?.history || []);
+  const [evaluation, setEvaluation] = useState<EvaluationResult | null>(savedState?.evaluation || null);
   const [examHistory, setExamHistory] = useState<any[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   
   // Голосовой ввод
-  const [isListening, setIsListening] = useState(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
   const recognitionRef = useRef<any>(null);
+  // Режим экзамена
+  const [socraticMode, setSocraticMode] = useState<boolean>(savedState?.socraticMode || false);
+  // Конфетти и достижения
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [achievement, setAchievement] = useState<Achievement | null>(null);
+
+  // Сохранение состояния в sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('studyforge_professor_exam_state', JSON.stringify({
+      selectedMaterialId,
+      phase,
+      currentQuestion,
+      answerText,
+      history,
+      evaluation,
+      socraticMode
+    }));
+  }, [selectedMaterialId, phase, currentQuestion, answerText, history, evaluation, socraticMode]);
 
   // Загрузка материалов и истории экзаменов
   useEffect(() => {
@@ -78,19 +106,24 @@ export default function ProfessorExam() {
     
     rec.onend = () => {
       setIsListening(false);
+      setInterimText('');
       console.log('Speech recognition ended');
     };
 
     rec.onresult = (event: any) => {
       let finalTranscript = '';
+      let currentInterim = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript;
+        } else {
+          currentInterim += event.results[i][0].transcript;
         }
       }
       if (finalTranscript) {
         setAnswerText(prev => prev ? prev + ' ' + finalTranscript : finalTranscript);
       }
+      setInterimText(currentInterim);
     };
 
     rec.onerror = (e: any) => {
@@ -193,7 +226,8 @@ export default function ProfessorExam() {
         body: JSON.stringify({
           context,
           history_text: historyText,
-          mood: moodData
+          mood: moodData,
+          socratic_mode: socraticMode,
         })
       });
 
@@ -234,6 +268,12 @@ export default function ProfessorExam() {
       
       setEvaluation(evalData);
       
+      // Конфетти при пятёрке!
+      if (evalData.grade === '5') {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 100);
+      }
+      
       // Добавляем в локальную историю
       setHistory(prev => [
         ...prev,
@@ -257,6 +297,11 @@ export default function ProfessorExam() {
         if (sessionData) {
           fetchExamHistory();
           await updateQuestProgress(user.id, 'exam', 1);
+          // Проверяем достижения
+          const newAchs = await checkAndAwardAchievements(user.id);
+          if (newAchs.length > 0) {
+            setAchievement({ id: newAchs[0].id, title: newAchs[0].title, description: newAchs[0].description, icon: newAchs[0].icon, xp: newAchs[0].xp });
+          }
         }
 
         await supabase.from('study_sessions').insert({
@@ -312,6 +357,8 @@ export default function ProfessorExam() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
+      <ConfettiCelebration trigger={showConfetti} type="exam5" />
+      <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
       {/* Заголовок */}
       <div className="flex items-center gap-2 mb-6 justify-between">
         <div className="flex items-center gap-2">
@@ -323,14 +370,39 @@ export default function ProfessorExam() {
             <p className="text-xs text-slate-500">Устная репетиция сдача сессии профессору</p>
           </div>
         </div>
-        {phase !== 'select' && (
-          <button
-            onClick={() => { if (confirm('Вы уверены, что хотите завершить экзамен?')) setPhase('select'); }}
-            className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
-          >
-            <X className="w-3.5 h-3.5" /> Выйти
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Переключатель режима */}
+          {phase === 'select' && (
+            <button
+              onClick={() => setSocraticMode(p => !p)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
+                socraticMode
+                  ? 'bg-purple-100 text-purple-700 border-purple-200'
+                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+              }`}
+              title="Режим Сократовского диалога: профессор докапывается до сути через уточняющие вопросы"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {socraticMode ? 'Сократ ВКЛ' : 'Сократ ВЫКЛ'}
+            </button>
+          )}
+          {phase !== 'select' && (
+            <button
+              onClick={() => {
+                if (confirm('Вы уверены, что хотите завершить экзамен?')) {
+                  setPhase('select');
+                  setCurrentQuestion('');
+                  setAnswerText('');
+                  setHistory([]);
+                  setEvaluation(null);
+                }
+              }}
+              className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
+            >
+              <X className="w-3.5 h-3.5" /> Выйти
+            </button>
+          )}
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -360,7 +432,7 @@ export default function ProfessorExam() {
                     onChange={e => setSelectedMaterialId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-500 transition shadow-sm"
                   >
-                    <option value="">-- Выберите материал для сдачи --</option>
+                    <option value="">Выберите материал для сдачи</option>
                     {materials.map(m => (
                       <option key={m.id} value={m.id}>{m.title}</option>
                     ))}
@@ -485,8 +557,11 @@ export default function ProfessorExam() {
               </div>
 
               <textarea
-                value={answerText}
-                onChange={e => setAnswerText(e.target.value)}
+                value={answerText + (interimText ? (answerText ? ' ' : '') + interimText : '')}
+                onChange={e => {
+                  setAnswerText(e.target.value);
+                  setInterimText('');
+                }}
                 placeholder="Сформулируйте ваш развернутый ответ на вопрос профессора..."
                 className="w-full h-36 px-4 py-3.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 transition resize-none bg-slate-50/50"
               />
