@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X } from 'lucide-react';
+import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
@@ -60,21 +61,40 @@ export default function ProfessorExam() {
 
   // Настройка голосового распознавания
   useEffect(() => {
-    if (SpeechRecognition) {
+    if (SpeechRecognition && !recognitionRef.current) {
       const rec = new SpeechRecognition();
-      rec.continuous = false;
+      rec.continuous = true;
       rec.lang = 'ru-RU';
-      rec.interimResults = false;
+      rec.interimResults = true;
 
-      rec.onstart = () => setIsListening(true);
-      rec.onend = () => setIsListening(false);
-      rec.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setAnswerText(prev => prev ? prev + ' ' + transcript : transcript);
+      rec.onstart = () => {
+        setIsListening(true);
+        console.log('Speech recognition started');
       };
-      rec.onerror = (e: any) => {
-        console.error('Speech recognition error:', e);
+      
+      rec.onend = () => {
         setIsListening(false);
+        console.log('Speech recognition ended');
+      };
+
+      rec.onresult = (event: any) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+          setAnswerText(prev => prev ? prev + ' ' + finalTranscript : finalTranscript);
+        }
+      };
+
+      rec.onerror = (e: any) => {
+        console.error('Speech recognition error:', e.error);
+        setIsListening(false);
+        if (e.error === 'not-allowed') {
+          alert('Доступ к микрофону заблокирован. Разрешите его в настройках браузера.');
+        }
       };
 
       recognitionRef.current = rec;
@@ -394,7 +414,9 @@ export default function ProfessorExam() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-300 text-xs uppercase tracking-wider mb-1">Вопрос профессора:</h3>
-                  <p className="text-base font-medium text-white leading-relaxed">{currentQuestion}</p>
+                  <div className="text-base font-medium text-white leading-relaxed markdown-content white-text professor-question">
+                    <ReactMarkdown>{currentQuestion}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
             </div>
