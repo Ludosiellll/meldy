@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getDueCards, updateCardProgress } from '../api/flashcards';
+import { updateQuestProgress } from '../api/quests';
 
 function CircularProgress({ value, size = 100, strokeWidth = 8 }: { value: number; size?: number; strokeWidth?: number }) {
   const radius = (size - strokeWidth) / 2;
@@ -46,6 +47,7 @@ export default function Review() {
     setProcessing(true);
     try {
       await updateCardProgress(cards[idx].id, quality);
+      if (user?.id) await updateQuestProgress(user.id, 'review', 1);
       if (quality >= 3) setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
       else setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
 

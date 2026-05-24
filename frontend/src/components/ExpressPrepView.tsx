@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Play, Pause, Square, Headphones, FileText, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { updateQuestProgress } from '../api/quests';
+import { useAuth } from '../hooks/useAuth';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
@@ -9,6 +11,8 @@ interface PodcastLine {
 }
 
 export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
+  const { user } = useAuth();
+
   // Вытаскиваем данные из составного JSON
   const cheatsheet = summaryJson?.cheatsheet || '';
   const podcastLines: PodcastLine[] = summaryJson?.podcast || [];
@@ -115,6 +119,7 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
 
     setIsPlaying(true);
     speakNext();
+    if (user?.id) updateQuestProgress(user.id, 'podcast', 1);
   };
 
   return (

@@ -1620,6 +1620,109 @@ export async function updateCardProgress(cardId: string, quality: number) {
 }
 
 ================================================================================
+FILE: frontend/src/api/quests.ts
+================================================================================
+import { supabase } from '../lib/supabase';
+
+export type QuestType = 'daily' | 'weekly';
+export type TargetType = 'analyze' | 'quiz' | 'chat' | 'mood' | 'exam' | 'review' | 'podcast';
+
+export async function getQuestsWithProgress(userId: string) {
+  // 1. Получаем все квесты
+  const { data: quests, error: qErr } = await supabase
+    .from('quests')
+    .select('*');
+
+  if (qErr || !quests) return [];
+
+  // 2. Определяем reset_at для daily и weekly
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Для weekly — найдем следующий понедельник или просто текущую дату начала недели
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Понедельник
+  const monday = new Date(now.setDate(diff)).toISOString().split('T')[0];
+
+  // 3. Получаем прогресс пользователя
+  const { data: progress, error: pErr } = await supabase
+    .from('user_quest_progress')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (pErr) return quests.map(q => ({ ...q, progress: 0, is_completed: false }));
+
+  return quests.map(q => {
+    const resetDate = q.type === 'daily' ? today : monday;
+    const prog = progress?.find(p => p.quest_id === q.id && p.reset_at === resetDate);
+    return {
+      ...q,
+      current_count: prog?.current_count || 0,
+      is_completed: prog?.is_completed || false,
+      reset_at: resetDate
+    };
+  });
+}
+
+export async function updateQuestProgress(userId: string, targetType: TargetType, increment: number = 1) {
+  // 1. Находим все квесты этого типа
+  const { data: targetQuests } = await supabase
+    .from('quests')
+    .select('*')
+    .eq('target_type', targetType);
+
+  if (!targetQuests || targetQuests.length === 0) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now.setDate(diff)).toISOString().split('T')[0];
+
+  for (const quest of targetQuests) {
+    const resetAt = quest.type === 'daily' ? today : monday;
+
+    // Пытаемся получить текущий прогресс
+    const { data: existing } = await supabase
+      .from('user_quest_progress')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('quest_id', quest.id)
+      .eq('reset_at', resetAt)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.is_completed) continue;
+
+      const newCount = existing.current_count + increment;
+      const isCompleted = newCount >= quest.target_count;
+
+      await supabase
+        .from('user_quest_progress')
+        .update({
+          current_count: newCount,
+          is_completed: isCompleted,
+          completed_at: isCompleted ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+    } else {
+      const isCompleted = increment >= quest.target_count;
+      await supabase
+        .from('user_quest_progress')
+        .insert({
+          user_id: userId,
+          quest_id: quest.id,
+          current_count: increment,
+          is_completed: isCompleted,
+          completed_at: isCompleted ? new Date().toISOString() : null,
+          reset_at: resetAt
+        });
+    }
+  }
+}
+
+================================================================================
 FILE: frontend/src/components/Layout.tsx
 ================================================================================
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -2896,6 +2999,8 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Play, Pause, Square, Headphones, FileText, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { updateQuestProgress } from '../api/quests';
+import { useAuth } from '../hooks/useAuth';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
@@ -2903,6 +3008,8 @@ interface PodcastLine {
 }
 
 export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
+  const { user } = useAuth();
+
   // Вытаскиваем данные из составного JSON
   const cheatsheet = summaryJson?.cheatsheet || '';
   const podcastLines: PodcastLine[] = summaryJson?.podcast || [];
@@ -3009,6 +3116,7 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
 
     setIsPlaying(true);
     speakNext();
+    if (user?.id) updateQuestProgress(user.id, 'podcast', 1);
   };
 
   return (
@@ -3838,7 +3946,7 @@ FILE: frontend/src/pages/Dashboard.tsx
 ================================================================================
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -3846,6 +3954,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
 import { getDueCards } from '../api/flashcards';
+import { getQuestsWithProgress } from '../api/quests';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
   const bgMap: Record<string, string> = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', rose: 'bg-rose-50' };
@@ -3871,22 +3980,25 @@ export default function Dashboard() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [mood, setMood] = useState<any>(null);
+  const [quests, setQuests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     Promise.all([
       getMaterials(user.id),
       getDueCards(user.id),
       supabase.from('subjects').select('*').eq('user_id', user.id),
       supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
       supabase.from('mood_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1).maybeSingle(),
-    ]).then(([mats, cards, subRes, sessRes, moodRes]) => {
+      getQuestsWithProgress(user.id),
+    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData]) => {
       setMaterials(mats);
       setDueCards(cards);
       setSubjects(subRes.data || []);
       setSessions(sessRes.data || []);
       setMood(moodRes.data);
+      setQuests(questsData);
     }).catch(console.error).finally(() => setLoading(false));
   }, [user?.id]);
 
@@ -3966,72 +4078,140 @@ export default function Dashboard() {
       )}
 
       {/* Two columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        {/* Due cards */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-900">На повторение сегодня</h2>
-            <button onClick={() => navigate('/review')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Начать →</button>
-          </div>
-          {dueCards.length === 0 ? (
-            <p className="text-emerald-600 text-sm">Все карточки повторены! ✅</p>
-          ) : (
-            <div className="space-y-2">
-              {dueCards.slice(0, 3).map((c: any) => (
-                <div key={c.id} className="flex items-center gap-2 text-sm text-slate-600">
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="truncate">{c.question}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        {/* Left Col: Quests */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="card p-5 border-l-4 border-l-indigo-500">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                Квесты дня
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {quests.filter(q => q.type === 'daily').map(q => (
+                <div key={q.id} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through' : 'text-slate-700'}`}>
+                      {q.title}
+                    </p>
+                    <span className="text-[10px] font-black text-indigo-500">+{q.xp_reward} XP</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-500 ${q.is_completed ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${Math.min(100, (q.current_count / q.target_count) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400">{q.current_count}/{q.target_count}</span>
+                  </div>
                 </div>
               ))}
-              {dueCards.length > 3 && (
-                <p className="text-xs text-slate-400">+ ещё {dueCards.length - 3}</p>
+            </div>
+          </div>
+
+          <div className="card p-5 border-l-4 border-l-purple-500">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-500" />
+                Еженедельные
+              </h2>
+            </div>
+            <div className="space-y-4">
+              {quests.filter(q => q.type === 'weekly').map(q => (
+                <div key={q.id} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through' : 'text-slate-700'}`}>
+                      {q.title}
+                    </p>
+                    <span className="text-[10px] font-black text-purple-500">+{q.xp_reward} XP</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-500 ${q.is_completed ? 'bg-emerald-500' : 'bg-purple-500'}`}
+                        style={{ width: `${Math.min(100, (q.current_count / q.target_count) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400">{q.current_count}/{q.target_count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Col: Due and Recent */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Due cards */}
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-slate-900">На повторение сегодня</h2>
+                <button onClick={() => navigate('/review')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Начать →</button>
+              </div>
+              {dueCards.length === 0 ? (
+                <p className="text-emerald-600 text-sm">Все карточки повторены! ✅</p>
+              ) : (
+                <div className="space-y-2">
+                  {dueCards.slice(0, 3).map((c: any) => (
+                    <div key={c.id} className="flex items-center gap-2 text-sm text-slate-600">
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="truncate">{c.question}</span>
+                    </div>
+                  ))}
+                  {dueCards.length > 3 && (
+                    <p className="text-xs text-slate-400">+ ещё {dueCards.length - 3}</p>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Recent materials */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-900">Последние материалы</h2>
-            <button onClick={() => navigate('/library')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Все →</button>
-          </div>
-          {materials.length === 0 ? (
-            <button onClick={() => navigate('/analyze')} className="text-sm text-indigo-600 hover:text-indigo-700">Загрузи первую лекцию →</button>
-          ) : (
-            <div className="space-y-2">
-              {materials.slice(0, 3).map((m: any) => (
-                <div
-                  key={m.id}
-                  onClick={() => navigate('/library/' + m.id)}
-                  className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-900 transition"
-                >
-                  <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="truncate flex-1">{m.title}</span>
-                  <span className="text-xs text-slate-400 shrink-0">{format(new Date(m.created_at), 'dd.MM.yy')}</span>
+            {/* Recent materials */}
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-slate-900">Последние материалы</h2>
+                <button onClick={() => navigate('/library')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Все →</button>
+              </div>
+              {materials.length === 0 ? (
+                <button onClick={() => navigate('/analyze')} className="text-sm text-indigo-600 hover:text-indigo-700">Загрузи первую лекцию →</button>
+              ) : (
+                <div className="space-y-2">
+                  {materials.slice(0, 3).map((m: any) => (
+                    <div
+                      key={m.id}
+                      onClick={() => navigate('/library/' + m.id)}
+                      className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-900 transition"
+                    >
+                      <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="truncate flex-1">{m.title}</span>
+                      <span className="text-xs text-slate-400 shrink-0">{format(new Date(m.created_at), 'dd.MM.yy')}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Activity chart */}
-      <div className="card p-5 mt-6">
-        <h2 className="font-semibold text-slate-900 mb-4">Активность за 2 недели</h2>
-        <div style={{ height: 200 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#94a3b8" />
-              <Tooltip
-                contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}
-                labelFormatter={(l: string) => l}
-                formatter={(v: number) => [v, 'Карточек']}
-              />
-              <Bar dataKey="cards_reviewed" fill="#4F46E5" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {/* Activity chart */}
+          <div className="card p-5">
+            <h2 className="font-semibold text-slate-900 mb-4">Активность за 2 недели</h2>
+            <div style={{ height: 200 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}
+                    labelFormatter={(l: string) => l}
+                    formatter={(v: number) => [v, 'Карточек']}
+                  />
+                  <Bar dataKey="cards_reviewed" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -4161,6 +4341,7 @@ import { DEMO_TEXT } from '../demo';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
+import { updateQuestProgress } from '../api/quests';
 
 const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
@@ -4290,6 +4471,7 @@ export default function Analyze() {
           if (cards.length > 0 && inserted?.id) {
             await syncFlashcards(user.id, inserted.id, cards);
           }
+          await updateQuestProgress(user.id, 'analyze', 1);
         })();
       }
     }
@@ -4671,6 +4853,7 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getDueCards, updateCardProgress } from '../api/flashcards';
+import { updateQuestProgress } from '../api/quests';
 
 function CircularProgress({ value, size = 100, strokeWidth = 8 }: { value: number; size?: number; strokeWidth?: number }) {
   const radius = (size - strokeWidth) / 2;
@@ -4713,6 +4896,7 @@ export default function Review() {
     setProcessing(true);
     try {
       await updateCardProgress(cards[idx].id, quality);
+      if (user?.id) await updateQuestProgress(user.id, 'review', 1);
       if (quality >= 3) setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
       else setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
 
@@ -5334,6 +5518,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
+import { updateQuestProgress } from '../api/quests';
 
 export default function Chat() {
   const { user } = useAuth();
@@ -5428,6 +5613,8 @@ export default function Chat() {
         role: 'user',
         content: userMsg.content
       });
+
+      await updateQuestProgress(user.id, 'chat', 1);
 
       // Получаем актуальное настроение пользователя
       const { data: moodData } = await supabase
@@ -5617,9 +5804,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
+import { updateQuestProgress } from '../api/quests';
 
 interface Mission {
   id: number;
@@ -5724,6 +5913,7 @@ export default function Missions() {
       
       // Запись сессии в Supabase для начисления XP и активности
       if (user) {
+        await updateQuestProgress(user.id, 'quiz', 1);
         await supabase.from('study_sessions').insert({
           user_id: user.id,
           cards_reviewed: 3, // активность для графиков
@@ -5876,9 +6066,9 @@ export default function Missions() {
                 <h3 className="text-base font-extrabold text-white leading-snug">
                   📖 Теория на пальцах
                 </h3>
-                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
-                  {currentMission.explanation}
-                </p>
+                <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line markdown-content white-text">
+                  <ReactMarkdown>{currentMission.explanation}</ReactMarkdown>
+                </div>
               </div>
             </div>
 
@@ -5893,9 +6083,9 @@ export default function Missions() {
                 <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Испытание для разблокировки следующего уровня:</h4>
               </div>
 
-              <p className="text-sm font-semibold text-slate-700 leading-relaxed mb-4">
-                {currentMission.question}
-              </p>
+              <div className="text-sm font-semibold text-slate-700 leading-relaxed mb-4 markdown-content">
+                <ReactMarkdown>{currentMission.question}</ReactMarkdown>
+              </div>
 
               {/* Кнопки ответов */}
               <div className="grid grid-cols-1 gap-3">
@@ -6035,6 +6225,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
+import { updateQuestProgress } from '../api/quests';
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -6284,6 +6475,7 @@ export default function ProfessorExam() {
 
         if (sessionData) {
           fetchExamHistory();
+          await updateQuestProgress(user.id, 'exam', 1);
         }
 
         await supabase.from('study_sessions').insert({
@@ -6910,6 +7102,7 @@ import { Heart, Zap, Brain, Coffee, Frown, Smile, Meh, SmilePlus, CheckCircle2, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { updateQuestProgress } from '../api/quests';
 
 type MoodType = 'great' | 'good' | 'okay' | 'tired' | 'stressed';
 
@@ -7030,6 +7223,7 @@ export default function MoodTracker() {
     if (!error && data) {
       setTodayEntry(data);
       setPhase('done');
+      await updateQuestProgress(user.id, 'mood', 1);
     }
     setSaving(false);
   };
@@ -7429,6 +7623,37 @@ CREATE TABLE mood_log (
 );
 ALTER TABLE mood_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own mood" ON mood_log FOR ALL USING (auth.uid() = user_id);
+
+-- 11. quests — Справочник квестов
+CREATE TABLE quests (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title       text NOT NULL,
+  description text NOT NULL,
+  xp_reward   int NOT NULL DEFAULT 10,
+  type        text NOT NULL CHECK (type IN ('daily', 'weekly')),
+  target_type text NOT NULL, -- 'analyze', 'quiz', 'chat', 'mood', 'exam', 'review', 'podcast'
+  target_count int NOT NULL DEFAULT 1,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- 12. user_quest_progress — Прогресс пользователя в квестах
+CREATE TABLE user_quest_progress (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quest_id      uuid NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
+  current_count int NOT NULL DEFAULT 0,
+  is_completed  boolean NOT NULL DEFAULT false,
+  completed_at  timestamptz,
+  reset_at      date NOT NULL, -- Дата, когда квест должен сброситься
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, quest_id, reset_at)
+);
+
+ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Quests are readable by all authenticated users" ON quests FOR SELECT USING (auth.role() = 'authenticated');
+
+ALTER TABLE user_quest_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own quest progress" ON user_quest_progress FOR ALL USING (auth.uid() = user_id);
 
 -- Триггер: автосоздание профиля при регистрации
 CREATE OR REPLACE FUNCTION public.handle_new_user()

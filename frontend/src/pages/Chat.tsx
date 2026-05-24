@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
+import { updateQuestProgress } from '../api/quests';
 
 export default function Chat() {
   const { user } = useAuth();
@@ -99,6 +100,8 @@ export default function Chat() {
         role: 'user',
         content: userMsg.content
       });
+
+      await updateQuestProgress(user.id, 'chat', 1);
 
       // Получаем актуальное настроение пользователя
       const { data: moodData } = await supabase

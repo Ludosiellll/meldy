@@ -3,6 +3,7 @@ import { Heart, Zap, Brain, Coffee, Frown, Smile, Meh, SmilePlus, CheckCircle2, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { updateQuestProgress } from '../api/quests';
 
 type MoodType = 'great' | 'good' | 'okay' | 'tired' | 'stressed';
 
@@ -123,6 +124,7 @@ export default function MoodTracker() {
     if (!error && data) {
       setTodayEntry(data);
       setPhase('done');
+      await updateQuestProgress(user.id, 'mood', 1);
     }
     setSaving(false);
   };

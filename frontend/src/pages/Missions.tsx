@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
+import { updateQuestProgress } from '../api/quests';
 
 interface Mission {
   id: number;
@@ -109,6 +111,7 @@ export default function Missions() {
       
       // Запись сессии в Supabase для начисления XP и активности
       if (user) {
+        await updateQuestProgress(user.id, 'quiz', 1);
         await supabase.from('study_sessions').insert({
           user_id: user.id,
           cards_reviewed: 3, // активность для графиков
@@ -261,9 +264,9 @@ export default function Missions() {
                 <h3 className="text-base font-extrabold text-white leading-snug">
                   📖 Теория на пальцах
                 </h3>
-                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
-                  {currentMission.explanation}
-                </p>
+                <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line markdown-content white-text">
+                  <ReactMarkdown>{currentMission.explanation}</ReactMarkdown>
+                </div>
               </div>
             </div>
 
@@ -278,9 +281,9 @@ export default function Missions() {
                 <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Испытание для разблокировки следующего уровня:</h4>
               </div>
 
-              <p className="text-sm font-semibold text-slate-700 leading-relaxed mb-4">
-                {currentMission.question}
-              </p>
+              <div className="text-sm font-semibold text-slate-700 leading-relaxed mb-4 markdown-content">
+                <ReactMarkdown>{currentMission.question}</ReactMarkdown>
+              </div>
 
               {/* Кнопки ответов */}
               <div className="grid grid-cols-1 gap-3">

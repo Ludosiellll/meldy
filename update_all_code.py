@@ -34,6 +34,7 @@ FILES = [
     "frontend/src/hooks/useHistory.ts",
     "frontend/src/api/materials.ts",
     "frontend/src/api/flashcards.ts",
+    "frontend/src/api/quests.ts",
     "frontend/src/components/Layout.tsx",
     "frontend/src/components/Header.tsx",
     "frontend/src/components/UploadZone.tsx",
@@ -235,6 +236,37 @@ CREATE TABLE mood_log (
 );
 ALTER TABLE mood_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own mood" ON mood_log FOR ALL USING (auth.uid() = user_id);
+
+-- 11. quests — Справочник квестов
+CREATE TABLE quests (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title       text NOT NULL,
+  description text NOT NULL,
+  xp_reward   int NOT NULL DEFAULT 10,
+  type        text NOT NULL CHECK (type IN ('daily', 'weekly')),
+  target_type text NOT NULL, -- 'analyze', 'quiz', 'chat', 'mood', 'exam', 'review', 'podcast'
+  target_count int NOT NULL DEFAULT 1,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- 12. user_quest_progress — Прогресс пользователя в квестах
+CREATE TABLE user_quest_progress (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quest_id      uuid NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
+  current_count int NOT NULL DEFAULT 0,
+  is_completed  boolean NOT NULL DEFAULT false,
+  completed_at  timestamptz,
+  reset_at      date NOT NULL, -- Дата, когда квест должен сброситься
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, quest_id, reset_at)
+);
+
+ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Quests are readable by all authenticated users" ON quests FOR SELECT USING (auth.role() = 'authenticated');
+
+ALTER TABLE user_quest_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own quest progress" ON user_quest_progress FOR ALL USING (auth.uid() = user_id);
 
 -- Триггер: автосоздание профиля при регистрации
 CREATE OR REPLACE FUNCTION public.handle_new_user()

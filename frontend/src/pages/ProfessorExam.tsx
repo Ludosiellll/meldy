@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
+import { updateQuestProgress } from '../api/quests';
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -255,6 +256,7 @@ export default function ProfessorExam() {
 
         if (sessionData) {
           fetchExamHistory();
+          await updateQuestProgress(user.id, 'exam', 1);
         }
 
         await supabase.from('study_sessions').insert({
