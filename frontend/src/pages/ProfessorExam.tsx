@@ -60,63 +60,95 @@ export default function ProfessorExam() {
   };
 
   // Настройка голосового распознавания
-  useEffect(() => {
-    if (SpeechRecognition && !recognitionRef.current) {
-      const rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.lang = 'ru-RU';
-      rec.interimResults = true;
+  const initRecognition = () => {
+    if (recognitionRef.current) return recognitionRef.current;
+    
+    if (!SpeechRecognition) return null;
 
-      rec.onstart = () => {
-        setIsListening(true);
-        console.log('Speech recognition started');
-      };
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.lang = 'ru-RU';
+    rec.interimResults = true;
+
+    rec.onstart = () => {
+      setIsListening(true);
+      console.log('Speech recognition started');
+    };
+    
+    rec.onend = () => {
+      setIsListening(false);
+      console.log('Speech recognition ended');
+    };
+
+    rec.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript) {
+        setAnswerText(prev => prev ? prev + ' ' + finalTranscript : finalTranscript);
+      }
+    };
+
+    rec.onerror = (e: any) => {
+      console.error('Speech recognition error:', e.error);
+      setIsListening(false);
       
-      rec.onend = () => {
-        setIsListening(false);
-        console.log('Speech recognition ended');
-      };
+      if (e.error === 'not-allowed') {
+        alert('Доступ к микрофону заблокирован. Разрешите его в настройках браузера (значок замка в адресной строке).');
+      } else if (e.error === 'network') {
+        alert('Ошибка сети. Проверьте интернет-соединение. Голосовой ввод Google требует стабильной сети.');
+      } else if (e.error === 'no-speech') {
+        // Просто игнорируем, если не услышал
+        console.log('No speech detected');
+      } else {
+        console.warn('Recognition error:', e.error);
+      }
+    };
 
-      rec.onresult = (event: any) => {
-        let finalTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          }
-        }
-        if (finalTranscript) {
-          setAnswerText(prev => prev ? prev + ' ' + finalTranscript : finalTranscript);
-        }
-      };
-
-      rec.onerror = (e: any) => {
-        console.error('Speech recognition error:', e.error);
-        setIsListening(false);
-        if (e.error === 'not-allowed') {
-          alert('Доступ к микрофону заблокирован. Разрешите его в настройках браузера.');
-        }
-      };
-
-      recognitionRef.current = rec;
-    }
-  }, []);
+    recognitionRef.current = rec;
+    return rec;
+  };
 
   const toggleListening = () => {
-    if (!recognitionRef.current) {
+    const rec = initRecognition();
+    
+    if (!rec) {
       alert('Голосовой ввод не поддерживается вашим браузером. Пожалуйста, используйте Google Chrome, Edge или Safari.');
       return;
     }
 
     if (isListening) {
-      recognitionRef.current.stop();
+      try {
+        rec.stop();
+      } catch (e) {
+        console.error('Stop error:', e);
+      }
     } else {
       try {
-        recognitionRef.current.start();
-      } catch (err) {
-        console.error(err);
+        rec.start();
+      } catch (err: any) {
+        console.error('Start error:', err);
+        // Если уже запущено, просто обновляем стейт
+        if (err.name === 'InvalidStateError') {
+          setIsListening(true);
+        }
       }
     }
   };
+
+  // Очистка при размонтировании
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
 
