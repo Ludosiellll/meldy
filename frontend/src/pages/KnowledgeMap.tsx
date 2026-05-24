@@ -82,6 +82,15 @@ export default function KnowledgeMap() {
 
   // Парсер терминов из секции "📚 Термины и определения" конспекта
   const extractTerms = (summaryJson: any) => {
+    // 1. Попытка взять готовые термины из JSON (новый формат)
+    if (summaryJson?.terms && Array.isArray(summaryJson.terms) && summaryJson.terms.length > 0) {
+      return summaryJson.terms.map((t: any) => ({
+        term: t.term,
+        definition: t.definition
+      }));
+    }
+
+    // 2. Fallback на старый парсер регулярками (для старых записей в БД)
     const content = summaryJson?.content || summaryJson?.raw || '';
     if (!content) return [];
 
@@ -152,7 +161,7 @@ export default function KnowledgeMap() {
 
       // Извлекаем термины
       const terms = extractTerms(mat.summary_json);
-      terms.forEach(t => {
+      terms.forEach((t: any) => {
         const key = t.term.toLowerCase();
         
         // Проверяем наличие ошибок по этому термину

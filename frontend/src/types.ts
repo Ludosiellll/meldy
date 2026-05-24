@@ -29,6 +29,9 @@ export interface AnalysisResults {
   summarizer: any;
   flashcards: any;
   quiz: any;
+  cheatsheet?: any;
+  podcast?: any;
+  missions?: any;
 }
 
 export interface HistoryItem {

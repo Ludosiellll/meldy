@@ -76,6 +76,14 @@ export default function Missions() {
     setShowHint(false);
     setActiveStep(0);
 
+    // 1. Проверяем, есть ли уже сгенерированные миссии в БД
+    if (selectedMaterial.missions_json && selectedMaterial.missions_json.missions && selectedMaterial.missions_json.missions.length > 0) {
+      setMissions(selectedMaterial.missions_json.missions);
+      setPhase('game');
+      return;
+    }
+
+    // 2. Если нет (старый материал), генерируем на лету
     const summary = typeof selectedMaterial.summary_json === 'string'
       ? selectedMaterial.summary_json
       : (selectedMaterial.summary_json?.content || '');

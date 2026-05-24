@@ -17,6 +17,7 @@ const initAgents: AgentStatus[] = [
   { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
   { id: 'cheatsheet', label: 'Шпаргалка', status: 'idle', progress: 0 },
   { id: 'podcast', label: 'Подкаст', status: 'idle', progress: 0 },
+  { id: 'missions', label: 'Миссии', status: 'idle', progress: 0 },
 ];
 
 interface Toast {
@@ -80,6 +81,7 @@ export default function Analyze() {
     quiz: '✅ Тест готов',
     cheatsheet: '✅ Шпаргалка готова',
     podcast: '✅ Подкаст готов',
+    missions: '✅ Квесты готовы',
   };
 
   const handleSSE = (d: any) => {
@@ -99,7 +101,8 @@ export default function Analyze() {
         flashcards: d.flashcards,
         quiz: d.quiz,
         cheatsheet: d.cheatsheet,
-        podcast: d.podcast
+        podcast: d.podcast,
+        missions: d.missions
       };
       const dur = analysisStartRef.current
         ? Math.round((Date.now() - analysisStartRef.current) / 1000)
@@ -117,13 +120,15 @@ export default function Analyze() {
             .insert({
               user_id: user.id,
               title,
-              subject: '',
+              subject: results.summarizer?.subject || '',
               original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
               summary_json: {
                 content: results.summarizer?.content || '',
+                terms: results.summarizer?.terms || [],
                 cheatsheet: results.cheatsheet?.content || '',
                 podcast: results.podcast?.podcast || []
               },
+              missions_json: results.missions,
               flashcards_json: results.flashcards,
               quiz_json: results.quiz,
             })

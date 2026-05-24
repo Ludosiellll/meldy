@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu } from 'lucide-react';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2 } from 'lucide-react';
 import { AnalysisResults } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 
-type Tab = 'summary' | 'flashcards' | 'quiz';
+type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions';
 
 function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): string {
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -89,11 +89,13 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
     { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
     { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
+    { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" />, count: results.missions?.missions?.length || 0 },
   ];
 
   const getContent = () => {
     if (tab === 'summary') return results.summarizer?.content || results.summarizer?.raw || '';
     if (tab === 'flashcards') return JSON.stringify(results.flashcards?.flashcards || results.flashcards, null, 2);
+    if (tab === 'missions') return JSON.stringify(results.missions?.missions || results.missions, null, 2);
     return JSON.stringify(results.quiz?.quiz || results.quiz, null, 2);
   };
 
@@ -187,6 +189,21 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} /></div>}
         {tab === 'flashcards' && <FlashcardsView data={results.flashcards} />}
         {tab === 'quiz' && <QuizView data={results.quiz} />}
+        {tab === 'missions' && (
+          <div className="card p-10 flex flex-col items-center text-center justify-center min-h-[300px]">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+              <Gamepad2 className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Сюжетные миссии готовы!</h3>
+            <p className="text-slate-500 mb-6 max-w-sm">
+              ИИ создал для вас персональный мини-квест на основе этого материала. Сыграем?
+            </p>
+            <a href="/missions" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
+              <Gamepad2 className="w-5 h-5" />
+              Начать игру
+            </a>
+          </div>
+        )}
       </motion.div>
     </div>
   );
