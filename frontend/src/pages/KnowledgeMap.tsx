@@ -128,7 +128,7 @@ export default function KnowledgeMap() {
     // Сначала создаем узлы материалов (лекций)
     materials.forEach((mat, idx) => {
       const angle = (idx / materials.length) * Math.PI * 2;
-      const radiusDist = 180;
+      const radiusDist = 220;
       
       const subject = mat.subject || 'Общее';
       if (!subjectColorMap[subject]) {
@@ -245,11 +245,11 @@ export default function KnowledgeMap() {
           
           // Минимальное комфортное расстояние
           const minDist = nodeA.type === 'material' && nodeB.type === 'material' 
-            ? 260 
-            : (nodeA.type === 'material' || nodeB.type === 'material' ? 140 : 100);
+            ? 280 
+            : (nodeA.type === 'material' || nodeB.type === 'material' ? 180 : 130);
 
           if (dist < minDist) {
-            const force = (minDist - dist) * 0.22; // Более сильное отталкивание
+            const force = (minDist - dist) * 0.28; // Более сильное отталкивание
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
             
@@ -274,8 +274,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.type === 'material' && target.type === 'material' ? 240 : 110;
-          const force = (dist - desiredDist) * 0.05;
+          const desiredDist = source.type === 'material' && target.type === 'material' ? 260 : 130;
+          const force = (dist - desiredDist) * 0.03; // Мягче притягивание
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -301,9 +301,9 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          // Сила тяжести к центру экрана
-          node.vx += (centerX - node.x) * 0.003;
-          node.vy += (centerY - node.y) * 0.003;
+          // Сила тяжести к центру экрана (меньше, чтобы дать разойтись)
+          node.vx += (centerX - node.x) * 0.0015;
+          node.vy += (centerY - node.y) * 0.0015;
 
           // Трение
           node.vx *= 0.82;
@@ -583,6 +583,10 @@ export default function KnowledgeMap() {
                     const isSearchResult = activeSearch && node.label.toLowerCase().includes(activeSearch);
                     const searchOpacity = !activeSearch || isSearchResult ? 1 : 0.15;
 
+                    // Чередование подписей (сверху / снизу) для уменьшения наложений
+                    const isLabelBelow = isMaterial || (node.label.charCodeAt(0) % 2 === 0);
+                    const labelY = isLabelBelow ? (node.radius + 15) : (-node.radius - 8);
+
                     return (
                       <g
                         key={node.id}
@@ -648,7 +652,7 @@ export default function KnowledgeMap() {
                         {/* Подпись узла с аурой/обводкой для 100% читаемости на тёмном фоне */}
                         {/* 1. Обводка текста */}
                         <text
-                          y={node.radius + 14}
+                          y={labelY}
                           textAnchor="middle"
                           stroke="#020617"
                           strokeWidth="3.5"
@@ -659,7 +663,7 @@ export default function KnowledgeMap() {
                         </text>
                         {/* 2. Основной text */}
                         <text
-                          y={node.radius + 14}
+                          y={labelY}
                           textAnchor="middle"
                           fill={isSelected ? '#FFFFFF' : isMaterial ? '#F1F5F9' : '#94A3B8'}
                           className="text-[10px] font-bold select-none pointer-events-none transition-colors"
