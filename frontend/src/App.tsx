@@ -17,6 +17,7 @@ import MistakeDiary from './pages/MistakeDiary';
 import MoodTracker from './pages/MoodTracker';
 import Analytics from './pages/Analytics';
 import QuickPrep from './pages/QuickPrep';
+import KnowledgeMap from './pages/KnowledgeMap';
 import AuthCallback from './pages/AuthCallback';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="mood" element={<MoodTracker />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="quick-prep" element={<QuickPrep />} />
+          <Route path="knowledge-map" element={<KnowledgeMap />} />
         </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />

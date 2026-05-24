@@ -48,6 +48,9 @@ export async function addXP(userId: string, amount: number): Promise<number> {
   const current = await getUserXP(userId);
   const newXP = current + amount;
   await supabase.from('user_xp').upsert({ user_id: userId, total_xp: newXP }, { onConflict: 'user_id' });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('xp_updated'));
+  }
   return newXP;
 }
 

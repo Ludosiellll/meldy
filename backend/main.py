@@ -260,7 +260,7 @@ class MissionsGenerateRequest(BaseModel):
     context: str
 
 
-from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt, build_quick_prep_prompt
+from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt, build_quick_prep_prompt, build_mistakes_practice_prompt
 
 @app.post("/api/professor/question")
 async def professor_question(req: ProfessorQuestionRequest):
@@ -396,6 +396,50 @@ async def quick_prep(req: QuickPrepRequest):
             "questions": [
                 {"question": "Какие главные понятия этой темы вы знаете?", "answer": "Обратитесь к тексту лекции для детального ответа."},
                 {"question": "Как вы можете применить эти знания на практике?", "answer": "Подумайте о конкретных примерах из материала."}
+            ]
+        }
+
+
+class MistakesPracticeRequest(BaseModel):
+    mistakes: List[dict]
+
+
+@app.post("/api/mistakes/practice")
+async def mistakes_practice(req: MistakesPracticeRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_mistakes_practice_prompt(req.mistakes)
+    raw = await agent.run(system_prompt, "Сгенерируй проверочный тест по моим ошибкам.")
+
+    def parse_json(r):
+        js = r.strip()
+        if "```json" in js:
+            js = js.split("```json")[1].split("```")[0]
+        elif "```" in js:
+            js = js.split("```")[1].split("```")[0]
+        if not (js.startswith('{') or js.startswith('[')):
+            start, end = js.find('{'), js.rfind('}')
+            if start != -1 and end != -1:
+                js = js[start:end+1]
+        return json.loads(js.strip())
+
+    try:
+        return parse_json(raw)
+    except Exception:
+        return {
+            "practice": [
+                {
+                    "id": 1,
+                    "mistake_id": "",
+                    "question": "Какое ключевое правило нужно соблюдать, чтобы не допускать повторных ошибок?",
+                    "options": [
+                        "A) Внимательно анализировать свои неверные ответы и пояснения",
+                        "B) Заучивать правильные формулировки наизусть без понимания",
+                        "C) Стараться реже заглядывать в дневник ошибок",
+                        "D) Проходить только простые темы для хорошего настроения"
+                    ],
+                    "correct": "A",
+                    "explanation": "Осознанный разбор неверных ответов и верных решений — единственный путь к реальному прогрессу."
+                }
             ]
         }
 

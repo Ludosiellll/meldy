@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Calendar, MessageSquare, LogOut, Award, Gamepad2,
-  BookMarked, Heart, BarChart2, Clock, ChevronRight,
+  BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/dashboard',   icon: LayoutDashboard, label: 'Дашборд' },
   { to: '/analyze',     icon: Zap,             label: 'Анализ материалов' },
   { to: '/library',     icon: BookOpen,         label: 'Библиотека' },
+  { to: '/knowledge-map', icon: Network,        label: 'Карта знаний' },
   { to: '/review',      icon: Brain,            label: 'Повторение' },
   { to: '/play',        icon: Gamepad2,         label: 'Микро-миссии' },
   { to: '/exam',        icon: Award,            label: 'AI-Экзаменатор' },
@@ -44,10 +45,17 @@ export default function Layout() {
 
   useEffect(() => {
     if (!user?.id) return;
-    getUserXP(user.id).then(v => {
-      setXp(v);
-      setLevelInfo(calcLevel(v));
-    });
+    const fetchXP = () => {
+      getUserXP(user.id).then(v => {
+        setXp(v);
+        setLevelInfo(calcLevel(v));
+      });
+    };
+    fetchXP();
+    window.addEventListener('xp_updated', fetchXP);
+    return () => {
+      window.removeEventListener('xp_updated', fetchXP);
+    };
   }, [user?.id]);
 
   return (
