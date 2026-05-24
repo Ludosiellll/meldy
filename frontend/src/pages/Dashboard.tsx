@@ -50,7 +50,7 @@ export default function Dashboard() {
       setSessions(sessRes.data || []);
       setMood(moodRes.data);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [user]);
+  }, [user?.id]);
 
   const streak = (() => {
     const dates = new Set(sessions.map((s: any) => s.date));

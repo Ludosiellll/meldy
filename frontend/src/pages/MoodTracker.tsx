@@ -75,9 +75,9 @@ export default function MoodTracker() {
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     loadData();
-  }, [user]);
+  }, [user?.id]);
 
   const loadData = async () => {
     setLoading(true);

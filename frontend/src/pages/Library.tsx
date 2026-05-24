@@ -20,7 +20,7 @@ export default function Library() {
       .then(data => setMaterials(data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user?.id]);
 
   const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
 

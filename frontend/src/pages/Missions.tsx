@@ -37,7 +37,7 @@ export default function Missions() {
   useEffect(() => {
     if (!user) return;
     getMaterials(user.id).then(setMaterials).catch(console.error);
-  }, [user]);
+  }, [user?.id]);
 
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
 

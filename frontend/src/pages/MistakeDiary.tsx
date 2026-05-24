@@ -37,7 +37,7 @@ export default function MistakeDiary() {
 
   useEffect(() => {
     fetchMistakes();
-  }, [user]);
+  }, [user?.id]);
 
   const markResolved = async (id: string) => {
     await supabase

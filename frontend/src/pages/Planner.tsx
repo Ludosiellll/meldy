@@ -60,7 +60,7 @@ export default function Planner() {
     }
   };
 
-  useEffect(() => { loadData(); }, [user]);
+  useEffect(() => { loadData(); }, [user?.id]);
 
   const addSubject = async () => {
     if (!newName || !newDate) return;

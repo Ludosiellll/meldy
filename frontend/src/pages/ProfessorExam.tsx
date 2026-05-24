@@ -42,10 +42,10 @@ export default function ProfessorExam() {
 
   // Загрузка материалов и истории экзаменов
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     getMaterials(user.id).then(setMaterials).catch(console.error);
     fetchExamHistory();
-  }, [user]);
+  }, [user?.id]);
 
   const fetchExamHistory = async () => {
     if (!user) return;

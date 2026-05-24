@@ -3861,7 +3861,7 @@ export default function Dashboard() {
       setSessions(sessRes.data || []);
       setMood(moodRes.data);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [user]);
+  }, [user?.id]);
 
   const streak = (() => {
     const dates = new Set(sessions.map((s: any) => s.date));
@@ -4283,7 +4283,7 @@ export default function Library() {
       .then(data => setMaterials(data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user?.id]);
 
   const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
 
@@ -4808,7 +4808,7 @@ export default function Planner() {
     }
   };
 
-  useEffect(() => { loadData(); }, [user]);
+  useEffect(() => { loadData(); }, [user?.id]);
 
   const addSubject = async () => {
     if (!newName || !newDate) return;
@@ -5526,7 +5526,7 @@ export default function Missions() {
   useEffect(() => {
     if (!user) return;
     getMaterials(user.id).then(setMaterials).catch(console.error);
-  }, [user]);
+  }, [user?.id]);
 
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
 
@@ -5945,10 +5945,10 @@ export default function ProfessorExam() {
 
   // Загрузка материалов и истории экзаменов
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     getMaterials(user.id).then(setMaterials).catch(console.error);
     fetchExamHistory();
-  }, [user]);
+  }, [user?.id]);
 
   const fetchExamHistory = async () => {
     if (!user) return;
@@ -6561,7 +6561,7 @@ export default function MistakeDiary() {
 
   useEffect(() => {
     fetchMistakes();
-  }, [user]);
+  }, [user?.id]);
 
   const markResolved = async (id: string) => {
     await supabase
@@ -6846,9 +6846,9 @@ export default function MoodTracker() {
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     loadData();
-  }, [user]);
+  }, [user?.id]);
 
   const loadData = async () => {
     setLoading(true);
