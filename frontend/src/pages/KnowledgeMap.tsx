@@ -243,10 +243,12 @@ export default function KnowledgeMap() {
           const dist = Math.sqrt(distSq);
           
           // Минимальное комфортное расстояние
-          const minDist = nodeA.type === 'material' && nodeB.type === 'material' ? 220 : 70;
+          const minDist = nodeA.type === 'material' && nodeB.type === 'material' 
+            ? 260 
+            : (nodeA.type === 'material' || nodeB.type === 'material' ? 140 : 100);
 
           if (dist < minDist) {
-            const force = (minDist - dist) * 0.12;
+            const force = (minDist - dist) * 0.22; // Более сильное отталкивание
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
             
@@ -271,8 +273,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.type === 'material' && target.type === 'material' ? 200 : 70;
-          const force = (dist - desiredDist) * 0.04;
+          const desiredDist = source.type === 'material' && target.type === 'material' ? 240 : 110;
+          const force = (dist - desiredDist) * 0.05;
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -450,35 +452,44 @@ export default function KnowledgeMap() {
           {/* График и интерактивная область (3 колонки) */}
           <div className="lg:col-span-3 flex flex-col space-y-4">
             
-            {/* Панель управления картой */}
-            <div className="card p-3 flex flex-wrap gap-4 items-center justify-between bg-slate-900 text-white border-slate-800">
-              <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Слабое место (ошибка)</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Успешно пройдено</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block" /> Изучено</span>
+            {/* Панель управления картой (Светлая тема с темным текстом для читаемости) */}
+            <div className="card p-3.5 flex flex-wrap gap-4 items-center justify-between bg-white border-slate-200 shadow-sm">
+              <div className="flex items-center gap-4 text-xs text-slate-600 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block shadow-sm" /> 
+                  Слабое место (ошибка)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-sm" /> 
+                  Успешно пройдено
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block shadow-sm" /> 
+                  Изучено
+                </span>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={zoomOut}
-                  className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition"
+                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-slate-900 transition border border-slate-200"
                   title="Отдалить"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-[10px] font-bold text-slate-400 w-10 text-center">
+                <span className="text-[11px] font-black text-slate-700 w-12 text-center">
                   {Math.round(scale * 100)}%
                 </span>
                 <button
                   onClick={zoomIn}
-                  className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition"
+                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-slate-900 transition border border-slate-200"
                   title="Приблизить"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={resetZoom}
-                  className="ml-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition"
+                  className="ml-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 rounded-xl text-xs font-black text-white hover:text-white transition shadow-sm"
                 >
                   Сбросить
                 </button>
@@ -524,8 +535,9 @@ export default function KnowledgeMap() {
                         y1={sourceNode.y}
                         x2={targetNode.x}
                         y2={targetNode.y}
-                        stroke={isHighlight ? '#A5B4FC' : '#1E293B'}
-                        strokeWidth={isHighlight ? 2 : 1.2}
+                        stroke={isHighlight ? '#818CF8' : '#312E81'}
+                        strokeOpacity={isHighlight ? 0.95 : 0.45}
+                        strokeWidth={isHighlight ? 2.5 : 1.5}
                         strokeDasharray={targetNode.type === 'concept' ? '4,4' : undefined}
                         className="transition-all duration-300"
                       />
@@ -545,15 +557,23 @@ export default function KnowledgeMap() {
                         onMouseDown={(e) => handleMouseDown(e, node)}
                         onMouseUp={(e) => handleMouseUp(e, node)}
                       >
-                        {/* Эффект свечения для выбранного узла */}
-                        {isSelected && (
+                        {/* Мягкое свечение (аура) для лекций */}
+                        {isMaterial && (
                           <circle
-                            r={node.radius + 6}
-                            fill="none"
-                            stroke={isMaterial ? node.color : '#818CF8'}
-                            strokeWidth={2}
-                            className="animate-pulse"
-                            strokeOpacity={0.6}
+                            r={node.radius + 12}
+                            fill={node.color}
+                            opacity={isSelected ? 0.25 : 0.08}
+                            className="transition-all duration-300 group-hover:opacity-20"
+                          />
+                        )}
+
+                        {/* Эффект свечения для концептов с ошибками или выбранных */}
+                        {(!isMaterial && (node.status === 'weak' || isSelected)) && (
+                          <circle
+                            r={node.radius + 8}
+                            fill={node.color}
+                            opacity={isSelected ? 0.3 : 0.15}
+                            className={node.status === 'weak' ? 'animate-pulse' : ''}
                           />
                         )}
 
@@ -563,7 +583,7 @@ export default function KnowledgeMap() {
                           fill={isMaterial ? '#0F172A' : node.color}
                           stroke={isMaterial ? node.color : '#0F172A'}
                           strokeWidth={isMaterial ? 4 : 2}
-                          className="transition-all duration-200 group-hover:scale-110"
+                          className="transition-all duration-200 group-hover:scale-110 shadow-lg"
                         />
 
                         {/* Иконка внутри узла лекции */}
@@ -577,14 +597,26 @@ export default function KnowledgeMap() {
                           />
                         )}
 
-                        {/* Подпись узла */}
+                        {/* Подпись узла с аурой/обводкой для 100% читаемости на тёмном фоне */}
+                        {/* 1. Обводка текста */}
                         <text
                           y={node.radius + 14}
                           textAnchor="middle"
-                          fill={isSelected ? '#F8FAFC' : isMaterial ? '#CBD5E1' : '#94A3B8'}
-                          className="text-[9px] font-bold tracking-wide pointer-events-none select-none transition-colors"
+                          stroke="#020617"
+                          strokeWidth="3.5"
+                          strokeLinejoin="round"
+                          className="text-[10px] font-bold select-none pointer-events-none opacity-90"
                         >
-                          {node.label.length > 20 ? `${node.label.slice(0, 18)}...` : node.label}
+                          {node.label.length > 22 ? `${node.label.slice(0, 20)}...` : node.label}
+                        </text>
+                        {/* 2. Основной текст */}
+                        <text
+                          y={node.radius + 14}
+                          textAnchor="middle"
+                          fill={isSelected ? '#FFFFFF' : isMaterial ? '#F1F5F9' : '#94A3B8'}
+                          className="text-[10px] font-bold select-none pointer-events-none transition-colors"
+                        >
+                          {node.label.length > 22 ? `${node.label.slice(0, 20)}...` : node.label}
                         </text>
                       </g>
                     );
