@@ -45,6 +45,7 @@ export default function KnowledgeMap() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [mistakes, setMistakes] = useState<any[]>([]);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Карта (zoom/pan)
   const [scale, setScale] = useState(1);
@@ -329,6 +330,24 @@ export default function KnowledgeMap() {
     };
   }, [loading]);
 
+  // 3.5. Зумирование колесиком мыши (smooth scroll zoom)
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomIntensity = 0.06;
+      const zoomFactor = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+      setScale(s => Math.max(0.4, Math.min(2.5, s * zoomFactor)));
+    };
+
+    svg.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      svg.removeEventListener('wheel', handleWheel);
+    };
+  }, [loading]);
+
   // 4. События мыши (Drag & Drop и Pan)
   const handleMouseDown = (e: React.MouseEvent, node?: GraphNode) => {
     e.preventDefault();
@@ -517,6 +536,7 @@ export default function KnowledgeMap() {
                 onMouseMove={handleMouseMove}
                 onMouseUp={(e) => handleMouseUp(e)}
                 onMouseLeave={(e) => handleMouseUp(e)}
+                onDoubleClick={resetZoom}
               >
                 <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
                   
@@ -528,6 +548,15 @@ export default function KnowledgeMap() {
 
                     const isHighlight = selectedNode?.id === sourceNode.id || selectedNode?.id === targetNode.id;
 
+                    // Определение видимости при поиске
+                    const activeSearch = searchQuery.trim().toLowerCase();
+                    let searchOpacity = 1;
+                    if (activeSearch) {
+                      const sourceMatch = sourceNode.label.toLowerCase().includes(activeSearch);
+                      const targetMatch = targetNode.label.toLowerCase().includes(activeSearch);
+                      searchOpacity = (sourceMatch || targetMatch) ? 0.8 : 0.08;
+                    }
+
                     return (
                       <line
                         key={`link-${idx}`}
@@ -536,7 +565,7 @@ export default function KnowledgeMap() {
                         x2={targetNode.x}
                         y2={targetNode.y}
                         stroke={isHighlight ? '#818CF8' : '#312E81'}
-                        strokeOpacity={isHighlight ? 0.95 : 0.45}
+                        strokeOpacity={(isHighlight ? 0.95 : 0.45) * searchOpacity}
                         strokeWidth={isHighlight ? 2.5 : 1.5}
                         strokeDasharray={targetNode.type === 'concept' ? '4,4' : undefined}
                         className="transition-all duration-300"
@@ -549,6 +578,11 @@ export default function KnowledgeMap() {
                     const isSelected = selectedNode?.id === node.id;
                     const isMaterial = node.type === 'material';
                     
+                    // Определение видимости при поиске
+                    const activeSearch = searchQuery.trim().toLowerCase();
+                    const isSearchResult = activeSearch && node.label.toLowerCase().includes(activeSearch);
+                    const searchOpacity = !activeSearch || isSearchResult ? 1 : 0.15;
+
                     return (
                       <g
                         key={node.id}
@@ -556,7 +590,21 @@ export default function KnowledgeMap() {
                         className="cursor-pointer group"
                         onMouseDown={(e) => handleMouseDown(e, node)}
                         onMouseUp={(e) => handleMouseUp(e, node)}
+                        style={{ opacity: searchOpacity }}
                       >
+                        {/* Дополнительный вращающийся неоновый ободок для найденного по поиску узла */}
+                        {isSearchResult && (
+                          <circle
+                            r={node.radius + 8}
+                            fill="none"
+                            stroke="#F59E0B"
+                            strokeWidth={2}
+                            strokeDasharray="5,3"
+                            className="animate-spin"
+                            style={{ transformOrigin: '0 0', animationDuration: '6s' }}
+                          />
+                        )}
+
                         {/* Мягкое свечение (аура) для лекций */}
                         {isMaterial && (
                           <circle
@@ -609,7 +657,7 @@ export default function KnowledgeMap() {
                         >
                           {node.label.length > 22 ? `${node.label.slice(0, 20)}...` : node.label}
                         </text>
-                        {/* 2. Основной текст */}
+                        {/* 2. Основной text */}
                         <text
                           y={node.radius + 14}
                           textAnchor="middle"
@@ -629,9 +677,9 @@ export default function KnowledgeMap() {
                 <p className="font-bold text-slate-200 flex items-center gap-1">
                   <Info className="w-3 h-3 text-indigo-400" /> Подсказка по навигации
                 </p>
-                <p>• Зажмите левую кнопку на пустом месте для перемещения карты.</p>
-                <p>• Перетаскивайте круги мышкой, чтобы перегруппировать граф.</p>
-                <p>• Нажмите на узел лекции или термина для просмотра деталей.</p>
+                <p>• Прокрутка мыши: Увеличение / Уменьшение масштаба.</p>
+                <p>• Зажмите левую кнопку на пустом месте для перемещения.</p>
+                <p>• Двойной клик на фоне сбросит масштаб и центрирует граф.</p>
               </div>
             </div>
           </div>
@@ -639,6 +687,29 @@ export default function KnowledgeMap() {
           {/* Информационная боковая панель (1 колонка) */}
           <div className="lg:col-span-1 space-y-6">
             
+            {/* Поиск по карте */}
+            <div className="card p-4 space-y-3">
+              <h3 className="font-bold text-slate-900 text-sm">Поиск по карте</h3>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Введите термин или лекцию..."
+                  className="w-full pl-8 pr-8 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-semibold"
+                />
+                <span className="absolute left-2.5 top-2.5 text-[10px]">🔍</span>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-sm font-bold"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Статистика карты */}
             <div className="card p-5 space-y-4">
               <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">Статистика знаний</h3>
