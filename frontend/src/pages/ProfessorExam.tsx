@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
-import { updateQuestProgress, checkAndAwardAchievements } from '../api/quests';
+import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
@@ -304,11 +304,7 @@ export default function ProfessorExam() {
           }
         }
 
-        await supabase.from('study_sessions').insert({
-          user_id: user.id,
-          cards_reviewed: 1,
-          date: new Date().toISOString().split('T')[0]
-        });
+        await recordStudyActivity(user.id, 1, 0);
 
         // Автоматически сохраняем ошибки в дневник ошибок
         const mistakesToSave = [

@@ -51,6 +51,60 @@ export async function addXP(userId: string, amount: number): Promise<number> {
   return newXP;
 }
 
+export async function recordStudyActivity(userId: string, cardsReviewed: number = 0, materialsAdded: number = 0) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  try {
+    const { data: existing } = await supabase
+      .from('study_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', today)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('study_sessions')
+        .update({
+          cards_reviewed: (existing.cards_reviewed || 0) + cardsReviewed,
+          materials_added: (existing.materials_added || 0) + materialsAdded
+        })
+        .eq('id', existing.id);
+    } else {
+      const { error } = await supabase
+        .from('study_sessions')
+        .insert({
+          user_id: userId,
+          date: today,
+          cards_reviewed: cardsReviewed,
+          materials_added: materialsAdded
+        });
+      
+      // Обрабатываем возможную гонку уникальности (Unique violation)
+      if (error && error.code === '23505') {
+        const { data: retryExisting } = await supabase
+          .from('study_sessions')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('date', today)
+          .maybeSingle();
+        if (retryExisting) {
+          await supabase
+            .from('study_sessions')
+            .update({
+              cards_reviewed: (retryExisting.cards_reviewed || 0) + cardsReviewed,
+              materials_added: (retryExisting.materials_added || 0) + materialsAdded
+            })
+            .eq('id', retryExisting.id);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error recording study activity:", e);
+  }
+}
+
+
 // ── Достижения ─────────────────────────────────────────────────────────────────
 
 export interface AchievementDef {

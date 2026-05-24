@@ -249,11 +249,16 @@ export default function Dashboard() {
             <div className="space-y-4">
               {quests.filter(q => q.type === 'daily').map(q => (
                 <div key={q.id} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through' : 'text-slate-700'}`}>
-                      {q.title}
-                    </p>
-                    <span className="text-[10px] font-black text-indigo-500">+{q.xp_reward} XP</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through' : 'text-slate-700'}`}>
+                        {q.title}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-normal mt-0.5 leading-snug">
+                        {q.description}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-black text-indigo-500 shrink-0">+{q.xp_reward} XP</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -262,7 +267,7 @@ export default function Dashboard() {
                         style={{ width: `${Math.min(100, (q.current_count / q.target_count) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400">{q.current_count}/{q.target_count}</span>
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">{q.current_count}/{q.target_count}</span>
                   </div>
                 </div>
               ))}
@@ -279,11 +284,16 @@ export default function Dashboard() {
             <div className="space-y-4">
               {quests.filter(q => q.type === 'weekly').map(q => (
                 <div key={q.id} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through' : 'text-slate-700'}`}>
-                      {q.title}
-                    </p>
-                    <span className="text-[10px] font-black text-purple-500">+{q.xp_reward} XP</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through' : 'text-slate-700'}`}>
+                        {q.title}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-normal mt-0.5 leading-snug">
+                        {q.description}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-black text-purple-500 shrink-0">+{q.xp_reward} XP</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -292,7 +302,7 @@ export default function Dashboard() {
                         style={{ width: `${Math.min(100, (q.current_count / q.target_count) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400">{q.current_count}/{q.target_count}</span>
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">{q.current_count}/{q.target_count}</span>
                   </div>
                 </div>
               ))}

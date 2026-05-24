@@ -9,7 +9,7 @@ import { DEMO_TEXT } from '../demo';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
-import { updateQuestProgress } from '../api/quests';
+import { updateQuestProgress, recordStudyActivity } from '../api/quests';
 
 const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
@@ -140,6 +140,7 @@ export default function Analyze() {
             await syncFlashcards(user.id, inserted.id, cards);
           }
           await updateQuestProgress(user.id, 'analyze', 1);
+          await recordStudyActivity(user.id, 0, 1);
         })();
       }
     }

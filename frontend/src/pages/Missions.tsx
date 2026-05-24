@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
-import { updateQuestProgress, checkAndAwardAchievements } from '../api/quests';
+import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
@@ -138,11 +138,7 @@ export default function Missions() {
       // Запись сессии в Supabase для начисления XP и активности
       if (user) {
         await updateQuestProgress(user.id, 'quiz', 1);
-        await supabase.from('study_sessions').insert({
-          user_id: user.id,
-          cards_reviewed: 3,
-          date: new Date().toISOString().split('T')[0]
-        });
+        await recordStudyActivity(user.id, 3, 0);
         // Проверяем достижения
         const newAchs = await checkAndAwardAchievements(user.id);
         if (newAchs.length > 0) {
