@@ -401,6 +401,98 @@ async def plan(req: PlanRequest):
         return {"plan": []}
 
 
+class ProfessorQuestionRequest(BaseModel):
+    context: str
+    history_text: str = ""
+
+
+class ProfessorEvaluateRequest(BaseModel):
+    context: str
+    question: str
+    student_answer: str
+
+
+class MissionsGenerateRequest(BaseModel):
+    context: str
+
+
+from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt
+
+@app.post("/api/professor/question")
+async def professor_question(req: ProfessorQuestionRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_professor_question_prompt(req.context, req.history_text)
+    question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.")
+    return {"question": question.strip()}
+
+
+@app.post("/api/professor/evaluate")
+async def professor_evaluate(req: ProfessorEvaluateRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer)
+    raw = await agent.run(system_prompt, "Оцени мой ответ.")
+    
+    try:
+        json_str = raw.strip()
+        if "```json" in json_str:
+            json_str = json_str.split("```json")[1].split("```")[0]
+        elif "```" in json_str:
+            json_str = json_str.split("```")[1].split("```")[0]
+        
+        if not (json_str.startswith('{') or json_str.startswith('[')):
+            start = json_str.find('{')
+            end = json_str.rfind('}')
+            if start != -1 and end != -1:
+                json_str = json_str[start:end+1]
+                
+        return json.loads(json_str.strip())
+    except Exception as e:
+        return {
+            "score": 50,
+            "grade": "3",
+            "verdict": f"Произошла ошибка при анализе ответа. Сырой комментарий: {raw}",
+            "correct_points": ["Ответ получен системой"],
+            "errors": [f"Ошибка парсинга: {str(e)}"],
+            "missing_points": ["Пожалуйста, сформулируйте ответ более академично"]
+        }
+
+
+@app.post("/api/missions/generate")
+async def generate_missions(req: MissionsGenerateRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_missions_prompt()
+    raw = await agent.run(system_prompt, req.context)
+    
+    try:
+        json_str = raw.strip()
+        if "```json" in json_str:
+            json_str = json_str.split("```json")[1].split("```")[0]
+        elif "```" in json_str:
+            json_str = json_str.split("```")[1].split("```")[0]
+        
+        if not (json_str.startswith('{') or json_str.startswith('[')):
+            start = json_str.find('{')
+            end = json_str.rfind('}')
+            if start != -1 and end != -1:
+                json_str = json_str[start:end+1]
+                
+        return json.loads(json_str.strip())
+    except Exception as e:
+        return {
+            "missions": [
+                {
+                    "id": 1,
+                    "title": "Введение в тему",
+                    "explanation": f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}",
+                    "question": "Готовы ли вы начать изучение самостоятельно?",
+                    "options": ["A) Да, готов!", "B) Нет, нужно время", "C) Хочу перечитать конспект"],
+                    "correct": "A",
+                    "hint": "Выберите вариант А"
+                }
+            ]
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -550,6 +642,141 @@ def build_quiz_prompt(count: int = 5, difficulty: str = "mixed", qtype: str = "m
 
 Пиши на языке исходного текста."""
 
+
+def build_cheatsheet_prompt() -> str:
+    return """Ты — мастер визуального конспектирования и создания шпаргалок.
+Твоя задача — проанализировать предоставленный текст лекции и превратить его в ультра-короткую, сверх-эффективную шпаргалку на 1 страницу для быстрого повторения за 5 минут до экзамена.
+
+Требования:
+1. Выдели ТОЛЬКО самое главное: ключевые формулы, критически важные даты, фундаментальные термины и законы. Никакой "воды", рассуждений или длинных абзацев.
+2. Используй мнемонические приемы (например: "Как запомнить формулу...", ассоциативные правила, запоминалки).
+3. Добавь блок "3 частые ловушки на экзамене" (ошибки, на которых обычно ловят преподаватели).
+4. Оформляй строго в Markdown с использованием жирного шрифта, коротких списков и блоков цитат для формул.
+
+ОБЯЗАТЕЛЬНАЯ структура:
+# ⚡ Экспресс-шпаргалка
+## 🔑 Суть в 3 словах
+(Крайне емкое резюме темы)
+
+## 📌 Фундаментальные понятия & Формулы
+(Список критических определений или формул с расшифровкой)
+
+## 💡 Мнемоника (Лайфхаки запоминания)
+(2-3 совета, как легко запомнить сложные части темы)
+
+## ⚠️ Экзаменационные ловушки
+(3 самые частые ошибки или хитрых вопроса преподавателей)
+
+Пиши на языке исходного текста."""
+
+
+def build_podcast_prompt() -> str:
+    return """Ты — сценарист популярных образовательных подкастов.
+Твоя задача — превратить сухой текст лекции в живой, веселый и увлекательный разговорный скрипт диалога двух ведущих: Макса (любопытный ведущий, задает простые вопросы) и Софьи (умный эксперт, объясняет на пальцах с юмором и понятными примерами).
+
+Требования:
+1. Скрипт должен состоять из реплик Макса и Софьи.
+2. Разговорный, дружелюбный стиль, аналогии из реальной жизни.
+3. Сложные темы переводятся на уровень метафор (например: "процессор — это шеф-повар на кухне...").
+4. Длина: 8-12 реплик на каждого спикера (около 2-3 минут аудио).
+
+ОБЯЗАТЕЛЬНО верни ответ в формате JSON без markdown-обёртки (никаких ```json):
+{{
+  "podcast": [
+    {{"speaker": "Макс", "text": "..."}},
+    {{"speaker": "Софья", "text": "..."}}
+  ]
+}}
+
+Пиши на языке исходного текста."""
+
+
+def build_missions_prompt() -> str:
+    return """Ты — гейм-дизайнер образовательных систем (EdTech). 
+Твоя задача — проанализировать предоставленный текст лекции и превратить его в увлекательную игру из 3 последовательных микро-миссий (квестов).
+
+Каждая миссия должна содержать:
+1. Яркое название.
+2. Фрагмент теории, объясненный "для 5-классника" с юмором и аналогиями (до 150 слов).
+3. Проверочный вопрос с 3 вариантами ответа (A, B, C).
+4. Правильный ответ (A, B или C).
+5. Короткая подсказка.
+
+ОБЯЗАТЕЛЬНО верни результат в формате JSON без markdown-обёртки (никаких ```json):
+{
+  "missions": [
+    {
+      "id": 1,
+      "title": "Миссия 1: [Название]",
+      "explanation": "[Простое объяснение части лекции с аналогией]",
+      "question": "[Простой вопрос на понимание сути]",
+      "options": ["A) ...", "B) ...", "C) ..."],
+      "correct": "A",
+      "hint": "[Подсказка]"
+    }
+  ]
+}
+
+Пиши на языке исходного текста."""
+
+
+def build_professor_question_prompt(context: str, history_text: str = "") -> str:
+    return f"""Ты — строгий, но справедливый профессор университета. 
+Твоя цель — провести устный экзамен со студентом по предоставленному ниже учебному материалу.
+
+МАТЕРИАЛ ЛЕКЦИИ:
+{context[:25000]}
+
+ИСТОРИЯ ПРЕДЫДУЩИХ ВОПРОСОВ И ОТВЕТОВ:
+{history_text}
+
+ИНСТРУКЦИЯ:
+1. Изучи лекционный материал.
+2. Посмотри на историю беседы (если она есть), чтобы не повторяться.
+3. Сформулируй ОДИН глубокий, интересный открытый вопрос по материалу. Вопрос должен проверять понимание сути, причинно-следственных связей или формул, а не просто требовать зазубренного определения.
+4. Отвечай строго в роли профессора. Обращайся к студенту уважительно, но академично.
+5. Не пиши никаких вступлений, приветствий (если это не самый первый вопрос) или лишнего текста. Только сам вопрос от лица профессора.
+
+Пиши на языке исходного текста."""
+
+
+def build_professor_evaluation_prompt(context: str, question: str, student_answer: str) -> str:
+    return f"""Ты — авторитетный профессор университета. Твоя задача — объективно оценить устный ответ студента на экзаменационный вопрос.
+Ты должен сопоставить ответ студента с реальным содержанием лекции.
+
+МАТЕРИАЛ ЛЕКЦИИ:
+{context[:25000]}
+
+ЭКЗАМЕНАЦИОННЫЙ ВОПРОС:
+{question}
+
+ОТВЕТ СТУДЕНТА:
+{student_answer}
+
+ИНСТРУКЦИЯ ПО ОЦЕНКЕ:
+Проанализируй ответ студента по следующим критериям:
+1. Какие факты, термины или логические цепочки студент назвал абсолютно верно (в соответствии с лекцией)?
+2. Допустил ли студент прямые ошибки, неточности или ложные утверждения?
+3. Какие критически важные аспекты или детали из лекции, напрямую относящиеся к вопросу, студент вообще забыл упомянуть (упущенные ключевые моменты)?
+4. Поставь честную академическую оценку:
+   - 5 (Отлично) — глубокое понимание, все важные моменты упомянуты, ошибок нет.
+   - 4 (Хорошо) — твердое понимание, но упущены мелкие детали или есть незначительная неточность.
+   - 3 (Удовлетворительно) — базовое представление, но ответ поверхностный, много упущено или есть заметные ошибки.
+   - 2 (Неудовлетворительно) — студент не понимает тему, говорит не о том, или допустил грубые ошибки.
+
+ОБЯЗАТЕЛЬНО верни ответ строго в формате JSON без каких-либо markdown-обёрток (никаких ```json):
+{{
+  "score": 0-100,
+  "grade": "5", "4", "3" или "2",
+  "verdict": "Развернутый вердикт профессора (обращение к студенту с объяснением оценки, 3-4 предложения)",
+  "correct_points": ["Список верных утверждений и фактов, сказанных студентом"],
+  "errors": ["Список конкретных ошибок или ложных суждений в ответе студента"],
+  "missing_points": ["Список важных фактов из лекции, которые студент забыл рассказать для идеального ответа"]
+}}
+
+Пиши на языке исходного текста."""
+
+
 import os
 import random
 import asyncio
@@ -669,7 +896,7 @@ import asyncio
 import json
 from typing import AsyncGenerator, Dict, Any, Optional
 
-from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt
+from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt, build_cheatsheet_prompt, build_podcast_prompt
 
 
 class CoordinatorAgent:
@@ -691,6 +918,8 @@ class CoordinatorAgent:
             "summarizer": build_summarizer_prompt(summary_detail),
             "flashcards": build_flashcards_prompt(flashcard_count),
             "quiz": build_quiz_prompt(quiz_count, quiz_difficulty, quiz_type),
+            "cheatsheet": build_cheatsheet_prompt(),
+            "podcast": build_podcast_prompt(),
         }
 
         async def run_agent(name: str, prompt: str) -> tuple:
@@ -700,11 +929,13 @@ class CoordinatorAgent:
             except Exception as e:
                 return (name, {"error": str(e)})
 
-        agent_names = ["summarizer", "flashcards", "quiz"]
+        agent_names = ["summarizer", "flashcards", "quiz", "cheatsheet", "podcast"]
         agent_labels = {
             "summarizer": "📝 Конспект",
             "flashcards": "🃏 Карточки",
             "quiz": "❓ Тест",
+            "cheatsheet": "⚡ Шпаргалка",
+            "podcast": "🎙️ Подкаст",
         }
 
         # Запускаем агентов ПОСЛЕДОВАТЕЛЬНО для стабильности (особенно для Gemini Free)
@@ -726,11 +957,11 @@ class CoordinatorAgent:
                 "agent": agent_name,
                 "label": agent_labels[agent_name],
                 "progress": done_count,
-                "total": 3,
+                "total": 5,
             }
             
             # Небольшая пауза между запросами для обхода лимитов
-            if done_count < 3:
+            if done_count < 5:
                 await asyncio.sleep(1)
 
         yield {
@@ -738,10 +969,12 @@ class CoordinatorAgent:
             "summarizer": results.get("summarizer", {"error": "Нет результата"}),
             "flashcards": results.get("flashcards", {"error": "Нет результата"}),
             "quiz": results.get("quiz", {"error": "Нет результата"}),
+            "cheatsheet": results.get("cheatsheet", {"error": "Нет результата"}),
+            "podcast": results.get("podcast", {"error": "Нет результата"}),
         }
 
     def _parse_result(self, name: str, raw: str) -> Any:
-        if name in ("flashcards", "quiz"):
+        if name in ("flashcards", "quiz", "podcast"):
             try:
                 json_str = raw.strip()
                 # Try to extract from markdown blocks
@@ -1114,6 +1347,10 @@ import MaterialDetail from './pages/MaterialDetail';
 import Review from './pages/Review';
 import Planner from './pages/Planner';
 import Chat from './pages/Chat';
+import ProfessorExam from './pages/ProfessorExam';
+import Missions from './pages/Missions';
+import MistakeDiary from './pages/MistakeDiary';
+import MoodTracker from './pages/MoodTracker';
 import AuthCallback from './pages/AuthCallback';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -1143,6 +1380,10 @@ export default function App() {
           <Route path="review" element={<Review />} />
           <Route path="planner" element={<Planner />} />
           <Route path="chat" element={<Chat />} />
+          <Route path="exam" element={<ProfessorExam />} />
+          <Route path="play" element={<Missions />} />
+          <Route path="mistakes" element={<MistakeDiary />} />
+          <Route path="mood" element={<MoodTracker />} />
         </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -1355,7 +1596,7 @@ export async function updateCardProgress(cardId: string, quality: number) {
 FILE: frontend/src/components/Layout.tsx
 ================================================================================
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, Zap, BookOpen, Brain, Calendar, MessageSquare, LogOut } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, Zap, BookOpen, Brain, Calendar, MessageSquare, LogOut, Award, Gamepad2, BookMarked, Heart } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const navItems = [
@@ -1363,6 +1604,10 @@ const navItems = [
   { to: '/analyze', icon: Zap, label: 'Анализ материалов' },
   { to: '/library', icon: BookOpen, label: 'Библиотека' },
   { to: '/review', icon: Brain, label: 'Повторение' },
+  { to: '/play', icon: Gamepad2, label: 'Микро-миссии' },
+  { to: '/exam', icon: Award, label: 'AI-Экзаменатор' },
+  { to: '/mistakes', icon: BookMarked, label: 'Дневник ошибок' },
+  { to: '/mood', icon: Heart, label: 'Трекер состояния' },
   { to: '/planner', icon: Calendar, label: 'Планировщик' },
   { to: '/chat', icon: MessageSquare, label: 'AI-чат' },
 ];
@@ -2618,6 +2863,272 @@ export default function SettingsPanel({ settings, onChange }: Props) {
 }
 
 ================================================================================
+FILE: frontend/src/components/ExpressPrepView.tsx
+================================================================================
+import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Play, Pause, Square, Headphones, FileText, Sparkles, Volume2, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface PodcastLine {
+  speaker: 'Макс' | 'Софья' | string;
+  text: string;
+}
+
+export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
+  // Вытаскиваем данные из составного JSON
+  const cheatsheet = summaryJson?.cheatsheet || '';
+  const podcastLines: PodcastLine[] = summaryJson?.podcast || [];
+
+  const [tab, setTab] = useState<'cheatsheet' | 'podcast'>('cheatsheet');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState(-1);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const currentIndexRef = useRef(0);
+
+  // Очистка при размонтировании
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const stopPodcast = () => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlaying(false);
+    setCurrentSpeakingIndex(-1);
+    currentIndexRef.current = 0;
+  };
+
+  const playPodcast = () => {
+    if (!window.speechSynthesis) {
+      alert('Синтез речи не поддерживается вашим браузером.');
+      return;
+    }
+
+    if (isPlaying) {
+      // Пауза
+      window.speechSynthesis.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    if (window.speechSynthesis.paused && currentSpeakingIndex !== -1) {
+      // Возобновление
+      window.speechSynthesis.resume();
+      setIsPlaying(true);
+      return;
+    }
+
+    // Запуск с начала или с текущего индекса
+    window.speechSynthesis.cancel();
+    
+    const speakNext = () => {
+      if (currentIndexRef.current >= podcastLines.length) {
+        setIsPlaying(false);
+        setCurrentSpeakingIndex(-1);
+        currentIndexRef.current = 0;
+        return;
+      }
+
+      const line = podcastLines[currentIndexRef.current];
+      setCurrentSpeakingIndex(currentIndexRef.current);
+
+      const utterance = new SpeechSynthesisUtterance(line.text);
+      utterance.lang = 'ru-RU';
+      utteranceRef.current = utterance;
+
+      // Настройка голосов и тембра
+      const voices = window.speechSynthesis.getVoices();
+      const ruVoices = voices.filter(v => v.lang.startsWith('ru'));
+
+      if (line.speaker === 'Макс') {
+        const maleVoice = ruVoices.find(v => 
+          v.name.toLowerCase().includes('male') || 
+          v.name.toLowerCase().includes('dmitry') || 
+          v.name.toLowerCase().includes('pavel')
+        );
+        if (maleVoice) utterance.voice = maleVoice;
+        utterance.pitch = 0.95; // Более низкий тембр для Макса
+        utterance.rate = 1.0;
+      } else {
+        const femaleVoice = ruVoices.find(v => 
+          v.name.toLowerCase().includes('female') || 
+          v.name.toLowerCase().includes('milena') || 
+          v.name.toLowerCase().includes('katya')
+        );
+        if (femaleVoice) utterance.voice = femaleVoice;
+        utterance.pitch = 1.22; // Более высокий и звонкий для Софьи
+        utterance.rate = 1.05;  // Чуть быстрее
+      }
+
+      utterance.onend = () => {
+        currentIndexRef.current++;
+        speakNext();
+      };
+
+      utterance.onerror = (e) => {
+        console.error('Speech synthesis error:', e);
+        setIsPlaying(false);
+        setCurrentSpeakingIndex(-1);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    };
+
+    setIsPlaying(true);
+    speakNext();
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Переключатель вкладок экспресс-подготовки */}
+      <div className="flex gap-2 bg-slate-100 p-1 rounded-xl w-full max-w-sm mx-auto sm:mx-0">
+        <button
+          onClick={() => setTab('cheatsheet')}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-bold transition ${
+            tab === 'cheatsheet'
+              ? 'bg-rose-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 hover:bg-white'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" /> ⚡ Шпаргалка за 5 минут
+        </button>
+        <button
+          onClick={() => setTab('podcast')}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-bold transition ${
+            tab === 'podcast'
+              ? 'bg-rose-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 hover:bg-white'
+          }`}
+        >
+          <Headphones className="w-3.5 h-3.5" /> 🎙️ AI-Подкаст
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* ВКЛАДКА 1: Шпаргалка */}
+        {tab === 'cheatsheet' && (
+          <motion.div
+            key="cheatsheet"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            {!cheatsheet ? (
+              <div className="card p-6 text-center text-slate-400 italic text-sm">
+                Для этой лекции шпаргалка еще не создана. Перезапустите анализ файла.
+              </div>
+            ) : (
+              <div className="card p-6 md:p-8 bg-gradient-to-br from-amber-50/30 to-rose-50/10 border-amber-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="prose prose-slate max-w-none text-slate-700 prose-sm cheatsheet-style">
+                  <ReactMarkdown>{cheatsheet}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ВКЛАДКА 2: Аудио-подкаст */}
+        {tab === 'podcast' && (
+          <motion.div
+            key="podcast"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            {podcastLines.length === 0 ? (
+              <div className="card p-6 text-center text-slate-400 italic text-sm">
+                Для этой лекции аудио-подкаст еще не создан. Перезапустите анализ файла.
+              </div>
+            ) : (
+              <>
+                {/* Аудио-плеер */}
+                <div className="bg-slate-900 text-white rounded-2xl p-5 md:p-6 shadow-xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0 border border-rose-500/30">
+                      <Headphones className="w-6 h-6 text-rose-400" />
+                    </div>
+                    <div className="text-center md:text-left">
+                      <h4 className="font-bold text-sm text-slate-200 flex items-center gap-1.5 justify-center md:justify-start">
+                        AI-Подкаст: {summaryJson?.title || 'Разбор лекции'}
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                      </h4>
+                      <p className="text-xs text-slate-400">Слушайте простое объяснение темы по пути на экзамен</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={playPodcast}
+                      className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-lg shadow-rose-950"
+                    >
+                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {isPlaying ? 'Пауза' : currentSpeakingIndex !== -1 ? 'Продолжить' : 'Слушать подкаст'}
+                    </button>
+                    {currentSpeakingIndex !== -1 && (
+                      <button
+                        onClick={stopPodcast}
+                        className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition border border-slate-700"
+                        title="Остановить"
+                      >
+                        <Square className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Бегущий диалог подкаста */}
+                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                  {podcastLines.map((line, idx) => {
+                    const isSpeaking = currentSpeakingIndex === idx;
+                    const isMax = line.speaker === 'Макс';
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex ${isMax ? 'justify-start' : 'justify-end'} transition-all duration-300`}
+                      >
+                        <div
+                          className={`max-w-[85%] sm:max-w-[70%] p-4 rounded-2xl shadow-sm border transition-all duration-300 ${
+                            isSpeaking
+                              ? 'bg-rose-50 border-rose-200 ring-2 ring-rose-500/20 scale-[1.01]'
+                              : isMax
+                              ? 'bg-white border-slate-100 text-slate-800 rounded-tl-none'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 rounded-tr-none'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-xs font-black uppercase tracking-wider ${isMax ? 'text-rose-600' : 'text-indigo-600'}`}>
+                              {line.speaker}
+                            </span>
+                            {isSpeaking && (
+                              <Volume2 className="w-3.5 h-3.5 text-rose-500 animate-bounce" />
+                            )}
+                          </div>
+                          <p className="text-xs sm:text-sm leading-relaxed font-medium">{line.text}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+================================================================================
 FILE: frontend/src/pages/Landing.tsx
 ================================================================================
 import { useEffect } from 'react';
@@ -3300,7 +3811,7 @@ FILE: frontend/src/pages/Dashboard.tsx
 ================================================================================
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -3332,6 +3843,7 @@ export default function Dashboard() {
   const [dueCards, setDueCards] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [mood, setMood] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -3341,11 +3853,13 @@ export default function Dashboard() {
       getDueCards(user.id),
       supabase.from('subjects').select('*').eq('user_id', user.id),
       supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
-    ]).then(([mats, cards, subRes, sessRes]) => {
+      supabase.from('mood_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1).maybeSingle(),
+    ]).then(([mats, cards, subRes, sessRes, moodRes]) => {
       setMaterials(mats);
       setDueCards(cards);
       setSubjects(subRes.data || []);
       setSessions(sessRes.data || []);
+      setMood(moodRes.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, [user]);
 
@@ -3393,6 +3907,23 @@ export default function Dashboard() {
         <StatCard icon={GraduationCap} label="Предметов" value={subjects.length} color="amber" />
         <StatCard icon={Flame} label="Дней подряд" value={streak} color="rose" />
       </div>
+
+      {/* Mood Recommendation */}
+      {mood && (
+        <div 
+          onClick={() => navigate('/mood')}
+          className="mt-6 p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm cursor-pointer hover:shadow-md transition flex items-center gap-4"
+        >
+          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
+            <Heart className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-0.5">Твое состояние & Режим дня</p>
+            <p className="text-sm text-slate-700 font-medium leading-relaxed">{mood.recommended_mode}</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300" />
+        </div>
+      )}
 
       {/* Two columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -3465,7 +3996,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6">
         <button
           onClick={() => navigate('/analyze')}
           className="card p-5 text-center hover:shadow-md transition group"
@@ -3483,6 +4014,24 @@ export default function Dashboard() {
             <Brain className="w-5 h-5 text-emerald-600" />
           </div>
           <p className="text-sm font-medium text-slate-700">Повторить карточки</p>
+        </button>
+        <button
+          onClick={() => navigate('/play')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition animate-pulse">
+            <Gamepad2 className="w-5 h-5 text-emerald-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Микро-миссии</p>
+        </button>
+        <button
+          onClick={() => navigate('/exam')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-rose-100 transition">
+            <Award className="w-5 h-5 text-rose-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Устный экзамен</p>
         </button>
         <button
           onClick={() => navigate('/planner')}
@@ -3517,6 +4066,8 @@ const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
   { id: 'flashcards', label: 'Карточки', status: 'idle', progress: 0 },
   { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
+  { id: 'cheatsheet', label: 'Шпаргалка', status: 'idle', progress: 0 },
+  { id: 'podcast', label: 'Подкаст', status: 'idle', progress: 0 },
 ];
 
 interface Toast {
@@ -3578,6 +4129,8 @@ export default function Analyze() {
     summarizer: '✅ Конспект готов',
     flashcards: '✅ Карточки готовы',
     quiz: '✅ Тест готов',
+    cheatsheet: '✅ Шпаргалка готова',
+    podcast: '✅ Подкаст готов',
   };
 
   const handleSSE = (d: any) => {
@@ -3592,7 +4145,13 @@ export default function Analyze() {
       setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
     }
     else if (d.type === 'results') {
-      const results = { summarizer: d.summarizer, flashcards: d.flashcards, quiz: d.quiz };
+      const results = {
+        summarizer: d.summarizer,
+        flashcards: d.flashcards,
+        quiz: d.quiz,
+        cheatsheet: d.cheatsheet,
+        podcast: d.podcast
+      };
       const dur = analysisStartRef.current
         ? Math.round((Date.now() - analysisStartRef.current) / 1000)
         : 0;
@@ -3611,7 +4170,11 @@ export default function Analyze() {
               title,
               subject: '',
               original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
-              summary_json: results.summarizer,
+              summary_json: {
+                content: results.summarizer?.content || '',
+                cheatsheet: results.cheatsheet?.content || '',
+                podcast: results.podcast?.podcast || []
+              },
               flashcards_json: results.flashcards,
               quiz_json: results.quiz,
             })
@@ -3853,6 +4416,7 @@ import { ArrowLeft, Edit3, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import ResultsPanel from '../components/ResultsPanel';
+import ExpressPrepView from '../components/ExpressPrepView';
 import { getMaterialById, updateMaterialSubject } from '../api/materials';
 
 export default function MaterialDetail() {
@@ -3862,6 +4426,7 @@ export default function MaterialDetail() {
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
+  const [mode, setMode] = useState<'full' | 'express'>('full');
 
   useEffect(() => {
     if (!id) return;
@@ -3943,19 +4508,47 @@ export default function MaterialDetail() {
         {format(new Date(material.created_at), 'dd.MM.yyyy', { locale: ru })}
       </p>
 
-      {/* Results */}
-      <ResultsPanel
-        results={{
-          summarizer: material.summary_json,
-          flashcards: material.flashcards_json,
-          quiz: material.quiz_json,
-        }}
-        onReset={() => navigate('/library')}
-        textLength={0}
-      />
+      {/* Режимы обучения */}
+      <div className="flex gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-full sm:w-fit mb-6 border border-slate-200">
+        <button
+          onClick={() => setMode('full')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+            mode === 'full'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          📚 Полноформатное обучение
+        </button>
+        <button
+          onClick={() => setMode('express')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+            mode === 'express'
+              ? 'bg-rose-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-rose-600'
+          }`}
+        >
+          ⚡ За 5 минут до экзамена
+        </button>
+      </div>
+
+      {/* Контент в зависимости от выбранного режима */}
+      {mode === 'full' ? (
+        <ResultsPanel
+          results={{
+            summarizer: material.summary_json,
+            flashcards: material.flashcards_json,
+            quiz: material.quiz_json,
+          }}
+          onReset={() => navigate('/library')}
+          textLength={0}
+        />
+      ) : (
+        <ExpressPrepView summaryJson={material.summary_json} />
+      )}
 
       {/* Review CTA */}
-      {hasFlashcards && (
+      {hasFlashcards && mode === 'full' && (
         <div className="mt-6 text-center">
           <button
             onClick={() => navigate('/review')}
@@ -4892,6 +5485,1588 @@ export default function Chat() {
 }
 
 ================================================================================
+FILE: frontend/src/pages/Missions.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { getMaterials } from '../api/materials';
+
+interface Mission {
+  id: number;
+  title: string;
+  explanation: string;
+  question: string;
+  options: string[];
+  correct: string;
+  hint: string;
+}
+
+export default function Missions() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Состояние материалов
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  
+  // Состояние игры
+  const [phase, setPhase] = useState<'select' | 'loading' | 'game' | 'completed'>('select');
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [activeStep, setActiveStep] = useState(0); // индекс текущей миссии (0, 1, 2)
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  // Загрузка материалов
+  useEffect(() => {
+    if (!user) return;
+    getMaterials(user.id).then(setMaterials).catch(console.error);
+  }, [user]);
+
+  const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
+
+  // Старт игры: запрос генерации квестов
+  const startGame = async () => {
+    if (!selectedMaterial) return;
+    setPhase('loading');
+    setSelectedOption(null);
+    setIsCorrect(null);
+    setShowHint(false);
+    setActiveStep(0);
+
+    const summary = typeof selectedMaterial.summary_json === 'string'
+      ? selectedMaterial.summary_json
+      : (selectedMaterial.summary_json?.content || '');
+    const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
+
+    try {
+      const res = await fetch('/api/missions/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context })
+      });
+
+      if (!res.ok) throw new Error('Ошибка генерации игры');
+      const data = await res.json();
+      
+      if (data.missions && data.missions.length > 0) {
+        setMissions(data.missions);
+        setPhase('game');
+      } else {
+        throw new Error('Пустой список миссий');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось сформировать игру по материалу. Попробуйте еще раз.');
+      setPhase('select');
+    }
+  };
+
+  // Проверка ответа студента
+  const handleOptionClick = (option: string) => {
+    if (isCorrect) return; // уже ответил верно
+
+    setSelectedOption(option);
+    const correctLetter = missions[activeStep].correct; // 'A', 'B' или 'C'
+    const isCorrectAnswer = option.startsWith(correctLetter);
+
+    if (isCorrectAnswer) {
+      setIsCorrect(true);
+      setShowHint(false);
+    } else {
+      setIsCorrect(false);
+      setShowHint(true);
+      setShake(true);
+      setTimeout(() => setShake(false), 500); // анимация тряски
+    }
+  };
+
+  // Переход к следующей миссии
+  const handleNextMission = async () => {
+    setSelectedOption(null);
+    setIsCorrect(null);
+    setShowHint(false);
+
+    if (activeStep + 1 >= missions.length) {
+      // Все миссии пройдены!
+      setPhase('completed');
+      
+      // Запись сессии в Supabase для начисления XP и активности
+      if (user) {
+        await supabase.from('study_sessions').insert({
+          user_id: user.id,
+          cards_reviewed: 3, // активность для графиков
+          date: new Date().toISOString().split('T')[0]
+        });
+      }
+    } else {
+      setActiveStep(prev => prev + 1);
+    }
+  };
+
+  const currentMission = missions[activeStep];
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
+      {/* Шапка */}
+      <div className="flex items-center gap-2 mb-6 justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+            <Gamepad2 className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Интерактивные миссии</h1>
+            <p className="text-xs text-slate-500">Геймификация сложных лекций в порции квестов</p>
+          </div>
+        </div>
+        {phase !== 'select' && (
+          <button
+            onClick={() => { if (confirm('Вы уверены, что хотите выйти из игры? Весь прогресс будет потерян.')) setPhase('select'); }}
+            className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
+          >
+            <X className="w-3.5 h-3.5" /> Выйти из игры
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* ФАЗА 1: Выбор материала */}
+        {phase === 'select' && (
+          <motion.div
+            key="select"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="card p-6 md:p-8 text-center"
+          >
+            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Gamepad2 className="w-8 h-8 text-emerald-500" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">Микро-квесты по лекциям</h2>
+            <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+              AI-Методист разобьет сложную тему на 3 простые миссии. Изучите порции теории на простом языке и разблокируйте все уровни игры!
+            </p>
+
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="text-left">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
+                <select
+                  value={selectedMaterialId}
+                  onChange={e => setSelectedMaterialId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm"
+                >
+                  <option value="">-- Выберите лекцию для игры --</option>
+                  {materials.map(m => (
+                    <option key={m.id} value={m.id}>{m.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                disabled={!selectedMaterialId}
+                onClick={startGame}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+              >
+                <ArrowRight className="w-5 h-5" /> Начать игру
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ФАЗА ЗАГРУЗКИ / ГЕНЕРАЦИИ ИГРЫ */}
+        {phase === 'loading' && (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center justify-center py-20 text-center"
+          >
+            <div className="relative mb-6">
+              <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Gamepad2 className="w-6 h-6 text-emerald-500 animate-pulse" />
+              </div>
+            </div>
+            <h3 className="font-semibold text-slate-800 text-base mb-1">ИИ-Методист готовит сценарий квестов...</h3>
+            <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+              Сложная научная лекция переводится на игровой язык с метафорами и аналогиями
+            </p>
+          </motion.div>
+        )}
+
+        {/* ФАЗА 2: Игровой процесс */}
+        {phase === 'game' && currentMission && (
+          <motion.div
+            key="game"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            {/* Визуальная шкала миссий */}
+            <div className="flex items-center justify-between bg-slate-100 p-2.5 rounded-2xl border border-slate-200">
+              {missions.map((m, idx) => {
+                const isActive = activeStep === idx;
+                const isPassed = activeStep > idx;
+                const isLocked = activeStep < idx;
+
+                return (
+                  <div key={m.id} className="flex-1 flex items-center justify-center gap-1.5 relative">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+                      isActive 
+                        ? 'bg-emerald-600 text-white' 
+                        : isPassed 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : 'bg-slate-50 border border-slate-200 text-slate-400'
+                    }`}>
+                      {isPassed ? <CheckCircle2 className="w-3.5 h-3.5" /> : isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                      <span>Миссия {idx + 1}</span>
+                    </div>
+                    {idx < missions.length - 1 && (
+                      <div className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10">
+                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Игровой блок теории (простым языком) */}
+            <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-2xl p-6 shadow-xl relative border border-emerald-900/50 overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex items-center gap-2 mb-3">
+                <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-black tracking-wider uppercase">Квест {activeStep + 1}: {currentMission.title}</span>
+              </div>
+              
+              <div className="space-y-4">
+                <h3 className="text-base font-extrabold text-white leading-snug">
+                  📖 Теория на пальцах
+                </h3>
+                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
+                  {currentMission.explanation}
+                </p>
+              </div>
+            </div>
+
+            {/* Проверочный вопрос */}
+            <motion.div 
+              animate={shake ? { x: [-10, 10, -10, 10, 0] } : {}}
+              transition={{ duration: 0.4 }}
+              className="card p-5 space-y-4 bg-white"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <HelpCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Испытание для разблокировки следующего уровня:</h4>
+              </div>
+
+              <p className="text-sm font-semibold text-slate-700 leading-relaxed mb-4">
+                {currentMission.question}
+              </p>
+
+              {/* Кнопки ответов */}
+              <div className="grid grid-cols-1 gap-3">
+                {currentMission.options.map((opt) => {
+                  const isThisSelected = selectedOption === opt;
+                  const isCorrectAnswer = opt.startsWith(currentMission.correct);
+
+                  let btnStyle = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
+                  if (selectedOption) {
+                    if (isThisSelected) {
+                      btnStyle = isCorrectAnswer 
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20 font-bold" 
+                        : "bg-rose-50 border-rose-300 text-rose-800 ring-2 ring-rose-500/20 font-bold";
+                    } else if (isCorrectAnswer && !isCorrect) {
+                      // подсвечиваем правильный если ответили неверно
+                      btnStyle = "bg-emerald-50 border-emerald-200 text-emerald-700 opacity-60";
+                    } else {
+                      btnStyle = "bg-slate-50 border-transparent text-slate-400 opacity-40 cursor-default";
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={opt}
+                      onClick={() => handleOptionClick(opt)}
+                      disabled={isCorrect !== null}
+                      className={`w-full p-4 rounded-xl border text-left text-xs sm:text-sm font-medium transition-all duration-200 flex justify-between items-center ${btnStyle}`}
+                    >
+                      <span>{opt}</span>
+                      {selectedOption && isThisSelected && (
+                        isCorrectAnswer 
+                          ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" /> 
+                          : <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Вывод подсказки при ошибке */}
+              <AnimatePresence>
+                {showHint && currentMission.hint && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-800"
+                  >
+                    <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
+                    <div>
+                      <span className="font-bold block mb-0.5">💡 Подсказка AI-Методиста:</span>
+                      {currentMission.hint}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Кнопка далее */}
+              {isCorrect && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="pt-2"
+                >
+                  <button
+                    onClick={handleNextMission}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+                  >
+                    {activeStep + 1 >= missions.length ? 'Завершить обучение 🎉' : 'Пройти к миссии ' + (activeStep + 2) + ' →'}
+                  </button>
+                </motion.div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* ФАЗА 3: Завершение и награда */}
+        {phase === 'completed' && (
+          <motion.div
+            key="completed"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="card p-8 md:p-10 text-center bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100 shadow-lg relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 text-white shadow-xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-white/10 rounded-full scale-90 border border-dashed border-white/50 animate-spin-slow" />
+              <Trophy className="w-10 h-10 animate-pulse" />
+            </div>
+
+            <h2 className="text-2xl font-black text-emerald-800 mb-2 flex items-center justify-center gap-2">
+              Тема полностью освоена!
+              <Sparkles className="w-6 h-6 text-amber-500 animate-bounce" />
+            </h2>
+            <p className="text-slate-600 text-sm max-w-md mx-auto mb-8">
+              Вы успешно прошли все 3 микро-миссии по лекции «{selectedMaterial?.title}»! Вы поняли суть темы без лишней академической шелухи.
+            </p>
+
+            {/* Бейдж награды XP */}
+            <div className="inline-flex items-center gap-2 bg-emerald-600 text-white font-extrabold px-6 py-3 rounded-2xl shadow-md mb-8 ring-4 ring-emerald-600/10">
+              <Sparkles className="w-5 h-5 text-amber-300" />
+              <span>НАГРАДА: +50 XP</span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+              <button
+                onClick={() => setPhase('select')}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+              >
+                Выбрать другую лекцию
+              </button>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition"
+              >
+                Вернуться на дашборд
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/ProfessorExam.tsx
+================================================================================
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { getMaterials } from '../api/materials';
+
+// Web Speech API
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+interface EvaluationResult {
+  score: number;
+  grade: string;
+  verdict: string;
+  correct_points: string[];
+  errors: string[];
+  missing_points: string[];
+}
+
+export default function ProfessorExam() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Состояние материалов
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  
+  // Состояние экзамена
+  const [phase, setPhase] = useState<'select' | 'question' | 'evaluation' | 'loading'>('select');
+  const [currentQuestion, setCurrentQuestion] = useState('');
+  const [answerText, setAnswerText] = useState('');
+  const [history, setHistory] = useState<{ question: string; answer: string; grade: string }[]>([]);
+  const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
+  const [examHistory, setExamHistory] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  
+  // Голосовой ввод
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Загрузка материалов и истории экзаменов
+  useEffect(() => {
+    if (!user) return;
+    getMaterials(user.id).then(setMaterials).catch(console.error);
+    fetchExamHistory();
+  }, [user]);
+
+  const fetchExamHistory = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('exam_sessions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(10);
+    if (data) setExamHistory(data);
+  };
+
+  // Настройка голосового распознавания
+  useEffect(() => {
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.lang = 'ru-RU';
+      rec.interimResults = false;
+
+      rec.onstart = () => setIsListening(true);
+      rec.onend = () => setIsListening(false);
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setAnswerText(prev => prev ? prev + ' ' + transcript : transcript);
+      };
+      rec.onerror = (e: any) => {
+        console.error('Speech recognition error:', e);
+        setIsListening(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('Голосовой ввод не поддерживается вашим браузером. Пожалуйста, используйте Google Chrome, Edge или Safari.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
+
+  // Начать экзамен / Запросить вопрос
+  const startExamOrNextQuestion = async (clearHistory = false) => {
+    if (!selectedMaterial) return;
+    setPhase('loading');
+    setAnswerText('');
+    
+    let currentHistory = history;
+    if (clearHistory) {
+      currentHistory = [];
+      setHistory([]);
+      setEvaluation(null);
+    }
+
+    // Собираем историю для контекста
+    const historyText = currentHistory
+      .map(h => `В: ${h.question}\nО: ${h.answer}\nОценка: ${h.grade}`)
+      .join('\n\n');
+
+    // Получаем конспект/оригинал лекции
+    const summary = typeof selectedMaterial.summary_json === 'string'
+      ? selectedMaterial.summary_json
+      : (selectedMaterial.summary_json?.content || '');
+    const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
+
+    try {
+      const res = await fetch('/api/professor/question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          history_text: historyText
+        })
+      });
+
+      if (!res.ok) throw new Error('Ошибка связи с сервером');
+      const data = await res.json();
+      setCurrentQuestion(data.question);
+      setPhase('question');
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось задать вопрос. Попробуйте еще раз.');
+      setPhase(clearHistory ? 'select' : 'evaluation');
+    }
+  };
+
+  // Отправить ответ на оценку
+  const submitAnswer = async () => {
+    if (!answerText.trim() || !selectedMaterial) return;
+    setPhase('loading');
+
+    const summary = typeof selectedMaterial.summary_json === 'string'
+      ? selectedMaterial.summary_json
+      : (selectedMaterial.summary_json?.content || '');
+    const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
+
+    try {
+      const res = await fetch('/api/professor/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          question: currentQuestion,
+          student_answer: answerText
+        })
+      });
+
+      if (!res.ok) throw new Error('Ошибка оценки');
+      const evalData: EvaluationResult = await res.json();
+      
+      setEvaluation(evalData);
+      
+      // Добавляем в локальную историю
+      setHistory(prev => [
+        ...prev,
+        { question: currentQuestion, answer: answerText, grade: evalData.grade }
+      ]);
+
+      // Запись сессии в Supabase для статистики
+      if (user) {
+        // Создаем сессию экзамена если ее еще нет
+        const { data: sessionData } = await supabase.from('exam_sessions').insert({
+          user_id: user.id,
+          material_id: selectedMaterial?.id ?? null,
+          subject: selectedMaterial?.subject ?? '',
+          score: evalData.score,
+          questions_json: [{ question: currentQuestion, answer: answerText, evaluation: evalData }],
+          total_questions: 1,
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        }).select().single();
+
+        if (sessionData) {
+          fetchExamHistory();
+        }
+
+        await supabase.from('study_sessions').insert({
+          user_id: user.id,
+          cards_reviewed: 1,
+          date: new Date().toISOString().split('T')[0]
+        });
+
+        // Автоматически сохраняем ошибки в дневник ошибок
+        const mistakesToSave = [
+          ...evalData.errors.map((err: string) => ({
+            user_id: user.id,
+            material_id: selectedMaterial?.id ?? null,
+            question: currentQuestion,
+            correct_answer: err,
+            student_answer: answerText,
+            topic: selectedMaterial?.subject ?? '',
+            is_resolved: false,
+          })),
+          ...evalData.missing_points.map((miss: string) => ({
+            user_id: user.id,
+            material_id: selectedMaterial?.id ?? null,
+            question: currentQuestion,
+            correct_answer: miss,
+            student_answer: '(не упомянуто)',
+            topic: selectedMaterial?.subject ?? '',
+            is_resolved: false,
+          })),
+        ];
+
+        if (mistakesToSave.length > 0) {
+          await supabase.from('mistake_diary').insert(mistakesToSave);
+        }
+      }
+
+      setPhase('evaluation');
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка при оценке ответа. Пожалуйста, попробуйте отправить заново.');
+      setPhase('question');
+    }
+  };
+
+  // Цвета для академической оценки
+  const getGradeColors = (grade: string) => {
+    switch (grade) {
+      case '5': return { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', sealBg: 'bg-emerald-500', label: 'ОТЛИЧНО (5)' };
+      case '4': return { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', sealBg: 'bg-indigo-500', label: 'ХОРОШО (4)' };
+      case '3': return { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', sealBg: 'bg-amber-500', label: 'УДОВЛЕТВОРИТЕЛЬНО (3)' };
+      default: return { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', sealBg: 'bg-rose-500', label: 'НЕУД (2)' };
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
+      {/* Заголовок */}
+      <div className="flex items-center gap-2 mb-6 justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
+            <Award className="w-5 h-5 text-rose-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">AI-Экзаменатор</h1>
+            <p className="text-xs text-slate-500">Устная репетиция сдача сессии профессору</p>
+          </div>
+        </div>
+        {phase !== 'select' && (
+          <button
+            onClick={() => { if (confirm('Вы уверены, что хотите завершить экзамен?')) setPhase('select'); }}
+            className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
+          >
+            <X className="w-3.5 h-3.5" /> Выйти
+          </button>
+        )}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* ФАЗА 1: Выбор материала */}
+        {phase === 'select' && (
+          <motion.div
+            key="select"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            <div className="card p-6 md:p-8 text-center">
+              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Award className="w-8 h-8 text-rose-500" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 mb-2">Готовы проверить свои знания?</h2>
+              <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+                AI-Профессор задаст вам каверзные вопросы на понимание. Вы можете вводить ответ текстом или наговаривать голосом через микрофон.
+              </p>
+
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="text-left">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
+                  <select
+                    value={selectedMaterialId}
+                    onChange={e => setSelectedMaterialId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-500 transition shadow-sm"
+                  >
+                    <option value="">-- Выберите материал для сдачи --</option>
+                    {materials.map(m => (
+                      <option key={m.id} value={m.id}>{m.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  disabled={!selectedMaterialId}
+                  onClick={() => startExamOrNextQuestion(true)}
+                  className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
+                >
+                  <ArrowRight className="w-5 h-5" /> Войти в аудиторию
+                </button>
+              </div>
+            </div>
+
+            {/* История экзаменов */}
+            {examHistory.length > 0 && (
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-slate-400" />
+                    История последних экзаменов
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {examHistory.map(session => (
+                    <div key={session.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-bold text-slate-700 truncate">{session.subject || 'Без предмета'}</span>
+                          <span className="px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded text-[9px] font-bold">
+                            {new Date(session.completed_at).toLocaleDateString('ru-RU')}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate">Билет по одной из лекций</p>
+                      </div>
+                      <div className="flex items-center gap-3 ml-4">
+                        <div className="text-right">
+                          <p className="text-xs font-black text-rose-600">{session.score}%</p>
+                          <p className="text-[9px] text-slate-400 uppercase font-bold">Оценка</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ФАЗА ЗАГРУЗКИ / «Профессор думает...» */}
+        {phase === 'loading' && (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center justify-center py-20 text-center"
+          >
+            <div className="relative mb-6">
+              <div className="w-16 h-16 border-4 border-rose-100 border-t-rose-600 rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Award className="w-6 h-6 text-rose-500 animate-pulse" />
+              </div>
+            </div>
+            <h3 className="font-semibold text-slate-800 text-base mb-1">Профессор анализирует материал...</h3>
+            <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+              Формулируется индивидуальный вопрос для оценки вашего понимания
+            </p>
+          </motion.div>
+        )}
+
+        {/* ФАЗА 2: Экзаменационный вопрос */}
+        {phase === 'question' && (
+          <motion.div
+            key="question"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            {/* Вопрос Профессора */}
+            <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl relative border border-slate-800 overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex items-center gap-2 mb-3">
+                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded text-[10px] font-bold tracking-wider uppercase">Билет №{history.length + 1}</span>
+                <span className="text-[10px] text-slate-400">Лекция: {selectedMaterial?.title}</span>
+              </div>
+              
+              <div className="flex gap-4 items-start">
+                <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-700">
+                  <HelpCircle className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-300 text-xs uppercase tracking-wider mb-1">Вопрос профессора:</h3>
+                  <p className="text-base font-medium text-white leading-relaxed">{currentQuestion}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Ввод ответа студента */}
+            <div className="card p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ваш устный ответ:</label>
+                {SpeechRecognition && (
+                  <button
+                    onClick={toggleListening}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                      isListening
+                        ? 'bg-rose-100 text-rose-700 border border-rose-200 animate-pulse'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5 text-rose-500" />}
+                    {isListening ? 'Слушаю вас...' : 'Говорить в микрофон'}
+                  </button>
+                )}
+              </div>
+
+              <textarea
+                value={answerText}
+                onChange={e => setAnswerText(e.target.value)}
+                placeholder="Сформулируйте ваш развернутый ответ на вопрос профессора..."
+                className="w-full h-36 px-4 py-3.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 transition resize-none bg-slate-50/50"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  disabled={!answerText.trim()}
+                  onClick={submitAnswer}
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
+                >
+                  <Send className="w-4 h-4" /> Ответить Профессору
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ФАЗА 3: Оценка и глубокий разбор пробелов */}
+        {phase === 'evaluation' && evaluation && (
+          <motion.div
+            key="evaluation"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            {/* Оценка и вердикт */}
+            {(() => {
+              const colors = getGradeColors(evaluation.grade);
+              return (
+                <div className={`border rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-center gap-6 ${colors.bg}`}>
+                  {/* Академическая печать оценки */}
+                  <div className="shrink-0 flex flex-col items-center justify-center">
+                    <div className={`w-20 h-20 rounded-full flex flex-col items-center justify-center text-white font-black text-3xl shadow-md ${colors.sealBg} relative overflow-hidden`}>
+                      <div className="absolute inset-0 bg-white/10 rounded-full scale-90 border border-dashed border-white/50" />
+                      {evaluation.grade}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 mt-2 tracking-widest uppercase">Академическая печать</span>
+                  </div>
+
+                  <div className="flex-1 text-center md:text-left">
+                    <h3 className={`text-sm font-black tracking-wider uppercase mb-1 ${colors.text}`}>{colors.label}</h3>
+                    <p className="text-slate-700 font-medium text-sm leading-relaxed mb-2">"{evaluation.verdict}"</p>
+                    <div className="flex items-center justify-center md:justify-start gap-1.5">
+                      <span className="text-xs font-semibold text-slate-400">Точность ответа:</span>
+                      <span className="text-xs font-bold text-slate-800">{evaluation.score}%</span>
+                      <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-rose-500 rounded-full" style={{ width: `${evaluation.score}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Когнитивный разбор: что правильно, ошибки и пробелы */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Зеленый блок: Что сказали правильно */}
+              <div className="card p-5 border-l-4 border-l-emerald-500 bg-white">
+                <h4 className="font-bold text-emerald-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Усвоено верно
+                </h4>
+                {evaluation.correct_points.length === 0 ? (
+                  <p className="text-slate-400 text-xs italic">Нет полностью верных фактов в ответе.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {evaluation.correct_points.map((p, i) => (
+                      <li key={i} className="text-slate-600 text-xs leading-relaxed flex items-start gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0 mt-1.5" />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Красный блок: Допущенные ошибки */}
+              <div className="card p-5 border-l-4 border-l-rose-500 bg-white">
+                <h4 className="font-bold text-rose-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  Фактические ошибки
+                </h4>
+                {evaluation.errors.length === 0 ? (
+                  <p className="text-emerald-600 text-xs font-medium">Ошибок в ответе не обнаружено! Отличная точность.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {evaluation.errors.map((p, i) => (
+                      <li key={i} className="text-slate-600 text-xs leading-relaxed flex items-start gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-rose-400 rounded-full shrink-0 mt-1.5" />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Желтый/серый блок: Упущенные знания */}
+              <div className="card p-5 border-l-4 border-l-amber-500 bg-white">
+                <h4 className="font-bold text-amber-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4 text-amber-500 shrink-0" />
+                  Когнитивные пропуски
+                </h4>
+                {evaluation.missing_points.length === 0 ? (
+                  <p className="text-emerald-600 text-xs font-medium">Ничего не упущено. Исчерпывающий ответ!</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {evaluation.missing_points.map((p, i) => (
+                      <li key={i} className="text-slate-600 text-xs leading-relaxed flex items-start gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full shrink-0 mt-1.5" />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {/* Действия */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                onClick={() => startExamOrNextQuestion(false)}
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
+              >
+                <RefreshCw className="w-4 h-4" /> Следующий билет
+              </button>
+              
+              <button
+                onClick={() => setPhase('select')}
+                className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center justify-center gap-2"
+              >
+                Завершить экзамен
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/MistakeDiary.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { BookMarked, CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+
+interface Mistake {
+  id: string;
+  question: string;
+  correct_answer: string;
+  student_answer: string;
+  topic: string;
+  is_resolved: boolean;
+  created_at: string;
+  material_id: string | null;
+}
+
+export default function MistakeDiary() {
+  const { user } = useAuth();
+  const [mistakes, setMistakes] = useState<Mistake[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const fetchMistakes = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('mistake_diary')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setMistakes(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchMistakes();
+  }, [user]);
+
+  const markResolved = async (id: string) => {
+    await supabase
+      .from('mistake_diary')
+      .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+      .eq('id', id);
+    setMistakes(prev => prev.map(m => m.id === id ? { ...m, is_resolved: true } : m));
+  };
+
+  const deleteMistake = async (id: string) => {
+    await supabase.from('mistake_diary').delete().eq('id', id);
+    setMistakes(prev => prev.filter(m => m.id !== id));
+  };
+
+  const filtered = mistakes.filter(m => {
+    if (filter === 'open') return !m.is_resolved;
+    if (filter === 'resolved') return m.is_resolved;
+    return true;
+  });
+
+  const openCount = mistakes.filter(m => !m.is_resolved).length;
+  const resolvedCount = mistakes.filter(m => m.is_resolved).length;
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Заголовок */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+          <BookMarked className="w-5 h-5 text-amber-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Дневник ошибок</h1>
+          <p className="text-xs text-slate-500">Все слабые места после AI-Экзаменатора</p>
+        </div>
+      </div>
+
+      {/* Статистика */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="card p-4 text-center">
+          <p className="text-2xl font-black text-slate-900">{mistakes.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Всего ошибок</p>
+        </div>
+        <div className="card p-4 text-center border-l-4 border-l-rose-400">
+          <p className="text-2xl font-black text-rose-600">{openCount}</p>
+          <p className="text-xs text-slate-500 mt-1">Требуют внимания</p>
+        </div>
+        <div className="card p-4 text-center border-l-4 border-l-emerald-400">
+          <p className="text-2xl font-black text-emerald-600">{resolvedCount}</p>
+          <p className="text-xs text-slate-500 mt-1">Исправлено</p>
+        </div>
+      </div>
+
+      {/* Фильтры */}
+      <div className="flex items-center gap-2 mb-4">
+        <Filter className="w-4 h-4 text-slate-400" />
+        {(['all', 'open', 'resolved'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+              filter === f
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {f === 'all' ? 'Все' : f === 'open' ? '🔴 Открытые' : '✅ Исправленные'}
+          </button>
+        ))}
+        <button
+          onClick={fetchMistakes}
+          className="ml-auto p-1.5 text-slate-400 hover:text-slate-700 transition"
+          title="Обновить"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Список ошибок */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-10 text-center">
+          <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
+            <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+          </div>
+          <h3 className="font-bold text-slate-700 mb-1">
+            {filter === 'open' ? 'Отличная работа!' : 'Пока пусто'}
+          </h3>
+          <p className="text-sm text-slate-400">
+            {filter === 'open'
+              ? 'Все ошибки исправлены. Продолжайте в том же духе!'
+              : 'Пройдите AI-Экзамен, и ваши ошибки появятся здесь.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <AnimatePresence>
+            {filtered.map(mistake => (
+              <motion.div
+                key={mistake.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0, margin: 0 }}
+                className={`card overflow-hidden ${
+                  mistake.is_resolved ? 'opacity-60' : ''
+                }`}
+              >
+                {/* Заголовок карточки */}
+                <div
+                  className="p-4 cursor-pointer flex items-start gap-3"
+                  onClick={() => setExpandedId(expandedId === mistake.id ? null : mistake.id)}
+                >
+                  <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
+                    mistake.is_resolved ? 'bg-emerald-100' : 'bg-rose-100'
+                  }`}>
+                    {mistake.is_resolved
+                      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      : <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
+                      {mistake.question}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {mistake.topic && (
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+                          {mistake.topic}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(mistake.created_at).toLocaleDateString('ru-RU')}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+                    expandedId === mistake.id ? 'rotate-180' : ''
+                  }`} />
+                </div>
+
+                {/* Раскрытое содержимое */}
+                <AnimatePresence>
+                  {expandedId === mistake.id && (
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: 'auto' }}
+                      exit={{ height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
+                        {/* Ответ студента */}
+                        <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl">
+                          <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1">
+                            Мой ответ
+                          </p>
+                          <p className="text-sm text-slate-700 leading-relaxed">
+                            {mistake.student_answer || '— (пусто)'}
+                          </p>
+                        </div>
+
+                        {/* Правильный ответ */}
+                        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                          <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
+                            Правильный ответ
+                          </p>
+                          <p className="text-sm text-slate-700 leading-relaxed">
+                            {mistake.correct_answer}
+                          </p>
+                        </div>
+
+                        {/* Действия */}
+                        <div className="flex gap-2 pt-1">
+                          {!mistake.is_resolved && (
+                            <button
+                              onClick={() => markResolved(mistake.id)}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Отметить как исправленную
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteMistake(mistake.id)}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 text-xs font-bold rounded-lg transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Удалить
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  );
+}
+
+================================================================================
+FILE: frontend/src/pages/MoodTracker.tsx
+================================================================================
+import { useState, useEffect } from 'react';
+import { Heart, Zap, Brain, Coffee, Frown, Smile, Meh, SmilePlus, CheckCircle2, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+
+type MoodType = 'great' | 'good' | 'okay' | 'tired' | 'stressed';
+
+interface MoodEntry {
+  id: string;
+  mood: MoodType;
+  energy_level: number;
+  notes: string;
+  recommended_mode: string;
+  logged_at: string;
+}
+
+interface MoodConfig {
+  label: string;
+  emoji: string;
+  color: string;
+  bg: string;
+  border: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const MOODS: Record<MoodType, MoodConfig> = {
+  great: { label: 'Отлично!', emoji: '🚀', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-300', icon: SmilePlus },
+  good: { label: 'Хорошо', emoji: '😊', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-300', icon: Smile },
+  okay: { label: 'Нормально', emoji: '😐', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-300', icon: Meh },
+  tired: { label: 'Устал(а)', emoji: '😴', color: 'text-slate-700', bg: 'bg-slate-100', border: 'border-slate-300', icon: Coffee },
+  stressed: { label: 'Стресс', emoji: '😰', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-300', icon: Frown },
+};
+
+const ENERGY_LABELS: Record<number, string> = {
+  1: 'Совсем нет сил',
+  2: 'Слабая энергия',
+  3: 'Средняя',
+  4: 'Бодрый(ая)',
+  5: 'Полон(на) сил!'
+};
+
+function getRecommendation(mood: MoodType, energy: number): string {
+  if (mood === 'great' && energy >= 4) {
+    return '🔥 Режим «Глубокое погружение» — идеальный день для изучения сложных тем и AI-Экзаменатора!';
+  }
+  if ((mood === 'good' || mood === 'great') && energy >= 3) {
+    return '📚 Режим «Активное обучение» — хорошо зайдёт изучение новых материалов и интерактивные миссии.';
+  }
+  if (mood === 'okay' || energy === 3) {
+    return '🔄 Режим «Повторение» — самое время для спейсд-репетишн и флэш-карточек. Никаких подвигов!';
+  }
+  if (mood === 'tired' || energy <= 2) {
+    return '🌙 Режим «Лёгкий просмотр» — просто перечитай конспект или послушай AI-чат. Мозг сегодня заслужил отдых.';
+  }
+  if (mood === 'stressed') {
+    return '🧘 Режим «Анти-стресс» — начни с планировщика, разбей задачи на мелкие шаги и сделай только одно дело.';
+  }
+  return '📖 Выбери любой режим учёбы, который кажется тебе комфортным сегодня.';
+}
+
+export default function MoodTracker() {
+  const { user } = useAuth();
+  const [phase, setPhase] = useState<'check' | 'form' | 'done'>('check');
+  const [todayEntry, setTodayEntry] = useState<MoodEntry | null>(null);
+  const [history, setHistory] = useState<MoodEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form state
+  const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
+  const [energy, setEnergy] = useState(3);
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    if (!user) return;
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('mood_log')
+      .select('*')
+      .eq('user_id', user!.id)
+      .order('logged_at', { ascending: false })
+      .limit(14);
+
+    if (data) {
+      const todayLog = data.find(d => d.logged_at === today);
+      if (todayLog) {
+        setTodayEntry(todayLog);
+        setPhase('done');
+      } else {
+        setPhase('form');
+      }
+      setHistory(data.filter(d => d.logged_at !== today));
+    }
+    setLoading(false);
+  };
+
+  const saveMood = async () => {
+    if (!selectedMood || !user) return;
+    setSaving(true);
+
+    const rec = getRecommendation(selectedMood, energy);
+
+    const { data, error } = await supabase
+      .from('mood_log')
+      .insert({
+        user_id: user.id,
+        mood: selectedMood,
+        energy_level: energy,
+        notes: notes.trim(),
+        recommended_mode: rec,
+        logged_at: today,
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setTodayEntry(data);
+      setPhase('done');
+    }
+    setSaving(false);
+  };
+
+  const moodToEmoji = (m: MoodType) => MOODS[m]?.emoji ?? '•';
+  const energyToBar = (e: number) => Math.round((e / 5) * 100);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      {/* Заголовок */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-pink-100 rounded-xl flex items-center justify-center">
+          <Heart className="w-5 h-5 text-pink-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Трекер состояния</h1>
+          <p className="text-xs text-slate-500">Как ты себя чувствуешь? ИИ подберёт режим учёбы</p>
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* ФОРМА ВВОДА НАСТРОЕНИЯ */}
+        {phase === 'form' && (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-5"
+          >
+            <div className="card p-6">
+              <h2 className="font-bold text-slate-900 mb-1">Как ты сегодня?</h2>
+              <p className="text-xs text-slate-400 mb-5">Выбери своё состояние прямо сейчас</p>
+
+              <div className="grid grid-cols-5 gap-2 mb-6">
+                {(Object.entries(MOODS) as [MoodType, MoodConfig][]).map(([key, cfg]) => {
+                  const Icon = cfg.icon;
+                  const isSelected = selectedMood === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedMood(key)}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? `${cfg.bg} ${cfg.border} scale-105 shadow-md`
+                          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-2xl">{cfg.emoji}</span>
+                      <span className={`text-[10px] font-bold ${isSelected ? cfg.color : 'text-slate-500'}`}>
+                        {cfg.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Уровень энергии */}
+              <div className="mb-5">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Уровень энергии
+                  </label>
+                  <span className="text-xs font-semibold text-indigo-600">
+                    {ENERGY_LABELS[energy]}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-slate-300" />
+                  <input
+                    type="range"
+                    min={1}
+                    max={5}
+                    value={energy}
+                    onChange={e => setEnergy(Number(e.target.value))}
+                    className="flex-1 accent-indigo-600 h-2 rounded-full cursor-pointer"
+                  />
+                  <Zap className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="flex justify-between mt-1">
+                  {[1,2,3,4,5].map(n => (
+                    <span key={n} className={`text-[10px] font-bold ${energy === n ? 'text-indigo-600' : 'text-slate-300'}`}>{n}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Заметка */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                  Заметка (необязательно)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Что беспокоит? Есть дедлайн? Хочется конкретного?"
+                  className="w-full h-20 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none bg-slate-50/50"
+                />
+              </div>
+
+              {/* Превью рекомендации */}
+              {selectedMood && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4 p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl"
+                >
+                  <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <Brain className="w-3 h-3" /> Рекомендация ИИ:
+                  </p>
+                  <p className="text-sm text-indigo-800 font-medium leading-snug">
+                    {getRecommendation(selectedMood, energy)}
+                  </p>
+                </motion.div>
+              )}
+
+              <button
+                disabled={!selectedMood || saving}
+                onClick={saveMood}
+                className="mt-5 w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+              >
+                <ChevronRight className="w-4 h-4" />
+                {saving ? 'Сохраняем...' : 'Получить план на сегодня'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* РЕЗУЛЬТАТ ДНЯ */}
+        {phase === 'done' && todayEntry && (
+          <motion.div
+            key="done"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="space-y-5"
+          >
+            {/* Сегодняшний результат */}
+            <div className={`card p-6 border-l-4 ${MOODS[todayEntry.mood]?.border ?? 'border-l-indigo-400'}`}>
+              <div className="flex items-center gap-4 mb-4">
+                <span className="text-4xl">{moodToEmoji(todayEntry.mood)}</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Сегодня ты сказал(а)</p>
+                  <h2 className={`text-lg font-black ${MOODS[todayEntry.mood]?.color ?? 'text-slate-900'}`}>
+                    {MOODS[todayEntry.mood]?.label}
+                  </h2>
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-xs text-slate-400">Энергия:</span>
+                    <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 rounded-full transition-all"
+                        style={{ width: `${energyToBar(todayEntry.energy_level)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-indigo-600">{todayEntry.energy_level}/5</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Рекомендация */}
+              <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl">
+                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Brain className="w-3 h-3" /> Рекомендованный режим учёбы:
+                </p>
+                <p className="text-sm text-slate-800 font-medium leading-relaxed">
+                  {todayEntry.recommended_mode}
+                </p>
+              </div>
+
+              {todayEntry.notes && (
+                <div className="mt-3 p-3 bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-500 italic">«{todayEntry.notes}»</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => { setSelectedMood(null); setEnergy(3); setNotes(''); setPhase('form'); }}
+                className="mt-4 text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 transition"
+              >
+                Изменить состояние на сегодня
+              </button>
+            </div>
+
+            {/* История последних 14 дней */}
+            {history.length > 0 && (
+              <div className="card p-5">
+                <h3 className="font-bold text-slate-900 text-sm mb-4">История настроений (последние 14 дней)</h3>
+                <div className="space-y-2">
+                  {history.slice(0, 7).map(entry => (
+                    <div key={entry.id} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+                      <span className="text-lg w-8 text-center">{moodToEmoji(entry.mood)}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-700">
+                            {MOODS[entry.mood]?.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(entry.logged_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                        <div className="w-full h-1 bg-slate-100 rounded-full mt-1">
+                          <div
+                            className="h-full bg-indigo-400 rounded-full"
+                            style={{ width: `${energyToBar(entry.energy_level)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+================================================================================
 SUPABASE SCHEMA — Project: StudyForge (daunnytubqbzafjnpfnw)
 ================================================================================
 
@@ -5016,6 +7191,54 @@ CREATE POLICY "Users can insert own sessions" ON study_sessions FOR INSERT WITH 
 CREATE POLICY "Users can update own sessions" ON study_sessions FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own sessions" ON study_sessions FOR DELETE USING (auth.uid() = user_id);
 CREATE INDEX idx_study_sessions_user ON study_sessions(user_id);
+
+-- 8. exam_sessions — Сессии AI-экзаменатора
+CREATE TABLE exam_sessions (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id      uuid REFERENCES materials(id) ON DELETE CASCADE,
+  subject          text NOT NULL DEFAULT '',
+  questions_json   jsonb NOT NULL DEFAULT '[]',
+  total_questions  int NOT NULL DEFAULT 0,
+  score            int NOT NULL DEFAULT 0,
+  status           text NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed')),
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  completed_at     timestamptz
+);
+ALTER TABLE exam_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own exams" ON exam_sessions FOR ALL USING (auth.uid() = user_id);
+
+-- 9. mistake_diary — Дневник ошибок
+CREATE TABLE mistake_diary (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id      uuid REFERENCES materials(id) ON DELETE CASCADE,
+  exam_session_id  uuid REFERENCES exam_sessions(id) ON DELETE SET NULL,
+  question         text NOT NULL,
+  correct_answer   text NOT NULL,
+  student_answer   text NOT NULL DEFAULT '',
+  topic            text NOT NULL DEFAULT '',
+  is_resolved      boolean NOT NULL DEFAULT false,
+  resolved_at      timestamptz,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE mistake_diary ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own mistakes" ON mistake_diary FOR ALL USING (auth.uid() = user_id);
+
+-- 10. mood_log — Трекер настроения
+CREATE TABLE mood_log (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  mood             text NOT NULL CHECK (mood IN ('great', 'good', 'okay', 'tired', 'stressed')),
+  energy_level     int NOT NULL DEFAULT 3 CHECK (energy_level >= 1 AND energy_level <= 5),
+  notes            text DEFAULT '',
+  recommended_mode text DEFAULT '',
+  logged_at        date NOT NULL DEFAULT CURRENT_DATE,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, logged_at)
+);
+ALTER TABLE mood_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own mood" ON mood_log FOR ALL USING (auth.uid() = user_id);
 
 -- Триггер: автосоздание профиля при регистрации
 CREATE OR REPLACE FUNCTION public.handle_new_user()

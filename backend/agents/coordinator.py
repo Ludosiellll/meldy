@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import AsyncGenerator, Dict, Any, Optional
 
-from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt
+from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt, build_cheatsheet_prompt, build_podcast_prompt
 
 
 class CoordinatorAgent:
@@ -24,6 +24,8 @@ class CoordinatorAgent:
             "summarizer": build_summarizer_prompt(summary_detail),
             "flashcards": build_flashcards_prompt(flashcard_count),
             "quiz": build_quiz_prompt(quiz_count, quiz_difficulty, quiz_type),
+            "cheatsheet": build_cheatsheet_prompt(),
+            "podcast": build_podcast_prompt(),
         }
 
         async def run_agent(name: str, prompt: str) -> tuple:
@@ -33,11 +35,13 @@ class CoordinatorAgent:
             except Exception as e:
                 return (name, {"error": str(e)})
 
-        agent_names = ["summarizer", "flashcards", "quiz"]
+        agent_names = ["summarizer", "flashcards", "quiz", "cheatsheet", "podcast"]
         agent_labels = {
             "summarizer": "📝 Конспект",
             "flashcards": "🃏 Карточки",
             "quiz": "❓ Тест",
+            "cheatsheet": "⚡ Шпаргалка",
+            "podcast": "🎙️ Подкаст",
         }
 
         # Запускаем агентов ПОСЛЕДОВАТЕЛЬНО для стабильности (особенно для Gemini Free)
@@ -59,11 +63,11 @@ class CoordinatorAgent:
                 "agent": agent_name,
                 "label": agent_labels[agent_name],
                 "progress": done_count,
-                "total": 3,
+                "total": 5,
             }
             
             # Небольшая пауза между запросами для обхода лимитов
-            if done_count < 3:
+            if done_count < 5:
                 await asyncio.sleep(1)
 
         yield {
@@ -71,10 +75,12 @@ class CoordinatorAgent:
             "summarizer": results.get("summarizer", {"error": "Нет результата"}),
             "flashcards": results.get("flashcards", {"error": "Нет результата"}),
             "quiz": results.get("quiz", {"error": "Нет результата"}),
+            "cheatsheet": results.get("cheatsheet", {"error": "Нет результата"}),
+            "podcast": results.get("podcast", {"error": "Нет результата"}),
         }
 
     def _parse_result(self, name: str, raw: str) -> Any:
-        if name in ("flashcards", "quiz"):
+        if name in ("flashcards", "quiz", "podcast"):
             try:
                 json_str = raw.strip()
                 # Try to extract from markdown blocks

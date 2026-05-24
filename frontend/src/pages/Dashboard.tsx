@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [dueCards, setDueCards] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [mood, setMood] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,11 +42,13 @@ export default function Dashboard() {
       getDueCards(user.id),
       supabase.from('subjects').select('*').eq('user_id', user.id),
       supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
-    ]).then(([mats, cards, subRes, sessRes]) => {
+      supabase.from('mood_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1).maybeSingle(),
+    ]).then(([mats, cards, subRes, sessRes, moodRes]) => {
       setMaterials(mats);
       setDueCards(cards);
       setSubjects(subRes.data || []);
       setSessions(sessRes.data || []);
+      setMood(moodRes.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, [user]);
 
@@ -93,6 +96,23 @@ export default function Dashboard() {
         <StatCard icon={GraduationCap} label="Предметов" value={subjects.length} color="amber" />
         <StatCard icon={Flame} label="Дней подряд" value={streak} color="rose" />
       </div>
+
+      {/* Mood Recommendation */}
+      {mood && (
+        <div 
+          onClick={() => navigate('/mood')}
+          className="mt-6 p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm cursor-pointer hover:shadow-md transition flex items-center gap-4"
+        >
+          <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
+            <Heart className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-0.5">Твое состояние & Режим дня</p>
+            <p className="text-sm text-slate-700 font-medium leading-relaxed">{mood.recommended_mode}</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-300" />
+        </div>
+      )}
 
       {/* Two columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -165,7 +185,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6">
         <button
           onClick={() => navigate('/analyze')}
           className="card p-5 text-center hover:shadow-md transition group"
@@ -183,6 +203,24 @@ export default function Dashboard() {
             <Brain className="w-5 h-5 text-emerald-600" />
           </div>
           <p className="text-sm font-medium text-slate-700">Повторить карточки</p>
+        </button>
+        <button
+          onClick={() => navigate('/play')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition animate-pulse">
+            <Gamepad2 className="w-5 h-5 text-emerald-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Микро-миссии</p>
+        </button>
+        <button
+          onClick={() => navigate('/exam')}
+          className="card p-5 text-center hover:shadow-md transition group"
+        >
+          <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-rose-100 transition">
+            <Award className="w-5 h-5 text-rose-600" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">Устный экзамен</p>
         </button>
         <button
           onClick={() => navigate('/planner')}

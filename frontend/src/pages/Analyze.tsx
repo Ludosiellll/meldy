@@ -14,6 +14,8 @@ const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
   { id: 'flashcards', label: 'Карточки', status: 'idle', progress: 0 },
   { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
+  { id: 'cheatsheet', label: 'Шпаргалка', status: 'idle', progress: 0 },
+  { id: 'podcast', label: 'Подкаст', status: 'idle', progress: 0 },
 ];
 
 interface Toast {
@@ -75,6 +77,8 @@ export default function Analyze() {
     summarizer: '✅ Конспект готов',
     flashcards: '✅ Карточки готовы',
     quiz: '✅ Тест готов',
+    cheatsheet: '✅ Шпаргалка готова',
+    podcast: '✅ Подкаст готов',
   };
 
   const handleSSE = (d: any) => {
@@ -89,7 +93,13 @@ export default function Analyze() {
       setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
     }
     else if (d.type === 'results') {
-      const results = { summarizer: d.summarizer, flashcards: d.flashcards, quiz: d.quiz };
+      const results = {
+        summarizer: d.summarizer,
+        flashcards: d.flashcards,
+        quiz: d.quiz,
+        cheatsheet: d.cheatsheet,
+        podcast: d.podcast
+      };
       const dur = analysisStartRef.current
         ? Math.round((Date.now() - analysisStartRef.current) / 1000)
         : 0;
@@ -108,7 +118,11 @@ export default function Analyze() {
               title,
               subject: '',
               original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
-              summary_json: results.summarizer,
+              summary_json: {
+                content: results.summarizer?.content || '',
+                cheatsheet: results.cheatsheet?.content || '',
+                podcast: results.podcast?.podcast || []
+              },
               flashcards_json: results.flashcards,
               quiz_json: results.quiz,
             })

@@ -227,6 +227,98 @@ async def plan(req: PlanRequest):
         return {"plan": []}
 
 
+class ProfessorQuestionRequest(BaseModel):
+    context: str
+    history_text: str = ""
+
+
+class ProfessorEvaluateRequest(BaseModel):
+    context: str
+    question: str
+    student_answer: str
+
+
+class MissionsGenerateRequest(BaseModel):
+    context: str
+
+
+from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt
+
+@app.post("/api/professor/question")
+async def professor_question(req: ProfessorQuestionRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_professor_question_prompt(req.context, req.history_text)
+    question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.")
+    return {"question": question.strip()}
+
+
+@app.post("/api/professor/evaluate")
+async def professor_evaluate(req: ProfessorEvaluateRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer)
+    raw = await agent.run(system_prompt, "Оцени мой ответ.")
+    
+    try:
+        json_str = raw.strip()
+        if "```json" in json_str:
+            json_str = json_str.split("```json")[1].split("```")[0]
+        elif "```" in json_str:
+            json_str = json_str.split("```")[1].split("```")[0]
+        
+        if not (json_str.startswith('{') or json_str.startswith('[')):
+            start = json_str.find('{')
+            end = json_str.rfind('}')
+            if start != -1 and end != -1:
+                json_str = json_str[start:end+1]
+                
+        return json.loads(json_str.strip())
+    except Exception as e:
+        return {
+            "score": 50,
+            "grade": "3",
+            "verdict": f"Произошла ошибка при анализе ответа. Сырой комментарий: {raw}",
+            "correct_points": ["Ответ получен системой"],
+            "errors": [f"Ошибка парсинга: {str(e)}"],
+            "missing_points": ["Пожалуйста, сформулируйте ответ более академично"]
+        }
+
+
+@app.post("/api/missions/generate")
+async def generate_missions(req: MissionsGenerateRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_missions_prompt()
+    raw = await agent.run(system_prompt, req.context)
+    
+    try:
+        json_str = raw.strip()
+        if "```json" in json_str:
+            json_str = json_str.split("```json")[1].split("```")[0]
+        elif "```" in json_str:
+            json_str = json_str.split("```")[1].split("```")[0]
+        
+        if not (json_str.startswith('{') or json_str.startswith('[')):
+            start = json_str.find('{')
+            end = json_str.rfind('}')
+            if start != -1 and end != -1:
+                json_str = json_str[start:end+1]
+                
+        return json.loads(json_str.strip())
+    except Exception as e:
+        return {
+            "missions": [
+                {
+                    "id": 1,
+                    "title": "Введение в тему",
+                    "explanation": f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}",
+                    "question": "Готовы ли вы начать изучение самостоятельно?",
+                    "options": ["A) Да, готов!", "B) Нет, нужно время", "C) Хочу перечитать конспект"],
+                    "correct": "A",
+                    "hint": "Выберите вариант А"
+                }
+            ]
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

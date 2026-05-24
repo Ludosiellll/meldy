@@ -11,6 +11,10 @@ import MaterialDetail from './pages/MaterialDetail';
 import Review from './pages/Review';
 import Planner from './pages/Planner';
 import Chat from './pages/Chat';
+import ProfessorExam from './pages/ProfessorExam';
+import Missions from './pages/Missions';
+import MistakeDiary from './pages/MistakeDiary';
+import MoodTracker from './pages/MoodTracker';
 import AuthCallback from './pages/AuthCallback';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -40,6 +44,10 @@ export default function App() {
           <Route path="review" element={<Review />} />
           <Route path="planner" element={<Planner />} />
           <Route path="chat" element={<Chat />} />
+          <Route path="exam" element={<ProfessorExam />} />
+          <Route path="play" element={<Missions />} />
+          <Route path="mistakes" element={<MistakeDiary />} />
+          <Route path="mood" element={<MoodTracker />} />
         </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />

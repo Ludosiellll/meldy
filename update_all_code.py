@@ -44,6 +44,7 @@ FILES = [
     "frontend/src/components/QuizView.tsx",
     "frontend/src/components/HistoryPanel.tsx",
     "frontend/src/components/SettingsPanel.tsx",
+    "frontend/src/components/ExpressPrepView.tsx",
     "frontend/src/pages/Landing.tsx",
     "frontend/src/pages/Login.tsx",
     "frontend/src/pages/Register.tsx",
@@ -55,6 +56,10 @@ FILES = [
     "frontend/src/pages/Review.tsx",
     "frontend/src/pages/Planner.tsx",
     "frontend/src/pages/Chat.tsx",
+    "frontend/src/pages/Missions.tsx",
+    "frontend/src/pages/ProfessorExam.tsx",
+    "frontend/src/pages/MistakeDiary.tsx",
+    "frontend/src/pages/MoodTracker.tsx",
 ]
 
 SUPABASE_SCHEMA = r"""================================================================================
@@ -182,6 +187,54 @@ CREATE POLICY "Users can insert own sessions" ON study_sessions FOR INSERT WITH 
 CREATE POLICY "Users can update own sessions" ON study_sessions FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own sessions" ON study_sessions FOR DELETE USING (auth.uid() = user_id);
 CREATE INDEX idx_study_sessions_user ON study_sessions(user_id);
+
+-- 8. exam_sessions — Сессии AI-экзаменатора
+CREATE TABLE exam_sessions (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id      uuid REFERENCES materials(id) ON DELETE CASCADE,
+  subject          text NOT NULL DEFAULT '',
+  questions_json   jsonb NOT NULL DEFAULT '[]',
+  total_questions  int NOT NULL DEFAULT 0,
+  score            int NOT NULL DEFAULT 0,
+  status           text NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed')),
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  completed_at     timestamptz
+);
+ALTER TABLE exam_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own exams" ON exam_sessions FOR ALL USING (auth.uid() = user_id);
+
+-- 9. mistake_diary — Дневник ошибок
+CREATE TABLE mistake_diary (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id      uuid REFERENCES materials(id) ON DELETE CASCADE,
+  exam_session_id  uuid REFERENCES exam_sessions(id) ON DELETE SET NULL,
+  question         text NOT NULL,
+  correct_answer   text NOT NULL,
+  student_answer   text NOT NULL DEFAULT '',
+  topic            text NOT NULL DEFAULT '',
+  is_resolved      boolean NOT NULL DEFAULT false,
+  resolved_at      timestamptz,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE mistake_diary ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own mistakes" ON mistake_diary FOR ALL USING (auth.uid() = user_id);
+
+-- 10. mood_log — Трекер настроения
+CREATE TABLE mood_log (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  mood             text NOT NULL CHECK (mood IN ('great', 'good', 'okay', 'tired', 'stressed')),
+  energy_level     int NOT NULL DEFAULT 3 CHECK (energy_level >= 1 AND energy_level <= 5),
+  notes            text DEFAULT '',
+  recommended_mode text DEFAULT '',
+  logged_at        date NOT NULL DEFAULT CURRENT_DATE,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, logged_at)
+);
+ALTER TABLE mood_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own mood" ON mood_log FOR ALL USING (auth.uid() = user_id);
 
 -- Триггер: автосоздание профиля при регистрации
 CREATE OR REPLACE FUNCTION public.handle_new_user()

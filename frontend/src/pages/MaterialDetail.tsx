@@ -4,6 +4,7 @@ import { ArrowLeft, Edit3, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import ResultsPanel from '../components/ResultsPanel';
+import ExpressPrepView from '../components/ExpressPrepView';
 import { getMaterialById, updateMaterialSubject } from '../api/materials';
 
 export default function MaterialDetail() {
@@ -13,6 +14,7 @@ export default function MaterialDetail() {
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
+  const [mode, setMode] = useState<'full' | 'express'>('full');
 
   useEffect(() => {
     if (!id) return;
@@ -94,19 +96,47 @@ export default function MaterialDetail() {
         {format(new Date(material.created_at), 'dd.MM.yyyy', { locale: ru })}
       </p>
 
-      {/* Results */}
-      <ResultsPanel
-        results={{
-          summarizer: material.summary_json,
-          flashcards: material.flashcards_json,
-          quiz: material.quiz_json,
-        }}
-        onReset={() => navigate('/library')}
-        textLength={0}
-      />
+      {/* Режимы обучения */}
+      <div className="flex gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-full sm:w-fit mb-6 border border-slate-200">
+        <button
+          onClick={() => setMode('full')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+            mode === 'full'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          📚 Полноформатное обучение
+        </button>
+        <button
+          onClick={() => setMode('express')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+            mode === 'express'
+              ? 'bg-rose-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-rose-600'
+          }`}
+        >
+          ⚡ За 5 минут до экзамена
+        </button>
+      </div>
+
+      {/* Контент в зависимости от выбранного режима */}
+      {mode === 'full' ? (
+        <ResultsPanel
+          results={{
+            summarizer: material.summary_json,
+            flashcards: material.flashcards_json,
+            quiz: material.quiz_json,
+          }}
+          onReset={() => navigate('/library')}
+          textLength={0}
+        />
+      ) : (
+        <ExpressPrepView summaryJson={material.summary_json} />
+      )}
 
       {/* Review CTA */}
-      {hasFlashcards && (
+      {hasFlashcards && mode === 'full' && (
         <div className="mt-6 text-center">
           <button
             onClick={() => navigate('/review')}

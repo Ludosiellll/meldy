@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, Zap, BookOpen, Brain, Calendar, MessageSquare, LogOut } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, Zap, BookOpen, Brain, Calendar, MessageSquare, LogOut, Award, Gamepad2, BookMarked, Heart } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const navItems = [
@@ -7,6 +7,10 @@ const navItems = [
   { to: '/analyze', icon: Zap, label: 'Анализ материалов' },
   { to: '/library', icon: BookOpen, label: 'Библиотека' },
   { to: '/review', icon: Brain, label: 'Повторение' },
+  { to: '/play', icon: Gamepad2, label: 'Микро-миссии' },
+  { to: '/exam', icon: Award, label: 'AI-Экзаменатор' },
+  { to: '/mistakes', icon: BookMarked, label: 'Дневник ошибок' },
+  { to: '/mood', icon: Heart, label: 'Трекер состояния' },
   { to: '/planner', icon: Calendar, label: 'Планировщик' },
   { to: '/chat', icon: MessageSquare, label: 'AI-чат' },
 ];
