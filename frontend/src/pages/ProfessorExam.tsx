@@ -176,13 +176,23 @@ export default function ProfessorExam() {
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
 
+    // Получаем актуальное настроение пользователя
+    const { data: moodData } = await supabase
+      .from('mood_log')
+      .select('mood, energy_level')
+      .eq('user_id', user!.id)
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     try {
       const res = await fetch('/api/professor/question', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           context,
-          history_text: historyText
+          history_text: historyText,
+          mood: moodData
         })
       });
 

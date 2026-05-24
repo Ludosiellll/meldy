@@ -294,6 +294,7 @@ class ChatRequest(BaseModel):
     message: str
     context: str
     history: List[ChatMessage]
+    extra_params: dict = {}
 
 
 class PlanSubject(BaseModel):
@@ -325,6 +326,20 @@ async def chat(req: ChatRequest):
 
     history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-5:]])
     full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС: {req.message}"
+
+    # Добавляем контекст настроения пользователя
+    mood_context = ""
+    if "mood" in req.extra_params:
+        m = req.extra_params["mood"]
+        mood_context = f"\n\nТЕКУЩЕЕ СОСТОЯНИЕ СТУДЕНТА: {m['mood']}, энергия: {m['energy_level']}/5. "
+        if m['energy_level'] <= 2:
+            mood_context += "Студент устал. Отвечай максимально просто, кратко и поддерживающе."
+        elif m['mood'] == 'stressed':
+            mood_context += "Студент в стрессе. Будь максимально вежлив, подбадривай и не давай слишком сложной информации."
+        elif m['energy_level'] >= 4:
+            mood_context += "Студент полон сил. Можешь давать более глубокие, сложные и детальные пояснения."
+
+    system_prompt += mood_context
 
     reply = await agent.run(system_prompt, full_user_query)
     return {"reply": reply}
@@ -404,6 +419,7 @@ async def plan(req: PlanRequest):
 class ProfessorQuestionRequest(BaseModel):
     context: str
     history_text: str = ""
+    mood: dict = None
 
 
 class ProfessorEvaluateRequest(BaseModel):
@@ -421,7 +437,18 @@ from agents.base import build_professor_question_prompt, build_professor_evaluat
 @app.post("/api/professor/question")
 async def professor_question(req: ProfessorQuestionRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    mood_instr = ""
+    if req.mood:
+        if req.mood['energy_level'] <= 2 or req.mood['mood'] == 'stressed':
+            mood_instr = "Студент сегодня не в лучшей форме (устал или в стрессе). Задавай вопросы попроще, будь более снисходительным профессором, давай наводки."
+        elif req.mood['energy_level'] >= 4:
+            mood_instr = "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
+
     system_prompt = build_professor_question_prompt(req.context, req.history_text)
+    if mood_instr:
+        system_prompt += f"\n\nКОНТЕКСТ СОСТОЯНИЯ СТУДЕНТА: {mood_instr}"
+        
     question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.")
     return {"question": question.strip()}
 
@@ -3894,6 +3921,19 @@ export default function Dashboard() {
 
   const name = user?.user_metadata?.full_name || 'Студент';
 
+  const getRecommendedTool = () => {
+    if (!mood) return null;
+    const mode = mood.recommended_mode.toLowerCase();
+    if (mode.includes('глубокое погружение')) return 'exam';
+    if (mode.includes('активное обучение')) return 'play';
+    if (mode.includes('повторение')) return 'review';
+    if (mode.includes('лёгкий просмотр')) return 'chat';
+    if (mode.includes('анти-стресс')) return 'planner';
+    return null;
+  };
+
+  const recTool = getRecommendedTool();
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Greeting */}
@@ -4006,41 +4046,101 @@ export default function Dashboard() {
           </div>
           <p className="text-sm font-medium text-slate-700">Загрузить лекцию</p>
         </button>
+        
         <button
           onClick={() => navigate('/review')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'review' ? 'ring-2 ring-emerald-500 shadow-lg shadow-emerald-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition">
-            <Brain className="w-5 h-5 text-emerald-600" />
+          {recTool === 'review' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'review' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100'
+          }`}>
+            <Brain className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Повторить карточки</p>
+          <p className={`text-sm font-medium ${recTool === 'review' ? 'text-emerald-900 font-bold' : 'text-slate-700'}`}>
+            Повторить карточки
+          </p>
         </button>
+
         <button
           onClick={() => navigate('/play')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'play' ? 'ring-2 ring-emerald-500 shadow-lg shadow-emerald-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition animate-pulse">
-            <Gamepad2 className="w-5 h-5 text-emerald-600" />
+          {recTool === 'play' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'play' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100'
+          }`}>
+            <Gamepad2 className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Микро-миссии</p>
+          <p className={`text-sm font-medium ${recTool === 'play' ? 'text-emerald-900 font-bold' : 'text-slate-700'}`}>
+            Микро-миссии
+          </p>
         </button>
+
         <button
           onClick={() => navigate('/exam')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'exam' ? 'ring-2 ring-rose-500 shadow-lg shadow-rose-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-rose-100 transition">
-            <Award className="w-5 h-5 text-rose-600" />
+          {recTool === 'exam' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'exam' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600 group-hover:bg-rose-100'
+          }`}>
+            <Award className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Устный экзамен</p>
+          <p className={`text-sm font-medium ${recTool === 'exam' ? 'text-rose-900 font-bold' : 'text-slate-700'}`}>
+            Устный экзамен
+          </p>
         </button>
+
         <button
           onClick={() => navigate('/planner')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'planner' ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-amber-100 transition">
-            <Calendar className="w-5 h-5 text-amber-600" />
+          {recTool === 'planner' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'planner' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-100'
+          }`}>
+            <Calendar className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Открыть планировщик</p>
+          <p className={`text-sm font-medium ${recTool === 'planner' ? 'text-amber-900 font-bold' : 'text-slate-700'}`}>
+            Планировщик
+          </p>
         </button>
       </div>
     </div>
@@ -4849,6 +4949,22 @@ export default function Planner() {
 
       const selectedSubs = subjects.filter(s => selectedSubjectIds.includes(s.id));
 
+      // Получаем актуальное настроение пользователя
+      const { data: moodData } = await supabase
+        .from('mood_log')
+        .select('mood, energy_level')
+        .eq('user_id', user!.id)
+        .order('logged_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let moodInfo = "";
+      if (moodData) {
+          moodInfo = `\nСОСТОЯНИЕ СТУДЕНТА: настроение ${moodData.mood}, энергия ${moodData.energy_level}/5. `;
+          if (moodData.energy_level <= 2) moodInfo += "Студент очень устал, планируй максимально легкие и короткие задачи.";
+          else if (moodData.energy_level >= 4) moodInfo += "Студент полон сил, можно планировать интенсивную работу.";
+      }
+
       const res = await fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4856,7 +4972,7 @@ export default function Planner() {
           subjects: selectedSubs.map(s => ({ name: s.name, exam_date: s.exam_date, color: s.color })),
           available_hours_per_day: hours,
           context_materials: selectedContent,
-          user_goals: goals
+          user_goals: goals + moodInfo
         }),
       });
       const data = await res.json();
@@ -5313,6 +5429,15 @@ export default function Chat() {
         content: userMsg.content
       });
 
+      // Получаем актуальное настроение пользователя
+      const { data: moodData } = await supabase
+        .from('mood_log')
+        .select('mood, energy_level')
+        .eq('user_id', user.id)
+        .order('logged_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       // 2. Запрос к AI
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -5320,7 +5445,8 @@ export default function Chat() {
         body: JSON.stringify({ 
           message: userMsg.content, 
           context: getContext(), 
-          history: messages.slice(-6) // Отправляем последние 6 сообщений для памяти
+          history: messages.slice(-6), // Отправляем последние 6 сообщений для памяти
+          extra_params: moodData ? { mood: moodData } : {}
         }),
       });
       
@@ -6079,13 +6205,23 @@ export default function ProfessorExam() {
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
 
+    // Получаем актуальное настроение пользователя
+    const { data: moodData } = await supabase
+      .from('mood_log')
+      .select('mood, energy_level')
+      .eq('user_id', user!.id)
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     try {
       const res = await fetch('/api/professor/question', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           context,
-          history_text: historyText
+          history_text: historyText,
+          mood: moodData
         })
       });
 

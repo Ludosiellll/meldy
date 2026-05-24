@@ -100,6 +100,15 @@ export default function Chat() {
         content: userMsg.content
       });
 
+      // Получаем актуальное настроение пользователя
+      const { data: moodData } = await supabase
+        .from('mood_log')
+        .select('mood, energy_level')
+        .eq('user_id', user.id)
+        .order('logged_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       // 2. Запрос к AI
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -107,7 +116,8 @@ export default function Chat() {
         body: JSON.stringify({ 
           message: userMsg.content, 
           context: getContext(), 
-          history: messages.slice(-6) // Отправляем последние 6 сообщений для памяти
+          history: messages.slice(-6), // Отправляем последние 6 сообщений для памяти
+          extra_params: moodData ? { mood: moodData } : {}
         }),
       });
       

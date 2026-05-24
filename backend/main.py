@@ -120,6 +120,7 @@ class ChatRequest(BaseModel):
     message: str
     context: str
     history: List[ChatMessage]
+    extra_params: dict = {}
 
 
 class PlanSubject(BaseModel):
@@ -151,6 +152,20 @@ async def chat(req: ChatRequest):
 
     history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-5:]])
     full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС: {req.message}"
+
+    # Добавляем контекст настроения пользователя
+    mood_context = ""
+    if "mood" in req.extra_params:
+        m = req.extra_params["mood"]
+        mood_context = f"\n\nТЕКУЩЕЕ СОСТОЯНИЕ СТУДЕНТА: {m['mood']}, энергия: {m['energy_level']}/5. "
+        if m['energy_level'] <= 2:
+            mood_context += "Студент устал. Отвечай максимально просто, кратко и поддерживающе."
+        elif m['mood'] == 'stressed':
+            mood_context += "Студент в стрессе. Будь максимально вежлив, подбадривай и не давай слишком сложной информации."
+        elif m['energy_level'] >= 4:
+            mood_context += "Студент полон сил. Можешь давать более глубокие, сложные и детальные пояснения."
+
+    system_prompt += mood_context
 
     reply = await agent.run(system_prompt, full_user_query)
     return {"reply": reply}
@@ -230,6 +245,7 @@ async def plan(req: PlanRequest):
 class ProfessorQuestionRequest(BaseModel):
     context: str
     history_text: str = ""
+    mood: dict = None
 
 
 class ProfessorEvaluateRequest(BaseModel):
@@ -247,7 +263,18 @@ from agents.base import build_professor_question_prompt, build_professor_evaluat
 @app.post("/api/professor/question")
 async def professor_question(req: ProfessorQuestionRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    mood_instr = ""
+    if req.mood:
+        if req.mood['energy_level'] <= 2 or req.mood['mood'] == 'stressed':
+            mood_instr = "Студент сегодня не в лучшей форме (устал или в стрессе). Задавай вопросы попроще, будь более снисходительным профессором, давай наводки."
+        elif req.mood['energy_level'] >= 4:
+            mood_instr = "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
+
     system_prompt = build_professor_question_prompt(req.context, req.history_text)
+    if mood_instr:
+        system_prompt += f"\n\nКОНТЕКСТ СОСТОЯНИЯ СТУДЕНТА: {mood_instr}"
+        
     question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.")
     return {"question": question.strip()}
 

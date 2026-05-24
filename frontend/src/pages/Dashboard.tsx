@@ -83,6 +83,19 @@ export default function Dashboard() {
 
   const name = user?.user_metadata?.full_name || 'Студент';
 
+  const getRecommendedTool = () => {
+    if (!mood) return null;
+    const mode = mood.recommended_mode.toLowerCase();
+    if (mode.includes('глубокое погружение')) return 'exam';
+    if (mode.includes('активное обучение')) return 'play';
+    if (mode.includes('повторение')) return 'review';
+    if (mode.includes('лёгкий просмотр')) return 'chat';
+    if (mode.includes('анти-стресс')) return 'planner';
+    return null;
+  };
+
+  const recTool = getRecommendedTool();
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Greeting */}
@@ -195,41 +208,101 @@ export default function Dashboard() {
           </div>
           <p className="text-sm font-medium text-slate-700">Загрузить лекцию</p>
         </button>
+        
         <button
           onClick={() => navigate('/review')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'review' ? 'ring-2 ring-emerald-500 shadow-lg shadow-emerald-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition">
-            <Brain className="w-5 h-5 text-emerald-600" />
+          {recTool === 'review' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'review' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100'
+          }`}>
+            <Brain className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Повторить карточки</p>
+          <p className={`text-sm font-medium ${recTool === 'review' ? 'text-emerald-900 font-bold' : 'text-slate-700'}`}>
+            Повторить карточки
+          </p>
         </button>
+
         <button
           onClick={() => navigate('/play')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'play' ? 'ring-2 ring-emerald-500 shadow-lg shadow-emerald-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-emerald-100 transition animate-pulse">
-            <Gamepad2 className="w-5 h-5 text-emerald-600" />
+          {recTool === 'play' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'play' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100'
+          }`}>
+            <Gamepad2 className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Микро-миссии</p>
+          <p className={`text-sm font-medium ${recTool === 'play' ? 'text-emerald-900 font-bold' : 'text-slate-700'}`}>
+            Микро-миссии
+          </p>
         </button>
+
         <button
           onClick={() => navigate('/exam')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'exam' ? 'ring-2 ring-rose-500 shadow-lg shadow-rose-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-rose-100 transition">
-            <Award className="w-5 h-5 text-rose-600" />
+          {recTool === 'exam' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'exam' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-600 group-hover:bg-rose-100'
+          }`}>
+            <Award className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Устный экзамен</p>
+          <p className={`text-sm font-medium ${recTool === 'exam' ? 'text-rose-900 font-bold' : 'text-slate-700'}`}>
+            Устный экзамен
+          </p>
         </button>
+
         <button
           onClick={() => navigate('/planner')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className={`card p-5 text-center transition group relative overflow-hidden ${
+            recTool === 'planner' ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-100' : 'hover:shadow-md'
+          }`}
         >
-          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-amber-100 transition">
-            <Calendar className="w-5 h-5 text-amber-600" />
+          {recTool === 'planner' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'planner' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-100'
+          }`}>
+            <Calendar className="w-5 h-5" />
           </div>
-          <p className="text-sm font-medium text-slate-700">Открыть планировщик</p>
+          <p className={`text-sm font-medium ${recTool === 'planner' ? 'text-amber-900 font-bold' : 'text-slate-700'}`}>
+            Планировщик
+          </p>
         </button>
       </div>
     </div>

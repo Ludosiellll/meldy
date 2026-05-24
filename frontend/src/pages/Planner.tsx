@@ -101,6 +101,22 @@ export default function Planner() {
 
       const selectedSubs = subjects.filter(s => selectedSubjectIds.includes(s.id));
 
+      // Получаем актуальное настроение пользователя
+      const { data: moodData } = await supabase
+        .from('mood_log')
+        .select('mood, energy_level')
+        .eq('user_id', user!.id)
+        .order('logged_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let moodInfo = "";
+      if (moodData) {
+          moodInfo = `\nСОСТОЯНИЕ СТУДЕНТА: настроение ${moodData.mood}, энергия ${moodData.energy_level}/5. `;
+          if (moodData.energy_level <= 2) moodInfo += "Студент очень устал, планируй максимально легкие и короткие задачи.";
+          else if (moodData.energy_level >= 4) moodInfo += "Студент полон сил, можно планировать интенсивную работу.";
+      }
+
       const res = await fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,7 +124,7 @@ export default function Planner() {
           subjects: selectedSubs.map(s => ({ name: s.name, exam_date: s.exam_date, color: s.color })),
           available_hours_per_day: hours,
           context_materials: selectedContent,
-          user_goals: goals
+          user_goals: goals + moodInfo
         }),
       });
       const data = await res.json();
