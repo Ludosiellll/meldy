@@ -282,12 +282,15 @@ export default function QuickPrep() {
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl"
+                  style={{ overflow: 'hidden' }}
+                  className="bg-emerald-50 border border-emerald-200 rounded-xl"
                 >
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Правильный ответ:
-                  </p>
-                  <p className="text-sm text-slate-700 leading-relaxed">{data.questions[quizIndex]?.answer}</p>
+                  <div className="p-4">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Правильный ответ:
+                    </p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{data.questions[quizIndex]?.answer}</p>
+                  </div>
                 </motion.div>
               )}
 

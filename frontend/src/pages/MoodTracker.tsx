@@ -237,14 +237,17 @@ export default function MoodTracker() {
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="mt-4 p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl"
+                  style={{ overflow: 'hidden' }}
+                  className="mt-4 bg-indigo-50 border border-indigo-100 rounded-xl"
                 >
-                  <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <Brain className="w-3 h-3" /> Рекомендация ИИ:
-                  </p>
-                  <p className="text-sm text-indigo-800 font-medium leading-snug">
-                    {getRecommendation(selectedMood, energy)}
-                  </p>
+                  <div className="p-3.5">
+                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <Brain className="w-3 h-3" /> Рекомендация ИИ:
+                    </p>
+                    <p className="text-sm text-indigo-800 font-medium leading-snug">
+                      {getRecommendation(selectedMood, energy)}
+                    </p>
+                  </div>
                 </motion.div>
               )}
 

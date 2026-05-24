@@ -372,12 +372,15 @@ export default function Missions() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-xs text-amber-800"
+                    style={{ overflow: 'hidden' }}
+                    className="bg-amber-50 border border-amber-200 rounded-xl"
                   >
-                    <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
-                    <div>
-                      <span className="font-bold block mb-0.5">💡 Подсказка AI-Методиста:</span>
-                      {currentMission.hint}
+                    <div className="p-3.5 flex items-start gap-2 text-xs text-amber-800">
+                      <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
+                      <div>
+                        <span className="font-bold block mb-0.5">💡 Подсказка AI-Методиста:</span>
+                        {currentMission.hint}
+                      </div>
                     </div>
                   </motion.div>
                 )}
