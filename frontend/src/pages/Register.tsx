@@ -19,6 +19,7 @@ export default function Register() {
   const [passwordError, setPasswordError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
   
@@ -77,6 +78,7 @@ export default function Register() {
   const handleResend = async () => {
     setLoading(true);
     setError('');
+    setResendMessage('');
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: email,
@@ -88,7 +90,7 @@ export default function Register() {
     if (error) {
       setError('Ошибка при повторной отправке. Возможно, вы пытаетесь отправить письмо слишком часто.');
     } else {
-      alert('Письмо отправлено повторно! Пожалуйста, проверьте папку "Спам".');
+      setResendMessage('Письмо отправлено повторно! Пожалуйста, проверьте папку "Спам".');
     }
   };
 
@@ -137,6 +139,12 @@ export default function Register() {
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 {loading ? 'Отправка...' : 'Отправить письмо еще раз'}
               </button>
+
+              {resendMessage && (
+                <span className="mt-3 text-emerald-700 font-bold text-xs bg-emerald-100 px-3 py-1.5 rounded-lg">
+                  {resendMessage}
+                </span>
+              )}
             </motion.div>
           )}
 
