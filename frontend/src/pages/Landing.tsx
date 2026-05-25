@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { GraduationCap, Zap, Brain, Calendar, BookOpen,
-         MessageSquare, BarChart2, Sparkles, ArrowRight,
-         CheckCircle, Upload, Cpu, Trophy } from 'lucide-react';
+import { 
+  GraduationCap, Zap, Brain, Calendar, BookOpen,
+  MessageSquare, BarChart2, Sparkles, ArrowRight,
+  CheckCircle, Upload, Cpu, Trophy, Network, Briefcase, Award, Heart
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -11,12 +14,24 @@ export default function Landing() {
   useEffect(() => { if (user) navigate('/dashboard'); }, [user]);
 
   return (
-    <div className="min-h-screen bg-[#080c14] text-white overflow-x-hidden">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden relative">
+      {/* Grid Pattern Background */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-[0.4]"
+        style={{
+          backgroundImage: `radial-gradient(#cbd5e1 1.5px, transparent 1.5px)`,
+          backgroundSize: '24px 24px',
+          maskImage: 'linear-gradient(to bottom, white 50%, transparent)',
+          WebkitMaskImage: 'linear-gradient(to bottom, white 50%, transparent)'
+        }}
+      />
+
       <Navbar />
       <Hero />
       <Stats />
       <HowItWorks />
       <Features />
+      <EducatorsSection />
       <CtaSection />
       <Footer />
     </div>
@@ -26,27 +41,30 @@ export default function Landing() {
 function Navbar() {
   const navigate = useNavigate();
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center
-      justify-between px-6 md:px-12 py-4
-      bg-[#080c14]/80 backdrop-blur-xl border-b border-white/[0.06]">
-
+    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/50">
       {/* Logo */}
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-          <GraduationCap className="w-4 h-4 text-white" />
+      <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
+        <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <GraduationCap className="w-5 h-5 text-white" />
         </div>
-        <span className="font-bold text-white text-lg">StudyForge</span>
+        <span className="font-extrabold text-slate-900 text-xl tracking-tight">StudyForge</span>
+      </div>
+
+      {/* Nav Links */}
+      <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+        <a href="#features" className="hover:text-indigo-600 transition">Возможности</a>
+        <a href="#how-it-works" className="hover:text-indigo-600 transition">Как это работает</a>
+        <a href="#educators" className="hover:text-indigo-600 transition">Преподавателям</a>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/login')}
-          className="text-sm text-slate-400 hover:text-white transition px-3 py-2">
+          className="text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">
           Войти
         </button>
         <button onClick={() => navigate('/register')}
-          className="text-sm font-semibold px-4 py-2 bg-indigo-600
-            hover:bg-indigo-500 text-white rounded-lg transition">
+          className="text-sm font-bold px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 active:translate-y-0 duration-200">
           Начать бесплатно
         </button>
       </div>
@@ -56,101 +74,192 @@ function Navbar() {
 
 function Hero() {
   const navigate = useNavigate();
+  const [rotateX, setRotateX] = useState(0);
+  const [rotateY, setRotateY] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    const box = card.getBoundingClientRect();
+    const x = e.clientX - box.left - box.width / 2;
+    const y = e.clientY - box.top - box.height / 2;
+    // Максимальный угол наклона - 12 градусов
+    setRotateX(-y / (box.height / 24));
+    setRotateY(x / (box.width / 24));
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setRotateX(0);
+    setRotateY(0);
+  };
+
   return (
-    <section className="pt-36 pb-20 px-6 text-center relative">
+    <section className="pt-32 pb-24 px-6 relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      
+      {/* Левая текстовая колонка */}
+      <div className="lg:col-span-6 text-left space-y-6">
+        {/* Академический бейдж */}
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full text-indigo-700 text-xs font-semibold tracking-wide">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Доказательная педагогика и ИИ</span>
+        </div>
 
-      {/* Фоновый glow */}
-      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[300px]
-        bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" />
+        <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-[1.1] text-slate-900">
+          Осваивайте лекции <br />
+          <span className="text-indigo-600">в 4 раза быстрее</span>
+        </h1>
 
-      {/* Заголовок */}
-      <h1 className="text-5xl md:text-[72px] font-black leading-[1.05]
-        tracking-tight mb-6 max-w-4xl mx-auto">
-        <span className="text-white">Превращай лекции</span>
-        <br />
-        <span className="bg-gradient-to-r from-indigo-400 via-purple-400
-          to-indigo-300 bg-clip-text text-transparent">
-          в знания за секунды
-        </span>
-      </h1>
+        <p className="text-lg text-slate-600 leading-relaxed max-w-xl">
+          Автоматизируйте рутину конспектирования. StudyForge анализирует материалы, создаёт интерактивные конспекты, карточки для интервального повторения по методу Лейтнера и проводит устные экзамены.
+        </p>
 
-      {/* Подзаголовок */}
-      <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto
-        mb-10 leading-relaxed">
-        Загрузи PDF или текст лекции — три AI-агента параллельно создадут
-        конспект, карточки и тест. Повторяй по алгоритму spaced repetition
-        и планируй подготовку к экзаменам.
-      </p>
+        {/* Кнопки действий */}
+        <div className="flex items-center gap-4 flex-wrap pt-2">
+          <button onClick={() => navigate('/register')}
+            className="group flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5 active:translate-y-0 duration-200">
+            Начать бесплатно
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+          <button onClick={() => navigate('/analyze')}
+            className="flex items-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-base rounded-xl transition shadow-sm hover:shadow hover:-translate-y-0.5 active:translate-y-0 duration-200">
+            <Zap className="w-4 h-4 text-indigo-600" />
+            Быстрое демо
+          </button>
+        </div>
 
-      {/* CTA кнопки */}
-      <div className="flex items-center justify-center gap-4 flex-wrap">
-        <button onClick={() => navigate('/register')}
-          className="group flex items-center gap-2 px-8 py-4 bg-indigo-600
-            hover:bg-indigo-500 text-white font-bold text-base rounded-xl
-            transition shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50">
-          Начать бесплатно
-          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
-        </button>
-        <button onClick={() => navigate('/analyze')}
-          className="flex items-center gap-2 px-8 py-4 bg-white/[0.06]
-            hover:bg-white/[0.1] border border-white/[0.1]
-            hover:border-white/20 text-white font-bold text-base
-            rounded-xl transition">
-          <Zap className="w-4 h-4 text-indigo-400" />
-          Попробовать демо
-        </button>
+        {/* Дополнительные преимущества */}
+        <div className="flex items-center gap-6 pt-4 text-xs font-semibold text-slate-500">
+          <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /> Без привязки карт</span>
+          <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /> Сделано для вузов</span>
+        </div>
       </div>
 
-      {/* Мок интерфейса */}
-      <div className="mt-16 max-w-4xl mx-auto relative">
-        {/* Внешний glow */}
-        <div className="absolute inset-0 bg-indigo-600/10 rounded-2xl
-          blur-xl scale-105 pointer-events-none" />
+      {/* Правая колонка с интерактивной 3D сценой */}
+      <div className="lg:col-span-6 flex items-center justify-center relative">
+        {/* Размытый фон сцены */}
+        <div className="absolute w-[400px] h-[400px] bg-indigo-200/40 rounded-full blur-[100px] pointer-events-none" />
 
-        {/* Фейковый интерфейс приложения */}
-        <div className="relative bg-[#0f1623] border border-white/[0.08]
-          rounded-2xl overflow-hidden shadow-2xl">
-
-          {/* Топбар мока */}
-          <div className="flex items-center gap-2 px-4 py-3
-            border-b border-white/[0.06] bg-[#0d1420]">
-            <div className="w-3 h-3 rounded-full bg-rose-500/70" />
-            <div className="w-3 h-3 rounded-full bg-amber-500/70" />
-            <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
-            <div className="flex-1 mx-4 h-5 bg-white/[0.04] rounded-md" />
-          </div>
-
-          {/* Контент мока — три агента */}
-          <div className="p-6 grid grid-cols-3 gap-4">
-            {[
-              { name: 'Конспект', icon: '📝', color: 'indigo', done: true },
-              { name: 'Карточки', icon: '🃏', color: 'emerald', done: true },
-              { name: 'Тест', icon: '✅', color: 'amber', done: false },
-            ].map((agent, i) => (
-              <div key={i} className="bg-white/[0.03] border border-white/[0.06]
-                rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-lg">{agent.icon}</span>
-                  {agent.done
-                    ? <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    : <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  }
+        {/* 3D Перспектива */}
+        <div 
+          className="relative w-full max-w-lg aspect-[4/3] cursor-pointer"
+          style={{ perspective: 1200 }}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={handleMouseLeave}
+        >
+          <motion.div
+            className="w-full h-full relative"
+            animate={{
+              rotateX: isHovered ? rotateX : 0,
+              rotateY: isHovered ? rotateY : 0,
+              scale: isHovered ? 1.03 : 1
+            }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            style={{ transformStyle: "preserve-3d" }}
+          >
+            {/* Нижний уровень: Тень */}
+            <div 
+              className="absolute inset-4 bg-indigo-900/5 rounded-3xl blur-2xl transition-all duration-300"
+              style={{ transform: "translateZ(-40px)" }}
+            />
+            
+            {/* Базовый слой: Панель Дашборда */}
+            <div 
+              className="absolute inset-0 bg-white border border-slate-200/80 rounded-3xl shadow-xl p-6 flex flex-col gap-4 select-none"
+              style={{ transform: "translateZ(0px)" }}
+            >
+              {/* Хедер дашборда */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-rose-400" />
+                  <div className="w-3 h-3 rounded-full bg-amber-400" />
+                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
                 </div>
-                <p className="text-white text-sm font-medium mb-2">{agent.name}</p>
-                <div className="space-y-1.5">
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${
-                      agent.done
-                        ? 'bg-emerald-500 w-full'
-                        : 'bg-amber-400 w-3/4 animate-pulse'
-                    }`} />
+                <div className="h-4 w-32 bg-slate-100 rounded-full" />
+                <div className="w-6 h-6 rounded-full bg-slate-100" />
+              </div>
+
+              {/* Тело дашборда */}
+              <div className="grid grid-cols-12 gap-3 flex-1">
+                {/* Левое меню */}
+                <div className="col-span-3 space-y-2 border-r border-slate-100 pr-2">
+                  <div className="h-5 bg-indigo-50 rounded-lg w-full" />
+                  <div className="h-5 bg-slate-50 rounded-lg w-5/6" />
+                  <div className="h-5 bg-slate-50 rounded-lg w-4/5" />
+                  <div className="h-5 bg-slate-50 rounded-lg w-3/4" />
+                </div>
+                
+                {/* Рабочая зона */}
+                <div className="col-span-9 space-y-3 pl-2">
+                  <div className="h-8 bg-slate-50 border border-slate-100 rounded-xl flex items-center px-3 justify-between">
+                    <span className="text-[10px] font-bold text-slate-400">Мой прогресс</span>
+                    <span className="text-[10px] text-indigo-600 font-extrabold">+120 XP</span>
                   </div>
-                  <div className="h-2 bg-white/[0.06] rounded-full w-3/4" />
-                  <div className="h-2 bg-white/[0.04] rounded-full w-1/2" />
+                  {/* Фейковый график */}
+                  <div className="h-24 bg-slate-50/50 rounded-xl border border-slate-100 p-2 flex items-end justify-between gap-1">
+                    {[30, 45, 20, 60, 80, 50, 95, 40, 70, 85].map((h, i) => (
+                      <div key={i} className="bg-indigo-100 hover:bg-indigo-300 transition-colors w-full rounded-t-sm" style={{ height: `${h}%` }} />
+                    ))}
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+
+            {/* Парящий слой 1: 📝 Конспект (Слева сверху) */}
+            <motion.div 
+              className="absolute top-[-10%] left-[-10%] w-[50%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-lg p-4 flex flex-col gap-2"
+              style={{ transform: "translateZ(50px)" }}
+              whileHover={{ translateZ: 70 }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">📝 Конспект</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              </div>
+              <p className="text-[11px] font-bold text-slate-800 line-clamp-1">Тема: Дифференциальные уравнения</p>
+              <div className="space-y-1">
+                <div className="h-1.5 bg-slate-100 rounded-full w-full" />
+                <div className="h-1.5 bg-slate-100 rounded-full w-5/6" />
+                <div className="h-1.5 bg-slate-100 rounded-full w-2/3" />
+              </div>
+            </motion.div>
+
+            {/* Парящий слой 2: 🃏 Карточки (Справа снизу) */}
+            <motion.div 
+              className="absolute bottom-[8%] right-[-10%] w-[45%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl p-4 flex flex-col gap-2.5"
+              style={{ transform: "translateZ(90px)" }}
+              whileHover={{ translateZ: 110 }}
+            >
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+                <Brain className="w-3.5 h-3.5" />
+                <span>Интервальное повторение</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-medium text-slate-500 mb-1">Термин</p>
+                <p className="text-xs font-bold text-slate-800">Интеграл Фурье</p>
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-[9px] font-bold px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded">Помню плохо</span>
+                <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded">Отлично помню</span>
+              </div>
+            </motion.div>
+
+            {/* Парящий слой 3: ❓ Устный экзамен (Слева снизу) */}
+            <motion.div 
+              className="absolute bottom-[-12%] left-[-5%] w-[48%] bg-indigo-600 text-white rounded-2xl shadow-2xl p-4 flex flex-col gap-2 border border-indigo-500/20"
+              style={{ transform: "translateZ(70px)" }}
+              whileHover={{ translateZ: 90 }}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold text-indigo-200">
+                <span className="flex items-center gap-1"><Award className="w-3.5 h-3.5" /> Собеседование у Профессора</span>
+                <span className="bg-white/20 px-1.5 py-0.5 rounded">95/100</span>
+              </div>
+              <p className="text-xs font-bold leading-snug">«Ответ верный. Объясните физический смысл градиента функции...»</p>
+              <div className="h-1 bg-white/20 rounded-full w-full">
+                <div className="h-full bg-white rounded-full w-[95%]" />
+              </div>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
     </section>
@@ -159,19 +268,18 @@ function Hero() {
 
 function Stats() {
   const items = [
-    { value: '15 сек', label: 'среднее время анализа' },
-    { value: '3', label: 'AI-агента работают параллельно' },
-    { value: 'SM-2', label: 'алгоритм повторения как в Anki' },
-    { value: '∞', label: 'материалов в библиотеке' },
+    { value: '15 секунд', label: 'глубокий анализ лекции' },
+    { value: '6 агентов', label: 'работают параллельно' },
+    { value: 'SM-2 Лейтнер', label: 'научный интервал повторений' },
+    { value: '100% облако', label: 'доступ с любого устройства' },
   ];
   return (
-    <section className="py-16 px-6 border-y border-white/[0.06]
-      bg-white/[0.02]">
+    <section className="py-16 px-6 border-y border-slate-200/60 bg-white/50 backdrop-blur">
       <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
         {items.map((s, i) => (
-          <div key={i} className="text-center">
-            <p className="text-3xl font-black text-white mb-1">{s.value}</p>
-            <p className="text-slate-500 text-sm">{s.label}</p>
+          <div key={i} className="text-center space-y-1">
+            <p className="text-3xl font-extrabold text-indigo-600 tracking-tight">{s.value}</p>
+            <p className="text-slate-500 text-sm font-semibold">{s.label}</p>
           </div>
         ))}
       </div>
@@ -184,62 +292,52 @@ function HowItWorks() {
     {
       icon: Upload,
       num: '01',
-      title: 'Загрузи материал',
-      desc: 'PDF, DOCX, TXT или MD. Просто перетащи файл — размер до 50 МБ.',
+      title: 'Загрузка лекции',
+      desc: 'Загрузите PDF, DOCX, TXT файлы, конспекты или даже сырой текст ваших записей.',
     },
     {
       icon: Cpu,
       num: '02',
-      title: 'AI обрабатывает',
-      desc: 'Три агента параллельно создают конспект, карточки и тест. Занимает 15–30 секунд.',
+      title: 'Параллельная обработка',
+      desc: 'Команда AI-агентов моментально создает структурированный конспект, выжимки, тесты и аудиоподкаст.',
     },
     {
       icon: Trophy,
       num: '03',
-      title: 'Учись и повторяй',
-      desc: 'Используй карточки с алгоритмом spaced repetition и AI-чат для вопросов по материалу.',
+      title: 'Умное закрепление',
+      desc: 'Учитесь по карточкам с адаптивными интервалами, сдавайте устный тест и выстраивайте карьерный путь.',
     },
   ];
   return (
-    <section className="py-24 px-6">
+    <section id="how-it-works" className="py-24 px-6 relative">
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
-            Как это работает
+        <div className="text-center mb-16 space-y-3">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Как работает StudyForge
           </h2>
-          <p className="text-slate-500 text-lg">Три шага от лекции до знаний</p>
+          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+            Три простых этапа от сложного сырого конспекта к прочным знаниям в долговременной памяти
+          </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-          {/* Линия между шагами */}
-          <div className="hidden md:block absolute top-8 left-1/6 right-1/6
-            h-px bg-gradient-to-r from-transparent via-indigo-500/40
-            to-transparent" />
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 relative">
+          {/* Линия соединения шагов */}
+          <div className="hidden md:block absolute top-12 left-[15%] right-[15%] h-0.5 bg-slate-200/70" />
+          
           {steps.map((step, i) => (
-            <div key={i} className="relative text-center md:text-left">
-              <div className="flex md:flex-col items-center md:items-start
-                gap-4 md:gap-0">
-                <div className="relative mb-0 md:mb-6">
-                  <div className="w-16 h-16 rounded-2xl bg-indigo-950/80
-                    border border-indigo-800/50 flex items-center
-                    justify-center shrink-0">
-                    <step.icon className="w-7 h-7 text-indigo-400" />
-                  </div>
-                  <span className="absolute -top-2 -right-2 text-xs
-                    font-black text-indigo-400 bg-[#080c14]
-                    border border-indigo-800/50 rounded-full
-                    w-6 h-6 flex items-center justify-center">
-                    {i + 1}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-white font-bold text-lg mb-2">
-                    {step.title}
-                  </h3>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    {step.desc}
-                  </p>
-                </div>
+            <div key={i} className="relative group text-center flex flex-col items-center">
+              <div className="w-20 h-20 rounded-2xl bg-white border-2 border-slate-200 flex items-center justify-center relative mb-6 shadow-md transition-all duration-300 group-hover:border-indigo-600 group-hover:-translate-y-1">
+                <step.icon className="w-8 h-8 text-indigo-600" />
+                <span className="absolute -top-2.5 -right-2.5 text-xs font-extrabold text-white bg-indigo-600 rounded-full w-7 h-7 flex items-center justify-center shadow-md">
+                  {step.num}
+                </span>
               </div>
+              <h3 className="text-slate-900 font-bold text-lg mb-2">
+                {step.title}
+              </h3>
+              <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
+                {step.desc}
+              </p>
             </div>
           ))}
         </div>
@@ -253,72 +351,70 @@ function Features() {
     {
       icon: Zap,
       color: 'indigo',
-      title: 'Мультиагентный анализ',
-      desc: 'Три AI-агента работают параллельно и создают конспект, карточки и тест одновременно.',
+      title: 'Мультиагентный ИИ-анализ',
+      desc: '6 специализированных ИИ-агентов одновременно генерируют конспект, шпаргалки, квесты, подкасты и тесты.',
     },
     {
       icon: Brain,
       color: 'emerald',
-      title: 'Spaced Repetition',
-      desc: 'Алгоритм SM-2 как в Anki определяет когда показать карточку для оптимального запоминания.',
+      title: 'Метод Лейтнера (Spaced Rep)',
+      desc: 'Адаптивный алгоритм отслеживает ваш уровень запоминания карточек и напоминает их ровно вовремя.',
+    },
+    {
+      icon: Network,
+      color: 'blue',
+      title: 'Карта знаний (Obsidian)',
+      desc: 'Визуализация связей между вашими конспектами в виде интерактивного 3D-графа для системного понимания.',
     },
     {
       icon: Calendar,
       color: 'amber',
-      title: 'AI-планировщик',
-      desc: 'Введи предметы и даты экзаменов — AI составит конкретный план подготовки на каждый день.',
+      title: 'Календарь подготовки',
+      desc: 'Внесите предметы и даты экзаменов. Система построит детальный ежедневный план занятий.',
     },
     {
-      icon: BookOpen,
-      color: 'purple',
-      title: 'Библиотека знаний',
-      desc: 'Все материалы хранятся в облаке. Поиск по содержимому, фильтр по предметам.',
+      icon: Briefcase,
+      color: 'rose',
+      title: 'Навигатор карьеры',
+      desc: 'AI проанализирует все ваши лекции и составит профессиональный профиль с подходящими вакансиями.',
     },
     {
       icon: MessageSquare,
       color: 'sky',
-      title: 'AI-чат по лекции',
-      desc: 'Задавай вопросы по любому материалу из библиотеки. AI отвечает строго по теме.',
-    },
-    {
-      icon: BarChart2,
-      color: 'rose',
-      title: 'Аналитика прогресса',
-      desc: 'Streak учёбы, графики активности, статистика правильных ответов по предметам.',
+      title: 'Интерактивный Лектор',
+      desc: 'Задавайте вопросы конспектам. AI отвечает строго в контексте ваших материалов, избегая галлюцинаций.',
     },
   ];
 
   const colorMap: Record<string, string> = {
-    indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    rose: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    indigo: 'bg-indigo-50 border-indigo-100 text-indigo-600',
+    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-600',
+    blue: 'bg-blue-50 border-blue-100 text-blue-600',
+    amber: 'bg-amber-50 border-amber-100 text-amber-600',
+    rose: 'bg-rose-50 border-rose-100 text-rose-600',
+    sky: 'bg-sky-50 border-sky-100 text-sky-600',
   };
 
   return (
-    <section className="py-24 px-6 bg-white/[0.02] border-t border-white/[0.06]">
+    <section id="features" className="py-24 px-6 bg-white border-y border-slate-200/50">
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
-            Всё для эффективной учёбы
+        <div className="text-center mb-16 space-y-3">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Полный инструментарий студента
           </h2>
           <p className="text-slate-500 text-lg max-w-xl mx-auto">
-            Платформа объединяет лучшие инструменты для студентов в одном месте
+            Объединяем передовые когнитивные технологии с удобством Notion
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f, i) => (
             <div key={i}
-              className="group p-6 rounded-2xl bg-white/[0.03]
-                border border-white/[0.06] hover:border-white/[0.12]
-                hover:bg-white/[0.05] transition-all duration-300">
-              <div className={`w-10 h-10 rounded-xl border flex items-center
-                justify-center mb-4 ${colorMap[f.color]}`}>
-                <f.icon className="w-5 h-5" />
+              className="group p-6 rounded-2xl bg-slate-50/50 border border-slate-200/80 hover:border-slate-300 hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all duration-300 hover:-translate-y-1">
+              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110 ${colorMap[f.color]}`}>
+                <f.icon className="w-6 h-6" />
               </div>
-              <h3 className="text-white font-bold text-base mb-2">{f.title}</h3>
+              <h3 className="text-slate-900 font-bold text-base mb-2 group-hover:text-indigo-600 transition-colors">{f.title}</h3>
               <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}
@@ -328,38 +424,109 @@ function Features() {
   );
 }
 
+function EducatorsSection() {
+  const points = [
+    {
+      title: "Академическая честность",
+      desc: "Инструменты самопроверки не подменяют знания, а стимулируют активное вспоминание и углубляют понимание сложных разделов."
+    },
+    {
+      title: "Визуализация знаний",
+      desc: "Использование карт понятий (concept mapping) снижает когнитивную нагрузку на студентов и помогает отслеживать логические связи."
+    },
+    {
+      title: "Контроль успеваемости",
+      desc: "Студенты могут сами тестировать себя в режиме Сократовского диалога перед сдачей реальных зачетов и курсовых."
+    }
+  ];
+
+  return (
+    <section id="educators" className="py-24 px-6 bg-slate-50/50 relative">
+      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        {/* Картинка или графический элемент */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-indigo-50 text-indigo-600 font-bold text-[10px] px-3 py-1 rounded-bl-xl border-l border-b border-slate-200">
+              ДЛЯ ВУЗОВ
+            </div>
+            <h4 className="text-sm font-extrabold text-slate-800 mb-4 flex items-center gap-1.5">
+              <GraduationCap className="w-5 h-5 text-indigo-600" />
+              Методическое обоснование
+            </h4>
+            <div className="space-y-4 text-xs">
+              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                <span className="font-bold text-slate-700 block mb-0.5">1. Active Recall</span>
+                <p className="text-slate-500 leading-relaxed">Интервальные тесты вместо пассивного перечитывания лекций.</p>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                <span className="font-bold text-slate-700 block mb-0.5">2. Spaced Repetition</span>
+                <p className="text-slate-500 leading-relaxed">Кривая забывания Эббингауза сглаживается за счет своевременного повторения.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Текст */}
+        <div className="lg:col-span-7 space-y-6">
+          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            Одобрено преподавателями <br />и методологами
+          </h2>
+          <p className="text-slate-600 leading-relaxed">
+            Мы строим StudyForge на принципах доказательного образования (Evidence-Based Learning). Сервис помогает превратить хаотичные конспекты лекций в четкую структуру, облегчая подготовку к сессии и работу с понятиями.
+          </p>
+          <div className="space-y-4">
+            {points.map((p, i) => (
+              <div key={i} className="flex gap-3">
+                <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-1">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">{p.title}</h4>
+                  <p className="text-slate-500 text-xs leading-relaxed mt-0.5">{p.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function CtaSection() {
   const navigate = useNavigate();
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-3xl mx-auto text-center relative">
-        <div className="absolute inset-0 bg-indigo-600/10 rounded-3xl
-          blur-3xl pointer-events-none" />
-        <div className="relative bg-gradient-to-b from-indigo-950/50
-          to-slate-900/30 border border-indigo-800/30 rounded-3xl p-12">
-          <div className="flex justify-center gap-2 mb-6">
-            {['✓ Бесплатно', '✓ Без привязки карты', '✓ Все функции сразу'].map(t => (
+    <section className="py-24 px-6 max-w-5xl mx-auto">
+      <div className="relative bg-gradient-to-r from-indigo-600 to-indigo-800 border border-indigo-700 rounded-3xl p-12 text-center text-white overflow-hidden shadow-xl shadow-indigo-100">
+        {/* Фоновые круги */}
+        <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-white/5 rounded-full blur-[80px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-indigo-500/30 rounded-full blur-[60px] pointer-events-none" />
+        
+        <div className="relative space-y-6 max-w-2xl mx-auto">
+          <div className="flex justify-center gap-2 flex-wrap">
+            {['✓ Бесплатно', '✓ Мгновенный запуск', '✓ Простой импорт'].map(t => (
               <span key={t}
-                className="text-xs text-indigo-300 bg-indigo-950/60
-                  border border-indigo-800/50 px-3 py-1 rounded-full">
+                className="text-xs text-indigo-200 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
                 {t}
               </span>
             ))}
           </div>
-          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
-            Готов учиться умнее?
+          
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
+            Готовы учиться более осознанно?
           </h2>
-          <p className="text-slate-400 text-lg mb-8">
-            Зарегистрируйся и загрузи первую лекцию прямо сейчас
+          
+          <p className="text-indigo-100 text-base max-w-md mx-auto leading-relaxed">
+            Создайте аккаунт бесплатно, загрузите первую лекцию и начните повышать свою академическую успеваемость.
           </p>
-          <button onClick={() => navigate('/register')}
-            className="group inline-flex items-center gap-2 px-10 py-4
-              bg-indigo-600 hover:bg-indigo-500 text-white font-bold
-              text-lg rounded-xl transition shadow-2xl
-              shadow-indigo-500/30">
-            Начать бесплатно
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
-          </button>
+          
+          <div className="pt-2">
+            <button onClick={() => navigate('/register')}
+              className="group inline-flex items-center gap-2 px-10 py-4 bg-white hover:bg-slate-50 text-indigo-600 font-extrabold text-base rounded-xl transition shadow-2xl hover:scale-[1.02] duration-200">
+              Начать обучение
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -368,15 +535,16 @@ function CtaSection() {
 
 function Footer() {
   return (
-    <footer className="py-8 px-6 border-t border-white/[0.06]">
-      <div className="max-w-5xl mx-auto flex items-center
-        justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-indigo-600 rounded-md flex
-            items-center justify-center">
-            <GraduationCap className="w-3.5 h-3.5 text-white" />
+    <footer className="py-8 px-6 border-t border-slate-200/50 bg-white text-slate-500 text-sm">
+      <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <GraduationCap className="w-4 h-4 text-white" />
           </div>
-          <span className="text-slate-400 text-sm font-medium">StudyForge</span>
+          <span className="text-slate-800 font-extrabold tracking-tight">StudyForge</span>
+        </div>
+        <div className="flex items-center gap-4 text-xs font-semibold">
+          <span>&copy; {new Date().getFullYear()} StudyForge. Все права защищены.</span>
         </div>
       </div>
     </footer>
