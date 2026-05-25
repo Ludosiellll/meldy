@@ -33,10 +33,7 @@ export interface LeaderboardEntry {
 
 export async function getProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
-  if (error) {
-    console.error('getProfile error:', error);
-    return null;
-  }
+  if (error) { console.error('getProfile error:', error); return null; }
   return data;
 }
 
@@ -47,16 +44,13 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
 }
 
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
-  // Получаем топ юзеров по XP
   const { data: xpData, error: xpError } = await supabase
     .from('user_xp')
     .select('user_id, total_xp')
     .order('total_xp', { ascending: false })
     .limit(50);
-    
   if (xpError || !xpData) return [];
 
-  // Получаем их профили
   const userIds = xpData.map(x => x.user_id);
   const { data: profiles } = await supabase
     .from('profiles')
@@ -69,10 +63,10 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     const p = profileMap.get(xp.user_id);
     return {
       id: xp.user_id,
-      full_name: p?.full_name || 'Неизвестный',
+      full_name: p?.full_name || 'Студент',
       avatar_url: p?.avatar_url,
       total_xp: xp.total_xp,
-      level: 1, // На фронте рассчитаем уровень через calcLevel
+      level: 1,
     };
   });
 }
@@ -82,19 +76,17 @@ export async function getPublicMaterials(currentUserId: string): Promise<PublicM
     .from('materials')
     .select('id, title, subject, user_id, created_at, likes_count')
     .eq('is_public', true)
-    .order('created_at', { ascending: false })
+    .order('likes_count', { ascending: false })
     .limit(50);
 
   if (error || !data) return [];
 
-  // Получаем лайки текущего пользователя
   const { data: myLikes } = await supabase
     .from('material_likes')
     .select('material_id')
     .eq('user_id', currentUserId);
   const myLikedIds = new Set((myLikes || []).map(l => l.material_id));
 
-  // Получаем профили авторов
   const authorIds = [...new Set(data.map(m => m.user_id))];
   const { data: profiles } = await supabase
     .from('profiles')
@@ -113,16 +105,37 @@ export async function getPublicMaterials(currentUserId: string): Promise<PublicM
   });
 }
 
+// Атомарный лайк через RPC — без race condition
 export async function toggleLike(userId: string, materialId: string, isCurrentlyLiked: boolean) {
   if (isCurrentlyLiked) {
     await supabase.from('material_likes').delete().match({ user_id: userId, material_id: materialId });
-    // Декремент в RPC или руками (упрощенно)
-    const { data: m } = await supabase.from('materials').select('likes_count').eq('id', materialId).single();
-    if (m) await supabase.from('materials').update({ likes_count: Math.max(0, m.likes_count - 1) }).eq('id', materialId);
+    await supabase.rpc('decrement_likes', { material_id: materialId });
   } else {
-    await supabase.from('material_likes').insert({ user_id: userId, material_id: materialId });
-    // Инкремент (упрощенно)
-    const { data: m } = await supabase.from('materials').select('likes_count').eq('id', materialId).single();
-    if (m) await supabase.from('materials').update({ likes_count: m.likes_count + 1 }).eq('id', materialId);
+    const { error } = await supabase.from('material_likes').insert({ user_id: userId, material_id: materialId });
+    if (!error) await supabase.rpc('increment_likes', { material_id: materialId });
   }
+}
+
+// Скопировать чужой публичный материал в свою библиотеку
+export async function copyMaterialToLibrary(materialId: string, targetUserId: string): Promise<boolean> {
+  const { data: src, error: srcErr } = await supabase
+    .from('materials')
+    .select('title, subject, original_text, summary_json, flashcards_json, quiz_json, missions_json')
+    .eq('id', materialId)
+    .single();
+  if (srcErr || !src) return false;
+
+  const { error } = await supabase.from('materials').insert({
+    user_id: targetUserId,
+    title: src.title + ' (копия)',
+    subject: src.subject,
+    original_text: src.original_text,
+    summary_json: src.summary_json,
+    flashcards_json: src.flashcards_json,
+    quiz_json: src.quiz_json,
+    missions_json: src.missions_json,
+    is_public: false,
+    likes_count: 0,
+  });
+  return !error;
 }

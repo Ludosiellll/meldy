@@ -1,52 +1,47 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getFriends, Friendship, getMessages, sendMessage, subscribeToMessages, DirectMessage } from '../api/chat';
-import { Send, UserCircle2, MessageSquare, Loader2, Check } from 'lucide-react';
+import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { getMaterials } from '../api/materials';
 
 export default function Messages() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [activeFriend, setActiveFriend] = useState<Friendship | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  
+  const [showInvite, setShowInvite] = useState(false);
+  const [myMaterials, setMyMaterials] = useState<any[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user) return;
     getFriends(user.id).then(f => {
-      // Показывать только тех, с кем дружба 'accepted', или можно всех
       setFriends(f.filter(x => x.status === 'accepted'));
       setLoading(false);
     });
+    getMaterials(user.id).then(setMyMaterials);
   }, [user]);
 
   useEffect(() => {
     if (!user || !activeFriend) return;
     const friendId = activeFriend.friend_id!;
-    
-    // Загружаем историю
     getMessages(user.id, friendId).then(setMessages);
 
-    // Подписываемся на обновления
     const unsubscribe = subscribeToMessages(user.id, (msg) => {
-      // Добавляем сообщение, если оно относится к текущему диалогу
       if (
         (msg.sender_id === user.id && msg.receiver_id === friendId) ||
         (msg.sender_id === friendId && msg.receiver_id === user.id)
       ) {
-        setMessages(prev => {
-          if (prev.find(m => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
+        setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
       }
     });
-
-    return () => {
-      unsubscribe();
-    };
+    return () => { unsubscribe(); };
   }, [user, activeFriend]);
 
   useEffect(() => {
@@ -56,15 +51,18 @@ export default function Messages() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !activeFriend || !newMessage.trim()) return;
-    
     const content = newMessage.trim();
     setNewMessage('');
-    
-    // Оптимистичный UI можно добавить, но пока просто отправляем
     const msg = await sendMessage(user.id, activeFriend.friend_id!, content);
-    if (msg) {
-      setMessages(prev => [...prev, msg]);
-    }
+    if (msg) setMessages(prev => [...prev, msg]);
+  };
+
+  const handleSendInvite = async (material: any) => {
+    if (!user || !activeFriend) return;
+    const inviteText = `📚 Приглашаю изучить материал: «${material.title}» (${material.subject || 'Без предмета'}) — открой в своей библиотеке или найди в Study Network!`;
+    setShowInvite(false);
+    const msg = await sendMessage(user.id, activeFriend.friend_id!, inviteText);
+    if (msg) setMessages(prev => [...prev, msg]);
   };
 
   if (loading) {
@@ -73,9 +71,9 @@ export default function Messages() {
 
   return (
     <div className="flex h-[85vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden m-6">
-      
-      {/* Левая панель - список диалогов */}
-      <div className="w-80 border-r border-slate-200 flex flex-col bg-slate-50">
+
+      {/* Левая панель — список диалогов */}
+      <div className="w-80 border-r border-slate-200 flex flex-col bg-slate-50 shrink-0">
         <div className="p-4 border-b border-slate-200 bg-white">
           <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-indigo-500" />
@@ -84,8 +82,15 @@ export default function Messages() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {friends.length === 0 ? (
-            <div className="p-6 text-center text-sm text-slate-500">
-              У вас пока нет добавленных друзей. Найдите их в Хабе!
+            <div className="p-6 text-center">
+              <UserCircle2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+              <p className="text-sm text-slate-500">У вас пока нет друзей.</p>
+              <button
+                onClick={() => navigate('/network')}
+                className="mt-3 text-sm text-indigo-600 font-bold hover:text-indigo-700"
+              >
+                Найти в Хабе →
+              </button>
             </div>
           ) : (
             friends.map(f => (
@@ -93,19 +98,19 @@ export default function Messages() {
                 key={f.id}
                 onClick={() => setActiveFriend(f)}
                 className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 ${
-                  activeFriend?.id === f.id ? 'bg-indigo-50 hover:bg-indigo-50' : 'hover:bg-white'
+                  activeFriend?.id === f.id ? 'bg-indigo-50' : 'hover:bg-white'
                 }`}
               >
                 {f.friend_avatar ? (
-                  <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
+                  <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
                     <UserCircle2 className="w-6 h-6 text-slate-500" />
                   </div>
                 )}
-                <div>
-                  <div className="font-bold text-slate-800 text-sm">{f.friend_name}</div>
-                  <div className="text-xs text-slate-500">Нажмите, чтобы открыть чат</div>
+                <div className="min-w-0">
+                  <div className="font-bold text-slate-800 text-sm truncate">{f.friend_name}</div>
+                  <div className="text-xs text-slate-400">Нажмите, чтобы открыть чат</div>
                 </div>
               </button>
             ))
@@ -113,24 +118,59 @@ export default function Messages() {
         </div>
       </div>
 
-      {/* Правая панель - чат */}
-      <div className="flex-1 flex flex-col bg-white relative">
+      {/* Правая панель — чат */}
+      <div className="flex-1 flex flex-col bg-white relative min-w-0">
         {activeFriend ? (
           <>
-            {/* Хедер чата */}
+            {/* Хедер */}
             <div className="p-4 border-b border-slate-200 flex items-center gap-3 bg-white shadow-sm z-10">
               {activeFriend.friend_avatar ? (
-                <img src={activeFriend.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
+                <img src={activeFriend.friend_avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover" />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                  <UserCircle2 className="w-6 h-6 text-slate-400" />
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+                  <UserCircle2 className="w-5 h-5 text-slate-400" />
                 </div>
               )}
-              <div className="font-bold text-slate-800">{activeFriend.friend_name}</div>
+              <div className="flex-1">
+                <div className="font-bold text-slate-800">{activeFriend.friend_name}</div>
+              </div>
+              {/* Кнопка "Пригласить к материалу" */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowInvite(v => !v)}
+                  className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition px-3 py-1.5 rounded-lg"
+                  title="Поделиться материалом"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Поделиться материалом
+                </button>
+
+                {showInvite && (
+                  <div className="absolute right-0 top-10 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 z-20 overflow-hidden">
+                    <div className="p-3 border-b border-slate-100">
+                      <p className="font-bold text-sm text-slate-800">Отправить материал в чат</p>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                      {myMaterials.length === 0 ? (
+                        <p className="p-4 text-sm text-slate-400 text-center">У вас нет материалов</p>
+                      ) : myMaterials.map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => handleSendInvite(m)}
+                          className="w-full p-3 text-left hover:bg-indigo-50 transition"
+                        >
+                          <div className="font-medium text-slate-800 text-sm truncate">{m.title}</div>
+                          <div className="text-xs text-slate-400">{m.subject || 'Без предмета'}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Сообщения */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50" onClick={() => setShowInvite(false)}>
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                   Напишите первое сообщение!
@@ -138,6 +178,7 @@ export default function Messages() {
               ) : (
                 messages.map(msg => {
                   const isMe = msg.sender_id === user?.id;
+                  const isInvite = msg.content.startsWith('📚');
                   return (
                     <motion.div
                       initial={{ opacity: 0, y: 5 }}
@@ -145,13 +186,18 @@ export default function Messages() {
                       key={msg.id}
                       className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div
-                        className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm ${
-                          isMe
-                            ? 'bg-indigo-600 text-white rounded-tr-sm'
+                      <div className={`max-w-[72%] px-4 py-2.5 rounded-2xl text-sm ${
+                        isMe
+                          ? 'bg-indigo-600 text-white rounded-tr-sm'
+                          : isInvite
+                            ? 'bg-amber-50 border border-amber-200 text-slate-800 rounded-tl-sm shadow-sm'
                             : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm'
-                        }`}
-                      >
+                      }`}>
+                        {isInvite && !isMe && (
+                          <div className="flex items-center gap-1 text-amber-600 font-bold text-xs mb-1">
+                            <Link2 className="w-3 h-3" /> Приглашение к материалу
+                          </div>
+                        )}
                         {msg.content}
                         <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -170,14 +216,14 @@ export default function Messages() {
                 <input
                   type="text"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={e => setNewMessage(e.target.value)}
                   placeholder="Написать сообщение..."
                   className="flex-1 px-4 py-2.5 bg-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm"
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -187,11 +233,11 @@ export default function Messages() {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
             <MessageSquare className="w-16 h-16 mb-4 text-slate-200" />
-            <p>Выберите диалог слева, чтобы начать общение</p>
+            <p className="font-medium">Выберите диалог слева</p>
+            <p className="text-sm mt-1">чтобы начать общение</p>
           </div>
         )}
       </div>
-
     </div>
   );
 }

@@ -4,10 +4,12 @@ import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Calendar, MessageSquare, LogOut, Award, Gamepad2,
   BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
-  Globe, Briefcase, MessageCircle, User
+  Globe, Briefcase, MessageCircle, User, Bell
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
+import { getProfile } from '../api/social';
+import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, Notification } from '../api/chat';
 
 const navGroups = [
   {
@@ -49,12 +51,11 @@ const navGroups = [
   }
 ];
 
-// Мобильный bottom nav — только главные разделы
 const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
   { to: '/network',   icon: Globe,            label: 'Хаб' },
-  { to: '/library',   icon: BookOpen,         label: 'База' },
-  { to: '/analytics', icon: BarChart2,        label: 'Прогресс' },
+  { to: '/messages',  icon: MessageCircle,    label: 'Чат' },
+  { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
 
 export default function Layout() {
@@ -66,21 +67,48 @@ export default function Layout() {
 
   const [xp, setXp] = useState(0);
   const [levelInfo, setLevelInfo] = useState(calcLevel(0));
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     if (!user?.id) return;
-    const fetchXP = () => {
-      getUserXP(user.id).then(v => {
-        setXp(v);
-        setLevelInfo(calcLevel(v));
-      });
-    };
+
+    // XP
+    const fetchXP = () => getUserXP(user.id).then(v => { setXp(v); setLevelInfo(calcLevel(v)); });
     fetchXP();
     window.addEventListener('xp_updated', fetchXP);
+
+    // Аватарка из профиля
+    getProfile(user.id).then(p => { if (p?.avatar_url) setAvatarUrl(p.avatar_url); });
+
+    // Счётчик уведомлений
+    getUnreadCount(user.id).then(setUnreadCount);
+
+    // Realtime подписка на новые уведомления
+    const unsub = subscribeToNotifications(user.id, () => {
+      getUnreadCount(user.id).then(setUnreadCount);
+    });
+
     return () => {
       window.removeEventListener('xp_updated', fetchXP);
+      unsub();
     };
   }, [user?.id]);
+
+  const handleOpenNotifications = async () => {
+    if (!user) return;
+    setShowNotifications(v => !v);
+    if (!showNotifications) {
+      const notifs = await getNotifications(user.id);
+      setNotifications(notifs);
+      if (unreadCount > 0) {
+        await markAllRead(user.id);
+        setUnreadCount(0);
+      }
+    }
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -97,7 +125,7 @@ export default function Layout() {
           <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
         </button>
 
-        {/* XP / Level блок (сверху) */}
+        {/* XP / Level блок */}
         <div className="mx-4 mt-2 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -162,13 +190,57 @@ export default function Layout() {
         {/* User section */}
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-              {initial}
-            </div>
+            {/* Аватарка из профиля */}
+            <button onClick={() => navigate('/profile')} className="shrink-0">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/50" />
+              ) : (
+                <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                  {initial}
+                </div>
+              )}
+            </button>
             <div className="flex-1 min-w-0">
               <p className="text-slate-300 text-xs font-medium truncate">{name}</p>
               <p className="text-slate-500 text-[10px] truncate">{email}</p>
             </div>
+            {/* Колокольчик уведомлений */}
+            <div className="relative">
+              <button
+                onClick={handleOpenNotifications}
+                className="text-slate-500 hover:text-slate-200 transition relative"
+                title="Уведомления"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Дропдаун уведомлений */}
+              {showNotifications && (
+                <div className="absolute bottom-8 right-0 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+                  <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                    <span className="font-bold text-slate-800 text-sm">Уведомления</span>
+                    <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
+                    {notifications.length === 0 ? (
+                      <p className="p-4 text-sm text-center text-slate-400">Нет уведомлений</p>
+                    ) : notifications.map(n => (
+                      <div key={n.id} className={`p-3 ${n.is_read ? '' : 'bg-indigo-50/50'}`}>
+                        <p className="text-sm font-medium text-slate-800">{n.title}</p>
+                        {n.body && <p className="text-xs text-slate-500 mt-0.5 truncate">{n.body}</p>}
+                        <p className="text-[10px] text-slate-400 mt-1">{new Date(n.created_at).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={signOut}
               className="text-slate-500 hover:text-rose-400 transition"
