@@ -1,17 +1,29 @@
-import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
+import { precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { NetworkFirst } from 'workbox-strategies';
 
 // Precache static assets injected by Vite
 precacheAndRoute(self.__WB_MANIFEST || []);
 
-// Setup offline fallback
-const handler = createHandlerBoundToURL('/offline.html');
-const navigationRoute = new NavigationRoute(handler, {
-  denylist: [
-    /^\/api/,      // Exclude API requests
-    /^\/supabase/  // Exclude Supabase requests
-  ]
-});
+// Setup offline fallback using NetworkFirst strategy
+const navigationRoute = new NavigationRoute(
+  new NetworkFirst({
+    cacheName: 'navigations',
+    plugins: [
+      {
+        handlerDidError: async () => {
+          return (await caches.match('/offline.html')) || Response.error();
+        }
+      }
+    ]
+  }),
+  {
+    denylist: [
+      /^\/api/,      // Exclude API requests
+      /^\/supabase/  // Exclude Supabase requests
+    ]
+  }
+);
 registerRoute(navigationRoute);
 
 // Push notifications event listener
