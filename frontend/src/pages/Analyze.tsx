@@ -217,7 +217,7 @@ export default function Analyze() {
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate(`/material/${state.savedMaterialId}?mode=express&tab=podcast`)}
+                  onClick={() => navigate(`/library/${state.savedMaterialId}?mode=express&tab=podcast`)}
                   className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-sm transition w-full sm:w-auto shrink-0 shadow-lg shadow-rose-900/50"
                 >
                   Слушать подкаст
