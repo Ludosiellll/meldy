@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
-import { GraduationCap, Mail, Lock, User, ArrowRight, Sparkles, BookOpen, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, Mail, Lock, User, ArrowRight, Sparkles, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
 
 export default function Register() {
@@ -74,6 +74,24 @@ export default function Register() {
     setLoading(false);
   };
 
+  const handleResend = async () => {
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+      options: {
+        emailRedirectTo: window.location.origin + '/dashboard',
+      }
+    });
+    setLoading(false);
+    if (error) {
+      setError('Ошибка при повторной отправке. Возможно, вы пытаетесь отправить письмо слишком часто.');
+    } else {
+      alert('Письмо отправлено повторно! Пожалуйста, проверьте папку "Спам".');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
       {/* Left Column: Form */}
@@ -103,9 +121,22 @@ export default function Register() {
           )}
 
           {success && (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-4 py-4 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center gap-2 shadow-sm shadow-emerald-100">
-              <Mail className="w-8 h-8 text-emerald-500 mb-1" />
-              {success}
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-4 py-5 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center shadow-sm shadow-emerald-100">
+              <Mail className="w-10 h-10 text-emerald-500 mb-3" />
+              <span className="text-emerald-800 text-base mb-1">Успешно! Мы отправили письмо на вашу почту:</span>
+              <span className="bg-white px-4 py-2 rounded-lg border border-emerald-100 text-emerald-700 font-black shadow-sm mb-3">
+                {email}
+              </span>
+              <span className="font-medium text-emerald-600/80 mb-4">Пожалуйста, перейдите по ссылке в письме.</span>
+              
+              <button 
+                onClick={handleResend}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg transition-colors text-xs font-bold disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Отправка...' : 'Отправить письмо еще раз'}
+              </button>
             </motion.div>
           )}
 
