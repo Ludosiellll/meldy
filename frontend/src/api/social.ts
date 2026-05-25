@@ -139,3 +139,17 @@ export async function copyMaterialToLibrary(materialId: string, targetUserId: st
   });
   return !error;
 }
+
+export async function getPublicMaterialPreview(materialId: string) {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('summary_json, flashcards_json, quiz_json')
+    .eq('id', materialId)
+    .single();
+    
+  if (error) {
+    console.error('getPublicMaterialPreview error:', error);
+    return null;
+  }
+  return data;
+}
