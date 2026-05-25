@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2 } from 'lucide-react';
-import { AnalysisResults } from '../types';
+import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
@@ -11,18 +11,18 @@ type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions';
 function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): string {
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  const summaryContent = results.summarizer?.content || results.summarizer?.raw || '<p>Нет данных</p>';
+  const summaryContent = results.summarizer?.content || (results.summarizer as any)?.raw || '<p>Нет данных</p>';
   const flashcards = results.flashcards?.flashcards || [];
   const quiz = results.quiz?.quiz || [];
 
-  const flashcardsHtml = flashcards.map((c: any, i: number) =>
+  const flashcardsHtml = flashcards.map((c: Flashcard, i: number) =>
     `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px">
       <p style="font-weight:600;margin:0 0 8px 0">Вопрос ${i+1}: ${c.question}</p>
       <p style="margin:0;color:#475569;border-top:1px solid #f1f5f9;padding-top:8px">${c.answer}</p>
     </div>`
   ).join('\n');
 
-  const quizHtml = quiz.map((q: any, i: number) => {
+  const quizHtml = quiz.map((q: QuizQuestion, i: number) => {
     const options = (q.options || []).map((o: string) => {
       const isCorrect = o.startsWith(q.correct);
       return `<li style="padding:6px 12px;margin:4px 0;border-radius:6px;${isCorrect ? 'background:#d1fae5;font-weight:600' : 'background:#f8fafc'}">${o}${isCorrect ? ' ✓' : ''}</li>`;
@@ -93,7 +93,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   ];
 
   const getContent = () => {
-    if (tab === 'summary') return results.summarizer?.content || results.summarizer?.raw || '';
+    if (tab === 'summary') return results.summarizer?.content || (results.summarizer as any)?.raw || '';
     if (tab === 'flashcards') return JSON.stringify(results.flashcards?.flashcards || results.flashcards, null, 2);
     if (tab === 'missions') return JSON.stringify(results.missions?.missions || results.missions, null, 2);
     return JSON.stringify(results.quiz?.quiz || results.quiz, null, 2);

@@ -1,5 +1,6 @@
+import { Material } from '../types';
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Edit3, Check, X, Globe, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -10,11 +11,12 @@ import { getMaterialById, updateMaterialSubject, updateMaterialVisibility } from
 export default function MaterialDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [material, setMaterial] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
-  const [mode, setMode] = useState<'full' | 'express'>('full');
+  const [mode, setMode] = useState<'full' | 'express'>(searchParams.get('mode') === 'express' ? 'express' : 'full');
 
   useEffect(() => {
     if (!id) return;
@@ -30,7 +32,7 @@ export default function MaterialDetail() {
   const saveSubject = async () => {
     if (!id) return;
     await updateMaterialSubject(id, subjectInput);
-    setMaterial((prev: any) => ({ ...prev, subject: subjectInput }));
+    setMaterial((prev: Material) => ({ ...prev, subject: subjectInput }));
     setEditingSubject(false);
   };
 
@@ -38,7 +40,7 @@ export default function MaterialDetail() {
     if (!id || !material) return;
     const newStatus = !material.is_public;
     await updateMaterialVisibility(id, newStatus);
-    setMaterial((prev: any) => ({ ...prev, is_public: newStatus }));
+    setMaterial((prev: Material) => ({ ...prev, is_public: newStatus }));
   };
 
   if (loading) return (

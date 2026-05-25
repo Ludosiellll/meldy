@@ -1,3 +1,4 @@
+import { ExamResult, StudySession, Achievement, Mistake } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -41,7 +42,7 @@ export default function Analytics() {
       setSessions(sessRes.data ?? []);
       setExams(examsRes.data ?? []);
       setMistakes(mistakesRes.data ?? []);
-      setEarnedAchievements((achRes.data ?? []).map((a: any) => a.achievement_id));
+      setEarnedAchievements((achRes.data ?? []).map((a: Achievement) => a.achievement_id));
       setMaterials(matsRes.data ?? []);
     }).catch(console.error).finally(() => setLoading(false));
   }, [user?.id]);
@@ -51,7 +52,7 @@ export default function Analytics() {
   // Активность за 30 дней
   const activityData = (() => {
     const map: Record<string, number> = {};
-    sessions.forEach((s: any) => { map[s.date] = (map[s.date] ?? 0) + (s.cards_reviewed ?? 0); });
+    sessions.forEach((s: StudySession) => { map[s.date] = (map[s.date] ?? 0) + (s.cards_reviewed ?? 0); });
     return Array.from({ length: 30 }, (_, i) => {
       const d = subDays(new Date(), 29 - i);
       const key = format(d, 'yyyy-MM-dd');
@@ -60,22 +61,22 @@ export default function Analytics() {
   })();
 
   // Оценки на экзаменах
-  const examScoreData = exams.slice(0, 10).reverse().map((e: any, i) => ({
+  const examScoreData = exams.slice(0, 10).reverse().map((e: ExamResult, i: number) => ({
     name: `#${i + 1}`,
     score: e.score ?? 0,
-    subject: e.subject ?? '',
+    subject: (e as any).subject ?? '',
   }));
 
   // Топ тем с ошибками
   const mistakeTopics = (() => {
     const map: Record<string, number> = {};
-    mistakes.forEach((m: any) => { if (m.topic) map[m.topic] = (map[m.topic] ?? 0) + 1; });
+    mistakes.forEach((m: Mistake) => { if (m.topic) map[m.topic] = (map[m.topic] ?? 0) + 1; });
     return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 5);
   })();
 
   // Streak
   const streak = (() => {
-    const dates = new Set(sessions.map((s: any) => s.date));
+    const dates = new Set(sessions.map((s: StudySession) => s.date));
     let count = 0;
     let d = new Date();
     while (dates.has(format(d, 'yyyy-MM-dd'))) { count++; d = subDays(d, 1); }
@@ -83,7 +84,7 @@ export default function Analytics() {
   })();
 
   // Radar-данные для профиля навыков
-  const totalCards = sessions.reduce((a: number, s: any) => a + (s.cards_reviewed ?? 0), 0);
+  const totalCards = sessions.reduce((a: number, s: StudySession) => a + (s.cards_reviewed ?? 0), 0);
   const avgExamScore = exams.length > 0 ? Math.round(exams.reduce((a, e) => a + (e.score ?? 0), 0) / exams.length) : 0;
   const resolvedMistakes = mistakes.filter(m => m.is_resolved).length;
   const radarData = [
@@ -98,7 +99,7 @@ export default function Analytics() {
   // Тепловая карта (последние 12 недель)
   const heatmapData = (() => {
     const map: Record<string, number> = {};
-    sessions.forEach((s: any) => { map[s.date] = (map[s.date] ?? 0) + (s.cards_reviewed ?? 0); });
+    sessions.forEach((s: StudySession) => { map[s.date] = (map[s.date] ?? 0) + (s.cards_reviewed ?? 0); });
     const weeks: { date: string; value: number }[][] = [];
     let week: { date: string; value: number }[] = [];
     for (let i = 83; i >= 0; i--) {
@@ -241,12 +242,18 @@ export default function Analytics() {
       </div>
 
       {/* Оценки на экзаменах */}
-      {examScoreData.length > 0 && (
-        <div className="card p-5">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Award className="w-4 h-4 text-rose-500" />
-            Динамика оценок на AI-Экзамене
-          </h3>
+      <div className="card p-5">
+        <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <Award className="w-4 h-4 text-rose-500" />
+          Динамика оценок на AI-Экзамене
+        </h3>
+        {examScoreData.length < 3 ? (
+          <div className="h-[160px] flex flex-col items-center justify-center text-center">
+            <Award className="w-10 h-10 text-slate-200 mb-2" />
+            <p className="text-sm font-medium text-slate-500">Недостаточно данных</p>
+            <p className="text-xs text-slate-400">Сдайте еще {3 - examScoreData.length} экзамен(а), чтобы увидеть график</p>
+          </div>
+        ) : (
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={examScoreData}>
@@ -254,8 +261,8 @@ export default function Analytics() {
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#94a3b8" />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
-                  formatter={(v: number, _: any, props: any) => [
-                    `${v}% — ${props.payload.subject || 'Без предмета'}`, 'Балл'
+                  formatter={(v: number, _: unknown, props: unknown) => [
+                    `${v}% — ${(props as any).payload.subject || 'Без предмета'}`, 'Балл'
                   ]}
                 />
                 <Bar
@@ -267,8 +274,8 @@ export default function Analytics() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Тепловая карта */}
       <div className="card p-5">

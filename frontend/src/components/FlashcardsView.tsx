@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { FlashcardsInfo, Flashcard } from '../types/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, GraduationCap, ArrowLeft, Check, X, Copy } from 'lucide-react';
 
-export default function FlashcardsView({ data }: { data: any }) {
+export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
   const cards = data?.flashcards;
 
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
@@ -17,7 +18,7 @@ export default function FlashcardsView({ data }: { data: any }) {
   const revealAll = () => {
     if (!cards || !Array.isArray(cards)) return;
     const r: Record<number, boolean> = {};
-    cards.forEach((_: any, i: number) => { r[i] = true; });
+    cards.forEach((_: Flashcard, i: number) => { r[i] = true; });
     setRevealed(r);
   };
   const hideAll = () => setRevealed({});
@@ -143,7 +144,7 @@ export default function FlashcardsView({ data }: { data: any }) {
       </div>
 
       <div className="space-y-3">
-        {cards.map((c: any, i: number) => (
+        {cards.map((c: Flashcard, i: number) => (
           <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
             className="card p-4 cursor-pointer hover:border-slate-300 transition group"
             onClick={() => toggle(i)}>

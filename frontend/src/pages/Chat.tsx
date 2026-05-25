@@ -4,11 +4,13 @@ import { MessageSquare, Send, Trash2, Maximize2, Minimize2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 import { updateQuestProgress } from '../api/quests';
 
 export default function Chat() {
   const { user } = useAuth();
+  const { confirm } = useConfirm();
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
@@ -145,8 +147,10 @@ export default function Chat() {
     }
   };
 
-  const clearChat = async () => {
-    if (!selectedId || !user || !confirm('Очистить историю чата?')) return;
+  const handleClearHistory = async () => {
+    if (!selectedId || !user) return;
+    const ok = await confirm({ title: 'Очистить историю', message: 'Вы уверены, что хотите очистить историю чата?', type: 'danger' });
+    if (!ok) return;
     await supabase.from('chat_messages').delete().eq('material_id', selectedId).eq('user_id', user.id);
     setMessages([]);
   };
@@ -179,7 +183,7 @@ export default function Chat() {
           </button>
           
           {messages.length > 0 && (
-            <button onClick={clearChat} className="p-2 text-slate-400 hover:text-rose-500 transition rounded-lg hover:bg-rose-50" title="Очистить чат">
+            <button onClick={handleClearHistory} className="p-2 text-slate-400 hover:text-rose-500 transition rounded-lg hover:bg-rose-50" title="Очистить чат">
               <Trash2 className="w-5 h-5" />
             </button>
           )}

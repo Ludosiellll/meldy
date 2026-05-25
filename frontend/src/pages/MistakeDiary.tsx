@@ -3,6 +3,7 @@ import { BookMarked, CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, Chevr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
 
@@ -19,6 +20,7 @@ interface Mistake {
 
 export default function MistakeDiary() {
   const { user } = useAuth();
+  const { confirm, alert } = useConfirm();
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
@@ -58,7 +60,7 @@ export default function MistakeDiary() {
       setCorrectCount(0);
       setPracticeFinished(false);
     } catch (e) {
-      alert('Не удалось запустить работу над ошибками. Попробуйте еще раз.');
+      await alert({ title: 'Ошибка', message: 'Не удалось запустить работу над ошибками. Попробуйте еще раз.', type: 'danger' });
     } finally {
       setPracticeLoading(false);
     }
@@ -178,8 +180,8 @@ export default function MistakeDiary() {
                     </span>
                   </div>
                   <button
-                    onClick={() => {
-                      if (confirm('Вы уверены, что хотите прервать работу над ошибками? Прогресс не сохранится.')) {
+                    onClick={async () => {
+                      if (await confirm({ title: 'Прервать', message: 'Вы уверены, что хотите прервать работу над ошибками? Прогресс не сохранится.', type: 'warning' })) {
                         setIsPracticing(false);
                       }
                     }}
@@ -430,8 +432,8 @@ export default function MistakeDiary() {
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
-                          {mistake.question}
+                        <p className="text-sm font-semibold text-slate-800 leading-snug">
+                          {mistake.question.length > 80 ? mistake.question.slice(0, 80) + '...' : mistake.question}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           {mistake.topic && (

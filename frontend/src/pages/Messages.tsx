@@ -1,3 +1,4 @@
+import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getFriends, Friendship, getMessages, sendMessage, subscribeToMessages, DirectMessage } from '../api/chat';
@@ -57,7 +58,7 @@ export default function Messages() {
     if (msg) setMessages(prev => [...prev, msg]);
   };
 
-  const handleSendInvite = async (material: any) => {
+  const handleSendInvite = async (material: Material) => {
     if (!user || !activeFriend) return;
     const inviteText = `📚 Приглашаю изучить материал: «${material.title}» (${material.subject || 'Без предмета'}) — открой в своей библиотеке или найди в Study Network!`;
     setShowInvite(false);

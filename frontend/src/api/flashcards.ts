@@ -1,3 +1,4 @@
+import { Flashcard } from '../types';
 import { supabase } from '../lib/supabase';
 
 export async function getDueCards(userId: string) {
@@ -12,7 +13,7 @@ export async function getDueCards(userId: string) {
   return data || [];
 }
 
-export async function syncFlashcards(userId: string, materialId: string, cards: any[]) {
+export async function syncFlashcards(userId: string, materialId: string, cards: Flashcard[]) {
   // Добавляет карточки только если их ещё нет
   const existing = await supabase
     .from('flashcard_progress')

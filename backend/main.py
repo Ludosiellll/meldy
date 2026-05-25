@@ -7,19 +7,30 @@ from typing import AsyncGenerator, List
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 from parser import extract_text
 from agents.coordinator import CoordinatorAgent
+from utils import parse_llm_json
 
 app = FastAPI(title="AI Student Assistant", version="1.0.0")
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+origins = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # HF Spaces uses same origin via nginx
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,7 +90,9 @@ async def event_stream(
 
 
 @app.post("/api/analyze")
+@limiter.limit("5/minute")
 async def analyze(
+    request: Request,
     file: UploadFile = File(...),
     summary_detail: str = Form("medium"),
     flashcard_count: int = Form(6),
@@ -140,7 +153,8 @@ class PlanRequest(BaseModel):
 from agents.base import BaseAgent
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
+@limiter.limit("20/minute")
+async def chat(request: Request, req: ChatRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
     system_prompt = f"""Ты — умный AI-ассистент студента. 
@@ -173,7 +187,8 @@ async def chat(req: ChatRequest):
 
 
 @app.post("/api/plan")
-async def plan(req: PlanRequest):
+@limiter.limit("5/minute")
+async def plan(request: Request, req: PlanRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
     subjects_text = "\n".join([
@@ -225,20 +240,7 @@ async def plan(req: PlanRequest):
     raw = await agent.run(system_prompt, "Сгенерируй план подготовки.")
     
     try:
-        json_str = raw.strip()
-        if "```json" in json_str:
-            json_str = json_str.split("```json")[1].split("```")[0]
-        elif "```" in json_str:
-            json_str = json_str.split("```")[1].split("```")[0]
-        
-        # Находим JSON если вокруг есть текст
-        if not (json_str.startswith('{') or json_str.startswith('[')):
-            start = json_str.find('{')
-            end = json_str.rfind('}')
-            if start != -1 and end != -1:
-                json_str = json_str[start:end+1]
-                
-        return json.loads(json_str.strip())
+        return parse_llm_json(raw)
     except:
         return {"plan": []}
 
@@ -263,7 +265,8 @@ class MissionsGenerateRequest(BaseModel):
 from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt, build_quick_prep_prompt, build_mistakes_practice_prompt
 
 @app.post("/api/professor/question")
-async def professor_question(req: ProfessorQuestionRequest):
+@limiter.limit("15/minute")
+async def professor_question(request: Request, req: ProfessorQuestionRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
     mood_instr = ""
@@ -299,25 +302,14 @@ async def professor_question(req: ProfessorQuestionRequest):
 
 
 @app.post("/api/professor/evaluate")
-async def professor_evaluate(req: ProfessorEvaluateRequest):
+@limiter.limit("15/minute")
+async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer)
     raw = await agent.run(system_prompt, "Оцени мой ответ.")
     
     try:
-        json_str = raw.strip()
-        if "```json" in json_str:
-            json_str = json_str.split("```json")[1].split("```")[0]
-        elif "```" in json_str:
-            json_str = json_str.split("```")[1].split("```")[0]
-        
-        if not (json_str.startswith('{') or json_str.startswith('[')):
-            start = json_str.find('{')
-            end = json_str.rfind('}')
-            if start != -1 and end != -1:
-                json_str = json_str[start:end+1]
-                
-        return json.loads(json_str.strip())
+        return parse_llm_json(raw)
     except Exception as e:
         return {
             "score": 50,
@@ -330,25 +322,14 @@ async def professor_evaluate(req: ProfessorEvaluateRequest):
 
 
 @app.post("/api/missions/generate")
-async def generate_missions(req: MissionsGenerateRequest):
+@limiter.limit("5/minute")
+async def generate_missions(request: Request, req: MissionsGenerateRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_missions_prompt()
     raw = await agent.run(system_prompt, req.context)
     
     try:
-        json_str = raw.strip()
-        if "```json" in json_str:
-            json_str = json_str.split("```json")[1].split("```")[0]
-        elif "```" in json_str:
-            json_str = json_str.split("```")[1].split("```")[0]
-        
-        if not (json_str.startswith('{') or json_str.startswith('[')):
-            start = json_str.find('{')
-            end = json_str.rfind('}')
-            if start != -1 and end != -1:
-                json_str = json_str[start:end+1]
-                
-        return json.loads(json_str.strip())
+        return parse_llm_json(raw)
     except Exception as e:
         return {
             "missions": [
@@ -370,25 +351,14 @@ class QuickPrepRequest(BaseModel):
 
 
 @app.post("/api/quick-prep")
-async def quick_prep(req: QuickPrepRequest):
+@limiter.limit("5/minute")
+async def quick_prep(request: Request, req: QuickPrepRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_quick_prep_prompt()
     raw = await agent.run(system_prompt, req.context[:15000])
 
-    def parse_json(r):
-        js = r.strip()
-        if "```json" in js:
-            js = js.split("```json")[1].split("```")[0]
-        elif "```" in js:
-            js = js.split("```")[1].split("```")[0]
-        if not (js.startswith('{') or js.startswith('[')):
-            start, end = js.find('{'), js.rfind('}')
-            if start != -1 and end != -1:
-                js = js[start:end+1]
-        return json.loads(js.strip())
-
     try:
-        return parse_json(raw)
+        return parse_llm_json(raw)
     except Exception:
         return {
             "key_points": ["Изучите основные термины темы", "Разберитесь с ключевыми определениями", "Повторите главные выводы лекции"],
@@ -405,25 +375,14 @@ class MistakesPracticeRequest(BaseModel):
 
 
 @app.post("/api/mistakes/practice")
-async def mistakes_practice(req: MistakesPracticeRequest):
+@limiter.limit("5/minute")
+async def mistakes_practice(request: Request, req: MistakesPracticeRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_mistakes_practice_prompt(req.mistakes)
     raw = await agent.run(system_prompt, "Сгенерируй проверочный тест по моим ошибкам.")
 
-    def parse_json(r):
-        js = r.strip()
-        if "```json" in js:
-            js = js.split("```json")[1].split("```")[0]
-        elif "```" in js:
-            js = js.split("```")[1].split("```")[0]
-        if not (js.startswith('{') or js.startswith('[')):
-            start, end = js.find('{'), js.rfind('}')
-            if start != -1 and end != -1:
-                js = js[start:end+1]
-        return json.loads(js.strip())
-
     try:
-        return parse_json(raw)
+        return parse_llm_json(raw)
     except Exception:
         return {
             "practice": [
@@ -452,7 +411,8 @@ class CareerRequest(BaseModel):
 from agents.career import CareerAgent
 
 @app.post("/api/career/generate")
-async def career_generate(req: CareerRequest):
+@limiter.limit("5/minute")
+async def career_generate(request: Request, req: CareerRequest):
     if not req.materials_context.strip():
         raise HTTPException(status_code=400, detail="Нет материалов для анализа. Сначала загрузите хотя бы один конспект.")
 

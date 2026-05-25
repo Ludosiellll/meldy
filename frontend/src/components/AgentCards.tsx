@@ -50,7 +50,7 @@ function AgentTimer({ status }: { status: string }) {
 export default function AgentCards({ agents, phase, isDemo }: { agents: AgentStatus[]; phase: string; isDemo?: boolean }) {
   const agentConfigs: Record<string, {
     label: string;
-    icon: any;
+    icon: React.ElementType;
     color: string;
     bgColor: string;
     borderColor: string;

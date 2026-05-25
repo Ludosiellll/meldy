@@ -2,6 +2,7 @@ import asyncio
 import json
 from typing import AsyncGenerator, Dict, Any, Optional
 
+from utils import parse_llm_json
 from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt, build_cheatsheet_prompt, build_podcast_prompt, build_missions_prompt
 
 
@@ -46,8 +47,6 @@ class CoordinatorAgent:
             "missions": "🎮 Миссии",
         }
 
-        # Запускаем агентов ПОСЛЕДОВАТЕЛЬНО для стабильности (особенно для Gemini Free)
-        done_count = 0
         for name in agent_names:
             yield {
                 "type": "agent_start",
@@ -55,10 +54,13 @@ class CoordinatorAgent:
                 "label": agent_labels[name],
             }
             
-            # Выполняем запрос
-            agent_name, result = await run_agent(name, prompts[name])
+        # Запускаем агентов ПАРАЛЛЕЛЬНО
+        tasks = [run_agent(name, prompts[name]) for name in agent_names]
+        gathered_results = await asyncio.gather(*tasks)
+        
+        done_count = 0
+        for agent_name, result in gathered_results:
             results[agent_name] = result
-            
             done_count += 1
             yield {
                 "type": "agent_done",
@@ -67,10 +69,6 @@ class CoordinatorAgent:
                 "progress": done_count,
                 "total": 6,
             }
-            
-            # Небольшая пауза между запросами для обхода лимитов
-            if done_count < 6:
-                await asyncio.sleep(1)
 
         yield {
             "type": "results",
@@ -83,43 +81,31 @@ class CoordinatorAgent:
         }
 
     def _parse_result(self, name: str, raw: str) -> Any:
-        if name in ("flashcards", "quiz", "podcast", "summarizer", "missions"):
-            try:
-                json_str = raw.strip()
-                # Try to extract from markdown blocks
-                if "```json" in json_str:
-                    json_str = json_str.split("```json")[1].split("```")[0]
-                elif "```" in json_str:
-                    json_str = json_str.split("```")[1].split("```")[0]
-                
-                # If still no luck, try to find the first '{' or '[' and last '}' or ']'
-                if not (json_str.startswith('{') or json_str.startswith('[')):
-                    start_idx = -1
-                    for char in ('{', '['):
-                        idx = json_str.find(char)
-                        if idx != -1 and (start_idx == -1 or idx < start_idx):
-                            start_idx = idx
-                    
-                    if start_idx != -1:
-                        end_char = '}' if json_str[start_idx] == '{' else ']'
-                        end_idx = json_str.rfind(end_char)
-                        if end_idx != -1:
-                            json_str = json_str[start_idx:end_idx+1]
+        try:
+            parsed = parse_llm_json(raw)
+        except Exception as e:
+            if name == "summarizer":
+                print(f"Summarizer parse error: {e}, raw: {raw[:100]}")
+                return {"content": raw, "subject": "Конспект (fallback)", "terms": [], "error": str(e)}
+            return {"error": f"Parse error: {str(e)}", "raw": raw}
 
-                parsed = json.loads(json_str.strip())
-                
-                # Normalize results: ensure {"quiz": [...]} or {"flashcards": [...]}
-                if isinstance(parsed, list):
-                    return {name: parsed}
-                if isinstance(parsed, dict):
-                    if name not in parsed and any(isinstance(v, list) for v in parsed.values()):
-                        # If the key is different but contains a list, rename the first list found
-                        for k, v in parsed.items():
-                            if isinstance(v, list):
-                                return {name: v}
-                    return parsed
-                
-                return {"error": "Invalid format", "raw": raw}
-            except Exception as e:
-                return {"error": f"Parse error: {str(e)}", "raw": raw}
+        if name == "summarizer":
+            if isinstance(parsed, dict):
+                return parsed
+            print(f"Summarizer invalid format (not dict), raw: {raw[:100]}")
+            return {"content": str(parsed), "subject": "Конспект (fallback)", "terms": [], "error": "Invalid format"}
+
+        if name in ("flashcards", "quiz", "podcast", "missions"):
+            if isinstance(parsed, list):
+                return {name: parsed}
+            if isinstance(parsed, dict):
+                if name not in parsed and any(isinstance(v, list) for v in parsed.values()):
+                    # If the key is different but contains a list, rename the first list found
+                    for k, v in parsed.items():
+                        if isinstance(v, list):
+                            return {name: v}
+                return parsed
+            
+            return {"error": "Invalid format", "raw": raw}
+            
         return {"content": raw}

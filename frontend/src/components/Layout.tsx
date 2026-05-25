@@ -10,6 +10,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
 import { getProfile } from '../api/social';
 import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, Notification } from '../api/chat';
+import { ErrorBoundary } from './ErrorBoundary';
 
 const navGroups = [
   {
@@ -254,7 +255,9 @@ export default function Layout() {
 
       {/* ═══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
       <main className="flex-1 overflow-auto pb-16 md:pb-0">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* ═══ MOBILE BOTTOM NAV ════════════════════════════════════════════════ */}

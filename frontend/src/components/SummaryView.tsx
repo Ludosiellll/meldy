@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import { SummaryInfo } from '../types';
 
 function SectionBlock({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   return (
@@ -12,8 +13,8 @@ function SectionBlock({ icon, title, children }: { icon: string; title: string; 
   );
 }
 
-export default function SummaryView({ data }: { data: any }) {
-  const content = data?.content || data?.raw || '';
+export default function SummaryView({ data }: { data: SummaryInfo }) {
+  const content = data?.content || (data as any)?.raw || '';
   if (!content) return <p className="text-slate-400">Нет данных</p>;
 
   const sections = content.split(/(?=^## )/gm).filter(Boolean);

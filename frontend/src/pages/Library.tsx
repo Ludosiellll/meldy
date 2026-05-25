@@ -1,13 +1,16 @@
+import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, BookOpen, Trash2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials, deleteMaterial } from '../api/materials';
 
 export default function Library() {
   const { user } = useAuth();
+  const { confirm } = useConfirm();
   const navigate = useNavigate();
   const [materials, setMaterials] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -32,7 +35,7 @@ export default function Library() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm('Удалить материал?')) return;
+    if (!(await confirm({ title: 'Удаление', message: 'Удалить этот материал навсегда?', type: 'danger' }))) return;
     await deleteMaterial(id);
     setMaterials(prev => prev.filter(m => m.id !== id));
   };

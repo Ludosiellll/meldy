@@ -1,3 +1,4 @@
+import { SummaryInfo, Term } from '../types';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -88,14 +89,7 @@ export default function KnowledgeMap() {
 
   // Парсер терминов из секции "📚 Термины и определения" конспекта
   const extractTerms = (summaryJson: any) => {
-    if (summaryJson?.terms && Array.isArray(summaryJson.terms) && summaryJson.terms.length > 0) {
-      return summaryJson.terms.map((t: any) => ({
-        term: t.term,
-        definition: t.definition
-      }));
-    }
-
-    const content = summaryJson?.content || summaryJson?.raw || '';
+    const content = summaryJson?.content || (summaryJson as any)?.raw || '';
     if (!content) return [];
 
     const sections = content.split(/(?=^## )/gm);
@@ -162,7 +156,7 @@ export default function KnowledgeMap() {
       });
 
       const terms = extractTerms(mat.summary_json);
-      terms.forEach((t: any) => {
+      terms.forEach((t: Term) => {
         const key = t.term.toLowerCase();
         
         const termMistakes = mistakes.filter(m => {
@@ -425,7 +419,7 @@ export default function KnowledgeMap() {
   }, [nodes]);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 min-h-screen bg-slate-50 text-slate-900 rounded-3xl border border-slate-200 shadow-2xl">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 min-h-screen text-slate-900">
       {/* Заголовок */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
@@ -445,8 +439,8 @@ export default function KnowledgeMap() {
         </div>
       ) : materials.length === 0 ? (
         <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-white border border-slate-200 rounded-2xl">
-          <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mx-auto border border-slate-200">
-            <BookOpen className="w-8 h-8 text-slate-500" />
+          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto border border-indigo-100">
+            <BookOpen className="w-8 h-8 text-indigo-500" />
           </div>
           <h3 className="font-bold text-slate-800">Библиотека пуста</h3>
           <p className="text-sm text-slate-500">
@@ -510,7 +504,7 @@ export default function KnowledgeMap() {
             </div>
 
             {/* Контейнер SVG */}
-            <div className="relative bg-slate-50 rounded-3xl overflow-hidden border border-slate-200 shadow-2xl select-none min-h-[550px]">
+            <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm select-none min-h-[550px]">
               
               {/* Фоновая сетка */}
               <div 

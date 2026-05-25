@@ -1,14 +1,17 @@
+import { Term } from '../types/index';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, Target, Layers, FileText, ArrowRight, Zap, CheckCircle2, Loader2, Code2, Cpu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { getCareerProfile, generateCareerProfile, CareerProfile } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
 
 export default function Career() {
   const { user } = useAuth();
+  const { alert } = useConfirm();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState<CareerProfile | null>(null);
@@ -22,8 +25,9 @@ export default function Career() {
         setProfile(p);
         setLoading(false);
       })
-      .catch(e => {
+      .catch(async (e) => {
         console.error(e);
+        await alert({ title: 'Ошибка', message: 'Не удалось оцифровать навыки.', type: 'danger' });
         setLoading(false);
       });
   }, [user]);
@@ -37,8 +41,8 @@ export default function Career() {
       const materials = await getMaterials(user.id);
       
       if (!materials || materials.length === 0) {
-        alert("У вас пока нет загруженных конспектов. Добавьте материалы, чтобы ИИ смог проанализировать ваши навыки!");
         setIsGenerating(false);
+        await alert({ title: 'Нет конспектов', message: 'У вас пока нет загруженных конспектов. Добавьте материалы, чтобы ИИ смог проанализировать ваши навыки!', type: 'warning' });
         return;
       }
 
@@ -46,10 +50,11 @@ export default function Career() {
       const contextLines = materials.map(m => {
         let termsStr = "";
         if (m.summary_json && m.summary_json.terms) {
-          termsStr = "Термины: " + m.summary_json.terms.map((t: any) => t.term).join(", ");
+          termsStr = "Термины: " + m.summary_json.terms.map((t: Term) => t.term).join(", ");
         }
         let summaryText = typeof m.summary_json === 'string' ? m.summary_json : (m.summary_json?.content || '');
-        return `Тема: ${m.subject || m.title}\nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
+        return `Тема: ${m.subject || m.title}\import { Term } from '../types';
+nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
       });
 
       const contextStr = contextLines.join("\n\n---\n\n").slice(0, 15000);
@@ -59,11 +64,11 @@ export default function Career() {
       if (newProfile) {
         setProfile(newProfile);
       } else {
-        alert("Произошла ошибка при генерации профиля.");
+        await alert({ title: 'Ошибка', message: 'Произошла ошибка при генерации профиля.', type: 'danger' });
       }
     } catch (error) {
       console.error(error);
-      alert("Не удалось оцифровать навыки.");
+      await alert({ title: 'Ошибка', message: 'Не удалось оцифровать навыки.', type: 'danger' });
     } finally {
       setIsGenerating(false);
     }

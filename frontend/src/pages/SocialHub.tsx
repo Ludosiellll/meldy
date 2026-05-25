@@ -214,7 +214,7 @@ export default function SocialHub() {
                       {m.likes_count}
                     </button>
 
-                    {m.user_id !== user?.id && (
+                    {String(m.user_id) !== String(user?.id) && (
                       <button
                         onClick={() => handleCopy(m)}
                         className={`flex items-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg ${

@@ -5,9 +5,11 @@ import { format, differenceInDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 export default function Planner() {
   const { user } = useAuth();
+  const { alert } = useConfirm();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -90,8 +92,11 @@ export default function Planner() {
     loadData();
   };
 
-  const generatePlan = async () => {
-    if (selectedSubjectIds.length === 0) return alert('Выберите хотя бы один предмет для планирования');
+  const handleGeneratePlan = async () => {
+    if (selectedSubjectIds.length === 0) {
+      await alert({ title: 'Выберите предмет', message: 'Выберите хотя бы один предмет для планирования', type: 'warning' });
+      return;
+    }
     setLoading(true);
     try {
       const selectedContent = materials
@@ -161,14 +166,14 @@ export default function Planner() {
   };
 
   const getColorForSubject = (name: string) => {
-    const s = subjects.find((s: any) => s.name === name);
+    const s = subjects.find((s: { name: string; color: string }) => s.name === name);
     return s?.color || '#4F46E5';
   };
 
   // Filter plan by selected subject and ensure subject still exists
   const filteredPlan = plan.map(day => ({
     ...day,
-    tasks: day.tasks?.filter((t: any) => {
+    tasks: day.tasks?.filter((t: { subject: string }) => {
       const exists = subjects.some(s => s.name === t.subject);
       if (!exists) return false;
       return selectedSubject ? t.subject === selectedSubject : true;
@@ -177,7 +182,7 @@ export default function Planner() {
 
   const subjectTaskCounts: Record<string, number> = {};
   plan.forEach(day => {
-    day.tasks?.forEach((t: any) => {
+    day.tasks?.forEach((t: { subject: string; hours?: number }) => {
       subjectTaskCounts[t.subject] = (subjectTaskCounts[t.subject] || 0) + 1;
     });
   });
@@ -332,8 +337,8 @@ export default function Planner() {
             />
 
             <button
-              onClick={generatePlan}
-              disabled={subjects.length === 0 || loading || selectedSubjectIds.length === 0}
+              onClick={handleGeneratePlan}
+              disabled={loading || selectedSubjectIds.length === 0}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-5 h-5" />}
@@ -355,8 +360,8 @@ export default function Planner() {
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredPlan.map((day: any, i: number) => {
-                  const totalHours = day.tasks?.reduce((sum: number, t: any) => sum + (t.hours || 0), 0) || 0;
+                {filteredPlan.map((day: { date: string; tasks: any[] }, i: number) => {
+                  const totalHours = day.tasks?.reduce((sum: number, t: { hours?: number }) => sum + (t.hours || 0), 0) || 0;
                   return (
                     <motion.div 
                       key={i} 
@@ -374,7 +379,7 @@ export default function Planner() {
                         </div>
                       </div>
                       <div className="space-y-3 flex-1">
-                        {day.tasks?.map((task: any, j: number) => (
+                        {day.tasks?.map((task: { subject: string; task: string; hours?: number }, j: number) => (
                           <div key={j} className="flex items-start gap-2.5 text-xs">
                             <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: getColorForSubject(task.subject) }} />
                             <div className="flex-1 min-w-0">
@@ -431,7 +436,7 @@ export default function Planner() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {selectedDay.tasks?.map((task: any, idx: number) => (
+                {selectedDay.tasks?.map((task: { subject: string; task: string; hours?: number }, idx: number) => (
                   <div key={idx} className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">

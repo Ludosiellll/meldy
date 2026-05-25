@@ -1,9 +1,12 @@
+import { SummaryInfo } from '../types';
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { Play, Pause, Square, Headphones, FileText, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateQuestProgress } from '../api/quests';
 import { useAuth } from '../hooks/useAuth';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
@@ -12,12 +15,14 @@ interface PodcastLine {
 
 export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
   const { user } = useAuth();
+  const { alert } = useConfirm();
+  const [searchParams] = useSearchParams();
 
   // Вытаскиваем данные из составного JSON
   const cheatsheet = summaryJson?.cheatsheet || '';
   const podcastLines: PodcastLine[] = summaryJson?.podcast || [];
 
-  const [tab, setTab] = useState<'cheatsheet' | 'podcast'>('cheatsheet');
+  const [tab, setTab] = useState<'cheatsheet' | 'podcast'>(searchParams.get('tab') === 'podcast' ? 'podcast' : 'cheatsheet');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState(-1);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -41,9 +46,9 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
     currentIndexRef.current = 0;
   };
 
-  const playPodcast = () => {
+  const playPodcast = async () => {
     if (!window.speechSynthesis) {
-      alert('Синтез речи не поддерживается вашим браузером.');
+      await alert({ title: 'Ошибка', message: 'Синтез речи не поддерживается вашим браузером.', type: 'danger' });
       return;
     }
 

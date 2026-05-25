@@ -5,6 +5,7 @@ import { Zap, BookOpen, HelpCircle, CheckCircle2, AlertCircle, ArrowRight, Chevr
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 
 interface QuickPrepData {
@@ -17,6 +18,7 @@ type Phase = 'select' | 'loading' | 'cheatsheet' | 'quiz' | 'done';
 
 export default function QuickPrep() {
   const { user } = useAuth();
+  const { alert } = useConfirm();
   const navigate = useNavigate();
 
   // Восстановление состояния из sessionStorage
@@ -82,8 +84,9 @@ export default function QuickPrep() {
       const d = await res.json();
       setData(d);
       setPhase('cheatsheet');
-    } catch {
-      alert('Не удалось подготовить материал. Попробуйте ещё раз.');
+    } catch (err) {
+      console.error(err);
+      await alert({ title: 'Ошибка', message: 'Не удалось подготовить материал. Попробуйте ещё раз.', type: 'danger' });
       setPhase('select');
     }
   };

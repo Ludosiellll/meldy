@@ -75,7 +75,7 @@ export default function Analyze() {
           }
         }
       }
-    } catch (err: any) { 
+    } catch (err: Error | any) { 
       if (err.name === 'AbortError') return;
       setState(p => ({ ...p, phase: 'error', error: err.message })); 
     }
@@ -90,7 +90,7 @@ export default function Analyze() {
     missions: '✅ Квесты готовы',
   };
 
-  const handleSSE = (d: any) => {
+  const handleSSE = (d: Record<string, any>) => {
     if (d.type === 'text_extracted') { 
       if (hasBadWords(d.text)) {
         if ((window as any)._analyzeAbort) {
@@ -153,6 +153,10 @@ export default function Analyze() {
             return;
           }
 
+          if (inserted?.id) {
+            setState(p => ({ ...p, savedMaterialId: inserted.id }));
+          }
+
           const cards = results.flashcards?.flashcards || [];
           if (cards.length > 0 && inserted?.id) {
             await syncFlashcards(user.id, inserted.id, cards);
@@ -189,10 +193,31 @@ export default function Analyze() {
         {state.phase === 'done' && state.results && (
           <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <ResultsPanel results={state.results} onReset={reset} textLength={state.textLength} analysisDuration={state.analysisDuration} sourceFileName={state.sourceFileName} />
-            <div className="mt-4 text-center">
+            
+            {state.savedMaterialId && state.results.podcast && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-700">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0 border border-rose-500/30">
+                    <span className="text-2xl">🎙️</span>
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <h3 className="font-bold text-lg mb-1 flex items-center justify-center sm:justify-start gap-2">AI-Подкаст сгенерирован! <span className="text-rose-400">⚡</span></h3>
+                    <p className="text-slate-400 text-sm">Слушайте разбор этой темы в аудиоформате.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`/material/${state.savedMaterialId}?mode=express&tab=podcast`)}
+                  className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-sm transition w-full sm:w-auto shrink-0 shadow-lg shadow-rose-900/50"
+                >
+                  Слушать подкаст
+                </button>
+              </motion.div>
+            )}
+
+            <div className="mt-6 text-center">
               <button
                 onClick={() => navigate('/library')}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md"
               >
                 📚 Перейти в библиотеку
               </button>

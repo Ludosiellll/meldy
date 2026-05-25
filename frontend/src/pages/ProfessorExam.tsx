@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
@@ -25,6 +26,7 @@ interface EvaluationResult {
 
 export default function ProfessorExam() {
   const { user } = useAuth();
+  const { confirm, alert } = useConfirm();
   const navigate = useNavigate();
 
   // Восстановление состояния из sessionStorage
@@ -126,14 +128,14 @@ export default function ProfessorExam() {
       setInterimText(currentInterim);
     };
 
-    rec.onerror = (e: any) => {
+    rec.onerror = async (e: any) => {
       console.error('Speech recognition error:', e.error);
       setIsListening(false);
       
       if (e.error === 'not-allowed') {
-        alert('Доступ к микрофону заблокирован. Разрешите его в настройках браузера (значок замка в адресной строке).');
+        await alert({ title: 'Ошибка доступа', message: 'Доступ к микрофону заблокирован. Разрешите его в настройках браузера (значок замка в адресной строке).', type: 'danger' });
       } else if (e.error === 'network') {
-        alert('Ошибка сети. Проверьте интернет-соединение. Голосовой ввод Google требует стабильной сети.');
+        await alert({ title: 'Ошибка сети', message: 'Ошибка сети. Проверьте интернет-соединение. Голосовой ввод Google требует стабильной сети.', type: 'danger' });
       } else if (e.error === 'no-speech') {
         // Просто игнорируем, если не услышал
         console.log('No speech detected');
@@ -146,11 +148,11 @@ export default function ProfessorExam() {
     return rec;
   };
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     const rec = initRecognition();
     
     if (!rec) {
-      alert('Голосовой ввод не поддерживается вашим браузером. Пожалуйста, используйте Google Chrome, Edge или Safari.');
+      await alert({ title: 'Не поддерживается', message: 'Голосовой ввод не поддерживается вашим браузером. Пожалуйста, используйте Google Chrome, Edge или Safari.', type: 'danger' });
       return;
     }
 
@@ -237,7 +239,7 @@ export default function ProfessorExam() {
       setPhase('question');
     } catch (err) {
       console.error(err);
-      alert('Не удалось задать вопрос. Попробуйте еще раз.');
+      await alert({ title: 'Ошибка', message: 'Не удалось задать вопрос. Попробуйте еще раз.', type: 'danger' });
       setPhase(clearHistory ? 'select' : 'evaluation');
     }
   };
@@ -336,7 +338,7 @@ export default function ProfessorExam() {
       setPhase('evaluation');
     } catch (err) {
       console.error(err);
-      alert('Ошибка при оценке ответа. Пожалуйста, попробуйте отправить заново.');
+      await alert({ title: 'Ошибка', message: 'Ошибка при оценке ответа. Пожалуйста, попробуйте отправить заново.', type: 'danger' });
       setPhase('question');
     }
   };
@@ -384,8 +386,8 @@ export default function ProfessorExam() {
           )}
           {phase !== 'select' && (
             <button
-              onClick={() => {
-                if (confirm('Вы уверены, что хотите завершить экзамен?')) {
+              onClick={async () => {
+                if (await confirm({ title: 'Завершить', message: 'Вы уверены, что хотите завершить экзамен?', type: 'warning' })) {
                   setPhase('select');
                   setCurrentQuestion('');
                   setAnswerText('');

@@ -1,3 +1,4 @@
+import { QuizQuestion, QuizInfo } from '../types';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
@@ -22,7 +23,7 @@ export default function QuizView({ data }: { data: any }) {
 
   const handleSubmit = () => {
     setSubmitted(true);
-    const score = quiz.filter((q: any, i: number) => answers[i]?.startsWith(q.correct)).length;
+    const score = quiz.filter((q: QuizQuestion, i: number) => answers[i]?.startsWith(q.correct)).length;
     if (score === quiz.length) {
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#4F46E5', '#10b981', '#f59e0b'] });
     }
@@ -47,7 +48,7 @@ export default function QuizView({ data }: { data: any }) {
     );
   }
 
-  const correct = quiz.filter((q: any, i: number) => answers[i]?.startsWith(q.correct)).length;
+  const correct = quiz.filter((q: QuizQuestion, i: number) => answers[i]?.startsWith(q.correct)).length;
   const total = quiz.length;
   const pct = Math.round((correct / total) * 100);
 
@@ -60,7 +61,7 @@ export default function QuizView({ data }: { data: any }) {
   if (fsOpen && quiz) {
     const fsQ = quiz[fsIdx];
     const fsTotal = quiz.length;
-    const fsCorrect = quiz.filter((q: any, i: number) => fsAnswers[i]?.startsWith(q.correct)).length;
+    const fsCorrect = quiz.filter((q: QuizQuestion, i: number) => fsAnswers[i]?.startsWith(q.correct)).length;
 
     const fsSelect = (opt: string) => {
       if (fsSubmitted) return;
@@ -113,7 +114,7 @@ export default function QuizView({ data }: { data: any }) {
             <p className="text-4xl font-bold text-white mb-2">Правильных ответов: {fsCorrect} из {fsTotal}</p>
             <p className="text-slate-400 text-lg mb-10">{Math.round((fsCorrect / fsTotal) * 100)}%</p>
             <div className="max-w-3xl w-full space-y-4">
-              {quiz.map((q: any, i: number) => {
+              {quiz.map((q: QuizQuestion, i: number) => {
                 const isCorrect = fsAnswers[i]?.startsWith(q.correct);
                 return (
                   <div key={i} className={'rounded-xl p-5 border ' + (isCorrect ? 'bg-emerald-900/30 border-emerald-700' : 'bg-rose-900/20 border-rose-800')}>
@@ -159,7 +160,7 @@ export default function QuizView({ data }: { data: any }) {
       )}
 
       <div className="space-y-4">
-        {quiz.map((q: any, i: number) => {
+        {quiz.map((q: QuizQuestion, i: number) => {
           const selected = answers[i];
           const isCorrect = selected?.startsWith(q.correct);
           const isWrong = submitted && selected && !isCorrect;

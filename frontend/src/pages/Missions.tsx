@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
@@ -23,6 +24,7 @@ interface Mission {
 
 export default function Missions() {
   const { user } = useAuth();
+  const { confirm, alert } = useConfirm();
   const navigate = useNavigate();
 
   // Восстановление состояния из sessionStorage
@@ -107,7 +109,7 @@ export default function Missions() {
       }
     } catch (err) {
       console.error(err);
-      alert('Не удалось сформировать игру по материалу. Попробуйте еще раз.');
+      await alert({ title: 'Ошибка', message: 'Не удалось сформировать игру по материалу. Попробуйте еще раз.', type: 'danger' });
       setPhase('select');
     }
   };
@@ -177,8 +179,8 @@ export default function Missions() {
         </div>
         {phase !== 'select' && (
           <button
-            onClick={() => {
-              if (confirm('Вы уверены, что хотите выйти из игры? Весь прогресс будет потерян.')) {
+            onClick={async () => {
+              if (await confirm({ title: 'Выход', message: 'Вы уверены, что хотите выйти из игры? Весь прогресс будет потерян.', type: 'warning' })) {
                 setPhase('select');
                 setMissions([]);
                 setActiveStep(0);

@@ -1,3 +1,4 @@
+import { ExamResult, StudySession } from '../types';
 import { supabase } from '../lib/supabase';
 
 export type QuestType = 'daily' | 'weekly';
@@ -165,7 +166,7 @@ export async function checkAndAwardAchievements(userId: string): Promise<Achieve
   const materials = matsRes.data ?? [];
 
   // Считаем стрик
-  const dates = new Set(sessions.map((s: any) => s.date));
+  const dates = new Set(sessions.map((s: StudySession) => s.date));
   let streak = 0;
   let d = new Date();
   while (dates.has(d.toISOString().split('T')[0])) {
@@ -175,7 +176,7 @@ export async function checkAndAwardAchievements(userId: string): Promise<Achieve
 
   const stats: UserStats = {
     totalExams: exams.length,
-    totalReviews: sessions.reduce((a: number, s: any) => a + (s.cards_reviewed ?? 0), 0),
+    totalReviews: sessions.reduce((a: number, s: StudySession) => a + (s.cards_reviewed || 0), 0),
     totalAnalyze: materials.length,
     streak,
     exam5Count: exams.filter((e: any) => e.score >= 85).length,

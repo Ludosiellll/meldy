@@ -1,3 +1,4 @@
+import { Material, StudySession, Flashcard } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock } from 'lucide-react';
@@ -11,7 +12,7 @@ import { getMaterials } from '../api/materials';
 import { getDueCards } from '../api/flashcards';
 import { getQuestsWithProgress, getUserXP, calcLevel } from '../api/quests';
 
-function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
+function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number; color: string }) {
   const bgMap: Record<string, string> = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', rose: 'bg-rose-50' };
   const textMap: Record<string, string> = { indigo: 'text-indigo-600', emerald: 'text-emerald-600', amber: 'text-amber-600', rose: 'text-rose-600' };
   return (
@@ -74,7 +75,7 @@ export default function Dashboard() {
   }, [user?.id]);
 
   const streak = (() => {
-    const dates = new Set(sessions.map((s: any) => s.date));
+    const dates = new Set(sessions.map((s: StudySession) => s.date));
     let count = 0;
     let d = new Date();
     while (dates.has(format(d, 'yyyy-MM-dd'))) {
@@ -86,7 +87,7 @@ export default function Dashboard() {
 
   const chartData = (() => {
     const map: Record<string, number> = {};
-    sessions.forEach((s: any) => { map[s.date] = s.cards_reviewed; });
+    sessions.forEach((s: StudySession) => { map[s.date] = s.cards_reviewed || 0; });
     const days = [];
     for (let i = 13; i >= 0; i--) {
       const d = subDays(new Date(), i);
@@ -346,7 +347,7 @@ export default function Dashboard() {
                 <button onClick={() => navigate('/analyze')} className="text-sm text-indigo-600 hover:text-indigo-700">Загрузи первую лекцию →</button>
               ) : (
                 <div className="space-y-2">
-                  {materials.slice(0, 3).map((m: any) => (
+                  {materials.slice(0, 3).map((m: Material) => (
                     <div
                       key={m.id}
                       onClick={() => navigate('/library/' + m.id)}
