@@ -53,8 +53,7 @@ export default function Career() {
           termsStr = "Термины: " + m.summary_json.terms.map((t: Term) => t.term).join(", ");
         }
         let summaryText = typeof m.summary_json === 'string' ? m.summary_json : (m.summary_json?.content || '');
-        return `Тема: ${m.subject || m.title}\import { Term } from '../types';
-nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
+        return `Тема: ${m.subject || m.title}\nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
       });
 
       const contextStr = contextLines.join("\n\n---\n\n").slice(0, 15000);
