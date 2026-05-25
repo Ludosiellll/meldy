@@ -4,11 +4,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
 import { GraduationCap, Mail, Lock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { validateEmail } from '../utils/validators';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -21,6 +23,14 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    
+    const ee = validateEmail(email);
+    if (ee) {
+      setEmailError(ee);
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
@@ -70,12 +80,16 @@ export default function Login() {
                 <input
                   type="email"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                  onChange={e => {
+                    setEmail(e.target.value);
+                    setEmailError(validateEmail(e.target.value));
+                  }}
+                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
                   placeholder="you@example.com"
                   required
                 />
               </div>
+              {emailError && <p className="text-rose-500 text-xs font-bold mt-1.5">{emailError}</p>}
             </div>
 
             <div>

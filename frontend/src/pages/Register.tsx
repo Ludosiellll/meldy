@@ -4,25 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
 import { GraduationCap, Mail, Lock, User, ArrowRight, Sparkles, BookOpen } from 'lucide-react';
-
-const validateEmail = (email: string) => {
-  if (!email) return '';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Некорректный email адрес';
-  return '';
-};
-
-const validatePassword = (pwd: string) => {
-  if (!pwd) return '';
-  if (pwd.length < 6) return `Слишком короткий — ещё ${6 - pwd.length} символов`;
-  if (pwd.length < 8) return 'Слабый пароль — добавь ещё символы';
-  return '';
-};
-
-const validateName = (name: string) => {
-  if (!name) return '';
-  if (name.trim().length < 2) return 'Имя слишком короткое';
-  return '';
-};
+import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -191,13 +173,11 @@ export default function Register() {
                 {[1,2,3].map(level => {
                   let colorClass = 'bg-slate-100'; // Default gray
                   if (password.length > 0) {
-                    if (password.length < 6) {
-                      colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100';
-                    } else if (password.length < 8) {
-                      colorClass = level <= 2 ? 'bg-amber-400' : 'bg-slate-100';
-                    } else {
-                      colorClass = 'bg-emerald-500';
-                    }
+                    const strength = getPasswordStrength(password);
+                    if (strength === 0) colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100';
+                    else if (strength === 1) colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100';
+                    else if (strength === 2) colorClass = level <= 2 ? 'bg-amber-400' : 'bg-slate-100';
+                    else if (strength >= 3) colorClass = 'bg-emerald-500';
                   }
                   return (
                     <div key={level} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${colorClass}`} />
