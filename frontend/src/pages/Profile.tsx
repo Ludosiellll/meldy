@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, updateProfile, UserProfile } from '../api/social';
 import { getFriends, sendFriendRequest, respondFriendRequest, Friendship } from '../api/chat';
-import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX } from 'lucide-react';
+import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX, Bell, BellOff } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -22,6 +23,10 @@ export default function Profile() {
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ full_name: '', university: '', bio: '', avatar_url: '' });
+
+  // Push notifications state
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(true);
 
   useEffect(() => {
     if (!targetId) return;
@@ -51,6 +56,11 @@ export default function Profile() {
         }
       });
     }
+
+    checkPushSubscription().then(enabled => {
+      setPushEnabled(enabled);
+      setPushLoading(false);
+    });
   }, [targetId, user, isMyProfile]);
 
   const handleAddFriend = async () => {
@@ -71,6 +81,29 @@ export default function Profile() {
       setProfile(prev => prev ? { ...prev, ...editForm } : null);
       setIsEditing(false);
     }
+  };
+
+  const handleTogglePush = async () => {
+    if (!user) return;
+    setPushLoading(true);
+    try {
+      if (!pushEnabled) {
+        const granted = await requestNotificationPermission();
+        if (!granted) {
+          alert('Доступ к уведомлениям запрещён в браузере.');
+          setPushLoading(false);
+          return;
+        }
+        await subscribeUserToPush(user.id);
+        setPushEnabled(true);
+      } else {
+        alert('Для отключения уведомлений перейдите в настройки браузера.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка настройки уведомлений: ' + (err as Error).message);
+    }
+    setPushLoading(false);
   };
 
   if (loading) return <div className="flex min-h-[85vh] items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-500 animate-spin" /></div>;
@@ -191,6 +224,34 @@ export default function Profile() {
             <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Повторений</div>
           </div>
         </div>
+
+        {isMyProfile && (
+          <div className="mt-8 pt-8 border-t border-slate-100">
+            <h3 className="font-bold text-slate-900 mb-4">Настройки устройства</h3>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${pushEnabled ? 'bg-indigo-100' : 'bg-slate-200'}`}>
+                  {pushEnabled ? <Bell className="w-5 h-5 text-indigo-600" /> : <BellOff className="w-5 h-5 text-slate-500" />}
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-slate-900 text-sm">Push-уведомления (PWA)</p>
+                  <p className="text-xs text-slate-500 max-w-[200px] sm:max-w-xs leading-tight mt-0.5">Ежедневные напоминания о материалах, требующих повторения.</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleTogglePush}
+                disabled={pushLoading || pushEnabled}
+                className={`shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition ${
+                  pushLoading ? 'bg-slate-200 text-slate-400 cursor-not-allowed' :
+                  pushEnabled ? 'bg-indigo-50 text-indigo-600 cursor-default border border-indigo-100' :
+                  'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                }`}
+              >
+                {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Входящие заявки в друзья */}

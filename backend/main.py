@@ -19,6 +19,10 @@ from slowapi.errors import RateLimitExceeded
 from parser import extract_text
 from agents.coordinator import CoordinatorAgent
 from utils import parse_llm_json
+from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from pywebpush import webpush, WebPushException
 
 app = FastAPI(title="AI Student Assistant", version="1.0.0")
 
@@ -37,6 +41,37 @@ app.add_middleware(
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+app.include_router(push_router, prefix="/api/push", tags=["push"])
+
+scheduler = AsyncIOScheduler()
+
+async def scheduled_reminders():
+    subs = load_subscriptions()
+    for user_id, sub_info in subs.items():
+        try:
+            webpush(
+                subscription_info=sub_info,
+                data=json.dumps({
+                    "title": "StudyForge",
+                    "body": "Пора повторить карточки! Зайдите в приложение, чтобы закрепить знания.",
+                    "url": "/review"
+                }),
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims=VAPID_CLAIMS
+            )
+            print(f"Sent scheduled push to {user_id}")
+        except Exception as e:
+            print(f"Failed to send scheduled push to {user_id}: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    scheduler.add_job(scheduled_reminders, 'interval', hours=24) # Daily reminders
+    scheduler.start()
+    
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown()
 
 
 class HealthResponse(BaseModel):
