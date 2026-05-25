@@ -419,7 +419,7 @@ export default function KnowledgeMap() {
   }, [nodes]);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 min-h-screen text-slate-900">
+    <div className="p-3 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6 min-h-screen text-slate-900">
       {/* Заголовок */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         <div className="flex items-center gap-3">
@@ -454,7 +454,7 @@ export default function KnowledgeMap() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
           
           {/* График и интерактивная область (3 колонки) */}
           <div className="lg:col-span-3 flex flex-col space-y-4">
@@ -504,7 +504,7 @@ export default function KnowledgeMap() {
             </div>
 
             {/* Контейнер SVG */}
-            <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm select-none min-h-[550px]">
+            <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm select-none min-h-[400px] md:min-h-[550px]">
               
               {/* Фоновая сетка */}
               <div 
@@ -519,7 +519,7 @@ export default function KnowledgeMap() {
 
               <svg
                 ref={svgRef}
-                className="w-full h-[550px] cursor-grab active:cursor-grabbing"
+                className="w-full h-[400px] md:h-[550px] cursor-grab active:cursor-grabbing"
                 onMouseDown={(e) => handleMouseDown(e)}
                 onMouseMove={handleMouseMove}
                 onMouseUp={(e) => handleMouseUp(e)}

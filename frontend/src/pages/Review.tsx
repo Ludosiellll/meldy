@@ -62,14 +62,14 @@ export default function Review() {
   };
 
   if (loading) return (
-    <div className="p-6 flex items-center justify-center min-h-[60vh]">
+    <div className="p-4 md:p-6 flex items-center justify-center min-h-[60vh]">
       <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   // No cards due
   if (cards.length === 0) return (
-    <div className="p-6 text-center py-20">
+    <div className="p-4 md:p-6 text-center py-10 md:py-20">
       <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
       <h2 className="text-xl font-bold text-slate-900 mb-2">Отличная работа!</h2>
       <p className="text-slate-500 mb-6">На сегодня карточек нет. Приходите завтра!</p>
@@ -89,7 +89,7 @@ export default function Review() {
     const total = sessionStats.correct + sessionStats.wrong;
     const pct = total > 0 ? Math.round((sessionStats.correct / total) * 100) : 0;
     return (
-      <div className="p-6 text-center py-16">
+      <div className="p-4 md:p-6 text-center py-10 md:py-16">
         <h2 className="text-2xl font-bold text-slate-900 mb-6">Сессия завершена! 🎉</h2>
         <div className="relative inline-block mb-4">
           <CircularProgress value={pct} size={120} strokeWidth={10} />
@@ -114,7 +114,7 @@ export default function Review() {
   const card = cards[idx];
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 max-w-2xl mx-auto">
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
@@ -155,7 +155,7 @@ export default function Review() {
             Показать ответ
           </button>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
             <button
               onClick={() => handleAnswer(1)}
               className="h-12 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl font-medium transition"

@@ -67,7 +67,7 @@ export default function SocialHub() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto min-h-[85vh]">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-[85vh]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
@@ -78,7 +78,7 @@ export default function SocialHub() {
         </div>
 
         {/* Табы */}
-        <div className="flex bg-slate-200 p-1 rounded-xl">
+        <div className="flex bg-slate-200 p-1 rounded-xl overflow-x-auto custom-scrollbar">
           {[
             { key: 'feed', label: 'Маркетплейс' },
             { key: 'leaderboard', label: 'Лидерборд' },
@@ -87,7 +87,7 @@ export default function SocialHub() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${
                 activeTab === tab.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -167,7 +167,7 @@ export default function SocialHub() {
             <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
           </div>
         ) : activeTab === 'feed' ? (
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {feed.length === 0 ? (
               <div className="col-span-2 text-center py-20 text-slate-500">
                 <Globe className="w-12 h-12 text-slate-200 mx-auto mb-4" />

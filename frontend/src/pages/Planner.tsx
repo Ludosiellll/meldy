@@ -188,15 +188,15 @@ export default function Planner() {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <Calendar className="w-5 h-5 text-indigo-600" />
         <h1 className="text-xl font-bold text-slate-900">Персональный планировщик</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
         <div className="lg:col-span-3 space-y-6">
-          <div className="card p-5">
+          <div className="card p-4 md:p-5">
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" /> Экзамены
             </h2>
@@ -260,7 +260,7 @@ export default function Planner() {
             </div>
           </div>
 
-          <div className="card p-5">
+          <div className="card p-4 md:p-5">
             <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" /> Часы в день
             </h2>
@@ -268,7 +268,7 @@ export default function Planner() {
           </div>
 
           {historyPlans.length > 0 && (
-            <div className="card p-5">
+            <div className="card p-4 md:p-5">
               <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-slate-400" /> История планов
               </h2>
@@ -302,7 +302,7 @@ export default function Planner() {
         </div>
 
         <div className="lg:col-span-9 space-y-6">
-          <div className="card p-6">
+          <div className="card p-4 md:p-6">
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500" /> На чем основывать план?
             </h2>
@@ -367,7 +367,7 @@ export default function Planner() {
                       key={i} 
                       layoutId={`day-${day.date}`}
                       onClick={() => setSelectedDay(day)}
-                      className="card p-5 bg-white border-l-4 border-l-indigo-500 flex flex-col cursor-pointer hover:shadow-md transition-shadow group"
+                      className="card p-4 md:p-5 bg-white border-l-4 border-l-indigo-500 flex flex-col cursor-pointer hover:shadow-md transition-shadow group"
                     >
                       <div className="flex items-center justify-between mb-3 shrink-0">
                         <h3 className="font-bold text-slate-800 capitalize text-sm group-hover:text-indigo-600 transition-colors">
@@ -413,7 +413,7 @@ export default function Planner() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 flex flex-col"
+              className="bg-white rounded-2xl shadow-2xl w-[calc(100%-32px)] md:w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0">
                 <div className="flex items-center gap-3">
@@ -437,7 +437,7 @@ export default function Planner() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {selectedDay.tasks?.map((task: { subject: string; task: string; hours?: number }, idx: number) => (
-                  <div key={idx} className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                  <div key={idx} className="bg-slate-50 rounded-2xl p-4 md:p-5 border border-slate-100">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getColorForSubject(task.subject) }} />

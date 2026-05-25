@@ -84,7 +84,7 @@ export default function Career() {
   // Если профиля еще нет (или он пустой) и мы не генерируем
   if (!profile && !isGenerating) {
     return (
-      <div className="p-8 max-w-5xl mx-auto min-h-[85vh] flex flex-col items-center justify-center text-center">
+      <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-[85vh] flex flex-col items-center justify-center text-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl">
           <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-slate-200">
             <Briefcase className="w-10 h-10 text-white" />
@@ -109,7 +109,7 @@ export default function Career() {
   // Экран генерации (красивый лоадер)
   if (isGenerating) {
     return (
-      <div className="p-8 max-w-5xl mx-auto min-h-[85vh] flex flex-col items-center justify-center text-center">
+      <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-[85vh] flex flex-col items-center justify-center text-center">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center">
           <div className="relative mb-8">
             <div className="w-24 h-24 border-4 border-indigo-100 rounded-full flex items-center justify-center">
@@ -126,7 +126,7 @@ export default function Career() {
 
   // Профиль готов
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
@@ -146,12 +146,12 @@ export default function Career() {
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
+      <div className="grid lg:grid-cols-3 gap-4 md:gap-8">
         
         {/* Колонка 1: Скиллы и Профессии */}
         <div className="lg:col-span-1 space-y-8">
           
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-6">
               <Code2 className="w-5 h-5 text-indigo-600" />
               <h2 className="text-xl font-bold text-slate-900">Ваши Хард-Скиллы</h2>
@@ -165,7 +165,7 @@ export default function Career() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-6">
               <Briefcase className="w-5 h-5 text-indigo-600" />
               <h2 className="text-xl font-bold text-slate-900">Подходящие профессии</h2>
@@ -195,7 +195,7 @@ export default function Career() {
         {/* Колонка 2: Резюме и Проекты */}
         <div className="lg:col-span-2 space-y-8">
           
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="bg-white p-4 md:p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
             <div className="flex items-center gap-2 mb-6">
               <FileText className="w-5 h-5 text-indigo-600" />
@@ -218,7 +218,7 @@ export default function Career() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-colors group cursor-pointer"
+                  className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-colors group cursor-pointer"
                 >
                   <h3 className="font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">{proj.title}</h3>
                   <p className="text-sm text-slate-500 leading-relaxed">{proj.description}</p>

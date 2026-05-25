@@ -69,7 +69,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100"
+              className="relative w-[calc(100%-32px)] md:w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100"
             >
               <div className="flex flex-col items-center text-center">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${

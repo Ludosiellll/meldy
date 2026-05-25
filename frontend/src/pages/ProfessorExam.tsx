@@ -354,7 +354,7 @@ export default function ProfessorExam() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
+    <div className="p-3 md:p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
       <ConfettiCelebration trigger={showConfetti} type="exam5" />
       <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
       {/* Заголовок */}
@@ -413,7 +413,7 @@ export default function ProfessorExam() {
             exit={{ opacity: 0, y: -15 }}
             className="space-y-6"
           >
-            <div className="card p-6 md:p-8 text-center">
+            <div className="card p-4 md:p-8 text-center">
               <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-rose-500" />
               </div>
@@ -449,7 +449,7 @@ export default function ProfessorExam() {
 
             {/* История экзаменов */}
             {examHistory.length > 0 && (
-              <div className="card p-6">
+              <div className="card p-4 md:p-6 mt-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
                     <RefreshCw className="w-4 h-4 text-slate-400" />
@@ -514,7 +514,7 @@ export default function ProfessorExam() {
             className="space-y-6"
           >
             {/* Вопрос Профессора */}
-            <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl relative border border-slate-800 overflow-hidden">
+            <div className="bg-slate-900 text-white rounded-2xl p-4 md:p-6 shadow-xl relative border border-slate-800 overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
               
               <div className="flex items-center gap-2 mb-3">
@@ -536,7 +536,7 @@ export default function ProfessorExam() {
             </div>
 
             {/* Ввод ответа студента */}
-            <div className="card p-5 space-y-4">
+            <div className="card p-4 md:p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ваш устный ответ:</label>
                 {SpeechRecognition && (
@@ -590,7 +590,7 @@ export default function ProfessorExam() {
             {(() => {
               const colors = getGradeColors(evaluation.grade);
               return (
-                <div className={`border rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-center gap-6 ${colors.bg}`}>
+                <div className={`border rounded-2xl p-4 md:p-6 shadow-sm flex flex-col md:flex-row items-center gap-4 md:gap-6 ${colors.bg}`}>
                   {/* Академическая печать оценки */}
                   <div className="shrink-0 flex flex-col items-center justify-center">
                     <div className={`w-20 h-20 rounded-full flex flex-col items-center justify-center text-white font-black text-3xl shadow-md ${colors.sealBg} relative overflow-hidden`}>
@@ -618,7 +618,7 @@ export default function ProfessorExam() {
             {/* Когнитивный разбор: что правильно, ошибки и пробелы */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Зеленый блок: Что сказали правильно */}
-              <div className="card p-5 border-l-4 border-l-emerald-500 bg-white">
+              <div className="card p-4 md:p-5 border-l-4 border-l-emerald-500 bg-white">
                 <h4 className="font-bold text-emerald-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                   Усвоено верно
@@ -638,7 +638,7 @@ export default function ProfessorExam() {
               </div>
 
               {/* Красный блок: Допущенные ошибки */}
-              <div className="card p-5 border-l-4 border-l-rose-500 bg-white">
+              <div className="card p-4 md:p-5 border-l-4 border-l-rose-500 bg-white">
                 <h4 className="font-bold text-rose-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                   Фактические ошибки
@@ -658,7 +658,7 @@ export default function ProfessorExam() {
               </div>
 
               {/* Желтый/серый блок: Упущенные знания */}
-              <div className="card p-5 border-l-4 border-l-amber-500 bg-white">
+              <div className="card p-4 md:p-5 border-l-4 border-l-amber-500 bg-white">
                 <h4 className="font-bold text-amber-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <MessageSquare className="w-4 h-4 text-amber-500 shrink-0" />
                   Когнитивные пропуски

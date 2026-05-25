@@ -156,7 +156,7 @@ export default function MistakeDiary() {
   const resolvedCount = mistakes.filter(m => m.is_resolved).length;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-3 md:p-6 max-w-4xl mx-auto">
       {/* ═══ РЕЖИМ ПРАКТИКИ ════════════════════════════════════════════════════ */}
       {isPracticing ? (
         <div className="max-w-2xl mx-auto py-8">
@@ -192,7 +192,7 @@ export default function MistakeDiary() {
                 </div>
 
                 {/* Карточка вопроса */}
-                <div className="card p-6 md:p-8 space-y-6">
+                <div className="card p-4 md:p-8 space-y-4 md:space-y-6">
                   <h3 className="text-lg font-bold text-slate-800 leading-relaxed">
                     {practiceQuestions[currentQIndex]?.question}
                   </h3>
@@ -220,7 +220,7 @@ export default function MistakeDiary() {
                           key={opt}
                           disabled={hasAnswered}
                           onClick={() => checkAnswer(opt)}
-                          className={`w-full p-4 text-left text-sm font-semibold rounded-xl border-2 transition-all duration-200 ${btnStyle} flex justify-between items-center`}
+                          className={`w-full p-3 md:p-4 text-left text-sm font-semibold rounded-xl border-2 transition-all duration-200 ${btnStyle} flex justify-between items-center`}
                         >
                           <span>{opt}</span>
                           {hasAnswered && isCorrect && (
@@ -346,18 +346,18 @@ export default function MistakeDiary() {
           )}
 
           {/* Статистика */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="card p-4 text-center">
-              <p className="text-2xl font-black text-slate-900">{mistakes.length}</p>
-              <p className="text-xs text-slate-500 mt-1">Всего ошибок</p>
+          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
+            <div className="card p-2 md:p-4 text-center">
+              <p className="text-xl md:text-2xl font-black text-slate-900">{mistakes.length}</p>
+              <p className="text-[10px] md:text-xs text-slate-500 mt-1">Всего ошибок</p>
             </div>
-            <div className="card p-4 text-center border-l-4 border-l-rose-400">
-              <p className="text-2xl font-black text-rose-600">{openCount}</p>
-              <p className="text-xs text-slate-500 mt-1">Требуют внимания</p>
+            <div className="card p-2 md:p-4 text-center border-l-4 border-l-rose-400">
+              <p className="text-xl md:text-2xl font-black text-rose-600">{openCount}</p>
+              <p className="text-[10px] md:text-xs text-slate-500 mt-1">Внимания</p>
             </div>
-            <div className="card p-4 text-center border-l-4 border-l-emerald-400">
-              <p className="text-2xl font-black text-emerald-600">{resolvedCount}</p>
-              <p className="text-xs text-slate-500 mt-1">Исправлено</p>
+            <div className="card p-2 md:p-4 text-center border-l-4 border-l-emerald-400">
+              <p className="text-xl md:text-2xl font-black text-emerald-600">{resolvedCount}</p>
+              <p className="text-[10px] md:text-xs text-slate-500 mt-1">Исправлено</p>
             </div>
           </div>
 

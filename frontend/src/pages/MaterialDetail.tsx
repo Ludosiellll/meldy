@@ -59,7 +59,7 @@ export default function MaterialDetail() {
   const hasFlashcards = material.flashcards_json?.flashcards?.length > 0;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
       {/* Back */}
       <button
         onClick={() => navigate('/library')}
@@ -121,7 +121,7 @@ export default function MaterialDetail() {
       </p>
 
       {/* Режимы обучения */}
-      <div className="flex gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-full sm:w-fit mb-6 border border-slate-200">
+      <div className="flex flex-col sm:flex-row gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-full mb-6 border border-slate-200">
         <button
           onClick={() => setMode('full')}
           className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${

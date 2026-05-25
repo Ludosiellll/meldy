@@ -119,7 +119,7 @@ export default function Dashboard() {
   const recTool = getRecommendedTool();
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-3 md:p-6 max-w-5xl mx-auto">
       {/* Greeting + XP */}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div>
@@ -180,7 +180,7 @@ export default function Dashboard() {
       })()}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <StatCard icon={BookOpen} label="Материалов" value={materials.length} color="indigo" />
         <StatCard icon={Brain} label="Карточек сегодня" value={dueCards.length} color="emerald" />
         <StatCard icon={GraduationCap} label="Предметов" value={subjects.length} color="amber" />
@@ -237,7 +237,7 @@ export default function Dashboard() {
       )}
 
       {/* Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mt-4 md:mt-6">
         {/* Left Col: Quests */}
         <div className="lg:col-span-1 space-y-6">
           <div className="card p-5 border-l-4 border-l-indigo-500">
@@ -313,7 +313,7 @@ export default function Dashboard() {
 
         {/* Right Col: Due and Recent */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             {/* Due cards */}
             <div className="card p-5">
               <div className="flex items-center justify-between mb-4">
@@ -364,9 +364,9 @@ export default function Dashboard() {
           </div>
 
           {/* Activity chart */}
-          <div className="card p-5">
+          <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
             <h2 className="font-semibold text-slate-900 mb-4">Активность за 2 недели</h2>
-            <div style={{ height: 200 }}>
+            <div style={{ height: 200, minWidth: 500 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -385,7 +385,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mt-4 md:mt-6">
         <button
           onClick={() => navigate('/analyze')}
           className="card p-5 text-center hover:shadow-md transition group"

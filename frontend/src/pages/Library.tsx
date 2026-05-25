@@ -41,9 +41,9 @@ export default function Library() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Библиотека знаний</h1>
         <button
           onClick={() => navigate('/analyze')}
@@ -55,7 +55,7 @@ export default function Library() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -69,7 +69,7 @@ export default function Library() {
           <select
             value={subjectFilter}
             onChange={e => setSubjectFilter(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+            className="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
           >
             <option value="">Все предметы</option>
             {subjects.map(s => <option key={s} value={s}>{s}</option>)}

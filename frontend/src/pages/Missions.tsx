@@ -163,7 +163,7 @@ export default function Missions() {
   const currentMission = missions[activeStep];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
+    <div className="p-3 md:p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center">
       <ConfettiCelebration trigger={showConfetti} type="quest" />
       <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
       {/* Шапка */}
@@ -204,7 +204,7 @@ export default function Missions() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="card p-6 md:p-8 text-center"
+            className="card p-4 md:p-8 text-center"
           >
             <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Gamepad2 className="w-8 h-8 text-emerald-500" />
@@ -301,7 +301,7 @@ export default function Missions() {
             </div>
 
             {/* Игровой блок теории (простым языком) */}
-            <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-2xl p-6 shadow-xl relative border border-emerald-900/50 overflow-hidden">
+            <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-2xl p-4 md:p-6 shadow-xl relative border border-emerald-900/50 overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
               
               <div className="flex items-center gap-2 mb-3">
@@ -322,7 +322,7 @@ export default function Missions() {
             <motion.div 
               animate={shake ? { x: [-10, 10, -10, 10, 0] } : {}}
               transition={{ duration: 0.4 }}
-              className="card p-5 space-y-4 bg-white"
+              className="card p-4 md:p-5 space-y-4 bg-white"
             >
               <div className="flex items-center gap-2 mb-2">
                 <HelpCircle className="w-5 h-5 text-emerald-500 shrink-0" />
@@ -358,7 +358,7 @@ export default function Missions() {
                       key={opt}
                       onClick={() => handleOptionClick(opt)}
                       disabled={isCorrect !== null}
-                      className={`w-full p-4 rounded-xl border text-left text-xs sm:text-sm font-medium transition-all duration-200 flex justify-between items-center ${btnStyle}`}
+                      className={`w-full p-3 md:p-4 rounded-xl border text-left text-xs sm:text-sm font-medium transition-all duration-200 flex justify-between items-center ${btnStyle}`}
                     >
                       <span>{opt}</span>
                       {selectedOption && isThisSelected && (
@@ -418,7 +418,7 @@ export default function Missions() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="card p-8 md:p-10 text-center bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100 shadow-lg relative overflow-hidden"
+            className="card p-5 md:p-10 text-center bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100 shadow-lg relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />

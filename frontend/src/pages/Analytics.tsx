@@ -127,7 +127,7 @@ export default function Analytics() {
   );
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6 md:space-y-8">
       {/* Заголовок */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -175,7 +175,7 @@ export default function Analytics() {
       </motion.div>
 
       {/* Ключевые метрики */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
         {[
           { icon: Flame, label: 'Стрик', value: `${streak} дн.`, color: 'rose', sub: 'дней подряд' },
           { icon: Trophy, label: 'Экзаменов', value: exams.length, color: 'amber', sub: 'сдано' },
@@ -186,7 +186,7 @@ export default function Analytics() {
             key={label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card p-4"
+            className="card p-3 md:p-4"
           >
             <div className={`w-9 h-9 bg-${color}-50 rounded-lg flex items-center justify-center mb-3`}>
               <Icon className={`w-5 h-5 text-${color}-600`} />
@@ -198,14 +198,14 @@ export default function Analytics() {
       </div>
 
       {/* Два столбца: график активности + radar */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* График активности */}
-        <div className="card p-5">
+        <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
           <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-indigo-500" />
             Активность за 30 дней
           </h3>
-          <div style={{ height: 180 }}>
+          <div style={{ height: 180, minWidth: 400 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData}>
                 <defs>
@@ -224,12 +224,12 @@ export default function Analytics() {
         </div>
 
         {/* Профиль навыков */}
-        <div className="card p-5">
+        <div className="card p-4 md:p-5">
           <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-500" />
             Профиль навыков
           </h3>
-          <div style={{ height: 180 }}>
+          <div style={{ height: 180, minWidth: 250 }}>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
                 <PolarGrid stroke="#e2e8f0" />
@@ -242,7 +242,7 @@ export default function Analytics() {
       </div>
 
       {/* Оценки на экзаменах */}
-      <div className="card p-5">
+      <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
         <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
           <Award className="w-4 h-4 text-rose-500" />
           Динамика оценок на AI-Экзамене
@@ -254,7 +254,7 @@ export default function Analytics() {
             <p className="text-xs text-slate-400">Сдайте еще {3 - examScoreData.length} экзамен(а), чтобы увидеть график</p>
           </div>
         ) : (
-          <div style={{ height: 160 }}>
+          <div style={{ height: 160, minWidth: 350 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={examScoreData}>
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -278,7 +278,7 @@ export default function Analytics() {
       </div>
 
       {/* Тепловая карта */}
-      <div className="card p-5">
+      <div className="card p-4 md:p-5">
         <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-2">
           <Calendar className="w-4 h-4 text-emerald-500" />
           Карта активности (12 недель)
@@ -308,7 +308,7 @@ export default function Analytics() {
 
       {/* Слабые темы */}
       {mistakeTopics.length > 0 && (
-        <div className="card p-5">
+        <div className="card p-4 md:p-5">
           <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
             <BookMarked className="w-4 h-4 text-amber-500" />
             Топ тем с ошибками
@@ -342,7 +342,7 @@ export default function Analytics() {
       )}
 
       {/* Достижения */}
-      <div className="card p-5">
+      <div className="card p-4 md:p-5">
         <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
           <Trophy className="w-4 h-4 text-amber-500" />
           Достижения ({earnedAchievements.length}/{ACHIEVEMENTS.length})

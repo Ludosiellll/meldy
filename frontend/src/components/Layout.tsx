@@ -1,10 +1,10 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Calendar, MessageSquare, LogOut, Award, Gamepad2,
   BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
-  Globe, Briefcase, MessageCircle, User, Bell
+  Globe, Briefcase, MessageCircle, User, Bell, Menu, X
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
@@ -54,14 +54,15 @@ const navGroups = [
 
 const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
-  { to: '/network',   icon: Globe,            label: 'Хаб' },
-  { to: '/messages',  icon: MessageCircle,    label: 'Чат' },
+  { to: '/library',   icon: BookOpen,         label: 'Материалы' },
+  { to: '/messages',  icon: MessageCircle,    label: 'Сообщения' },
   { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
 
 export default function Layout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const email = user?.email ?? '';
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '?';
   const initial = name ? name[0].toUpperCase() : '?';
@@ -72,22 +73,25 @@ export default function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  
+  // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!user?.id) return;
 
-    // XP
     const fetchXP = () => getUserXP(user.id).then(v => { setXp(v); setLevelInfo(calcLevel(v)); });
     fetchXP();
     window.addEventListener('xp_updated', fetchXP);
 
-    // Аватарка из профиля
     getProfile(user.id).then(p => { if (p?.avatar_url) setAvatarUrl(p.avatar_url); });
-
-    // Счётчик уведомлений
     getUnreadCount(user.id).then(setUnreadCount);
 
-    // Realtime подписка на новые уведомления
     const unsub = subscribeToNotifications(user.id, () => {
       getUnreadCount(user.id).then(setUnreadCount);
     });
@@ -112,22 +116,33 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* ═══ SIDEBAR ════════════════════════════════════════════════════════════ */}
-      <aside className="w-64 bg-slate-900 flex flex-col shrink-0 hidden md:flex border-r border-slate-800">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900 flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Logo */}
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="p-5 flex items-center gap-3 hover:opacity-80 transition w-full text-left"
-        >
-          <div className="w-7 h-7 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
-            <GraduationCap className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
-        </button>
+        <div className="p-4 md:p-5 flex items-center justify-between w-full border-b border-slate-800">
+          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 hover:opacity-80 transition text-left">
+            <div className="w-7 h-7 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
+              <GraduationCap className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
+          </button>
+          
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 -mr-2 text-slate-400 hover:text-white transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
         {/* XP / Level блок */}
-        <div className="mx-4 mt-2 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
+        <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
@@ -191,7 +206,6 @@ export default function Layout() {
         {/* User section */}
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3">
-            {/* Аватарка из профиля */}
             <button onClick={() => navigate('/profile')} className="shrink-0">
               {avatarUrl ? (
                 <img src={avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/50" />
@@ -205,24 +219,18 @@ export default function Layout() {
               <p className="text-slate-300 text-xs font-medium truncate">{name}</p>
               <p className="text-slate-500 text-[10px] truncate">{email}</p>
             </div>
-            {/* Колокольчик уведомлений */}
+            
             <div className="relative">
-              <button
-                onClick={handleOpenNotifications}
-                className="text-slate-500 hover:text-slate-200 transition relative"
-                title="Уведомления"
-              >
+              <button onClick={handleOpenNotifications} className="text-slate-500 hover:text-slate-200 transition relative p-1">
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </button>
-
-              {/* Дропдаун уведомлений */}
               {showNotifications && (
-                <div className="absolute bottom-8 right-0 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+                <div className="fixed inset-x-4 top-20 md:absolute md:bottom-8 md:top-auto md:right-0 md:w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-[60] overflow-hidden">
                   <div className="p-3 border-b border-slate-100 flex items-center justify-between">
                     <span className="font-bold text-slate-800 text-sm">Уведомления</span>
                     <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
@@ -242,11 +250,7 @@ export default function Layout() {
               )}
             </div>
 
-            <button
-              onClick={signOut}
-              className="text-slate-500 hover:text-rose-400 transition"
-              title="Выйти"
-            >
+            <button onClick={signOut} className="text-slate-500 hover:text-rose-400 transition p-1">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -254,32 +258,57 @@ export default function Layout() {
       </aside>
 
       {/* ═══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
-      <main className="flex-1 overflow-auto pb-16 md:pb-0">
-        <ErrorBoundary>
-          <Outlet />
-        </ErrorBoundary>
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        {/* ═══ MOBILE HEADER ════════════════════════════════════════════════ */}
+        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shrink-0 z-30">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
+              <GraduationCap className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="font-bold tracking-tight text-slate-800 text-base">StudyForge</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={handleOpenNotifications} className="p-2 text-slate-500 hover:text-indigo-600 transition relative">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -mr-2 text-slate-500 hover:text-indigo-600 transition">
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
+        </header>
 
-      {/* ═══ MOBILE BOTTOM NAV ════════════════════════════════════════════════ */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 flex md:hidden">
-        {mobileNavItems.map(item => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              'flex-1 flex flex-col items-center justify-center py-2.5 gap-1 text-[10px] font-bold transition ' +
-              (isActive ? 'text-indigo-600' : 'text-slate-400')
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-                {item.label}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto pb-[70px] md:pb-0 custom-scrollbar relative scroll-smooth">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </main>
+
+        {/* ═══ MOBILE BOTTOM NAV ════════════════════════════════════════════════ */}
+        <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 backdrop-blur-md border-t border-slate-200 flex md:hidden pb-safe">
+          {mobileNavItems.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                'flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] gap-1 text-[10px] font-bold transition ' +
+                (isActive ? 'text-indigo-600' : 'text-slate-400')
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <item.icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  {item.label}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
     </div>
   );
 }
