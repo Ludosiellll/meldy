@@ -54,13 +54,12 @@ class CoordinatorAgent:
                 "label": agent_labels[name],
             }
             
-        # Запускаем агентов ПАРАЛЛЕЛЬНО и отдаем результаты по мере готовности
-        tasks = [asyncio.create_task(run_agent(name, prompts[name])) for name in agent_names]
-        
+        # Запускаем агентов ПО ОЧЕРЕДИ, чтобы не превысить лимиты API (429 Too Many Requests)
         done_count = 0
-        for coro in asyncio.as_completed(tasks):
-            agent_name, result = await coro
-            results[agent_name] = result
+        for name in agent_names:
+            result = await run_agent(name, prompts[name])
+            agent_name, agent_result = result
+            results[agent_name] = agent_result
             done_count += 1
             yield {
                 "type": "agent_done",
