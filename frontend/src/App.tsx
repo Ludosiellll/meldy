@@ -21,6 +21,8 @@ import KnowledgeMap from './pages/KnowledgeMap';
 import AuthCallback from './pages/AuthCallback';
 import SocialHub from './pages/SocialHub';
 import Career from './pages/Career';
+import Profile from './pages/Profile';
+import Messages from './pages/Messages';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,6 +47,9 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="network" element={<SocialHub />} />
           <Route path="career" element={<Career />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="profile/:id" element={<Profile />} />
+          <Route path="messages" element={<Messages />} />
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />

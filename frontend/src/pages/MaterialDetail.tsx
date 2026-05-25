@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit3, Check, X } from 'lucide-react';
+import { ArrowLeft, Edit3, Check, X, Globe, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
-import { getMaterialById, updateMaterialSubject } from '../api/materials';
+import { getMaterialById, updateMaterialSubject, updateMaterialVisibility } from '../api/materials';
 
 export default function MaterialDetail() {
   const { id } = useParams();
@@ -32,6 +32,13 @@ export default function MaterialDetail() {
     await updateMaterialSubject(id, subjectInput);
     setMaterial((prev: any) => ({ ...prev, subject: subjectInput }));
     setEditingSubject(false);
+  };
+
+  const togglePublic = async () => {
+    if (!id || !material) return;
+    const newStatus = !material.is_public;
+    await updateMaterialVisibility(id, newStatus);
+    setMaterial((prev: any) => ({ ...prev, is_public: newStatus }));
   };
 
   if (loading) return (
@@ -65,7 +72,7 @@ export default function MaterialDetail() {
         <h1 className="text-2xl font-bold text-slate-900">{material.title}</h1>
       </div>
 
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex flex-wrap items-center gap-3 mb-2">
         {editingSubject ? (
           <div className="flex items-center gap-2">
             <input
@@ -90,6 +97,21 @@ export default function MaterialDetail() {
             )}
           </button>
         )}
+
+        <div className="w-px h-4 bg-slate-300 hidden sm:block" />
+
+        <button 
+          onClick={togglePublic}
+          className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md transition ${
+            material.is_public ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          }`}
+        >
+          {material.is_public ? (
+            <><Globe className="w-3.5 h-3.5" /> В Маркетплейсе</>
+          ) : (
+            <><Lock className="w-3.5 h-3.5" /> Только для меня</>
+          )}
+        </button>
       </div>
 
       <p className="text-xs text-slate-400 mb-6">

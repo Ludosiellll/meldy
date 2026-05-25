@@ -27,5 +27,10 @@ export async function deleteMaterial(id: string) {
 
 export async function updateMaterialSubject(id: string, subject: string) {
   const { error } = await supabase.from('materials').update({ subject }).eq('id', id);
-  if (error) throw error;
+  if (error) console.error('updateMaterialSubject error:', error);
+}
+
+export async function updateMaterialVisibility(id: string, is_public: boolean) {
+  const { error } = await supabase.from('materials').update({ is_public }).eq('id', id);
+  if (error) console.error('updateMaterialVisibility error:', error);
 }
