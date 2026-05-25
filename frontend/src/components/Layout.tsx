@@ -49,14 +49,6 @@ const navGroups = [
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
       { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник' },
     ]
-  {
-    title: 'Аналитика',
-    items: [
-      { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
-      { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
-      { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
-      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник' },
-    ]
   }
 ];
 
@@ -136,6 +128,10 @@ export default function Layout() {
     }
   };
 
+  const avatarUrl = profile?.avatar_url;
+  const isTeacher = profile?.role === 'teacher';
+  const currentNavGroups = isTeacher ? teacherNavGroups : navGroups;
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
@@ -191,13 +187,13 @@ export default function Layout() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
-          {currentNavGroups.map((group, idx) => (
+          {currentNavGroups.map((group: any, idx: number) => (
             <div key={idx}>
               <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
                 {group.title}
               </h3>
               <div className="space-y-0.5">
-                {group.items.map(item => (
+                {group.items.map((item: any) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

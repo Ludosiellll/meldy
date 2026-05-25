@@ -36,7 +36,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     loadGroups();
     if (user) {
-      getMaterials(user.id).then(setMaterials);
+      getMaterials(user.id).then((data: any) => setMaterials(data as Material[]));
     }
   }, [user]);
 
