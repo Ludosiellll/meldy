@@ -173,9 +173,9 @@ export default function MaterialDetail() {
           textLength={0}
         />
       ) : mode === 'podcast' ? (
-        <ExpressPrepView summaryJson={{ ...material.summary_json, _startTab: 'podcast' }} />
+        <ExpressPrepView key="podcast" summaryJson={{ ...material.summary_json, _startTab: 'podcast' }} />
       ) : (
-        <ExpressPrepView summaryJson={material.summary_json} />
+        <ExpressPrepView key="express" summaryJson={material.summary_json} />
       )}
 
       {/* Review CTA */}

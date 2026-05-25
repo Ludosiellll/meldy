@@ -318,8 +318,7 @@ class BaseAgent:
                     genai.configure(api_key=key)
                     
                     GEMINI_MODELS = [
-                        "gemini-3.1-flash-lite",
-                        "gemini-2.5-flash-preview-05-20",
+                        "gemini-2.5-flash",
                         "gemini-2.0-flash",
                         "gemini-1.5-flash",
                     ]

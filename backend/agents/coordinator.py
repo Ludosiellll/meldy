@@ -54,12 +54,12 @@ class CoordinatorAgent:
                 "label": agent_labels[name],
             }
             
-        # Запускаем агентов ПАРАЛЛЕЛЬНО
-        tasks = [run_agent(name, prompts[name]) for name in agent_names]
-        gathered_results = await asyncio.gather(*tasks)
+        # Запускаем агентов ПАРАЛЛЕЛЬНО и отдаем результаты по мере готовности
+        tasks = [asyncio.create_task(run_agent(name, prompts[name])) for name in agent_names]
         
         done_count = 0
-        for agent_name, result in gathered_results:
+        for coro in asyncio.as_completed(tasks):
+            agent_name, result = await coro
             results[agent_name] = result
             done_count += 1
             yield {
@@ -67,7 +67,7 @@ class CoordinatorAgent:
                 "agent": agent_name,
                 "label": agent_labels[agent_name],
                 "progress": done_count,
-                "total": 6,
+                "total": len(agent_names),
             }
 
         yield {
