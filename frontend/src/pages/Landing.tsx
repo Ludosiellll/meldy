@@ -210,7 +210,6 @@ function Hero() {
             <motion.div 
               className="absolute top-[-10%] left-[-10%] w-[50%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-lg p-4 flex flex-col gap-2"
               style={{ transform: "translateZ(50px)" }}
-              whileHover={{ translateZ: 70 }}
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">📝 Конспект</span>
@@ -228,7 +227,6 @@ function Hero() {
             <motion.div 
               className="absolute bottom-[8%] right-[-10%] w-[45%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl p-4 flex flex-col gap-2.5"
               style={{ transform: "translateZ(90px)" }}
-              whileHover={{ translateZ: 110 }}
             >
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
                 <Brain className="w-3.5 h-3.5" />
@@ -248,7 +246,6 @@ function Hero() {
             <motion.div 
               className="absolute bottom-[-12%] left-[-5%] w-[48%] bg-indigo-600 text-white rounded-2xl shadow-2xl p-4 flex flex-col gap-2 border border-indigo-500/20"
               style={{ transform: "translateZ(70px)" }}
-              whileHover={{ translateZ: 90 }}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-indigo-200">
                 <span className="flex items-center gap-1"><Award className="w-3.5 h-3.5" /> Собеседование у Профессора</span>
