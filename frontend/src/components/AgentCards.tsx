@@ -7,12 +7,12 @@ function UnifiedProgressBar({ value }: { value: number }) {
   return (
     <div className="w-full max-w-xl mx-auto">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Общий прогресс анализа</span>
-        <span className="text-sm font-bold text-indigo-500 tabular-nums">{value}%</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Общий прогресс анализа</span>
+        <span className="text-sm font-black text-indigo-600 tabular-nums">{value}%</span>
       </div>
-      <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden p-[2px] border border-slate-700">
+      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden p-[2px] border border-slate-200 shadow-inner">
         <motion.div
-          className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+          className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-500 rounded-full shadow-sm"
           initial={{ width: '0%' }}
           animate={{ width: `${value}%` }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -43,8 +43,8 @@ function AgentTimer({ status }: { status: string }) {
 
   if (status === 'idle') return null;
   return status === 'done'
-    ? <span className="text-xs text-emerald-400 font-medium tabular-nums">{elapsed.toFixed(1)}с</span>
-    : <span className="text-xs text-slate-400 font-medium tabular-nums">{elapsed.toFixed(1)}с</span>;
+    ? <span className="text-xs text-emerald-600 font-bold tabular-nums">{elapsed.toFixed(1)}с</span>
+    : <span className="text-xs text-slate-500 font-bold tabular-nums">{elapsed.toFixed(1)}с</span>;
 }
 
 export default function AgentCards({ agents, phase, isDemo }: { agents: AgentStatus[]; phase: string; isDemo?: boolean }) {
@@ -60,10 +60,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
     summarizer: {
       label: 'Интеллектуальный Конспект',
       icon: FileText,
-      color: 'text-indigo-400',
-      bgColor: 'bg-indigo-950/20',
-      borderColor: 'border-indigo-500/30',
-      glowColor: 'shadow-indigo-500/10',
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-indigo-200',
+      glowColor: 'shadow-indigo-500/5',
       desc: {
         idle: 'В очереди на структурирование...',
         running: 'Извлекаем ключевые мысли...',
@@ -73,10 +73,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
     flashcards: {
       label: 'Флеш-Карточки',
       icon: BookOpen,
-      color: 'text-emerald-400',
-      bgColor: 'bg-emerald-950/20',
-      borderColor: 'border-emerald-500/30',
-      glowColor: 'shadow-emerald-500/10',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200',
+      glowColor: 'shadow-emerald-500/5',
       desc: {
         idle: 'Ожидание структурирования...',
         running: 'Генерируем карточки для интервального повторения...',
@@ -86,10 +86,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
     quiz: {
       label: 'Интерактивный Тест',
       icon: HelpCircle,
-      color: 'text-amber-400',
-      bgColor: 'bg-amber-950/20',
-      borderColor: 'border-amber-500/30',
-      glowColor: 'shadow-amber-500/10',
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-200',
+      glowColor: 'shadow-amber-500/5',
       desc: {
         idle: 'Ожидание анализа тем...',
         running: 'Создаем проверочные вопросы...',
@@ -99,10 +99,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
     cheatsheet: {
       label: 'Шпаргалка',
       icon: Sparkles,
-      color: 'text-rose-400',
-      bgColor: 'bg-rose-950/20',
-      borderColor: 'border-rose-500/30',
-      glowColor: 'shadow-rose-500/10',
+      color: 'text-rose-600',
+      bgColor: 'bg-rose-50',
+      borderColor: 'border-rose-200',
+      glowColor: 'shadow-rose-500/5',
       desc: {
         idle: 'Ожидание сжатия материала...',
         running: 'Упаковываем сложные термины в ёмкие формулировки...',
@@ -112,10 +112,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
     podcast: {
       label: 'Аудио-подкаст',
       icon: Mic,
-      color: 'text-violet-400',
-      bgColor: 'bg-violet-950/20',
-      borderColor: 'border-violet-500/30',
-      glowColor: 'shadow-violet-500/10',
+      color: 'text-violet-600',
+      bgColor: 'bg-violet-50',
+      borderColor: 'border-violet-200',
+      glowColor: 'shadow-violet-500/5',
       desc: {
         idle: 'Ожидание генерации сценария...',
         running: 'Создаем текстовый скрипт для аудио-подкаста...',
@@ -125,10 +125,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
     missions: {
       label: 'Учебные квесты',
       icon: Compass,
-      color: 'text-cyan-400',
-      bgColor: 'bg-cyan-950/20',
-      borderColor: 'border-cyan-500/30',
-      glowColor: 'shadow-cyan-500/10',
+      color: 'text-cyan-600',
+      bgColor: 'bg-cyan-50',
+      borderColor: 'border-cyan-200',
+      glowColor: 'shadow-cyan-500/5',
       desc: {
         idle: 'Ожидание построения целей...',
         running: 'Формируем индивидуальные миссии для лекции...',
@@ -150,17 +150,17 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
   return (
     <div className="py-10 relative">
       {isDemo && (
-        <span className="absolute top-0 right-0 px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-400 text-xs font-bold border border-amber-500/20 tracking-wide uppercase">
+        <span className="absolute top-0 right-0 px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 text-xs font-black border border-amber-200 tracking-wide uppercase shadow-sm">
           ДЕМО
         </span>
       )}
 
       {/* Шапка прогресса */}
       <div className="flex flex-col items-center mb-10 text-center">
-        <h2 className="text-2xl font-extrabold text-slate-100 mb-2">
+        <h2 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">
           {phase === 'extracting' ? 'Извлечение текста из файла...' : 'Интеллектуальный анализ материала'}
         </h2>
-        <p className="text-slate-400 text-sm max-w-md mb-6 leading-relaxed">
+        <p className="text-slate-500 text-sm font-medium max-w-md mb-8 leading-relaxed">
           {phase === 'extracting'
             ? 'Пожалуйста, подождите. Мы считываем содержимое и подготавливаем данные для ИИ-агентов.'
             : `Нейросетевые агенты работают параллельно. Завершено: ${doneCount} из ${agents.length}`}
@@ -175,10 +175,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
           const config = agentConfigs[agent.id] || {
             label: agent.label,
             icon: FileText,
-            color: 'text-indigo-400',
-            bgColor: 'bg-indigo-950/20',
-            borderColor: 'border-indigo-500/30',
-            glowColor: 'shadow-indigo-500/10',
+            color: 'text-indigo-600',
+            bgColor: 'bg-indigo-50',
+            borderColor: 'border-indigo-200',
+            glowColor: 'shadow-indigo-500/5',
             desc: { idle: 'В очереди...', running: 'Обработка...', done: 'Готово' }
           };
 
@@ -190,22 +190,22 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
-              className={`p-5 rounded-2xl border bg-slate-900/60 backdrop-blur-md flex flex-col justify-between transition-all duration-300 shadow-lg ${config.glowColor} ${
+              className={`p-5 rounded-2xl border bg-white flex flex-col justify-between transition-all duration-300 shadow-sm ${config.glowColor} ${
                 agent.status === 'running'
-                  ? `border-indigo-500/60 ring-1 ring-indigo-500/20`
+                  ? `border-indigo-300 ring-4 ring-indigo-50`
                   : agent.status === 'done'
-                  ? `border-emerald-500/30`
-                  : `border-slate-800`
+                  ? `border-emerald-200 bg-emerald-50/30`
+                  : `border-slate-200 opacity-80`
               }`}
             >
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${config.bgColor} ${config.color}`}>
+                  <div className={`p-2.5 rounded-xl border ${config.borderColor} ${config.bgColor} ${config.color} shadow-sm`}>
                     <IconComponent className="w-5 h-5 animate-pulse-slow" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-200 text-sm">{config.label}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5 min-h-[16px]">
+                    <h3 className="font-bold text-slate-800 text-sm">{config.label}</h3>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5 min-h-[16px]">
                       {config.desc[agent.status]}
                     </p>
                   </div>
@@ -213,26 +213,26 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
 
                 <div className="flex items-center gap-1.5 self-start pt-1">
                   {agent.status === 'running' && (
-                    <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+                    <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                   )}
                   {agent.status === 'done' && (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                   )}
                   {agent.status === 'idle' && (
-                    <Clock className="w-4 h-4 text-slate-600 shrink-0" />
+                    <Clock className="w-4 h-4 text-slate-400 shrink-0" />
                   )}
                   <AgentTimer status={agent.status} />
                 </div>
               </div>
 
               {/* Индикатор прогресса конкретного агента */}
-              <div className="w-full bg-slate-850 h-1.5 rounded-full overflow-hidden mt-2">
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-3 shadow-inner">
                 {agent.status === 'idle' && (
-                  <div className="h-full bg-slate-800 w-0" />
+                  <div className="h-full bg-slate-200 w-0" />
                 )}
                 {agent.status === 'running' && (
                   <motion.div
-                    className={`h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full`}
+                    className={`h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full`}
                     initial={{ width: '0%' }}
                     animate={{ width: '90%' }}
                     transition={{ duration: 12, ease: 'easeOut' }}
@@ -240,7 +240,7 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
                 )}
                 {agent.status === 'done' && (
                   <motion.div
-                    className="h-full bg-emerald-500 rounded-full"
+                    className="h-full bg-emerald-500 rounded-full shadow-sm"
                     initial={{ width: '90%' }}
                     animate={{ width: '100%' }}
                     transition={{ duration: 0.3 }}
