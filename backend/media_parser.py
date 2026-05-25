@@ -58,7 +58,14 @@ async def _download_and_transcribe_youtube(youtube_url: str) -> str:
 
         return await transcribe_media_file(temp_path, "video/mp4")
     except Exception as e:
-        raise ValueError(f"Ошибка транскрибации YouTube: {str(e)}")
+        error_msg = str(e)
+        if "bot" in error_msg.lower() or "sign in" in error_msg.lower():
+            raise ValueError(
+                "YouTube заблокировал скачивание с серверов платформы (защита от ботов). "
+                "Пожалуйста, скачайте это видео самостоятельно в формате MP3/MP4 (например, через любой YouTube Downloader) "
+                "и загрузите файл напрямую во вкладку 'Видео / Аудио'."
+            )
+        raise ValueError(f"Ошибка транскрибации YouTube: {error_msg}")
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
