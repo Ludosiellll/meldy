@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Check, X } from 'lucide-react';
 
@@ -21,14 +21,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isAlert, setIsAlert] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
-  const [resolvePromise, setResolvePromise] = useState<((value: boolean) => void) | null>(null);
+  const resolvePromiseRef = useRef<((value: boolean) => void) | null>(null);
 
   const confirm = (opts: ConfirmOptions) => {
     setOptions(opts);
     setIsAlert(false);
     setIsOpen(true);
     return new Promise<boolean>((resolve) => {
-      setResolvePromise(() => resolve);
+      resolvePromiseRef.current = resolve;
     });
   };
 
@@ -37,18 +37,24 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     setIsAlert(true);
     setIsOpen(true);
     return new Promise<void>((resolve) => {
-      setResolvePromise(() => resolve as any);
+      resolvePromiseRef.current = resolve as any;
     });
   };
 
   const handleConfirm = () => {
     setIsOpen(false);
-    if (resolvePromise) resolvePromise(true);
+    if (resolvePromiseRef.current) {
+      resolvePromiseRef.current(true);
+      resolvePromiseRef.current = null;
+    }
   };
 
   const handleCancel = () => {
     setIsOpen(false);
-    if (resolvePromise) resolvePromise(false);
+    if (resolvePromiseRef.current) {
+      resolvePromiseRef.current(false);
+      resolvePromiseRef.current = null;
+    }
   };
 
   return (
@@ -57,7 +63,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       
       <AnimatePresence>
         {isOpen && options && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div key="confirm-modal-container" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

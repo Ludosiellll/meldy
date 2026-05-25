@@ -52,22 +52,22 @@ export default function Dashboard() {
       supabase.from('mood_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1).maybeSingle(),
       getQuestsWithProgress(user.id),
       getUserXP(user.id),
-      supabase.from('study_plans').select('subjects').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData, xpVal, planRes]) => {
+    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData, xpVal]) => {
       setMaterials(mats);
       setDueCards(cards);
-      setSubjects(subRes.data || []);
+      const fetchedSubjects = subRes.data || [];
+      setSubjects(fetchedSubjects);
       setSessions(sessRes.data || []);
       setMood(moodRes.data);
       setQuests(questsData);
       const lvl = calcLevel(xpVal);
       setXp(xpVal);
       setLevelInfo(lvl);
-      // Ближайший экзамен из плана
-      if (planRes.data?.subjects) {
+      // Ближайший экзамен
+      if (fetchedSubjects.length > 0) {
         const today = new Date().toISOString().split('T')[0];
-        const upcoming = (planRes.data.subjects as any[])
-          .filter(s => s.exam_date >= today)
+        const upcoming = fetchedSubjects
+          .filter(s => s.exam_date && s.exam_date >= today)
           .sort((a, b) => a.exam_date.localeCompare(b.exam_date));
         if (upcoming.length > 0) setNextExam(upcoming[0]);
       }
