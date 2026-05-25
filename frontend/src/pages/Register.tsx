@@ -162,6 +162,7 @@ export default function Register() {
                 </div>
                 <input
                   type="text"
+                  autoComplete="name"
                   value={name}
                   onChange={e => {
                     setName(e.target.value);
@@ -182,6 +183,7 @@ export default function Register() {
                 </div>
                 <input
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={e => {
                     setEmail(e.target.value);
@@ -202,6 +204,7 @@ export default function Register() {
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={password}
                   onChange={e => {
                     setPassword(e.target.value);
@@ -247,6 +250,7 @@ export default function Register() {
                 </div>
                 <input
                   type={showConfirm ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={confirm}
                   onChange={e => setConfirm(e.target.value)}
                   className="block w-full pl-11 pr-11 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"

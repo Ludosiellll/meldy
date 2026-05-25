@@ -36,14 +36,14 @@ export const validateEmail = (email: string) => {
     const domain = parts[1].toLowerCase();
     
     // Smart Typo Detection for popular Russian and Global providers
-    if (domain.includes('gmail.') && domain !== 'gmail.com') return 'Опечатка? Возможно, вы имели в виду gmail.com';
-    if (domain.includes('mail.') && domain !== 'mail.ru' && domain !== 'email.com') return 'Опечатка? Возможно, вы имели в виду mail.ru';
-    if (domain.includes('yandex.') && !['yandex.ru', 'yandex.com', 'yandex.kz', 'yandex.by'].includes(domain)) return 'Опечатка? Возможно, вы имели в виду yandex.ru';
-    if (domain.includes('bk.') && domain !== 'bk.ru') return 'Опечатка? Возможно, вы имели в виду bk.ru';
-    if (domain.includes('inbox.') && domain !== 'inbox.ru') return 'Опечатка? Возможно, вы имели в виду inbox.ru';
-    if (domain.includes('list.') && domain !== 'list.ru') return 'Опечатка? Возможно, вы имели в виду list.ru';
-    if (domain.includes('ya.') && domain !== 'ya.ru') return 'Опечатка? Возможно, вы имели в виду ya.ru';
-    if (domain.includes('icloud.') && domain !== 'icloud.com') return 'Опечатка? Возможно, вы имели в виду icloud.com';
+    if (domain.startsWith('gmail.') && domain !== 'gmail.com') return 'Опечатка? Возможно, вы имели в виду gmail.com';
+    if (domain.startsWith('mail.') && domain !== 'mail.ru' && domain !== 'email.com') return 'Опечатка? Возможно, вы имели в виду mail.ru';
+    if (domain.startsWith('yandex.') && !['yandex.ru', 'yandex.com', 'yandex.kz', 'yandex.by'].includes(domain)) return 'Опечатка? Возможно, вы имели в виду yandex.ru';
+    if (domain.startsWith('bk.') && domain !== 'bk.ru') return 'Опечатка? Возможно, вы имели в виду bk.ru';
+    if (domain.startsWith('inbox.') && domain !== 'inbox.ru') return 'Опечатка? Возможно, вы имели в виду inbox.ru';
+    if (domain.startsWith('list.') && domain !== 'list.ru') return 'Опечатка? Возможно, вы имели в виду list.ru';
+    if (domain.startsWith('ya.') && domain !== 'ya.ru') return 'Опечатка? Возможно, вы имели в виду ya.ru';
+    if (domain.startsWith('icloud.') && domain !== 'icloud.com') return 'Опечатка? Возможно, вы имели в виду icloud.com';
   }
 
   return '';
