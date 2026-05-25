@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { updateQuestProgress } from '../api/quests';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
@@ -24,24 +25,21 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
 
   const [tab, setTab] = useState<'cheatsheet' | 'podcast'>(searchParams.get('tab') === 'podcast' ? 'podcast' : 'cheatsheet');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState(-1);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const currentIndexRef = useRef(0);
 
   // Очистка при размонтировании
   useEffect(() => {
     return () => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      stopTTS();
     };
   }, []);
 
   const stopPodcast = () => {
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    stopTTS();
     setIsPlaying(false);
+    setIsPaused(false);
     setCurrentSpeakingIndex(-1);
     currentIndexRef.current = 0;
   };
@@ -52,26 +50,28 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
       return;
     }
 
-    if (isPlaying) {
+    if (isPlaying && !isPaused) {
       // Пауза
-      window.speechSynthesis.pause();
-      setIsPlaying(false);
+      pauseTTS();
+      setIsPaused(true);
       return;
     }
 
-    if (window.speechSynthesis.paused && currentSpeakingIndex !== -1) {
+    if (isPlaying && isPaused) {
       // Возобновление
-      window.speechSynthesis.resume();
-      setIsPlaying(true);
+      resumeTTS();
+      setIsPaused(false);
       return;
     }
 
     // Запуск с начала или с текущего индекса
-    window.speechSynthesis.cancel();
+    stopTTS();
+    setIsPaused(false);
     
     const speakNext = () => {
       if (currentIndexRef.current >= podcastLines.length) {
         setIsPlaying(false);
+        setIsPaused(false);
         setCurrentSpeakingIndex(-1);
         currentIndexRef.current = 0;
         return;
@@ -80,46 +80,22 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
       const line = podcastLines[currentIndexRef.current];
       setCurrentSpeakingIndex(currentIndexRef.current);
 
-      const utterance = new SpeechSynthesisUtterance(line.text);
-      utterance.lang = 'ru-RU';
-      utteranceRef.current = utterance;
+      const role = line.speaker === 'Макс' ? 'male' : 'female';
 
-      // Настройка голосов и тембра
-      const voices = window.speechSynthesis.getVoices();
-      const ruVoices = voices.filter(v => v.lang.startsWith('ru'));
-
-      if (line.speaker === 'Макс') {
-        const maleVoice = ruVoices.find(v => 
-          v.name.toLowerCase().includes('male') || 
-          v.name.toLowerCase().includes('dmitry') || 
-          v.name.toLowerCase().includes('pavel')
-        );
-        if (maleVoice) utterance.voice = maleVoice;
-        utterance.pitch = 0.95; // Более низкий тембр для Макса
-        utterance.rate = 1.0;
-      } else {
-        const femaleVoice = ruVoices.find(v => 
-          v.name.toLowerCase().includes('female') || 
-          v.name.toLowerCase().includes('milena') || 
-          v.name.toLowerCase().includes('katya')
-        );
-        if (femaleVoice) utterance.voice = femaleVoice;
-        utterance.pitch = 1.22; // Более высокий и звонкий для Софьи
-        utterance.rate = 1.05;  // Чуть быстрее
-      }
-
-      utterance.onend = () => {
-        currentIndexRef.current++;
-        speakNext();
-      };
-
-      utterance.onerror = (e) => {
-        console.error('Speech synthesis error:', e);
-        setIsPlaying(false);
-        setCurrentSpeakingIndex(-1);
-      };
-
-      window.speechSynthesis.speak(utterance);
+      playTTS(
+        line.text,
+        role,
+        () => {
+          currentIndexRef.current++;
+          speakNext();
+        },
+        (e) => {
+          console.error('Speech synthesis error:', e);
+          setIsPlaying(false);
+          setIsPaused(false);
+          setCurrentSpeakingIndex(-1);
+        }
+      );
     };
 
     setIsPlaying(true);
@@ -213,8 +189,8 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
                       onClick={playPodcast}
                       className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-lg shadow-rose-950"
                     >
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      {isPlaying ? 'Пауза' : currentSpeakingIndex !== -1 ? 'Продолжить' : 'Слушать подкаст'}
+                      {isPlaying && !isPaused ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {isPlaying && !isPaused ? 'Пауза' : currentSpeakingIndex !== -1 ? 'Продолжить' : 'Слушать подкаст'}
                     </button>
                     {currentSpeakingIndex !== -1 && (
                       <button

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles } from 'lucide-react';
+import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles, Play, Pause, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
@@ -11,6 +11,7 @@ import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } f
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
+import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -58,6 +59,9 @@ export default function ProfessorExam() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [achievement, setAchievement] = useState<Achievement | null>(null);
 
+  // Состояние TTS
+  const [ttsState, setTtsState] = useState<'playing' | 'paused' | 'stopped'>('stopped');
+
   // Сохранение состояния в sessionStorage
   useEffect(() => {
     sessionStorage.setItem('studyforge_professor_exam_state', JSON.stringify({
@@ -70,6 +74,26 @@ export default function ProfessorExam() {
       socraticMode
     }));
   }, [selectedMaterialId, phase, currentQuestion, answerText, history, evaluation, socraticMode]);
+
+  // Автоозвучка при появлении вопроса
+  useEffect(() => {
+    if (phase === 'question' && currentQuestion) {
+      setTtsState('playing');
+      playTTS(
+        currentQuestion, 
+        'professor', 
+        () => setTtsState('stopped'),
+        () => setTtsState('stopped')
+      );
+    } else {
+      stopTTS();
+      setTtsState('stopped');
+    }
+
+    return () => {
+      stopTTS();
+    };
+  }, [phase, currentQuestion]);
 
   // Загрузка материалов и истории экзаменов
   useEffect(() => {
@@ -526,8 +550,27 @@ export default function ProfessorExam() {
                 <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-700">
                   <HelpCircle className="w-5 h-5 text-rose-400" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-slate-300 text-xs uppercase tracking-wider mb-1">Вопрос профессора:</h3>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-semibold text-slate-300 text-xs uppercase tracking-wider">Вопрос профессора:</h3>
+                    <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
+                      {ttsState === 'playing' ? (
+                        <button onClick={() => { pauseTTS(); setTtsState('paused'); }} className="p-1.5 hover:bg-slate-700 rounded-md transition text-slate-300" title="Пауза">
+                          <Pause className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button onClick={() => { 
+                          if (ttsState === 'paused') { resumeTTS(); setTtsState('playing'); }
+                          else { playTTS(currentQuestion, 'professor', () => setTtsState('stopped')); setTtsState('playing'); }
+                        }} className="p-1.5 hover:bg-slate-700 rounded-md transition text-slate-300" title="Воспроизвести">
+                          <Play className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button onClick={() => { stopTTS(); setTtsState('stopped'); }} className="p-1.5 hover:bg-slate-700 rounded-md transition text-slate-300" title="Остановить">
+                        <Square className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                   <div className="text-base font-medium text-white leading-relaxed markdown-content white-text professor-question">
                     <ReactMarkdown>{currentQuestion}</ReactMarkdown>
                   </div>
