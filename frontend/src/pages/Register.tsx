@@ -30,6 +30,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -45,6 +46,7 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
     
     const ne = validateName(name);
     const ee = validateEmail(email);
@@ -62,7 +64,7 @@ export default function Register() {
       return;
     }
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -71,8 +73,19 @@ export default function Register() {
       },
     });
     
-    if (error) setError(error.message);
-    else navigate('/dashboard');
+    if (error) {
+      if (error.message.includes('already registered')) {
+        setError('Пользователь с таким email уже существует');
+      } else {
+        setError('Произошла ошибка при регистрации. Проверьте данные.');
+      }
+    } else {
+      if (data.session) {
+        navigate('/dashboard');
+      } else {
+        setSuccess('Успешно! Мы отправили письмо с подтверждением на вашу почту. Пожалуйста, перейдите по ссылке в письме.');
+      }
+    }
     
     setLoading(false);
   };
@@ -105,7 +118,15 @@ export default function Register() {
             </motion.div>
           )}
 
-          <form onSubmit={handleRegister} className="space-y-4">
+          {success && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-4 py-4 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center gap-2 shadow-sm shadow-emerald-100">
+              <Mail className="w-8 h-8 text-emerald-500 mb-1" />
+              {success}
+            </motion.div>
+          )}
+
+          {!success && (
+            <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1.5">Имя</label>
               <div className="relative">
@@ -213,6 +234,7 @@ export default function Register() {
               )}
             </button>
           </form>
+          )}
 
           <p className="mt-8 text-center text-sm text-slate-500 font-medium">
             Уже есть аккаунт?{' '}

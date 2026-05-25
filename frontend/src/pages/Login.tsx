@@ -22,8 +22,13 @@ export default function Login() {
     setLoading(true);
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
-    else navigate('/dashboard');
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        setError('Неверный email или пароль');
+      } else {
+        setError('Произошла ошибка при входе. Проверьте данные.');
+      }
+    } else navigate('/dashboard');
     setLoading(false);
   };
 
@@ -87,6 +92,15 @@ export default function Login() {
                   placeholder="••••••••"
                   required
                 />
+              </div>
+              <div className="flex justify-end mt-2">
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/forgot-password')} 
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-500 transition-colors"
+                >
+                  Забыли пароль?
+                </button>
               </div>
             </div>
 
