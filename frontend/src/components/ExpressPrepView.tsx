@@ -23,7 +23,11 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
   const cheatsheet = summaryJson?.cheatsheet || '';
   const podcastLines: PodcastLine[] = summaryJson?.podcast || [];
 
-  const [tab, setTab] = useState<'cheatsheet' | 'podcast'>(searchParams.get('tab') === 'podcast' ? 'podcast' : 'cheatsheet');
+  const [tab, setTab] = useState<'cheatsheet' | 'podcast'>(
+    summaryJson?._startTab === 'podcast' || searchParams.get('tab') === 'podcast' 
+      ? 'podcast' 
+      : 'cheatsheet'
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState(-1);

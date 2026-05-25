@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Check, X, Globe, Lock } from 'lucide-react';
+import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import ResultsPanel from '../components/ResultsPanel';
@@ -16,7 +16,11 @@ export default function MaterialDetail() {
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
-  const [mode, setMode] = useState<'full' | 'express'>(searchParams.get('mode') === 'express' ? 'express' : 'full');
+  const [mode, setMode] = useState<'full' | 'express' | 'podcast'>(  
+    searchParams.get('mode') === 'express' 
+      ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
+      : 'full'
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -57,6 +61,7 @@ export default function MaterialDetail() {
   );
 
   const hasFlashcards = material.flashcards_json?.flashcards?.length > 0;
+  const hasPodcast = material.summary_json?.podcast?.length > 0;
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -124,24 +129,36 @@ export default function MaterialDetail() {
       <div className="flex flex-col sm:flex-row gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-full mb-6 border border-slate-200">
         <button
           onClick={() => setMode('full')}
-          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition ${
             mode === 'full'
               ? 'bg-slate-900 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          📚 Полноформатное обучение
+          <BookOpen className="w-4 h-4" /> Полное обучение
         </button>
         <button
           onClick={() => setMode('express')}
-          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition ${
             mode === 'express'
               ? 'bg-rose-600 text-white shadow-md'
               : 'text-slate-600 hover:text-rose-600'
           }`}
         >
-          ⚡ За 5 минут до экзамена
+          <Zap className="w-4 h-4" /> За 5 минут
         </button>
+        {hasPodcast && (
+          <button
+            onClick={() => setMode('podcast')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition ${
+              mode === 'podcast'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-indigo-600'
+            }`}
+          >
+            <Headphones className="w-4 h-4" /> AI-Подкаст
+          </button>
+        )}
       </div>
 
       {/* Контент в зависимости от выбранного режима */}
@@ -155,6 +172,8 @@ export default function MaterialDetail() {
           onReset={() => navigate('/library')}
           textLength={0}
         />
+      ) : mode === 'podcast' ? (
+        <ExpressPrepView summaryJson={{ ...material.summary_json, _startTab: 'podcast' }} />
       ) : (
         <ExpressPrepView summaryJson={material.summary_json} />
       )}

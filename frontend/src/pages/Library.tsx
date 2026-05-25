@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, BookOpen, Trash2, Plus } from 'lucide-react';
+import { Search, BookOpen, Trash2, Plus, Headphones } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
@@ -107,6 +107,7 @@ export default function Library() {
           {filtered.map(m => {
             const fcCount = m.flashcards_json?.flashcards?.length || 0;
             const qCount = m.quiz_json?.quiz?.length || 0;
+            const hasPodcast = m.summary_json?.podcast?.length > 0;
             return (
               <div
                 key={m.id}
@@ -125,14 +126,29 @@ export default function Library() {
                 {m.subject && (
                   <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-md mb-2">{m.subject}</span>
                 )}
-                <div className="flex items-center gap-3 text-sm text-slate-500 mb-2">
+                <div className="flex items-center gap-3 text-sm text-slate-500 mb-3">
                   <span>📝</span>
                   <span>🃏 {fcCount}</span>
                   <span>❓ {qCount}</span>
+                  {hasPodcast && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full">
+                      <Headphones className="w-3 h-3" /> Подкаст
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-slate-400">
-                  {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-400">
+                    {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
+                  </p>
+                  {hasPodcast && (
+                    <button
+                      onClick={e => { e.stopPropagation(); navigate(`/library/${m.id}?mode=express&tab=podcast`); }}
+                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold transition opacity-0 group-hover:opacity-100"
+                    >
+                      <Headphones className="w-3.5 h-3.5" /> Слушать →
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
