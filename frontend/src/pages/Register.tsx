@@ -64,6 +64,10 @@ export default function Register() {
       } else {
         setError('Произошла ошибка при регистрации. Проверьте данные.');
       }
+    } else if (data?.user?.identities && data.user.identities.length === 0) {
+      // Supabase "Prevent email enumeration" is ON, so it returns success but empty identities array
+      // for users that already exist in the database.
+      setError('Пользователь с таким email уже существует');
     } else {
       if (data.session) {
         navigate('/dashboard');
