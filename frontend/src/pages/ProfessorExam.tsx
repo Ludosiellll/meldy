@@ -370,10 +370,34 @@ export default function ProfessorExam() {
   // Цвета для академической оценки
   const getGradeColors = (grade: string) => {
     switch (grade) {
-      case '5': return { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', sealBg: 'bg-emerald-500', label: 'ОТЛИЧНО (5)' };
-      case '4': return { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', sealBg: 'bg-indigo-500', label: 'ХОРОШО (4)' };
-      case '3': return { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', sealBg: 'bg-amber-500', label: 'УДОВЛЕТВОРИТЕЛЬНО (3)' };
-      default: return { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', sealBg: 'bg-rose-500', label: 'НЕУД (2)' };
+      case '5': return {
+        bg: 'bg-gradient-to-br from-emerald-50/90 to-teal-50/40 border-emerald-200/60 shadow-lg shadow-emerald-100/10 backdrop-blur-md',
+        text: 'text-emerald-950',
+        textColor: 'text-emerald-800',
+        sealBg: 'bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-emerald-200 shadow-md border border-emerald-400',
+        label: '🏆 Отлично (5)'
+      };
+      case '4': return {
+        bg: 'bg-gradient-to-br from-indigo-50/90 to-blue-50/40 border-indigo-200/60 shadow-lg shadow-indigo-100/10 backdrop-blur-md',
+        text: 'text-indigo-950',
+        textColor: 'text-indigo-800',
+        sealBg: 'bg-gradient-to-tr from-indigo-500 to-blue-500 shadow-indigo-200 shadow-md border border-indigo-400',
+        label: '⭐ Хорошо (4)'
+      };
+      case '3': return {
+        bg: 'bg-gradient-to-br from-amber-50/90 to-orange-50/40 border-amber-200/60 shadow-lg shadow-amber-100/10 backdrop-blur-md',
+        text: 'text-amber-950',
+        textColor: 'text-amber-800',
+        sealBg: 'bg-gradient-to-tr from-amber-500 to-orange-500 shadow-amber-200 shadow-md border border-amber-400',
+        label: '📝 Удовлетворительно (3)'
+      };
+      default: return {
+        bg: 'bg-gradient-to-br from-rose-50/90 to-red-50/40 border-rose-200/60 shadow-lg shadow-rose-100/10 backdrop-blur-md',
+        text: 'text-rose-950',
+        textColor: 'text-rose-800',
+        sealBg: 'bg-gradient-to-tr from-rose-500 to-red-500 shadow-rose-200 shadow-md border border-rose-400',
+        label: '❌ Неудовлетворительно (2)'
+      };
     }
   };
 
@@ -633,24 +657,50 @@ export default function ProfessorExam() {
             {(() => {
               const colors = getGradeColors(evaluation.grade);
               return (
-                <div className={`border rounded-2xl p-4 md:p-6 shadow-sm flex flex-col md:flex-row items-center gap-4 md:gap-6 ${colors.bg}`}>
+                <div className={`border rounded-3xl p-5 md:p-7 flex flex-col md:flex-row items-center gap-6 md:gap-8 ${colors.bg}`}>
                   {/* Академическая печать оценки */}
                   <div className="shrink-0 flex flex-col items-center justify-center">
-                    <div className={`w-20 h-20 rounded-full flex flex-col items-center justify-center text-white font-black text-3xl shadow-md ${colors.sealBg} relative overflow-hidden`}>
-                      <div className="absolute inset-0 bg-white/10 rounded-full scale-90 border border-dashed border-white/50" />
+                    <div className={`w-24 h-24 rounded-full flex flex-col items-center justify-center text-white font-black text-4xl shadow-xl ${colors.sealBg} relative overflow-hidden border-4 border-white`}>
+                      <div className="absolute inset-1 bg-transparent rounded-full border-2 border-dashed border-white/30 scale-95" />
                       {evaluation.grade}
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 mt-2 tracking-widest uppercase">Академическая печать</span>
+                    <span className="text-[9px] font-bold text-slate-400 mt-2.5 tracking-wider uppercase bg-white/80 border border-slate-100 px-2 py-0.5 rounded-full shadow-sm">Академическая печать</span>
                   </div>
 
-                  <div className="flex-1 text-center md:text-left">
-                    <h3 className={`text-sm font-black tracking-wider uppercase mb-1 ${colors.text}`}>{colors.label}</h3>
-                    <p className="text-slate-700 font-medium text-sm leading-relaxed mb-2">"{evaluation.verdict}"</p>
-                    <div className="flex items-center justify-center md:justify-start gap-1.5">
-                      <span className="text-xs font-semibold text-slate-400">Точность ответа:</span>
-                      <span className="text-xs font-bold text-slate-800">{evaluation.score}%</span>
-                      <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-rose-500 rounded-full" style={{ width: `${evaluation.score}%` }} />
+                  {/* Отзыв и точность */}
+                  <div className="flex-1 space-y-4 w-full">
+                    <div className="text-center md:text-left">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-white/90 border border-slate-200/50 shadow-sm ${colors.textColor}`}>
+                        {colors.label}
+                      </span>
+                    </div>
+
+                    {/* Отзыв профессора */}
+                    <div className="bg-white/80 border border-slate-100/80 rounded-2xl p-4 shadow-sm relative hover:shadow-md transition-all duration-300">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center border border-slate-200 shadow-inner shrink-0 text-lg">
+                          👨‍🏫
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Отзыв профессора</div>
+                          <p className="text-slate-700 italic font-semibold text-sm leading-relaxed relative pl-4 border-l-2 border-rose-400">
+                            "{evaluation.verdict}"
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Точность ответа */}
+                    <div className="flex items-center justify-between gap-4 pt-1 flex-wrap md:flex-nowrap">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Точность ответа:</span>
+                        <span className="text-xs font-black text-slate-800">{evaluation.score}%</span>
+                      </div>
+                      <div className="flex-1 min-w-[150px] h-2 bg-slate-200/60 rounded-full overflow-hidden relative">
+                        <div 
+                          className="h-full bg-gradient-to-r from-rose-500 to-rose-600 rounded-full" 
+                          style={{ width: `${evaluation.score}%` }} 
+                        />
                       </div>
                     </div>
                   </div>
@@ -659,65 +709,94 @@ export default function ProfessorExam() {
             })()}
 
             {/* Когнитивный разбор: что правильно, ошибки и пробелы */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {/* Зеленый блок: Что сказали правильно */}
-              <div className="card p-4 md:p-5 border-l-4 border-l-emerald-500 bg-white">
-                <h4 className="font-bold text-emerald-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Усвоено верно
-                </h4>
-                {evaluation.correct_points.length === 0 ? (
-                  <p className="text-slate-400 text-xs italic">Нет полностью верных фактов в ответе.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {evaluation.correct_points.map((p, i) => (
-                      <li key={i} className="text-slate-600 text-xs leading-relaxed flex items-start gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full shrink-0 mt-1.5" />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <div className="card p-5 border border-slate-100 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 shrink-0">
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-emerald-950 text-xs uppercase tracking-wider">Усвоено верно</h4>
+                    <p className="text-[10px] text-slate-400">Сильные стороны ответа</p>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  {evaluation.correct_points.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-center p-4">
+                      <p className="text-slate-400 text-xs italic">Нет полностью верных фактов.</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2.5">
+                      {evaluation.correct_points.map((p, i) => (
+                        <li key={i} className="text-slate-700 text-xs leading-relaxed flex items-start gap-2 bg-emerald-50/20 border border-emerald-50/40 p-2.5 rounded-xl hover:bg-emerald-50/40 transition-all duration-200">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0 mt-1.5" />
+                          <span className="font-medium">{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               {/* Красный блок: Допущенные ошибки */}
-              <div className="card p-4 md:p-5 border-l-4 border-l-rose-500 bg-white">
-                <h4 className="font-bold text-rose-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                  Фактические ошибки
-                </h4>
-                {evaluation.errors.length === 0 ? (
-                  <p className="text-emerald-600 text-xs font-medium">Ошибок в ответе не обнаружено! Отличная точность.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {evaluation.errors.map((p, i) => (
-                      <li key={i} className="text-slate-600 text-xs leading-relaxed flex items-start gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-rose-400 rounded-full shrink-0 mt-1.5" />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <div className="card p-5 border border-slate-100 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center border border-rose-100 shrink-0">
+                    <AlertCircle className="w-4.5 h-4.5 text-rose-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-rose-950 text-xs uppercase tracking-wider">Фактические ошибки</h4>
+                    <p className="text-[10px] text-slate-400">Неточности в деталях</p>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  {evaluation.errors.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                      <span className="text-2xl mb-1">🎉</span>
+                      <p className="text-emerald-700 text-xs font-semibold">Ошибок в ответе не обнаружено!</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2.5">
+                      {evaluation.errors.map((p, i) => (
+                        <li key={i} className="text-slate-700 text-xs leading-relaxed flex items-start gap-2 bg-rose-50/20 border border-rose-50/40 p-2.5 rounded-xl hover:bg-rose-50/40 transition-all duration-200">
+                          <span className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0 mt-1.5" />
+                          <span className="font-medium">{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               {/* Желтый/серый блок: Упущенные знания */}
-              <div className="card p-4 md:p-5 border-l-4 border-l-amber-500 bg-white">
-                <h4 className="font-bold text-amber-800 text-xs uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <MessageSquare className="w-4 h-4 text-amber-500 shrink-0" />
-                  Когнитивные пропуски
-                </h4>
-                {evaluation.missing_points.length === 0 ? (
-                  <p className="text-emerald-600 text-xs font-medium">Ничего не упущено. Исчерпывающий ответ!</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {evaluation.missing_points.map((p, i) => (
-                      <li key={i} className="text-slate-600 text-xs leading-relaxed flex items-start gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full shrink-0 mt-1.5" />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <div className="card p-5 border border-slate-100 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-100 shrink-0">
+                    <MessageSquare className="w-4.5 h-4.5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-amber-950 text-xs uppercase tracking-wider">Когнитивные пропуски</h4>
+                    <p className="text-[10px] text-slate-400">Упущенные важные нюансы</p>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  {evaluation.missing_points.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                      <span className="text-2xl mb-1">🎯</span>
+                      <p className="text-emerald-700 text-xs font-semibold">Исчерпывающий ответ!</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2.5">
+                      {evaluation.missing_points.map((p, i) => (
+                        <li key={i} className="text-slate-700 text-xs leading-relaxed flex items-start gap-2 bg-amber-50/20 border border-amber-50/40 p-2.5 rounded-xl hover:bg-amber-50/40 transition-all duration-200">
+                          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0 mt-1.5" />
+                          <span className="font-medium">{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
 
