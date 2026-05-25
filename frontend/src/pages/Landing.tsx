@@ -58,13 +58,13 @@ function Navbar() {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button onClick={() => navigate('/login')}
-          className="text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">
+          className="hidden sm:block text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">
           Войти
         </button>
         <button onClick={() => navigate('/register')}
-          className="text-sm font-bold px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 active:translate-y-0 duration-200">
+          className="text-xs sm:text-sm font-bold px-4 py-2 sm:px-5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 active:translate-y-0 duration-200">
           Начать бесплатно
         </button>
       </div>
@@ -106,7 +106,7 @@ function Hero() {
         </div>
 
         <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-[1.1] text-slate-900">
-          Осваивайте лекции <br />
+          Осваивайте лекции <br className="hidden md:block" />
           <span className="text-indigo-600">в 4 раза быстрее</span>
         </h1>
 
@@ -142,7 +142,7 @@ function Hero() {
 
         {/* 3D Перспектива */}
         <div 
-          className="relative w-full max-w-lg aspect-[4/3] cursor-pointer"
+          className="relative w-full max-w-lg aspect-[4/3] cursor-pointer scale-90 sm:scale-100 origin-center lg:mt-0"
           style={{ perspective: 1200 }}
           onMouseMove={handleMouseMove}
           onMouseEnter={() => setIsHovered(true)}
@@ -208,7 +208,7 @@ function Hero() {
 
             {/* Парящий слой 1: 📝 Конспект (Слева сверху) */}
             <motion.div 
-              className="absolute top-[-10%] left-[-10%] w-[50%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-lg p-4 flex flex-col gap-2"
+              className="absolute top-[-10%] left-0 md:left-[-10%] w-[55%] md:w-[50%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-lg p-4 flex flex-col gap-2"
               style={{ transform: "translateZ(50px)" }}
             >
               <div className="flex items-center justify-between">
@@ -225,7 +225,7 @@ function Hero() {
 
             {/* Парящий слой 2: 🃏 Карточки (Справа снизу) */}
             <motion.div 
-              className="absolute bottom-[8%] right-[-10%] w-[45%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl p-4 flex flex-col gap-2.5"
+              className="absolute bottom-[8%] right-0 md:right-[-10%] w-[50%] md:w-[45%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl p-4 flex flex-col gap-2.5"
               style={{ transform: "translateZ(90px)" }}
             >
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
@@ -244,7 +244,7 @@ function Hero() {
 
             {/* Парящий слой 3: ❓ Устный экзамен (Слева снизу) */}
             <motion.div 
-              className="absolute bottom-[-12%] left-[-5%] w-[48%] bg-indigo-600 text-white rounded-2xl shadow-2xl p-4 flex flex-col gap-2 border border-indigo-500/20"
+              className="absolute bottom-[-12%] left-0 md:left-[-5%] w-[55%] md:w-[48%] bg-indigo-600 text-white rounded-2xl shadow-2xl p-4 flex flex-col gap-2 border border-indigo-500/20"
               style={{ transform: "translateZ(70px)" }}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-indigo-200">
