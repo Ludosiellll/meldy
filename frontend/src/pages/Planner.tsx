@@ -109,7 +109,7 @@ export default function Planner() {
       // Получаем актуальное настроение пользователя
       const { data: moodData } = await supabase
         .from('mood_log')
-        .select('mood, energy_level')
+        .select('mood, energy_level, notes')
         .eq('user_id', user!.id)
         .order('logged_at', { ascending: false })
         .limit(1)

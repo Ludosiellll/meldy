@@ -35,7 +35,7 @@ class CareerAgent(BaseAgent):
         context: Сборная строка всех тем и конспектов пользователя.
         """
         prompt = build_career_prompt()
-        raw_result = await self.generate_content(prompt, context)
+        raw_result = await self.run(prompt, context)
         
         # Парсинг JSON
         try:

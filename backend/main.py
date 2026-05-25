@@ -129,6 +129,102 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
+from media_parser import extract_youtube_transcript, transcribe_media_file
+import tempfile
+
+async def event_stream_media(
+    youtube_url: str = None,
+    file: UploadFile = None,
+    summary_detail: str = "medium",
+    flashcard_count: int = 6,
+    quiz_count: int = 5,
+    quiz_difficulty: str = "mixed",
+    quiz_type: str = "multiple",
+) -> AsyncGenerator[str, None]:
+    try:
+        text = ""
+        if youtube_url:
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Извлечение субтитров YouTube или скачивание аудио...'})}\n\n"
+            text = await extract_youtube_transcript(youtube_url)
+        elif file:
+            yield f"data: {json.dumps({'type': 'status', 'message': 'Загрузка медиа в ИИ для транскрипции (до 2 минут)...'})}\n\n"
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or "")[1].lower()) as tmp:
+                content = await file.read()
+                tmp.write(content)
+                tmp_path = tmp.name
+            try:
+                text = await transcribe_media_file(tmp_path, file.content_type)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+        
+        if not text or not text.strip():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось получить текст из медиа.'})}\n\n"
+            return
+            
+        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
+
+        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
+
+        async for event in coordinator.process(
+            text,
+            summary_detail=summary_detail,
+            flashcard_count=flashcard_count,
+            quiz_count=quiz_count,
+            quiz_difficulty=quiz_difficulty,
+            quiz_type=quiz_type,
+        ):
+            yield f"data: {json.dumps(event)}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+
+@app.post("/api/analyze/media")
+@limiter.limit("3/minute")
+async def analyze_media(
+    request: Request,
+    youtube_url: str = Form(None),
+    file: UploadFile = File(None),
+    summary_detail: str = Form("medium"),
+    flashcard_count: int = Form(6),
+    quiz_count: int = Form(5),
+    quiz_difficulty: str = Form("mixed"),
+    quiz_type: str = Form("multiple"),
+):
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY не настроен на сервере",
+        )
+
+    if file:
+        allowed_extensions = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a")
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Неподдерживаемый формат медиа. Поддерживаются: {', '.join(allowed_extensions)}",
+            )
+            
+    if not youtube_url and not file:
+         raise HTTPException(
+                status_code=400,
+                detail="Укажите youtube_url или загрузите файл.",
+         )
+
+    return StreamingResponse(
+        event_stream_media(youtube_url, file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -148,6 +244,7 @@ class PlanRequest(BaseModel):
     available_hours_per_day: int = 2
     context_materials: str = ""
     user_goals: str = ""
+    mood: dict = None
 
 
 from agents.base import BaseAgent
@@ -173,6 +270,8 @@ async def chat(request: Request, req: ChatRequest):
     if "mood" in req.extra_params:
         m = req.extra_params["mood"]
         mood_context = f"\n\nТЕКУЩЕЕ СОСТОЯНИЕ СТУДЕНТА: {m['mood']}, энергия: {m['energy_level']}/5. "
+        if m.get('notes'):
+            mood_context += f"Причина состояния со слов студента: '{m['notes']}' (учитывай это только если текст осмысленный). "
         if m['energy_level'] <= 2:
             mood_context += "Студент устал. Отвечай максимально просто, кратко и поддерживающе."
         elif m['mood'] == 'stressed':
@@ -211,12 +310,23 @@ async def plan(request: Request, req: PlanRequest):
 ПОЖЕЛАНИЯ СТУДЕНТА (учи́тывай при планировании):
 {req.user_goals}"""
 
+    mood_info = ""
+    if req.mood:
+        m = req.mood
+        mood_info = f"\n\nТЕКУЩЕЕ СОСТОЯНИЕ СТУДЕНТА: {m.get('mood')}, энергия: {m.get('energy_level')}/5. "
+        if m.get('notes'):
+            mood_info += f"Причина состояния со слов студента: '{m['notes']}' (учитывай это только если текст осмысленный). "
+        if m.get('energy_level', 3) <= 2:
+            mood_info += "Студент очень устал, планируй максимально легкие и короткие задачи."
+        elif m.get('energy_level', 3) >= 4:
+            mood_info += "Студент полон сил, можно планировать интенсивную работу."
+
     system_prompt = f"""Ты — опытный учебный планировщик.
 Сегодняшняя дата: {today}
 Доступно часов для учебы в день: {req.available_hours_per_day}
 
 Предметы и даты экзаменов:
-{subjects_text}{materials_section}{goals_section}
+{subjects_text}{materials_section}{goals_section}{mood_info}
 
 ВАЖНО: Проанализируй конспекты студента и сам определи, какой конспект к какому предмету относится (по названиям, терминам, темам). Если конспект не подходит ни к одному предмету — игнорируй его.
 
@@ -269,12 +379,14 @@ from agents.base import build_professor_question_prompt, build_professor_evaluat
 async def professor_question(request: Request, req: ProfessorQuestionRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
-    mood_instr = ""
     if req.mood:
-        if req.mood['energy_level'] <= 2 or req.mood['mood'] == 'stressed':
-            mood_instr = "Студент сегодня не в лучшей форме (устал или в стрессе). Задавай вопросы попроще, будь более снисходительным профессором, давай наводки."
-        elif req.mood['energy_level'] >= 4:
-            mood_instr = "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
+        mood_instr = f"Студент сейчас в настроении: {req.mood.get('mood')}, энергия {req.mood.get('energy_level')}/5. "
+        if req.mood.get('notes'):
+            mood_instr += f"Причина состояния: '{req.mood['notes']}' (учитывай это только если текст осмысленный). "
+        if req.mood.get('energy_level', 3) <= 2 or req.mood.get('mood') == 'stressed':
+            mood_instr += "Студент сегодня не в лучшей форме (устал или в стрессе). Задавай вопросы попроще, будь более снисходительным профессором, давай наводки."
+        elif req.mood.get('energy_level', 3) >= 4:
+            mood_instr += "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
 
     # Сократовский режим
     if req.socratic_mode:

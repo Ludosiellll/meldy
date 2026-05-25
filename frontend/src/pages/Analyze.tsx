@@ -45,21 +45,29 @@ export default function Analyze() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   };
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File | null, youtubeUrl?: string) => {
     analysisStartRef.current = Date.now();
-    sourceFileNameRef.current = file.name;
-    setState({ phase: 'extracting', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: file.name });
+    sourceFileNameRef.current = file ? file.name : (youtubeUrl ? 'YouTube Video' : 'Unknown');
+    setState({ phase: 'extracting', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
+    
     const fd = new FormData();
-    fd.append('file', file);
+    if (file) fd.append('file', file);
+    if (youtubeUrl) fd.append('youtube_url', youtubeUrl);
+    
     fd.append('summary_detail', state.settings.summaryDetail);
     fd.append('flashcard_count', String(state.settings.flashcardCount));
     fd.append('quiz_count', String(state.settings.quizCount));
     fd.append('quiz_difficulty', state.settings.quizDifficulty);
     fd.append('quiz_type', state.settings.quizType);
+    
+    // Определяем эндпоинт в зависимости от типа
+    const isMedia = youtubeUrl || (file && file.type.startsWith('video/') || file?.type.startsWith('audio/'));
+    const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
+    
     try {
       const abortController = new AbortController();
       (window as any)._analyzeAbort = abortController;
-      const res = await fetch('/api/analyze', { method: 'POST', body: fd, signal: abortController.signal });
+      const res = await fetch(endpoint, { method: 'POST', body: fd, signal: abortController.signal });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Ошибка сервера'); }
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No body');
@@ -102,6 +110,9 @@ export default function Analyze() {
       setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); 
       textLengthRef.current = d.length;
       (window as any)._lastExtractedText = d.text; // Сохраняем текст из события
+    }
+    else if (d.type === 'status') {
+      addToast(`⏳ ${d.message}`);
     }
     else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
     else if (d.type === 'agent_done') {

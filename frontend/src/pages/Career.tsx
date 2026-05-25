@@ -158,7 +158,7 @@ nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
               <h2 className="text-xl font-bold text-slate-900">Ваши Хард-Скиллы</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              {profile?.skills.map((skill, i) => (
+              {profile?.skills?.map((skill, i) => (
                 <span key={i} className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg border border-slate-200">
                   {skill}
                 </span>
@@ -172,7 +172,7 @@ nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
               <h2 className="text-xl font-bold text-slate-900">Подходящие профессии</h2>
             </div>
             <div className="space-y-5">
-              {profile?.professions.map((prof, i) => (
+              {profile?.professions?.map((prof, i) => (
                 <div key={i}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="font-bold text-slate-700">{prof.title}</span>
@@ -213,7 +213,7 @@ nКонспект: ${summaryText.slice(0, 500)}...\n${termsStr}`;
               Идеи пет-проектов для портфолио
             </h2>
             <div className="grid sm:grid-cols-2 gap-4">
-              {profile?.projects.map((proj, i) => (
+              {profile?.projects?.map((proj, i) => (
                 <motion.div 
                   key={i}
                   initial={{ opacity: 0, y: 10 }}
