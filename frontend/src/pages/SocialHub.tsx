@@ -214,20 +214,22 @@ export default function SocialHub() {
                       {m.likes_count}
                     </button>
 
-                    <button
-                      onClick={() => handleCopy(m)}
-                      className={`flex items-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg ${
-                        copiedId === m.id
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                      }`}
-                    >
-                      {copiedId === m.id ? (
-                        <><CheckCircle2 className="w-4 h-4" /> Сохранено!</>
-                      ) : (
-                        <><Download className="w-4 h-4" /> Сохранить себе</>
-                      )}
-                    </button>
+                    {m.user_id !== user?.id && (
+                      <button
+                        onClick={() => handleCopy(m)}
+                        className={`flex items-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg ${
+                          copiedId === m.id
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                        }`}
+                      >
+                        {copiedId === m.id ? (
+                          <><CheckCircle2 className="w-4 h-4" /> Сохранено!</>
+                        ) : (
+                          <><Download className="w-4 h-4" /> Сохранить себе</>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               ))

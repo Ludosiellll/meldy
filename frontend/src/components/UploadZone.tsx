@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Upload, FileText, X, Zap } from 'lucide-react';
 import SettingsPanel from './SettingsPanel';
 import { AnalysisSettings } from '../types';
+import { hasBadWords } from '../utils/moderation';
 
 interface Props {
   settings: AnalysisSettings;
@@ -21,6 +22,9 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
   const validateAndSet = (f: File) => {
     if (f.size > MAX_SIZE) {
       setSizeError(`Файл слишком большой (${(f.size / 1024 / 1024).toFixed(1)} МБ). Максимум — 50 МБ.`);
+      setFile(null);
+    } else if (hasBadWords(f.name)) {
+      setSizeError('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
       setFile(null);
     } else {
       setSizeError('');

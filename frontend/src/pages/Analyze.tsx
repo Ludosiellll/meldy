@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
 import { updateQuestProgress, recordStudyActivity } from '../api/quests';
+import { hasBadWords } from '../utils/moderation';
 
 const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
@@ -56,7 +57,9 @@ export default function Analyze() {
     fd.append('quiz_difficulty', state.settings.quizDifficulty);
     fd.append('quiz_type', state.settings.quizType);
     try {
-      const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+      const abortController = new AbortController();
+      (window as any)._analyzeAbort = abortController;
+      const res = await fetch('/api/analyze', { method: 'POST', body: fd, signal: abortController.signal });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Ошибка сервера'); }
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No body');
@@ -72,7 +75,10 @@ export default function Analyze() {
           }
         }
       }
-    } catch (err: any) { setState(p => ({ ...p, phase: 'error', error: err.message })); }
+    } catch (err: any) { 
+      if (err.name === 'AbortError') return;
+      setState(p => ({ ...p, phase: 'error', error: err.message })); 
+    }
   };
 
   const agentDoneLabels: Record<string, string> = {
@@ -86,6 +92,13 @@ export default function Analyze() {
 
   const handleSSE = (d: any) => {
     if (d.type === 'text_extracted') { 
+      if (hasBadWords(d.text)) {
+        if ((window as any)._analyzeAbort) {
+          (window as any)._analyzeAbort.abort();
+        }
+        setState(p => ({ ...p, phase: 'error', error: 'Текст содержит недопустимые материалы (мат или неприемлемый контент).' }));
+        return;
+      }
       setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); 
       textLengthRef.current = d.length;
       (window as any)._lastExtractedText = d.text; // Сохраняем текст из события
