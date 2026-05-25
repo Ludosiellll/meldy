@@ -4,33 +4,55 @@ import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Calendar, MessageSquare, LogOut, Award, Gamepad2,
   BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
+  Globe, Briefcase
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
 
-const navItems = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Дашборд' },
-  { to: '/analyze',     icon: Zap,             label: 'Анализ материалов' },
-  { to: '/library',     icon: BookOpen,         label: 'Библиотека' },
-  { to: '/knowledge-map', icon: Network,        label: 'Карта знаний' },
-  { to: '/review',      icon: Brain,            label: 'Повторение' },
-  { to: '/play',        icon: Gamepad2,         label: 'Микро-миссии' },
-  { to: '/exam',        icon: Award,            label: 'AI-Экзаменатор' },
-  { to: '/quick-prep',  icon: Clock,            label: 'Повтор за 5 минут' },
-  { to: '/mistakes',    icon: BookMarked,       label: 'Дневник ошибок' },
-  { to: '/mood',        icon: Heart,            label: 'Трекер состояния' },
-  { to: '/analytics',   icon: BarChart2,        label: 'Аналитика' },
-  { to: '/planner',     icon: Calendar,         label: 'Планировщик' },
-  { to: '/chat',        icon: MessageSquare,    label: 'AI-чат' },
+const navGroups = [
+  {
+    title: 'Платформа',
+    items: [
+      { to: '/dashboard',   icon: LayoutDashboard, label: 'Дашборд' },
+      { to: '/network',     icon: Globe,           label: 'Study Network', isNew: true },
+      { to: '/career',      icon: Briefcase,       label: 'Карьерный трек', isNew: true },
+    ]
+  },
+  {
+    title: 'Обучение',
+    items: [
+      { to: '/analyze',     icon: Zap,             label: 'Добавить материал' },
+      { to: '/library',     icon: BookOpen,        label: 'Библиотека' },
+      { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
+      { to: '/planner',     icon: Calendar,        label: 'План подготовки' },
+    ]
+  },
+  {
+    title: 'Практика',
+    items: [
+      { to: '/play',        icon: Gamepad2,        label: 'Сюжетные миссии' },
+      { to: '/review',      icon: Brain,           label: 'Смарт-карточки' },
+      { to: '/exam',        icon: Award,           label: 'Устный экзамен' },
+      { to: '/quick-prep',  icon: Clock,           label: 'Повтор за 5 минут' },
+    ]
+  },
+  {
+    title: 'Аналитика',
+    items: [
+      { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
+      { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
+      { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
+      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник' },
+    ]
+  }
 ];
 
 // Мобильный bottom nav — только главные разделы
 const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
-  { to: '/review',    icon: Brain,            label: 'Карточки' },
-  { to: '/exam',      icon: Award,            label: 'Экзамен' },
+  { to: '/network',   icon: Globe,            label: 'Хаб' },
+  { to: '/library',   icon: BookOpen,         label: 'База' },
   { to: '/analytics', icon: BarChart2,        label: 'Прогресс' },
-  { to: '/chat',      icon: MessageSquare,    label: 'Чат' },
 ];
 
 export default function Layout() {
@@ -61,61 +83,77 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-slate-50">
       {/* ═══ SIDEBAR ════════════════════════════════════════════════════════════ */}
-      <aside className="w-64 bg-slate-900 flex flex-col shrink-0 hidden md:flex">
+      <aside className="w-64 bg-slate-900 flex flex-col shrink-0 hidden md:flex border-r border-slate-800">
         {/* Logo */}
         <button
           onClick={() => navigate('/dashboard')}
-          className="p-5 flex items-center gap-3 hover:opacity-80 transition w-full text-left border-b border-slate-800"
+          className="p-5 flex items-center gap-3 hover:opacity-80 transition w-full text-left"
         >
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <div className="w-7 h-7 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-white text-lg">StudyForge</span>
+          <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
         </button>
 
         {/* XP / Level блок (сверху) */}
-        <div className="mx-3 mt-4 p-3 bg-slate-800 rounded-xl border border-slate-700">
+        <div className="mx-4 mt-2 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Уровень {levelInfo.level}</p>
-              <p className="text-xs font-bold text-white">{levelInfo.name}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
+              <p className="text-xs font-semibold text-slate-200">{levelInfo.name}</p>
             </div>
             <button
               onClick={() => navigate('/analytics')}
-              className="text-slate-500 hover:text-slate-300 transition"
+              className="text-slate-500 hover:text-slate-300 transition bg-slate-800 p-1.5 rounded-md"
               title="Аналитика"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
             <div
               className="h-full bg-indigo-500 rounded-full transition-all duration-700"
               style={{ width: `${levelInfo.progress}%` }}
             />
           </div>
-          <div className="flex justify-between mt-1">
-            <span className="text-[10px] text-slate-500">{xp} XP</span>
-            <span className="text-[10px] text-slate-500">{levelInfo.currentXP}/{levelInfo.nextXP}</span>
+          <div className="flex justify-between mt-1.5">
+            <span className="text-[10px] font-medium text-slate-500">{xp} XP</span>
+            <span className="text-[10px] font-medium text-slate-500">{levelInfo.currentXP}/{levelInfo.nextXP}</span>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          {navItems.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition ' +
-                (isActive
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white')
-              }
-            >
-              <item.icon className="w-4 h-4 shrink-0" />
-              {item.label}
-            </NavLink>
+        <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
+          {navGroups.map((group, idx) => (
+            <div key={idx}>
+              <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                {group.title}
+              </h3>
+              <div className="space-y-0.5">
+                {group.items.map(item => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      'flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-lg transition-colors ' +
+                      (isActive
+                        ? 'bg-slate-800 text-white shadow-sm ring-1 ring-white/5'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200')
+                    }
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-4 h-4 opacity-80" />
+                      {item.label}
+                    </div>
+                    {(item as any).isNew && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 uppercase tracking-widest">
+                        New
+                      </span>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
