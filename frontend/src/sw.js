@@ -5,6 +5,15 @@ import { NetworkFirst } from 'workbox-strategies';
 // Precache static assets injected by Vite
 precacheAndRoute(self.__WB_MANIFEST || []);
 
+// Force immediate activation of new service worker
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 // Setup offline fallback using NetworkFirst strategy
 const navigationRoute = new NavigationRoute(
   new NetworkFirst({

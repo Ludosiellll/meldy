@@ -53,6 +53,39 @@
   <div class="icon">🔌</div>
   <h1>Нет подключения</h1>
   <p>Похоже, вы находитесь в офлайне. Проверьте подключение к интернету и попробуйте снова.</p>
-  <button onclick="window.location.reload()">Обновить страницу</button>
+  <button onclick="handleReload()">Обновить страницу</button>
+
+  <script>
+    // Self-healing function to recover from Service Worker routing deadlocks when online
+    async function handleReload() {
+      if (navigator.onLine) {
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+              await registration.unregister();
+            }
+            console.log('Service workers unregistered successfully to resolve deadlock.');
+          }
+        } catch (e) {
+          console.error('Failed to unregister service worker:', e);
+        }
+      }
+      window.location.reload();
+    }
+
+    // Auto-heal on page load if the user is actually online
+    window.addEventListener('load', () => {
+      if (navigator.onLine) {
+        // To avoid infinite redirect loops in edge cases, check if we reloaded recently
+        const lastAutoReload = sessionStorage.getItem('last_auto_reload');
+        const now = Date.now();
+        if (!lastAutoReload || (now - parseInt(lastAutoReload, 10) > 10000)) {
+          sessionStorage.setItem('last_auto_reload', now.toString());
+          handleReload();
+        }
+      }
+    });
+  </script>
 </body>
 </html>
