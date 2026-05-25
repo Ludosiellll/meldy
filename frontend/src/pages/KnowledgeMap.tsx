@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Network, BookOpen, AlertCircle, CheckCircle2,
-  Plus, Minus, Maximize2, ChevronRight, Zap, Info, HelpCircle
+  Plus, Minus, ChevronRight, Zap, Info, HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -31,10 +31,16 @@ interface GraphLink {
   target: string;
 }
 
-// Простые цвета для предметов
+// Obsidian-style palette
 const SUBJECT_COLORS = [
-  '#4F46E5', '#06B6D4', '#10B981', '#F59E0B', 
-  '#EF4444', '#EC4899', '#8B5CF6', '#14B8A6'
+  '#a78bfa', // Purple / Violet
+  '#38bdf8', // Cyan / Sky
+  '#f472b6', // Pink
+  '#fb923c', // Orange
+  '#fb7185', // Rose
+  '#2dd4bf', // Teal
+  '#c084fc', // Fuchsia
+  '#60a5fa'  // Blue
 ];
 
 export default function KnowledgeMap() {
@@ -82,7 +88,6 @@ export default function KnowledgeMap() {
 
   // Парсер терминов из секции "📚 Термины и определения" конспекта
   const extractTerms = (summaryJson: any) => {
-    // 1. Попытка взять готовые термины из JSON (новый формат)
     if (summaryJson?.terms && Array.isArray(summaryJson.terms) && summaryJson.terms.length > 0) {
       return summaryJson.terms.map((t: any) => ({
         term: t.term,
@@ -90,7 +95,6 @@ export default function KnowledgeMap() {
       }));
     }
 
-    // 2. Fallback на старый парсер регулярками (для старых записей в БД)
     const content = summaryJson?.content || summaryJson?.raw || '';
     if (!content) return [];
 
@@ -122,7 +126,6 @@ export default function KnowledgeMap() {
     const tempNodes: GraphNode[] = [];
     const tempLinks: GraphLink[] = [];
 
-    // Карта для объединения одинаковых терминов
     const conceptMap: Record<string, {
       term: string;
       definition: string;
@@ -130,7 +133,6 @@ export default function KnowledgeMap() {
       status: 'weak' | 'strong' | 'neutral';
     }> = {};
 
-    // Предметные цвета лекций
     const subjectColorMap: Record<string, string> = {};
     let colorIdx = 0;
 
@@ -153,19 +155,16 @@ export default function KnowledgeMap() {
         y: height / 2 + Math.sin(angle) * radiusDist + (Math.random() - 0.5) * 10,
         vx: 0,
         vy: 0,
-        radius: 20,
+        radius: 28, // Большой радиус лекций в стиле Obsidian
         status: 'neutral',
         color: subjectColorMap[subject],
         details: mat
       });
 
-      // Извлекаем термины
       const terms = extractTerms(mat.summary_json);
       terms.forEach((t: any) => {
         const key = t.term.toLowerCase();
         
-        // Проверяем наличие ошибок по этому термину
-        // Сверяем с Дневником ошибок
         const termMistakes = mistakes.filter(m => {
           const topicMatch = m.topic && m.topic.toLowerCase().includes(key);
           const questionMatch = m.question && m.question.toLowerCase().includes(key);
@@ -194,12 +193,12 @@ export default function KnowledgeMap() {
       });
     });
 
-    // Добавляем узлы концептов на граф
-    Object.entries(conceptMap).forEach(([key, value], idx) => {
-      // Размещаем концепты вокруг центра
-      const count = Object.keys(conceptMap).length;
-      const angle = (idx / count) * Math.PI * 2;
-      const dist = 80 + Math.random() * 50;
+    // Добавляем узлы концептов
+    const conceptKeys = Object.keys(conceptMap);
+    conceptKeys.forEach((key, idx) => {
+      const angle = (idx / conceptKeys.length) * Math.PI * 2;
+      const dist = 90 + Math.random() * 60;
+      const value = conceptMap[key];
 
       tempNodes.push({
         id: key,
@@ -209,14 +208,13 @@ export default function KnowledgeMap() {
         y: height / 2 + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 12,
+        radius: 14, // Заметные концепты
         status: value.status,
-        color: value.status === 'weak' ? '#EF4444' : value.status === 'strong' ? '#10B981' : '#6366F1',
+        color: value.status === 'weak' ? '#ef4444' : value.status === 'strong' ? '#22c55e' : '#818cf8',
         definition: value.definition,
         materials: value.materials
       });
 
-      // Создаем связи между лекцией и концептом
       value.materials.forEach(mat => {
         tempLinks.push({
           source: mat.id,
@@ -231,7 +229,7 @@ export default function KnowledgeMap() {
     setLinks(tempLinks);
   }, [loading, materials, mistakes]);
 
-  // 3. Симуляция физики (Force-directed layout)
+  // 3. Симуляция физики
   useEffect(() => {
     if (nodes.length === 0) return;
 
@@ -242,7 +240,7 @@ export default function KnowledgeMap() {
       const currentNodes = [...nodesRef.current];
       const currentLinks = linksRef.current;
 
-      // 1. Сила отталкивания (Repulsion / Charge)
+      // 1. Сила отталкивания
       for (let i = 0; i < currentNodes.length; i++) {
         const nodeA = currentNodes[i];
         for (let j = i + 1; j < currentNodes.length; j++) {
@@ -252,13 +250,12 @@ export default function KnowledgeMap() {
           const distSq = dx * dx + dy * dy + 0.1;
           const dist = Math.sqrt(distSq);
           
-          // Минимальное комфортное расстояние
           const minDist = nodeA.type === 'material' && nodeB.type === 'material' 
-            ? 300 
-            : (nodeA.type === 'material' || nodeB.type === 'material' ? 200 : 160);
+            ? 320 
+            : (nodeA.type === 'material' || nodeB.type === 'material' ? 220 : 180);
 
           if (dist < minDist) {
-            const force = (minDist - dist) * 0.45; // Ещё более сильное отталкивание
+            const force = (minDist - dist) * 0.45;
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
             
@@ -274,7 +271,7 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 2. Сила притяжения связей (Link Force)
+      // 2. Сила притяжения связей
       for (const link of currentLinks) {
         const source = currentNodes.find(n => n.id === link.source);
         const target = currentNodes.find(n => n.id === link.target);
@@ -283,8 +280,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.type === 'material' && target.type === 'material' ? 280 : 160;
-          const force = (dist - desiredDist) * 0.025; // Очень мягкое притягивание
+          const desiredDist = source.type === 'material' && target.type === 'material' ? 300 : 180;
+          const force = (dist - desiredDist) * 0.025;
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -299,7 +296,7 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 3. Сила гравитации к центру и обновление координат
+      // 3. Гравитация к центру
       const centerX = width / 2;
       const centerY = height / 2;
       
@@ -310,24 +307,20 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          // Сила тяжести к центру экрана (меньше, чтобы дать разойтись)
-          node.vx += (centerX - node.x) * 0.0015;
-          node.vy += (centerY - node.y) * 0.0015;
+          node.vx += (centerX - node.x) * 0.0012;
+          node.vy += (centerY - node.y) * 0.0012;
 
-          // Трение
-          node.vx *= 0.82;
-          node.vy *= 0.82;
+          node.vx *= 0.8;
+          node.vy *= 0.8;
 
           node.x += node.vx;
           node.y += node.vy;
 
-          // Ограничиваем границы
           node.x = Math.max(40, Math.min(width - 40, node.x));
           node.y = Math.max(40, Math.min(height - 40, node.y));
         }
       });
 
-      // Перезаписываем стейт для рендера
       setNodes([...currentNodes]);
       requestRef.current = requestAnimationFrame(tick);
     };
@@ -339,7 +332,7 @@ export default function KnowledgeMap() {
     };
   }, [loading]);
 
-  // 3.5. Зумирование колесиком мыши (smooth scroll zoom)
+  // Zoom wheel
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -357,30 +350,24 @@ export default function KnowledgeMap() {
     };
   }, [loading]);
 
-  // 4. События мыши (Drag & Drop и Pan)
+  // Drag & Pan
   const handleMouseDown = (e: React.MouseEvent, node?: GraphNode) => {
     e.preventDefault();
     if (!svgRef.current) return;
 
     if (node) {
-      // Клик по узлу — запускаем Drag
       draggingNodeId.current = node.id;
       const rect = svgRef.current.getBoundingClientRect();
-      
-      // Преобразуем координаты мыши с учётом zoom/pan
       const clickX = (e.clientX - rect.left - panX) / scale;
       const clickY = (e.clientY - rect.top - panY) / scale;
-      
       dragStartPos.current = { x: clickX, y: clickY };
       
-      // Закрепляем узел в точке
       const matchedNode = nodesRef.current.find(n => n.id === node.id);
       if (matchedNode) {
         matchedNode.fx = matchedNode.x;
         matchedNode.fy = matchedNode.y;
       }
     } else {
-      // Клик по фону — запускаем Pan
       isPanning.current = true;
       panStartPos.current = { x: e.clientX - panX, y: e.clientY - panY };
     }
@@ -409,12 +396,9 @@ export default function KnowledgeMap() {
     if (draggingNodeId.current) {
       const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
       if (matchedNode) {
-        // Отпускаем узел (снимаем фиксацию fx/fy)
         matchedNode.fx = null;
         matchedNode.fy = null;
       }
-      
-      // Если узел почти не переместился, считаем это кликом выбора
       if (node) {
         setSelectedNode(node);
       }
@@ -423,7 +407,6 @@ export default function KnowledgeMap() {
     isPanning.current = false;
   };
 
-  // Зумирование кнопками
   const zoomIn = () => setScale(s => Math.min(2.5, s + 0.15));
   const zoomOut = () => setScale(s => Math.max(0.4, s - 0.15));
   const resetZoom = () => {
@@ -432,7 +415,7 @@ export default function KnowledgeMap() {
     setPanY(0);
   };
 
-  // Метрики
+  // Stats
   const graphStats = useMemo(() => {
     const conceptCount = nodes.filter(n => n.type === 'concept').length;
     const materialsCount = nodes.filter(n => n.type === 'material').length;
@@ -442,15 +425,17 @@ export default function KnowledgeMap() {
   }, [nodes]);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 min-h-screen bg-[#0d1117] text-slate-100 rounded-3xl border border-slate-800 shadow-2xl">
       {/* Заголовок */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
-          <Network className="w-5 h-5 text-indigo-600" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Интерактивная карта знаний</h1>
-          <p className="text-xs text-slate-500">Визуализация понятий лекций и междисциплинарных связей</p>
+      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-950/50 rounded-xl flex items-center justify-center border border-indigo-500/20">
+            <Network className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-100">Интерактивная карта знаний</h1>
+            <p className="text-xs text-slate-400">Граф понятий лекций и междисциплинарных связей в стиле Obsidian</p>
+          </div>
         </div>
       </div>
 
@@ -459,17 +444,17 @@ export default function KnowledgeMap() {
           <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : materials.length === 0 ? (
-        <div className="card p-12 text-center max-w-md mx-auto space-y-4">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+        <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-[#161b22] border border-slate-800 rounded-2xl">
+          <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mx-auto border border-slate-800">
             <BookOpen className="w-8 h-8 text-slate-400" />
           </div>
-          <h3 className="font-bold text-slate-700">Библиотека пуста</h3>
+          <h3 className="font-bold text-slate-200">Библиотека пуста</h3>
           <p className="text-sm text-slate-400">
             Загрузите конспекты лекций в разделе «Анализ материалов», чтобы AI извлёк термины и построил карту знаний.
           </p>
           <button
             onClick={() => navigate('/analyze')}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition"
+            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-500/10"
           >
             Загрузить материалы
           </button>
@@ -480,19 +465,19 @@ export default function KnowledgeMap() {
           {/* График и интерактивная область (3 колонки) */}
           <div className="lg:col-span-3 flex flex-col space-y-4">
             
-            {/* Панель управления картой (Светлая тема с темным текстом для читаемости) */}
-            <div className="card p-3.5 flex flex-wrap gap-4 items-center justify-between bg-white border-slate-200 shadow-sm">
-              <div className="flex items-center gap-4 text-xs text-slate-600 font-bold">
+            {/* Панель управления картой */}
+            <div className="p-4 flex flex-wrap gap-4 items-center justify-between bg-[#161b22] border border-slate-800 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-4 text-xs text-slate-400 font-semibold">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block shadow-sm" /> 
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-[0_0_8px_rgba(239,68,68,0.5)]" /> 
                   Слабое место (ошибка)
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-sm" /> 
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] inline-block shadow-[0_0_8px_rgba(34,197,94,0.5)]" /> 
                   Успешно пройдено
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block shadow-sm" /> 
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#818cf8] inline-block shadow-[0_0_8px_rgba(129,140,248,0.5)]" /> 
                   Изучено
                 </span>
               </div>
@@ -500,24 +485,24 @@ export default function KnowledgeMap() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={zoomOut}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-slate-900 transition border border-slate-200"
+                  className="p-2 bg-[#21262d] hover:bg-[#30363d] rounded-xl text-slate-300 transition border border-[#30363d]"
                   title="Отдалить"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-[11px] font-black text-slate-700 w-12 text-center">
+                <span className="text-[11px] font-black text-slate-300 w-12 text-center">
                   {Math.round(scale * 100)}%
                 </span>
                 <button
                   onClick={zoomIn}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-slate-900 transition border border-slate-200"
+                  className="p-2 bg-[#21262d] hover:bg-[#30363d] rounded-xl text-slate-300 transition border border-[#30363d]"
                   title="Приблизить"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={resetZoom}
-                  className="ml-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 rounded-xl text-xs font-black text-white hover:text-white transition shadow-sm"
+                  className="ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-bold text-white transition shadow-lg shadow-indigo-600/10"
                 >
                   Сбросить
                 </button>
@@ -525,13 +510,13 @@ export default function KnowledgeMap() {
             </div>
 
             {/* Контейнер SVG */}
-            <div className="relative bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-xl select-none min-h-[550px]">
+            <div className="relative bg-[#090d13] rounded-3xl overflow-hidden border border-slate-800 shadow-2xl select-none min-h-[550px]">
               
               {/* Фоновая сетка */}
               <div 
-                className="absolute inset-0 opacity-[0.03] pointer-events-none"
+                className="absolute inset-0 opacity-[0.05] pointer-events-none"
                 style={{
-                  backgroundImage: `radial-gradient(circle, white 1px, transparent 1px)`,
+                  backgroundImage: `radial-gradient(circle, #f1f5f9 1px, transparent 1px)`,
                   backgroundSize: '24px 24px',
                   transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
                   transformOrigin: 'top left'
@@ -547,6 +532,31 @@ export default function KnowledgeMap() {
                 onMouseLeave={(e) => handleMouseUp(e)}
                 onDoubleClick={resetZoom}
               >
+                {/* SVG defs with Glow Filters for Obsidian effect */}
+                <defs>
+                  <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <filter id="glow-rose" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <filter id="glow-emerald" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
                 <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
                   
                   {/* Рендеринг связей (линии) */}
@@ -557,7 +567,6 @@ export default function KnowledgeMap() {
 
                     const isHighlight = selectedNode?.id === sourceNode.id || selectedNode?.id === targetNode.id;
 
-                    // Определение видимости при поиске
                     const activeSearch = searchQuery.trim().toLowerCase();
                     let searchOpacity = 1;
                     if (activeSearch) {
@@ -573,10 +582,10 @@ export default function KnowledgeMap() {
                         y1={sourceNode.y}
                         x2={targetNode.x}
                         y2={targetNode.y}
-                        stroke={isHighlight ? '#818CF8' : '#312E81'}
-                        strokeOpacity={(isHighlight ? 0.95 : 0.45) * searchOpacity}
-                        strokeWidth={isHighlight ? 2.5 : 1.5}
-                        strokeDasharray={targetNode.type === 'concept' ? '4,4' : undefined}
+                        stroke={isHighlight ? '#a78bfa' : '#334155'}
+                        strokeOpacity={(isHighlight ? 0.9 : 0.4) * searchOpacity}
+                        strokeWidth={isHighlight ? 2 : 1}
+                        strokeDasharray={targetNode.type === 'concept' ? '3,3' : undefined}
                         className="transition-all duration-300"
                       />
                     );
@@ -587,14 +596,22 @@ export default function KnowledgeMap() {
                     const isSelected = selectedNode?.id === node.id;
                     const isMaterial = node.type === 'material';
                     
-                    // Определение видимости при поиске
                     const activeSearch = searchQuery.trim().toLowerCase();
                     const isSearchResult = activeSearch && node.label.toLowerCase().includes(activeSearch);
                     const searchOpacity = !activeSearch || isSearchResult ? 1 : 0.15;
 
-                    // Чередование подписей (сверху / снизу) для уменьшения наложений
                     const isLabelBelow = isMaterial || (node.label.charCodeAt(0) % 2 === 0);
-                    const labelY = isLabelBelow ? (node.radius + 15) : (-node.radius - 8);
+                    const labelY = isLabelBelow ? (node.radius + 18) : (-node.radius - 10);
+
+                    // Выбираем glow-фильтр в зависимости от статуса и типа
+                    let filterUrl = '';
+                    if (isMaterial) {
+                      filterUrl = 'url(#glow-purple)';
+                    } else if (node.status === 'weak') {
+                      filterUrl = 'url(#glow-rose)';
+                    } else if (node.status === 'strong') {
+                      filterUrl = 'url(#glow-emerald)';
+                    }
 
                     return (
                       <g
@@ -610,41 +627,35 @@ export default function KnowledgeMap() {
                           <circle
                             r={node.radius + 8}
                             fill="none"
-                            stroke="#F59E0B"
-                            strokeWidth={2}
-                            strokeDasharray="5,3"
+                            stroke="#fb923c"
+                            strokeWidth={1.5}
+                            strokeDasharray="4,2"
                             className="animate-spin"
-                            style={{ transformOrigin: '0 0', animationDuration: '6s' }}
+                            style={{ transformOrigin: '0 0', animationDuration: '8s' }}
                           />
                         )}
 
-                        {/* Мягкое свечение (аура) для лекций */}
-                        {isMaterial && (
+                        {/* Свечение / Аура Obsidian */}
+                        {filterUrl && (
                           <circle
-                            r={node.radius + 12}
-                            fill={node.color}
-                            opacity={isSelected ? 0.25 : 0.08}
-                            className="transition-all duration-300 group-hover:opacity-20"
+                            r={node.radius}
+                            fill={isMaterial ? '#7c3aed' : node.color}
+                            filter={filterUrl}
+                            opacity={isSelected ? 0.6 : 0.3}
+                            className="transition-all duration-300 group-hover:opacity-65"
                           />
                         )}
 
-                        {/* Эффект свечения для концептов с ошибками или выбранных */}
-                        {(!isMaterial && (node.status === 'weak' || isSelected)) && (
-                          <circle
-                            r={node.radius + 8}
-                            fill={node.color}
-                            opacity={isSelected ? 0.3 : 0.15}
-                            className={node.status === 'weak' ? 'animate-pulse' : ''}
-                          />
-                        )}
-
-                        {/* Внешний круг (граница) */}
+                        {/* Внутреннее тело узла */}
                         <circle
                           r={node.radius}
-                          fill={isMaterial ? '#0F172A' : node.color}
-                          stroke={isMaterial ? node.color : '#0F172A'}
-                          strokeWidth={isMaterial ? 4 : 2}
-                          className="transition-all duration-200 group-hover:scale-110 shadow-lg"
+                          fill={isMaterial ? '#090d13' : node.color}
+                          stroke={isMaterial ? '#7c3aed' : '#090d13'}
+                          strokeWidth={isMaterial ? 3.5 : 1.5}
+                          className="transition-all duration-200 group-hover:scale-105"
+                          style={{
+                            filter: isSelected ? 'brightness(1.2) contrast(1.1)' : 'none'
+                          }}
                         />
 
                         {/* Иконка внутри узла лекции */}
@@ -652,32 +663,23 @@ export default function KnowledgeMap() {
                           <path
                             d="M -5,-6 L 1,-6 L 5,-2 L 5,6 L -5,6 Z M 1,-6 L 1,-2 L 5,-2"
                             fill="none"
-                            stroke="white"
+                            stroke="#a78bfa"
                             strokeWidth={1.5}
                             transform="scale(0.8)"
                           />
                         )}
 
-                        {/* Подпись узла с аурой/обводкой для 100% читаемости на тёмном фоне */}
-                        {/* 1. Обводка текста */}
+                        {/* Подпись узла с тенью для высокой читаемости на темном фоне */}
                         <text
                           y={labelY}
                           textAnchor="middle"
-                          stroke="#020617"
-                          strokeWidth="3.5"
-                          strokeLinejoin="round"
-                          className="text-[10px] font-bold select-none pointer-events-none opacity-90"
-                        >
-                          {node.label.length > 22 ? `${node.label.slice(0, 20)}...` : node.label}
-                        </text>
-                        {/* 2. Основной text */}
-                        <text
-                          y={labelY}
-                          textAnchor="middle"
-                          fill={isSelected ? '#FFFFFF' : isMaterial ? '#F1F5F9' : '#94A3B8'}
+                          fill={isSelected ? '#ffffff' : isMaterial ? '#f1f5f9' : '#94a3b8'}
                           className="text-[10px] font-bold select-none pointer-events-none transition-colors"
+                          style={{
+                            textShadow: '0px 2px 4px rgba(0, 0, 0, 0.95), 0px 0px 2px rgba(0, 0, 0, 0.8)'
+                          }}
                         >
-                          {node.label.length > 22 ? `${node.label.slice(0, 20)}...` : node.label}
+                          {node.label.length > 20 ? `${node.label.slice(0, 18)}...` : node.label}
                         </text>
                       </g>
                     );
@@ -686,13 +688,14 @@ export default function KnowledgeMap() {
               </svg>
 
               {/* Хинт по использованию */}
-              <div className="absolute bottom-4 left-4 p-3 bg-slate-900/90 backdrop-blur border border-slate-800 rounded-xl text-[10px] text-slate-400 max-w-xs space-y-1.5 pointer-events-none">
+              <div className="absolute bottom-4 left-4 p-3.5 bg-[#161b22]/90 backdrop-blur border border-slate-800 rounded-xl text-[10px] text-slate-400 max-w-xs space-y-1.5 pointer-events-none">
                 <p className="font-bold text-slate-200 flex items-center gap-1">
-                  <Info className="w-3 h-3 text-indigo-400" /> Подсказка по навигации
+                  <Info className="w-3.5 h-3.5 text-indigo-400" /> Навигация по графу
                 </p>
-                <p>• Прокрутка мыши: Увеличение / Уменьшение масштаба.</p>
-                <p>• Зажмите левую кнопку на пустом месте для перемещения.</p>
-                <p>• Двойной клик на фоне сбросит масштаб и центрирует граф.</p>
+                <p>• Прокрутка мыши / свайп тачпада: Масштаб.</p>
+                <p>• Перетаскивание фона: Перемещение.</p>
+                <p>• Клик по узлу: Показать информацию.</p>
+                <p>• Двойной клик на фоне: Сброс зума.</p>
               </div>
             </div>
           </div>
@@ -701,21 +704,21 @@ export default function KnowledgeMap() {
           <div className="lg:col-span-1 space-y-6">
             
             {/* Поиск по карте */}
-            <div className="card p-4 space-y-3">
-              <h3 className="font-bold text-slate-900 text-sm">Поиск по карте</h3>
+            <div className="p-4 space-y-3 bg-[#161b22] border border-slate-800 rounded-2xl shadow-sm">
+              <h3 className="font-bold text-slate-200 text-sm">Поиск по карте</h3>
               <div className="relative">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Введите термин или лекцию..."
-                  className="w-full pl-8 pr-8 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-semibold"
+                  placeholder="Найти понятие или лекцию..."
+                  className="w-full pl-8 pr-8 py-2.5 bg-[#0d1117] border border-slate-800 rounded-xl text-xs outline-none text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
                 />
-                <span className="absolute left-2.5 top-2.5 text-[10px]">🔍</span>
+                <span className="absolute left-2.5 top-2.5 text-[10px] text-slate-500">🔍</span>
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-sm font-bold"
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-200 text-sm font-bold"
                   >
                     ×
                   </button>
@@ -724,21 +727,27 @@ export default function KnowledgeMap() {
             </div>
 
             {/* Статистика карты */}
-            <div className="card p-5 space-y-4">
-              <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">Статистика знаний</h3>
+            <div className="p-5 space-y-4 bg-[#161b22] border border-slate-800 rounded-2xl shadow-sm">
+              <h3 className="font-bold text-slate-200 text-sm border-b border-slate-800 pb-2">Статистика знаний</h3>
               <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  <p className="text-lg font-black text-slate-800">{graphStats.materialsCount}</p>
+                <div className="bg-[#0d1117] p-2.5 rounded-xl border border-slate-800/80">
+                  <p className="text-lg font-black text-slate-100">{graphStats.materialsCount}</p>
                   <p className="text-[10px] text-slate-400">Лекций</p>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  <p className="text-lg font-black text-slate-800">{graphStats.conceptCount}</p>
+                <div className="bg-[#0d1117] p-2.5 rounded-xl border border-slate-800/80">
+                  <p className="text-lg font-black text-slate-100">{graphStats.conceptCount}</p>
                   <p className="text-[10px] text-slate-400">Понятий</p>
                 </div>
-                <div className="bg-rose-50 p-2.5 rounded-xl border border-rose-100 col-span-2">
-                  <p className="text-lg font-black text-rose-600">{graphStats.weakCount}</p>
-                  <p className="text-[10px] text-slate-500">Слабых тем (требуют повторения)</p>
-                </div>
+                {graphStats.weakCount > 0 ? (
+                  <div className="bg-red-950/20 p-2.5 rounded-xl border border-red-500/20 col-span-2">
+                    <p className="text-lg font-black text-red-400">{graphStats.weakCount}</p>
+                    <p className="text-[10px] text-red-300">Слабых тем (требуют повторения)</p>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-500/20 col-span-2">
+                    <p className="text-sm font-bold text-emerald-400">Все понятия усвоены! 🎉</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -750,40 +759,40 @@ export default function KnowledgeMap() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="card p-5 border-l-4 space-y-4"
+                  className="p-5 bg-[#161b22] border border-slate-800 border-l-4 rounded-2xl space-y-4"
                   style={{ borderLeftColor: selectedNode.color }}
                 >
                   {selectedNode.type === 'material' ? (
                     // ДЕТАЛИ ЛЕКЦИИ
                     <>
                       <div>
-                        <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                        <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-[#21262d] text-slate-400 border border-slate-800">
                           Лекция
                         </span>
-                        <h4 className="font-bold text-slate-900 mt-2 leading-snug">{selectedNode.label}</h4>
+                        <h4 className="font-bold text-slate-100 mt-2 leading-snug">{selectedNode.label}</h4>
                         {selectedNode.details?.subject && (
-                          <span className="text-xs text-indigo-600 font-semibold mt-1 block">
+                          <span className="text-xs text-indigo-400 font-semibold mt-1 block">
                             Предмет: {selectedNode.details.subject}
                           </span>
                         )}
                       </div>
 
-                      <div className="text-xs text-slate-500 space-y-1">
+                      <div className="text-xs text-slate-400 space-y-1">
                         <p>Добавлена: {new Date(selectedNode.details?.created_at).toLocaleDateString('ru-RU')}</p>
                       </div>
 
-                      <div className="space-y-2 pt-2">
+                      <div className="space-y-2 pt-2 border-t border-slate-800">
                         <button
                           onClick={() => navigate(`/library/${selectedNode.id}`)}
-                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
                         >
                           <BookOpen className="w-3.5 h-3.5" /> Изучать лекцию
                         </button>
                         <button
                           onClick={() => navigate('/exam')}
-                          className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                          className="w-full py-2.5 bg-[#21262d] hover:bg-[#30363d] text-slate-200 font-bold rounded-xl text-xs transition border border-[#30363d] flex items-center justify-center gap-1.5"
                         >
-                          <Zap className="w-3.5 h-3.5 text-amber-500" /> Проверить знания
+                          <Zap className="w-3.5 h-3.5 text-amber-400" /> Проверить знания
                         </button>
                       </div>
                     </>
@@ -792,41 +801,41 @@ export default function KnowledgeMap() {
                     <>
                       <div>
                         <div className="flex justify-between items-center">
-                          <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                          <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-[#21262d] text-slate-400 border border-slate-800">
                             Понятие
                           </span>
                           {selectedNode.status === 'weak' ? (
-                            <span className="flex items-center gap-1 text-[10px] text-rose-500 font-bold">
-                              <AlertCircle className="w-3 h-3" /> Ошибка
+                            <span className="flex items-center gap-1 text-[10px] text-red-400 font-bold">
+                              <AlertCircle className="w-3 h-3 animate-pulse" /> Ошибка
                             </span>
                           ) : selectedNode.status === 'strong' ? (
-                            <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-bold">
+                            <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
                               <CheckCircle2 className="w-3 h-3" /> Усвоено
                             </span>
                           ) : null}
                         </div>
-                        <h4 className="font-bold text-slate-900 mt-2 leading-snug">{selectedNode.label}</h4>
+                        <h4 className="font-bold text-slate-100 mt-2 leading-snug">{selectedNode.label}</h4>
                       </div>
 
                       {selectedNode.definition && (
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1.5">
-                          <span className="text-[9px] uppercase font-black tracking-widest text-slate-400 block">Определение</span>
-                          <p className="text-xs text-slate-600 leading-relaxed">{selectedNode.definition}</p>
+                        <div className="p-3 bg-[#0d1117] border border-slate-800 rounded-xl space-y-1.5">
+                          <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 block">Определение</span>
+                          <p className="text-xs text-slate-300 leading-relaxed">{selectedNode.definition}</p>
                         </div>
                       )}
 
                       {selectedNode.materials && selectedNode.materials.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 border-t border-slate-800 pt-3">
                           <span className="text-[10px] font-bold text-slate-400 block">Встречается в лекциях:</span>
                           <div className="space-y-1.5">
                             {selectedNode.materials.map(m => (
                               <button
                                 key={m.id}
                                 onClick={() => navigate(`/library/${m.id}`)}
-                                className="w-full text-left p-2 hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 flex justify-between items-center transition border border-slate-100"
+                                className="w-full text-left p-2 bg-[#0d1117] hover:bg-[#21262d] rounded-lg text-xs font-semibold text-slate-300 flex justify-between items-center transition border border-slate-800"
                               >
                                 <span className="truncate pr-2">{m.title}</span>
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                               </button>
                             ))}
                           </div>
@@ -836,7 +845,7 @@ export default function KnowledgeMap() {
                       {selectedNode.status === 'weak' && (
                         <button
                           onClick={() => navigate('/mistakes')}
-                          className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-rose-100"
+                          className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/15"
                         >
                           <Zap className="w-3.5 h-3.5" /> Исправить в практике
                         </button>
@@ -849,10 +858,10 @@ export default function KnowledgeMap() {
                   key="empty"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="card p-6 text-center text-slate-400 italic text-xs space-y-2 py-10"
+                  className="p-6 text-center text-slate-450 italic text-xs space-y-2 py-10 bg-[#161b22] border border-slate-800 rounded-2xl shadow-sm"
                 >
-                  <HelpCircle className="w-6 h-6 mx-auto text-slate-300" />
-                  <p>Нажмите на любой элемент графа, чтобы просмотреть его описание, связи и статус освоения.</p>
+                  <HelpCircle className="w-6 h-6 mx-auto text-slate-500" />
+                  <p className="text-slate-400">Нажмите на любой элемент графа, чтобы просмотреть его описание, связи и статус освоения.</p>
                 </motion.div>
               )}
             </AnimatePresence>

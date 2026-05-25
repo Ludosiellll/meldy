@@ -30,7 +30,7 @@ export async function generateCareerProfile(userId: string, context: string): Pr
     const res = await fetch('/api/career/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ context })
+      body: JSON.stringify({ materials_context: context })
     });
     
     if (!res.ok) {

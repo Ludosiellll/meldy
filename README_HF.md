@@ -24,3 +24,4 @@ pinned: false
 Установите в Settings → Repository secrets:
 
 - `GROQ_API_KEY` — ключ API от [console.groq.com](https://console.groq.com) (бесплатно)
+- `GEMINI_API_KEY` — ключи API от Google AI Studio (для аудио/подкастов). Можно указать несколько ключей через запятую для обхода лимитов.

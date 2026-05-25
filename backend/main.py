@@ -444,6 +444,26 @@ async def mistakes_practice(req: MistakesPracticeRequest):
         }
 
 
+# ── Career Navigator ──────────────────────────────────────────────────────────
+
+class CareerRequest(BaseModel):
+    materials_context: str  # Сборка всех конспектов юзера
+
+from agents.career import CareerAgent
+
+@app.post("/api/career/generate")
+async def career_generate(req: CareerRequest):
+    if not req.materials_context.strip():
+        raise HTTPException(status_code=400, detail="Нет материалов для анализа. Сначала загрузите хотя бы один конспект.")
+
+    agent = CareerAgent(api_key=GROQ_API_KEY)
+    try:
+        result = await agent.process(req.materials_context[:60000])
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации карьерного профиля: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
