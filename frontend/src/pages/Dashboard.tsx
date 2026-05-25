@@ -1,7 +1,7 @@
 import { Material, StudySession, Flashcard } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -240,6 +240,29 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mt-4 md:mt-6">
         {/* Left Col: Quests */}
         <div className="lg:col-span-1 space-y-6">
+          {materials.length === 0 && (
+            <div className="card p-5 border-l-4 border-l-emerald-500 bg-emerald-50/50">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-emerald-500" />
+                  Первые шаги
+                </h2>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                    <span className="text-[10px] text-emerald-700 font-bold">1</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-800">Загрузи первый материал</p>
+                    <p className="text-xs text-slate-500">+50 XP</p>
+                  </div>
+                  <button onClick={() => navigate('/analyze')} className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition">Вперед!</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="card p-5 border-l-4 border-l-indigo-500">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-slate-900 flex items-center gap-2">

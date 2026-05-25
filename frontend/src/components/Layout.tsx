@@ -11,6 +11,7 @@ import { getUserXP, calcLevel } from '../api/quests';
 import { getProfile, UserProfile } from '../api/social';
 import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, Notification } from '../api/chat';
 import { ErrorBoundary } from './ErrorBoundary';
+import OnboardingManager from './OnboardingManager';
 
 const navGroups = [
   {
@@ -26,8 +27,8 @@ const navGroups = [
   {
     title: 'Обучение',
     items: [
-      { to: '/analyze',     icon: Zap,             label: 'Добавить материал' },
-      { to: '/library',     icon: BookOpen,        label: 'Библиотека' },
+      { to: '/analyze',     icon: Zap,             label: 'Добавить материал', className: 'tour-step-upload' },
+      { to: '/library',     icon: BookOpen,        label: 'Библиотека', className: 'tour-step-library' },
       { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
       { to: '/planner',     icon: Calendar,        label: 'План подготовки' },
     ]
@@ -37,7 +38,7 @@ const navGroups = [
     items: [
       { to: '/play',        icon: Gamepad2,        label: 'Сюжетные миссии' },
       { to: '/review',      icon: Brain,           label: 'Смарт-карточки' },
-      { to: '/exam',        icon: Award,           label: 'Устный экзамен' },
+      { to: '/exam',        icon: Award,           label: 'Устный экзамен', className: 'tour-step-exam' },
       { to: '/quick-prep',  icon: Clock,           label: 'Повтор за 5 минут' },
     ]
   },
@@ -47,7 +48,7 @@ const navGroups = [
       { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
       { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
-      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник' },
+      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-chat' },
     ]
   }
 ];
@@ -134,6 +135,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
+      <OnboardingManager />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
       {isMobileMenuOpen && (
         <div 
@@ -159,7 +161,7 @@ export default function Layout() {
         </div>
 
         {/* XP / Level блок */}
-        <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
+        <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 tour-step-xp">
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
@@ -198,7 +200,7 @@ export default function Layout() {
                     key={item.to}
                     to={item.to}
                     className={({ isActive }) =>
-                      'flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-lg transition-colors ' +
+                      `flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-lg transition-colors ${(item as any).className || ''} ` +
                       (isActive
                         ? 'bg-slate-800 text-white shadow-sm ring-1 ring-white/5'
                         : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200')

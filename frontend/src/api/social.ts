@@ -10,6 +10,7 @@ export interface UserProfile {
   total_reviews: number;
   total_materials: number;
   role?: string;
+  onboarding_status?: Record<string, boolean>;
 }
 
 export interface PublicMaterial {
@@ -42,6 +43,18 @@ export async function updateProfile(userId: string, updates: Partial<UserProfile
   const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
   if (error) console.error('updateProfile error:', error);
   return !error;
+}
+
+export async function markOnboardingTourSeen(userId: string, tourKey: string) {
+  // We need to merge the existing JSONB. Wait, supabase update with JSONB replaces it unless we use rpc.
+  // Actually, we can fetch, merge, and update.
+  const p = await getProfile(userId);
+  if (!p) return;
+  const current = p.onboarding_status || {};
+  if (current[tourKey]) return; // already seen
+
+  const next = { ...current, [tourKey]: true };
+  await updateProfile(userId, { onboarding_status: next });
 }
 
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
