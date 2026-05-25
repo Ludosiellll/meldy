@@ -27,12 +27,43 @@ async def extract_youtube_transcript(youtube_url: str) -> str:
         raise ValueError("Не удалось распознать ссылку на YouTube.")
         
     try:
-        # Пробуем мгновенно вытащить субтитры (это бесплатно и быстро)
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['ru', 'en', 'uk'])
-        text = " ".join([t['text'] for t in transcript_list])
-        return text
+        from youtube_transcript_api import YouTubeTranscriptApi
+        
+        # Поддержка разных версий библиотеки
+        try:
+            api = YouTubeTranscriptApi()
+            transcript_list = api.list(video_id)
+        except Exception:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+        try:
+            transcript = transcript_list.find_transcript(['ru', 'en', 'uk'])
+        except Exception:
+            # Если нет нужных языков, берём первую попавшуюся транскрипцию
+            transcript = next(iter(transcript_list))
+            
+        # Пытаемся перевести на русский, если язык другой
+        if not transcript.language_code.startswith('ru'):
+            try:
+                transcript = transcript.translate('ru')
+            except Exception:
+                pass
+                
+        data = transcript.fetch()
+        text_parts = []
+        for t in data:
+            if isinstance(t, dict) and 'text' in t:
+                text_parts.append(t['text'])
+            elif hasattr(t, 'text'):
+                text_parts.append(t.text)
+                
+        text = " ".join(text_parts)
+        if text.strip():
+            return text
+            
+        raise ValueError("Транскрипция оказалась пустой")
     except Exception as e:
-        # Если субтитров нет, скачиваем и транскрибируем через Gemini
+        # Если субтитров нет вообще ни на одном языке
         return await _download_and_transcribe_youtube(youtube_url)
 
 async def _download_and_transcribe_youtube(youtube_url: str) -> str:
