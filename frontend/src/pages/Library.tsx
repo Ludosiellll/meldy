@@ -7,6 +7,7 @@ import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials, deleteMaterial } from '../api/materials';
+import { getAssignedMaterials, joinGroup } from '../api/groups';
 
 export default function Library() {
   const { user } = useAuth();
@@ -17,12 +18,30 @@ export default function Library() {
   const [subjectFilter, setSubjectFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+
+  const loadData = async () => {
     if (!user) return;
-    getMaterials(user.id)
-      .then(data => setMaterials(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    setLoading(true);
+    try {
+      const [myMats, assignedMats] = await Promise.all([
+        getMaterials(user.id),
+        getAssignedMaterials(user.id)
+      ]);
+      // Remove duplicates by ID (if teacher assigned my own material)
+      const all = [...myMats, ...assignedMats];
+      const unique = Array.from(new Map(all.map(m => [m.id, m])).values());
+      setMaterials(unique);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
   }, [user?.id]);
 
   const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
@@ -40,19 +59,61 @@ export default function Library() {
     setMaterials(prev => prev.filter(m => m.id !== id));
   };
 
+  const handleJoinGroup = async () => {
+    if (!user || !inviteCode.trim()) return;
+    setJoinError('');
+    const ok = await joinGroup(user.id, inviteCode.trim());
+    if (ok) {
+      setShowJoinModal(false);
+      setInviteCode('');
+      loadData(); // Reload materials to get assignments
+    } else {
+      setJoinError('Неверный код или вы уже состоите в группе.');
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Библиотека знаний</h1>
-        <button
-          onClick={() => navigate('/analyze')}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
-        >
-          <Plus className="w-4 h-4" />
-          Новый анализ →
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition"
+          >
+            Ввести код класса
+          </button>
+          <button
+            onClick={() => navigate('/analyze')}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
+          >
+            <Plus className="w-4 h-4" />
+            Новый анализ →
+          </button>
+        </div>
       </div>
+
+      {showJoinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="font-bold text-xl text-slate-900 mb-2">Присоединиться к группе</h3>
+            <p className="text-slate-500 text-sm mb-4">Введите инвайт-код, который дал вам преподаватель.</p>
+            <input 
+              autoFocus
+              value={inviteCode} 
+              onChange={e => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="A7B-9X2" 
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-2 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none" 
+            />
+            {joinError && <p className="text-rose-500 text-sm mb-4 text-center">{joinError}</p>}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowJoinModal(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Отмена</button>
+              <button onClick={handleJoinGroup} disabled={!inviteCode.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Вступить</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -115,17 +176,31 @@ export default function Library() {
                 className="card p-5 cursor-pointer hover:shadow-md transition group"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold text-slate-900 truncate">{m.title}</h3>
-                  <button
-                    onClick={e => handleDelete(e, m.id)}
-                    className="shrink-0 text-slate-300 hover:text-rose-500 transition opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {(m as any).is_assigned && (
+                        <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded uppercase tracking-wider">
+                          От преподавателя
+                        </span>
+                      )}
+                      {m.subject && (
+                        <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase tracking-wider truncate max-w-[150px]">
+                          {m.subject}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-slate-900 leading-snug line-clamp-2">{m.title}</h3>
+                  </div>
+                  {!(m as any).is_assigned && (
+                    <button
+                      onClick={e => handleDelete(e, m.id)}
+                      className="shrink-0 p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-                {m.subject && (
-                  <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-md mb-2">{m.subject}</span>
-                )}
+
                 <div className="flex items-center gap-3 text-sm text-slate-500 mb-3">
                   <span>📝</span>
                   <span>🃏 {fcCount}</span>
@@ -136,10 +211,17 @@ export default function Library() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-400">
-                    {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
-                  </p>
+                <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-50">
+                  <div className="flex flex-col">
+                    <p className="text-xs text-slate-400">
+                      {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
+                    </p>
+                    {(m as any).assigned_deadline && (
+                      <p className="text-[10px] font-bold text-rose-500 mt-0.5">
+                        Дедлайн: {format(new Date((m as any).assigned_deadline), 'dd.MM, HH:mm', { locale: ru })}
+                      </p>
+                    )}
+                  </div>
                   {hasPodcast && (
                     <button
                       onClick={e => { e.stopPropagation(); navigate(`/library/${m.id}?mode=express&tab=podcast`); }}

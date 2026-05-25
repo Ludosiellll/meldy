@@ -22,7 +22,7 @@ export default function Profile() {
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ full_name: '', university: '', bio: '', avatar_url: '' });
+  const [editForm, setEditForm] = useState({ full_name: '', university: '', bio: '', avatar_url: '', role: 'student' });
 
   // Push notifications state
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -38,7 +38,8 @@ export default function Profile() {
           full_name: p.full_name || '',
           university: p.university || '',
           bio: p.bio || '',
-          avatar_url: p.avatar_url || ''
+          avatar_url: p.avatar_url || '',
+          role: p.role || 'student'
         });
       }
       setLoading(false);
@@ -135,6 +136,11 @@ export default function Profile() {
                 {profile.university}
               </div>
             )}
+            {profile.role === 'teacher' && (
+              <div className="inline-flex mt-2 items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold uppercase tracking-wider">
+                Преподаватель
+              </div>
+            )}
           </div>
 
           {!isMyProfile ? (
@@ -185,6 +191,13 @@ export default function Profile() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">О себе (Био)</label>
                 <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Роль в системе</label>
+                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                  <option value="student">Студент</option>
+                  <option value="teacher">Преподаватель</option>
+                </select>
               </div>
               <div className="flex justify-end pt-2">
                 <button onClick={handleSaveProfile} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Сохранить</button>

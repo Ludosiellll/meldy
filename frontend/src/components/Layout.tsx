@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
-import { getProfile } from '../api/social';
+import { getProfile, UserProfile } from '../api/social';
 import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, Notification } from '../api/chat';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -49,6 +49,27 @@ const navGroups = [
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
       { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник' },
     ]
+  {
+    title: 'Аналитика',
+    items: [
+      { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
+      { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
+      { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
+      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник' },
+    ]
+  }
+];
+
+const teacherNavGroups = [
+  {
+    title: 'Управление классами',
+    items: [
+      { to: '/teacher',     icon: Network,         label: 'Мои группы' },
+      { to: '/library',     icon: BookOpen,        label: 'Библиотека' },
+      { to: '/analyze',     icon: Zap,             label: 'Добавить материал' },
+      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
+      { to: '/profile',     icon: User,            label: 'Мой профиль' },
+    ]
   }
 ];
 
@@ -69,7 +90,7 @@ export default function Layout() {
 
   const [xp, setXp] = useState(0);
   const [levelInfo, setLevelInfo] = useState(calcLevel(0));
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -89,7 +110,7 @@ export default function Layout() {
     fetchXP();
     window.addEventListener('xp_updated', fetchXP);
 
-    getProfile(user.id).then(p => { if (p?.avatar_url) setAvatarUrl(p.avatar_url); });
+    getProfile(user.id).then(p => { if (p) setProfile(p); });
     getUnreadCount(user.id).then(setUnreadCount);
 
     const unsub = subscribeToNotifications(user.id, () => {
@@ -170,7 +191,7 @@ export default function Layout() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
-          {navGroups.map((group, idx) => (
+          {currentNavGroups.map((group, idx) => (
             <div key={idx}>
               <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
                 {group.title}

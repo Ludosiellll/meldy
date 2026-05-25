@@ -25,6 +25,7 @@ import SocialHub from './pages/SocialHub';
 import Career from './pages/Career';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
+import TeacherDashboard from './pages/TeacherDashboard';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="quick-prep" element={<QuickPrep />} />
           <Route path="knowledge-map" element={<KnowledgeMap />} />
+          <Route path="teacher" element={<TeacherDashboard />} />
         </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />

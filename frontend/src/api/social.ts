@@ -9,6 +9,7 @@ export interface UserProfile {
   streak_days: number;
   total_reviews: number;
   total_materials: number;
+  role?: string;
 }
 
 export interface PublicMaterial {
