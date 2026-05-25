@@ -670,7 +670,7 @@ export default function KnowledgeMap() {
                           fill={isSelected ? '#1e293b' : isMaterial ? '#334155' : '#64748b'}
                           className="text-[10px] font-bold select-none pointer-events-none transition-colors"
                           style={{
-                            textShadow: '0px 2px 4px rgba(0, 0, 0, 0.95), 0px 0px 2px rgba(0, 0, 0, 0.8)'
+                            textShadow: '0px 1px 2px #ffffff, 0px 0px 4px #ffffff'
                           }}
                         >
                           {node.label.length > 20 ? `${node.label.slice(0, 18)}...` : node.label}
