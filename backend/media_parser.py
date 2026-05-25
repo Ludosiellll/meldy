@@ -46,6 +46,7 @@ async def _download_and_transcribe_youtube(youtube_url: str) -> str:
             'outtmpl': temp_path,
             'quiet': True,
             'no_warnings': True,
+            'extractor_args': {'youtube': ['player_client=android,web']},
         }
 
         loop = asyncio.get_event_loop()
