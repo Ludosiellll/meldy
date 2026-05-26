@@ -448,8 +448,8 @@ function ProductSimulation() {
         break;
       }
       case 2: {
-        // Проводник открыт. Летим к файлу docx
-        setCursorPos({ x: 398, y: 195, scale: 1, opacity: 1, clicked: false });
+        // Проводник открыт. Летим к файлу docx (центрировано)
+        setCursorPos({ x: 398, y: 200, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Выбираем файл
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
@@ -461,8 +461,8 @@ function ProductSimulation() {
         break;
       }
       case 3: {
-        // Летим к кнопке "Открыть" в проводнике
-        setCursorPos({ x: 575, y: 450, scale: 1, opacity: 1, clicked: false });
+        // Летим к кнопке "Открыть" в проводнике (центрировано)
+        setCursorPos({ x: 565, y: 450, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Кликаем по кнопке
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
@@ -509,7 +509,7 @@ function ProductSimulation() {
         // Дашборд открылся. Курсор летит к карточке
         setCursorPos({ x: 380, y: 250, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
-          setCursorPos({ x: 571, y: 120, scale: 1, opacity: 1, clicked: false });
+          setCursorPos({ x: 570, y: 120, scale: 1, opacity: 1, clicked: false });
           timer = setTimeout(() => {
             setStep(7); // Клик по карточке (переворот)
           }, 1000);
@@ -529,8 +529,8 @@ function ProductSimulation() {
         break;
       }
       case 8: {
-        // Летим к Помню
-        setCursorPos({ x: 648, y: 175, scale: 1, opacity: 1, clicked: false });
+        // Летим к Помню (центрировано)
+        setCursorPos({ x: 635, y: 178, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           setStep(9); // Клик по Помню
         }, 1000);
@@ -554,8 +554,8 @@ function ProductSimulation() {
         break;
       }
       case 10: {
-        // Летим к кнопке Открыть плеер на виджете подкаста
-        setCursorPos({ x: 670, y: 325, scale: 1, opacity: 1, clicked: false });
+        // Летим к кнопке Открыть плеер на виджете подкаста (центрировано)
+        setCursorPos({ x: 655, y: 328, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           setStep(11); // Клик по подкасту
         }, 1000);
@@ -572,9 +572,9 @@ function ProductSimulation() {
       }
       case 12: {
         // Плеер открыт. Летим к кнопке Play
-        setCursorPos({ x: 670, y: 325, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 655, y: 328, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
-          setCursorPos({ x: 670, y: 70, scale: 1, opacity: 1, clicked: false });
+          setCursorPos({ x: 660, y: 70, scale: 1, opacity: 1, clicked: false });
           timer = setTimeout(() => {
             setStep(13); // Клик по Play
           }, 1000);
@@ -1152,7 +1152,7 @@ function ProductSimulation() {
                       </div>
 
                       {/* Диалоговая лента */}
-                      <div className="space-y-3 flex-1 overflow-y-auto pr-1 flex flex-col mt-2 pb-4">
+                      <div className="space-y-3 flex-1 overflow-y-auto px-4 flex flex-col mt-2 pb-4">
                         {podcastSpeech.map((msg, i) => {
                           if (step < msg.stepActive) return null;
                           const isSpeaking = step === msg.stepActive;
@@ -1167,7 +1167,7 @@ function ProductSimulation() {
                             >
                               <div
                                 className={`relative max-w-[80%] px-4 py-3 rounded-2xl shadow-sm border transition-all duration-300 ${
-                                  msg.isMax ? 'rounded-bl-none' : 'rounded-br-none'
+                                  msg.isMax ? 'rounded-bl-sm' : 'rounded-br-sm'
                                 } ${
                                   isSpeaking
                                     ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/10 scale-[1.01]'
@@ -1406,7 +1406,8 @@ function ProductSimulation() {
                       x: cursorPos.x, 
                       y: cursorPos.y, 
                       opacity: cursorPos.opacity, 
-                      scale: cursorPos.scale 
+                      scale: cursorPos.scale,
+                      rotate: -22
                     }}
                     transition={{ 
                       type: "spring", 
@@ -1415,11 +1416,11 @@ function ProductSimulation() {
                       opacity: { duration: 0.15 }
                     }}
                     className="absolute z-50 pointer-events-none select-none drop-shadow-xl"
-                    style={{ left: 0, top: 0 }}
+                    style={{ left: 0, top: 0, transformOrigin: '0 0' }}
                   >
                     <MousePointer2 
                       className="w-5.5 h-5.5 text-slate-900 fill-white" 
-                      style={{ transformOrigin: '4px 4px', transform: 'translate(-4px, -4px) rotate(-22deg)' }}
+                      style={{ transform: 'translate(-3.67px, -3.67px)' }}
                     />
                   </motion.div>
                 )}
