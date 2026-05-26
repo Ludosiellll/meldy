@@ -2,6 +2,9 @@ import { SummaryInfo } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { Play, Pause, Square, Headphones, FileText, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateQuestProgress } from '../api/quests';
@@ -151,7 +154,7 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
               <div className="card p-6 md:p-8 bg-gradient-to-br from-amber-50/30 to-rose-50/10 border-amber-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
                 <div className="prose prose-slate max-w-none text-slate-700 prose-sm cheatsheet-style">
-                  <ReactMarkdown>{cheatsheet}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{cheatsheet}</ReactMarkdown>
                 </div>
               </div>
             )}

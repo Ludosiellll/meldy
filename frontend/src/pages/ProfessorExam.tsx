@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles, Play, Pause, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -606,7 +609,7 @@ export default function ProfessorExam() {
                     </div>
                   </div>
                   <div className="text-base font-medium text-white leading-relaxed markdown-content white-text professor-question">
-                    <ReactMarkdown>{currentQuestion}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{currentQuestion}</ReactMarkdown>
                   </div>
                 </div>
               </div>

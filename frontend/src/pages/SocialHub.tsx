@@ -6,6 +6,9 @@ import { useAuth } from '../hooks/useAuth';
 import { getLeaderboard, getPublicMaterials, toggleLike, copyMaterialToLibrary, getPublicMaterialPreview, LeaderboardEntry, PublicMaterial } from '../api/social';
 import { searchUsers } from '../api/chat';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export default function SocialHub() {
   const { user } = useAuth();
@@ -377,7 +380,7 @@ export default function SocialHub() {
                           <Eye className="w-5 h-5 text-indigo-500" /> Отрывок конспекта
                         </h4>
                         <div className="text-sm text-slate-700 leading-relaxed markdown-content max-h-64 overflow-y-hidden relative">
-                          <ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                             {typeof previewData.summary_json === 'string' 
                               ? previewData.summary_json.slice(0, 500) + '...'
                               : (previewData.summary_json.content?.slice(0, 500) || '') + '...'}

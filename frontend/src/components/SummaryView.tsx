@@ -1,4 +1,7 @@
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { SummaryInfo } from '../types';
 
 /** Извлекает чистый текст конспекта, защищаясь от сырого JSON в content */
@@ -71,7 +74,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
           // Первый блок без заголовка — обычный абзац
           return (
             <div key={i} className="prose prose-slate max-w-none text-slate-700 mb-4">
-              <ReactMarkdown>{sec.trim()}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{sec.trim()}</ReactMarkdown>
             </div>
           );
         }
@@ -91,7 +94,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
         return (
           <SectionBlock key={i} icon={icon} title={cleanTitle}>
             <div className="prose prose-slate prose-sm max-w-none">
-              <ReactMarkdown>{body}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{body}</ReactMarkdown>
             </div>
           </SectionBlock>
         );

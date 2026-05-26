@@ -236,7 +236,7 @@ async def analyze_media(
         )
 
     if file:
-        allowed_extensions = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a")
+        allowed_extensions = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a", ".jpg", ".jpeg", ".png")
         ext = os.path.splitext(file.filename or "")[1].lower()
         if ext not in allowed_extensions:
             raise HTTPException(

@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -313,7 +316,7 @@ export default function Missions() {
                   📖 Теория на пальцах
                 </h3>
                 <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-line markdown-content white-text">
-                  <ReactMarkdown>{currentMission.explanation}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{currentMission.explanation}</ReactMarkdown>
                 </div>
               </div>
             </div>
@@ -330,7 +333,7 @@ export default function Missions() {
               </div>
 
               <div className="text-sm font-semibold text-slate-700 leading-relaxed mb-4 markdown-content">
-                <ReactMarkdown>{currentMission.question}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{currentMission.question}</ReactMarkdown>
               </div>
 
               {/* Кнопки ответов */}

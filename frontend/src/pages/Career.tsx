@@ -8,6 +8,9 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { getCareerProfile, generateCareerProfile, CareerProfile } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export default function Career() {
   const { user } = useAuth();
@@ -202,7 +205,7 @@ export default function Career() {
               <h2 className="text-xl font-bold text-slate-900">О себе (Для резюме)</h2>
             </div>
             <div className="prose prose-slate max-w-none prose-p:leading-relaxed text-slate-600">
-              <ReactMarkdown>{profile?.resume_summary || ''}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{profile?.resume_summary || ''}</ReactMarkdown>
             </div>
           </div>
 

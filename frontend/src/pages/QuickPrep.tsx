@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, BookOpen, HelpCircle, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, X, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -230,7 +233,7 @@ export default function QuickPrep() {
             <div className="bg-slate-900 text-white rounded-2xl p-5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">⚡ Экспресс-шпаргалка</p>
               <div className="text-sm text-slate-300 leading-relaxed markdown-content white-text">
-                <ReactMarkdown>{data.cheatsheet}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{data.cheatsheet}</ReactMarkdown>
               </div>
             </div>
 
