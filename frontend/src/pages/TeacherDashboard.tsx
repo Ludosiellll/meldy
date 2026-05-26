@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment } from '../api/groups';
+import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions } from '../api/groups';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
-import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap } from 'lucide-react';
+import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -85,7 +85,7 @@ export default function TeacherDashboard() {
   const navigate = useNavigate();
   
   // Роль пользователя
-  const [role, setRole] = useState<'student' | 'teacher'>('student');
+  const [role, setRole] = useState<'student' | 'teacher' | null>(null);
   const [teacherName, setTeacherName] = useState('Загрузка...');
 
   // Группы
@@ -95,6 +95,8 @@ export default function TeacherDashboard() {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [completedAssignments, setCompletedAssignments] = useState<string[]>([]);
+  const [groupCompletions, setGroupCompletions] = useState<any[]>([]);
   
   // Создание класса
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -179,7 +181,7 @@ export default function TeacherDashboard() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || role === null) return;
     if (role === 'teacher') {
       loadTeacherGroups();
     } else {
@@ -190,19 +192,24 @@ export default function TeacherDashboard() {
 
   // Загрузка деталей выбранной группы
   useEffect(() => {
-    if (selectedGroupId) {
+    if (selectedGroupId && user) {
       getGroupMembersWithWeeklyXP(selectedGroupId).then(setMembers);
       getGroupAssignments(selectedGroupId).then(setAssignments);
       
-      const group = groups.find(g => g.id === selectedGroupId);
-      if (group && role === 'student') {
-        supabase.from('profiles').select('full_name').eq('id', group.teacher_id).maybeSingle()
-          .then(({ data }) => {
-            setTeacherName(data?.full_name || 'Неизвестный преподаватель');
-          });
+      if (role === 'student') {
+        getStudentCompletions(user.id).then(setCompletedAssignments);
+        const group = groups.find(g => g.id === selectedGroupId);
+        if (group) {
+          supabase.from('profiles').select('full_name').eq('id', group.teacher_id).maybeSingle()
+            .then(({ data }) => {
+              setTeacherName(data?.full_name || 'Неизвестный преподаватель');
+            });
+        }
+      } else if (role === 'teacher') {
+        getGroupCompletions(selectedGroupId).then(setGroupCompletions);
       }
     }
-  }, [selectedGroupId, role, groups]);
+  }, [selectedGroupId, role, groups, user]);
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || !user) return;
@@ -220,9 +227,27 @@ export default function TeacherDashboard() {
     const ok = await createAssignment(selectedGroupId, selectedMaterial, deadline || undefined);
     if (ok) {
       getGroupAssignments(selectedGroupId).then(setAssignments);
+      if (role === 'teacher') {
+        getGroupCompletions(selectedGroupId).then(setGroupCompletions);
+      }
       setShowAssignModal(false);
       setSelectedMaterial('');
       setDeadline('');
+    }
+  };
+
+  const handleToggleCompletion = async (assignmentId: string) => {
+    if (!user || !selectedGroupId) return;
+    const isCurrentlyCompleted = completedAssignments.includes(assignmentId);
+    const ok = await toggleAssignmentCompletion(assignmentId, user.id, !isCurrentlyCompleted);
+    if (ok) {
+      setCompletedAssignments(prev => 
+        isCurrentlyCompleted 
+          ? prev.filter(id => id !== assignmentId)
+          : [...prev, assignmentId]
+      );
+      // Перезагружаем сдачи группы, чтобы преподаватель видел обновления в реальном времени
+      getGroupCompletions(selectedGroupId).then(setGroupCompletions);
     }
   };
 
@@ -308,7 +333,7 @@ export default function TeacherDashboard() {
       )}
 
       {/* LOADING */}
-      {loading && (
+      {(loading || role === null) && (
         <div className="text-center py-20">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-slate-500 font-medium">Загрузка информации о группах...</p>
@@ -316,7 +341,7 @@ export default function TeacherDashboard() {
       )}
 
       {/* EMPTY GROUPS STATE */}
-      {!loading && groups.length === 0 && (
+      {!(loading || role === null) && groups.length === 0 && (
         <div className="space-y-6">
           <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 border-dashed">
             <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
@@ -491,28 +516,130 @@ export default function TeacherDashboard() {
                     <h3 className="font-bold text-slate-800 text-sm">Назначенные задания ({assignments.length})</h3>
                   </div>
                   <div className="divide-y divide-slate-100">
-                    {assignments.map(a => (
-                      <div key={a.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                        <div>
-                          <div className="font-bold text-slate-800">{a.material?.title || 'Удаленный материал'}</div>
-                          {a.deadline && (
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-500 mt-1">
-                              <Calendar className="w-3.5 h-3.5" />
-                              Дедлайн: {format(new Date(a.deadline), 'd MMMM, HH:mm', { locale: ru })}
+                    {assignments.map(a => {
+                      const isDone = completedAssignments.includes(a.id);
+                      const isOverdue = a.deadline && new Date(a.deadline) < new Date();
+                      const completionsCount = groupCompletions.filter(c => c.assignment_id === a.id).length;
+                      const totalStudents = members.length;
+
+                      return (
+                        <div key={a.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-800">{a.material?.title || 'Удаленный материал'}</span>
+                              {role === 'student' ? (
+                                isDone ? (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                    Выполнено ✅
+                                  </span>
+                                ) : isOverdue ? (
+                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                    Просрочено ⏰
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-sky-100 text-sky-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                    В процессе ⏳
+                                  </span>
+                                )
+                              ) : (
+                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                  Сдали: {completionsCount} из {totalStudents}
+                                </span>
+                              )}
                             </div>
-                          )}
+                            {a.deadline && (
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-500 mt-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                Дедлайн: {format(new Date(a.deadline), 'd MMMM, HH:mm', { locale: ru })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 self-end sm:self-center">
+                            {role === 'student' && a.material && (
+                              <>
+                                <button
+                                  onClick={() => handleToggleCompletion(a.id)}
+                                  className={`px-3 py-1.5 font-bold rounded-lg text-xs transition border ${
+                                    isDone 
+                                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' 
+                                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                                  }`}
+                                >
+                                  {isDone ? 'Выполнено' : 'Выполнить'}
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/library/${a.material_id}`)}
+                                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition"
+                                >
+                                  Изучить →
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        {role === 'student' && a.material && (
-                          <button
-                            onClick={() => navigate(`/library/${a.material_id}`)}
-                            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition"
-                          >
-                            Изучить →
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                </div>
+              )}
+
+              {/* Teacher-only Assignment completions matrix */}
+              {role === 'teacher' && assignments.length > 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm p-6 space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                    <Check className="w-5 h-5 text-emerald-500" />
+                    <h3 className="font-extrabold text-slate-800 text-base">Контроль выполнения заданий 🧭</h3>
+                  </div>
+                  
+                  {members.length === 0 ? (
+                    <p className="text-slate-400 text-xs italic">Нет студентов в классе для отображения прогресса.</p>
+                  ) : (
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full text-left text-xs min-w-[500px]">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold">
+                            <th className="p-3">Студент</th>
+                            {assignments.map(a => (
+                              <th key={a.id} className="p-3 font-bold truncate max-w-[120px]" title={a.material?.title}>
+                                {a.material?.title || 'Удаленный'}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {members.map(m => (
+                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="p-3 font-bold text-slate-700">
+                                {m.student_name}
+                              </td>
+                              {assignments.map(a => {
+                                const completion = groupCompletions.find(c => c.assignment_id === a.id && c.student_id === m.student_id);
+                                const isOverdue = a.deadline && new Date(a.deadline) < new Date();
+                                
+                                return (
+                                  <td key={a.id} className="p-3">
+                                    {completion ? (
+                                      <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                                        <Check className="w-3.5 h-3.5" /> Выполнено
+                                      </span>
+                                    ) : isOverdue ? (
+                                      <span className="flex items-center gap-1 text-rose-500 font-semibold">
+                                        ❌ Просрочено
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center gap-1 text-slate-400">
+                                        ⏳ В процессе
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 

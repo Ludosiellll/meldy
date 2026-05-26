@@ -47,8 +47,9 @@ export default function CoStudy() {
   const [loading, setLoading] = useState(true);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const timerIntervalRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const coChannelRef = useRef<any>(null);
+  const timerEndTimeRef = useRef<number | null>(null);
 
   // 1. Загрузка материала и профиля
   useEffect(() => {
@@ -102,7 +103,24 @@ export default function CoStudy() {
     }
   };
 
-  // 2. Реализация Supabase Realtime (Presence + Broadcast + DB Changes)
+  // 2. Локальное восстановление таймера из localStorage
+  useEffect(() => {
+    if (!materialId) return;
+    const savedEnd = localStorage.getItem(`co_timer_end_${materialId}`);
+    const savedDur = localStorage.getItem(`co_timer_dur_${materialId}`);
+    if (savedEnd && savedDur) {
+      const endTime = parseInt(savedEnd, 10);
+      const duration = parseInt(savedDur, 10);
+      if (endTime > Date.now()) {
+        timerEndTimeRef.current = endTime;
+        setTimerDuration(duration);
+        setTimerSeconds(Math.max(0, Math.floor((endTime - Date.now()) / 1000)));
+        setTimerActive(true);
+      }
+    }
+  }, [materialId]);
+
+  // 3. Реализация Supabase Realtime (Presence + Broadcast + DB Changes)
   useEffect(() => {
     if (!materialId || !user || !profile) return;
 
@@ -110,6 +128,8 @@ export default function CoStudy() {
     const coChannel = supabase.channel(`co_room_${materialId}`, {
       config: { presence: { key: user.id } }
     });
+
+    coChannelRef.current = coChannel;
 
     coChannel
       .on('presence', { event: 'sync' }, () => {
@@ -128,29 +148,57 @@ export default function CoStudy() {
         });
         setOnlineUsers(users);
       })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        // Оповещение о входе
-      })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        // Оповещение о выходе
-      })
       // Прослушивание синхронизации таймера
       .on('broadcast', { event: 'timer' }, ({ payload }) => {
         if (payload.action === 'start') {
-          const elapsed = Math.floor((Date.now() - payload.startTime) / 1000);
-          const remaining = Math.max(0, payload.duration - elapsed);
-          setTimerSeconds(remaining);
+          const endTime = payload.endTime;
+          timerEndTimeRef.current = endTime;
           setTimerDuration(payload.duration);
           setTimerActive(true);
+          // Сохраняем локально на случай перезагрузки
+          localStorage.setItem(`co_timer_end_${materialId}`, endTime.toString());
+          localStorage.setItem(`co_timer_dur_${materialId}`, payload.duration.toString());
         } else if (payload.action === 'stop') {
           setTimerActive(false);
+          timerEndTimeRef.current = null;
+          localStorage.removeItem(`co_timer_end_${materialId}`);
         } else if (payload.action === 'reset') {
           setTimerActive(false);
+          timerEndTimeRef.current = null;
+          localStorage.removeItem(`co_timer_end_${materialId}`);
           setTimerSeconds(payload.duration);
+        } else if (payload.action === 'sync_request') {
+          // Если у нас запущен таймер, отправляем его данные новому участнику
+          if (timerEndTimeRef.current && timerEndTimeRef.current > Date.now()) {
+            coChannel.send({
+              type: 'broadcast',
+              event: 'timer',
+              payload: {
+                action: 'sync_response',
+                endTime: timerEndTimeRef.current,
+                duration: timerDuration
+              }
+            });
+          }
+        } else if (payload.action === 'sync_response') {
+          if (payload.endTime > Date.now()) {
+            timerEndTimeRef.current = payload.endTime;
+            setTimerDuration(payload.duration);
+            setTimerActive(true);
+            localStorage.setItem(`co_timer_end_${materialId}`, payload.endTime.toString());
+            localStorage.setItem(`co_timer_dur_${materialId}`, payload.duration.toString());
+          }
         }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
+          // Запрашиваем состояние таймера у присутствующих
+          coChannel.send({
+            type: 'broadcast',
+            event: 'timer',
+            payload: { action: 'sync_request' }
+          });
+
           await coChannel.track({
             user_id: user.id,
             name: profile.full_name || 'Студент',
@@ -170,7 +218,6 @@ export default function CoStudy() {
         filter: `material_id=eq.${materialId}` 
       }, (payload) => {
         const newMsg = payload.new as Message;
-        // Избегаем дублирования сообщений
         setMessages(prev => {
           if (prev.some(m => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
@@ -178,75 +225,113 @@ export default function CoStudy() {
       })
       .subscribe();
 
+    // Слушатель для alt+tab и восстановления фокуса (для обновления присутствия)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && coChannelRef.current) {
+        coChannelRef.current.track({
+          user_id: user.id,
+          name: profile.full_name || 'Студент',
+          avatar: profile.avatar_url,
+          status: myStatus
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       coChannel.unsubscribe();
       msgChannel.unsubscribe();
     };
-  }, [materialId, user, profile, myStatus]);
+  }, [materialId, user, profile]);
 
-  // Обновление статуса Presence
-  const handleUpdateStatus = async (status: string) => {
+  // Обновление присутствия при смене статуса
+  useEffect(() => {
+    if (coChannelRef.current && user && profile) {
+      coChannelRef.current.track({
+        user_id: user.id,
+        name: profile.full_name || 'Студент',
+        avatar: profile.avatar_url,
+        status: myStatus
+      });
+    }
+  }, [myStatus, user, profile]);
+
+  // Обновление статуса Presence локально
+  const handleUpdateStatus = (status: string) => {
     setMyStatus(status);
-    // Realtime автоматически переотправит новые данные presence
   };
 
-  // 3. Работа с Pomodoro-таймером локально и рассылка по Broadcast
+  // 4. Работа с Pomodoro-таймером локально (вычисление по endTime для борьбы с дрейфом в фоне)
   useEffect(() => {
-    if (timerActive && timerSeconds > 0) {
-      timerIntervalRef.current = setInterval(() => {
-        setTimerSeconds(prev => {
-          if (prev <= 1) {
-            setTimerActive(false);
-            playAlarmSound();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    let interval: any = null;
+    if (timerActive && timerEndTimeRef.current) {
+      interval = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((timerEndTimeRef.current! - Date.now()) / 1000));
+        setTimerSeconds(remaining);
+        if (remaining <= 0) {
+          setTimerActive(false);
+          timerEndTimeRef.current = null;
+          localStorage.removeItem(`co_timer_end_${materialId}`);
+          playAlarmSound();
+          clearInterval(interval);
+        }
+      }, 500);
     }
-
     return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (interval) clearInterval(interval);
     };
-  }, [timerActive, timerSeconds]);
+  }, [timerActive, materialId]);
 
   const handleStartTimer = (durationMins: number) => {
     const duration = durationMins * 60;
-    const startTime = Date.now();
+    const endTime = Date.now() + duration * 1000;
     
-    // Отправляем всем присутствующим в комнате команду на запуск
-    supabase.channel(`co_room_${materialId}`).send({
-      type: 'broadcast',
-      event: 'timer',
-      payload: { action: 'start', startTime, duration }
-    });
+    if (coChannelRef.current) {
+      coChannelRef.current.send({
+        type: 'broadcast',
+        event: 'timer',
+        payload: { action: 'start', endTime, duration }
+      });
+    }
 
+    timerEndTimeRef.current = endTime;
     setTimerDuration(duration);
     setTimerSeconds(duration);
     setTimerActive(true);
+    localStorage.setItem(`co_timer_end_${materialId}`, endTime.toString());
+    localStorage.setItem(`co_timer_dur_${materialId}`, duration.toString());
   };
 
   const handleStopTimer = () => {
-    supabase.channel(`co_room_${materialId}`).send({
-      type: 'broadcast',
-      event: 'timer',
-      payload: { action: 'stop' }
-    });
+    if (coChannelRef.current) {
+      coChannelRef.current.send({
+        type: 'broadcast',
+        event: 'timer',
+        payload: { action: 'stop' }
+      });
+    }
     setTimerActive(false);
+    timerEndTimeRef.current = null;
+    localStorage.removeItem(`co_timer_end_${materialId}`);
   };
 
   const handleResetTimer = () => {
     const duration = 25 * 60;
-    supabase.channel(`co_room_${materialId}`).send({
-      type: 'broadcast',
-      event: 'timer',
-      payload: { action: 'reset', duration }
-    });
+    if (coChannelRef.current) {
+      coChannelRef.current.send({
+        type: 'broadcast',
+        event: 'timer',
+        payload: { action: 'reset', duration }
+      });
+    }
     setTimerActive(false);
+    timerEndTimeRef.current = null;
+    localStorage.removeItem(`co_timer_end_${materialId}`);
     setTimerSeconds(duration);
   };
+
 
   // 4. Отправка сообщений чата в базу данных
   const handleSendMessage = async (e: React.FormEvent) => {

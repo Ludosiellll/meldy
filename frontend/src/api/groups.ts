@@ -136,3 +136,47 @@ export async function getAssignedMaterials(studentId: string): Promise<Material[
     return mat;
   }).filter(Boolean);
 }
+
+export interface AssignmentCompletion {
+  id: string;
+  assignment_id: string;
+  student_id: string;
+  completed_at: string;
+}
+
+export async function toggleAssignmentCompletion(assignmentId: string, studentId: string, markCompleted: boolean): Promise<boolean> {
+  if (markCompleted) {
+    const { error } = await supabase.from('assignment_completions').insert({
+      assignment_id: assignmentId,
+      student_id: studentId
+    });
+    if (error && error.code !== '23505') { // Ignore unique constraint violation
+      console.error('toggleAssignmentCompletion', error);
+      return false;
+    }
+  } else {
+    const { error } = await supabase.from('assignment_completions').delete().eq('assignment_id', assignmentId).eq('student_id', studentId);
+    if (error) {
+      console.error('toggleAssignmentCompletion', error);
+      return false;
+    }
+  }
+  return true;
+}
+
+export async function getStudentCompletions(studentId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('assignment_completions').select('assignment_id').eq('student_id', studentId);
+  if (error || !data) return [];
+  return data.map(c => c.assignment_id);
+}
+
+export async function getGroupCompletions(groupId: string): Promise<any[]> {
+  const { data: assignments } = await supabase.from('assignments').select('id').eq('group_id', groupId);
+  if (!assignments || assignments.length === 0) return [];
+  const assignmentIds = assignments.map(a => a.id);
+  
+  const { data, error } = await supabase.from('assignment_completions').select('*').in('assignment_id', assignmentIds);
+  if (error || !data) return [];
+  return data;
+}
+
