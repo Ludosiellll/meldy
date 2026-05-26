@@ -5,7 +5,8 @@ import {
   GraduationCap, Zap, Brain, Calendar, BookOpen,
   MessageSquare, BarChart2, Sparkles, ArrowRight,
   CheckCircle, Upload, Cpu, Trophy, Network, Briefcase, Award, Heart, Menu, X,
-  MousePointer2, Terminal, FileText, Check, Loader2, Play
+  MousePointer2, Terminal, FileText, Check, Loader2, Play, FileCheck, Headphones,
+  Search, LayoutDashboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,7 +31,7 @@ export default function Landing() {
       <Navbar />
       <Hero />
       <Stats />
-      <InteractiveDemo />
+      <ProductSimulation />
       <Features />
       <EducatorsSection />
       <CtaSection />
@@ -401,127 +402,232 @@ function Stats() {
   );
 }
 
-function InteractiveDemo() {
+function ProductSimulation() {
   const [step, setStep] = useState(0);
 
   const startSimulation = () => {
     if (step !== 0) return;
-    setStep(1);
-    setTimeout(() => setStep(2), 1500);
-    setTimeout(() => setStep(3), 4000);
-    setTimeout(() => setStep(4), 6500);
+    setStep(1); // Uploading phase
+    setTimeout(() => setStep(2), 2500); // Scanning phase
+    setTimeout(() => setStep(3), 5500); // Results phase
   };
 
   return (
-    <section id="how-it-works" className="py-24 px-6 relative bg-[#0a0f1c] text-slate-300 overflow-hidden border-y border-slate-800">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#0a0f1c]/0 to-[#0a0f1c]/0 pointer-events-none" />
-      
-      <div className="max-w-5xl mx-auto relative z-10">
-        <div className="text-center mb-12 space-y-3">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-            Симуляция работы ИИ
+    <section id="simulation" className="py-24 px-6 relative bg-slate-50 border-y border-slate-200 overflow-hidden">
+      <div className="max-w-6xl mx-auto relative z-10">
+        <div className="text-center mb-16 space-y-3">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Один клик — и всё готово
           </h2>
-          <p className="text-slate-400 text-lg max-w-xl mx-auto">
-            Посмотрите, как агенты StudyForge работают в реальном времени.
+          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+            Посмотрите, как работает реальный интерфейс StudyForge. Мы автоматизируем всю рутину за секунды.
           </p>
         </div>
 
-        {/* Terminal/HUD Container */}
-        <div className="bg-[#030712] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-w-4xl mx-auto">
-          {/* Mac window header */}
-          <div className="bg-[#0f172a] border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+        {/* Browser / App Window Mockup */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col max-w-5xl mx-auto relative h-[600px]">
+          
+          {/* Header */}
+          <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between z-20">
             <div className="flex gap-2">
-              <div className="w-3 h-3 rounded-full bg-rose-500" />
-              <div className="w-3 h-3 rounded-full bg-amber-500" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
+              <div className="w-3 h-3 rounded-full bg-rose-400" />
+              <div className="w-3 h-3 rounded-full bg-amber-400" />
+              <div className="w-3 h-3 rounded-full bg-emerald-400" />
             </div>
-            <span className="text-xs font-mono text-slate-500">Forgey HUD Console</span>
+            <div className="flex bg-white border border-slate-200 rounded-md px-3 py-1 flex-1 max-w-md mx-4 items-center justify-center gap-2">
+              <Search className="w-3 h-3 text-slate-400" />
+              <span className="text-xs font-medium text-slate-400">app.studyforge.ru/dashboard</span>
+            </div>
             <div className="w-16" />
           </div>
 
-          <div className="p-6 md:p-8 flex-1 min-h-[300px] font-mono text-sm sm:text-base relative">
-            {step === 0 && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/50 backdrop-blur-sm z-20">
-                <button 
-                  onClick={startSimulation}
-                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-sans font-bold transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:scale-105"
-                >
-                  <Play className="w-5 h-5 fill-white" />
-                  Запустить анализ лекции
-                </button>
+          {/* App Body */}
+          <div className="flex flex-1 overflow-hidden relative">
+            
+            {/* Sidebar Mockup */}
+            <div className="w-64 border-r border-slate-100 bg-slate-50/50 p-4 hidden md:flex flex-col gap-4">
+              <div className="h-8 bg-indigo-100/50 rounded-lg w-full flex items-center px-3 gap-2">
+                <LayoutDashboard className="w-4 h-4 text-indigo-600" />
+                <div className="h-2 bg-indigo-600/20 rounded w-20" />
               </div>
-            )}
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-slate-500">
-                <span className="text-indigo-400">~/studyforge</span>$ ./analyze_lecture.sh --file quantum_physics.pdf
+              <div className="space-y-3 mt-4">
+                <div className="h-4 bg-slate-200/50 rounded w-5/6" />
+                <div className="h-4 bg-slate-200/50 rounded w-4/5" />
+                <div className="h-4 bg-slate-200/50 rounded w-full" />
+                <div className="h-4 bg-slate-200/50 rounded w-3/4" />
               </div>
+            </div>
 
-              {step >= 1 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-slate-400">
-                  <span className="text-emerald-400">[Система]</span> Инициализация 6 агентов...
-                  <div className="flex items-center gap-2 mt-2 text-indigo-300">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Чтение файла (1.2 MB)</span>
-                  </div>
-                </motion.div>
-              )}
+            {/* Main Content Area */}
+            <div className="flex-1 p-8 relative bg-white flex flex-col items-center justify-center">
+              
+              <AnimatePresence mode="wait">
+                {step === 0 && (
+                  <motion.div 
+                    key="step0"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="flex flex-col items-center gap-6 z-10"
+                  >
+                    <div className="w-24 h-24 bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-3xl flex items-center justify-center">
+                      <Upload className="w-10 h-10 text-indigo-400" />
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">Загрузите материалы</h3>
+                      <p className="text-sm text-slate-500 max-w-xs">Перетащите PDF, Word или просто вставьте текст лекции.</p>
+                    </div>
+                    <button 
+                      onClick={startSimulation}
+                      className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 hover:-translate-y-0.5 transition-all"
+                    >
+                      Начать магию
+                    </button>
+                  </motion.div>
+                )}
 
-              {step >= 2 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
-                  <p><span className="text-sky-400">[Агент 1: Структуратор]</span> Выделение ключевых тем...</p>
-                  <p><span className="text-amber-400">[Агент 2: Термины]</span> Найдено 14 новых понятий.</p>
-                  <p><span className="text-rose-400">[Агент 3: Карточки]</span> Генерация Flashcards по методу Лейтнера...</p>
-                  <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }} 
-                      animate={{ width: "100%" }} 
-                      transition={{ duration: 2, ease: "linear" }}
-                      className="bg-indigo-500 h-full"
-                    />
-                  </div>
-                </motion.div>
-              )}
-
-              {step >= 3 && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-4 border-t border-slate-800 relative">
-                  <p className="text-emerald-400 mb-4 font-bold flex items-center gap-2">
-                    <Check className="w-5 h-5" /> Успех! Создана карточка для изучения:
-                  </p>
-                  
-                  {/* Fake Flashcard inside terminal */}
-                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 w-full max-w-sm mx-auto flex flex-col items-center justify-center min-h-[120px] font-sans relative overflow-hidden group cursor-pointer">
-                    <p className="text-slate-400 text-xs uppercase font-bold mb-2">Термин</p>
-                    <p className="text-white font-bold text-lg text-center">Принцип неопределённости Гейзенберга</p>
+                {(step === 1 || step === 2) && (
+                  <motion.div 
+                    key="step1"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="flex flex-col items-center gap-6 z-10 w-full max-w-md"
+                  >
+                    <div className="relative w-32 h-40 bg-white border border-slate-200 rounded-xl shadow-xl flex items-center justify-center overflow-hidden">
+                      <FileText className="w-12 h-12 text-slate-300" />
+                      {/* Scanning Line */}
+                      {step === 2 && (
+                        <motion.div 
+                          initial={{ top: "-10%" }}
+                          animate={{ top: "110%" }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                          className="absolute left-0 right-0 h-1 bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)]"
+                        />
+                      )}
+                    </div>
                     
-                    {/* Fake Cursor Animation */}
-                    {step >= 3 && step < 4 && (
+                    <div className="w-full space-y-2 text-center">
+                      <p className="text-sm font-bold text-slate-800">
+                        {step === 1 ? "Загрузка файла..." : "ИИ-анализ лекции (работают 6 агентов)..."}
+                      </p>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: step === 1 ? "30%" : "95%" }}
+                          transition={{ duration: step === 1 ? 2 : 2.5, ease: "easeInOut" }}
+                          className="bg-indigo-600 h-full rounded-full"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {step === 3 && (
+                  <motion.div 
+                    key="step3"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 p-6 flex flex-col md:flex-row gap-6 bg-slate-50/50"
+                  >
+                    {/* Left: Document Summary */}
+                    <motion.div 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 overflow-hidden flex flex-col"
+                    >
+                      <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                        <FileCheck className="w-5 h-5 text-emerald-500" />
+                        <h4 className="font-bold text-slate-800">Умный Конспект</h4>
+                      </div>
+                      
+                      <div className="space-y-4 flex-1">
+                        <motion.div initial={{ width: 0 }} animate={{ width: "80%" }} transition={{ duration: 1, delay: 0.5 }} className="h-4 bg-slate-200 rounded" />
+                        <motion.div initial={{ width: 0 }} animate={{ width: "95%" }} transition={{ duration: 1, delay: 0.7 }} className="h-4 bg-slate-200 rounded" />
+                        <motion.div initial={{ width: 0 }} animate={{ width: "60%" }} transition={{ duration: 1, delay: 0.9 }} className="h-4 bg-slate-200 rounded" />
+                        
+                        <div className="mt-6 pt-4 border-t border-dashed border-slate-200 space-y-4">
+                          <motion.div initial={{ width: 0 }} animate={{ width: "40%" }} transition={{ duration: 1, delay: 1.1 }} className="h-3 bg-indigo-100 rounded" />
+                          <motion.div initial={{ width: 0 }} animate={{ width: "85%" }} transition={{ duration: 1, delay: 1.3 }} className="h-3 bg-slate-100 rounded" />
+                          <motion.div initial={{ width: 0 }} animate={{ width: "70%" }} transition={{ duration: 1, delay: 1.5 }} className="h-3 bg-slate-100 rounded" />
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Right: Interactive Cards */}
+                    <div className="w-full md:w-80 flex flex-col gap-6">
+                      
+                      {/* Flashcard */}
                       <motion.div 
-                        initial={{ x: 100, y: 100, opacity: 0 }}
-                        animate={{ x: 0, y: 0, opacity: 1 }}
-                        transition={{ duration: 1.5, ease: "backOut" }}
-                        className="absolute bottom-4 right-8 z-30"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 relative overflow-hidden"
                       >
-                        <MousePointer2 className="w-8 h-8 text-white fill-slate-800 -rotate-12 drop-shadow-xl" />
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Карточка 1/14</span>
+                          <Brain className="w-4 h-4 text-indigo-500" />
+                        </div>
+                        <div className="min-h-[100px] flex items-center justify-center">
+                          <motion.div
+                            animate={{ rotateY: [0, 180, 180, 0] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+                            style={{ transformStyle: "preserve-3d" }}
+                            className="w-full relative"
+                          >
+                            <p className="font-bold text-slate-800 text-center text-lg">Нейросеть</p>
+                          </motion.div>
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <div className="h-8 flex-1 bg-rose-50 rounded-lg border border-rose-100 flex items-center justify-center text-[10px] font-bold text-rose-600">Забыл</div>
+                          <div className="h-8 flex-1 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-600">Помню</div>
+                        </div>
                       </motion.div>
-                    )}
-                  </div>
+
+                      {/* Podcast Player */}
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.9 }}
+                        className="bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 p-5 text-white"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-bold text-sm flex items-center gap-2"><Headphones className="w-4 h-4" /> AI-Подкаст</h4>
+                          <span className="text-xs font-mono bg-white/20 px-2 py-0.5 rounded">03:45</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 h-8 w-full justify-center">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                            <motion.div 
+                              key={i}
+                              animate={{ height: ["20%", "100%", "20%"] }}
+                              transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.1, ease: "easeInOut" }}
+                              className="w-1.5 bg-white/80 rounded-full"
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Simulated Mouse Cursor */}
+              {step > 0 && step < 3 && (
+                <motion.div
+                  initial={{ x: 200, y: 200, opacity: 0 }}
+                  animate={
+                    step === 1 ? { x: 0, y: 0, opacity: 1 } :
+                    step === 2 ? { x: -50, y: 150, opacity: 0 } : {}
+                  }
+                  transition={{ duration: 1.5, ease: "easeInOut" }}
+                  className="absolute z-50 pointer-events-none"
+                >
+                  <MousePointer2 className="w-8 h-8 text-slate-800 fill-white -rotate-12 drop-shadow-xl" />
                 </motion.div>
               )}
 
-              {step >= 4 && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4 mt-6 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl">
-                  <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
-                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Forgey&backgroundColor=transparent" alt="AI" className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-indigo-300 text-sm font-sans mb-1">Форджи (ИИ-ассистент)</p>
-                    <p className="text-slate-300 font-sans text-sm leading-relaxed">
-                      Я закончил анализ лекции! Сгенерировано 14 карточек и краткий конспект. Начнем совместную <strong className="text-white">Co-Study</strong> сессию прямо сейчас?
-                    </p>
-                  </div>
-                </motion.div>
-              )}
             </div>
           </div>
         </div>
