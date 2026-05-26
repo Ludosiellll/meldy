@@ -19,8 +19,8 @@ const navGroups = [
     title: 'Платформа',
     items: [
       { to: '/dashboard',   icon: LayoutDashboard, label: 'Дашборд' },
-      { to: '/network',     icon: Globe,           label: 'Study Network', isNew: true },
-      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения', isNew: true },
+      { to: '/network',     icon: Globe,           label: 'Study Network' },
+      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
       { to: '/profile',     icon: User,            label: 'Мой профиль' },
       { to: '/career',      icon: Briefcase,       label: 'Карьерный трек' },
     ]
