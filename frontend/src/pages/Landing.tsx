@@ -530,7 +530,7 @@ function ProductSimulation() {
       }
       case 8: {
         // Летим к Помню (центрировано)
-        setCursorPos({ x: 635, y: 178, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 635, y: 186, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           setStep(9); // Клик по Помню
         }, 1000);
@@ -1170,7 +1170,7 @@ function ProductSimulation() {
                                   msg.isMax ? 'rounded-bl-sm' : 'rounded-br-sm'
                                 } ${
                                   isSpeaking
-                                    ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/10 scale-[1.01]'
+                                    ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/10'
                                     : msg.isMax
                                     ? 'bg-white border-slate-200 text-slate-800'
                                     : 'bg-indigo-600 border-indigo-700 text-white'
@@ -1416,12 +1416,14 @@ function ProductSimulation() {
                       opacity: { duration: 0.15 }
                     }}
                     className="absolute z-50 pointer-events-none select-none drop-shadow-xl"
-                    style={{ left: 0, top: 0, transformOrigin: '0 0' }}
+                    style={{ left: 0, top: 0 }}
                   >
-                    <MousePointer2 
-                      className="w-5.5 h-5.5 text-slate-900 fill-white" 
-                      style={{ transform: 'translate(-3.67px, -3.67px)' }}
-                    />
+                    <div style={{ transform: 'rotate(-22deg)', transformOrigin: '0px 0px' }}>
+                      <MousePointer2 
+                        className="w-6 h-6 text-slate-900 fill-white absolute" 
+                        style={{ marginLeft: '-2.5px', marginTop: '-2.5px' }}
+                      />
+                    </div>
                   </motion.div>
                 )}
 
