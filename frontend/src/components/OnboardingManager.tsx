@@ -196,28 +196,46 @@ export default function OnboardingManager() {
     if (!profile) return;
     const status = profile.onboarding_status || {};
 
+    const isMobile = window.innerWidth < 768;
+    const mapStep = (s: Step) => ({
+      ...s,
+      target: isMobile 
+        ? (s.target as string).replace('.tour-step-', '.tour-step-mobile-')
+        : (s.target as string).replace('.tour-step-', '.tour-step-desktop-'),
+      placement: isMobile && s.placement === 'right' ? 'bottom' : s.placement,
+    });
+
     if (location.pathname === '/dashboard' && !status['dashboard_tour']) {
-      if (document.querySelector('.tour-step-upload')) {
-        setSteps(DASHBOARD_STEPS);
-        setTourKey('dashboard_tour');
-        markOnboardingTourSeen(user.id, 'dashboard_tour');
-        setRun(true);
-      }
+      const mappedSteps = DASHBOARD_STEPS.map(mapStep);
+      // Wait for DOM
+      setTimeout(() => {
+        if (document.querySelector(mappedSteps[1].target as string)) {
+          setSteps(mappedSteps);
+          setTourKey('dashboard_tour');
+          markOnboardingTourSeen(user.id, 'dashboard_tour');
+          setRun(true);
+        }
+      }, 100);
     } else if (location.pathname === '/dashboard' && status['dashboard_tour'] && profile.total_materials > 0 && !status['exam_tour']) {
-      if (document.querySelector('.tour-step-exam')) {
-        setSteps(EXAM_STEPS);
-        setTourKey('exam_tour');
-        markOnboardingTourSeen(user.id, 'exam_tour');
-        setRun(true);
-      }
+      const mappedSteps = EXAM_STEPS.map(mapStep);
+      setTimeout(() => {
+        if (document.querySelector(mappedSteps[1].target as string)) {
+          setSteps(mappedSteps);
+          setTourKey('exam_tour');
+          markOnboardingTourSeen(user.id, 'exam_tour');
+          setRun(true);
+        }
+      }, 100);
     } else if ((location.pathname === '/teacher' || location.pathname === '/groups') && !status['class_tour']) {
-      // Запускаем тур по классам только если есть лидерборд или элементы управления на экране
-      if (document.querySelector('.tour-step-role-toggle')) {
-        setSteps(CLASS_STEPS);
-        setTourKey('class_tour');
-        markOnboardingTourSeen(user.id, 'class_tour');
-        setRun(true);
-      }
+      const mappedSteps = CLASS_STEPS.map(mapStep);
+      setTimeout(() => {
+        if (document.querySelector('.tour-step-role-toggle')) {
+          setSteps(mappedSteps);
+          setTourKey('class_tour');
+          markOnboardingTourSeen(user.id, 'class_tour');
+          setRun(true);
+        }
+      }, 100);
     }
   };
 

@@ -194,7 +194,7 @@ export default function Dashboard() {
         <motion.button
           onClick={() => navigate('/analytics')}
           whileHover={{ scale: 1.02 }}
-          className="flex w-full md:w-auto items-center gap-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-shadow"
+          className="flex w-full md:w-auto items-center gap-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-shadow tour-step-desktop-xp tour-step-mobile-xp"
         >
           <div className="flex-1 text-left md:text-right">
             <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1.5">Уровень {levelInfo.level} · {levelInfo.name}</p>
@@ -475,7 +475,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mt-4 md:mt-6">
         <button
           onClick={() => navigate('/analyze')}
-          className="card p-5 text-center hover:shadow-md transition group"
+          className="card p-5 text-center hover:shadow-md transition group tour-step-mobile-upload"
         >
           <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-indigo-100 transition">
             <Zap className="w-5 h-5 text-indigo-600" />
@@ -532,8 +532,32 @@ export default function Dashboard() {
         </button>
 
         <button
+          onClick={() => navigate('/chat')}
+          className={`card p-5 text-center transition group relative overflow-hidden tour-step-mobile-chat ${
+            recTool === 'chat' ? 'ring-2 ring-indigo-500 shadow-lg shadow-indigo-100' : 'hover:shadow-md'
+          }`}
+        >
+          {recTool === 'chat' && (
+            <div className="absolute top-0 right-0 p-1">
+              <span className="flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+              </span>
+            </div>
+          )}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
+            recTool === 'chat' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100'
+          }`}>
+            <MessageSquare className="w-5 h-5" />
+          </div>
+          <p className={`text-sm font-medium ${recTool === 'chat' ? 'text-indigo-900 font-bold' : 'text-slate-700'}`}>
+            Чат-помощник
+          </p>
+        </button>
+
+        <button
           onClick={() => navigate('/exam')}
-          className={`card p-5 text-center transition group relative overflow-hidden ${
+          className={`card p-5 text-center transition group relative overflow-hidden tour-step-mobile-exam ${
             recTool === 'exam' ? 'ring-2 ring-rose-500 shadow-lg shadow-rose-100' : 'hover:shadow-md'
           }`}
         >

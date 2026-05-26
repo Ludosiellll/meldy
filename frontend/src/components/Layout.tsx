@@ -28,8 +28,8 @@ const navGroups = [
   {
     title: 'Обучение',
     items: [
-      { to: '/analyze',     icon: Zap,             label: 'Добавить материал', className: 'tour-step-upload' },
-      { to: '/library',     icon: BookOpen,        label: 'Библиотека', className: 'tour-step-library' },
+      { to: '/analyze',     icon: Zap,             label: 'Добавить материал', className: 'tour-step-desktop-upload' },
+      { to: '/library',     icon: BookOpen,        label: 'Библиотека', className: 'tour-step-desktop-library' },
       { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
       { to: '/courses',     icon: Layers,          label: 'Мои курсы' },
       { to: '/teacher',     icon: Users,           label: 'Мой класс' },
@@ -40,7 +40,7 @@ const navGroups = [
     items: [
       { to: '/play',        icon: Gamepad2,        label: 'Сюжетные миссии' },
       { to: '/review',      icon: Brain,           label: 'Смарт-карточки' },
-      { to: '/exam',        icon: Award,           label: 'Устный экзамен', className: 'tour-step-exam' },
+      { to: '/exam',        icon: Award,           label: 'Устный экзамен', className: 'tour-step-desktop-exam' },
       { to: '/quick-prep',  icon: Clock,           label: 'Повтор за 5 минут' },
     ]
   },
@@ -50,7 +50,7 @@ const navGroups = [
       { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
       { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
-      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-chat' },
+      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-desktop-chat' },
     ]
   }
 ];
@@ -70,7 +70,7 @@ const teacherNavGroups = [
 
 const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
-  { to: '/library',   icon: BookOpen,         label: 'Материалы' },
+  { to: '/library',   icon: BookOpen,         label: 'Материалы', className: 'tour-step-mobile-library' },
   { to: '/messages',  icon: MessageCircle,    label: 'Сообщения' },
   { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
