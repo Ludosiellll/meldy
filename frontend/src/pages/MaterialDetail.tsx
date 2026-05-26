@@ -68,7 +68,7 @@ export default function MaterialDetail() {
       {/* Back */}
       <button
         onClick={() => navigate('/library')}
-        className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 text-sm mb-4 transition"
+        className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-sm mb-4 transition"
       >
         <ArrowLeft className="w-4 h-4" />
         Библиотека
@@ -76,7 +76,7 @@ export default function MaterialDetail() {
 
       {/* Title & Subject */}
       <div className="mb-2">
-        <h1 className="text-2xl font-bold text-slate-900">{material.title}</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{material.title}</h1>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -98,19 +98,21 @@ export default function MaterialDetail() {
             className="flex items-center gap-1.5 text-sm"
           >
             {material.subject ? (
-              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">{material.subject}</span>
+              <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-md">{material.subject}</span>
             ) : (
-              <span className="text-slate-400 flex items-center gap-1"><Edit3 className="w-3 h-3" />Добавить предмет</span>
+              <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1"><Edit3 className="w-3 h-3" />Добавить предмет</span>
             )}
           </button>
         )}
 
-        <div className="w-px h-4 bg-slate-300 hidden sm:block" />
+        <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 hidden sm:block" />
 
         <button 
           onClick={togglePublic}
           className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md transition ${
-            material.is_public ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            material.is_public 
+              ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50' 
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
           }`}
         >
           {material.is_public ? (
@@ -122,24 +124,24 @@ export default function MaterialDetail() {
 
         <button 
           onClick={() => navigate(`/co-study/${id}`)}
-          className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md transition"
+          className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md transition"
         >
           <Users className="w-3.5 h-3.5" /> Совместная комната
         </button>
       </div>
 
-      <p className="text-xs text-slate-400 mb-6">
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
         {format(new Date(material.created_at), 'dd.MM.yyyy', { locale: ru })}
       </p>
 
       {/* Режимы обучения */}
-      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 ${hasPodcast ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 ${hasPodcast ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <button
           onClick={() => setMode('full')}
           className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
             mode === 'full'
-              ? 'bg-slate-900 text-white shadow-md'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              ? 'bg-slate-900 dark:bg-slate-800 text-white shadow-md'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
           }`}
         >
           <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" /> Полное обучение
@@ -149,7 +151,7 @@ export default function MaterialDetail() {
           className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
             mode === 'express'
               ? 'bg-rose-600 text-white shadow-md'
-              : 'text-slate-600 hover:text-rose-600 hover:bg-white/50'
+              : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white/50 dark:hover:bg-slate-800/50'
           }`}
         >
           <Zap className="w-5 h-5 sm:w-4 sm:h-4" /> За 5 минут
@@ -160,7 +162,7 @@ export default function MaterialDetail() {
             className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
               mode === 'podcast'
                 ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-600 hover:text-indigo-600 hover:bg-white/50'
+                : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-slate-800/50'
             }`}
           >
             <Headphones className="w-5 h-5 sm:w-4 sm:h-4" /> AI-Подкаст

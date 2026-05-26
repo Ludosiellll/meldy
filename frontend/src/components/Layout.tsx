@@ -14,7 +14,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
 import ForgeyAssistant from './ForgeyAssistant';
 import { useTheme } from '../contexts/ThemeProvider';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Bot } from 'lucide-react';
 
 const navGroups = [
   {
@@ -94,6 +94,28 @@ export default function Layout() {
   
   const { theme, setTheme } = useTheme();
   
+  const [isAssistantHidden, setIsAssistantHidden] = useState(() => {
+    return localStorage.getItem('forgey_assistant_hidden') === 'true';
+  });
+
+  useEffect(() => {
+    const handleToggle = () => {
+      setIsAssistantHidden(localStorage.getItem('forgey_assistant_hidden') === 'true');
+    };
+    window.addEventListener('forgey_assistant_toggle', handleToggle);
+    return () => window.removeEventListener('forgey_assistant_toggle', handleToggle);
+  }, []);
+
+  const handleToggleAssistant = () => {
+    const nextHidden = !isAssistantHidden;
+    if (nextHidden) {
+      localStorage.setItem('forgey_assistant_hidden', 'true');
+    } else {
+      localStorage.removeItem('forgey_assistant_hidden');
+    }
+    window.dispatchEvent(new Event('forgey_assistant_toggle'));
+  };
+
   // Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -300,6 +322,14 @@ export default function Layout() {
             </div>
             
             <div className="relative flex items-center gap-1">
+              <button
+                onClick={handleToggleAssistant}
+                className={`transition relative p-1 ${isAssistantHidden ? 'text-slate-500 hover:text-indigo-400' : 'text-indigo-500 hover:text-indigo-600'}`}
+                title={isAssistantHidden ? "Показать ИИ-помощника" : "Скрыть ИИ-помощника"}
+              >
+                <Bot className="w-4 h-4" />
+              </button>
+
               <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-400 transition relative p-1" title="Переключить тему">
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>

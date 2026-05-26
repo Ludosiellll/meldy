@@ -1,12 +1,12 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, BookOpen, Trash2, Plus, Headphones } from 'lucide-react';
+import { Search, BookOpen, Trash2, Plus, Headphones, Globe, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { getMaterials, deleteMaterial } from '../api/materials';
+import { getMaterials, deleteMaterial, updateMaterialVisibility } from '../api/materials';
 import { getAssignedMaterials, joinGroup } from '../api/groups';
 
 export default function Library() {
@@ -59,6 +59,13 @@ export default function Library() {
     setMaterials(prev => prev.filter(m => m.id !== id));
   };
 
+  const handleTogglePublic = async (e: React.MouseEvent, material: any) => {
+    e.stopPropagation();
+    const newStatus = !material.is_public;
+    await updateMaterialVisibility(material.id, newStatus);
+    setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_public: newStatus } : m));
+  };
+
   const handleJoinGroup = async () => {
     if (!user || !inviteCode.trim()) return;
     setJoinError('');
@@ -76,11 +83,11 @@ export default function Library() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Библиотека знаний</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Библиотека знаний</h1>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowJoinModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-bold transition"
           >
             Ввести код класса
           </button>
@@ -96,19 +103,19 @@ export default function Library() {
 
       {showJoinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="font-bold text-xl text-slate-900 mb-2">Присоединиться к группе</h3>
-            <p className="text-slate-500 text-sm mb-4">Введите инвайт-код, который дал вам преподаватель.</p>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-xl border border-slate-200 dark:border-slate-800">
+            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">Присоединиться к группе</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Введите инвайт-код, который дал вам преподаватель.</p>
             <input 
               autoFocus
               value={inviteCode} 
               onChange={e => setInviteCode(e.target.value.toUpperCase())}
               placeholder="A7B-9X2" 
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-2 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-2 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
             />
             {joinError && <p className="text-rose-500 text-sm mb-4 text-center">{joinError}</p>}
             <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowJoinModal(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Отмена</button>
+              <button onClick={() => setShowJoinModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
               <button onClick={handleJoinGroup} disabled={!inviteCode.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Вступить</button>
             </div>
           </div>
@@ -123,14 +130,14 @@ export default function Library() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Поиск по названию..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-900 dark:text-slate-100"
           />
         </div>
         {subjects.length > 0 && (
           <select
             value={subjectFilter}
             onChange={e => setSubjectFilter(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+            className="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-900 dark:text-slate-100"
           >
             <option value="">Все предметы</option>
             {subjects.map(s => <option key={s} value={s}>{s}</option>)}
@@ -150,9 +157,9 @@ export default function Library() {
       {/* Empty */}
       {!loading && materials.length === 0 && (
         <div className="text-center py-20">
-          <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-slate-700 mb-2">Библиотека пуста</h2>
-          <p className="text-slate-400 text-sm mb-6">Загрузите первую лекцию, чтобы начать</p>
+          <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">Библиотека пуста</h2>
+          <p className="text-slate-400 dark:text-slate-505 text-sm mb-6">Загрузите первую лекцию, чтобы начать</p>
           <button
             onClick={() => navigate('/analyze')}
             className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
@@ -184,12 +191,29 @@ export default function Library() {
                         </span>
                       )}
                       {m.subject && (
-                        <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase tracking-wider truncate max-w-[150px]">
+                        <span className="inline-block px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider truncate max-w-[150px]">
                           {m.subject}
                         </span>
                       )}
+                      {!(m as any).is_assigned && (
+                        <button
+                          onClick={e => handleTogglePublic(e, m)}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider transition ${
+                            m.is_public
+                              ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:text-indigo-700 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800/40'
+                          }`}
+                          title={m.is_public ? 'Опубликовано в Study Network. Нажмите, чтобы сделать приватным.' : 'Опубликовать в Study Network'}
+                        >
+                          {m.is_public ? (
+                            <><Globe className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> В сети</>
+                          ) : (
+                            <><Lock className="w-3 h-3 text-slate-400 dark:text-slate-500" /> Поделиться</>
+                          )}
+                        </button>
+                      )}
                     </div>
-                    <h3 className="font-semibold text-slate-900 leading-snug line-clamp-2">{m.title}</h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">{m.title}</h3>
                   </div>
                   {!(m as any).is_assigned && (
                     <button
@@ -201,19 +225,19 @@ export default function Library() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 text-sm text-slate-500 mb-3">
+                <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mb-3">
                   <span>📝</span>
                   <span>🃏 {fcCount}</span>
                   <span>❓ {qCount}</span>
                   {hasPodcast && (
-                    <span className="ml-auto flex items-center gap-1 text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full">
+                    <span className="ml-auto flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
                       <Headphones className="w-3 h-3" /> Подкаст
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-50">
+                <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-50 dark:border-slate-800/60">
                   <div className="flex flex-col">
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
                     </p>
                     {(m as any).assigned_deadline && (
@@ -225,7 +249,7 @@ export default function Library() {
                   {hasPodcast && (
                     <button
                       onClick={e => { e.stopPropagation(); navigate(`/library/${m.id}?mode=express&tab=podcast`); }}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold transition opacity-0 group-hover:opacity-100"
+                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold transition opacity-0 group-hover:opacity-100"
                     >
                       <Headphones className="w-3.5 h-3.5" /> Слушать →
                     </button>
@@ -239,7 +263,7 @@ export default function Library() {
 
       {/* No results for filter */}
       {!loading && materials.length > 0 && filtered.length === 0 && (
-        <p className="text-center text-slate-400 py-10">Ничего не найдено</p>
+        <p className="text-center text-slate-400 dark:text-slate-505 py-10">Ничего не найдено</p>
       )}
     </div>
   );

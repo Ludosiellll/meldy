@@ -48,9 +48,9 @@ function SectionBlock({ icon, title, children }: { icon: string; title: string; 
     <div className="mb-5">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">{icon}</span>
-        <h3 className="font-semibold text-slate-900">{title}</h3>
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
       </div>
-      <div className="pl-7 text-slate-700 text-[15px] leading-relaxed">{children}</div>
+      <div className="pl-7 text-slate-700 dark:text-slate-300 text-[15px] leading-relaxed">{children}</div>
     </div>
   );
 }
@@ -73,7 +73,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
         if (!match) {
           // Первый блок без заголовка — обычный абзац
           return (
-            <div key={i} className="prose prose-slate max-w-none text-slate-700 mb-4">
+            <div key={i} className="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 mb-4">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{sec.trim()}</ReactMarkdown>
             </div>
           );
@@ -93,7 +93,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
 
         return (
           <SectionBlock key={i} icon={icon} title={cleanTitle}>
-            <div className="prose prose-slate prose-sm max-w-none">
+            <div className="prose prose-slate dark:prose-invert prose-sm max-w-none">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{body}</ReactMarkdown>
             </div>
           </SectionBlock>
@@ -102,19 +102,19 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
 
       {/* Словарь терминов */}
       {terms.length > 0 && (
-        <div className="mt-6 pt-5 border-t border-slate-100">
+        <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-lg">📚</span>
-            <h3 className="font-semibold text-slate-900">Словарь терминов</h3>
-            <span className="ml-1 text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Словарь терминов</h3>
+            <span className="ml-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-full">
               {terms.length}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {terms.map((t: any, i: number) => (
-              <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                <p className="font-bold text-slate-900 text-sm mb-0.5">{t.term}</p>
-                <p className="text-slate-500 text-xs leading-relaxed">{t.definition}</p>
+              <div key={i} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 rounded-xl p-3">
+                <p className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-0.5">{t.term}</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">{t.definition}</p>
               </div>
             ))}
           </div>

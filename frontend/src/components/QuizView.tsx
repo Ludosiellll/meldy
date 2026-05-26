@@ -52,10 +52,10 @@ export default function QuizView({ data }: { data: any }) {
   const total = quiz.length;
   const pct = Math.round((correct / total) * 100);
 
-  const gradeInfo = pct >= 90 ? { label: 'Отлично', color: 'text-emerald-600', bg: 'bg-emerald-50' }
-    : pct >= 70 ? { label: 'Хорошо', color: 'text-brand-600', bg: 'bg-brand-50' }
-    : pct >= 50 ? { label: 'Удовлетворительно', color: 'text-amber-600', bg: 'bg-amber-50' }
-    : { label: 'Нужно подтянуть', color: 'text-rose-600', bg: 'bg-rose-50' };
+  const gradeInfo = pct >= 90 ? { label: 'Отлично', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' }
+    : pct >= 70 ? { label: 'Хорошо', color: 'text-brand-600 dark:text-indigo-400', bg: 'bg-brand-50 dark:bg-indigo-950/20 border-brand-200 dark:border-indigo-900/30' }
+    : pct >= 50 ? { label: 'Удовлетворительно', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30' }
+    : { label: 'Нужно подтянуть', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/30' };
 
   // Fullscreen mode
   if (fsOpen && quiz) {
@@ -140,20 +140,20 @@ export default function QuizView({ data }: { data: any }) {
     <div className="relative">
       {!submitted && (
         <button onClick={() => setFsOpen(true)}
-          className="absolute top-0 right-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 border border-brand-200 hover:bg-brand-50 transition">
+          className="absolute top-0 right-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 dark:text-indigo-400 border border-brand-200 dark:border-indigo-900/30 hover:bg-brand-50 dark:hover:bg-indigo-950/20 transition">
           <Maximize2 className="w-3.5 h-3.5" />Показать аудитории
         </button>
       )}
 
       {submitted && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className={'card p-5 mb-6 flex items-center justify-between ' + gradeInfo.bg}>
+          className={'card p-5 mb-6 flex items-center justify-between border ' + gradeInfo.bg}>
           <div>
             <p className={'font-bold text-lg ' + gradeInfo.color}>{correct} из {total} — {gradeInfo.label}</p>
-            <p className="text-slate-500 text-sm">{pct}% правильных ответов</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">{pct}% правильных ответов</p>
           </div>
           <button onClick={handleRetry}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition border border-slate-200">
+            className="flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-700">
             <RotateCcw className="w-3.5 h-3.5" />Пройти снова
           </button>
         </motion.div>
@@ -168,7 +168,7 @@ export default function QuizView({ data }: { data: any }) {
           return (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="card p-5">
-              <p className="font-medium text-slate-900 mb-3">{i+1}. {q.question}</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100 mb-3">{i+1}. {q.question}</p>
               <div className="space-y-2">
                 {q.options?.map((opt: string, j: number) => {
                   const isSelected = selected === opt;
@@ -177,13 +177,13 @@ export default function QuizView({ data }: { data: any }) {
 
                   let cls = 'p-3 rounded-lg text-sm cursor-pointer transition border ';
                   if (!submitted) {
-                    cls += isSelected ? 'bg-brand-50 border-brand-300 text-slate-900' : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-slate-300';
+                    cls += isSelected ? 'bg-brand-50 dark:bg-indigo-950/30 border-brand-300 dark:border-indigo-800 text-slate-900 dark:text-indigo-200' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700';
                   } else if (isCorrectOpt) {
-                    cls += 'bg-emerald-50 border-emerald-300 text-emerald-800';
+                    cls += 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300';
                   } else if (isWrongOpt) {
-                    cls += 'bg-rose-50 border-rose-300 text-rose-800 line-through';
+                    cls += 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 line-through';
                   } else {
-                    cls += 'bg-slate-50 border-slate-100 text-slate-400';
+                    cls += 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800/60 text-slate-400 dark:text-slate-550';
                   }
 
                   return (
@@ -197,7 +197,7 @@ export default function QuizView({ data }: { data: any }) {
                 })}
               </div>
               {submitted && q.explanation && (
-                <p className="mt-3 text-sm text-slate-500 italic border-t border-slate-100 pt-3">💡 {q.explanation}</p>
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 italic border-t border-slate-100 dark:border-slate-800/80 pt-3">💡 {q.explanation}</p>
               )}
             </motion.div>
           );

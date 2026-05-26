@@ -157,10 +157,10 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
 
       {/* Шапка прогресса */}
       <div className="flex flex-col items-center mb-10 text-center">
-        <h2 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">
+        <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 mb-3 tracking-tight">
           {phase === 'extracting' ? 'Извлечение текста из файла...' : 'Интеллектуальный анализ материала'}
         </h2>
-        <p className="text-slate-500 text-sm font-medium max-w-md mb-8 leading-relaxed">
+        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-md mb-8 leading-relaxed">
           {phase === 'extracting'
             ? 'Пожалуйста, подождите. Мы считываем содержимое и подготавливаем данные для ИИ-агентов.'
             : `Нейросетевые агенты работают параллельно. Завершено: ${doneCount} из ${agents.length}`}
@@ -190,12 +190,12 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08 }}
-              className={`p-5 rounded-2xl border bg-white flex flex-col justify-between transition-all duration-300 shadow-sm ${config.glowColor} ${
+              className={`p-5 rounded-2xl border bg-white dark:bg-slate-900 flex flex-col justify-between transition-all duration-300 shadow-sm ${config.glowColor} ${
                 agent.status === 'running'
-                  ? `border-indigo-300 ring-4 ring-indigo-50`
+                  ? `border-indigo-300 dark:border-indigo-500 ring-4 ring-indigo-50 dark:ring-indigo-950/30`
                   : agent.status === 'done'
-                  ? `border-emerald-200 bg-emerald-50/30`
-                  : `border-slate-200 opacity-80`
+                  ? `border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/10`
+                  : `border-slate-200 dark:border-slate-800 opacity-80`
               }`}
             >
               <div className="flex items-start justify-between gap-4 mb-3">
@@ -204,8 +204,8 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
                     <IconComponent className="w-5 h-5 animate-pulse-slow" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-800 text-sm">{config.label}</h3>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5 min-h-[16px]">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{config.label}</h3>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 min-h-[16px]">
                       {config.desc[agent.status]}
                     </p>
                   </div>
@@ -226,9 +226,9 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
               </div>
 
               {/* Индикатор прогресса конкретного агента */}
-              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-3 shadow-inner">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-3 shadow-inner">
                 {agent.status === 'idle' && (
-                  <div className="h-full bg-slate-200 w-0" />
+                  <div className="h-full bg-slate-200 dark:bg-slate-700 w-0" />
                 )}
                 {agent.status === 'running' && (
                   <motion.div

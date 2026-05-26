@@ -61,6 +61,14 @@ export default function ForgeyAssistant() {
     return localStorage.getItem('forgey_assistant_hidden') !== 'true';
   });
 
+  useEffect(() => {
+    const handleToggle = () => {
+      setIsVisible(localStorage.getItem('forgey_assistant_hidden') !== 'true');
+    };
+    window.addEventListener('forgey_assistant_toggle', handleToggle);
+    return () => window.removeEventListener('forgey_assistant_toggle', handleToggle);
+  }, []);
+
   // Загружаем профиль, чтобы знать роль и имя
   useEffect(() => {
     if (!user) return;

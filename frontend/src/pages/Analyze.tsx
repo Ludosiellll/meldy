@@ -113,11 +113,11 @@ export default function Analyze() {
       (window as any)._lastExtractedText = d.text; // Сохраняем текст из события
     }
     else if (d.type === 'status') {
-      addToast(d.message);
+      // No toast needed, handled in main UI
     }
     else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
     else if (d.type === 'agent_done') {
-      addToast(agentDoneLabels[d.agent] || 'Агент завершён');
+      // No toast needed, visualized directly in agent card
       setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
     }
     else if (d.type === 'results') {

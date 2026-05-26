@@ -88,15 +88,15 @@ export default function SocialHub() {
     <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-[85vh]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-3">
             <Globe className="w-8 h-8 text-indigo-600" />
             Study Network
           </h1>
-          <p className="text-slate-500 mt-1">Глобальное сообщество студентов</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Глобальное сообщество студентов</p>
         </div>
 
         {/* Табы */}
-        <div className="flex bg-slate-200 p-1 rounded-xl overflow-x-auto custom-scrollbar">
+        <div className="flex bg-slate-200 dark:bg-slate-900 p-1 rounded-xl overflow-x-auto custom-scrollbar">
           {[
             { key: 'feed', label: 'Маркетплейс' },
             { key: 'leaderboard', label: 'Лидерборд' },
@@ -106,7 +106,7 @@ export default function SocialHub() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${
-                activeTab === tab.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                activeTab === tab.key ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               {tab.label}
@@ -125,7 +125,7 @@ export default function SocialHub() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Найдите студентов по имени..."
-              className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900 shadow-sm"
+              className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900 dark:text-slate-100 shadow-sm"
               autoFocus
             />
             {searchQuery && (
@@ -138,11 +138,11 @@ export default function SocialHub() {
           {searching && <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>}
 
           {!searching && searchResults.length === 0 && searchQuery && (
-            <p className="text-center text-slate-400 py-10">Никого не найдено по запросу «{searchQuery}»</p>
+            <p className="text-center text-slate-400 dark:text-slate-505 py-10">Никого не найдено по запросу «{searchQuery}»</p>
           )}
 
           {!searching && searchResults.length === 0 && !searchQuery && (
-            <p className="text-center text-slate-400 py-10">Введите имя студента, чтобы найти его</p>
+            <p className="text-center text-slate-400 dark:text-slate-505 py-10">Введите имя студента, чтобы найти его</p>
           )}
 
           <div className="space-y-3">
@@ -151,24 +151,24 @@ export default function SocialHub() {
                 key={u.id}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
+                className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
               >
                 <button onClick={() => navigate(`/profile/${u.id}`)} className="flex items-center gap-4 flex-1 text-left">
                   {u.avatar_url ? (
                     <img src={u.avatar_url} className="w-12 h-12 rounded-full object-cover" alt="avatar" />
                   ) : (
-                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
+                    <div className="w-12 h-12 bg-slate-100 dark:bg-slate-850 rounded-full flex items-center justify-center">
                       <UserCircle2 className="w-7 h-7 text-slate-400" />
                     </div>
                   )}
                   <div>
-                    <div className="font-bold text-slate-900">{u.full_name}</div>
-                    {u.university && <div className="text-sm text-slate-500">{u.university}</div>}
+                    <div className="font-bold text-slate-900 dark:text-slate-100">{u.full_name}</div>
+                    {u.university && <div className="text-sm text-slate-500 dark:text-slate-400">{u.university}</div>}
                   </div>
                 </button>
                 <button
                   onClick={() => navigate(`/profile/${u.id}`)}
-                  className="px-4 py-2 bg-indigo-50 text-indigo-600 font-bold text-sm rounded-xl hover:bg-indigo-100 transition"
+                  className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-bold text-sm rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
                 >
                   Профиль →
                 </button>
@@ -198,30 +198,30 @@ export default function SocialHub() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04 }}
                   key={m.id}
-                  className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+                  className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center mb-4">
                     <button onClick={() => navigate(`/profile/${m.user_id}`)} className="flex items-center gap-3 group flex-1">
                       {m.author_avatar ? (
                         <img src={m.author_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
-                        <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center">
                           <UserCircle2 className="w-6 h-6 text-slate-400" />
                         </div>
                       )}
                       <div className="text-left">
-                        <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">{m.author_name}</div>
-                        <div className="text-xs text-slate-400">{new Date(m.created_at).toLocaleDateString('ru')}</div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 transition-colors text-sm">{m.author_name}</div>
+                        <div className="text-xs text-slate-400 dark:text-slate-500">{new Date(m.created_at).toLocaleDateString('ru')}</div>
                       </div>
                     </button>
                   </div>
 
                   <div className="mb-5">
-                    <div className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">{m.subject || 'Без предмета'}</div>
-                    <h3 className="text-base font-bold text-slate-900 line-clamp-2">{m.title}</h3>
+                    <div className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">{m.subject || 'Без предмета'}</div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 line-clamp-2">{m.title}</h3>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800/60">
                     <button
                       onClick={() => handleLike(m)}
                       className={`flex items-center gap-2 font-medium transition-colors text-sm ${
@@ -236,7 +236,7 @@ export default function SocialHub() {
                       <div className="flex flex-col xl:flex-row gap-2 items-stretch xl:items-center w-full sm:w-auto">
                         <button
                           onClick={() => handlePreview(m)}
-                          className="flex items-center justify-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          className="flex items-center justify-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                         >
                           <Eye className="w-4 h-4" /> <span className="hidden sm:inline">Предпросмотр</span>
                         </button>
@@ -244,8 +244,8 @@ export default function SocialHub() {
                           onClick={() => handleCopy(m)}
                           className={`flex items-center justify-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg ${
                             copiedId === m.id
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                              : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/50'
                           }`}
                         >
                           {copiedId === m.id ? (
@@ -263,19 +263,19 @@ export default function SocialHub() {
           </div>
         ) : (
           /* Лидерборд */
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-200 bg-slate-50">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Trophy className="w-6 h-6 text-amber-500" />
                 Топ 50 студентов
               </h2>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {leaderboard.length === 0 ? (
-                <div className="p-10 text-center text-slate-500">Нет данных для рейтинга.</div>
+                <div className="p-10 text-center text-slate-500 dark:text-slate-400">Нет данных для рейтинга.</div>
               ) : (
                 leaderboard.map((u, i) => (
-                  <div key={u.id} className="p-4 sm:px-6 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+                  <div key={u.id} className="p-4 sm:px-6 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <div className={`w-8 font-black text-center shrink-0 ${
                       i === 0 ? 'text-amber-500 text-2xl' :
                       i === 1 ? 'text-slate-400 text-xl' :
@@ -287,13 +287,13 @@ export default function SocialHub() {
                       {u.avatar_url ? (
                         <img src={u.avatar_url} alt="avatar" className="w-11 h-11 rounded-full object-cover shadow-sm" />
                       ) : (
-                        <div className="w-11 h-11 bg-slate-200 rounded-full flex items-center justify-center shadow-sm">
-                          <UserCircle2 className="w-6 h-6 text-slate-500" />
+                        <div className="w-11 h-11 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm">
+                          <UserCircle2 className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                         </div>
                       )}
                       <div>
-                        <div className="font-bold text-slate-900 hover:text-indigo-600 transition-colors">{u.full_name}</div>
-                        <div className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 hover:text-indigo-600 transition-colors">{u.full_name}</div>
+                        <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-md inline-block mt-0.5">
                           {u.total_xp.toLocaleString()} XP
                         </div>
                       </div>
@@ -321,21 +321,21 @@ export default function SocialHub() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-[calc(100%-32px)] md:w-full max-w-3xl bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col"
+              className="relative w-[calc(100%-32px)] md:w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-start justify-between mb-4 border-b border-slate-100 pb-4">
+              <div className="flex items-start justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
                 <div>
-                  <div className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                  <div className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">
                     {previewMaterial.subject || 'Без предмета'}
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900">{previewMaterial.title}</h3>
-                  <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">{previewMaterial.title}</h3>
+                  <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
                     <UserCircle2 className="w-4 h-4" /> Автор: {previewMaterial.author_name}
                   </div>
                 </div>
                 <button
                   onClick={() => setPreviewMaterial(null)}
-                  className="p-2 hover:bg-slate-100 rounded-full transition text-slate-400"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition text-slate-400"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -343,31 +343,31 @@ export default function SocialHub() {
 
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
                 {previewLoading ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-500 dark:text-slate-400">
                     <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-4" />
                     <p>Загрузка данных для предпросмотра...</p>
                   </div>
                 ) : previewData ? (
                   <>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+                      <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
                           <Layers className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="text-sm text-slate-500 font-medium">Карточки</p>
-                          <p className="text-lg font-bold text-slate-900">
+                          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Карточки</p>
+                          <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
                             {previewData.flashcards_json?.flashcards?.length || 0} шт.
                           </p>
                         </div>
                       </div>
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                        <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center">
+                      <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl flex items-center justify-center">
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="text-sm text-slate-500 font-medium">Тесты</p>
-                          <p className="text-lg font-bold text-slate-900">
+                          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Тесты</p>
+                          <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
                             {previewData.quiz_json?.quiz?.length || 0} шт.
                           </p>
                         </div>
@@ -375,32 +375,32 @@ export default function SocialHub() {
                     </div>
 
                     {previewData.summary_json && (
-                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
-                        <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                      <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl p-5">
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                           <Eye className="w-5 h-5 text-indigo-500" /> Отрывок конспекта
                         </h4>
-                        <div className="text-sm text-slate-700 leading-relaxed markdown-content max-h-64 overflow-y-hidden relative">
+                        <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed markdown-content max-h-64 overflow-y-hidden relative">
                           <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                             {typeof previewData.summary_json === 'string' 
                               ? previewData.summary_json.slice(0, 500) + '...'
                               : (previewData.summary_json.content?.slice(0, 500) || '') + '...'}
                           </ReactMarkdown>
-                          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-50 to-transparent pointer-events-none" />
+                          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-50 dark:from-slate-950 to-transparent pointer-events-none" />
                         </div>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-10 text-slate-500">
+                  <div className="text-center py-10 text-slate-500 dark:text-slate-400">
                     Не удалось загрузить данные
                   </div>
                 )}
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex gap-3">
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex gap-3">
                 <button
                   onClick={() => setPreviewMaterial(null)}
-                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition flex items-center justify-center gap-2"
                 >
                   Закрыть
                 </button>
