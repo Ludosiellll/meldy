@@ -4,7 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { 
   GraduationCap, Zap, Brain, Calendar, BookOpen,
   MessageSquare, BarChart2, Sparkles, ArrowRight,
-  CheckCircle, Upload, Cpu, Trophy, Network, Briefcase, Award, Heart, Menu, X
+  CheckCircle, Upload, Cpu, Trophy, Network, Briefcase, Award, Heart, Menu, X,
+  MousePointer2, Terminal, FileText, Check, Loader2, Play
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,7 +30,7 @@ export default function Landing() {
       <Navbar />
       <Hero />
       <Stats />
-      <HowItWorks />
+      <InteractiveDemo />
       <Features />
       <EducatorsSection />
       <CtaSection />
@@ -383,8 +384,8 @@ function Stats() {
   const items = [
     { value: '15 секунд', label: 'глубокий анализ лекции' },
     { value: '6 агентов', label: 'работают параллельно' },
-    { value: 'SM-2 Лейтнер', label: 'научный интервал повторений' },
-    { value: '100% облако', label: 'доступ с любого устройства' },
+    { value: 'Квесты & XP', label: 'встроенная геймификация' },
+    { value: 'Co-Study', label: 'защита от выгорания' },
   ];
   return (
     <section className="py-16 px-6 border-y border-slate-200/60 bg-white/50 backdrop-blur">
@@ -400,59 +401,129 @@ function Stats() {
   );
 }
 
-function HowItWorks() {
-  const steps = [
-    {
-      icon: Upload,
-      num: '01',
-      title: 'Загрузка лекции',
-      desc: 'Загрузите PDF, DOCX, TXT файлы, конспекты или даже сырой текст ваших записей.',
-    },
-    {
-      icon: Cpu,
-      num: '02',
-      title: 'Параллельная обработка',
-      desc: 'Команда AI-агентов моментально создает структурированный конспект, выжимки, тесты и аудиоподкаст.',
-    },
-    {
-      icon: Trophy,
-      num: '03',
-      title: 'Умное закрепление',
-      desc: 'Учитесь по карточкам с адаптивными интервалами, сдавайте устный тест и выстраивайте карьерный путь.',
-    },
-  ];
+function InteractiveDemo() {
+  const [step, setStep] = useState(0);
+
+  const startSimulation = () => {
+    if (step !== 0) return;
+    setStep(1);
+    setTimeout(() => setStep(2), 1500);
+    setTimeout(() => setStep(3), 4000);
+    setTimeout(() => setStep(4), 6500);
+  };
+
   return (
-    <section id="how-it-works" className="py-24 px-6 relative">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16 space-y-3">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Как работает StudyForge
+    <section id="how-it-works" className="py-24 px-6 relative bg-[#0a0f1c] text-slate-300 overflow-hidden border-y border-slate-800">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#0a0f1c]/0 to-[#0a0f1c]/0 pointer-events-none" />
+      
+      <div className="max-w-5xl mx-auto relative z-10">
+        <div className="text-center mb-12 space-y-3">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+            Симуляция работы ИИ
           </h2>
-          <p className="text-slate-500 text-lg max-w-xl mx-auto">
-            Три простых этапа от сложного сырого конспекта к прочным знаниям в долговременной памяти
+          <p className="text-slate-400 text-lg max-w-xl mx-auto">
+            Посмотрите, как агенты StudyForge работают в реальном времени.
           </p>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 relative">
-          {/* Линия соединения шагов */}
-          <div className="hidden md:block absolute top-12 left-[15%] right-[15%] h-0.5 bg-slate-200/70" />
-          
-          {steps.map((step, i) => (
-            <div key={i} className="relative group text-center flex flex-col items-center">
-              <div className="w-20 h-20 rounded-2xl bg-white border-2 border-slate-200 flex items-center justify-center relative mb-6 shadow-md transition-all duration-300 group-hover:border-indigo-600 group-hover:-translate-y-1">
-                <step.icon className="w-8 h-8 text-indigo-600" />
-                <span className="absolute -top-2.5 -right-2.5 text-xs font-extrabold text-white bg-indigo-600 rounded-full w-7 h-7 flex items-center justify-center shadow-md">
-                  {step.num}
-                </span>
-              </div>
-              <h3 className="text-slate-900 font-bold text-lg mb-2">
-                {step.title}
-              </h3>
-              <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                {step.desc}
-              </p>
+
+        {/* Terminal/HUD Container */}
+        <div className="bg-[#030712] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-w-4xl mx-auto">
+          {/* Mac window header */}
+          <div className="bg-[#0f172a] border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+            <div className="flex gap-2">
+              <div className="w-3 h-3 rounded-full bg-rose-500" />
+              <div className="w-3 h-3 rounded-full bg-amber-500" />
+              <div className="w-3 h-3 rounded-full bg-emerald-500" />
             </div>
-          ))}
+            <span className="text-xs font-mono text-slate-500">Forgey HUD Console</span>
+            <div className="w-16" />
+          </div>
+
+          <div className="p-6 md:p-8 flex-1 min-h-[300px] font-mono text-sm sm:text-base relative">
+            {step === 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030712]/50 backdrop-blur-sm z-20">
+                <button 
+                  onClick={startSimulation}
+                  className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-sans font-bold transition-all shadow-[0_0_20px_rgba(79,70,229,0.4)] hover:scale-105"
+                >
+                  <Play className="w-5 h-5 fill-white" />
+                  Запустить анализ лекции
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-slate-500">
+                <span className="text-indigo-400">~/studyforge</span>$ ./analyze_lecture.sh --file quantum_physics.pdf
+              </div>
+
+              {step >= 1 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-slate-400">
+                  <span className="text-emerald-400">[Система]</span> Инициализация 6 агентов...
+                  <div className="flex items-center gap-2 mt-2 text-indigo-300">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Чтение файла (1.2 MB)</span>
+                  </div>
+                </motion.div>
+              )}
+
+              {step >= 2 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+                  <p><span className="text-sky-400">[Агент 1: Структуратор]</span> Выделение ключевых тем...</p>
+                  <p><span className="text-amber-400">[Агент 2: Термины]</span> Найдено 14 новых понятий.</p>
+                  <p><span className="text-rose-400">[Агент 3: Карточки]</span> Генерация Flashcards по методу Лейтнера...</p>
+                  <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }} 
+                      animate={{ width: "100%" }} 
+                      transition={{ duration: 2, ease: "linear" }}
+                      className="bg-indigo-500 h-full"
+                    />
+                  </div>
+                </motion.div>
+              )}
+
+              {step >= 3 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-4 border-t border-slate-800 relative">
+                  <p className="text-emerald-400 mb-4 font-bold flex items-center gap-2">
+                    <Check className="w-5 h-5" /> Успех! Создана карточка для изучения:
+                  </p>
+                  
+                  {/* Fake Flashcard inside terminal */}
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 w-full max-w-sm mx-auto flex flex-col items-center justify-center min-h-[120px] font-sans relative overflow-hidden group cursor-pointer">
+                    <p className="text-slate-400 text-xs uppercase font-bold mb-2">Термин</p>
+                    <p className="text-white font-bold text-lg text-center">Принцип неопределённости Гейзенберга</p>
+                    
+                    {/* Fake Cursor Animation */}
+                    {step >= 3 && step < 4 && (
+                      <motion.div 
+                        initial={{ x: 100, y: 100, opacity: 0 }}
+                        animate={{ x: 0, y: 0, opacity: 1 }}
+                        transition={{ duration: 1.5, ease: "backOut" }}
+                        className="absolute bottom-4 right-8 z-30"
+                      >
+                        <MousePointer2 className="w-8 h-8 text-white fill-slate-800 -rotate-12 drop-shadow-xl" />
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {step >= 4 && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-4 mt-6 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl">
+                  <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Forgey&backgroundColor=transparent" alt="AI" className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-indigo-300 text-sm font-sans mb-1">Форджи (ИИ-ассистент)</p>
+                    <p className="text-slate-300 font-sans text-sm leading-relaxed">
+                      Я закончил анализ лекции! Сгенерировано 14 карточек и краткий конспект. Начнем совместную <strong className="text-white">Co-Study</strong> сессию прямо сейчас?
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -462,40 +533,40 @@ function HowItWorks() {
 function Features() {
   const features = [
     {
-      icon: Zap,
+      icon: MessageSquare,
       color: 'indigo',
-      title: 'Мультиагентный ИИ-анализ',
-      desc: '6 специализированных ИИ-агентов одновременно генерируют конспект, шпаргалки, квесты, подкасты и тесты.',
+      title: 'Co-Study с Форджи',
+      desc: 'Совместные учебные сессии с ИИ-помощником. Встроенный Pomodoro таймер и поддержка фокуса.',
     },
     {
-      icon: Brain,
+      icon: Heart,
       color: 'emerald',
-      title: 'Метод Лейтнера (Spaced Rep)',
-      desc: 'Адаптивный алгоритм отслеживает ваш уровень запоминания карточек и напоминает их ровно вовремя.',
+      title: 'Дневник ошибок и Менталочка',
+      desc: 'Отслеживайте выгорание через Mood Tracker и автоматически прорабатывайте паттерны ошибок.',
+    },
+    {
+      icon: Trophy,
+      color: 'amber',
+      title: 'Геймификация и Квесты',
+      desc: 'Ежедневные задания, система уровней и глобальный лидерборд. Превратите рутину в увлекательную RPG.',
     },
     {
       icon: Network,
       color: 'blue',
-      title: 'Карта знаний (Obsidian)',
-      desc: 'Визуализация связей между вашими конспектами в виде интерактивного 3D-графа для системного понимания.',
+      title: 'Интерактивная карта знаний',
+      desc: 'Визуализация связей между вашими конспектами в виде 3D-графа для системного понимания и навигации.',
     },
     {
-      icon: Calendar,
-      color: 'amber',
-      title: 'Календарь подготовки',
-      desc: 'Внесите предметы и даты экзаменов. Система построит детальный ежедневный план занятий.',
-    },
-    {
-      icon: Briefcase,
+      icon: Cpu,
       color: 'rose',
-      title: 'Навигатор карьеры',
-      desc: 'AI проанализирует все ваши лекции и составит профессиональный профиль с подходящими вакансиями.',
+      title: 'Мультиагентный ИИ-анализ',
+      desc: '6 специализированных агентов за секунды парсят лекции, создают конспекты, тесты и Flash-карточки.',
     },
     {
-      icon: MessageSquare,
+      icon: GraduationCap,
       color: 'sky',
-      title: 'Интерактивный Лектор',
-      desc: 'Задавайте вопросы конспектам. AI отвечает строго в контексте ваших материалов, избегая галлюцинаций.',
+      title: 'Кабинет преподавателя',
+      desc: 'Создавайте классы, мониторьте статистику студентов и анализируйте общую успеваемость потока в ВУЗе.',
     },
   ];
 
