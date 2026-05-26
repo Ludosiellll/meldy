@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
+import SummaryView from '../components/SummaryView';
 
 interface CourseMaterialItem {
   id: string;
@@ -1220,10 +1221,10 @@ export default function Courses() {
                         </button>
                       </div>
 
-                      {/* Markdown summary content */}
-                      <div className="prose prose-slate prose-xs max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-xs leading-relaxed text-slate-600 border-t border-slate-100 pt-3">
-                        {previewMaterial.summary_json?.content ? (
-                          <ReactMarkdown>{previewMaterial.summary_json.content}</ReactMarkdown>
+                      {/* Summary content formatted by SummaryView */}
+                      <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-xs border-t border-slate-100 pt-3">
+                        {previewMaterial.summary_json ? (
+                          <SummaryView data={previewMaterial.summary_json} />
                         ) : (
                           <p className="italic text-slate-400">Конспект не найден.</p>
                         )}
