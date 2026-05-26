@@ -1,7 +1,7 @@
 import { Material, StudySession, Flashcard } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot, Layers } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot, Layers, Users } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
 import { getDueCards } from '../api/flashcards';
 import { getQuestsWithProgress, getUserXP, calcLevel } from '../api/quests';
+import { getProfile } from '../api/social';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number; color: string }) {
   const bgMap: Record<string, string> = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', rose: 'bg-rose-50' };
@@ -41,6 +42,24 @@ export default function Dashboard() {
   const [xp, setXp] = useState(0);
   const [levelInfo, setLevelInfo] = useState(calcLevel(0));
   const [nextExam, setNextExam] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+
+  const handleToggleRole = async () => {
+    if (!user || !profile) return;
+    const newRole = profile.role === 'teacher' ? 'student' : 'teacher';
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', user.id);
+    if (!error) {
+      setProfile({ ...profile, role: newRole });
+      window.dispatchEvent(new Event('profile_updated'));
+      // Если переключаемся на преподавателя, перенаправляем на /teacher
+      if (newRole === 'teacher') {
+        navigate('/teacher');
+      }
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -52,7 +71,8 @@ export default function Dashboard() {
       supabase.from('mood_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1).maybeSingle(),
       getQuestsWithProgress(user.id),
       getUserXP(user.id),
-    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData, xpVal]) => {
+      getProfile(user.id),
+    ]).then(([mats, cards, subRes, sessRes, moodRes, questsData, xpVal, prof]) => {
       setMaterials(mats);
       setDueCards(cards);
       const fetchedSubjects = subRes.data || [];
@@ -63,6 +83,7 @@ export default function Dashboard() {
       const lvl = calcLevel(xpVal);
       setXp(xpVal);
       setLevelInfo(lvl);
+      setProfile(prof);
       // Ближайший экзамен
       if (fetchedSubjects.length > 0) {
         const today = new Date().toISOString().split('T')[0];
@@ -120,6 +141,49 @@ export default function Dashboard() {
 
   return (
     <div className="p-3 md:p-6 max-w-5xl mx-auto">
+      {/* Role switching banner */}
+      {profile && profile.role !== 'teacher' ? (
+        <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-indigo-100/50 border border-indigo-100 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm tour-step-role-toggle">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-slate-800 text-sm">Вы вошли как Студент 🎒</h4>
+              <p className="text-xs text-slate-500 max-w-xl mt-0.5 leading-relaxed">
+                Хотите создавать свои классы, приглашать студентов по коду приглашения и ставить им дедлайны? Переключитесь в режим преподавателя!
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={handleToggleRole}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-200 transition shrink-0"
+          >
+            Стать Преподавателем 🎓
+          </button>
+        </div>
+      ) : profile && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm tour-step-role-toggle">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-slate-800 text-sm">Вы вошли как Преподаватель 🎓</h4>
+              <p className="text-xs text-slate-500 max-w-xl mt-0.5 leading-relaxed">
+                Вам доступно управление группами и назначение заданий. Чтобы проходить курсы, играть в миссии и сдавать экзамены, переключитесь обратно в режим студента.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={handleToggleRole}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-200 transition shrink-0"
+          >
+            Режим Студента 🎒
+          </button>
+        </div>
+      )}
+
       {/* Greeting + XP */}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div>

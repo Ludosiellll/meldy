@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment } from '../api/groups';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
-import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert } from 'lucide-react';
+import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -109,14 +109,34 @@ export default function TeacherDashboard() {
   const [leaderboardTab, setLeaderboardTab] = useState<'all-time' | 'weekly'>('all-time');
   const [loading, setLoading] = useState(true);
 
-  // Определение роли
+  // Определение роли и подписка на изменения
   useEffect(() => {
     if (!user) return;
-    supabase.from('profiles').select('role').eq('id', user.id).single()
-      .then(({ data }) => {
-        if (data) setRole(data.role as 'student' | 'teacher');
-      });
+    const fetchRole = () => {
+      supabase.from('profiles').select('role').eq('id', user.id).single()
+        .then(({ data }) => {
+          if (data) setRole(data.role as 'student' | 'teacher');
+        });
+    };
+    fetchRole();
+    window.addEventListener('profile_updated', fetchRole);
+    return () => {
+      window.removeEventListener('profile_updated', fetchRole);
+    };
   }, [user]);
+
+  const handleToggleRole = async () => {
+    if (!user) return;
+    const newRole = role === 'teacher' ? 'student' : 'teacher';
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', user.id);
+    if (!error) {
+      setRole(newRole);
+      window.dispatchEvent(new Event('profile_updated'));
+    }
+  };
 
   // Загрузка групп для преподавателя
   const loadTeacherGroups = async () => {
@@ -226,6 +246,31 @@ export default function TeacherDashboard() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-[85vh]">
+      {/* Role Switcher Widget */}
+      <div className="mb-6 p-4 bg-white border border-slate-200 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm tour-step-role-toggle">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md ${role === 'teacher' ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+            {role === 'teacher' ? <Users className="w-5 h-5" /> : <GraduationCap className="w-5 h-5" />}
+          </div>
+          <div>
+            <h4 className="font-extrabold text-slate-800 text-sm">
+              {role === 'teacher' ? 'Режим: Преподаватель 🎓' : 'Режим: Студент 🎒'}
+            </h4>
+            <p className="text-xs text-slate-500 max-w-xl mt-0.5 leading-relaxed">
+              {role === 'teacher' 
+                ? 'Вы управляете классами, приглашаете учеников и выдаете им домашние задания. Хотите учиться сами и решать тесты? Переключитесь в режим студента.'
+                : 'Вы видите домашние задания и дедлайны от преподавателя, а также соревнуетесь в лидерборде. Хотите сами преподавать и создавать свои группы? Переключитесь в режим преподавателя!'}
+            </p>
+          </div>
+        </div>
+        <button 
+          onClick={handleToggleRole}
+          className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-md transition shrink-0 ${role === 'teacher' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
+        >
+          {role === 'teacher' ? 'В режим Студента 🎒' : 'В режим Преподавателя 🎓'}
+        </button>
+      </div>
+
       {/* HEADER */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
         <div>
@@ -272,24 +317,83 @@ export default function TeacherDashboard() {
 
       {/* EMPTY GROUPS STATE */}
       {!loading && groups.length === 0 && (
-        <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 border-dashed">
-          <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-800">
-            {role === 'teacher' ? 'У вас пока нет групп' : 'Вы пока не вступили в группу'}
-          </h2>
-          <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm">
-            {role === 'teacher' 
-              ? 'Создайте свой первый класс, чтобы пригласить студентов.' 
-              : 'Перейдите в раздел "Библиотека" и нажмите кнопку "Ввести код класса", чтобы присоединиться к группе вашего преподавателя.'}
-          </p>
-          {role === 'student' && (
-            <button
-              onClick={() => navigate('/library')}
-              className="mt-6 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
-            >
-              Вступить в класс
-            </button>
-          )}
+        <div className="space-y-6">
+          <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 border-dashed">
+            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-slate-800">
+              {role === 'teacher' ? 'У вас пока нет групп' : 'Вы пока не вступили в группу'}
+            </h2>
+            <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm leading-relaxed">
+              {role === 'teacher' 
+                ? 'Создайте свой первый класс, чтобы пригласить студентов по коду приглашения.' 
+                : 'Вам нужно вступить в группу вашего преподавателя по пятизначному коду приглашения.'}
+            </p>
+            {role === 'student' && (
+              <button
+                onClick={() => navigate('/library')}
+                className="mt-6 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200"
+              >
+                Вступить в класс
+              </button>
+            )}
+          </div>
+
+          {/* Step by step guide card */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <h3 className="font-extrabold text-slate-800 text-base mb-4">
+              Как устроена работа с классами? 🧭
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {role === 'teacher' ? (
+                <>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Создайте класс</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Нажмите кнопку «Создать класс» в правом верхнем углу этой страницы и введите его название.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Передайте код</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Скопируйте уникальный пятизначный код класса из карточки группы и отправьте его своим ученикам.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">3</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Назначьте лекцию</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Нажмите «Назначить задание», выберите лекцию из своей библиотеки и укажите дату сдачи (дедлайн).</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">4</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Следите за топом</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">В лидерборде вы увидите активность студентов за 7 дней и всё время (XP за карточки и экзамены).</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Получите код</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Попросите у своего преподавателя уникальный 5-значный код для вступления в его группу.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Вступите в класс</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Перейдите в «Библиотеку» и в правом верхнем углу нажмите кнопку «Ввести код класса».</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">3</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Делайте задания</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Изучайте назначенные преподавателем конспекты, чтобы успешно уложиться в дедлайны.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">4</span>
+                    <h4 className="font-bold text-slate-700 text-sm">Участвуйте в рейтинге</h4>
+                    <p className="text-slate-500 text-xs leading-relaxed">Решайте тесты и заучивайте карточки, накапливайте еженедельный XP и занимайте топ-3 пьедестала!</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

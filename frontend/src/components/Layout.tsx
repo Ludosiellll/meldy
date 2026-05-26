@@ -12,6 +12,7 @@ import { getProfile, UserProfile } from '../api/social';
 import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, Notification } from '../api/chat';
 import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
+import ForgeyAssistant from './ForgeyAssistant';
 
 const navGroups = [
   {
@@ -104,7 +105,10 @@ export default function Layout() {
     fetchXP();
     window.addEventListener('xp_updated', fetchXP);
 
-    getProfile(user.id).then(p => { if (p) setProfile(p); });
+    const fetchProfile = () => getProfile(user.id).then(p => { if (p) setProfile(p); });
+    fetchProfile();
+    window.addEventListener('profile_updated', fetchProfile);
+
     getUnreadCount(user.id).then(setUnreadCount);
 
     const unsub = subscribeToNotifications(user.id, () => {
@@ -113,6 +117,7 @@ export default function Layout() {
 
     return () => {
       window.removeEventListener('xp_updated', fetchXP);
+      window.removeEventListener('profile_updated', fetchProfile);
       unsub();
     };
   }, [user?.id]);
@@ -137,6 +142,7 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       <OnboardingManager />
+      <ForgeyAssistant />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
       {isMobileMenuOpen && (
         <div 
