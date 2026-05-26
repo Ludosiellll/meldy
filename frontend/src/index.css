@@ -2,40 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  background: #f8fafc;
+@layer base {
+  body {
+    @apply m-0 bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased font-sans;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
 }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-track { @apply bg-slate-100 dark:bg-slate-900; }
+::-webkit-scrollbar-thumb { @apply bg-slate-300 dark:bg-slate-700 rounded-sm; }
 
 .card {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm;
 }
 
 .card-hover:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
-  border-color: #cbd5e1;
+  @apply shadow-md border-slate-300 dark:border-slate-700;
 }
 
 /* Markdown styles for Chat and Summaries */
-.markdown-content h1 { font-size: 1.5rem; font-weight: 800; margin: 1rem 0 0.5rem; }
-.markdown-content h2 { font-size: 1.25rem; font-weight: 700; margin: 0.8rem 0 0.4rem; }
-.markdown-content h3 { font-size: 1.1rem; font-weight: 600; margin: 0.6rem 0 0.3rem; }
-.markdown-content p { margin-bottom: 0.5rem; line-height: 1.6; }
-.markdown-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.5rem; }
-.markdown-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.5rem; }
-.markdown-content li { margin-bottom: 0.25rem; }
-.markdown-content strong { font-weight: 700; }
-.markdown-content code { background: rgba(0,0,0,0.05); padding: 0.1rem 0.3rem; border-radius: 4px; font-family: monospace; }
-.markdown-content.white-text { color: white; }
+.markdown-content h1 { @apply text-2xl font-extrabold mt-4 mb-2; }
+.markdown-content h2 { @apply text-xl font-bold mt-3 mb-1.5; }
+.markdown-content h3 { @apply text-lg font-semibold mt-2 mb-1; }
+.markdown-content p { @apply mb-2 leading-relaxed text-slate-700 dark:text-slate-300; }
+.markdown-content ul { @apply list-disc pl-6 mb-2 text-slate-700 dark:text-slate-300; }
+.markdown-content ol { @apply list-decimal pl-6 mb-2 text-slate-700 dark:text-slate-300; }
+.markdown-content li { @apply mb-1; }
+.markdown-content strong { @apply font-bold text-slate-900 dark:text-slate-100; }
+.markdown-content code { @apply bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-1.5 py-0.5 rounded text-sm font-mono; }
+.markdown-content.white-text p, .markdown-content.white-text ul, .markdown-content.white-text ol { color: white; }
+.markdown-content.white-text strong { color: white; }
 .markdown-content.white-text code { background: rgba(255,255,255,0.2); color: white; }
-.markdown-content hr { border: 0; border-top: 1px solid rgba(0,0,0,0.1); margin: 1rem 0; }
+.markdown-content hr { @apply border-t border-slate-200 dark:border-slate-800 my-4; }
 .markdown-content.white-text hr { border-top-color: rgba(255,255,255,0.2); }

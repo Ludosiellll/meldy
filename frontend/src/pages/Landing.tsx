@@ -9,7 +9,9 @@ import {
   Search, LayoutDashboard, Volume2, Pause, Square, RotateCcw, Folder, HardDrive, 
   Monitor, Download, ArrowLeft, ChevronRight
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useTheme } from '../contexts/ThemeProvider';
+import { Moon, Sun } from 'lucide-react';
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -17,12 +19,12 @@ export default function Landing() {
   useEffect(() => { if (user) navigate('/dashboard'); }, [user]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 overflow-x-hidden relative">
       {/* Grid Pattern Background */}
       <div 
-        className="absolute inset-0 pointer-events-none opacity-[0.4]"
+        className="absolute inset-0 pointer-events-none opacity-[0.4] dark:opacity-[0.1]"
         style={{
-          backgroundImage: `radial-gradient(#cbd5e1 1.5px, transparent 1.5px)`,
+          backgroundImage: `radial-gradient(currentColor 1.5px, transparent 1.5px)`,
           backgroundSize: '24px 24px',
           maskImage: 'linear-gradient(to bottom, white 50%, transparent)',
           WebkitMaskImage: 'linear-gradient(to bottom, white 50%, transparent)'
@@ -44,43 +46,52 @@ export default function Landing() {
 function Navbar() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/50">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50">
         {/* Logo */}
         <div className="flex items-center gap-2.5 cursor-pointer z-50" onClick={() => navigate('/')}>
-          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
             <GraduationCap className="w-5 h-5 text-white" />
           </div>
-          <span className="font-extrabold text-slate-900 text-xl tracking-tight">StudyForge</span>
+          <span className="font-extrabold text-slate-900 dark:text-white text-xl tracking-tight">StudyForge</span>
         </div>
 
         {/* Desktop Nav Links */}
-        <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-          <a href="#features" className="hover:text-indigo-600 transition">Возможности</a>
-          <a href="#how-it-works" className="hover:text-indigo-600 transition">Как это работает</a>
-          <a href="#educators" className="hover:text-indigo-600 transition">Преподавателям</a>
+        <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600 dark:text-slate-300">
+          <a href="#features" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">Возможности</a>
+          <a href="#how-it-works" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">Как это работает</a>
+          <a href="#educators" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition">Преподавателям</a>
         </div>
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2 sm:gap-3">
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-500 transition mr-2">
+            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
           <button onClick={() => navigate('/login')}
-            className="text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">
+            className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition px-3 py-2">
             Войти
           </button>
           <button onClick={() => navigate('/register')}
-            className="text-sm font-bold px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 active:translate-y-0 duration-200">
+            className="text-sm font-bold px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 duration-200">
             Начать бесплатно
           </button>
         </div>
 
         {/* Mobile Menu Toggle */}
-        <button 
-          onClick={() => setIsMenuOpen(!isMenuOpen)} 
-          className="md:hidden z-50 p-2 text-slate-600 hover:text-slate-900 focus:outline-none"
-        >
-          {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="md:hidden flex items-center gap-4 z-50">
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-500 transition">
+            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)} 
+            className="p-2 -mr-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white focus:outline-none"
+          >
+            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile Menu Overlay */}
@@ -90,18 +101,18 @@ function Navbar() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed inset-0 z-40 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center gap-8 md:hidden px-6 pt-16"
+            className="fixed inset-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center gap-8 md:hidden px-6 pt-16"
           >
-            <a href="#features" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800">Возможности</a>
-            <a href="#how-it-works" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800">Как это работает</a>
-            <a href="#educators" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800">Преподавателям</a>
+            <a href="#features" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800 dark:text-slate-100">Возможности</a>
+            <a href="#how-it-works" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800 dark:text-slate-100">Как это работает</a>
+            <a href="#educators" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800 dark:text-slate-100">Преподавателям</a>
             <div className="flex flex-col w-full max-w-xs gap-4 mt-4">
               <button onClick={() => { setIsMenuOpen(false); navigate('/login'); }}
-                className="w-full py-4 text-center font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition">
+                className="w-full py-4 text-center font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition">
                 Войти
               </button>
               <button onClick={() => { setIsMenuOpen(false); navigate('/register'); }}
-                className="w-full py-4 text-center font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-lg shadow-indigo-100">
+                className="w-full py-4 text-center font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-lg shadow-indigo-500/20">
                 Начать бесплатно
               </button>
             </div>

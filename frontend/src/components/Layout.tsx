@@ -13,6 +13,8 @@ import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead
 import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
 import ForgeyAssistant from './ForgeyAssistant';
+import { useTheme } from '../contexts/ThemeProvider';
+import { Moon, Sun } from 'lucide-react';
 
 const navGroups = [
   {
@@ -89,6 +91,8 @@ export default function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  
+  const { theme, setTheme } = useTheme();
   
   // Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -189,7 +193,7 @@ export default function Layout() {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
       <OnboardingManager />
       <ForgeyAssistant />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
@@ -201,7 +205,7 @@ export default function Layout() {
       )}
 
       {/* ═══ SIDEBAR ════════════════════════════════════════════════════════════ */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900 flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-xl flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Logo */}
         <div className="p-4 md:p-5 flex items-center justify-between w-full border-b border-slate-800">
           <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 hover:opacity-80 transition text-left">
@@ -295,7 +299,11 @@ export default function Layout() {
               <p className="text-slate-500 text-[10px] truncate">{email}</p>
             </div>
             
-            <div className="relative">
+            <div className="relative flex items-center gap-1">
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-400 transition relative p-1" title="Переключить тему">
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              
               <button onClick={handleOpenNotifications} className="text-slate-500 hover:text-slate-200 transition relative p-1">
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -316,12 +324,12 @@ export default function Layout() {
       {/* ═══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* ═══ MOBILE HEADER ════════════════════════════════════════════════ */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shrink-0 z-30">
+        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shrink-0 z-30">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
               <GraduationCap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-bold tracking-tight text-slate-800 text-base">StudyForge</span>
+            <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={handleOpenNotifications} className="p-2 text-slate-500 hover:text-indigo-600 transition relative">
@@ -345,7 +353,7 @@ export default function Layout() {
         </main>
 
         {/* ═══ MOBILE BOTTOM NAV ════════════════════════════════════════════════ */}
-        <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 backdrop-blur-md border-t border-slate-200 flex md:hidden pb-safe">
+        <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex md:hidden pb-safe">
           {mobileNavItems.map(item => (
             <NavLink
               key={item.to}

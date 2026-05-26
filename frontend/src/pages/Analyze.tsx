@@ -239,8 +239,8 @@ export default function Analyze() {
         {state.phase === 'error' && (
           <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
             <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Ошибка</h2>
-            <p className="text-slate-500 mb-4 text-sm">{state.error}</p>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Ошибка</h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">{state.error}</p>
             <button onClick={reset} className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition">Попробовать снова</button>
           </motion.div>
         )}
@@ -254,7 +254,7 @@ export default function Analyze() {
               initial={{ opacity: 0, x: 40, scale: 0.95 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 40, scale: 0.95 }}
-              className="bg-white border border-slate-200 shadow-lg rounded-lg px-4 py-2.5 text-sm text-slate-700 font-medium">
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-lg px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 font-medium">
               {t.text}
             </motion.div>
           ))}
