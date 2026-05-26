@@ -344,7 +344,7 @@ export default function Layout() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                'flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] gap-1 text-[10px] font-bold transition ' +
+                `flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] gap-1 text-[10px] font-bold transition ${item.className || ''} ` +
                 (isActive ? 'text-indigo-600' : 'text-slate-400')
               }
             >
