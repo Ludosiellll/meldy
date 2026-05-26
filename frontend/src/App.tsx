@@ -23,6 +23,7 @@ import QuickPrep from './pages/QuickPrep';
 import KnowledgeMap from './pages/KnowledgeMap';
 import AuthCallback from './pages/AuthCallback';
 import SocialHub from './pages/SocialHub';
+import CoStudy from './pages/CoStudy';
 import Career from './pages/Career';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />
+          <Route path="co-study/:id" element={<CoStudy />} />
           <Route path="review" element={<Review />} />
           <Route path="planner" element={<Navigate to="/courses" replace />} />
           <Route path="courses" element={<Courses />} />

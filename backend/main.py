@@ -458,6 +458,8 @@ class ProfessorQuestionRequest(BaseModel):
     history_text: str = ""
     mood: dict = None
     socratic_mode: bool = False
+    exam_history: List[dict] = []
+    recent_mistakes: List[str] = []
 
 
 class ProfessorEvaluateRequest(BaseModel):
@@ -477,6 +479,7 @@ from agents.base import build_professor_question_prompt, build_professor_evaluat
 async def professor_question(request: Request, req: ProfessorQuestionRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
+    mood_instr = ""
     if req.mood:
         mood_instr = f"Студент сейчас в настроении: {req.mood.get('mood')}, энергия {req.mood.get('energy_level')}/5. "
         if req.mood.get('notes'):
@@ -485,6 +488,24 @@ async def professor_question(request: Request, req: ProfessorQuestionRequest):
             mood_instr += "Студент сегодня не в лучшей форме (устал или в стрессе). Задавай вопросы попроще, будь более снисходительным профессором, давай наводки."
         elif req.mood.get('energy_level', 3) >= 4:
             mood_instr += "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
+
+    # Адаптивность к успеваемости
+    adaptive_instr = ""
+    if req.exam_history:
+        scores = [e.get('score', 0) for e in req.exam_history if isinstance(e, dict) and 'score' in e]
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            adaptive_instr += f"История оценок студента: средний балл {avg_score:.1f}/100. "
+            if avg_score >= 85:
+                adaptive_instr += "Студент очень сильный и отлично справляется. Задавай глубокие, каверзные вопросы на понимание тонкостей, проверяй знание исключений и неочевидных связей. Будь строгим, но справедливым. "
+            elif avg_score < 60:
+                adaptive_instr += "Студент иногда ошибается или испытывает трудности. Задавай структурированные, базовые вопросы. Будь более лоялен, хвали за правильные шаги, давай наводящие подсказки. "
+
+    # Адаптивность к прошлым ошибкам
+    if req.recent_mistakes:
+        mistakes_str = ", ".join([m for m in req.recent_mistakes if isinstance(m, str)])
+        if mistakes_str:
+            adaptive_instr += f"Недавние темы/вопросы, в которых студент совершал ошибки: {mistakes_str}. Если это уместно в контексте изучаемого материала, удели внимание этим темам или задай вопрос, проверяющий усвоение прошлых пробелов."
 
     # Сократовский режим
     if req.socratic_mode:
@@ -505,6 +526,8 @@ async def professor_question(request: Request, req: ProfessorQuestionRequest):
     system_prompt = build_professor_question_prompt(req.context, req.history_text)
     if mood_instr:
         system_prompt += f"\n\nКОНТЕКСТ СОСТОЯНИЯ СТУДЕНТА: {mood_instr}"
+    if adaptive_instr:
+        system_prompt += f"\n\nАДАПТИВНАЯ СЛОЖНОСТЬ (УСПЕВАЕМОСТЬ И ОШИБКИ): {adaptive_instr}"
     system_prompt += socratic_instr
         
     question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.")

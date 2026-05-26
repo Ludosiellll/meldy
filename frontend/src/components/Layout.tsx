@@ -4,7 +4,7 @@ import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Calendar, MessageSquare, LogOut, Award, Gamepad2,
   BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
-  Globe, Briefcase, MessageCircle, User, Bell, Menu, X, Layers
+  Globe, Briefcase, MessageCircle, User, Bell, Menu, X, Layers, Users
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
@@ -31,6 +31,7 @@ const navGroups = [
       { to: '/library',     icon: BookOpen,        label: 'Библиотека', className: 'tour-step-library' },
       { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
       { to: '/courses',     icon: Layers,          label: 'Мои курсы' },
+      { to: '/teacher',     icon: Users,           label: 'Мой класс' },
     ]
   },
   {

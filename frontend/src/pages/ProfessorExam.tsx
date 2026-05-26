@@ -235,7 +235,6 @@ export default function ProfessorExam() {
       ? selectedMaterial.summary_json
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
-
     // Получаем актуальное настроение пользователя
     const { data: moodData } = await supabase
       .from('mood_log')
@@ -244,6 +243,15 @@ export default function ProfessorExam() {
       .order('logged_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    // Загрузка недавних экзаменов и ошибок для адаптивности сложности
+    const [examHistoryRes, mistakesRes] = await Promise.all([
+      supabase.from('exam_sessions').select('score, grade').eq('user_id', user!.id).eq('status', 'completed').order('completed_at', { ascending: false }).limit(5),
+      supabase.from('mistake_diary').select('topic').eq('user_id', user!.id).eq('is_resolved', false).limit(5)
+    ]);
+
+    const examHistory = examHistoryRes.data || [];
+    const recentMistakes = (mistakesRes.data || []).map(m => m.topic).filter(Boolean);
 
     try {
       const res = await fetch('/api/professor/question', {
@@ -254,6 +262,8 @@ export default function ProfessorExam() {
           history_text: historyText,
           mood: moodData,
           socratic_mode: socraticMode,
+          exam_history: examHistory,
+          recent_mistakes: recentMistakes,
         })
       });
 

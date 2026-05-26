@@ -27,6 +27,7 @@ export default function Analytics() {
   const [mistakes, setMistakes] = useState<any[]>([]);
   const [earnedAchievements, setEarnedAchievements] = useState<string[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
+  const [cardProgress, setCardProgress] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -37,17 +38,91 @@ export default function Analytics() {
       supabase.from('mistake_diary').select('*').eq('user_id', user.id),
       supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id),
       supabase.from('materials').select('id, title, subject, created_at').eq('user_id', user.id),
-    ]).then(([xpVal, sessRes, examsRes, mistakesRes, achRes, matsRes]) => {
+      supabase.from('flashcard_progress').select('material_id, repetitions').eq('user_id', user.id),
+    ]).then(([xpVal, sessRes, examsRes, mistakesRes, achRes, matsRes, cardsRes]) => {
       setXp(xpVal);
       setSessions(sessRes.data ?? []);
       setExams(examsRes.data ?? []);
       setMistakes(mistakesRes.data ?? []);
       setEarnedAchievements((achRes.data ?? []).map((a: Achievement) => a.achievement_id));
       setMaterials(matsRes.data ?? []);
+      setCardProgress(cardsRes.data ?? []);
     }).catch(console.error).finally(() => setLoading(false));
   }, [user?.id]);
 
   const levelInfo = calcLevel(xp);
+
+  // Расчет владения темами
+  const knowledgeHeatmap = (() => {
+    const cardsByMaterial: Record<string, { total: number; mastered: number }> = {};
+    cardProgress.forEach(c => {
+      if (!c.material_id) return;
+      if (!cardsByMaterial[c.material_id]) {
+        cardsByMaterial[c.material_id] = { total: 0, mastered: 0 };
+      }
+      cardsByMaterial[c.material_id].total += 1;
+      if (c.repetitions >= 3) {
+        cardsByMaterial[c.material_id].mastered += 1;
+      }
+    });
+
+    const examsByMaterial: Record<string, { totalScore: number; count: number }> = {};
+    exams.forEach(e => {
+      if (!e.material_id) return;
+      if (!examsByMaterial[e.material_id]) {
+        examsByMaterial[e.material_id] = { totalScore: 0, count: 0 };
+      }
+      examsByMaterial[e.material_id].totalScore += e.score || 0;
+      examsByMaterial[e.material_id].count += 1;
+    });
+
+    return materials.map(m => {
+      const cards = cardsByMaterial[m.id];
+      const exam = examsByMaterial[m.id];
+      
+      let cardScore = -1;
+      let examScore = -1;
+
+      if (cards && cards.total > 0) {
+        cardScore = (cards.mastered / cards.total) * 100;
+      }
+      if (exam && exam.count > 0) {
+        examScore = exam.totalScore / exam.count;
+      }
+
+      let score = 0;
+      let status: 'not_started' | 'started' | 'mastering' | 'mastered' = 'not_started';
+
+      if (cardScore !== -1 && examScore !== -1) {
+        score = Math.round(0.6 * cardScore + 0.4 * examScore);
+        status = score >= 80 ? 'mastered' : score >= 40 ? 'mastering' : 'started';
+      } else if (cardScore !== -1) {
+        score = Math.round(cardScore);
+        status = score >= 80 ? 'mastered' : score >= 40 ? 'mastering' : 'started';
+      } else if (examScore !== -1) {
+        score = Math.round(examScore);
+        status = score >= 80 ? 'mastered' : score >= 40 ? 'mastering' : 'started';
+      }
+
+      return {
+        id: m.id,
+        title: m.title,
+        subject: m.subject || 'Другое',
+        score,
+        status,
+        cardScore: cardScore !== -1 ? Math.round(cardScore) : null,
+        examScore: examScore !== -1 ? Math.round(examScore) : null,
+      };
+    }).sort((a, b) => b.score - a.score);
+  })();
+
+  const getProficiencyColor = (score: number, status: string) => {
+    if (status === 'not_started') return 'bg-slate-100 border-slate-200 text-slate-400';
+    if (score < 40) return 'bg-rose-100 border-rose-200 text-rose-700';
+    if (score < 70) return 'bg-amber-100 border-amber-200 text-amber-700';
+    if (score < 85) return 'bg-indigo-100 border-indigo-200 text-indigo-700';
+    return 'bg-emerald-100 border-emerald-200 text-emerald-700';
+  };
 
   // Активность за 30 дней
   const activityData = (() => {
@@ -304,6 +379,55 @@ export default function Analytics() {
           ))}
           <span className="text-xs text-slate-400">Больше</span>
         </div>
+      </div>
+
+      {/* Тепловая карта владения знаниями */}
+      <div className="card p-4 md:p-5">
+        <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <Brain className="w-4 h-4 text-indigo-500 animate-pulse" />
+          Карта владения знаниями по темам
+        </h3>
+        <p className="text-xs text-slate-400 mb-4">
+          Уровень освоения материала на основе устных экзаменов (40%) и повторения карточек (60%)
+        </p>
+
+        {knowledgeHeatmap.length === 0 ? (
+          <p className="text-center text-slate-400 text-xs py-8">Темы не найдены. Загрузите материалы в библиотеку.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {knowledgeHeatmap.map(item => (
+              <div
+                key={item.id}
+                onClick={() => navigate(`/library/${item.id}`)}
+                className={`p-3 rounded-xl border cursor-pointer hover:shadow-md transition-all flex flex-col justify-between ${getProficiencyColor(item.score, item.status)}`}
+              >
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-75 truncate max-w-[120px]">
+                      {item.subject}
+                    </span>
+                    <span className="text-xs font-black shrink-0">
+                      {item.status === 'not_started' ? '0%' : `${item.score}%`}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-xs line-clamp-2 leading-snug">
+                    {item.title}
+                  </h4>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-[10px] opacity-80 pt-1.5 border-t border-black/5">
+                  <span>
+                    {item.status === 'not_started' ? 'Не изучалось' : item.score >= 85 ? 'Освоено' : 'В процессе'}
+                  </span>
+                  <div className="flex gap-1.5 font-semibold">
+                    {item.cardScore !== null && <span>🃏 {item.cardScore}%</span>}
+                    {item.examScore !== null && <span>🎓 {item.examScore}%</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Слабые темы */}

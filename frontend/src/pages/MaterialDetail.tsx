@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen } from 'lucide-react';
+import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import ResultsPanel from '../components/ResultsPanel';
@@ -118,6 +118,13 @@ export default function MaterialDetail() {
           ) : (
             <><Lock className="w-3.5 h-3.5" /> Только для меня</>
           )}
+        </button>
+
+        <button 
+          onClick={() => navigate(`/co-study/${id}`)}
+          className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md transition"
+        >
+          <Users className="w-3.5 h-3.5" /> Совместная комната
         </button>
       </div>
 
