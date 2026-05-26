@@ -101,7 +101,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
   const handleCopy = () => { navigator.clipboard.writeText(getContent()); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
-  const handleDownload = () => {
+  const handleDownloadHtml = () => {
     const baseName = (sourceFileName || 'demo').replace(/\.[^.]+$/, '');
     const dateStr = new Date().toISOString().slice(0, 10);
     const html = buildHtmlExport(results, sourceFileName);
@@ -114,6 +114,29 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     URL.revokeObjectURL(u);
   };
 
+  const handleExportAnki = () => {
+    try {
+      const cards = results.flashcards?.flashcards || results.flashcards || [];
+      const tsv = cards.map((c: any) => `${c.question.replace(/\n/g, ' ')}\t${c.answer.replace(/\n/g, '<br>')}`).join('\n');
+      
+      const b = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8' });
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u;
+      const baseName = (sourceFileName || 'deck').replace(/\.[^.]+$/, '');
+      a.download = `studyforge_${baseName}.txt`;
+      a.click();
+      URL.revokeObjectURL(u);
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка при экспорте Anki');
+    }
+  };
+
+  const handlePrintPdf = () => {
+    window.print();
+  };
+
   return (
     <div className="py-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -123,10 +146,24 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
             <Copy className="w-4 h-4" />{copied ? 'Скопировано' : 'Копировать'}
           </button>
-          <button onClick={handleDownload}
-            className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
-            <Download className="w-4 h-4" />Скачать HTML
-          </button>
+          {tab === 'summary' && (
+            <button onClick={handlePrintPdf}
+              className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
+              <Download className="w-4 h-4" />В PDF / Печать
+            </button>
+          )}
+          {tab === 'flashcards' && (
+            <button onClick={handleExportAnki}
+              className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm flex">
+              <Download className="w-4 h-4" />В Anki (.txt)
+            </button>
+          )}
+          {(tab === 'quiz' || tab === 'missions') && (
+            <button onClick={handleDownloadHtml}
+              className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
+              <Download className="w-4 h-4" />Скачать HTML
+            </button>
+          )}
           <button onClick={onReset}
             className="w-full md:w-auto items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition flex mt-1 md:mt-0">
             <RotateCcw className="w-4 h-4" />Новый анализ
