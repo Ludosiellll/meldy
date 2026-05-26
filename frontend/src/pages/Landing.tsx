@@ -436,7 +436,7 @@ function ProductSimulation() {
       }
       case 1: {
         // Летим к зоне загрузки (кнопка центрирована)
-        setCursorPos({ x: 380, y: 410, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 380, y: 375, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Кликаем по зоне загрузки
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
@@ -620,7 +620,7 @@ function ProductSimulation() {
         // Показываем курсор и летим к кнопке Начать заново в оверлее
         setCursorPos({ x: 380, y: 250, scale: 1, opacity: 0, clicked: false });
         timer = setTimeout(() => {
-          setCursorPos({ x: 380, y: 420, scale: 1, opacity: 1, clicked: false });
+          setCursorPos({ x: 380, y: 405, scale: 1, opacity: 1, clicked: false });
           timer = setTimeout(() => {
             setStep(18); // Клик по Начать заново
           }, 1200);
@@ -1152,7 +1152,7 @@ function ProductSimulation() {
                       </div>
 
                       {/* Диалоговая лента */}
-                      <div className="space-y-3 flex-1 overflow-y-auto pr-1 flex flex-col mt-1">
+                      <div className="space-y-3 flex-1 overflow-y-auto pr-1 flex flex-col mt-2 pb-4">
                         {podcastSpeech.map((msg, i) => {
                           if (step < msg.stepActive) return null;
                           const isSpeaking = step === msg.stepActive;
@@ -1167,22 +1167,36 @@ function ProductSimulation() {
                             >
                               <div
                                 className={`relative max-w-[80%] px-4 py-3 rounded-2xl shadow-sm border transition-all duration-300 ${
+                                  msg.isMax ? 'rounded-bl-none' : 'rounded-br-none'
+                                } ${
                                   isSpeaking
                                     ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/10 scale-[1.01]'
                                     : msg.isMax
-                                    ? 'bg-white border-slate-200 text-slate-800 rounded-bl-none'
-                                    : 'bg-indigo-600 border-indigo-700 text-white rounded-br-none'
+                                    ? 'bg-white border-slate-200 text-slate-800'
+                                    : 'bg-indigo-600 border-indigo-700 text-white'
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-1.5 opacity-80 gap-6">
-                                  <span className={`text-[9px] font-black uppercase tracking-wider ${msg.isMax ? 'text-slate-500' : 'text-indigo-200'}`}>
+                                  <span className={`text-[10px] font-black uppercase tracking-wider ${
+                                    isSpeaking
+                                      ? 'text-indigo-900'
+                                      : msg.isMax
+                                      ? 'text-slate-500'
+                                      : 'text-indigo-200'
+                                  }`}>
                                     {msg.speaker}
                                   </span>
                                   {isSpeaking && (
-                                    <Volume2 className={`w-3.5 h-3.5 ${msg.isMax ? 'text-indigo-500' : 'text-white'} animate-pulse`} />
+                                    <Volume2 className={`w-3.5 h-3.5 text-indigo-600 animate-pulse`} />
                                   )}
                                 </div>
-                                <p className={`text-[12px] leading-relaxed font-medium ${msg.isMax ? 'text-slate-700' : 'text-white'}`}>
+                                <p className={`text-[12px] leading-relaxed font-medium ${
+                                  isSpeaking
+                                    ? 'text-slate-800'
+                                    : msg.isMax
+                                    ? 'text-slate-700'
+                                    : 'text-white'
+                                }`}>
                                   {msg.text}
                                 </p>
                               </div>
@@ -1403,7 +1417,10 @@ function ProductSimulation() {
                     className="absolute z-50 pointer-events-none select-none drop-shadow-xl"
                     style={{ left: 0, top: 0 }}
                   >
-                    <MousePointer2 className="w-5.5 h-5.5 text-slate-900 fill-white -rotate-[22deg]" />
+                    <MousePointer2 
+                      className="w-5.5 h-5.5 text-slate-900 fill-white" 
+                      style={{ transformOrigin: '4px 4px', transform: 'translate(-4px, -4px) rotate(-22deg)' }}
+                    />
                   </motion.div>
                 )}
 
