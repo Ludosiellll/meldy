@@ -143,29 +143,29 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         <h2 className="text-xl font-bold text-slate-900">Результаты</h2>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={handleCopy}
-            className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
-            <Copy className="w-4 h-4" />{copied ? 'Скопировано' : 'Копировать'}
+            className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex whitespace-nowrap">
+            <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{copied ? 'Скопировано' : 'Копировать'}
           </button>
           {tab === 'summary' && (
             <button onClick={handlePrintPdf}
-              className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
-              <Download className="w-4 h-4" />В PDF / Печать
+              className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex whitespace-nowrap">
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В PDF / Печать
             </button>
           )}
           {tab === 'flashcards' && (
             <button onClick={handleExportAnki}
-              className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm flex">
-              <Download className="w-4 h-4" />В Anki (.txt)
+              className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm flex whitespace-nowrap">
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В Anki (.txt)
             </button>
           )}
           {(tab === 'quiz' || tab === 'missions') && (
             <button onClick={handleDownloadHtml}
-              className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
-              <Download className="w-4 h-4" />Скачать HTML
+              className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex whitespace-nowrap">
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Скачать HTML
             </button>
           )}
           <button onClick={onReset}
-            className="w-full md:w-auto items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition flex mt-1 md:mt-0">
+            className="w-full md:w-auto items-center justify-center gap-1 sm:gap-1.5 px-3 py-2.5 sm:py-2 rounded-lg text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition flex mt-1 md:mt-0 whitespace-nowrap">
             <RotateCcw className="w-4 h-4" />Новый анализ
           </button>
         </div>
