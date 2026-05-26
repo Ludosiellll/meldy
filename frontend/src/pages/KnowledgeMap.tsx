@@ -68,11 +68,15 @@ export default function KnowledgeMap() {
   const linksRef = useRef<GraphLink[]>([]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   
-  // Перетаскивание
+  // Перетаскивание и зум
   const draggingNodeId = useRef<string | null>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const isPanning = useRef(false);
   const panStartPos = useRef({ x: 0, y: 0 });
+  
+  // Pinch zoom (щипок)
+  const initialPinchDistance = useRef<number | null>(null);
+  const initialPinchScale = useRef<number>(1);
 
   // 1. Загрузка данных
   useEffect(() => {
@@ -442,14 +446,35 @@ export default function KnowledgeMap() {
   };
 
   const handleTouchStart = (e: React.TouchEvent, node?: GraphNode) => {
+    if (e.touches.length === 2) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+      initialPinchDistance.current = dist;
+      initialPinchScale.current = scale;
+      isPanning.current = false;
+      return;
+    }
+    initialPinchDistance.current = null;
     handlePointerDown(e.touches[0].clientX, e.touches[0].clientY, node);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && initialPinchDistance.current !== null) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+      const zoomFactor = dist / initialPinchDistance.current;
+      setScale(Math.max(0.4, Math.min(2.5, initialPinchScale.current * zoomFactor)));
+      return;
+    }
     handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
   };
 
   const handleTouchEnd = (e: React.TouchEvent, node?: GraphNode) => {
+    if (e.touches.length < 2) {
+      initialPinchDistance.current = null;
+    }
     handlePointerUp(node);
   };
 
@@ -743,10 +768,17 @@ export default function KnowledgeMap() {
                   <p className="font-bold text-slate-800 flex items-center gap-1">
                     <Info className="hidden md:block w-3.5 h-3.5 text-indigo-400" /> Навигация по графу
                   </p>
-                  <p>• Свайп / Прокрутка: Масштаб</p>
-                  <p>• Перетаскивание: Перемещение</p>
-                  <p>• Клик по узлу: Информация</p>
-                  <p>• Двойной клик: Сброс зума</p>
+                  <div className="hidden md:block space-y-1.5">
+                    <p>• Колесико мыши: Масштаб</p>
+                    <p>• Перетаскивание: Перемещение</p>
+                    <p>• Клик по узлу: Информация</p>
+                    <p>• Двойной клик: Сброс зума</p>
+                  </div>
+                  <div className="md:hidden space-y-1.5">
+                    <p>• Щипок (2 пальца): Масштаб</p>
+                    <p>• Свайп: Перемещение</p>
+                    <p>• Нажатие: Информация</p>
+                  </div>
                 </div>
               </div>
             </div>
