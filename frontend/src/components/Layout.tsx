@@ -155,6 +155,32 @@ export default function Layout() {
   const isTeacher = profile?.role === 'teacher';
   const currentNavGroups = isTeacher ? teacherNavGroups : navGroups;
 
+  const notificationDropdown = showNotifications && (
+    <div className="fixed inset-x-4 top-16 md:bottom-20 md:top-auto md:left-6 md:right-auto md:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-[70] overflow-hidden flex flex-col max-h-[60vh]">
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
+        <h3 className="font-bold text-slate-800">Уведомления</h3>
+        {notifications.length > 0 && (
+          <button className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Отметить все</button>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+        {notifications.length === 0 ? (
+          <div className="p-6 text-center text-slate-500 text-sm">Нет новых уведомлений</div>
+        ) : (
+          notifications.map(n => (
+            <div key={n.id} className="p-3 rounded-xl hover:bg-slate-50 transition cursor-pointer">
+              <p className="text-sm text-slate-800 font-medium mb-1">{n.title}</p>
+              <p className="text-xs text-slate-600 line-clamp-2">{n.body}</p>
+              <p className="text-[10px] text-slate-400 mt-2">
+                {new Date(n.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       <OnboardingManager />
@@ -269,8 +295,6 @@ export default function Layout() {
                   <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
-                )}
-              </button>
                 )}
               </button>
             </div>
