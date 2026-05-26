@@ -345,8 +345,74 @@ export default function KnowledgeMap() {
   }, [loading]);
 
   // Drag & Pan
+  const getMouseCoords = (clientX: number, clientY: number) => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    const pt = svgRef.current.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svgRef.current.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    return pt.matrixTransform(ctm.inverse());
+  };
+
+  const handlePointerDown = (clientX: number, clientY: number, node?: GraphNode) => {
+    if (!svgRef.current) return;
+    const coords = getMouseCoords(clientX, clientY);
+
+    if (node) {
+      draggingNodeId.current = node.id;
+      const clickX = (coords.x - panX) / scale;
+      const clickY = (coords.y - panY) / scale;
+      dragStartPos.current = { x: clickX, y: clickY };
+      
+      const matchedNode = nodesRef.current.find(n => n.id === node.id);
+      if (matchedNode) {
+        matchedNode.fx = matchedNode.x;
+        matchedNode.fy = matchedNode.y;
+      }
+    } else {
+      isPanning.current = true;
+      panStartPos.current = { x: coords.x - panX, y: coords.y - panY };
+    }
+  };
+
+  const handlePointerMove = (clientX: number, clientY: number) => {
+    if (!svgRef.current) return;
+    const coords = getMouseCoords(clientX, clientY);
+
+    if (draggingNodeId.current) {
+      const clickX = (coords.x - panX) / scale;
+      const clickY = (coords.y - panY) / scale;
+
+      const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
+      if (matchedNode) {
+        matchedNode.fx = clickX;
+        matchedNode.fy = clickY;
+      }
+    } else if (isPanning.current) {
+      setPanX(coords.x - panStartPos.current.x);
+      setPanY(coords.y - panStartPos.current.y);
+    }
+  };
+
+  const handlePointerUp = (node?: GraphNode) => {
+    if (draggingNodeId.current) {
+      const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
+      if (matchedNode) {
+        matchedNode.fx = null;
+        matchedNode.fy = null;
+      }
+      if (node) {
+        setSelectedNode(node);
+      }
+      draggingNodeId.current = null;
+    }
+    isPanning.current = false;
+  };
+
   const handleMouseDown = (e: React.MouseEvent, node?: GraphNode) => {
     e.preventDefault();
+    handlePointerDown(e.clientX, e.clientY, node);
     if (!svgRef.current) return;
 
     if (node) {
@@ -368,37 +434,23 @@ export default function KnowledgeMap() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!svgRef.current) return;
-
-    if (draggingNodeId.current) {
-      const rect = svgRef.current.getBoundingClientRect();
-      const clickX = (e.clientX - rect.left - panX) / scale;
-      const clickY = (e.clientY - rect.top - panY) / scale;
-
-      const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
-      if (matchedNode) {
-        matchedNode.fx = clickX;
-        matchedNode.fy = clickY;
-      }
-    } else if (isPanning.current) {
-      setPanX(e.clientX - panStartPos.current.x);
-      setPanY(e.clientY - panStartPos.current.y);
-    }
+    handlePointerMove(e.clientX, e.clientY);
   };
 
   const handleMouseUp = (e: React.MouseEvent, node?: GraphNode) => {
-    if (draggingNodeId.current) {
-      const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
-      if (matchedNode) {
-        matchedNode.fx = null;
-        matchedNode.fy = null;
-      }
-      if (node) {
-        setSelectedNode(node);
-      }
-      draggingNodeId.current = null;
-    }
-    isPanning.current = false;
+    handlePointerUp(node);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent, node?: GraphNode) => {
+    handlePointerDown(e.touches[0].clientX, e.touches[0].clientY, node);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent, node?: GraphNode) => {
+    handlePointerUp(node);
   };
 
   const zoomIn = () => setScale(s => Math.min(2.5, s + 0.15));
@@ -503,31 +555,27 @@ export default function KnowledgeMap() {
               </div>
             </div>
 
-            {/* Контейнер SVG */}
-            <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm select-none min-h-[400px] md:min-h-[550px]">
+            <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm select-none min-h-[60vh] md:min-h-[550px]">
               
-              {/* Фоновая сетка */}
-              <div 
-                className="absolute inset-0 opacity-[0.05] pointer-events-none"
-                style={{
-                  backgroundImage: `radial-gradient(circle, #f1f5f9 1px, transparent 1px)`,
-                  backgroundSize: '24px 24px',
-                  transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
-                  transformOrigin: 'top left'
-                }}
-              />
-
               <svg
                 ref={svgRef}
-                className="w-full h-[400px] md:h-[550px] cursor-grab active:cursor-grabbing"
+                viewBox="0 0 800 550"
+                preserveAspectRatio="xMidYMid meet"
+                className="w-full h-[60vh] md:h-[550px] cursor-grab active:cursor-grabbing touch-none"
                 onMouseDown={(e) => handleMouseDown(e)}
                 onMouseMove={handleMouseMove}
                 onMouseUp={(e) => handleMouseUp(e)}
                 onMouseLeave={(e) => handleMouseUp(e)}
+                onTouchStart={(e) => handleTouchStart(e)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={(e) => handleTouchEnd(e)}
+                onTouchCancel={(e) => handleTouchEnd(e)}
                 onDoubleClick={resetZoom}
               >
-                {/* SVG defs with Glow Filters for Obsidian effect */}
                 <defs>
+                  <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+                    <circle cx="1" cy="1" r="1" fill="#cbd5e1" />
+                  </pattern>
                   <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
                     <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
                     <feMerge>
@@ -552,6 +600,9 @@ export default function KnowledgeMap() {
                 </defs>
 
                 <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
+                  
+                  {/* Фоновая сетка внутри SVG */}
+                  <rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#grid)" className="opacity-40" />
                   
                   {/* Рендеринг связей (линии) */}
                   {links.map((link, idx) => {
@@ -612,8 +663,10 @@ export default function KnowledgeMap() {
                         key={node.id}
                         transform={`translate(${node.x}, ${node.y})`}
                         className="cursor-pointer group"
-                        onMouseDown={(e) => handleMouseDown(e, node)}
-                        onMouseUp={(e) => handleMouseUp(e, node)}
+                        onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, node); }}
+                        onMouseUp={(e) => { e.stopPropagation(); handleMouseUp(e, node); }}
+                        onTouchStart={(e) => { e.stopPropagation(); handleTouchStart(e, node); }}
+                        onTouchEnd={(e) => { e.stopPropagation(); handleTouchEnd(e, node); }}
                         style={{ opacity: searchOpacity }}
                       >
                         {/* Дополнительный вращающийся неоновый ободок для найденного по поиску узла */}
