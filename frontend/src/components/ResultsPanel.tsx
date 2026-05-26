@@ -116,27 +116,27 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
   return (
     <div className="py-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <h2 className="text-xl font-bold text-slate-900">Результаты</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200">
-            <Copy className="w-3.5 h-3.5" />{copied ? 'Скопировано' : 'Копировать'}
+            className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
+            <Copy className="w-4 h-4" />{copied ? 'Скопировано' : 'Копировать'}
           </button>
           <button onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200">
-            <Download className="w-3.5 h-3.5" />Скачать HTML
+            className="flex-1 md:flex-none items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition border border-slate-200 flex">
+            <Download className="w-4 h-4" />Скачать HTML
           </button>
           <button onClick={onReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition">
-            <RotateCcw className="w-3.5 h-3.5" />Новый анализ
+            className="w-full md:w-auto items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition flex mt-1 md:mt-0">
+            <RotateCcw className="w-4 h-4" />Новый анализ
           </button>
         </div>
       </div>
 
       {/* Статистика */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="card p-3 flex items-center gap-2.5">
+      <div className="flex overflow-x-auto pb-4 gap-3 mb-2 snap-x -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:pb-0 hide-scrollbar">
+        <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
           <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
             <Hash className="w-4 h-4 text-brand-500" />
           </div>
@@ -146,8 +146,8 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             <p className="text-xs text-slate-400">{textLength ? `~${Math.round(textLength / 5)} слов` : '—'}</p>
           </div>
         </div>
-        <div className="card p-3 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+        <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
             <Clock className="w-4 h-4 text-emerald-500" />
           </div>
           <div>
@@ -155,8 +155,8 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             <p className="text-sm font-semibold text-slate-800">{analysisDuration ? `${analysisDuration} сек` : '—'}</p>
           </div>
         </div>
-        <div className="card p-3 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+        <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
             <Cpu className="w-4 h-4 text-amber-500" />
           </div>
           <div>
@@ -167,18 +167,18 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       </div>
 
       {/* Pill-вкладки */}
-      <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 p-1.5 rounded-xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm transition font-medium ' +
+            className={'flex shrink-0 snap-start items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm transition font-bold ' +
               (tab === t.id
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-700 hover:bg-white')}>
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-500 hover:text-slate-900 hover:bg-white/50')}>
             {t.icon}
             {t.label}
             {t.count !== undefined && (
-              <span className={'ml-0.5 text-xs ' + (tab === t.id ? 'text-brand-200' : 'text-slate-400')}>
-                ({t.count})
+              <span className={'ml-1 text-xs px-1.5 py-0.5 rounded-md ' + (tab === t.id ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-500')}>
+                {t.count}
               </span>
             )}
           </button>

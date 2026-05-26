@@ -2,7 +2,7 @@ import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getFriends, Friendship, getMessages, sendMessage, subscribeToMessages, DirectMessage } from '../api/chat';
-import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2 } from 'lucide-react';
+import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getMaterials } from '../api/materials';
@@ -71,10 +71,10 @@ export default function Messages() {
   }
 
   return (
-    <div className="flex h-[85vh] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden m-6">
+    <div className="flex h-[calc(100vh-80px)] md:h-[85vh] bg-white md:rounded-2xl shadow-sm border border-slate-200 overflow-hidden md:m-6 m-0 relative">
 
       {/* Левая панель — список диалогов */}
-      <div className="w-80 border-r border-slate-200 flex flex-col bg-slate-50 shrink-0">
+      <div className={`w-full md:w-80 border-r border-slate-200 bg-slate-50 shrink-0 ${activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
         <div className="p-4 border-b border-slate-200 bg-white">
           <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-indigo-500" />
@@ -120,15 +120,18 @@ export default function Messages() {
       </div>
 
       {/* Правая панель — чат */}
-      <div className="flex-1 flex flex-col bg-white relative min-w-0">
+      <div className={`w-full md:flex-1 bg-white relative min-w-0 ${!activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
         {activeFriend ? (
           <>
             {/* Хедер */}
             <div className="p-4 border-b border-slate-200 flex items-center gap-3 bg-white shadow-sm z-10">
+              <button onClick={() => setActiveFriend(null)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 transition">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
               {activeFriend.friend_avatar ? (
-                <img src={activeFriend.friend_avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover" />
+                <img src={activeFriend.friend_avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover shrink-0" />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
                   <UserCircle2 className="w-5 h-5 text-slate-400" />
                 </div>
               )}

@@ -432,8 +432,8 @@ export default function MistakeDiary() {
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 leading-snug">
-                          {mistake.question.length > 80 ? mistake.question.slice(0, 80) + '...' : mistake.question}
+                        <p className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
+                          {mistake.question}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           {mistake.topic && (

@@ -200,12 +200,14 @@ export default function OnboardingManager() {
       if (document.querySelector('.tour-step-upload')) {
         setSteps(DASHBOARD_STEPS);
         setTourKey('dashboard_tour');
+        markOnboardingTourSeen(user.id, 'dashboard_tour');
         setRun(true);
       }
     } else if (location.pathname === '/dashboard' && status['dashboard_tour'] && profile.total_materials > 0 && !status['exam_tour']) {
       if (document.querySelector('.tour-step-exam')) {
         setSteps(EXAM_STEPS);
         setTourKey('exam_tour');
+        markOnboardingTourSeen(user.id, 'exam_tour');
         setRun(true);
       }
     } else if ((location.pathname === '/teacher' || location.pathname === '/groups') && !status['class_tour']) {
@@ -213,6 +215,7 @@ export default function OnboardingManager() {
       if (document.querySelector('.tour-step-role-toggle')) {
         setSteps(CLASS_STEPS);
         setTourKey('class_tour');
+        markOnboardingTourSeen(user.id, 'class_tour');
         setRun(true);
       }
     }
@@ -224,9 +227,6 @@ export default function OnboardingManager() {
     
     if (finishedStatuses.includes(status)) {
       setRun(false);
-      if (user && tourKey) {
-        markOnboardingTourSeen(user.id, tourKey);
-      }
     }
   };
 

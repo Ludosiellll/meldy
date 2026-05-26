@@ -232,7 +232,7 @@ export default function CoStudy() {
           user_id: user.id,
           name: profile.full_name || 'Студент',
           avatar: profile.avatar_url,
-          status: myStatus
+          status: myStatusRef.current
         });
       }
     };
@@ -245,6 +245,11 @@ export default function CoStudy() {
       msgChannel.unsubscribe();
     };
   }, [materialId, user, profile]);
+
+  const myStatusRef = useRef(myStatus);
+  useEffect(() => {
+    myStatusRef.current = myStatus;
+  }, [myStatus]);
 
   // Обновление присутствия при смене статуса
   useEffect(() => {

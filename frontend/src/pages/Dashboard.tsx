@@ -14,16 +14,16 @@ import { getQuestsWithProgress, getUserXP, calcLevel } from '../api/quests';
 import { getProfile } from '../api/social';
 
 function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: number; color: string }) {
-  const bgMap: Record<string, string> = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', amber: 'bg-amber-50', rose: 'bg-rose-50' };
+  const bgMap: Record<string, string> = { indigo: 'bg-indigo-50/80 border-indigo-100', emerald: 'bg-emerald-50/80 border-emerald-100', amber: 'bg-amber-50/80 border-amber-100', rose: 'bg-rose-50/80 border-rose-100' };
   const textMap: Record<string, string> = { indigo: 'text-indigo-600', emerald: 'text-emerald-600', amber: 'text-amber-600', rose: 'text-rose-600' };
   return (
-    <div className="card p-4 flex items-center gap-3">
-      <div className={`w-10 h-10 ${bgMap[color]} rounded-xl flex items-center justify-center`}>
+    <div className="bg-white/60 backdrop-blur-md border border-slate-200/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
+      <div className={`w-10 h-10 ${bgMap[color]} border rounded-xl flex items-center justify-center shrink-0`}>
         <Icon className={`w-5 h-5 ${textMap[color]}`} />
       </div>
       <div>
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
-        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-2xl font-black text-slate-900">{value}</p>
+        <p className="text-xs font-medium text-slate-500 mt-0.5">{label}</p>
       </div>
     </div>
   );
@@ -194,23 +194,23 @@ export default function Dashboard() {
         <motion.button
           onClick={() => navigate('/analytics')}
           whileHover={{ scale: 1.02 }}
-          className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-shadow"
+          className="flex w-full md:w-auto items-center gap-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-3 rounded-2xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-shadow"
         >
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Уровень {levelInfo.level} · {levelInfo.name}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden">
+          <div className="flex-1 text-left md:text-right">
+            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1.5">Уровень {levelInfo.level} · {levelInfo.name}</p>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 md:w-32 h-2 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm shadow-inner">
                 <motion.div
-                  className="h-full bg-white rounded-full"
+                  className="h-full bg-gradient-to-r from-white/80 to-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)]"
                   initial={{ width: 0 }}
                   animate={{ width: `${levelInfo.progress}%` }}
                   transition={{ duration: 1, ease: 'easeOut' }}
                 />
               </div>
-              <span className="text-xs font-black">{xp} XP</span>
+              <span className="text-sm font-black whitespace-nowrap">{xp} XP</span>
             </div>
           </div>
-          <BarChart2 className="w-5 h-5 text-indigo-200" />
+          <BarChart2 className="w-6 h-6 text-indigo-100 shrink-0 hidden sm:block" />
         </motion.button>
       </div>
 

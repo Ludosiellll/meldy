@@ -212,7 +212,7 @@ export default function Profile() {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-5 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
             <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mb-3">
               <Trophy className="w-5 h-5 text-indigo-600" />

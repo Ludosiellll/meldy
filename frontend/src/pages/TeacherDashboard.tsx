@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
+import QRCode from 'react-qr-code';
 
 // Функция получения участников группы с подсчетом недельного XP
 async function getGroupMembersWithWeeklyXP(groupId: string): Promise<GroupMember[]> {
@@ -107,6 +108,9 @@ export default function TeacherDashboard() {
   const [selectedMaterial, setSelectedMaterial] = useState('');
   const [deadline, setDeadline] = useState('');
 
+  // QR код
+  const [showQRModal, setShowQRModal] = useState(false);
+
   // Настройка лидерборда
   const [leaderboardTab, setLeaderboardTab] = useState<'all-time' | 'weekly'>('all-time');
   const [loading, setLoading] = useState(true);
@@ -146,8 +150,8 @@ export default function TeacherDashboard() {
     setLoading(true);
     const data = await getTeacherGroups(user.id);
     setGroups(data);
-    if (data.length > 0 && !selectedGroupId) {
-      setSelectedGroupId(data[0].id);
+    if (data.length > 0) {
+      setSelectedGroupId(prev => prev ? (data.some(g => g.id === prev) ? prev : data[0].id) : data[0].id);
     }
     setLoading(false);
   };
@@ -174,8 +178,8 @@ export default function TeacherDashboard() {
       .in('id', groupIds);
       
     setGroups(groupsData || []);
-    if (groupsData && groupsData.length > 0 && !selectedGroupId) {
-      setSelectedGroupId(groupsData[0].id);
+    if (groupsData && groupsData.length > 0) {
+      setSelectedGroupId(prev => prev ? (groupsData.some(g => g.id === prev) ? prev : groupsData[0].id) : groupsData[0].id);
     }
     setLoading(false);
   };
@@ -471,18 +475,53 @@ export default function TeacherDashboard() {
                         {selectedGroup.invite_code}
                       </span>
                     </div>
+                    
+                    {role === 'teacher' && (
+                      <button 
+                        onClick={() => setShowQRModal(true)}
+                        className="text-indigo-600 hover:text-indigo-700 text-sm font-bold ml-2 underline"
+                      >
+                        Показать QR-код
+                      </button>
+                    )}
                   </div>
                 </div>
                 
                 {role === 'teacher' && (
                   <button 
                     onClick={() => setShowAssignModal(true)}
-                    className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition"
+                    className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shrink-0"
                   >
                     Назначить задание
                   </button>
                 )}
               </div>
+
+              {/* QR CODE MODAL */}
+              {showQRModal && role === 'teacher' && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">Пригласить в класс</h3>
+                    <p className="text-slate-500 text-sm mb-6">Попросите учеников отсканировать этот QR-код или ввести код вручную в Библиотеке.</p>
+                    
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 inline-block mb-6 shadow-sm">
+                      <QRCode 
+                        value={`${window.location.origin}/library?join=${selectedGroup.invite_code}`} 
+                        size={200}
+                      />
+                    </div>
+                    
+                    <div className="bg-indigo-50 rounded-xl p-3 mb-6">
+                      <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1 block">Код класса</span>
+                      <span className="text-2xl font-black font-mono text-indigo-700 tracking-widest">{selectedGroup.invite_code}</span>
+                    </div>
+                    
+                    <button onClick={() => setShowQRModal(false)} className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+                      Закрыть
+                    </button>
+                  </motion.div>
+                </div>
+              )}
 
               {/* ASSIGN MATERIAL MODAL */}
               {showAssignModal && role === 'teacher' && (
@@ -506,6 +545,29 @@ export default function TeacherDashboard() {
                     </div>
                   </div>
                 </motion.div>
+              )}
+
+              {/* EMPTY STATE FOR NEW GROUP */}
+              {assignments.length === 0 && members.length === 0 && (
+                <div className="bg-slate-50 border border-slate-200 border-dashed rounded-3xl p-10 text-center flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center">
+                    <Users className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg">Класс готов к работе! 🎉</h3>
+                    <p className="text-slate-500 text-sm max-w-md mx-auto mt-2 leading-relaxed">
+                      Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white px-2 py-0.5 rounded shadow-sm text-indigo-600 font-bold">{selectedGroup.invite_code}</span> и отправьте им.
+                    </p>
+                  </div>
+                  {role === 'teacher' && (
+                    <button 
+                      onClick={() => setShowAssignModal(true)}
+                      className="mt-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200 flex items-center gap-2"
+                    >
+                      <Plus className="w-5 h-5" /> Назначить первое задание
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Assignments List */}
@@ -594,11 +656,11 @@ export default function TeacherDashboard() {
                   {members.length === 0 ? (
                     <p className="text-slate-400 text-xs italic">Нет студентов в классе для отображения прогресса.</p>
                   ) : (
-                    <div className="overflow-x-auto custom-scrollbar">
+                    <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-100">
                       <table className="w-full text-left text-xs min-w-[500px]">
                         <thead>
                           <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold">
-                            <th className="p-3">Студент</th>
+                            <th className="p-3 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_#f1f5f9]">Студент</th>
                             {assignments.map(a => (
                               <th key={a.id} className="p-3 font-bold truncate max-w-[120px]" title={a.material?.title}>
                                 {a.material?.title || 'Удаленный'}
@@ -608,8 +670,8 @@ export default function TeacherDashboard() {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {members.map(m => (
-                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="p-3 font-bold text-slate-700">
+                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
+                              <td className="p-3 font-bold text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10 shadow-[1px_0_0_#f1f5f9] transition-colors">
                                 {m.student_name}
                               </td>
                               {assignments.map(a => {
@@ -769,8 +831,8 @@ export default function TeacherDashboard() {
 
                     {/* REST OF THE RANKINGS LIST */}
                     {restRankings.length > 0 && (
-                      <div className="overflow-hidden border border-slate-100 rounded-2xl">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto custom-scrollbar border border-slate-100 rounded-2xl">
+                        <table className="w-full text-left text-xs min-w-[400px]">
                           <thead>
                             <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold">
                               <th className="p-4 w-12 text-center">Ранг</th>

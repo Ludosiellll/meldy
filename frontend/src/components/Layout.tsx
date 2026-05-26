@@ -135,6 +135,22 @@ export default function Layout() {
     }
   };
 
+  const handleToggleRole = async () => {
+    if (!user || !profile) return;
+    const newRole = profile.role === 'teacher' ? 'student' : 'teacher';
+    const { supabase } = await import('../lib/supabase');
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', user.id);
+    if (!error) {
+      setProfile({ ...profile, role: newRole });
+      window.dispatchEvent(new Event('profile_updated'));
+      if (newRole === 'teacher') navigate('/teacher');
+      else navigate('/dashboard');
+    }
+  };
+
   const avatarUrl = profile?.avatar_url;
   const isTeacher = profile?.role === 'teacher';
   const currentNavGroups = isTeacher ? teacherNavGroups : navGroups;

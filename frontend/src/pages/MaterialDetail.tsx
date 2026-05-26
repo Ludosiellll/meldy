@@ -133,37 +133,37 @@ export default function MaterialDetail() {
       </p>
 
       {/* Режимы обучения */}
-      <div className="flex flex-col sm:flex-row gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-full mb-6 border border-slate-200">
+      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 ${hasPodcast ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <button
           onClick={() => setMode('full')}
-          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
             mode === 'full'
               ? 'bg-slate-900 text-white shadow-md'
-              : 'text-slate-600 hover:text-slate-900'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
           }`}
         >
-          <BookOpen className="w-4 h-4" /> Полное обучение
+          <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" /> Полное обучение
         </button>
         <button
           onClick={() => setMode('express')}
-          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
             mode === 'express'
               ? 'bg-rose-600 text-white shadow-md'
-              : 'text-slate-600 hover:text-rose-600'
+              : 'text-slate-600 hover:text-rose-600 hover:bg-white/50'
           }`}
         >
-          <Zap className="w-4 h-4" /> За 5 минут
+          <Zap className="w-5 h-5 sm:w-4 sm:h-4" /> За 5 минут
         </button>
         {hasPodcast && (
           <button
             onClick={() => setMode('podcast')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition ${
+            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
               mode === 'podcast'
                 ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-600 hover:text-indigo-600'
+                : 'text-slate-600 hover:text-indigo-600 hover:bg-white/50'
             }`}
           >
-            <Headphones className="w-4 h-4" /> AI-Подкаст
+            <Headphones className="w-5 h-5 sm:w-4 sm:h-4" /> AI-Подкаст
           </button>
         )}
       </div>

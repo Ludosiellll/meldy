@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { 
   GraduationCap, Zap, Brain, Calendar, BookOpen,
   MessageSquare, BarChart2, Sparkles, ArrowRight,
-  CheckCircle, Upload, Cpu, Trophy, Network, Briefcase, Award, Heart
+  CheckCircle, Upload, Cpu, Trophy, Network, Briefcase, Award, Heart, Menu, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -40,35 +40,72 @@ export default function Landing() {
 
 function Navbar() {
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/50">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
-        <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-          <GraduationCap className="w-5 h-5 text-white" />
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/50">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 cursor-pointer z-50" onClick={() => navigate('/')}>
+          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+            <GraduationCap className="w-5 h-5 text-white" />
+          </div>
+          <span className="font-extrabold text-slate-900 text-xl tracking-tight">StudyForge</span>
         </div>
-        <span className="font-extrabold text-slate-900 text-xl tracking-tight">StudyForge</span>
-      </div>
 
-      {/* Nav Links */}
-      <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-        <a href="#features" className="hover:text-indigo-600 transition">Возможности</a>
-        <a href="#how-it-works" className="hover:text-indigo-600 transition">Как это работает</a>
-        <a href="#educators" className="hover:text-indigo-600 transition">Преподавателям</a>
-      </div>
+        {/* Desktop Nav Links */}
+        <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+          <a href="#features" className="hover:text-indigo-600 transition">Возможности</a>
+          <a href="#how-it-works" className="hover:text-indigo-600 transition">Как это работает</a>
+          <a href="#educators" className="hover:text-indigo-600 transition">Преподавателям</a>
+        </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <button onClick={() => navigate('/login')}
-          className="hidden sm:block text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">
-          Войти
+        {/* Desktop Actions */}
+        <div className="hidden md:flex items-center gap-2 sm:gap-3">
+          <button onClick={() => navigate('/login')}
+            className="text-sm font-bold text-slate-600 hover:text-slate-900 transition px-3 py-2">
+            Войти
+          </button>
+          <button onClick={() => navigate('/register')}
+            className="text-sm font-bold px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 active:translate-y-0 duration-200">
+            Начать бесплатно
+          </button>
+        </div>
+
+        {/* Mobile Menu Toggle */}
+        <button 
+          onClick={() => setIsMenuOpen(!isMenuOpen)} 
+          className="md:hidden z-50 p-2 text-slate-600 hover:text-slate-900 focus:outline-none"
+        >
+          {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
-        <button onClick={() => navigate('/register')}
-          className="text-xs sm:text-sm font-bold px-4 py-2 sm:px-5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5 active:translate-y-0 duration-200">
-          Начать бесплатно
-        </button>
-      </div>
-    </nav>
+      </nav>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed inset-0 z-40 bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center gap-8 md:hidden px-6 pt-16"
+          >
+            <a href="#features" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800">Возможности</a>
+            <a href="#how-it-works" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800">Как это работает</a>
+            <a href="#educators" onClick={() => setIsMenuOpen(false)} className="text-xl font-bold text-slate-800">Преподавателям</a>
+            <div className="flex flex-col w-full max-w-xs gap-4 mt-4">
+              <button onClick={() => { setIsMenuOpen(false); navigate('/login'); }}
+                className="w-full py-4 text-center font-bold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition">
+                Войти
+              </button>
+              <button onClick={() => { setIsMenuOpen(false); navigate('/register'); }}
+                className="w-full py-4 text-center font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-lg shadow-indigo-100">
+                Начать бесплатно
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -208,7 +245,7 @@ function Hero() {
 
             {/* Парящий слой 1: 📝 Конспект (Слева сверху) */}
             <motion.div 
-              className="absolute top-[-10%] left-0 md:left-[-10%] w-[55%] md:w-[50%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-lg p-4 flex flex-col gap-2"
+              className="hidden md:flex absolute top-[-10%] left-0 md:left-[-10%] w-[55%] md:w-[50%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-lg p-4 flex-col gap-2"
               style={{ transform: "translateZ(50px)" }}
             >
               <div className="flex items-center justify-between">
@@ -225,7 +262,7 @@ function Hero() {
 
             {/* Парящий слой 2: 🃏 Карточки (Справа снизу) */}
             <motion.div 
-              className="absolute bottom-[8%] right-0 md:right-[-10%] w-[50%] md:w-[45%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl p-4 flex flex-col gap-2.5"
+              className="hidden md:flex absolute bottom-[8%] right-0 md:right-[-10%] w-[50%] md:w-[45%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl p-4 flex-col gap-2.5"
               style={{ transform: "translateZ(90px)" }}
             >
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
@@ -244,7 +281,7 @@ function Hero() {
 
             {/* Парящий слой 3: ❓ Устный экзамен (Слева снизу) */}
             <motion.div 
-              className="absolute bottom-[-12%] left-0 md:left-[-5%] w-[55%] md:w-[48%] bg-indigo-600 text-white rounded-2xl shadow-2xl p-4 flex flex-col gap-2 border border-indigo-500/20"
+              className="hidden md:flex absolute bottom-[-12%] left-0 md:left-[-5%] w-[55%] md:w-[48%] bg-indigo-600 text-white rounded-2xl shadow-2xl p-4 flex-col gap-2 border border-indigo-500/20"
               style={{ transform: "translateZ(70px)" }}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-indigo-200">

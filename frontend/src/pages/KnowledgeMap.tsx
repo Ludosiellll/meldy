@@ -682,14 +682,19 @@ export default function KnowledgeMap() {
               </svg>
 
               {/* Хинт по использованию */}
-              <div className="absolute bottom-4 left-4 p-3.5 bg-white/90 backdrop-blur border border-slate-200 rounded-xl text-[10px] text-slate-500 max-w-xs space-y-1.5 pointer-events-none">
-                <p className="font-bold text-slate-800 flex items-center gap-1">
-                  <Info className="w-3.5 h-3.5 text-indigo-400" /> Навигация по графу
-                </p>
-                <p>• Прокрутка мыши / свайп тачпада: Масштаб.</p>
-                <p>• Перетаскивание фона: Перемещение.</p>
-                <p>• Клик по узлу: Показать информацию.</p>
-                <p>• Двойной клик на фоне: Сброс зума.</p>
+              <div className="absolute bottom-4 left-4 z-10 group">
+                <div className="md:hidden w-10 h-10 bg-white/90 backdrop-blur border border-slate-200 rounded-full flex items-center justify-center text-slate-500 shadow-sm cursor-pointer">
+                  <Info className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div className="hidden group-hover:block md:block absolute md:static bottom-full left-0 mb-2 md:mb-0 p-3.5 bg-white/90 backdrop-blur border border-slate-200 rounded-xl text-[10px] text-slate-500 w-48 md:w-auto md:max-w-xs space-y-1.5 shadow-xl md:shadow-none pointer-events-none">
+                  <p className="font-bold text-slate-800 flex items-center gap-1">
+                    <Info className="hidden md:block w-3.5 h-3.5 text-indigo-400" /> Навигация по графу
+                  </p>
+                  <p>• Свайп / Прокрутка: Масштаб</p>
+                  <p>• Перетаскивание: Перемещение</p>
+                  <p>• Клик по узлу: Информация</p>
+                  <p>• Двойной клик: Сброс зума</p>
+                </div>
               </div>
             </div>
           </div>
