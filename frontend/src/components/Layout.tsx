@@ -271,25 +271,8 @@ export default function Layout() {
                   </span>
                 )}
               </button>
-              {showNotifications && (
-                <div className="fixed inset-x-4 top-20 md:absolute md:bottom-8 md:top-auto md:right-0 md:w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-[60] overflow-hidden">
-                  <div className="p-3 border-b border-slate-100 flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-sm">Уведомления</span>
-                    <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
-                    {notifications.length === 0 ? (
-                      <p className="p-4 text-sm text-center text-slate-400">Нет уведомлений</p>
-                    ) : notifications.map(n => (
-                      <div key={n.id} className={`p-3 ${n.is_read ? '' : 'bg-indigo-50/50'}`}>
-                        <p className="text-sm font-medium text-slate-800">{n.title}</p>
-                        {n.body && <p className="text-xs text-slate-500 mt-0.5 truncate">{n.body}</p>}
-                        <p className="text-[10px] text-slate-400 mt-1">{new Date(n.created_at).toLocaleString()}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )}
+              </button>
             </div>
 
             <button onClick={signOut} className="text-slate-500 hover:text-rose-400 transition p-1">
@@ -351,6 +334,9 @@ export default function Layout() {
           ))}
         </nav>
       </div>
+
+      {/* Global Notification Dropdown */}
+      {notificationDropdown}
     </div>
   );
 }

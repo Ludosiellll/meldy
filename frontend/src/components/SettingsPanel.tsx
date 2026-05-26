@@ -11,10 +11,10 @@ const typeLabels: Record<string, string> = { multiple: 'Выбор ответа'
 
 function SegmentedControl({ options, value, onChange }: { options: { key: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="flex bg-slate-100 rounded-lg p-0.5">
+    <div className="flex flex-wrap bg-slate-100 rounded-lg p-1 gap-1">
       {options.map(o => (
         <button key={o.key} onClick={() => onChange(o.key)}
-          className={'px-3 py-1.5 rounded-md text-sm transition ' + (value === o.key ? 'bg-white text-slate-900 font-medium shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
+          className={'flex-1 min-w-[80px] sm:min-w-0 px-2 sm:px-3 py-1.5 rounded-md text-sm transition ' + (value === o.key ? 'bg-white text-slate-900 font-medium shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
           {o.label}
         </button>
       ))}

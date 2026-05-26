@@ -269,7 +269,7 @@ export default function TeacherDashboard() {
     sortedMembers[1], // 2 место (слева)
     sortedMembers[0], // 1 место (центр)
     sortedMembers[2], // 3 место (справа)
-  ].filter(Boolean);
+  ];
 
   const restRankings = sortedMembers.slice(3);
 
@@ -671,7 +671,7 @@ export default function TeacherDashboard() {
                         <tbody className="divide-y divide-slate-100">
                           {members.map(m => (
                             <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
-                              <td className="p-3 font-bold text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10 shadow-[1px_0_0_#f1f5f9] transition-colors">
+                              <td className="p-3 font-bold text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-[1px_0_0_#f1f5f9] transition-colors">
                                 {m.student_name}
                               </td>
                               {assignments.map(a => {
@@ -748,7 +748,7 @@ export default function TeacherDashboard() {
                   <div className="space-y-8">
                     
                     {/* PODIUM (TOP-3 STUDENTS) */}
-                    {podium.length > 0 && (
+                    {sortedMembers.length > 0 && (
                       <div className="flex items-end justify-center gap-2 md:gap-6 pt-12 pb-4 overflow-x-auto min-w-[280px]">
                         
                         {/* 2nd place */}
