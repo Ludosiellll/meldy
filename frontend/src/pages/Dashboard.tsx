@@ -491,7 +491,7 @@ export default function Dashboard() {
         >
           {recTool === 'review' && (
             <div className="absolute top-0 right-0 p-1">
-              <span className="flex h-2 w-2">
+              <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
@@ -515,7 +515,7 @@ export default function Dashboard() {
         >
           {recTool === 'play' && (
             <div className="absolute top-0 right-0 p-1">
-              <span className="flex h-2 w-2">
+              <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
@@ -539,7 +539,7 @@ export default function Dashboard() {
         >
           {recTool === 'chat' && (
             <div className="absolute top-0 right-0 p-1">
-              <span className="flex h-2 w-2">
+              <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
               </span>
@@ -563,7 +563,7 @@ export default function Dashboard() {
         >
           {recTool === 'exam' && (
             <div className="absolute top-0 right-0 p-1">
-              <span className="flex h-2 w-2">
+              <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
               </span>
@@ -587,7 +587,7 @@ export default function Dashboard() {
         >
           {recTool === 'courses' && (
             <div className="absolute top-0 right-0 p-1">
-              <span className="flex h-2 w-2">
+              <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
               </span>
