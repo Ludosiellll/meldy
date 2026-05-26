@@ -325,7 +325,7 @@ export default function ForgeyAssistant() {
                       onboarding_status: {}
                     }).eq('id', user.id).then(() => {
                       setIsOpen(false);
-                      window.location.reload();
+                      window.location.href = '/dashboard';
                     });
                   }
                 }}
