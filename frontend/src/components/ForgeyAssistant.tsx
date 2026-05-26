@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, X, HelpCircle, ChevronLeft, Sparkles, GraduationCap, Users, BookOpen, Settings } from 'lucide-react';
+import { Bot, X, HelpCircle, ChevronLeft, Sparkles, GraduationCap, Users, BookOpen, Settings, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getProfile } from '../api/social';
