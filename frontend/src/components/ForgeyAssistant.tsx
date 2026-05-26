@@ -57,7 +57,9 @@ export default function ForgeyAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [selectedFaq, setSelectedFaq] = useState<FAQItem | null>(null);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(() => {
+    return localStorage.getItem('forgey_assistant_hidden') !== 'true';
+  });
 
   // Загружаем профиль, чтобы знать роль и имя
   useEffect(() => {
@@ -311,6 +313,7 @@ export default function ForgeyAssistant() {
                 onClick={() => {
                   setIsOpen(false);
                   setIsVisible(false);
+                  localStorage.setItem('forgey_assistant_hidden', 'true');
                 }} 
                 className="hover:text-rose-500 transition"
               >
@@ -321,6 +324,7 @@ export default function ForgeyAssistant() {
                 onClick={() => {
                   // Триггерим сброс онбординга для повторного тура
                   if (user) {
+                    localStorage.removeItem('forgey_assistant_hidden');
                     supabase.from('profiles').update({
                       onboarding_status: {}
                     }).eq('id', user.id).then(() => {

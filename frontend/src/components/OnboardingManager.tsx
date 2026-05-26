@@ -3,6 +3,7 @@ import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, markOnboardingTourSeen } from '../api/social';
+import { supabase } from '../lib/supabase';
 import { Bot, Sparkles } from 'lucide-react';
 
 const DASHBOARD_STEPS: Step[] = [
@@ -241,9 +242,18 @@ export default function OnboardingManager() {
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
     
-    if (finishedStatuses.includes(status)) {
+    if (status === STATUS.SKIPPED) {
+      setRun(false);
+      if (user) {
+        getProfile(user.id).then(p => {
+          if (!p) return;
+          const current = p.onboarding_status || {};
+          const next = { ...current, dashboard_tour: true, exam_tour: true, class_tour: true, skipped_all: true };
+          supabase.from('profiles').update({ onboarding_status: next }).eq('id', user.id).then();
+        });
+      }
+    } else if (status === STATUS.FINISHED) {
       setRun(false);
     }
   };
@@ -252,6 +262,8 @@ export default function OnboardingManager() {
     <Joyride
       callback={handleJoyrideCallback}
       continuous
+      disableScrolling={true}
+      disableScrollParentFix={true}
       hideCloseButton
       run={run}
       scrollToFirstStep
