@@ -282,6 +282,18 @@ class PlanRequest(BaseModel):
     mood: dict = None
 
 
+class CourseMaterial(BaseModel):
+    id: str
+    title: str
+    subject: str
+    summary: str = ""
+
+
+class CourseGenerateRequest(BaseModel):
+    materials: List[CourseMaterial]
+    goals: str = ""
+
+
 from agents.base import BaseAgent
 
 @app.post("/api/chat")
@@ -388,6 +400,57 @@ async def plan(request: Request, req: PlanRequest):
         return parse_llm_json(raw)
     except:
         return {"plan": []}
+
+
+@app.post("/api/courses/generate")
+@limiter.limit("5/minute")
+async def generate_course(request: Request, req: CourseGenerateRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    materials_text = "\n\n".join([
+        f"Материал ID: {m.id}\nНазвание: {m.title}\nПредмет: {m.subject}\nКраткое содержание: {m.summary}"
+        for m in req.materials
+    ])
+    
+    system_prompt = f"""Ты — опытный методист, учебный дизайнер и эксперт по составлению образовательных программ.
+Твоя задача — составить логичную, структурированную учебную программу (курс) на основе предоставленных материалов из библиотеки студента.
+
+Доступные материалы:
+{materials_text}
+
+Пожелания студента к курсу (цели обучения):
+{req.goals if req.goals else 'Нет особых пожеланий, сделай структуру максимально логичной.'}
+
+Инструкции по построению курса:
+1. Придумай емкое и красивое название курса (title), объединяющее эти материалы, и краткое описание (description).
+2. Раздели курс на логические секции (от 2 до 5 секций в зависимости от количества и тем материалов).
+3. Распредели ВСЕ предоставленные материалы по секциям в оптимальном педагогическом порядке (от простого к сложному, соблюдая логические связи).
+4. Каждая секция должна содержать хотя бы один материал. Каждый предоставленный материал должен быть отнесен ровно к одной секции.
+5. Для каждой секции напиши краткое название (title) и описание (description) — чему посвящена секция.
+
+ОБЯЗАТЕЛЬНО верни ответ строго в формате JSON:
+{{
+  "title": "Название курса",
+  "description": "Описание курса и целей обучения",
+  "structure": [
+    {{
+      "id": "section_1",
+      "title": "Название первой секции",
+      "description": "Чему посвящена эта секция",
+      "materials": [
+        {{ "id": "material-uuid-1", "title": "Название первого материала", "completed": false }}
+      ]
+    }}
+  ]
+}}"""
+
+    raw = await agent.run(system_prompt, "Сгенерируй структуру курса в формате JSON.")
+    
+    try:
+        return parse_llm_json(raw)
+    except Exception as e:
+        print(f"Failed to generate course: {{e}}, raw: {{raw}}")
+        return {{"title": "Новый курс", "description": "", "structure": []}}
 
 
 class ProfessorQuestionRequest(BaseModel):

@@ -12,6 +12,7 @@ import Library from './pages/Library';
 import MaterialDetail from './pages/MaterialDetail';
 import Review from './pages/Review';
 import Planner from './pages/Planner';
+import Courses from './pages/Courses';
 import Chat from './pages/Chat';
 import ProfessorExam from './pages/ProfessorExam';
 import Missions from './pages/Missions';
@@ -59,7 +60,8 @@ export default function App() {
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />
           <Route path="review" element={<Review />} />
-          <Route path="planner" element={<Planner />} />
+          <Route path="planner" element={<Navigate to="/courses" replace />} />
+          <Route path="courses" element={<Courses />} />
           <Route path="chat" element={<Chat />} />
           <Route path="exam" element={<ProfessorExam />} />
           <Route path="play" element={<Missions />} />

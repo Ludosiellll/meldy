@@ -1,7 +1,7 @@
 import { Material, StudySession, Flashcard } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot, Layers } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -112,7 +112,7 @@ export default function Dashboard() {
     if (mode.includes('активное обучение')) return 'play';
     if (mode.includes('повторение')) return 'review';
     if (mode.includes('лёгкий просмотр')) return 'chat';
-    if (mode.includes('анти-стресс')) return 'planner';
+    if (mode.includes('анти-стресс')) return 'courses';
     return null;
   };
 
@@ -160,7 +160,7 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            onClick={() => navigate('/planner')}
+            onClick={() => navigate('/courses')}
             className={`mb-6 p-4 border rounded-2xl cursor-pointer flex items-center gap-4 ${urgencyBg} hover:shadow-md transition`}
           >
             <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black ${urgency === 'rose' ? 'bg-rose-500' : urgency === 'amber' ? 'bg-amber-500' : 'bg-indigo-500'} text-white shrink-0`}>
@@ -492,12 +492,12 @@ export default function Dashboard() {
         </button>
 
         <button
-          onClick={() => navigate('/planner')}
+          onClick={() => navigate('/courses')}
           className={`card p-5 text-center transition group relative overflow-hidden ${
-            recTool === 'planner' ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-100' : 'hover:shadow-md'
+            recTool === 'courses' ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-100' : 'hover:shadow-md'
           }`}
         >
-          {recTool === 'planner' && (
+          {recTool === 'courses' && (
             <div className="absolute top-0 right-0 p-1">
               <span className="flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -506,12 +506,12 @@ export default function Dashboard() {
             </div>
           )}
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition ${
-            recTool === 'planner' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-100'
+            recTool === 'courses' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-100'
           }`}>
-            <Calendar className="w-5 h-5" />
+            <Layers className="w-5 h-5" />
           </div>
-          <p className={`text-sm font-medium ${recTool === 'planner' ? 'text-amber-900 font-bold' : 'text-slate-700'}`}>
-            Планировщик
+          <p className={`text-sm font-medium ${recTool === 'courses' ? 'text-amber-900 font-bold' : 'text-slate-700'}`}>
+            Мои курсы
           </p>
         </button>
       </div>
