@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookMarked, CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, ChevronDown, Zap } from 'lucide-react';
+import { BookMarked, CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, ChevronDown, Zap, CircleDot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -374,7 +374,11 @@ export default function MistakeDiary() {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {f === 'all' ? 'Все' : f === 'open' ? '🔴 Открытые' : '✅ Исправленные'}
+                <span className="flex items-center gap-1.5">
+                  {f === 'all' && 'Все'}
+                  {f === 'open' && <><CircleDot className={`w-3.5 h-3.5 ${filter === 'open' ? 'text-rose-300' : 'text-rose-500'}`} /> Открытые</>}
+                  {f === 'resolved' && <><CheckCircle2 className={`w-3.5 h-3.5 ${filter === 'resolved' ? 'text-emerald-300' : 'text-emerald-500'}`} /> Исправленные</>}
+                </span>
               </button>
             ))}
             <button

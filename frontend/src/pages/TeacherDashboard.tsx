@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions } from '../api/groups';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
-import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check } from 'lucide-react';
+import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check, Backpack, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -283,7 +283,7 @@ export default function TeacherDashboard() {
           </div>
           <div>
             <h4 className="font-extrabold text-slate-800 text-sm">
-              {role === 'teacher' ? 'Режим: Преподаватель 🎓' : 'Режим: Студент 🎒'}
+              {role === 'teacher' ? <span className="flex items-center gap-1.5">Режим: Преподаватель <GraduationCap className="w-4 h-4 text-indigo-500" /></span> : <span className="flex items-center gap-1.5">Режим: Студент <Backpack className="w-4 h-4 text-rose-500" /></span>}
             </h4>
             <p className="text-xs text-slate-500 max-w-xl mt-0.5 leading-relaxed">
               {role === 'teacher' 
@@ -296,7 +296,7 @@ export default function TeacherDashboard() {
           onClick={handleToggleRole}
           className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-md transition shrink-0 ${role === 'teacher' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
         >
-          {role === 'teacher' ? 'В режим Студента 🎒' : 'В режим Преподавателя 🎓'}
+          {role === 'teacher' ? <span className="flex items-center gap-1.5 justify-center">В режим Студента <Backpack className="w-4 h-4" /></span> : <span className="flex items-center gap-1.5 justify-center">В режим Преподавателя <GraduationCap className="w-4 h-4" /></span>}
         </button>
       </div>
 
@@ -592,7 +592,7 @@ export default function TeacherDashboard() {
                               {role === 'student' ? (
                                 isDone ? (
                                   <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                    Выполнено ✅
+                                    <span className="flex items-center gap-1 text-emerald-600">Выполнено <CheckCircle2 className="w-3.5 h-3.5" /></span>
                                   </span>
                                 ) : isOverdue ? (
                                   <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-md uppercase tracking-wider">

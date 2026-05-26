@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart2, Flame, Trophy, BookMarked, Brain,
   Zap, TrendingUp, Calendar, Target, Award, Star,
-  ChevronRight,
+  ChevronRight, GraduationCap, Layers
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -419,9 +419,9 @@ export default function Analytics() {
                   <span>
                     {item.status === 'not_started' ? 'Не изучалось' : item.score >= 85 ? 'Освоено' : 'В процессе'}
                   </span>
-                  <div className="flex gap-1.5 font-semibold">
-                    {item.cardScore !== null && <span>🃏 {item.cardScore}%</span>}
-                    {item.examScore !== null && <span>🎓 {item.examScore}%</span>}
+                  <div className="flex gap-2 font-semibold">
+                    {item.cardScore !== null && <span className="flex items-center gap-1"><Layers className="w-3.5 h-3.5 text-amber-500" /> {item.cardScore}%</span>}
+                    {item.examScore !== null && <span className="flex items-center gap-1"><GraduationCap className="w-3.5 h-3.5 text-indigo-500" /> {item.examScore}%</span>}
                   </div>
                 </div>
               </div>

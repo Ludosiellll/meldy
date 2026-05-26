@@ -1,7 +1,7 @@
 import { Material, StudySession, Flashcard } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot, Layers, Users, MessageSquare } from 'lucide-react';
+import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot, Layers, Users, MessageSquare, CheckCircle2, Backpack } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -159,7 +159,7 @@ export default function Dashboard() {
             onClick={handleToggleRole}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-200 transition shrink-0"
           >
-            Стать Преподавателем 🎓
+            Стать Преподавателем <GraduationCap className="w-4 h-4 ml-1 inline text-indigo-500" />
           </button>
         </div>
       ) : profile && (
@@ -169,7 +169,7 @@ export default function Dashboard() {
               <Users className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="font-extrabold text-slate-800 text-sm">Вы вошли как Преподаватель 🎓</h4>
+              <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5">Вы вошли как Преподаватель <GraduationCap className="w-4 h-4 text-indigo-500" /></h4>
               <p className="text-xs text-slate-500 max-w-xl mt-0.5 leading-relaxed">
                 Вам доступно управление группами и назначение заданий. Чтобы проходить курсы, играть в миссии и сдавать экзамены, переключитесь обратно в режим студента.
               </p>
@@ -233,7 +233,7 @@ export default function Dashboard() {
             </div>
             <div className="flex-1">
               <p className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${urgencyText}`}>
-                {daysLeft <= 3 ? '🔥 Срочно!' : daysLeft <= 7 ? '⚡ Скоро экзамен' : '📅 Ближайший экзамен'}
+                {daysLeft <= 3 ? <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5" /> Срочно!</span> : daysLeft <= 7 ? <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" /> Скоро экзамен</span> : <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Ближайший экзамен</span>}
               </p>
               <p className="text-sm font-bold text-slate-800">{nextExam.name}</p>
               <p className="text-xs text-slate-500">{new Date(nextExam.exam_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
@@ -258,7 +258,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-2xl font-bold text-slate-900">{streak}</p>
-            <p className="text-xs text-slate-500">{streak >= 3 ? '🔥 Дней подряд!' : 'Дней подряд'}</p>
+            <p className="text-xs text-slate-500 flex items-center justify-center gap-1">{streak >= 3 ? <><Flame className="w-3 h-3 text-orange-500" /> Дней подряд!</> : 'Дней подряд'}</p>
           </div>
         </motion.div>
       </div>
@@ -408,7 +408,7 @@ export default function Dashboard() {
                 <button onClick={() => navigate('/review')} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Начать →</button>
               </div>
               {dueCards.length === 0 ? (
-                <p className="text-emerald-600 text-sm">Все карточки повторены! ✅</p>
+                <p className="text-emerald-600 text-sm flex items-center gap-1.5 justify-center">Все карточки повторены! <CheckCircle2 className="w-4 h-4" /></p>
               ) : (
                 <div className="space-y-2">
                   {dueCards.slice(0, 3).map((c: any) => (

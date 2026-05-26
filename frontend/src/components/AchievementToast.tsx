@@ -57,8 +57,8 @@ export default function AchievementToast({ achievement, onClose }: Props) {
 
           {/* Текст */}
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-0.5">
-              🏆 Достижение разблокировано!
+            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-0.5 flex items-center gap-1">
+              <Trophy className="w-3 h-3" /> Достижение разблокировано!
             </p>
             <p className="text-sm font-bold text-white truncate">{achievement.title}</p>
             <p className="text-xs text-slate-400 truncate">{achievement.description}</p>

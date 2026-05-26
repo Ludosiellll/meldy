@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import UploadZone from '../components/UploadZone';
+import { Mic, Zap, BookOpen, AlertTriangle } from 'lucide-react';
 import AgentCards from '../components/AgentCards';
 import ResultsPanel from '../components/ResultsPanel';
 import { AnalysisState, AgentStatus, DEFAULT_SETTINGS } from '../types';
@@ -90,12 +91,12 @@ export default function Analyze() {
   };
 
   const agentDoneLabels: Record<string, string> = {
-    summarizer: '✅ Конспект готов',
-    flashcards: '✅ Карточки готовы',
-    quiz: '✅ Тест готов',
-    cheatsheet: '✅ Шпаргалка готова',
-    podcast: '✅ Подкаст готов',
-    missions: '✅ Квесты готовы',
+    summarizer: 'Конспект готов',
+    flashcards: 'Карточки готовы',
+    quiz: 'Тест готов',
+    cheatsheet: 'Шпаргалка готова',
+    podcast: 'Подкаст готов',
+    missions: 'Квесты готовы',
   };
 
   const handleSSE = (d: Record<string, any>) => {
@@ -112,11 +113,11 @@ export default function Analyze() {
       (window as any)._lastExtractedText = d.text; // Сохраняем текст из события
     }
     else if (d.type === 'status') {
-      addToast(`⏳ ${d.message}`);
+      addToast(d.message);
     }
     else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
     else if (d.type === 'agent_done') {
-      addToast(agentDoneLabels[d.agent] || '✅ Агент завершён');
+      addToast(agentDoneLabels[d.agent] || 'Агент завершён');
       setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
     }
     else if (d.type === 'results') {
@@ -209,10 +210,10 @@ export default function Analyze() {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-700">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0 border border-rose-500/30">
-                    <span className="text-2xl">🎙️</span>
+                    <Mic className="w-6 h-6 text-rose-500" />
                   </div>
                   <div className="text-center sm:text-left">
-                    <h3 className="font-bold text-lg mb-1 flex items-center justify-center sm:justify-start gap-2">AI-Подкаст сгенерирован! <span className="text-rose-400">⚡</span></h3>
+                    <h3 className="font-bold text-lg mb-1 flex items-center justify-center sm:justify-start gap-2">AI-Подкаст сгенерирован! <Zap className="w-4 h-4 text-rose-400" /></h3>
                     <p className="text-slate-400 text-sm">Слушайте разбор этой темы в аудиоформате.</p>
                   </div>
                 </div>
@@ -228,16 +229,16 @@ export default function Analyze() {
             <div className="mt-6 text-center">
               <button
                 onClick={() => navigate('/library')}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md"
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md flex items-center gap-2 mx-auto"
               >
-                📚 Перейти в библиотеку
+                <BookOpen className="w-4 h-4" /> Перейти в библиотеку
               </button>
             </div>
           </motion.div>
         )}
         {state.phase === 'error' && (
           <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-            <p className="text-4xl mb-3">⚠️</p>
+            <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
             <h2 className="text-lg font-semibold text-slate-900 mb-1">Ошибка</h2>
             <p className="text-slate-500 mb-4 text-sm">{state.error}</p>
             <button onClick={reset} className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition">Попробовать снова</button>

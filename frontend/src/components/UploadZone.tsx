@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileText, X, Zap, Youtube, Video, FileAudio } from 'lucide-react';
+import { Upload, FileText, X, Zap, Youtube, Video, FileAudio, Layers, CheckCircle2, FileVideo, Music } from 'lucide-react';
 import SettingsPanel from './SettingsPanel';
 import { AnalysisSettings } from '../types';
 import { hasBadWords } from '../utils/moderation';
@@ -60,15 +60,15 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
         </p>
         <div className="flex flex-wrap justify-center gap-6">
           <div className="flex items-center gap-2 text-slate-700">
-            <span className="text-xl">📝</span>
+            <FileText className="w-5 h-5 text-indigo-500" />
             <span className="text-sm font-medium">Структурированный конспект</span>
           </div>
           <div className="flex items-center gap-2 text-slate-700">
-            <span className="text-xl">🃏</span>
+            <Layers className="w-5 h-5 text-amber-500" />
             <span className="text-sm font-medium">Карточки для запоминания</span>
           </div>
           <div className="flex items-center gap-2 text-slate-700">
-            <span className="text-xl">✅</span>
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             <span className="text-sm font-medium">Проверочный тест</span>
           </div>
         </div>
