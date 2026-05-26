@@ -194,10 +194,13 @@ function Hero() {
             <span className="relative">Начать бесплатно</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform relative" />
           </button>
-          <button onClick={() => navigate('/analyze')}
+          <button onClick={() => {
+              const el = document.getElementById('how-it-works');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
             className="flex items-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-base rounded-xl transition-all shadow-sm hover:shadow-md hover:-translate-y-1 active:translate-y-0 duration-300">
             <Zap className="w-4 h-4 text-indigo-600" />
-            Быстрое демо
+            Смотреть демо
           </button>
         </motion.div>
 
@@ -291,7 +294,7 @@ function Hero() {
                         initial={{ height: 0 }}
                         animate={{ height: `${h}%` }}
                         transition={{ duration: 1, delay: 0.5 + i * 0.05, type: "spring" }}
-                        className="bg-gradient-to-t from-indigo-200 to-indigo-100 hover:from-indigo-400 hover:to-indigo-300 transition-colors w-full rounded-t-sm" 
+                        className="bg-indigo-200 hover:bg-indigo-400 transition-colors w-full rounded-t-sm" 
                       />
                     ))}
                   </div>
@@ -692,7 +695,7 @@ function ProductSimulation() {
   };
 
   return (
-    <section id="simulation" className="py-24 px-6 relative bg-slate-50 border-y border-slate-200 overflow-hidden select-none">
+    <section id="how-it-works" className="py-24 px-6 relative bg-slate-50 border-y border-slate-200 overflow-hidden select-none">
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="text-center mb-16 space-y-3">
           <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -1570,7 +1573,7 @@ function EducatorsSection() {
         {/* Текст */}
         <div className="lg:col-span-7 space-y-6">
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Одобрено преподавателями <br />и методологами
+            Основано на научном <br />подходе к обучению
           </h2>
           <p className="text-slate-600 leading-relaxed">
             Мы строим StudyForge на принципах доказательного образования (Evidence-Based Learning). Сервис помогает превратить хаотичные конспекты лекций в четкую структуру, облегчая подготовку к сессии и работу с понятиями.
