@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileText, X, Zap, Youtube, Video, FileAudio, Layers, CheckCircle2, FileVideo, Music } from 'lucide-react';
+import { Upload, FileText, X, Zap, Youtube, Video, FileAudio, Layers, CheckCircle2, FileVideo, Music, Camera } from 'lucide-react';
 import SettingsPanel from './SettingsPanel';
 import { AnalysisSettings } from '../types';
 import { hasBadWords } from '../utils/moderation';
@@ -123,23 +123,37 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
         )}
 
         {(!file && (!youtubeUrl || tab === 'docs')) ? (
-          <div
-            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById('fi')?.click()}
-            className={'card p-14 text-center cursor-pointer transition border-2 border-dashed ' +
-              (dragOver ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:border-brand-300 hover:bg-slate-50')}
-          >
-            <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-              {tab === 'docs' ? <Upload className="w-7 h-7 text-brand-500" /> : <Video className="w-7 h-7 text-brand-500" />}
+          <>
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => document.getElementById('fi')?.click()}
+              className={'card p-14 text-center cursor-pointer transition border-2 border-dashed ' +
+                (dragOver ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:border-brand-300 hover:bg-slate-50')}
+            >
+              <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
+                {tab === 'docs' ? <Upload className="w-7 h-7 text-brand-500" /> : <Video className="w-7 h-7 text-brand-500" />}
+              </div>
+              <p className="text-slate-800 font-semibold text-lg mb-1">Перетащите файл сюда</p>
+              <p className="text-slate-400">или нажмите для выбора</p>
+              <p className="text-slate-300 text-sm mt-3">
+                {tab === 'docs' ? 'Поддерживаются PDF, DOCX, TXT, MD, JPG, PNG — до 50 МБ' : 'Поддерживаются MP4, MP3, WAV — до 50 МБ'}
+              </p>
             </div>
-            <p className="text-slate-800 font-semibold text-lg mb-1">Перетащите файл сюда</p>
-            <p className="text-slate-400">или нажмите для выбора</p>
-            <p className="text-slate-300 text-sm mt-3">
-              {tab === 'docs' ? 'Поддерживаются PDF, DOCX, TXT, MD, JPG, PNG — до 50 МБ' : 'Поддерживаются MP4, MP3, WAV — до 50 МБ'}
-            </p>
-          </div>
+            
+            {tab === 'docs' && (
+              <div className="mt-3 flex justify-center sm:hidden">
+                <button
+                  onClick={() => document.getElementById('camera-input')?.click()}
+                  className="flex w-full items-center justify-center gap-2 px-4 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-bold transition border border-indigo-100"
+                >
+                  <Camera className="w-5 h-5 text-indigo-500" /> Сфотографировать конспект
+                </button>
+                <input id="camera-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { if (e.target.files?.[0]) validateAndSet(e.target.files[0]); }} />
+              </div>
+            )}
+          </>
         ) : file ? (
           <div className="card p-5 flex items-center gap-4">
             {tab === 'docs' ? <FileText className="w-10 h-10 text-brand-500 shrink-0" /> : <FileAudio className="w-10 h-10 text-brand-500 shrink-0" />}
