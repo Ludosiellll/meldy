@@ -64,7 +64,7 @@ const DASHBOARD_STEPS: Step[] = [
         </p>
       </div>
     ),
-    placement: 'right',
+    placement: 'auto',
   },
   {
     target: '.tour-step-xp',
@@ -76,7 +76,7 @@ const DASHBOARD_STEPS: Step[] = [
         </p>
       </div>
     ),
-    placement: 'bottom',
+    placement: 'auto',
   }
 ];
 
@@ -198,13 +198,21 @@ export default function OnboardingManager() {
     const status = profile.onboarding_status || {};
 
     const isMobile = window.innerWidth < 768;
-    const mapStep = (s: Step) => ({
-      ...s,
-      target: isMobile 
-        ? (s.target as string).replace('.tour-step-', '.tour-step-mobile-')
-        : (s.target as string).replace('.tour-step-', '.tour-step-desktop-'),
-      placement: isMobile && s.placement === 'right' ? 'bottom' : s.placement,
-    });
+    const mapStep = (s: Step) => {
+      const base = s.target as string;
+      // For steps with explicit mobile/desktop variants, use them
+      const desktopTarget = base.replace('.tour-step-', '.tour-step-desktop-');
+      const mobileTarget = base.replace('.tour-step-', '.tour-step-mobile-');
+      // Check if there's a device-specific target in the DOM, otherwise keep original
+      const deviceTarget = isMobile
+        ? (document.querySelector(mobileTarget) ? mobileTarget : base)
+        : (document.querySelector(desktopTarget) ? desktopTarget : base);
+      return {
+        ...s,
+        target: deviceTarget,
+        placement: (isMobile && s.placement === 'right') ? 'bottom' : s.placement,
+      };
+    };
 
     if (location.pathname === '/dashboard' && !status['dashboard_tour']) {
       const mappedSteps = DASHBOARD_STEPS.map(mapStep);
@@ -241,7 +249,16 @@ export default function OnboardingManager() {
   };
 
   const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
+    const { status, type, step } = data;
+    
+    if (type === 'step:before') {
+      setTimeout(() => {
+        const targetElement = document.querySelector(step.target as string);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 50);
+    }
     
     if (status === STATUS.SKIPPED) {
       setRun(false);
@@ -262,11 +279,11 @@ export default function OnboardingManager() {
     <Joyride
       callback={handleJoyrideCallback}
       continuous
-      disableScrolling={true}
-      disableScrollParentFix={true}
+      disableScrolling={false}
+      scrollToFirstStep
+      scrollOffset={120}
       hideCloseButton
       run={run}
-      scrollToFirstStep
       showProgress
       showSkipButton
       steps={steps}
