@@ -148,9 +148,22 @@ export default function TeacherDashboard() {
   // Загрузка групп для преподавателя
   const loadTeacherGroups = async () => {
     if (!user) return;
-    setLoading(true);
+    const cacheKey = `teacher_groups_${user.id}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const data = JSON.parse(cached);
+        setGroups(data);
+        if (data.length > 0 && !selectedGroupId) setSelectedGroupId(data[0].id);
+        setLoading(false);
+      } catch (e) {}
+    } else {
+      setLoading(true);
+    }
+    
     const data = await getTeacherGroups(user.id);
     setGroups(data);
+    localStorage.setItem(cacheKey, JSON.stringify(data));
     if (data.length > 0) {
       setSelectedGroupId(prev => prev ? (data.some(g => g.id === prev) ? prev : data[0].id) : data[0].id);
     }
@@ -160,7 +173,19 @@ export default function TeacherDashboard() {
   // Загрузка групп для студента
   const loadStudentGroups = async () => {
     if (!user) return;
-    setLoading(true);
+    const cacheKey = `student_groups_${user.id}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const data = JSON.parse(cached);
+        setGroups(data);
+        if (data.length > 0 && !selectedGroupId) setSelectedGroupId(data[0].id);
+        setLoading(false);
+      } catch (e) {}
+    } else {
+      setLoading(true);
+    }
+    
     const { data: memberships } = await supabase
       .from('group_members')
       .select('group_id')
@@ -168,6 +193,7 @@ export default function TeacherDashboard() {
       
     if (!memberships || memberships.length === 0) {
       setGroups([]);
+      localStorage.setItem(cacheKey, '[]');
       setLoading(false);
       return;
     }
@@ -179,6 +205,7 @@ export default function TeacherDashboard() {
       .in('id', groupIds);
       
     setGroups(groupsData || []);
+    localStorage.setItem(cacheKey, JSON.stringify(groupsData || []));
     if (groupsData && groupsData.length > 0) {
       setSelectedGroupId(prev => prev ? (groupsData.some(g => g.id === prev) ? prev : groupsData[0].id) : groupsData[0].id);
     }
@@ -198,11 +225,28 @@ export default function TeacherDashboard() {
   // Загрузка деталей выбранной группы
   useEffect(() => {
     if (selectedGroupId && user) {
-      getGroupMembersWithWeeklyXP(selectedGroupId).then(setMembers);
-      getGroupAssignments(selectedGroupId).then(setAssignments);
+      const cacheMembers = localStorage.getItem(`group_members_${selectedGroupId}`);
+      if (cacheMembers) { try { setMembers(JSON.parse(cacheMembers)); } catch(e) {} }
+      getGroupMembersWithWeeklyXP(selectedGroupId).then(data => {
+        setMembers(data);
+        localStorage.setItem(`group_members_${selectedGroupId}`, JSON.stringify(data));
+      });
+
+      const cacheAssignments = localStorage.getItem(`group_assignments_${selectedGroupId}`);
+      if (cacheAssignments) { try { setAssignments(JSON.parse(cacheAssignments)); } catch(e) {} }
+      getGroupAssignments(selectedGroupId).then(data => {
+        setAssignments(data);
+        localStorage.setItem(`group_assignments_${selectedGroupId}`, JSON.stringify(data));
+      });
       
       if (role === 'student') {
-        getStudentCompletions(user.id).then(setCompletedAssignments);
+        const cacheCompletions = localStorage.getItem(`student_completions_${user.id}`);
+        if (cacheCompletions) { try { setCompletedAssignments(JSON.parse(cacheCompletions)); } catch(e) {} }
+        getStudentCompletions(user.id).then(data => {
+          setCompletedAssignments(data);
+          localStorage.setItem(`student_completions_${user.id}`, JSON.stringify(data));
+        });
+        
         const group = groups.find(g => g.id === selectedGroupId);
         if (group) {
           supabase.from('profiles').select('full_name').eq('id', group.teacher_id).maybeSingle()
@@ -211,7 +255,12 @@ export default function TeacherDashboard() {
             });
         }
       } else if (role === 'teacher') {
-        getGroupCompletions(selectedGroupId).then(setGroupCompletions);
+        const cacheGroupCompletions = localStorage.getItem(`group_completions_${selectedGroupId}`);
+        if (cacheGroupCompletions) { try { setGroupCompletions(JSON.parse(cacheGroupCompletions)); } catch(e) {} }
+        getGroupCompletions(selectedGroupId).then(data => {
+          setGroupCompletions(data);
+          localStorage.setItem(`group_completions_${selectedGroupId}`, JSON.stringify(data));
+        });
       }
     }
   }, [selectedGroupId, role, groups, user?.id]);
