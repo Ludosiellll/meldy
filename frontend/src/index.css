@@ -154,3 +154,12 @@
   }
 }
 
+/* Portrait Lock - Show only on mobile devices in landscape mode */
+@media (max-width: 950px) and (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+  .portrait-lock {
+    display: flex !important;
+  }
+  #root > :not(.portrait-lock) {
+    display: none !important;
+  }
+}
