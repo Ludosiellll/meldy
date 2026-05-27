@@ -179,12 +179,48 @@ export default function MaterialDetail() {
             quiz: material.quiz_json,
           }}
           onReset={() => navigate('/library')}
-          textLength={0}
+          textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
         />
       ) : mode === 'podcast' ? (
-        <ExpressPrepView key="podcast" summaryJson={{ ...material.summary_json, _startTab: 'podcast' }} />
+        <ExpressPrepView 
+          key="podcast" 
+          materialId={material.id}
+          originalText={material.original_text || ''}
+          summaryJson={{ ...material.summary_json, _startTab: 'podcast' }} 
+          onUpdate={(updatedFields) => {
+            setMaterial((prev: any) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                ...updatedFields,
+                summary_json: {
+                  ...prev.summary_json,
+                  ...(updatedFields.summary_json || {})
+                }
+              };
+            });
+          }}
+        />
       ) : (
-        <ExpressPrepView key="express" summaryJson={material.summary_json} />
+        <ExpressPrepView 
+          key="express" 
+          materialId={material.id}
+          originalText={material.original_text || ''}
+          summaryJson={material.summary_json} 
+          onUpdate={(updatedFields) => {
+            setMaterial((prev: any) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                ...updatedFields,
+                summary_json: {
+                  ...prev.summary_json,
+                  ...(updatedFields.summary_json || {})
+                }
+              };
+            });
+          }}
+        />
       )}
 
       {/* Review CTA */}

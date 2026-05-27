@@ -11,13 +11,24 @@ import { updateQuestProgress } from '../api/quests';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
+import { supabase } from '../lib/supabase';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
   text: string;
 }
 
-export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
+export default function ExpressPrepView({ 
+  summaryJson, 
+  materialId, 
+  originalText, 
+  onUpdate 
+}: { 
+  summaryJson: any; 
+  materialId?: string; 
+  originalText?: string; 
+  onUpdate?: (updatedFields: any) => void; 
+}) {
   const { user } = useAuth();
   const { alert } = useConfirm();
   const [searchParams] = useSearchParams();
@@ -35,6 +46,61 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
   const [isPaused, setIsPaused] = useState(false);
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState(-1);
   const currentIndexRef = useRef(0);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleCreateCheatsheet = async () => {
+    if (!materialId) return;
+    setIsGenerating(true);
+
+    const context = (originalText || summaryJson?.content || '').slice(0, 15000);
+    if (!context.trim()) {
+      await alert({ title: 'Ошибка', message: 'Недостаточно контента для создания шпаргалки.', type: 'danger' });
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/quick-prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context }),
+      });
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+
+      if (!d.cheatsheet) throw new Error();
+
+      // Сохраняем в Supabase
+      const { error } = await supabase
+        .from('materials')
+        .update({
+          summary_json: {
+            ...summaryJson,
+            cheatsheet: d.cheatsheet
+          }
+        })
+        .eq('id', materialId);
+
+      if (error) throw error;
+
+      // Обновляем состояние родительского компонента
+      if (onUpdate) {
+        onUpdate({
+          summary_json: {
+            ...summaryJson,
+            cheatsheet: d.cheatsheet
+          }
+        });
+      }
+
+      await alert({ title: 'Готово', message: 'Шпаргалка за 5 минут успешно создана!', type: 'info' });
+    } catch (err) {
+      console.error(err);
+      await alert({ title: 'Ошибка', message: 'Не удалось сгенерировать шпаргалку. Попробуйте еще раз.', type: 'danger' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Очистка при размонтировании
   useEffect(() => {
@@ -134,13 +200,13 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
   return (
     <div className="space-y-6">
       {/* Переключатель вкладок экспресс-подготовки */}
-      <div className="flex gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl w-full max-w-sm mx-auto sm:mx-0 border border-slate-200">
+      <div className="flex gap-1.5 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full max-w-sm mx-auto sm:mx-0 border border-slate-200 dark:border-slate-800/80">
         <button
           onClick={() => setTab('cheatsheet')}
           className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
             tab === 'cheatsheet'
-              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+              ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
           }`}
         >
           <FileText className="w-4 h-4" /> ⚡ Шпаргалка за 5 минут
@@ -149,8 +215,8 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
           onClick={() => setTab('podcast')}
           className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
             tab === 'podcast'
-              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+              ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-700/60'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
           }`}
         >
           <Headphones className="w-4 h-4" /> 🎙️ AI-Подкаст
@@ -168,8 +234,39 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
             className="space-y-4"
           >
             {!cheatsheet ? (
-              <div className="card p-6 text-center text-slate-400 italic text-sm">
-                Для этой лекции шпаргалка еще не создана. Перезапустите анализ файла.
+              <div className="card p-8 text-center space-y-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+                <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/40 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <FileText className="w-8 h-8 text-amber-500 dark:text-amber-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-base">Шпаргалка еще не создана</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">
+                    Выжмите самое главное из этой лекции! ИИ мгновенно подготовит краткую экспресс-шпаргалку для быстрого повторения перед парой.
+                  </p>
+                </div>
+                {materialId ? (
+                  <button
+                    onClick={handleCreateCheatsheet}
+                    disabled={isGenerating}
+                    className="px-6 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-sm font-black transition flex items-center gap-2 mx-auto shadow-lg shadow-rose-600/25 active:translate-y-0 hover:-translate-y-0.5 duration-200"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Анализируем лекцию...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                        Создать шпаргалку за 5 минут
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <p className="text-slate-400 dark:text-slate-500 italic text-xs">
+                    Перезапустите анализ файла, чтобы сгенерировать дополнительные материалы.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="card p-6 md:p-8 bg-gradient-to-br from-amber-50/30 to-rose-50/10 border-amber-100 shadow-sm relative overflow-hidden">
@@ -198,7 +295,7 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
             ) : (
               <>
                 {/* Аудио-плеер */}
-                <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-3xl p-5 md:p-6 shadow-xl shadow-indigo-200/50 border border-indigo-500/20 flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-3xl p-5 md:p-6 shadow-xl shadow-indigo-200/50 dark:shadow-none border border-indigo-500/20 dark:border-indigo-500/10 flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none -mt-10 -mr-10" />
                   
                   <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">

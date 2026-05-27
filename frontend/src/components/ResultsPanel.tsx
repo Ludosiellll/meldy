@@ -189,8 +189,10 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             <Clock className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
           </div>
           <div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Время</p>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{analysisDuration ? `${analysisDuration} сек` : '—'}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Время чтения</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              {textLength ? `~${Math.max(1, Math.round(textLength / 800))} мин` : (analysisDuration ? `${analysisDuration} сек` : '—')}
+            </p>
           </div>
         </div>
         <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
