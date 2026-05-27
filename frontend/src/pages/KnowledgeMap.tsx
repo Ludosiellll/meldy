@@ -706,8 +706,8 @@ export default function KnowledgeMap() {
                         {/* Внутреннее тело узла */}
                         <circle
                           r={node.radius}
-                          fill={isMaterial ? '#ffffff' : node.color}
-                          stroke={isMaterial ? '#6366f1' : '#ffffff'}
+                          fill={isMaterial ? (isDark ? '#1e293b' : '#ffffff') : node.color}
+                          stroke={isMaterial ? '#6366f1' : (isDark ? '#0f172a' : '#ffffff')}
                           strokeWidth={isMaterial ? 3.5 : 1.5}
                           className="transition-all duration-200 group-hover:scale-105"
                           style={{
@@ -785,7 +785,7 @@ export default function KnowledgeMap() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Найти понятие или лекцию..."
-                  className="w-full pl-8 pr-8 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
+                  className="w-full pl-8 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
                 />
                 <span className="absolute left-2.5 top-2.5 text-[10px] text-slate-500">🔍</span>
                 {searchQuery && (

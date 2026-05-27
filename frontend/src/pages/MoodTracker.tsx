@@ -167,7 +167,7 @@ export default function MoodTracker() {
               <h2 className="font-bold text-slate-900 dark:text-slate-100 mb-1">Как ты сегодня?</h2>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Выбери своё состояние прямо сейчас</p>
 
-              <div className="grid grid-cols-5 gap-2 mb-6">
+              <div className="flex sm:grid sm:grid-cols-5 gap-3 mb-8 overflow-x-auto pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {(Object.entries(MOODS) as [MoodType, MoodConfig][]).map(([key, cfg]) => {
                   const Icon = cfg.icon;
                   const isSelected = selectedMood === key;
@@ -175,14 +175,14 @@ export default function MoodTracker() {
                     <button
                       key={key}
                       onClick={() => setSelectedMood(key)}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                      className={`flex-none w-[100px] sm:w-auto flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all snap-center ${
                         isSelected
-                          ? `${cfg.bg} ${cfg.border} scale-105 shadow-md`
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          ? `${cfg.bg} ${cfg.border} scale-[1.02] shadow-sm`
+                          : 'border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 bg-white/50 dark:bg-slate-800/50'
                       }`}
                     >
-                      <span className="text-2xl">{cfg.emoji}</span>
-                      <span className={`text-[10px] font-bold ${isSelected ? cfg.color : 'text-slate-500 dark:text-slate-400'}`}>
+                      <span className="text-3xl mb-1 filter drop-shadow-sm">{cfg.emoji}</span>
+                      <span className={`text-[11px] font-bold tracking-wide ${isSelected ? cfg.color : 'text-slate-500 dark:text-slate-400'}`}>
                         {cfg.label}
                       </span>
                     </button>
@@ -191,31 +191,39 @@ export default function MoodTracker() {
               </div>
 
               {/* Уровень энергии */}
-              <div className="mb-5">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <div className="mb-8 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between items-center mb-4">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                     Уровень энергии
                   </label>
-                  <span className="text-xs font-semibold text-indigo-600">
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded-md">
                     {ENERGY_LABELS[energy]}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-slate-300" />
+                
+                <div className="relative pt-2 pb-6">
+                  <div className="absolute top-4 left-0 w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all duration-300"
+                      style={{ width: `${((energy - 1) / 4) * 100}%` }}
+                    />
+                  </div>
                   <input
                     type="range"
                     min={1}
                     max={5}
                     value={energy}
                     onChange={e => setEnergy(Number(e.target.value))}
-                    className="flex-1 accent-indigo-600 h-2 rounded-full cursor-pointer"
+                    className="absolute top-2 left-0 w-full h-6 opacity-0 cursor-pointer z-10"
                   />
-                  <Zap className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="flex justify-between mt-1">
-                  {[1,2,3,4,5].map(n => (
-                    <span key={n} className={`text-[10px] font-bold ${energy === n ? 'text-indigo-600' : 'text-slate-300'}`}>{n}</span>
-                  ))}
+                  <div className="flex justify-between relative z-0 mt-6 px-1">
+                    {[1,2,3,4,5].map(n => (
+                      <div key={n} className="flex flex-col items-center gap-1.5 -ml-3" style={{ width: '24px' }}>
+                        <div className={`w-3 h-3 rounded-full border-2 transition-all duration-300 ${energy >= n ? 'bg-indigo-600 border-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.4)]' : 'bg-slate-200 dark:bg-slate-700 border-white dark:border-slate-800'}`} />
+                        <span className={`text-[10px] font-bold ${energy === n ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'}`}>{n}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
