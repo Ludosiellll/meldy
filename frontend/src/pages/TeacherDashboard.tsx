@@ -379,46 +379,46 @@ export default function TeacherDashboard() {
                 <>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Создайте класс</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Нажмите кнопку «Создать класс» в правом верхнем углу этой страницы и введите его название.</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Создайте класс</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Нажмите кнопку «Создать класс» в правом верхнем углу этой страницы и введите его название.</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">2</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Передайте код</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Скопируйте уникальный пятизначный код класса из карточки группы и отправьте его своим ученикам.</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Передайте код</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Скопируйте уникальный пятизначный код класса из карточки группы и отправьте его своим ученикам.</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">3</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Назначьте лекцию</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Нажмите «Назначить задание», выберите лекцию из своей библиотеки и укажите дату сдачи (дедлайн).</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Назначьте лекцию</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Нажмите «Назначить задание», выберите лекцию из своей библиотеки и укажите дату сдачи (дедлайн).</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">4</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Следите за топом</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">В лидерборде вы увидите активность студентов за 7 дней и всё время (XP за карточки и экзамены).</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Следите за топом</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">В лидерборде вы увидите активность студентов за 7 дней и всё время (XP за карточки и экзамены).</p>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Получите код</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Попросите у своего преподавателя уникальный 5-значный код для вступления в его группу.</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Получите код</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Попросите у своего преподавателя уникальный 5-значный код для вступления в его группу.</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">2</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Вступите в класс</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Перейдите в «Библиотеку» и в правом верхнем углу нажмите кнопку «Ввести код класса».</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Вступите в класс</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Перейдите в «Библиотеку» и в правом верхнем углу нажмите кнопку «Ввести код класса».</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">3</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Делайте задания</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Изучайте назначенные преподавателем конспекты, чтобы успешно уложиться в дедлайны.</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Делайте задания</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Изучайте назначенные преподавателем конспекты, чтобы успешно уложиться в дедлайны.</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">4</span>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Участвуйте в рейтинге</h4>
-                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Решайте тесты и заучивайте карточки, накапливайте еженедельный XP и занимайте топ-3 пьедестала!</p>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Участвуйте в рейтинге</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Решайте тесты и заучивайте карточки, накапливайте еженедельный XP и занимайте топ-3 пьедестала!</p>
                   </div>
                 </>
               )}
