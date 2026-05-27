@@ -64,7 +64,7 @@ const DASHBOARD_STEPS: Step[] = [
         </p>
       </div>
     ),
-    placement: 'auto',
+    placement: 'top',
   },
   {
     target: '.tour-step-xp',
