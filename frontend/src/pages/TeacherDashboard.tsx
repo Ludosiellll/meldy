@@ -130,7 +130,7 @@ export default function TeacherDashboard() {
     return () => {
       window.removeEventListener('profile_updated', fetchRole);
     };
-  }, [user]);
+  }, [user?.id]);
 
   const handleToggleRole = async () => {
     if (!user) return;
@@ -193,7 +193,7 @@ export default function TeacherDashboard() {
       loadStudentGroups();
     }
     getMaterials(user.id).then((data: any) => setMaterials(data as Material[]));
-  }, [user, role]);
+  }, [user?.id, role]);
 
   // Загрузка деталей выбранной группы
   useEffect(() => {
@@ -214,7 +214,7 @@ export default function TeacherDashboard() {
         getGroupCompletions(selectedGroupId).then(setGroupCompletions);
       }
     }
-  }, [selectedGroupId, role, groups, user]);
+  }, [selectedGroupId, role, groups, user?.id]);
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || !user) return;

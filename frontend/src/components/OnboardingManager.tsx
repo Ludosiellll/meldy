@@ -17,11 +17,11 @@ const DASHBOARD_STEPS: Step[] = [
             <Bot className="w-6 h-6 animate-bounce" />
           </div>
           <div>
-            <h3 className="font-extrabold text-lg text-slate-900 tracking-tight">Привет! Я Форджи</h3>
+            <h3 className="font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">Привет! Я Форджи</h3>
             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Твой AI-наставник</span>
           </div>
         </div>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium pt-2">
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium pt-2">
           Я помогу тебе освоить платформу StudyForge. Давай я быстро покажу ключевые фичи, чтобы твоя учёба стала проще и продуктивнее!
         </p>
       </div>
@@ -31,11 +31,11 @@ const DASHBOARD_STEPS: Step[] = [
     target: '.tour-step-upload',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
           <Sparkles className="w-4 h-4 text-indigo-500" />
           Загрузка материалов
         </h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Сюда ты перетаскиваешь лекции, PDF-книги или аудиозаписи. Я сам составлю конспект, карточки для запоминания и подготовлю тесты!
         </p>
       </div>
@@ -46,8 +46,8 @@ const DASHBOARD_STEPS: Step[] = [
     target: '.tour-step-library',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Твоя библиотека</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Твоя библиотека</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Все твои загруженные материалы, лекции, тесты и аудиоподкасты будут бережно храниться здесь.
         </p>
       </div>
@@ -58,8 +58,8 @@ const DASHBOARD_STEPS: Step[] = [
     target: '.tour-step-chat',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Чат-наставник</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Чат-наставник</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Если что-то непонятно в конспекте лекции — просто напиши мне сюда. Я объясню любую тему простыми словами и приведу примеры!
         </p>
       </div>
@@ -70,8 +70,8 @@ const DASHBOARD_STEPS: Step[] = [
     target: '.tour-step-xp',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Твой уровень и XP</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Твой уровень и XP</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           За каждое полезное действие (повторил карточку, сдал тест) ты получаешь XP. Выполняй квесты дня и недели, повышай уровень и обгоняй одногруппников!
         </p>
       </div>
@@ -91,11 +91,11 @@ const EXAM_STEPS: Step[] = [
             <Bot className="w-6 h-6 animate-bounce" />
           </div>
           <div>
-            <h3 className="font-extrabold text-lg text-slate-900 tracking-tight">Первые лекции готовы!</h3>
+            <h3 className="font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">Первые лекции готовы!</h3>
             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">ИИ-Экзаменатор</span>
           </div>
         </div>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium pt-2">
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium pt-2">
           Вижу, ты добавил первые учебные материалы. Теперь тебе доступен интерактивный устный экзамен!
         </p>
       </div>
@@ -105,8 +105,8 @@ const EXAM_STEPS: Step[] = [
     target: '.tour-step-exam',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Симуляция экзамена</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Симуляция экзамена</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Нажми сюда, чтобы запустить экзаменатора. Ты сможешь отвечать на вопросы голосом или текстом, а профессор оценит твои знания.
         </p>
       </div>
@@ -126,11 +126,11 @@ const CLASS_STEPS: Step[] = [
             <Bot className="w-6 h-6 animate-bounce" />
           </div>
           <div>
-            <h3 className="font-extrabold text-lg text-slate-900 tracking-tight">Твой учебный класс!</h3>
+            <h3 className="font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">Твой учебный класс!</h3>
             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Совместное обучение</span>
           </div>
         </div>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium pt-2">
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium pt-2">
           Здесь происходит управление совместным обучением. Давай я помогу тебе разобраться!
         </p>
       </div>
@@ -140,8 +140,8 @@ const CLASS_STEPS: Step[] = [
     target: '.tour-step-role-toggle',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Смена роли (Студент / Учитель)</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Смена роли (Студент / Учитель)</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Ты можешь переключаться между ролями прямо здесь или на Дашборде. Роль преподавателя позволяет создавать свои классы и давать задания.
         </p>
       </div>
@@ -152,8 +152,8 @@ const CLASS_STEPS: Step[] = [
     target: '.tour-step-invite',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Код приглашения</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Код приглашения</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Скопируйте этот код и передайте студентам. Они смогут присоединиться к классу со своих аккаунтов.
         </p>
       </div>
@@ -164,8 +164,8 @@ const CLASS_STEPS: Step[] = [
     target: '.tour-step-leaderboard',
     content: (
       <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900">Рейтинг класса</h4>
-        <p className="text-slate-600 text-xs leading-relaxed font-medium">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Рейтинг класса</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Следи за успехами одноклассников. Лидерборд автоматически ранжирует участников по XP за все время и за последние 7 дней!
         </p>
       </div>
@@ -300,14 +300,14 @@ export default function OnboardingManager() {
         options: {
           zIndex: 10000,
           primaryColor: '#4f46e5',
-          textColor: '#0f172a',
-          backgroundColor: '#ffffff',
+          textColor: document.documentElement.classList.contains('dark') ? '#f1f5f9' : '#0f172a',
+          backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
         },
         tooltip: {
           borderRadius: '24px',
           padding: '20px',
           boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-          border: '1px solid #f1f5f9',
+          border: document.documentElement.classList.contains('dark') ? '1px solid #334155' : '1px solid #f1f5f9',
         },
         tooltipContainer: {
           textAlign: 'left',

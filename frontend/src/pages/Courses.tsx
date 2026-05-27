@@ -506,18 +506,18 @@ export default function Courses() {
         <div>
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                  <Layers className="w-6 h-6" />
-                </div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+            <div className="flex items-start gap-4">
+              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl mt-1 shadow-inner border border-indigo-100/50 dark:border-indigo-900/30">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mb-2">
                   Мои учебные траектории
                 </h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+                  ИИ-методист структурирует материалы вашей библиотеки в пошаговые курсы для системного и глубокого освоения тем.
+                </p>
               </div>
-              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
-                ИИ-методист структурирует материалы вашей библиотеки в пошаговые курсы для системного и глубокого освоения тем.
-              </p>
             </div>
             
             <button
@@ -581,8 +581,7 @@ export default function Courses() {
                 }}
                 className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none transition-all flex items-center gap-2"
               >
-                <Sparkles className="w-4 h-4" />
-                ✨ Создать ИИ-курс
+                <Sparkles className="w-4 h-4" /> Создать ИИ-курс
               </button>
             </div>
           )}
