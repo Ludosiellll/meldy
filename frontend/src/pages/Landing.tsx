@@ -477,7 +477,7 @@ function ProductSimulation() {
       }
       case 3: {
         // Летим к кнопке "Открыть" в проводнике (центрировано)
-        setCursorPos({ x: 535, y: 450, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 535, y: 465, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Кликаем по кнопке
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
