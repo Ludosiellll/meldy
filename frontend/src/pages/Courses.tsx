@@ -716,7 +716,7 @@ export default function Courses() {
           {!generating && builderStep === 'setup' && (
             <div className="space-y-6">
               {/* Materials list */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none relative z-20">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                   <div>
                     <h2 className="font-bold text-slate-800 dark:text-slate-200">1. Выберите лекции ({selectedMaterialIds.length} выбрано)</h2>
@@ -878,7 +878,7 @@ export default function Courses() {
                 )}
 
                 {courseStructure.map((section, sIndex) => (
-                  <div key={section.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none space-y-4 relative">
+                  <div key={section.id} style={{ zIndex: 50 - sIndex }} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none space-y-4 relative">
                     {/* Section controls */}
                     <div className="absolute top-4 right-4 flex items-center gap-1">
                       <button

@@ -527,8 +527,8 @@ export default function TeacherDashboard() {
               {/* ASSIGN MATERIAL MODAL */}
               {showAssignModal && role === 'teacher' && (
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-indigo-100 dark:border-slate-850 shadow-lg shadow-indigo-100/50 dark:shadow-none">
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4">Назначить материал группе</h3>
-                  <div className="space-y-4">
+                  <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4">Назначить материал</h3>
+                  <div className="space-y-4 relative z-20">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Выберите материал из вашей библиотеки</label>
                       <CustomSelect 

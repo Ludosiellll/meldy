@@ -195,7 +195,7 @@ export default function Chat() {
       </div>
 
       {/* Material select */}
-      <div className={`mb-4 ${isFullScreen ? 'max-w-7xl mx-auto w-full' : ''}`}>
+      <div className={`mb-4 relative z-20 ${isFullScreen ? 'max-w-7xl mx-auto w-full' : ''}`}>
         <CustomSelect
           value={selectedId}
           onChange={val => setSelectedId(val)}
