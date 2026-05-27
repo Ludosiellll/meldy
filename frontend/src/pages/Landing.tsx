@@ -16,7 +16,7 @@ import { Moon, Sun } from 'lucide-react';
 export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  useEffect(() => { if (user) navigate('/dashboard'); }, [user]);
+  useEffect(() => { if (user?.id) navigate('/dashboard'); }, [user?.id]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 overflow-x-hidden relative">

@@ -73,7 +73,7 @@ export default function ForgeyAssistant() {
   useEffect(() => {
     if (!user) return;
     getProfile(user.id).then(setProfile);
-  }, [user, location.pathname]);
+  }, [user?.id, location.pathname]);
 
   const getPageAdvice = () => {
     const path = location.pathname;

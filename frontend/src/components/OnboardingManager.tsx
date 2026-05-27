@@ -189,7 +189,7 @@ export default function OnboardingManager() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [user, location.pathname]);
+  }, [user?.id, location.pathname]);
 
   const checkTours = async () => {
     if (!user) return;

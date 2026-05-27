@@ -76,7 +76,7 @@ export default function CoStudy() {
       console.error(err);
       setLoading(false);
     });
-  }, [materialId, user]);
+  }, [materialId, user?.id]);
 
   // Скролл чата
   useEffect(() => {
@@ -245,7 +245,7 @@ export default function CoStudy() {
       coChannel.unsubscribe();
       msgChannel.unsubscribe();
     };
-  }, [materialId, user, profile]);
+  }, [materialId, user?.id, profile]);
 
   const myStatusRef = useRef(myStatus);
   useEffect(() => {
@@ -262,7 +262,7 @@ export default function CoStudy() {
         status: myStatus
       });
     }
-  }, [myStatus, user, profile]);
+  }, [myStatus, user?.id, profile]);
 
   // Обновление статуса Presence локально
   const handleUpdateStatus = (status: string) => {

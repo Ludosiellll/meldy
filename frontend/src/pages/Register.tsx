@@ -25,7 +25,7 @@ export default function Register() {
   
   useEffect(() => {
     if (user) navigate('/dashboard');
-  }, [user, navigate]);
+  }, [user?.id, navigate]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -27,7 +27,7 @@ export default function Messages() {
       setLoading(false);
     });
     getMaterials(user.id).then(setMyMaterials);
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user || !activeFriend) return;
@@ -43,7 +43,7 @@ export default function Messages() {
       }
     });
     return () => { unsubscribe(); };
-  }, [user, activeFriend]);
+  }, [user?.id, activeFriend]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

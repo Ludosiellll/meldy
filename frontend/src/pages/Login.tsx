@@ -18,7 +18,7 @@ export default function Login() {
   
   useEffect(() => {
     if (user) navigate('/dashboard');
-  }, [user, navigate]);
+  }, [user?.id, navigate]);
 
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({

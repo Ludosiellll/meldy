@@ -42,7 +42,7 @@ export default function SocialHub() {
     } else {
       setLoading(false);
     }
-  }, [user, activeTab]);
+  }, [user?.id, activeTab]);
 
   // Поиск с дебаунсом
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function SocialHub() {
       setSearching(false);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, user, activeTab]);
+  }, [searchQuery, user?.id, activeTab]);
 
   const handleLike = async (m: PublicMaterial) => {
     if (!user) return;

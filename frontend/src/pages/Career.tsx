@@ -33,7 +33,7 @@ export default function Career() {
         await alert({ title: 'Ошибка', message: 'Не удалось оцифровать навыки.', type: 'danger' });
         setLoading(false);
       });
-  }, [user]);
+  }, [user?.id]);
 
   const handleGenerate = async () => {
     if (!user) return;

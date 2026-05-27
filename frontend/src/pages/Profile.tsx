@@ -80,7 +80,7 @@ export default function Profile() {
       setPushEnabled(enabled);
       setPushLoading(false);
     });
-  }, [targetId, user, isMyProfile]);
+  }, [targetId, user?.id, isMyProfile]);
 
   const handleAddFriend = async () => {
     if (!user || !targetId) return;
