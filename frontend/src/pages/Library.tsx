@@ -148,8 +148,23 @@ export default function Library() {
       {/* Loading */}
       {loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="animate-pulse bg-slate-200 h-24 rounded-xl" />
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 animate-pulse">
+              <div className="flex gap-2 mb-3">
+                <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
+              </div>
+              <div className="h-6 w-3/4 bg-slate-200 dark:bg-slate-800 rounded mb-4"></div>
+              <div className="flex gap-3 mb-6">
+                <div className="h-4 w-10 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                <div className="h-4 w-10 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded ml-auto"></div>
+              </div>
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between">
+                <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
+              </div>
+            </div>
           ))}
         </div>
       )}

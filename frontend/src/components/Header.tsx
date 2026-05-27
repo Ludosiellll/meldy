@@ -20,7 +20,7 @@ export default function Header({ onReset }: { onReset: () => void }) {
     ? 'w-2 h-2 rounded-full bg-emerald-400'
     : status === 'error'
     ? 'w-2 h-2 rounded-full bg-rose-400 animate-pulse'
-    : 'w-2 h-2 rounded-full bg-slate-300 animate-pulse';
+    : 'w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse';
   const dotTitle = status === 'ok' ? 'Бэкенд работает' : status === 'error' ? 'Бэкенд недоступен' : 'Проверка...';
 
   return (
