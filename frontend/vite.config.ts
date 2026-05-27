@@ -11,6 +11,9 @@ export default defineConfig({
       filename: 'sw.js',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 5000000,
+      },
       devOptions: {
         enabled: true, // Enable for testing in dev
         type: 'module',

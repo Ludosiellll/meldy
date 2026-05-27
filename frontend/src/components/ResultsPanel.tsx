@@ -6,6 +6,7 @@ import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
+import toast from 'react-hot-toast';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions';
 
@@ -345,7 +346,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       URL.revokeObjectURL(u);
     } catch (err) {
       console.error(err);
-      alert('Ошибка при экспорте Anki');
+      toast.error('Ошибка при экспорте Anki');
     }
   };
 
@@ -355,7 +356,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     const html = buildHtmlExport(results, sourceFileName);
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) {
-      alert('Разрешите открытие всплывающих окон в браузере для печати.');
+      toast.error('Разрешите открытие всплывающих окон в браузере для печати.');
       return;
     }
     win.document.write(html);

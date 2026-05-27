@@ -51,10 +51,13 @@ const PortraitLock = () => (
   </div>
 );
 
+import { Toaster } from 'react-hot-toast';
+
 export default function App() {
   return (
     <BrowserRouter>
       <PortraitLock />
+      <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#1e293b', color: '#fff', borderRadius: '12px' } }} />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />

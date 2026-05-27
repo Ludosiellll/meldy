@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
 import UniversitySelect from '../components/UniversitySelect';
 import { getUserXP, calcLevel } from '../api/quests';
+import toast from 'react-hot-toast';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -105,18 +106,18 @@ export default function Profile() {
       if (!pushEnabled) {
         const granted = await requestNotificationPermission();
         if (!granted) {
-          alert('Доступ к уведомлениям запрещён в браузере.');
+          toast.error('Доступ к уведомлениям запрещён в браузере.');
           setPushLoading(false);
           return;
         }
         await subscribeUserToPush(user.id);
         setPushEnabled(true);
       } else {
-        alert('Для отключения уведомлений перейдите в настройки браузера.');
+        toast('Для отключения уведомлений перейдите в настройки браузера.', { icon: 'ℹ️' });
       }
     } catch (err) {
       console.error(err);
-      alert('Ошибка настройки уведомлений: ' + (err as Error).message);
+      toast.error('Ошибка настройки уведомлений: ' + (err as Error).message);
     }
     setPushLoading(false);
   };
@@ -136,8 +137,9 @@ export default function Profile() {
         await updateProfile(user.id, { avatar_url: url });
         setProfile(prev => prev ? { ...prev, avatar_url: url } : null);
       }
+      toast.success('Фото успешно обновлено!');
     } else {
-      alert('Ошибка при загрузке фото.');
+      toast.error('Ошибка при загрузке фото.');
     }
   };
 
