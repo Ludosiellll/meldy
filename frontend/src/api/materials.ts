@@ -34,3 +34,11 @@ export async function updateMaterialVisibility(id: string, is_public: boolean) {
   const { error } = await supabase.from('materials').update({ is_public }).eq('id', id);
   if (error) console.error('updateMaterialVisibility error:', error);
 }
+
+export async function updateMaterialMissions(id: string, missions: any[]) {
+  const { error } = await supabase
+    .from('materials')
+    .update({ missions_json: { missions } })
+    .eq('id', id);
+  if (error) console.error('updateMaterialMissions error:', error);
+}

@@ -9,6 +9,7 @@ import { subscribeUserToPush, checkPushSubscription, requestNotificationPermissi
 import UniversitySelect from '../components/UniversitySelect';
 import { getUserXP, calcLevel } from '../api/quests';
 import toast from 'react-hot-toast';
+import ImageCropper from '../components/ImageCropper';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -33,6 +34,7 @@ export default function Profile() {
 
   // Avatar Upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
   // XP / Level state
   const [xp, setXp] = useState(0);
@@ -122,19 +124,30 @@ export default function Profile() {
     setPushLoading(false);
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
-    
+    if (!file) return;
+
+    // Считываем файл как URL, чтобы передать в кроппер
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      setCropImageSrc(reader.result?.toString() || null);
+    });
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Сбросить инпут
+  };
+
+  const handleCropComplete = async (croppedFile: File) => {
+    setCropImageSrc(null);
     setUploadingAvatar(true);
-    const url = await uploadAvatar(user.id, file);
+    const url = await uploadAvatar(user!.id, croppedFile);
     setUploadingAvatar(false);
 
     if (url) {
       setEditForm({ ...editForm, avatar_url: url });
       // Если не в режиме редактирования, сохраним сразу
       if (!isEditing) {
-        await updateProfile(user.id, { avatar_url: url });
+        await updateProfile(user!.id, { avatar_url: url });
         setProfile(prev => prev ? { ...prev, avatar_url: url } : null);
       }
       toast.success('Фото успешно обновлено!');
@@ -176,7 +189,7 @@ export default function Profile() {
             {isMyProfile && (
               <label className="absolute bottom-2 right-2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(79,70,229,0.6)] transition-all hover:scale-110 border-2 border-white dark:border-slate-900 z-10">
                 {uploadingAvatar ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5 md:w-6 md:h-6" />}
-                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={uploadingAvatar} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploadingAvatar} />
               </label>
             )}
 
@@ -376,6 +389,14 @@ export default function Profile() {
             ))}
           </div>
         </div>
+      )}
+
+      {cropImageSrc && (
+        <ImageCropper 
+          imageSrc={cropImageSrc} 
+          onCropComplete={handleCropComplete} 
+          onClose={() => setCropImageSrc(null)} 
+        />
       )}
     </div>
   );

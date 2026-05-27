@@ -9,7 +9,7 @@ import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { getMaterials } from '../api/materials';
+import { getMaterials, updateMaterialMissions } from '../api/materials';
 import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
@@ -114,6 +114,7 @@ export default function Missions() {
                 if (gData.missions && gData.missions.length > 0) {
                   setMissions(gData.missions);
                   setPhase('game');
+                  updateMaterialMissions(found.id, gData.missions);
                 } else {
                   throw new Error('Пустой список миссий');
                 }
@@ -165,6 +166,7 @@ export default function Missions() {
       if (data.missions && data.missions.length > 0) {
         setMissions(data.missions);
         setPhase('game');
+        updateMaterialMissions(selectedMaterial.id, data.missions);
       } else {
         throw new Error('Пустой список миссий');
       }
