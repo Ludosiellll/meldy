@@ -1432,8 +1432,7 @@ function ProductSimulation() {
                       x: cursorPos.x, 
                       y: cursorPos.y, 
                       opacity: cursorPos.opacity, 
-                      scale: cursorPos.scale,
-                      rotate: -22
+                      scale: cursorPos.scale
                     }}
                     transition={{ 
                       type: "spring", 
@@ -1444,12 +1443,10 @@ function ProductSimulation() {
                     className="absolute z-50 pointer-events-none select-none drop-shadow-xl"
                     style={{ left: 0, top: 0 }}
                   >
-                    <div style={{ transform: 'rotate(-22deg)', transformOrigin: '0px 0px' }}>
-                      <MousePointer2 
-                        className="w-6 h-6 text-slate-900 fill-white absolute" 
-                        style={{ marginLeft: '-2.5px', marginTop: '-2.5px' }}
-                      />
-                    </div>
+                    <MousePointer2 
+                      className="w-6 h-6 text-slate-900 fill-white absolute" 
+                      style={{ marginLeft: '-5px', marginTop: '-5px' }}
+                    />
                   </motion.div>
                 )}
 
