@@ -42,7 +42,9 @@ export default function Missions() {
   
   // Состояние игры
   const [phase, setPhase] = useState<'select' | 'loading' | 'game' | 'completed'>(
-    savedState?.phase === 'loading' ? 'select' : (savedState?.phase || 'select')
+    queryMaterialId
+      ? 'loading'
+      : (savedState?.phase === 'loading' ? 'select' : (savedState?.phase || 'select'))
   );
   const [missions, setMissions] = useState<Mission[]>(savedState?.missions || []);
   const [activeStep, setActiveStep] = useState<number>(savedState?.activeStep !== undefined ? savedState.activeStep : 0); // индекс текущей миссии (0, 1, 2)
@@ -75,7 +77,7 @@ export default function Missions() {
         setMaterials(data);
         
         // Если передан queryMaterialId и мы еще не начали играть, автоматически запускаем
-        if (queryMaterialId && phase === 'select') {
+        if (queryMaterialId && (phase === 'select' || phase === 'loading')) {
           const found = data.find(m => m.id === queryMaterialId);
           if (found) {
             (async () => {

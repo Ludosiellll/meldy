@@ -364,9 +364,9 @@ export default function KnowledgeMap() {
 
   const handlePointerDown = (clientX: number, clientY: number, node?: GraphNode) => {
     if (!svgRef.current) return;
-    const coords = getMouseCoords(clientX, clientY);
 
     if (node) {
+      const coords = getMouseCoords(clientX, clientY);
       draggingNodeId.current = node.id;
       const clickX = (coords.x - panX) / scale;
       const clickY = (coords.y - panY) / scale;
@@ -379,15 +379,15 @@ export default function KnowledgeMap() {
       }
     } else {
       isPanning.current = true;
-      panStartPos.current = { x: coords.x - panX, y: coords.y - panY };
+      panStartPos.current = { x: clientX - panX, y: clientY - panY };
     }
   };
 
   const handlePointerMove = (clientX: number, clientY: number) => {
     if (!svgRef.current) return;
-    const coords = getMouseCoords(clientX, clientY);
 
     if (draggingNodeId.current) {
+      const coords = getMouseCoords(clientX, clientY);
       const clickX = (coords.x - panX) / scale;
       const clickY = (coords.y - panY) / scale;
 
@@ -397,8 +397,8 @@ export default function KnowledgeMap() {
         matchedNode.fy = clickY;
       }
     } else if (isPanning.current) {
-      setPanX(coords.x - panStartPos.current.x);
-      setPanY(coords.y - panStartPos.current.y);
+      setPanX(clientX - panStartPos.current.x);
+      setPanY(clientY - panStartPos.current.y);
     }
   };
 
@@ -420,24 +420,6 @@ export default function KnowledgeMap() {
   const handleMouseDown = (e: React.MouseEvent, node?: GraphNode) => {
     e.preventDefault();
     handlePointerDown(e.clientX, e.clientY, node);
-    if (!svgRef.current) return;
-
-    if (node) {
-      draggingNodeId.current = node.id;
-      const rect = svgRef.current.getBoundingClientRect();
-      const clickX = (e.clientX - rect.left - panX) / scale;
-      const clickY = (e.clientY - rect.top - panY) / scale;
-      dragStartPos.current = { x: clickX, y: clickY };
-      
-      const matchedNode = nodesRef.current.find(n => n.id === node.id);
-      if (matchedNode) {
-        matchedNode.fx = matchedNode.x;
-        matchedNode.fy = matchedNode.y;
-      }
-    } else {
-      isPanning.current = true;
-      panStartPos.current = { x: e.clientX - panX, y: e.clientY - panY };
-    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {

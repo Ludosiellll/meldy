@@ -197,30 +197,6 @@ export default function ExpressPrepView({
 
   return (
     <div className="space-y-6">
-      {/* Переключатель вкладок экспресс-подготовки */}
-      <div className="flex gap-1.5 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full max-w-sm mx-auto sm:mx-0 border border-slate-200 dark:border-slate-800/80">
-        <button
-          onClick={() => setTab('cheatsheet')}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-            tab === 'cheatsheet'
-              ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-700/60'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
-          }`}
-        >
-          <FileText className="w-4 h-4" /> ⚡ Шпаргалка за 5 минут
-        </button>
-        <button
-          onClick={() => setTab('podcast')}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-            tab === 'podcast'
-              ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-700/60'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
-          }`}
-        >
-          <Headphones className="w-4 h-4" /> 🎙️ AI-Подкаст
-        </button>
-      </div>
-
       <AnimatePresence mode="wait">
         {/* ВКЛАДКА 1: Шпаргалка */}
         {tab === 'cheatsheet' && (
