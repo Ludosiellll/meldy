@@ -1679,7 +1679,7 @@ function Footer() {
           </div>
         </div>
 
-        <div className="md:col-span-4 flex flex-col md:items-end gap-4">
+        <div className="md:col-span-4 hidden md:flex flex-col md:items-end gap-4">
           <div className="p-3 bg-slate-50 dark:bg-white rounded-2xl border border-slate-100 dark:border-slate-200 shadow-sm inline-block transition-colors">
             <img 
               src="/qrcode.png" 
