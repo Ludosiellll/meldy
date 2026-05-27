@@ -12,58 +12,124 @@ export const useSound = () => {
     }
   };
 
-  const playTone = useCallback((freq: number, type: OscillatorType, duration: number, vol = 0.1) => {
+  // 1. Звук получения XP (Мягкий "стеклянный" аккорд)
+  const playXpSound = useCallback(() => {
+    try {
+      initAudio();
+      const ctx = audioCtxRef.current!;
+      
+      const playNote = (freq: number, startTime: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.6);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + 0.6);
+      };
+
+      const now = ctx.currentTime;
+      playNote(523.25, now);       // C5
+      playNote(659.25, now + 0.05); // E5
+      playNote(783.99, now + 0.1);  // G5
+      playNote(1046.50, now + 0.15); // C6
+    } catch (e) {}
+  }, []);
+
+  // 2. Звук переворота карточки (Современный UI Pop)
+  const playFlipSound = useCallback(() => {
     try {
       initAudio();
       const ctx = audioCtxRef.current!;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-      gain.gain.setValueAtTime(vol, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.1); // Быстрый спад частоты (Pop)
+      
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.start();
-      osc.stop(ctx.currentTime + duration);
-    } catch (e) {
-      console.error('Audio play error:', e);
-    }
+      osc.stop(ctx.currentTime + 0.1);
+    } catch (e) {}
   }, []);
 
-  // 1. Звук получения XP (короткий приятный дзинь)
-  const playXpSound = useCallback(() => {
-    playTone(880, 'sine', 0.3, 0.1); // A5
-    setTimeout(() => playTone(1108.73, 'sine', 0.5, 0.1), 100); // C#6
-  }, [playTone]);
-
-  // 2. Звук переворота карточки (свуш / глухой стук)
-  const playFlipSound = useCallback(() => {
-    playTone(150, 'triangle', 0.1, 0.05);
-  }, [playTone]);
-
-  // 3. Звук успеха (например, успешное прохождение)
+  // 3. Звук успеха (Радостный перелив)
   const playSuccessSound = useCallback(() => {
-    playTone(523.25, 'sine', 0.2, 0.1); // C5
-    setTimeout(() => playTone(659.25, 'sine', 0.2, 0.1), 150); // E5
-    setTimeout(() => playTone(783.99, 'sine', 0.4, 0.1), 300); // G5
-    setTimeout(() => playTone(1046.50, 'sine', 0.6, 0.1), 450); // C6
-  }, [playTone]);
+    try {
+      initAudio();
+      const ctx = audioCtxRef.current!;
+      const now = ctx.currentTime;
+      
+      const playChime = (freq: number, time: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.1, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.4);
+      };
 
-  // 4. Звук ошибки
+      playChime(440, now);        // A4
+      playChime(554.37, now + 0.1); // C#5
+      playChime(659.25, now + 0.2); // E5
+      playChime(880, now + 0.35);   // A5
+    } catch (e) {}
+  }, []);
+
+  // 4. Звук ошибки (Мягкий глухой стук, не раздражающий)
   const playErrorSound = useCallback(() => {
-    playTone(300, 'sawtooth', 0.2, 0.05);
-    setTimeout(() => playTone(250, 'sawtooth', 0.3, 0.05), 100);
-  }, [playTone]);
+    try {
+      initAudio();
+      const ctx = audioCtxRef.current!;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
+      
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {}
+  }, []);
 
   // 5. Легкий клик
   const playClickSound = useCallback(() => {
-    playTone(1000, 'sine', 0.05, 0.02);
-  }, [playTone]);
+    try {
+      initAudio();
+      const ctx = audioCtxRef.current!;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.05);
+    } catch(e) {}
+  }, []);
 
   return {
     playXpSound,
