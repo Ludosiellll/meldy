@@ -8,6 +8,7 @@ import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, T
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { CustomSelect } from '../components/CustomSelect';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-qr-code';
 
@@ -530,10 +531,15 @@ export default function TeacherDashboard() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Выберите материал из вашей библиотеки</label>
-                      <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)} className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <option value="">-- Выберите материал --</option>
-                        {materials.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-                      </select>
+                      <CustomSelect 
+                        value={selectedMaterial} 
+                        onChange={val => setSelectedMaterial(val)} 
+                        className="px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                        options={[
+                          { value: '', label: '-- Выберите материал --' },
+                          ...materials.map(m => ({ value: m.id, label: m.title }))
+                        ]}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Дедлайн (опционально)</label>

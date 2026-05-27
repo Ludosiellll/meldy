@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { getProfile } from '../api/social';
 import SummaryView from '../components/SummaryView';
 import { format } from 'date-fns';
+import { CustomSelect } from '../components/CustomSelect';
 
 interface Message {
   id: string;
@@ -543,16 +544,17 @@ export default function CoStudy() {
                   </div>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                     {u.user_id === user?.id ? (
-                      <select 
+                      <CustomSelect 
                         value={myStatus} 
-                        onChange={e => handleUpdateStatus(e.target.value)}
-                        className="bg-transparent dark:bg-slate-800 font-bold outline-none cursor-pointer text-indigo-600 dark:text-indigo-400"
-                      >
-                        <option value="Изучает конспект">Изучаю конспект</option>
-                        <option value="Решает тест">Решаю тест</option>
-                        <option value="Общается в чате">Общаюсь</option>
-                        <option value="Отошел">Отошел</option>
-                      </select>
+                        onChange={val => handleUpdateStatus(val)}
+                        options={[
+                          { value: 'Изучает конспект', label: 'Изучаю конспект' },
+                          { value: 'Решает тест', label: 'Решаю тест' },
+                          { value: 'Общается в чате', label: 'Общаюсь' },
+                          { value: 'Отошел', label: 'Отошел' }
+                        ]}
+                        className="bg-transparent font-bold outline-none cursor-pointer text-indigo-600 dark:text-indigo-400 w-36"
+                      />
                     ) : u.status}
                   </span>
                 </div>

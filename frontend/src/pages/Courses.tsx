@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { CustomSelect } from '../components/CustomSelect';
 import { 
   Layers, Sparkles, BookOpen, Trash2, ArrowLeft, ArrowRight, CheckCircle2, 
   Plus, ChevronDown, ChevronUp, HelpCircle, Search, Check, X, Eye, 
@@ -734,14 +736,15 @@ export default function Courses() {
                       />
                     </div>
                     {subjects.length > 0 && (
-                      <select
+                      <CustomSelect
                         value={subjectFilter}
-                        onChange={e => setSubjectFilter(e.target.value)}
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="">Все предметы</option>
-                        {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                        onChange={val => setSubjectFilter(val)}
+                        options={[
+                          { value: '', label: 'Все предметы' },
+                          ...subjects.map(s => ({ value: s, label: s }))
+                        ]}
+                        className="w-40 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                      />
                     )}
                   </div>
                 </div>
@@ -950,17 +953,15 @@ export default function Courses() {
                             </button>
                             {/* Move to another section */}
                             {courseStructure.length > 1 && (
-                              <select
-                                onChange={(e) => handleMoveMaterialToSection(section.id, m.id, e.target.value)}
+                              <CustomSelect
+                                onChange={val => handleMoveMaterialToSection(section.id, m.id, val)}
                                 value={section.id}
-                                className="px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-[10px] outline-none"
-                              >
-                                {courseStructure.map(s => (
-                                  <option key={s.id} value={s.id}>
-                                    В {s.title.slice(0, 15)}...
-                                  </option>
-                                ))}
-                              </select>
+                                options={courseStructure.map(s => ({
+                                  value: s.id,
+                                  label: `В ${s.title.slice(0, 15)}...`
+                                }))}
+                                className="w-32 px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-[10px]"
+                              />
                             )}
                             {/* Remove */}
                             <button
@@ -976,29 +977,24 @@ export default function Courses() {
 
                     {/* Add material dropdown for selected ones */}
                     <div className="pt-2">
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            const found = materials.find(m => m.id === e.target.value);
+                      <CustomSelect
+                        onChange={(val) => {
+                          if (val) {
+                            const found = materials.find(m => m.id === val);
                             if (found) {
                               handleAddMaterialToSection(section.id, found.id, found.title);
                             }
-                            e.target.value = ''; // Reset select
                           }
                         }}
-                        defaultValue=""
-                        className="px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="" disabled>+ Добавить материал в раздел...</option>
-                        {materials
-                          .filter(m => selectedMaterialIds.includes(m.id))
-                          .map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.title}
-                            </option>
-                          ))
-                        }
-                      </select>
+                        value=""
+                        placeholder="+ Добавить материал в раздел..."
+                        options={[
+                          ...materials
+                            .filter(m => selectedMaterialIds.includes(m.id))
+                            .map(m => ({ value: m.id, label: m.title }))
+                        ]}
+                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold focus:ring-1 focus:ring-indigo-500"
+                      />
                     </div>
                   </div>
                 ))}

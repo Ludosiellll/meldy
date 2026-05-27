@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials, deleteMaterial, updateMaterialVisibility } from '../api/materials';
 import { getAssignedMaterials, joinGroup } from '../api/groups';
+import { CustomSelect } from '../components/CustomSelect';
 
 export default function Library() {
   const { user } = useAuth();
@@ -134,14 +135,15 @@ export default function Library() {
           />
         </div>
         {subjects.length > 0 && (
-          <select
+          <CustomSelect
             value={subjectFilter}
-            onChange={e => setSubjectFilter(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-900 dark:text-slate-100"
-          >
-            <option value="">Все предметы</option>
-            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+            onChange={val => setSubjectFilter(val)}
+            options={[
+              { value: '', label: 'Все предметы' },
+              ...subjects.map(s => ({ value: s, label: s }))
+            ]}
+            className="sm:w-64 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 shadow-sm"
+          />
         )}
       </div>
 

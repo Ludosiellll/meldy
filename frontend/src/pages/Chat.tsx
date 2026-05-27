@@ -7,6 +7,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { CustomSelect } from '../components/CustomSelect';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 import { updateQuestProgress } from '../api/quests';
@@ -195,16 +196,15 @@ export default function Chat() {
 
       {/* Material select */}
       <div className={`mb-4 ${isFullScreen ? 'max-w-7xl mx-auto w-full' : ''}`}>
-        <select
+        <CustomSelect
           value={selectedId}
-          onChange={e => setSelectedId(e.target.value)}
-          className="w-full md:w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm"
-        >
-          <option value="">Выберите материал...</option>
-          {materials.map(m => (
-            <option key={m.id} value={m.id}>{m.title}</option>
-          ))}
-        </select>
+          onChange={val => setSelectedId(val)}
+          options={[
+            { value: '', label: 'Выберите материал...' },
+            ...materials.map(m => ({ value: m.id, label: m.title }))
+          ]}
+          className="md:w-72 px-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-sm text-sm"
+        />
       </div>
 
       {/* Chat area */}

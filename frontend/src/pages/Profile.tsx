@@ -10,6 +10,7 @@ import UniversitySelect from '../components/UniversitySelect';
 import { getUserXP, calcLevel } from '../api/quests';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
+import { CustomSelect } from '../components/CustomSelect';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -262,10 +263,15 @@ export default function Profile() {
               </div>
               <div className="w-full md:w-1/2">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Роль в системе</label>
-                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full px-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-inner appearance-none cursor-pointer">
-                  <option value="student">Студент</option>
-                  <option value="teacher">Преподаватель</option>
-                </select>
+                <CustomSelect 
+                  value={editForm.role} 
+                  onChange={val => setEditForm({...editForm, role: val})} 
+                  className="px-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                  options={[
+                    { value: 'student', label: 'Студент' },
+                    { value: 'teacher', label: 'Преподаватель' }
+                  ]}
+                />
               </div>
               <div className="flex justify-end pt-4">
                 <button onClick={handleSaveProfile} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/30 hover:-translate-y-1">Сохранить изменения</button>
