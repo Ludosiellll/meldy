@@ -481,7 +481,10 @@ export default function Missions() {
                       <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
                       <div>
                         <span className="font-bold block mb-0.5">💡 Подсказка AI-Методиста:</span>
-                        {currentMission.hint}
+                        <div className="mb-2">{currentMission.hint}</div>
+                        <div className="inline-flex font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 rounded-md animate-pulse">
+                          👉 Попробуйте выбрать другой вариант
+                        </div>
                       </div>
                     </div>
                   </motion.div>
