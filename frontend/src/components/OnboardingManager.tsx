@@ -207,10 +207,16 @@ export default function OnboardingManager() {
       const deviceTarget = isMobile
         ? (document.querySelector(mobileTarget) ? mobileTarget : base)
         : (document.querySelector(desktopTarget) ? desktopTarget : base);
+      
+      // Determine if the target element is inside a fixed sidebar (aside)
+      const targetEl = document.querySelector(deviceTarget);
+      const isInsideSidebar = targetEl ? targetEl.closest('aside') !== null : false;
+
       return {
         ...s,
         target: deviceTarget,
         placement: (isMobile && s.placement === 'right') ? 'bottom' : s.placement,
+        disableScrolling: isInsideSidebar || s.disableScrolling || base === 'body',
       };
     };
 
@@ -255,7 +261,10 @@ export default function OnboardingManager() {
       setTimeout(() => {
         const targetElement = document.querySelector(step.target as string);
         if (targetElement) {
-          targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          const isInsideSidebar = targetElement.closest('aside') !== null;
+          if (!isInsideSidebar && !step.disableScrolling && step.target !== 'body') {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
         }
       }, 50);
     }
