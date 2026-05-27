@@ -301,6 +301,7 @@ class BaseAgent:
             truncated += f"\n\n[Текст сокращен с {len(user_text)} до {max_chars} символов]"
 
         gemini_errors = []
+        json_mode = "JSON" in system_prompt or "json" in system_prompt
 
         if self.gemini_keys:
             shuffled_keys = list(self.gemini_keys)
@@ -331,6 +332,7 @@ class BaseAgent:
                                 generation_config=genai.types.GenerationConfig(
                                     temperature=0.3,
                                     max_output_tokens=8192,
+                                    response_mime_type="application/json" if json_mode else "text/plain"
                                 ),
                                 safety_settings=self.safety_settings
                             )
@@ -352,15 +354,19 @@ class BaseAgent:
 
         if self.groq_client:
             try:
-                response = await self.groq_client.chat.completions.create(
-                    model=self.model,
-                    messages=[
+                kwargs = {
+                    "model": self.model,
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": truncated},
                     ],
-                    temperature=0.3,
-                    max_tokens=8192,
-                )
+                    "temperature": 0.3,
+                    "max_tokens": 8192,
+                }
+                if json_mode:
+                    kwargs["response_format"] = {"type": "json_object"}
+                    
+                response = await self.groq_client.chat.completions.create(**kwargs)
                 return response.choices[0].message.content or ""
             except Exception as e:
                 groq_err = str(e)
