@@ -99,14 +99,14 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative py-12">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
-          <span className="font-extrabold text-slate-900 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
+          <span className="font-extrabold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -116,8 +116,8 @@ export default function Register() {
           className="w-full max-w-sm mx-auto"
         >
           <div className="mb-8">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Создать аккаунт</h1>
-            <p className="text-slate-500 font-medium">Ваш умный помощник в учебе ждет</p>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-2">Создать аккаунт</h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Ваш умный помощник в учебе ждет</p>
           </div>
 
           {error && (
@@ -127,13 +127,13 @@ export default function Register() {
           )}
 
           {success && (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-4 py-5 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center shadow-sm shadow-emerald-100">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-655 px-4 py-5 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center shadow-sm shadow-emerald-100 dark:shadow-none">
               <Mail className="w-10 h-10 text-emerald-500 mb-3" />
-              <span className="text-emerald-800 text-base mb-1">Успешно! Мы отправили письмо на вашу почту:</span>
-              <span className="bg-white px-4 py-2 rounded-lg border border-emerald-100 text-emerald-700 font-black shadow-sm mb-3">
+              <span className="text-emerald-800 dark:text-emerald-300 text-base mb-1">Успешно! Мы отправили письмо на вашу почту:</span>
+              <span className="bg-white dark:bg-slate-900 px-4 py-2 rounded-lg border border-emerald-100 dark:border-emerald-900 text-emerald-700 dark:text-emerald-400 font-black shadow-sm mb-3">
                 {email}
               </span>
-              <span className="font-medium text-emerald-600/80 mb-4">Пожалуйста, перейдите по ссылке в письме.</span>
+              <span className="font-medium text-emerald-600/80 dark:text-emerald-400/80 mb-4">Пожалуйста, перейдите по ссылке в письме.</span>
               
               <button 
                 onClick={handleResend}
@@ -155,7 +155,7 @@ export default function Register() {
           {!success && (
             <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Имя</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Имя</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <User className="h-5 w-5 text-slate-400" />
@@ -168,7 +168,7 @@ export default function Register() {
                     setName(e.target.value);
                     setNameError(validateName(e.target.value));
                   }}
-                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${nameError ? 'border-rose-300 ring-rose-100 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
+                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${nameError ? 'border-rose-300 ring-rose-100 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
                   placeholder="Ваше имя"
                 />
               </div>
@@ -176,7 +176,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Email</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-400" />
@@ -189,7 +189,7 @@ export default function Register() {
                     setEmail(e.target.value);
                     setEmailError(validateEmail(e.target.value));
                   }}
-                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
+                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
                   placeholder="you@example.com"
                 />
               </div>
@@ -197,7 +197,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Пароль</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Пароль</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-400" />
@@ -210,13 +210,13 @@ export default function Register() {
                     setPassword(e.target.value);
                     setPasswordError(validatePassword(e.target.value));
                   }}
-                  className={`block w-full pl-11 pr-11 py-3 bg-white border ${passwordError ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500' : 'border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
+                  className={`block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border ${passwordError ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500' : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-indigo-600 transition"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -227,12 +227,12 @@ export default function Register() {
               {/* Strength Meter (Light Theme) */}
               <div className="mt-2.5 flex gap-1.5">
                 {[1,2,3].map(level => {
-                  let colorClass = 'bg-slate-100'; // Default gray
+                  let colorClass = 'bg-slate-100 dark:bg-slate-800'; // Default gray
                   if (password.length > 0) {
                     const strength = getPasswordStrength(password);
-                    if (strength === 0) colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100';
-                    else if (strength === 1) colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100';
-                    else if (strength === 2) colorClass = level <= 2 ? 'bg-amber-400' : 'bg-slate-100';
+                    if (strength === 0) colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100 dark:bg-slate-800';
+                    else if (strength === 1) colorClass = level === 1 ? 'bg-rose-500' : 'bg-slate-100 dark:bg-slate-800';
+                    else if (strength === 2) colorClass = level <= 2 ? 'bg-amber-400' : 'bg-slate-100 dark:bg-slate-800';
                     else if (strength >= 3) colorClass = 'bg-emerald-500';
                   }
                   return (
@@ -243,7 +243,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Повтор пароля</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Повтор пароля</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-400" />
@@ -253,13 +253,13 @@ export default function Register() {
                   autoComplete="new-password"
                   value={confirm}
                   onChange={e => setConfirm(e.target.value)}
-                  className="block w-full pl-11 pr-11 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                  className="block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-indigo-600 transition"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                   tabIndex={-1}
                 >
                   {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -281,9 +281,9 @@ export default function Register() {
           </form>
           )}
 
-          <p className="mt-8 text-center text-sm text-slate-500 font-medium">
+          <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Уже есть аккаунт?{' '}
-            <button onClick={() => navigate('/login')} className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline transition-all">
+            <button onClick={() => navigate('/login')} className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline transition-all">
               Войти
             </button>
           </p>

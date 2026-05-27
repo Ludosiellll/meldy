@@ -172,12 +172,12 @@ export default function Missions() {
       {/* Шапка */}
       <div className="flex items-center gap-2 mb-6 justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-            <Gamepad2 className="w-5 h-5 text-emerald-600" />
+          <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-950/50 rounded-xl flex items-center justify-center">
+            <Gamepad2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Интерактивные миссии</h1>
-            <p className="text-xs text-slate-500">Геймификация сложных лекций в порции квестов</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Интерактивные миссии</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Геймификация сложных лекций в порции квестов</p>
           </div>
         </div>
         {phase !== 'select' && (
@@ -192,7 +192,7 @@ export default function Missions() {
                 setShowHint(false);
               }
             }}
-            className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
+            className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg text-slate-600 dark:text-slate-300 transition"
           >
             <X className="w-3.5 h-3.5" /> Выйти из игры
           </button>
@@ -209,10 +209,10 @@ export default function Missions() {
             exit={{ opacity: 0, y: -15 }}
             className="card p-4 md:p-8 text-center"
           >
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Gamepad2 className="w-8 h-8 text-emerald-500" />
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-2">Микро-квесты по лекциям</h2>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Микро-квесты по лекциям</h2>
             <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
               AI-Методист разобьет сложную тему на 3 простые миссии. Изучите порции теории на простом языке и разблокируйте все уровни игры!
             </p>
@@ -253,13 +253,13 @@ export default function Missions() {
             className="flex flex-col items-center justify-center py-20 text-center"
           >
             <div className="relative mb-6">
-              <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
+              <div className="w-16 h-16 border-4 border-emerald-100 dark:border-emerald-950/50 border-t-emerald-600 rounded-full animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <Gamepad2 className="w-6 h-6 text-emerald-500 animate-pulse" />
               </div>
             </div>
-            <h3 className="font-semibold text-slate-800 text-base mb-1">ИИ-Методист готовит сценарий квестов...</h3>
-            <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-base mb-1">ИИ-Методист готовит сценарий квестов...</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs leading-relaxed">
               Сложная научная лекция переводится на игровой язык с метафорами и аналогиями
             </p>
           </motion.div>
@@ -275,7 +275,7 @@ export default function Missions() {
             className="space-y-6"
           >
             {/* Визуальная шкала миссий */}
-            <div className="flex items-center justify-between bg-slate-100 p-2.5 rounded-2xl border border-slate-200">
+            <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 gap-1">
               {missions.map((m, idx) => {
                 const isActive = activeStep === idx;
                 const isPassed = activeStep > idx;
@@ -283,19 +283,20 @@ export default function Missions() {
 
                 return (
                   <div key={m.id} className="flex-1 flex items-center justify-center gap-1.5 relative">
-                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+                    <div className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
                       isActive 
                         ? 'bg-emerald-600 text-white' 
                         : isPassed 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-slate-50 border border-slate-200 text-slate-400'
+                        ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
+                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'
                     }`}>
                       {isPassed ? <CheckCircle2 className="w-3.5 h-3.5" /> : isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                      <span>Миссия {idx + 1}</span>
+                      <span className="hidden sm:inline">Миссия {idx + 1}</span>
+                      <span className="sm:hidden">{idx + 1}</span>
                     </div>
                     {idx < missions.length - 1 && (
                       <div className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10">
-                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                        <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600" />
                       </div>
                     )}
                   </div>
@@ -325,14 +326,14 @@ export default function Missions() {
             <motion.div 
               animate={shake ? { x: [-10, 10, -10, 10, 0] } : {}}
               transition={{ duration: 0.4 }}
-              className="card p-4 md:p-5 space-y-4 bg-white"
+              className="card p-4 md:p-5 space-y-4"
             >
               <div className="flex items-center gap-2 mb-2">
                 <HelpCircle className="w-5 h-5 text-emerald-500 shrink-0" />
-                <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Испытание для разблокировки следующего уровня:</h4>
+                <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wider">Испытание для разблокировки следующего уровня:</h4>
               </div>
 
-              <div className="text-sm font-semibold text-slate-700 leading-relaxed mb-4 markdown-content">
+              <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 leading-relaxed mb-4 markdown-content">
                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{currentMission.question}</ReactMarkdown>
               </div>
 
@@ -342,17 +343,16 @@ export default function Missions() {
                   const isThisSelected = selectedOption === opt;
                   const isCorrectAnswer = opt.startsWith(currentMission.correct);
 
-                  let btnStyle = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
+                  let btnStyle = "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800";
                   if (selectedOption) {
                     if (isThisSelected) {
                       btnStyle = isCorrectAnswer 
-                        ? "bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20 font-bold" 
-                        : "bg-rose-50 border-rose-300 text-rose-800 ring-2 ring-rose-500/20 font-bold";
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/20 font-bold" 
+                        : "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/20 font-bold";
                     } else if (isCorrectAnswer && !isCorrect) {
-                      // подсвечиваем правильный если ответили неверно
-                      btnStyle = "bg-emerald-50 border-emerald-200 text-emerald-700 opacity-60";
+                      btnStyle = "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 opacity-60";
                     } else {
-                      btnStyle = "bg-slate-50 border-transparent text-slate-400 opacity-40 cursor-default";
+                      btnStyle = "bg-slate-50 dark:bg-slate-900 border-transparent text-slate-400 dark:text-slate-500 opacity-40 cursor-default";
                     }
                   }
 
@@ -382,9 +382,9 @@ export default function Missions() {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     style={{ overflow: 'hidden' }}
-                    className="bg-amber-50 border border-amber-200 rounded-xl"
+                    className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl"
                   >
-                    <div className="p-3.5 flex items-start gap-2 text-xs text-amber-800">
+                    <div className="p-3.5 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
                       <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
                       <div>
                         <span className="font-bold block mb-0.5">💡 Подсказка AI-Методиста:</span>
@@ -404,7 +404,7 @@ export default function Missions() {
                 >
                   <button
                     onClick={handleNextMission}
-                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 dark:shadow-emerald-950/20"
                   >
                     {activeStep + 1 >= missions.length ? 'Завершить обучение 🎉' : 'Пройти к миссии ' + (activeStep + 2) + ' →'}
                   </button>
@@ -421,7 +421,7 @@ export default function Missions() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="card p-5 md:p-10 text-center bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100 shadow-lg relative overflow-hidden"
+            className="card p-5 md:p-10 text-center bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-100 dark:border-emerald-900/30 shadow-lg relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -431,11 +431,11 @@ export default function Missions() {
               <Trophy className="w-10 h-10 animate-pulse" />
             </div>
 
-            <h2 className="text-2xl font-black text-emerald-800 mb-2 flex items-center justify-center gap-2">
+            <h2 className="text-2xl font-black text-emerald-800 dark:text-emerald-300 mb-2 flex items-center justify-center gap-2">
               Тема полностью освоена!
               <Sparkles className="w-6 h-6 text-amber-500 animate-bounce" />
             </h2>
-            <p className="text-slate-600 text-sm max-w-md mx-auto mb-8">
+            <p className="text-slate-600 dark:text-slate-300 text-sm max-w-md mx-auto mb-8">
               Вы успешно прошли все 3 микро-миссии по лекции «{selectedMaterial?.title}»! Вы поняли суть темы без лишней академической шелухи.
             </p>
 
@@ -448,13 +448,13 @@ export default function Missions() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
               <button
                 onClick={() => setPhase('select')}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 dark:shadow-emerald-950/20"
               >
                 Выбрать другую лекцию
               </button>
               <button
                 onClick={() => navigate('/dashboard')}
-                className="px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition"
+                className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition"
               >
                 Вернуться на дашборд
               </button>

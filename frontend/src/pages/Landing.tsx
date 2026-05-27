@@ -1650,16 +1650,35 @@ function CtaSection() {
 
 function Footer() {
   return (
-    <footer className="py-8 px-6 border-t border-slate-200/50 bg-white text-slate-500 text-sm">
-      <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-white" />
+    <footer className="py-12 px-6 border-t border-slate-200/50 bg-white text-slate-500 text-sm">
+      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+        <div className="md:col-span-8 flex flex-col gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <GraduationCap className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-slate-800 font-extrabold text-lg tracking-tight">StudyForge</span>
           </div>
-          <span className="text-slate-800 font-extrabold tracking-tight">StudyForge</span>
+          <p className="text-slate-500 text-sm leading-relaxed max-w-sm">
+            Ваша персональная образовательная платформа. Объединяем нейросети и доказательную педагогику для эффективного обучения.
+          </p>
+          <div className="flex items-center gap-4 text-xs font-semibold pt-4">
+            <span>&copy; {new Date().getFullYear()} StudyForge. Все права защищены.</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <span>&copy; {new Date().getFullYear()} StudyForge. Все права защищены.</span>
+
+        <div className="md:col-span-4 flex flex-col md:items-end gap-4">
+          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm inline-block">
+            <img 
+              src="/qrcode.png" 
+              alt="QR Code" 
+              className="w-24 h-24 rounded-lg"
+            />
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Открыть на телефоне</p>
+            <p className="text-xs font-semibold text-slate-600">Сканируйте, чтобы начать учиться везде</p>
+          </div>
         </div>
       </div>
     </footer>

@@ -71,12 +71,12 @@ export default function Messages() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-80px)] md:h-[85vh] bg-white md:rounded-2xl shadow-sm border border-slate-200 overflow-hidden md:m-6 m-0 relative">
+    <div className="flex h-[calc(100vh-80px)] md:h-[85vh] bg-white dark:bg-slate-900 md:rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden md:m-6 m-0 relative">
 
       {/* Левая панель — список диалогов */}
-      <div className={`w-full md:w-80 border-r border-slate-200 bg-slate-50 shrink-0 ${activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
-        <div className="p-4 border-b border-slate-200 bg-white">
-          <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+      <div className={`w-full md:w-80 border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 shrink-0 ${activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-indigo-500" />
             Сообщения
           </h2>
@@ -84,11 +84,11 @@ export default function Messages() {
         <div className="flex-1 overflow-y-auto">
           {friends.length === 0 ? (
             <div className="p-6 text-center">
-              <UserCircle2 className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-              <p className="text-sm text-slate-500">У вас пока нет друзей.</p>
+              <UserCircle2 className="w-10 h-10 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет друзей.</p>
               <button
                 onClick={() => navigate('/network')}
-                className="mt-3 text-sm text-indigo-600 font-bold hover:text-indigo-700"
+                className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:text-indigo-700 dark:hover:text-indigo-300"
               >
                 Найти в Хабе →
               </button>
@@ -98,20 +98,20 @@ export default function Messages() {
               <button
                 key={f.id}
                 onClick={() => setActiveFriend(f)}
-                className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 ${
-                  activeFriend?.id === f.id ? 'bg-indigo-50' : 'hover:bg-white'
+                className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 dark:border-slate-800/40 ${
+                  activeFriend?.id === f.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'hover:bg-white dark:hover:bg-slate-800/30'
                 }`}
               >
                 {f.friend_avatar ? (
                   <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0">
                     <UserCircle2 className="w-6 h-6 text-slate-500" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <div className="font-bold text-slate-800 text-sm truncate">{f.friend_name}</div>
-                  <div className="text-xs text-slate-400">Нажмите, чтобы открыть чат</div>
+                  <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{f.friend_name}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500">Нажмите, чтобы открыть чат</div>
                 </div>
               </button>
             ))
@@ -120,29 +120,29 @@ export default function Messages() {
       </div>
 
       {/* Правая панель — чат */}
-      <div className={`w-full md:flex-1 bg-white relative min-w-0 ${!activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
+      <div className={`w-full md:flex-1 bg-white dark:bg-slate-900 relative min-w-0 ${!activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
         {activeFriend ? (
           <>
             {/* Хедер */}
-            <div className="p-4 border-b border-slate-200 flex items-center gap-3 bg-white shadow-sm z-10">
-              <button onClick={() => setActiveFriend(null)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 transition">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3 bg-white dark:bg-slate-900 shadow-sm z-10">
+              <button onClick={() => setActiveFriend(null)} className="md:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">
                 <ChevronLeft className="w-6 h-6" />
               </button>
               {activeFriend.friend_avatar ? (
                 <img src={activeFriend.friend_avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover shrink-0" />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
                   <UserCircle2 className="w-5 h-5 text-slate-400" />
                 </div>
               )}
               <div className="flex-1">
-                <div className="font-bold text-slate-800">{activeFriend.friend_name}</div>
+                <div className="font-bold text-slate-800 dark:text-slate-200">{activeFriend.friend_name}</div>
               </div>
               {/* Кнопка "Пригласить к материалу" */}
               <div className="relative">
                 <button
                   onClick={() => setShowInvite(v => !v)}
-                  className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition px-3 py-1.5 rounded-lg"
+                  className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition px-3 py-1.5 rounded-lg"
                   title="Поделиться материалом"
                 >
                   <BookOpen className="w-4 h-4" />
@@ -150,21 +150,21 @@ export default function Messages() {
                 </button>
 
                 {showInvite && (
-                  <div className="absolute right-0 top-10 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 z-20 overflow-hidden">
-                    <div className="p-3 border-b border-slate-100">
-                      <p className="font-bold text-sm text-slate-800">Отправить материал в чат</p>
+                  <div className="absolute right-0 top-10 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 z-20 overflow-hidden">
+                    <div className="p-3 border-b border-slate-100 dark:border-slate-700">
+                      <p className="font-bold text-sm text-slate-800 dark:text-slate-250">Отправить материал в чат</p>
                     </div>
-                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-50 dark:divide-slate-700">
                       {myMaterials.length === 0 ? (
-                        <p className="p-4 text-sm text-slate-400 text-center">У вас нет материалов</p>
+                        <p className="p-4 text-sm text-slate-400 dark:text-slate-500 text-center">У вас нет материалов</p>
                       ) : myMaterials.map(m => (
                         <button
                           key={m.id}
                           onClick={() => handleSendInvite(m)}
-                          className="w-full p-3 text-left hover:bg-indigo-50 transition"
+                          className="w-full p-3 text-left hover:bg-indigo-50 dark:hover:bg-slate-700/50 transition"
                         >
-                          <div className="font-medium text-slate-800 text-sm truncate">{m.title}</div>
-                          <div className="text-xs text-slate-400">{m.subject || 'Без предмета'}</div>
+                          <div className="font-medium text-slate-800 dark:text-slate-200 text-sm truncate">{m.title}</div>
+                          <div className="text-xs text-slate-400 dark:text-slate-500">{m.subject || 'Без предмета'}</div>
                         </button>
                       ))}
                     </div>
@@ -174,9 +174,9 @@ export default function Messages() {
             </div>
 
             {/* Сообщения */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50" onClick={() => setShowInvite(false)}>
+            <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50 dark:bg-slate-950/20" onClick={() => setShowInvite(false)}>
               {messages.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
                   Напишите первое сообщение!
                 </div>
               ) : (
@@ -192,18 +192,18 @@ export default function Messages() {
                     >
                       <div className={`max-w-[72%] px-4 py-2.5 rounded-2xl text-sm ${
                         isMe
-                          ? 'bg-indigo-600 text-white rounded-tr-sm'
+                          ? 'bg-indigo-600 text-white rounded-tr-sm dark:bg-indigo-650'
                           : isInvite
-                            ? 'bg-amber-50 border border-amber-200 text-slate-800 rounded-tl-sm shadow-sm'
-                            : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm'
+                            ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm'
+                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'
                       }`}>
                         {isInvite && !isMe && (
-                          <div className="flex items-center gap-1 text-amber-600 font-bold text-xs mb-1">
+                          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold text-xs mb-1">
                             <Link2 className="w-3 h-3" /> Приглашение к материалу
                           </div>
                         )}
                         {msg.content}
-                        <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                        <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-indigo-200 dark:text-indigo-300' : 'text-slate-400 dark:text-slate-500'}`}>
                           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
@@ -215,14 +215,14 @@ export default function Messages() {
             </div>
 
             {/* Ввод сообщения */}
-            <div className="p-4 bg-white border-t border-slate-200">
+            <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
               <form onSubmit={handleSend} className="flex gap-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                   placeholder="Написать сообщение..."
-                  className="flex-1 px-4 py-2.5 bg-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm"
+                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm border border-transparent dark:border-slate-700"
                 />
                 <button
                   type="submit"
@@ -235,8 +235,8 @@ export default function Messages() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-            <MessageSquare className="w-16 h-16 mb-4 text-slate-200" />
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+            <MessageSquare className="w-16 h-16 mb-4 text-slate-200 dark:text-slate-800" />
             <p className="font-medium">Выберите диалог слева</p>
             <p className="text-sm mt-1">чтобы начать общение</p>
           </div>

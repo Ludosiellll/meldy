@@ -103,14 +103,14 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
 
         {tab === 'media' && !file && (
             <div className="mb-4">
-                <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-brand-500 transition">
+                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-brand-500 transition">
                     <div className="pl-4 text-slate-400"><Youtube className="w-5 h-5"/></div>
                     <input 
                         type="text" 
                         placeholder="Ссылка на YouTube..." 
                         value={youtubeUrl}
                         onChange={e => setYoutubeUrl(e.target.value)}
-                        className="w-full py-3 px-3 outline-none text-slate-700 text-sm"
+                        className="w-full py-3 px-3 outline-none text-slate-700 dark:text-slate-200 bg-transparent text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600"
                     />
                     {youtubeUrl && (
                         <button onClick={() => setYoutubeUrl('')} className="pr-4 text-slate-400 hover:text-rose-500 transition">
@@ -118,7 +118,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
                         </button>
                     )}
                 </div>
-                {!youtubeUrl && <div className="text-center text-slate-400 my-4 text-sm font-medium">ИЛИ</div>}
+                {!youtubeUrl && <div className="text-center text-slate-400 dark:text-slate-600 my-4 text-sm font-medium">ИЛИ</div>}
             </div>
         )}
 

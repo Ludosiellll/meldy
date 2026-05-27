@@ -187,8 +187,8 @@ export default function SocialHub() {
         ) : activeTab === 'feed' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {feed.length === 0 ? (
-              <div className="col-span-2 text-center py-20 text-slate-500">
-                <Globe className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+              <div className="col-span-2 text-center py-20 text-slate-500 dark:text-slate-400">
+                <Globe className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
                 Пока никто не опубликовал материалы. Откройте свои в Библиотеке!
               </div>
             ) : (
@@ -238,20 +238,20 @@ export default function SocialHub() {
                           onClick={() => handlePreview(m)}
                           className="flex items-center justify-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                         >
-                          <Eye className="w-4 h-4" /> <span className="hidden sm:inline">Предпросмотр</span>
+                          <Eye className="w-4 h-4" /> <span>Предпросмотр</span>
                         </button>
                         <button
                           onClick={() => handleCopy(m)}
                           className={`flex items-center justify-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg ${
                             copiedId === m.id
                               ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
-                              : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/50'
+                              : 'bg-indigo-600 dark:bg-indigo-700 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600'
                           }`}
                         >
                           {copiedId === m.id ? (
                             <><CheckCircle2 className="w-4 h-4" /> Сохранено!</>
                           ) : (
-                            <><Download className="w-4 h-4" /> <span className="hidden sm:inline">Сохранить</span></>
+                            <><Download className="w-4 h-4" /> <span>Сохранить</span></>
                           )}
                         </button>
                       </div>

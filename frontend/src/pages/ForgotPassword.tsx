@@ -33,14 +33,14 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
-          <span className="font-extrabold text-slate-900 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
+          <span className="font-extrabold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -50,25 +50,25 @@ export default function ForgotPassword() {
           className="w-full max-w-sm mx-auto"
         >
           <div className="mb-8">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Восстановление</h1>
-            <p className="text-slate-500 font-medium">Введите ваш email для сброса пароля</p>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-2">Восстановление</h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Введите ваш email для сброса пароля</p>
           </div>
 
           {error && (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl text-sm font-medium mb-6">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-600 px-4 py-3 rounded-xl text-sm font-medium mb-6">
               {error}
             </motion.div>
           )}
 
           {success ? (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 border border-emerald-200 text-emerald-600 px-4 py-6 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center gap-3 shadow-sm shadow-emerald-100">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-1">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 px-4 py-6 rounded-xl text-sm font-bold mb-6 flex flex-col items-center text-center gap-3 shadow-sm shadow-emerald-100 dark:shadow-none">
+              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mb-1">
                 <Mail className="w-6 h-6" />
               </div>
               <p>Инструкции по восстановлению пароля отправлены на почту <b>{email}</b></p>
               <button
                 onClick={() => navigate('/login')}
-                className="mt-4 w-full py-2.5 px-4 border border-emerald-300 rounded-xl text-emerald-700 bg-emerald-100/50 hover:bg-emerald-100 font-bold transition-all"
+                className="mt-4 w-full py-2.5 px-4 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-700 dark:text-emerald-300 bg-emerald-100/50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-bold transition-all"
               >
                 Вернуться ко входу
               </button>
@@ -76,7 +76,7 @@ export default function ForgotPassword() {
           ) : (
             <form onSubmit={handleReset} className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">Email</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <Mail className="h-5 w-5 text-slate-400" />
@@ -85,7 +85,7 @@ export default function ForgotPassword() {
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
                     placeholder="you@example.com"
                     required
                   />
@@ -106,9 +106,9 @@ export default function ForgotPassword() {
             </form>
           )}
 
-          <p className="mt-8 text-center text-sm text-slate-500 font-medium">
+          <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Вспомнили пароль?{' '}
-            <button onClick={() => navigate('/login')} className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline transition-all">
+            <button onClick={() => navigate('/login')} className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline transition-all">
               Войти в аккаунт
             </button>
           </p>

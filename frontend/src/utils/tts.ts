@@ -52,19 +52,54 @@ export const playTTS = async (
   }
 };
 
+// ── Браузерное character-index отслеживание для надёжной паузы ─────────────────
+
+let currentParaText = '';
+let currentParaOffset = 0;
+let currentParaLastCharIndex = 0;
+let currentRole: VoiceRole = 'female';
+let currentOnEnd: (() => void) | undefined = undefined;
+let currentOnError: ((e: any) => void) | undefined = undefined;
+let isBrowserSpeaking = false;
+let isBrowserPaused = false;
+
+export const pauseBrowserTTS = () => {
+  if (!window.speechSynthesis) return;
+  isBrowserPaused = true;
+  window.speechSynthesis.cancel();
+  currentParaOffset += currentParaLastCharIndex;
+  currentParaLastCharIndex = 0;
+};
+
+export const resumeBrowserTTS = () => {
+  if (!window.speechSynthesis || !isBrowserSpeaking) return;
+  isBrowserPaused = false;
+  speakBrowserCurrentSegment();
+};
+
+export const stopBrowserTTS = () => {
+  if (!window.speechSynthesis) return;
+  isBrowserSpeaking = false;
+  isBrowserPaused = false;
+  currentParaText = '';
+  currentParaOffset = 0;
+  currentParaLastCharIndex = 0;
+  window.speechSynthesis.cancel();
+};
+
 export const pauseTTS = () => {
   if (currentAudio && !currentAudio.paused) {
     currentAudio.pause();
-  } else if (window.speechSynthesis) {
-    window.speechSynthesis.pause();
+  } else {
+    pauseBrowserTTS();
   }
 };
 
 export const resumeTTS = () => {
   if (currentAudio && currentAudio.paused) {
     currentAudio.play().catch(console.error);
-  } else if (window.speechSynthesis) {
-    window.speechSynthesis.resume();
+  } else {
+    resumeBrowserTTS();
   }
 };
 
@@ -74,9 +109,7 @@ export const stopTTS = () => {
     currentAudio.currentTime = 0;
     currentAudio = null;
   }
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
+  stopBrowserTTS();
 };
 
 // ── Браузерный fallback ──────────────────────────────────────────────────────
@@ -92,18 +125,19 @@ const ensureVoicesLoaded = (): Promise<SpeechSynthesisVoice[]> =>
     window.speechSynthesis?.addEventListener('voiceschanged', handler);
   });
 
-const playBrowserTTS = async (
-  text: string,
-  role: VoiceRole,
-  onEnd?: () => void,
-  onError?: (e: any) => void
-) => {
-  if (!window.speechSynthesis) {
-    if (onError) onError(new Error('speechSynthesis not supported'));
-    return;
-  }
+const speakBrowserCurrentSegment = async () => {
+  if (!window.speechSynthesis) return;
 
   window.speechSynthesis.cancel();
+
+  // Slicing to resume exactly from the last spoken word index
+  const remainingText = currentParaText.slice(currentParaOffset + currentParaLastCharIndex);
+
+  if (remainingText.trim() === '') {
+    isBrowserSpeaking = false;
+    if (currentOnEnd) currentOnEnd();
+    return;
+  }
 
   const voices = await ensureVoicesLoaded();
   const ruVoices = voices.filter(v => v.lang.startsWith('ru'));
@@ -114,31 +148,65 @@ const playBrowserTTS = async (
   );
   const pool = naturalVoices.length > 0 ? naturalVoices : ruVoices;
 
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(remainingText);
   utterance.lang = 'ru-RU';
 
-  if (role === 'professor') {
+  if (currentRole === 'professor') {
     const voice = pool.find(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('dmitry'));
     if (voice) utterance.voice = voice;
     utterance.pitch = 0.85;
-    utterance.rate = 0.95;
-  } else if (role === 'male') {
+    utterance.rate = 1.15; // Increased Dmitry speed (0.95 -> 1.15)
+  } else if (currentRole === 'male') {
     const voice = pool.find(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('pavel'));
     if (voice) utterance.voice = voice;
     utterance.pitch = 0.95;
-    utterance.rate = 1.0;
+    utterance.rate = 1.20; // Increased Pavel speed (1.0 -> 1.20)
   } else {
     const voice = pool.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('milena') || v.name.toLowerCase().includes('svetlana'));
     if (voice) utterance.voice = voice;
     utterance.pitch = 1.15;
-    utterance.rate = 1.05;
+    utterance.rate = 1.25; // Increased Svetlana speed (1.05 -> 1.25)
   }
 
-  if (onEnd) utterance.onend = onEnd;
+  utterance.onboundary = (e) => {
+    if (e.name === 'word') {
+      currentParaLastCharIndex = e.charIndex;
+    }
+  };
+
+  utterance.onend = () => {
+    if (!isBrowserPaused) {
+      isBrowserSpeaking = false;
+      if (currentOnEnd) currentOnEnd();
+    }
+  };
+
   utterance.onerror = (e) => {
+    if (e.error === 'interrupted' && isBrowserPaused) {
+      return;
+    }
     console.error('Browser TTS error:', e);
-    if (onError) onError(e);
+    isBrowserSpeaking = false;
+    if (currentOnError) currentOnError(e);
   };
 
   window.speechSynthesis.speak(utterance);
+};
+
+const playBrowserTTS = async (
+  text: string,
+  role: VoiceRole,
+  onEnd?: () => void,
+  onError?: (e: any) => void
+) => {
+  currentParaText = text;
+  currentParaOffset = 0;
+  currentParaLastCharIndex = 0;
+  currentRole = role;
+  currentOnEnd = onEnd;
+  currentOnError = onError;
+  isBrowserSpeaking = true;
+  isBrowserPaused = false;
+
+  await speakBrowserCurrentSegment();
 };

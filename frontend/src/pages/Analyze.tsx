@@ -190,7 +190,7 @@ export default function Analyze() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <AnimatePresence mode="wait">
         {state.phase === 'upload' && (
           <motion.div key="upload" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>

@@ -425,8 +425,8 @@ export default function ProfessorExam() {
             <Award className="w-5 h-5 text-rose-600" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">AI-Экзаменатор</h1>
-            <p className="text-xs text-slate-500">Устная репетиция сдача сессии профессору</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">AI-Экзаменатор</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Устная репетиция сдача сессии профессору</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -436,8 +436,8 @@ export default function ProfessorExam() {
               onClick={() => setSocraticMode(p => !p)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${
                 socraticMode
-                  ? 'bg-purple-100 text-purple-700 border-purple-200'
-                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                  ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700'
               }`}
               title="Режим Сократовского диалога: профессор докапывается до сути через уточняющие вопросы"
             >
@@ -456,7 +456,7 @@ export default function ProfessorExam() {
                   setEvaluation(null);
                 }
               }}
-              className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition"
+              className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-slate-600 transition dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 dark:border dark:border-slate-700"
             >
               <X className="w-3.5 h-3.5" /> Выйти
             </button>
@@ -478,18 +478,18 @@ export default function ProfessorExam() {
               <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-rose-500" />
               </div>
-              <h2 className="text-lg font-bold text-slate-900 mb-2">Готовы проверить свои знания?</h2>
-              <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Готовы проверить свои знания?</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
                 AI-Профессор задаст вам каверзные вопросы на понимание. Вы можете вводить ответ текстом или наговаривать голосом через микрофон.
               </p>
 
               <div className="max-w-md mx-auto space-y-4">
                 <div className="text-left">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
+                  <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
                   <select
                     value={selectedMaterialId}
                     onChange={e => setSelectedMaterialId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-500 transition shadow-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-500 transition shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-rose-500"
                   >
                     <option value="">Выберите материал для сдачи</option>
                     {materials.map(m => (
@@ -512,22 +512,22 @@ export default function ProfessorExam() {
             {examHistory.length > 0 && (
               <div className="card p-4 md:p-6 mt-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4 text-slate-400" />
+                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     История последних экзаменов
                   </h3>
                 </div>
                 <div className="space-y-3">
                   {examHistory.map(session => (
-                    <div key={session.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div key={session.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-bold text-slate-700 truncate">{session.subject || 'Без предмета'}</span>
-                          <span className="px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded text-[9px] font-bold">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{session.subject || 'Без предмета'}</span>
+                          <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded text-[9px] font-bold">
                             {new Date(session.completed_at).toLocaleDateString('ru-RU')}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 truncate">Билет по одной из лекций</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">Билет по одной из лекций</p>
                       </div>
                       <div className="flex items-center gap-3 ml-4">
                         <div className="text-right">
@@ -558,8 +558,8 @@ export default function ProfessorExam() {
                 <Award className="w-6 h-6 text-rose-500 animate-pulse" />
               </div>
             </div>
-            <h3 className="font-semibold text-slate-800 text-base mb-1">Профессор анализирует материал...</h3>
-            <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-base mb-1">Профессор анализирует материал...</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs leading-relaxed">
               Формулируется индивидуальный вопрос для оценки вашего понимания
             </p>
           </motion.div>
@@ -618,14 +618,14 @@ export default function ProfessorExam() {
             {/* Ввод ответа студента */}
             <div className="card p-4 md:p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ваш устный ответ:</label>
+                <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Ваш устный ответ:</label>
                 {SpeechRecognition && (
                   <button
                     onClick={toggleListening}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                       isListening
-                        ? 'bg-rose-100 text-rose-700 border border-rose-200 animate-pulse'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                        ? 'bg-rose-100 text-rose-700 border border-rose-200 animate-pulse dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:border-slate-700'
                     }`}
                   >
                     {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5 text-rose-500" />}
@@ -641,7 +641,7 @@ export default function ProfessorExam() {
                   setInterimText('');
                 }}
                 placeholder="Сформулируйте ваш развернутый ответ на вопрос профессора..."
-                className="w-full h-36 px-4 py-3.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 transition resize-none bg-slate-50/50"
+                className="w-full h-36 px-4 py-3.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 transition resize-none bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
               />
 
               <div className="flex gap-3">
@@ -677,26 +677,26 @@ export default function ProfessorExam() {
                       <div className="absolute inset-1 bg-transparent rounded-full border-2 border-dashed border-white/30 scale-95" />
                       {evaluation.grade}
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400 mt-2.5 tracking-wider uppercase bg-white/80 border border-slate-100 px-2 py-0.5 rounded-full shadow-sm">Академическая печать</span>
+                     <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-2.5 tracking-wider uppercase bg-white/80 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 px-2 py-0.5 rounded-full shadow-sm">Академическая печать</span>
                   </div>
 
                   {/* Отзыв и точность */}
                   <div className="flex-1 space-y-4 w-full">
                     <div className="text-center md:text-left">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-white/90 border border-slate-200/50 shadow-sm ${colors.textColor}`}>
+                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-white/90 dark:bg-slate-800/90 border border-slate-200/50 dark:border-slate-700/50 shadow-sm ${colors.textColor}`}>
                         {colors.label}
                       </span>
                     </div>
 
                     {/* Отзыв профессора */}
-                    <div className="bg-white/80 border border-slate-100/80 rounded-2xl p-4 shadow-sm relative hover:shadow-md transition-all duration-300">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center border border-slate-200 shadow-inner shrink-0 text-lg">
+                     <div className="bg-white/80 dark:bg-slate-800/80 border border-slate-100/80 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm relative hover:shadow-md transition-all duration-300">
+                       <div className="flex items-start gap-3">
+                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-600 shadow-inner shrink-0 text-lg">
                           👨‍🏫
                         </div>
                         <div className="flex-1 space-y-1">
-                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Отзыв профессора</div>
-                          <p className="text-slate-700 italic font-semibold text-sm leading-relaxed relative pl-4 border-l-2 border-rose-400">
+                           <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Отзыв профессора</div>
+                           <p className="text-slate-700 dark:text-slate-300 italic font-semibold text-sm leading-relaxed relative pl-4 border-l-2 border-rose-400">
                             "{evaluation.verdict}"
                           </p>
                         </div>
@@ -706,10 +706,10 @@ export default function ProfessorExam() {
                     {/* Точность ответа */}
                     <div className="flex items-center justify-between gap-4 pt-1 flex-wrap md:flex-nowrap">
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Точность ответа:</span>
-                        <span className="text-xs font-black text-slate-800">{evaluation.score}%</span>
+                         <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Точность ответа:</span>
+                         <span className="text-xs font-black text-slate-800 dark:text-slate-200">{evaluation.score}%</span>
                       </div>
-                      <div className="flex-1 min-w-[150px] h-2 bg-slate-200/60 rounded-full overflow-hidden relative">
+                      <div className="flex-1 min-w-[150px] h-2 bg-slate-200/60 dark:bg-slate-700/60 rounded-full overflow-hidden relative">
                         <div 
                           className="h-full bg-gradient-to-r from-rose-500 to-rose-600 rounded-full" 
                           style={{ width: `${evaluation.score}%` }} 
@@ -724,25 +724,25 @@ export default function ProfessorExam() {
             {/* Когнитивный разбор: что правильно, ошибки и пробелы */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {/* Зеленый блок: Что сказали правильно */}
-              <div className="card p-5 border border-slate-100 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
-                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100">
+              <div className="card p-5 border border-slate-100 dark:border-slate-700/50 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-700/50">
                   <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100 shrink-0">
                     <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-emerald-950 text-xs uppercase tracking-wider">Усвоено верно</h4>
-                    <p className="text-[10px] text-slate-400">Сильные стороны ответа</p>
+                    <h4 className="font-extrabold text-emerald-950 dark:text-emerald-100 text-xs uppercase tracking-wider">Усвоено верно</h4>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Сильные стороны ответа</p>
                   </div>
                 </div>
                 <div className="flex-1">
                   {evaluation.correct_points.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-center p-4">
-                      <p className="text-slate-400 text-xs italic">Нет полностью верных фактов.</p>
+                      <p className="text-slate-400 dark:text-slate-500 text-xs italic">Нет полностью верных фактов.</p>
                     </div>
                   ) : (
                     <ul className="space-y-2.5">
                       {evaluation.correct_points.map((p, i) => (
-                        <li key={i} className="text-slate-700 text-xs leading-relaxed flex items-start gap-2 bg-emerald-50/20 border border-emerald-50/40 p-2.5 rounded-xl hover:bg-emerald-50/40 transition-all duration-200">
+                        <li key={i} className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed flex items-start gap-2 bg-emerald-50/20 dark:bg-emerald-950/20 border border-emerald-50/40 dark:border-emerald-900/40 p-2.5 rounded-xl hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-all duration-200">
                           <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0 mt-1.5" />
                           <span className="font-medium">{p}</span>
                         </li>
@@ -753,14 +753,14 @@ export default function ProfessorExam() {
               </div>
 
               {/* Красный блок: Допущенные ошибки */}
-              <div className="card p-5 border border-slate-100 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
-                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100">
+              <div className="card p-5 border border-slate-100 dark:border-slate-700/50 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-700/50">
                   <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center border border-rose-100 shrink-0">
                     <AlertCircle className="w-4.5 h-4.5 text-rose-600" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-rose-950 text-xs uppercase tracking-wider">Фактические ошибки</h4>
-                    <p className="text-[10px] text-slate-400">Неточности в деталях</p>
+                    <h4 className="font-extrabold text-rose-950 dark:text-rose-100 text-xs uppercase tracking-wider">Фактические ошибки</h4>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Неточности в деталях</p>
                   </div>
                 </div>
                 <div className="flex-1">
@@ -772,7 +772,7 @@ export default function ProfessorExam() {
                   ) : (
                     <ul className="space-y-2.5">
                       {evaluation.errors.map((p, i) => (
-                        <li key={i} className="text-slate-700 text-xs leading-relaxed flex items-start gap-2 bg-rose-50/20 border border-rose-50/40 p-2.5 rounded-xl hover:bg-rose-50/40 transition-all duration-200">
+                        <li key={i} className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed flex items-start gap-2 bg-rose-50/20 dark:bg-rose-950/20 border border-rose-50/40 dark:border-rose-900/40 p-2.5 rounded-xl hover:bg-rose-50/40 dark:hover:bg-rose-950/40 transition-all duration-200">
                           <span className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0 mt-1.5" />
                           <span className="font-medium">{p}</span>
                         </li>
@@ -783,14 +783,14 @@ export default function ProfessorExam() {
               </div>
 
               {/* Желтый/серый блок: Упущенные знания */}
-              <div className="card p-5 border border-slate-100 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
-                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100">
+              <div className="card p-5 border border-slate-100 dark:border-slate-700/50 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl flex flex-col h-full">
+                <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-700/50">
                   <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-100 shrink-0">
                     <MessageSquare className="w-4.5 h-4.5 text-amber-600" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-amber-950 text-xs uppercase tracking-wider">Когнитивные пропуски</h4>
-                    <p className="text-[10px] text-slate-400">Упущенные важные нюансы</p>
+                    <h4 className="font-extrabold text-amber-950 dark:text-amber-100 text-xs uppercase tracking-wider">Когнитивные пропуски</h4>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Упущенные важные нюансы</p>
                   </div>
                 </div>
                 <div className="flex-1">
@@ -802,7 +802,7 @@ export default function ProfessorExam() {
                   ) : (
                     <ul className="space-y-2.5">
                       {evaluation.missing_points.map((p, i) => (
-                        <li key={i} className="text-slate-700 text-xs leading-relaxed flex items-start gap-2 bg-amber-50/20 border border-amber-50/40 p-2.5 rounded-xl hover:bg-amber-50/40 transition-all duration-200">
+                        <li key={i} className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed flex items-start gap-2 bg-amber-50/20 dark:bg-amber-950/20 border border-amber-50/40 dark:border-amber-900/40 p-2.5 rounded-xl hover:bg-amber-50/40 dark:hover:bg-amber-950/40 transition-all duration-200">
                           <span className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0 mt-1.5" />
                           <span className="font-medium">{p}</span>
                         </li>
@@ -817,14 +817,14 @@ export default function ProfessorExam() {
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 onClick={() => startExamOrNextQuestion(false)}
-                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100 dark:shadow-none"
               >
                 <RefreshCw className="w-4 h-4" /> Следующий билет
               </button>
               
               <button
                 onClick={() => setPhase('select')}
-                className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center justify-center gap-2"
+                className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center justify-center gap-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300"
               >
                 Завершить экзамен
               </button>

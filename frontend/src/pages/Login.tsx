@@ -44,14 +44,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
-          <span className="font-extrabold text-slate-900 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
+          <span className="font-extrabold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -61,8 +61,8 @@ export default function Login() {
           className="w-full max-w-sm mx-auto"
         >
           <div className="mb-8">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">С возвращением!</h1>
-            <p className="text-slate-500 font-medium">Войдите, чтобы продолжить обучение</p>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-2">С возвращением!</h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Войдите, чтобы продолжить обучение</p>
           </div>
 
           {error && (
@@ -73,7 +73,7 @@ export default function Login() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Email</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-400" />
@@ -86,7 +86,7 @@ export default function Login() {
                     setEmail(e.target.value);
                     setEmailError(validateEmail(e.target.value));
                   }}
-                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
+                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
                   placeholder="you@example.com"
                   required
                 />
@@ -95,7 +95,7 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1.5">Пароль</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Пароль</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-400" />
@@ -105,14 +105,14 @@ export default function Login() {
                   autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-11 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                  className="block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
                   placeholder="••••••••"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-indigo-600 transition"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -122,7 +122,7 @@ export default function Login() {
                 <button 
                   type="button" 
                   onClick={() => navigate('/forgot-password')} 
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-500 transition-colors"
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
                 >
                   Забыли пароль?
                 </button>
@@ -142,10 +142,10 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-slate-500 font-medium">
+          <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Нет аккаунта?{' '}
-            <button onClick={() => navigate('/register')} className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline transition-all">
-              Зарегистрироваться
+            <button onClick={() => navigate('/register')} className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline transition-all">
+              Создать профиль
             </button>
           </p>
         </motion.div>

@@ -191,16 +191,16 @@ export default function Planner() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-2 mb-6">
         <Calendar className="w-5 h-5 text-indigo-600" />
-        <h1 className="text-xl font-bold text-slate-900">Персональный планировщик</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Персональный планировщик</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
         <div className="lg:col-span-3 space-y-6">
           <div className="card p-4 md:p-5">
-            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" /> Экзамены
             </h2>
-            <p className="text-[10px] text-slate-400 mb-3">Отметьте галочкой предметы для плана</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-3">Отметьте галочкой предметы для плана</p>
             <div className="space-y-3 mb-4">
               {subjects.map(s => {
                 const taskCount = subjectTaskCounts[s.name] || 0;
@@ -212,15 +212,15 @@ export default function Planner() {
                       onClick={() => setSelectedSubject(isSelected ? '' : s.name)}
                       className={`w-full flex items-center justify-between text-sm p-2 rounded-lg transition border ${
                         isSelected
-                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
-                          : 'bg-slate-50 border-transparent hover:border-slate-200 text-slate-600'
+                          ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-800/50 border-transparent hover:border-slate-200 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-2 overflow-hidden">
                         <div 
                           onClick={(e) => { e.stopPropagation(); toggleSubjectSelect(s.id); }}
                           className={`w-4 h-4 rounded border flex items-center justify-center transition ${
-                            isPlanned ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'
+                            isPlanned ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
                           }`}
                         >
                           {isPlanned && <CheckSquare className="w-3 h-3" />}
@@ -230,7 +230,7 @@ export default function Planner() {
                       </div>
                       <div className="flex items-center gap-2">
                         {taskCount > 0 && (
-                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px]">{taskCount}</span>
+                          <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded text-[10px]">{taskCount}</span>
                         )}
                         <button 
                           onClick={(e) => { e.stopPropagation(); deleteSubject(s.id); }} 
@@ -245,31 +245,31 @@ export default function Planner() {
               })}
             </div>
             <div className="space-y-2">
-              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название предмета" className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Название предмета" className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 dark:placeholder-slate-500" />
               <div>
                 <input 
                   type="date" 
                   value={newDate} 
                   min={todayStr}
                   onChange={e => { setNewDate(e.target.value); setDateError(''); }} 
-                  className={`w-full px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${dateError ? 'border-rose-300' : 'border-slate-200'}`} 
+                  className={`w-full px-3 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 ${dateError ? 'border-rose-300 dark:border-rose-700' : 'border-slate-200 dark:border-slate-700'}`} 
                 />
                 {dateError && <p className="text-rose-500 text-[10px] mt-1">{dateError}</p>}
               </div>
-              <button onClick={addSubject} className="w-full py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition">Добавить предмет</button>
+              <button onClick={addSubject} className="w-full py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-900 dark:hover:bg-slate-600 transition">Добавить предмет</button>
             </div>
           </div>
 
           <div className="card p-4 md:p-5">
-            <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-slate-400" /> Часы в день
             </h2>
-            <input type="number" min={1} max={12} value={hours} onChange={e => setHours(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input type="number" min={1} max={12} value={hours} onChange={e => setHours(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" />
           </div>
 
           {historyPlans.length > 0 && (
             <div className="card p-4 md:p-5">
-              <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-slate-400" /> История планов
               </h2>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
@@ -279,8 +279,8 @@ export default function Planner() {
                       onClick={() => { setPlan(p.plan_json); setGoals(p.notes || ''); }}
                       className={`w-full text-left px-3 py-2 rounded-lg text-xs transition border ${
                         plan === p.plan_json 
-                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' 
-                        : 'bg-slate-50 border-transparent text-slate-600 hover:border-slate-200'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold' 
+                        : 'bg-slate-50 dark:bg-slate-800/50 border-transparent text-slate-600 dark:text-slate-400 hover:border-slate-200 dark:hover:border-slate-700'
                       }`}
                     >
                       {p.title}
@@ -303,11 +303,11 @@ export default function Planner() {
 
         <div className="lg:col-span-9 space-y-6">
           <div className="card p-4 md:p-6">
-            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500" /> На чем основывать план?
             </h2>
             
-            <p className="text-sm text-slate-500 mb-4">Выберите материалы из библиотеки, которые нужно изучить:</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Выберите материалы из библиотеки, которые нужно изучить:</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
               {materials.map(m => (
                 <div 
@@ -315,25 +315,25 @@ export default function Planner() {
                   onClick={() => toggleMaterial(m.id)}
                   className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
                     selectedMaterials.includes(m.id) 
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                    : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
+                    : 'bg-white dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
                   {selectedMaterials.includes(m.id) ? <CheckSquare className="w-4 h-4 shrink-0" /> : <Square className="w-4 h-4 shrink-0" />}
                   <span className="text-sm font-medium truncate">{m.title}</span>
                 </div>
               ))}
-              {materials.length === 0 && <p className="text-xs text-slate-400 col-span-2 italic">В библиотеке пока пусто</p>}
+              {materials.length === 0 && <p className="text-xs text-slate-400 dark:text-slate-500 col-span-2 italic">В библиотеке пока пусто</p>}
             </div>
 
-            <h2 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
+            <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
               <Info className="w-4 h-4 text-slate-400" /> Ваши цели и пожелания
             </h2>
             <textarea 
               value={goals}
               onChange={e => setGoals(e.target.value)}
               placeholder="Например: 'Я плохо знаю тему массивов, удели ей больше времени' или 'Мне нужно выучить только теорию для зачета'"
-              className="w-full h-24 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none mb-6"
+              className="w-full h-24 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none mb-6 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
             />
 
             <button
@@ -349,7 +349,7 @@ export default function Planner() {
           {plan.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-bold text-slate-900 text-lg">Ваш план подготовки</h2>
+                <h2 className="font-bold text-slate-900 dark:text-slate-100 text-lg">Ваш план подготовки</h2>
                 {selectedSubject && (
                   <button 
                     onClick={() => setSelectedSubject('')}
@@ -367,15 +367,15 @@ export default function Planner() {
                       key={i} 
                       layoutId={`day-${day.date}`}
                       onClick={() => setSelectedDay(day)}
-                      className="card p-4 md:p-5 bg-white border-l-4 border-l-indigo-500 flex flex-col cursor-pointer hover:shadow-md transition-shadow group"
+                      className="card p-4 md:p-5 bg-white dark:bg-slate-900 border-l-4 border-l-indigo-500 flex flex-col cursor-pointer hover:shadow-md transition-shadow group"
                     >
                       <div className="flex items-center justify-between mb-3 shrink-0">
-                        <h3 className="font-bold text-slate-800 capitalize text-sm group-hover:text-indigo-600 transition-colors">
+                        <h3 className="font-bold text-slate-800 dark:text-slate-200 capitalize text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                           {format(new Date(day.date + 'T12:00:00'), 'EEEE, d MMMM', { locale: ru })}
                         </h3>
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded-full">
+                        <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
                           <Clock className="w-3 h-3 text-slate-400" />
-                          <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{totalHours}ч</span>
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">{totalHours}ч</span>
                         </div>
                       </div>
                       <div className="space-y-3 flex-1">
@@ -383,8 +383,8 @@ export default function Planner() {
                           <div key={j} className="flex items-start gap-2.5 text-xs">
                             <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: getColorForSubject(task.subject) }} />
                             <div className="flex-1 min-w-0">
-                              <span className="font-bold text-slate-700 truncate block">{task.subject}</span>
-                              <p className="text-slate-500 mt-0.5 leading-relaxed line-clamp-3">{task.task}</p>
+                              <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">{task.subject}</span>
+                              <p className="text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed line-clamp-3">{task.task}</p>
                             </div>
                           </div>
                         ))}
@@ -413,23 +413,23 @@ export default function Planner() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl w-[calc(100%-32px)] md:w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 flex flex-col"
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-[calc(100%-32px)] md:w-full max-w-2xl max-h-[90vh] overflow-hidden relative z-10 flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 sticky top-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center">
                     <Calendar className="w-6 h-6 text-indigo-600" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900 capitalize">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 capitalize">
                       {format(new Date(selectedDay.date + 'T12:00:00'), 'EEEE, d MMMM', { locale: ru })}
                     </h2>
-                    <p className="text-sm text-slate-500">Подробный план на день</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Подробный план на день</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setSelectedDay(null)}
-                  className="p-2 hover:bg-slate-100 rounded-full transition text-slate-400"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition text-slate-400"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -437,14 +437,14 @@ export default function Planner() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {selectedDay.tasks?.map((task: { subject: string; task: string; hours?: number }, idx: number) => (
-                  <div key={idx} className="bg-slate-50 rounded-2xl p-4 md:p-5 border border-slate-100">
+                  <div key={idx} className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 md:p-5 border border-slate-100 dark:border-slate-700">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getColorForSubject(task.subject) }} />
-                        <h3 className="font-bold text-slate-900 text-lg">{task.subject}</h3>
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">{task.subject}</h3>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5 text-slate-500">
+                        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                           <Clock className="w-4 h-4" />
                           <span className="text-sm font-bold">{task.hours}ч</span>
                         </div>
@@ -452,11 +452,11 @@ export default function Planner() {
                     </div>
                     <div className="flex gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 text-slate-400">
+                        <div className="flex items-center gap-2 mb-2 text-slate-400 dark:text-slate-500">
                           <BookOpen className="w-4 h-4" />
                           <span className="text-xs font-semibold uppercase tracking-wider">Задача на день</span>
                         </div>
-                        <p className="text-slate-700 leading-relaxed bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                        <p className="text-slate-700 dark:text-slate-300 leading-relaxed bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
                           {task.task}
                         </p>
                       </div>
@@ -465,7 +465,7 @@ export default function Planner() {
                 ))}
               </div>
 
-              <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-700 text-center">
                 <button 
                   onClick={() => setSelectedDay(null)}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"

@@ -159,7 +159,7 @@ export default function Library() {
         <div className="text-center py-20">
           <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">Библиотека пуста</h2>
-          <p className="text-slate-400 dark:text-slate-505 text-sm mb-6">Загрузите первую лекцию, чтобы начать</p>
+          <p className="text-slate-400 dark:text-slate-500 text-sm mb-6">Загрузите первую лекцию, чтобы начать</p>
           <button
             onClick={() => navigate('/analyze')}
             className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition"
@@ -218,7 +218,7 @@ export default function Library() {
                   {!(m as any).is_assigned && (
                     <button
                       onClick={e => handleDelete(e, m.id)}
-                      className="shrink-0 p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      className="shrink-0 p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition opacity-0 group-hover:opacity-100"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -263,7 +263,7 @@ export default function Library() {
 
       {/* No results for filter */}
       {!loading && materials.length > 0 && filtered.length === 0 && (
-        <p className="text-center text-slate-400 dark:text-slate-505 py-10">Ничего не найдено</p>
+        <p className="text-center text-slate-400 dark:text-slate-500 py-10">Ничего не найдено</p>
       )}
     </div>
   );

@@ -189,22 +189,22 @@ export default function Layout() {
   const currentNavGroups = isTeacher ? teacherNavGroups : navGroups;
 
   const notificationDropdown = showNotifications && (
-    <div className="fixed inset-x-4 top-16 md:bottom-20 md:top-auto md:left-6 md:right-auto md:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-[70] overflow-hidden flex flex-col max-h-[60vh]">
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
-        <h3 className="font-bold text-slate-800">Уведомления</h3>
+    <div className="fixed inset-x-4 top-16 md:bottom-20 md:top-auto md:left-6 md:right-auto md:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[70] overflow-hidden flex flex-col max-h-[60vh]">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800/50">
+        <h3 className="font-bold text-slate-800 dark:text-slate-100">Уведомления</h3>
         {notifications.length > 0 && (
-          <button className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Отметить все</button>
+          <button className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-700 dark:hover:text-indigo-300">Отметить все</button>
         )}
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
         {notifications.length === 0 ? (
-          <div className="p-6 text-center text-slate-500 text-sm">Нет новых уведомлений</div>
+          <div className="p-6 text-center text-slate-500 dark:text-slate-400 text-sm">Нет новых уведомлений</div>
         ) : (
           notifications.map(n => (
-            <div key={n.id} className="p-3 rounded-xl hover:bg-slate-50 transition cursor-pointer">
-              <p className="text-sm text-slate-800 font-medium mb-1">{n.title}</p>
-              <p className="text-xs text-slate-600 line-clamp-2">{n.body}</p>
-              <p className="text-[10px] text-slate-400 mt-2">
+            <div key={n.id} className="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">
+              <p className="text-sm text-slate-800 dark:text-slate-100 font-medium mb-1">{n.title}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{n.body}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">
                 {new Date(n.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>

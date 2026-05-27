@@ -111,33 +111,33 @@ export default function Profile() {
   if (!profile) return <div className="p-8 text-center text-slate-500">Профиль не найден.</div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto min-h-[85vh]">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto min-h-[85vh]">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm relative overflow-hidden mb-8"
+        className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden mb-8"
       >
         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-indigo-500 to-purple-600" />
         
         <div className="relative pt-12 flex flex-col md:flex-row items-center md:items-end gap-6 mb-8">
           {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt="avatar" className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-white object-cover" />
+            <img src={profile.avatar_url} alt="avatar" className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 object-cover" />
           ) : (
-            <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-slate-100 flex items-center justify-center">
+            <div className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
               <UserCircle2 className="w-16 h-16 text-slate-400" />
             </div>
           )}
           
           <div className="flex-1 text-center md:text-left mb-2">
-            <h1 className="text-3xl font-extrabold text-slate-900">{profile.full_name || 'Студент'}</h1>
+            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{profile.full_name || 'Студент'}</h1>
             {profile.university && (
-              <div className="flex items-center justify-center md:justify-start gap-2 text-slate-500 mt-2 font-medium">
+              <div className="flex items-center justify-center md:justify-start gap-2 text-slate-500 dark:text-slate-400 mt-2 font-medium">
                 <GraduationCap className="w-5 h-5" />
                 {profile.university}
               </div>
             )}
             {profile.role === 'teacher' && (
-              <div className="inline-flex mt-2 items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold uppercase tracking-wider">
+              <div className="inline-flex mt-2 items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 rounded-lg text-xs font-bold uppercase tracking-wider border border-transparent dark:border-amber-900/50">
                 Преподаватель
               </div>
             )}
@@ -151,19 +151,19 @@ export default function Profile() {
                 </button>
               )}
               {friendStatus === 'pending' && (
-                <button disabled className="px-6 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed">
+                <button disabled className="px-6 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed">
                   <Check className="w-5 h-5" /> Заявка отправлена
                 </button>
               )}
               {friendStatus === 'accepted' && (
-                <button className="px-6 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold flex items-center gap-2">
+                <button className="px-6 py-2.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-450 rounded-xl font-bold flex items-center gap-2">
                   <Check className="w-5 h-5" /> Уже в друзьях
                 </button>
               )}
             </div>
           ) : (
             <div className="mb-2">
-              <button onClick={() => setIsEditing(!isEditing)} className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition shadow-sm">
+              <button onClick={() => setIsEditing(!isEditing)} className="px-6 py-2.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-70 transition shadow-sm">
                 {isEditing ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                 {isEditing ? 'Отмена' : 'Редактировать'}
               </button>
@@ -173,28 +173,28 @@ export default function Profile() {
 
         {/* Форма редактирования */}
         {isEditing && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-200">
-            <h3 className="font-bold text-slate-900 mb-4">Редактирование профиля</h3>
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-8 p-6 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4">Редактирование профиля</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Имя и Фамилия</label>
-                <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя и Фамилия</label>
+                <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Университет / Школа</label>
-                <input type="text" value={editForm.university} onChange={e => setEditForm({...editForm, university: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Университет / Школа</label>
+                <input type="text" value={editForm.university} onChange={e => setEditForm({...editForm, university: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Ссылка на аватарку (URL)</label>
-                <input type="text" value={editForm.avatar_url} onChange={e => setEditForm({...editForm, avatar_url: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://example.com/avatar.jpg" />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ссылка на аватарку (URL)</label>
+                <input type="text" value={editForm.avatar_url} onChange={e => setEditForm({...editForm, avatar_url: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://example.com/avatar.jpg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">О себе (Био)</label>
-                <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">О себе (Био)</label>
+                <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Роль в системе</label>
-                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Роль в системе</label>
+                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                   <option value="student">Студент</option>
                   <option value="teacher">Преподаватель</option>
                 </select>
@@ -207,57 +207,57 @@ export default function Profile() {
         )}
 
         {!isEditing && profile.bio && (
-          <div className="mb-8 p-5 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 leading-relaxed">
+          <div className="mb-8 p-5 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-800/40 text-slate-700 dark:text-slate-300 leading-relaxed">
             {profile.bio}
           </div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-5 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
-            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mb-3">
+          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+            <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center mb-3">
               <Trophy className="w-5 h-5 text-indigo-600" />
             </div>
-            <div className="text-2xl font-black text-slate-900">{profile.streak_days || 0}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Дней подряд</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{profile.streak_days || 0}</div>
+            <div className="text-xs font-bold text-slate-550 dark:text-slate-450 uppercase tracking-widest mt-1">Дней подряд</div>
           </div>
           
-          <div className="p-5 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
-            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center mb-3">
+          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-950/40 rounded-xl flex items-center justify-center mb-3">
               <BookOpen className="w-5 h-5 text-emerald-600" />
             </div>
-            <div className="text-2xl font-black text-slate-900">{profile.total_materials || 0}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Конспектов</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{profile.total_materials || 0}</div>
+            <div className="text-xs font-bold text-slate-550 dark:text-slate-450 uppercase tracking-widest mt-1">Конспектов</div>
           </div>
 
-          <div className="p-5 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mb-3">
+          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-950/40 rounded-xl flex items-center justify-center mb-3">
               <GraduationCap className="w-5 h-5 text-amber-600" />
             </div>
-            <div className="text-2xl font-black text-slate-900">{profile.total_reviews || 0}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Повторений</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{profile.total_reviews || 0}</div>
+            <div className="text-xs font-bold text-slate-550 dark:text-slate-450 uppercase tracking-widest mt-1">Повторений</div>
           </div>
         </div>
 
         {isMyProfile && (
-          <div className="mt-8 pt-8 border-t border-slate-100">
-            <h3 className="font-bold text-slate-900 mb-4">Настройки устройства</h3>
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4">Настройки устройства</h3>
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start sm:items-center gap-3">
-                <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${pushEnabled ? 'bg-indigo-100' : 'bg-slate-200'}`}>
+                <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${pushEnabled ? 'bg-indigo-100 dark:bg-indigo-950/40' : 'bg-slate-200 dark:bg-slate-800'}`}>
                   {pushEnabled ? <Bell className="w-5 h-5 text-indigo-600" /> : <BellOff className="w-5 h-5 text-slate-500" />}
                 </div>
                 <div className="text-left">
-                  <p className="font-bold text-slate-900 text-sm">Push-уведомления (PWA)</p>
-                  <p className="text-xs text-slate-500 leading-tight mt-0.5">Ежедневные напоминания о материалах, требующих повторения.</p>
+                  <p className="font-bold text-slate-900 dark:text-slate-200 text-sm">Push-уведомления (PWA)</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">Ежедневные напоминания о материалах, требующих повторения.</p>
                 </div>
               </div>
               <button 
                 onClick={handleTogglePush}
                 disabled={pushLoading || pushEnabled}
                 className={`w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition ${
-                  pushLoading ? 'bg-slate-200 text-slate-400 cursor-not-allowed' :
-                  pushEnabled ? 'bg-indigo-50 text-indigo-600 cursor-default border border-indigo-100' :
-                  'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                  pushLoading ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' :
+                  pushEnabled ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 cursor-default border border-indigo-100 dark:border-indigo-950' :
+                  'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-650 dark:hover:bg-indigo-600 text-white shadow-sm'
                 }`}
               >
                 {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
@@ -269,24 +269,24 @@ export default function Profile() {
 
       {/* Входящие заявки в друзья */}
       {isMyProfile && incomingRequests.length > 0 && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Входящие заявки в друзья ({incomingRequests.length})</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">Входящие заявки в друзья ({incomingRequests.length})</h2>
           <div className="space-y-3">
             {incomingRequests.map(req => (
-              <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-3">
                   {req.friend_avatar ? (
                     <img src={req.friend_avatar} className="w-10 h-10 rounded-full object-cover" alt="avatar" />
                   ) : (
                     <UserCircle2 className="w-10 h-10 text-slate-400" />
                   )}
-                  <span className="font-bold text-slate-800">{req.friend_name}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{req.friend_name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handleRespondRequest(req.id, 'accepted')} className="p-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition" title="Принять">
+                  <button onClick={() => handleRespondRequest(req.id, 'accepted')} className="p-2 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 rounded-lg transition" title="Принять">
                     <UserCheck className="w-5 h-5" />
                   </button>
-                  <button onClick={() => handleRespondRequest(req.id, 'declined')} className="p-2 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition" title="Отклонить">
+                  <button onClick={() => handleRespondRequest(req.id, 'declined')} className="p-2 bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-900/50 rounded-lg transition" title="Отклонить">
                     <UserX className="w-5 h-5" />
                   </button>
                 </div>

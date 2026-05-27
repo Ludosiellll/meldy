@@ -16,10 +16,13 @@ import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getUserXP, calcLevel, ACHIEVEMENTS } from '../api/quests';
+import { useTheme } from '../contexts/ThemeProvider';
 
 export default function Analytics() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [loading, setLoading] = useState(true);
   const [xp, setXp] = useState(0);
   const [sessions, setSessions] = useState<any[]>([]);
@@ -117,11 +120,11 @@ export default function Analytics() {
   })();
 
   const getProficiencyColor = (score: number, status: string) => {
-    if (status === 'not_started') return 'bg-slate-100 border-slate-200 text-slate-400';
-    if (score < 40) return 'bg-rose-100 border-rose-200 text-rose-700';
-    if (score < 70) return 'bg-amber-100 border-amber-200 text-amber-700';
-    if (score < 85) return 'bg-indigo-100 border-indigo-200 text-indigo-700';
-    return 'bg-emerald-100 border-emerald-200 text-emerald-700';
+    if (status === 'not_started') return 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500';
+    if (score < 40) return 'bg-rose-100 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400';
+    if (score < 70) return 'bg-amber-100 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-400';
+    if (score < 85) return 'bg-indigo-100 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/50 text-indigo-700 dark:text-indigo-400';
+    return 'bg-emerald-100 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400';
   };
 
   // Активность за 30 дней
@@ -188,11 +191,11 @@ export default function Analytics() {
   })();
 
   const heatColor = (v: number) => {
-    if (v === 0) return 'bg-slate-100';
-    if (v < 3) return 'bg-indigo-200';
-    if (v < 7) return 'bg-indigo-400';
-    if (v < 15) return 'bg-indigo-600';
-    return 'bg-indigo-800';
+    if (v === 0) return 'bg-slate-100 dark:bg-slate-800';
+    if (v < 3) return 'bg-indigo-200 dark:bg-indigo-800';
+    if (v < 7) return 'bg-indigo-400 dark:bg-indigo-600';
+    if (v < 15) return 'bg-indigo-600 dark:bg-indigo-500';
+    return 'bg-indigo-800 dark:bg-indigo-400';
   };
 
   if (loading) return (
@@ -205,12 +208,12 @@ export default function Analytics() {
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6 md:space-y-8">
       {/* Заголовок */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
-          <BarChart2 className="w-5 h-5 text-indigo-600" />
+        <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-950/50 rounded-xl flex items-center justify-center">
+          <BarChart2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Аналитика прогресса</h1>
-          <p className="text-xs text-slate-500">Твой персональный отчёт об обучении</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Аналитика прогресса</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Твой персональный отчёт об обучении</p>
         </div>
       </div>
 
@@ -252,22 +255,22 @@ export default function Analytics() {
       {/* Ключевые метрики */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
         {[
-          { icon: Flame, label: 'Стрик', value: `${streak} дн.`, color: 'rose', sub: 'дней подряд' },
-          { icon: Trophy, label: 'Экзаменов', value: exams.length, color: 'amber', sub: 'сдано' },
-          { icon: Brain, label: 'Карточек', value: totalCards, color: 'emerald', sub: 'повторено' },
-          { icon: Target, label: 'Средний балл', value: `${avgExamScore}%`, color: 'indigo', sub: 'на экзаменах' },
-        ].map(({ icon: Icon, label, value, color, sub }) => (
+          { icon: Flame, label: 'Стрик', value: `${streak} дн.`, colorBg: 'bg-rose-50 dark:bg-rose-950/40', colorIcon: 'text-rose-600 dark:text-rose-400', sub: 'дней подряд' },
+          { icon: Trophy, label: 'Экзаменов', value: exams.length, colorBg: 'bg-amber-50 dark:bg-amber-950/40', colorIcon: 'text-amber-600 dark:text-amber-400', sub: 'сдано' },
+          { icon: Brain, label: 'Карточек', value: totalCards, colorBg: 'bg-emerald-50 dark:bg-emerald-950/40', colorIcon: 'text-emerald-600 dark:text-emerald-400', sub: 'повторено' },
+          { icon: Target, label: 'Средний балл', value: `${avgExamScore}%`, colorBg: 'bg-indigo-50 dark:bg-indigo-950/40', colorIcon: 'text-indigo-600 dark:text-indigo-400', sub: 'на экзаменах' },
+        ].map(({ icon: Icon, label, value, colorBg, colorIcon, sub }) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="card p-3 md:p-4"
           >
-            <div className={`w-9 h-9 bg-${color}-50 rounded-lg flex items-center justify-center mb-3`}>
-              <Icon className={`w-5 h-5 text-${color}-600`} />
+            <div className={`w-9 h-9 ${colorBg} rounded-lg flex items-center justify-center mb-3`}>
+              <Icon className={`w-5 h-5 ${colorIcon}`} />
             </div>
-            <p className="text-2xl font-black text-slate-900">{value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{sub}</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{value}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</p>
           </motion.div>
         ))}
       </div>
@@ -276,23 +279,26 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* График активности */}
         <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-indigo-500" />
             Активность за 30 дней
           </h3>
-          <div style={{ height: 180, minWidth: 400 }}>
+          <div style={{ height: 180, minWidth: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94a3b8" interval={4} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: number) => [v, 'Карточек']} />
-                <Area type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} fill="url(#actGrad)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} stroke={isDark ? '#334155' : '#e2e8f0'} interval={4} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} stroke={isDark ? '#334155' : '#e2e8f0'} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', fontSize: 12, backgroundColor: isDark ? '#1e293b' : '#ffffff', color: isDark ? '#f1f5f9' : '#0f172a' }}
+                  formatter={(v: number) => [v, 'Карточек']}
+                />
+                <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#actGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -300,16 +306,16 @@ export default function Analytics() {
 
         {/* Профиль навыков */}
         <div className="card p-4 md:p-5">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-500" />
             Профиль навыков
           </h3>
-          <div style={{ height: 180, minWidth: 250 }}>
+          <div style={{ height: 180, minWidth: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid stroke="#e2e8f0" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748b' }} />
-                <Radar name="Навыки" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.2} strokeWidth={2} />
+                <PolarGrid stroke={isDark ? '#334155' : '#e2e8f0'} />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} />
+                <Radar name="Навыки" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
@@ -318,24 +324,24 @@ export default function Analytics() {
 
       {/* Оценки на экзаменах */}
       <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
-        <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
           <Award className="w-4 h-4 text-rose-500" />
           Динамика оценок на AI-Экзамене
         </h3>
         {examScoreData.length < 3 ? (
           <div className="h-[160px] flex flex-col items-center justify-center text-center">
-            <Award className="w-10 h-10 text-slate-200 mb-2" />
-            <p className="text-sm font-medium text-slate-500">Недостаточно данных</p>
-            <p className="text-xs text-slate-400">Сдайте еще {3 - examScoreData.length} экзамен(а), чтобы увидеть график</p>
+            <Award className="w-10 h-10 text-slate-200 dark:text-slate-700 mb-2" />
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Недостаточно данных</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Сдайте еще {3 - examScoreData.length} экзамен(а), чтобы увидеть график</p>
           </div>
         ) : (
-          <div style={{ height: 160, minWidth: 350 }}>
+          <div style={{ height: 160, minWidth: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={examScoreData}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} stroke={isDark ? '#334155' : '#e2e8f0'} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' }} stroke={isDark ? '#334155' : '#e2e8f0'} />
                 <Tooltip
-                  contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
+                  contentStyle={{ borderRadius: 8, border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', fontSize: 12, backgroundColor: isDark ? '#1e293b' : '#ffffff', color: isDark ? '#f1f5f9' : '#0f172a' }}
                   formatter={(v: number, _: unknown, props: unknown) => [
                     `${v}% — ${(props as any).payload.subject || 'Без предмета'}`, 'Балл'
                   ]}
@@ -343,8 +349,8 @@ export default function Analytics() {
                 <Bar
                   dataKey="score"
                   radius={[4, 4, 0, 0]}
-                  fill="#4f46e5"
-                  label={{ position: 'top', fontSize: 10, fill: '#64748b', formatter: (v: number) => `${v}%` }}
+                  fill="#6366f1"
+                  label={{ position: 'top', fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b', formatter: (v: number) => `${v}%` }}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -354,11 +360,11 @@ export default function Analytics() {
 
       {/* Тепловая карта */}
       <div className="card p-4 md:p-5">
-        <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-2">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
           <Calendar className="w-4 h-4 text-emerald-500" />
           Карта активности (12 недель)
         </h3>
-        <p className="text-xs text-slate-400 mb-4">Интенсивность повторения карточек по дням</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Интенсивность повторения карточек по дням</p>
         <div className="flex gap-1 overflow-x-auto pb-2">
           {heatmapData.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-1">
@@ -373,21 +379,27 @@ export default function Analytics() {
           ))}
         </div>
         <div className="flex items-center gap-2 mt-3">
-          <span className="text-xs text-slate-400">Меньше</span>
-          {['bg-slate-100', 'bg-indigo-200', 'bg-indigo-400', 'bg-indigo-600', 'bg-indigo-800'].map(c => (
+          <span className="text-xs text-slate-400 dark:text-slate-500">Меньше</span>
+          {[
+            'bg-slate-100 dark:bg-slate-800',
+            'bg-indigo-200 dark:bg-indigo-800',
+            'bg-indigo-400 dark:bg-indigo-600',
+            'bg-indigo-600 dark:bg-indigo-500',
+            'bg-indigo-800 dark:bg-indigo-400'
+          ].map(c => (
             <div key={c} className={`w-3 h-3 rounded-sm ${c}`} />
           ))}
-          <span className="text-xs text-slate-400">Больше</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">Больше</span>
         </div>
       </div>
 
       {/* Тепловая карта владения знаниями */}
       <div className="card p-4 md:p-5">
-        <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-2">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
           <Brain className="w-4 h-4 text-indigo-500 animate-pulse" />
           Карта владения знаниями по темам
         </h3>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
           Уровень освоения материала на основе устных экзаменов (40%) и повторения карточек (60%)
         </p>
 
@@ -433,20 +445,20 @@ export default function Analytics() {
       {/* Слабые темы */}
       {mistakeTopics.length > 0 && (
         <div className="card p-4 md:p-5">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
             <BookMarked className="w-4 h-4 text-amber-500" />
             Топ тем с ошибками
           </h3>
           <div className="space-y-3">
             {mistakeTopics.map(([topic, count], i) => (
               <div key={topic} className="flex items-center gap-3">
-                <span className="text-xs font-black text-slate-400 w-4">{i + 1}</span>
+                <span className="text-xs font-black text-slate-400 dark:text-slate-500 w-4">{i + 1}</span>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-slate-700 truncate">{topic}</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{topic}</span>
                     <span className="text-xs font-bold text-rose-500 ml-2">{count} ошибок</span>
                   </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-rose-400 rounded-full"
                       style={{ width: `${Math.min(100, (count / (mistakeTopics[0][1])) * 100)}%` }}
@@ -455,7 +467,7 @@ export default function Analytics() {
                 </div>
                 <button
                   onClick={() => navigate('/mistakes')}
-                  className="text-slate-300 hover:text-indigo-500 transition"
+                  className="text-slate-300 dark:text-slate-600 hover:text-indigo-500 transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -467,7 +479,7 @@ export default function Analytics() {
 
       {/* Достижения */}
       <div className="card p-4 md:p-5">
-        <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
           <Trophy className="w-4 h-4 text-amber-500" />
           Достижения ({earnedAchievements.length}/{ACHIEVEMENTS.length})
         </h3>
@@ -479,21 +491,21 @@ export default function Analytics() {
                 key={ach.id}
                 className={`p-3 rounded-xl border text-center transition-all ${
                   earned
-                    ? 'bg-amber-50 border-amber-200 shadow-sm'
-                    : 'bg-slate-50 border-slate-200 opacity-40 grayscale'
+                    ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 shadow-sm'
+                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-40 grayscale'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 ${
-                  earned ? 'bg-amber-100' : 'bg-slate-200'
+                  earned ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-slate-200 dark:bg-slate-800'
                 }`}>
-                  <Trophy className={`w-5 h-5 ${earned ? 'text-amber-600' : 'text-slate-400'}`} />
+                  <Trophy className={`w-5 h-5 ${earned ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-600'}`} />
                 </div>
-                <p className={`text-xs font-bold leading-tight ${earned ? 'text-slate-800' : 'text-slate-500'}`}>
+                <p className={`text-xs font-bold leading-tight ${earned ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}>
                   {ach.title}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{ach.description}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{ach.description}</p>
                 {earned && (
-                  <span className="mt-1.5 inline-flex items-center gap-0.5 bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+                  <span className="mt-1.5 inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
                     <Zap className="w-2.5 h-2.5" />
                     +{ach.xp}
                   </span>

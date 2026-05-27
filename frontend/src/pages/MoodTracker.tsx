@@ -141,15 +141,15 @@ export default function MoodTracker() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
       {/* Заголовок */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-pink-100 rounded-xl flex items-center justify-center">
           <Heart className="w-5 h-5 text-pink-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Трекер состояния</h1>
-          <p className="text-xs text-slate-500">Как ты себя чувствуешь? ИИ подберёт режим учёбы</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Трекер состояния</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Как ты себя чувствуешь? ИИ подберёт режим учёбы</p>
         </div>
       </div>
 
@@ -164,8 +164,8 @@ export default function MoodTracker() {
             className="space-y-5"
           >
             <div className="card p-6">
-              <h2 className="font-bold text-slate-900 mb-1">Как ты сегодня?</h2>
-              <p className="text-xs text-slate-400 mb-5">Выбери своё состояние прямо сейчас</p>
+              <h2 className="font-bold text-slate-900 dark:text-slate-100 mb-1">Как ты сегодня?</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Выбери своё состояние прямо сейчас</p>
 
               <div className="grid grid-cols-5 gap-2 mb-6">
                 {(Object.entries(MOODS) as [MoodType, MoodConfig][]).map(([key, cfg]) => {
@@ -178,11 +178,11 @@ export default function MoodTracker() {
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
                         isSelected
                           ? `${cfg.bg} ${cfg.border} scale-105 shadow-md`
-                          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <span className="text-2xl">{cfg.emoji}</span>
-                      <span className={`text-[10px] font-bold ${isSelected ? cfg.color : 'text-slate-500'}`}>
+                      <span className={`text-[10px] font-bold ${isSelected ? cfg.color : 'text-slate-500 dark:text-slate-400'}`}>
                         {cfg.label}
                       </span>
                     </button>
@@ -193,7 +193,7 @@ export default function MoodTracker() {
               {/* Уровень энергии */}
               <div className="mb-5">
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Уровень энергии
                   </label>
                   <span className="text-xs font-semibold text-indigo-600">
@@ -221,14 +221,14 @@ export default function MoodTracker() {
 
               {/* Заметка */}
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">
                   Заметка (необязательно)
                 </label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Что беспокоит? Есть дедлайн? Хочется конкретного?"
-                  className="w-full h-20 px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none bg-slate-50/50"
+                  className="w-full h-20 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none bg-slate-50/50 dark:bg-slate-800/50 dark:text-slate-100 placeholder-slate-400"
                 />
               </div>
 
@@ -238,13 +238,13 @@ export default function MoodTracker() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   style={{ overflow: 'hidden' }}
-                  className="mt-4 bg-indigo-50 border border-indigo-100 rounded-xl"
+                  className="mt-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-xl"
                 >
                   <div className="p-3.5">
-                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                       <Brain className="w-3 h-3" /> Рекомендация ИИ:
                     </p>
-                    <p className="text-sm text-indigo-800 font-medium leading-snug">
+                    <p className="text-sm text-indigo-800 dark:text-indigo-200 font-medium leading-snug">
                       {getRecommendation(selectedMood, energy)}
                     </p>
                   </div>
@@ -277,13 +277,13 @@ export default function MoodTracker() {
               <div className="flex items-center gap-4 mb-4">
                 <span className="text-4xl">{moodToEmoji(todayEntry.mood)}</span>
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Сегодня ты сказал(а)</p>
+                  <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Сегодня ты сказал(а)</p>
                   <h2 className={`text-lg font-black ${MOODS[todayEntry.mood]?.color ?? 'text-slate-900'}`}>
                     {MOODS[todayEntry.mood]?.label}
                   </h2>
                   <div className="flex items-center gap-1 mt-1">
                     <span className="text-xs text-slate-400">Энергия:</span>
-                    <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-indigo-500 rounded-full transition-all"
                         style={{ width: `${energyToBar(todayEntry.energy_level)}%` }}
@@ -295,18 +295,18 @@ export default function MoodTracker() {
               </div>
 
               {/* Рекомендация */}
-              <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl">
-                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-xl">
+                <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                   <Brain className="w-3 h-3" /> Рекомендованный режим учёбы:
                 </p>
-                <p className="text-sm text-slate-800 font-medium leading-relaxed">
+                <p className="text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
                   {todayEntry.recommended_mode}
                 </p>
               </div>
 
               {todayEntry.notes && (
-                <div className="mt-3 p-3 bg-slate-50 rounded-xl">
-                  <p className="text-xs text-slate-500 italic">«{todayEntry.notes}»</p>
+                <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 italic">«{todayEntry.notes}»</p>
                 </div>
               )}
 
@@ -321,21 +321,21 @@ export default function MoodTracker() {
             {/* История последних 14 дней */}
             {history.length > 0 && (
               <div className="card p-5">
-                <h3 className="font-bold text-slate-900 text-sm mb-4">История настроений (последние 14 дней)</h3>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-4">История настроений (последние 14 дней)</h3>
                 <div className="space-y-2">
                   {history.slice(0, 7).map(entry => (
-                    <div key={entry.id} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+                    <div key={entry.id} className="flex items-center gap-3 py-2 border-b border-slate-50 dark:border-slate-800 last:border-0">
                       <span className="text-lg w-8 text-center">{moodToEmoji(entry.mood)}</span>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-700">
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                             {MOODS[entry.mood]?.label}
                           </span>
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500">
                             {new Date(entry.logged_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                           </span>
                         </div>
-                        <div className="w-full h-1 bg-slate-100 rounded-full mt-1">
+                        <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full mt-1">
                           <div
                             className="h-full bg-indigo-400 rounded-full"
                             style={{ width: `${energyToBar(entry.energy_level)}%` }}

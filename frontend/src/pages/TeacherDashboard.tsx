@@ -276,16 +276,16 @@ export default function TeacherDashboard() {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-[85vh]">
       {/* Role Switcher Widget */}
-      <div className="mb-6 p-4 bg-white border border-slate-200 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm tour-step-role-toggle">
+      <div className="mb-6 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm tour-step-role-toggle">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md ${role === 'teacher' ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
             {role === 'teacher' ? <Users className="w-5 h-5" /> : <GraduationCap className="w-5 h-5" />}
           </div>
           <div>
-            <h4 className="font-extrabold text-slate-800 text-sm">
+            <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
               {role === 'teacher' ? <span className="flex items-center gap-1.5">Режим: Преподаватель <GraduationCap className="w-4 h-4 text-indigo-500" /></span> : <span className="flex items-center gap-1.5">Режим: Студент <Backpack className="w-4 h-4 text-rose-500" /></span>}
             </h4>
-            <p className="text-xs text-slate-500 max-w-xl mt-0.5 leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl mt-0.5 leading-relaxed">
               {role === 'teacher' 
                 ? 'Вы управляете классами, приглашаете учеников и выдаете им домашние задания. Хотите учиться сами и решать тесты? Переключитесь в режим студента.'
                 : 'Вы видите домашние задания и дедлайны от преподавателя, а также соревнуетесь в лидерборде. Хотите сами преподавать и создавать свои группы? Переключитесь в режим преподавателя!'}
@@ -294,7 +294,7 @@ export default function TeacherDashboard() {
         </div>
         <button 
           onClick={handleToggleRole}
-          className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-md transition shrink-0 ${role === 'teacher' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
+          className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-md dark:shadow-none transition shrink-0 ${role === 'teacher' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
         >
           {role === 'teacher' ? <span className="flex items-center gap-1.5 justify-center">В режим Студента <Backpack className="w-4 h-4" /></span> : <span className="flex items-center gap-1.5 justify-center">В режим Преподавателя <GraduationCap className="w-4 h-4" /></span>}
         </button>
@@ -303,10 +303,10 @@ export default function TeacherDashboard() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
             {role === 'teacher' ? 'Мои учебные классы' : 'Мой учебный класс'}
           </h1>
-          <p className="text-slate-500 mt-1">
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
             {role === 'teacher' 
               ? 'Управляйте группами, создавайте задания и просматривайте статистику учеников.' 
               : 'Ваше учебное пространство, дедлайны от преподавателя и рейтинг одногруппников.'}
@@ -316,7 +316,7 @@ export default function TeacherDashboard() {
         {role === 'teacher' && (
           <button 
             onClick={() => setShowCreateGroup(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-sm dark:shadow-none"
           >
             <Plus className="w-5 h-5" />
             Создать класс
@@ -326,13 +326,13 @@ export default function TeacherDashboard() {
 
       {/* CREATE GROUP PANEL */}
       {showCreateGroup && role === 'teacher' && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-8 flex items-end gap-4">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 mb-8 flex items-end gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-bold text-slate-700 mb-2">Название новой группы</label>
-            <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Например: ПИ-22 (Алгебра)" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Название новой группы</label>
+            <input autoFocus value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Например: ПИ-22 (Алгебра)" className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
           </div>
           <button onClick={handleCreateGroup} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition h-[42px]">Создать</button>
-          <button onClick={() => setShowCreateGroup(false)} className="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition h-[42px]">Отмена</button>
+          <button onClick={() => setShowCreateGroup(false)} className="px-6 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold transition h-[42px]">Отмена</button>
         </motion.div>
       )}
 
@@ -347,12 +347,12 @@ export default function TeacherDashboard() {
       {/* EMPTY GROUPS STATE */}
       {!(loading || role === null) && groups.length === 0 && (
         <div className="space-y-6">
-          <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 border-dashed">
-            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-800">
+          <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 border-dashed">
+            <Users className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
               {role === 'teacher' ? 'У вас пока нет групп' : 'Вы пока не вступили в группу'}
             </h2>
-            <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm leading-relaxed">
+            <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto text-sm leading-relaxed">
               {role === 'teacher' 
                 ? 'Создайте свой первый класс, чтобы пригласить студентов по коду приглашения.' 
                 : 'Вам нужно вступить в группу вашего преподавателя по пятизначному коду приглашения.'}
@@ -360,7 +360,7 @@ export default function TeacherDashboard() {
             {role === 'student' && (
               <button
                 onClick={() => navigate('/library')}
-                className="mt-6 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200"
+                className="mt-6 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200 dark:shadow-none"
               >
                 Вступить в класс
               </button>
@@ -368,8 +368,8 @@ export default function TeacherDashboard() {
           </div>
 
           {/* Step by step guide card */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-            <h3 className="font-extrabold text-slate-800 text-base mb-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base mb-4">
               Как устроена работа с классами? 🧭
             </h3>
             
@@ -377,47 +377,47 @@ export default function TeacherDashboard() {
               {role === 'teacher' ? (
                 <>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Создайте класс</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Нажмите кнопку «Создать класс» в правом верхнем углу этой страницы и введите его название.</p>
+                    <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Создайте класс</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Нажмите кнопку «Создать класс» в правом верхнем углу этой страницы и введите его название.</p>
                   </div>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">2</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Передайте код</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Скопируйте уникальный пятизначный код класса из карточки группы и отправьте его своим ученикам.</p>
+                    <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Передайте код</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Скопируйте уникальный пятизначный код класса из карточки группы и отправьте его своим ученикам.</p>
                   </div>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">3</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Назначьте лекцию</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Нажмите «Назначить задание», выберите лекцию из своей библиотеки и укажите дату сдачи (дедлайн).</p>
+                    <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">3</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Назначьте лекцию</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Нажмите «Назначить задание», выберите лекцию из своей библиотеки и укажите дату сдачи (дедлайн).</p>
                   </div>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold text-xs">4</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Следите за топом</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">В лидерборде вы увидите активность студентов за 7 дней и всё время (XP за карточки и экзамены).</p>
+                    <span className="w-7 h-7 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-full flex items-center justify-center font-bold text-xs">4</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Следите за топом</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">В лидерборде вы увидите активность студентов за 7 дней и всё время (XP за карточки и экзамены).</p>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Получите код</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Попросите у своего преподавателя уникальный 5-значный код для вступления в его группу.</p>
+                    <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Получите код</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Попросите у своего преподавателя уникальный 5-значный код для вступления в его группу.</p>
                   </div>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">2</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Вступите в класс</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Перейдите в «Библиотеку» и в правом верхнем углу нажмите кнопку «Ввести код класса».</p>
+                    <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Вступите в класс</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Перейдите в «Библиотеку» и в правом верхнем углу нажмите кнопку «Ввести код класса».</p>
                   </div>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">3</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Делайте задания</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Изучайте назначенные преподавателем конспекты, чтобы успешно уложиться в дедлайны.</p>
+                    <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">3</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Делайте задания</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Изучайте назначенные преподавателем конспекты, чтобы успешно уложиться в дедлайны.</p>
                   </div>
                   <div className="space-y-2">
-                    <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">4</span>
-                    <h4 className="font-bold text-slate-700 text-sm">Участвуйте в рейтинге</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed">Решайте тесты и заучивайте карточки, накапливайте еженедельный XP и занимайте топ-3 пьедестала!</p>
+                    <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">4</span>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-350 text-sm">Участвуйте в рейтинге</h4>
+                    <p className="text-slate-500 dark:text-slate-450 text-xs leading-relaxed">Решайте тесты и заучивайте карточки, накапливайте еженедельный XP и занимайте топ-3 пьедестала!</p>
                   </div>
                 </>
               )}
@@ -431,20 +431,20 @@ export default function TeacherDashboard() {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar */}
           <div className="lg:w-1/4 shrink-0">
-            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden sticky top-4">
-              <div className="p-4 border-b border-slate-100 bg-slate-50">
-                <h2 className="font-bold text-slate-700 uppercase tracking-wider text-xs">Список классов</h2>
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden sticky top-4">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40">
+                <h2 className="font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider text-xs">Список классов</h2>
               </div>
               <div className="p-2 space-y-1 max-h-[60vh] overflow-y-auto">
                 {groups.map(g => (
                   <button
                     key={g.id}
                     onClick={() => setSelectedGroupId(g.id)}
-                    className={`w-full text-left px-4 py-3 rounded-xl transition ${selectedGroupId === g.id ? 'bg-indigo-50 text-indigo-700 font-bold' : 'hover:bg-slate-50 text-slate-700 font-medium'}`}
+                    className={`w-full text-left px-4 py-3 rounded-xl transition ${selectedGroupId === g.id ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 font-bold' : 'hover:bg-slate-50 dark:hover:bg-slate-800/35 text-slate-700 dark:text-slate-300 font-medium'}`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="truncate mr-2">{g.name}</span>
-                      <Users className={`w-4 h-4 shrink-0 ${selectedGroupId === g.id ? 'text-indigo-400' : 'text-slate-300'}`} />
+                      <Users className={`w-4 h-4 shrink-0 ${selectedGroupId === g.id ? 'text-indigo-400' : 'text-slate-300 dark:text-slate-600'}`} />
                     </div>
                   </button>
                 ))}
@@ -456,22 +456,22 @@ export default function TeacherDashboard() {
           {selectedGroup && (
             <div className="lg:w-3/4 flex-1 space-y-6">
               {/* Group Header Card */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">{selectedGroup.name}</h2>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{selectedGroup.name}</h2>
                   
-                  <div className="flex flex-wrap items-center gap-4 mt-2 text-slate-500 text-sm">
+                  <div className="flex flex-wrap items-center gap-4 mt-2 text-slate-500 dark:text-slate-400 text-sm">
                     {role === 'student' && (
                       <div className="flex items-center gap-1">
-                        <Users className="w-4 h-4 text-slate-400" />
-                        <span>Преподаватель: <span className="font-semibold text-slate-700">{teacherName}</span></span>
+                        <Users className="w-4 h-4 text-slate-400 dark:text-slate-650" />
+                        <span>Преподаватель: <span className="font-semibold text-slate-700 dark:text-slate-300">{teacherName}</span></span>
                       </div>
                     )}
                     
                     <div className="flex items-center gap-2">
-                      <Key className="w-4 h-4 text-slate-400" />
+                      <Key className="w-4 h-4 text-slate-400 dark:text-slate-650" />
                       <span>Код приглашения:</span>
-                      <span className="font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold text-base select-all">
+                      <span className="font-mono bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 px-2 py-0.5 rounded font-bold text-base select-all">
                         {selectedGroup.invite_code}
                       </span>
                     </div>
@@ -479,7 +479,7 @@ export default function TeacherDashboard() {
                     {role === 'teacher' && (
                       <button 
                         onClick={() => setShowQRModal(true)}
-                        className="text-indigo-600 hover:text-indigo-700 text-sm font-bold ml-2 underline"
+                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-355 text-sm font-bold ml-2 underline"
                       >
                         Показать QR-код
                       </button>
@@ -500,23 +500,23 @@ export default function TeacherDashboard() {
               {/* QR CODE MODAL */}
               {showQRModal && role === 'teacher' && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2">Пригласить в класс</h3>
-                    <p className="text-slate-500 text-sm mb-6">Попросите учеников отсканировать этот QR-код или ввести код вручную в Библиотеке.</p>
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border dark:border-slate-800">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Пригласить в класс</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Попросите учеников отсканировать этот QR-код или ввести код вручную в Библиотеке.</p>
                     
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 inline-block mb-6 shadow-sm">
+                    <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 inline-block mb-6 shadow-sm">
                       <QRCode 
                         value={`${window.location.origin}/library?join=${selectedGroup.invite_code}`} 
                         size={200}
                       />
                     </div>
                     
-                    <div className="bg-indigo-50 rounded-xl p-3 mb-6">
+                    <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-xl p-3 mb-6">
                       <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1 block">Код класса</span>
-                      <span className="text-2xl font-black font-mono text-indigo-700 tracking-widest">{selectedGroup.invite_code}</span>
+                      <span className="text-2xl font-black font-mono text-indigo-700 dark:text-indigo-400 tracking-widest">{selectedGroup.invite_code}</span>
                     </div>
                     
-                    <button onClick={() => setShowQRModal(false)} className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+                    <button onClick={() => setShowQRModal(false)} className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition">
                       Закрыть
                     </button>
                   </motion.div>
@@ -525,22 +525,22 @@ export default function TeacherDashboard() {
 
               {/* ASSIGN MATERIAL MODAL */}
               {showAssignModal && role === 'teacher' && (
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl p-6 border border-indigo-100 shadow-lg shadow-indigo-100/50">
-                  <h3 className="font-bold text-slate-900 mb-4">Назначить материал группе</h3>
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-indigo-100 dark:border-slate-850 shadow-lg shadow-indigo-100/50 dark:shadow-none">
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4">Назначить материал группе</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Выберите материал из вашей библиотеки</label>
-                      <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Выберите материал из вашей библиотеки</label>
+                      <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)} className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                         <option value="">-- Выберите материал --</option>
                         {materials.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Дедлайн (опционально)</label>
-                      <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Дедлайн (опционально)</label>
+                      <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div className="flex gap-2 justify-end pt-2">
-                      <button onClick={() => setShowAssignModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Отмена</button>
+                      <button onClick={() => setShowAssignModal(false)} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-350 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
                       <button onClick={handleAssign} disabled={!selectedMaterial} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Назначить</button>
                     </div>
                   </div>
@@ -549,20 +549,20 @@ export default function TeacherDashboard() {
 
               {/* EMPTY STATE FOR NEW GROUP */}
               {assignments.length === 0 && members.length === 0 && (
-                <div className="bg-slate-50 border border-slate-200 border-dashed rounded-3xl p-10 text-center flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center">
+                <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 border-dashed rounded-3xl p-10 text-center flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 rounded-full flex items-center justify-center">
                     <Users className="w-8 h-8" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-800 text-lg">Класс готов к работе! 🎉</h3>
-                    <p className="text-slate-500 text-sm max-w-md mx-auto mt-2 leading-relaxed">
-                      Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white px-2 py-0.5 rounded shadow-sm text-indigo-600 font-bold">{selectedGroup.invite_code}</span> и отправьте им.
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Класс готов к работе! 🎉</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto mt-2 leading-relaxed">
+                      Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-sm text-indigo-600 dark:text-indigo-400 font-bold">{selectedGroup.invite_code}</span> и отправьте им.
                     </p>
                   </div>
                   {role === 'teacher' && (
                     <button 
                       onClick={() => setShowAssignModal(true)}
-                      className="mt-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200 flex items-center gap-2"
+                      className="mt-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200 dark:shadow-none flex items-center gap-2"
                     >
                       <Plus className="w-5 h-5" /> Назначить первое задание
                     </button>
@@ -572,12 +572,12 @@ export default function TeacherDashboard() {
 
               {/* Assignments List */}
               {assignments.length > 0 && (
-                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                  <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 bg-slate-50 dark:bg-slate-950/40">
                     <BookOpen className="w-5 h-5 text-indigo-500" />
-                    <h3 className="font-bold text-slate-800 text-sm">Назначенные задания ({assignments.length})</h3>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Назначенные задания ({assignments.length})</h3>
                   </div>
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {assignments.map(a => {
                       const isDone = completedAssignments.includes(a.id);
                       const isOverdue = a.deadline && new Date(a.deadline) < new Date();
@@ -585,26 +585,26 @@ export default function TeacherDashboard() {
                       const totalStudents = members.length;
 
                       return (
-                        <div key={a.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
+                        <div key={a.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-slate-800">{a.material?.title || 'Удаленный материал'}</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">{a.material?.title || 'Удаленный материал'}</span>
                               {role === 'student' ? (
                                 isDone ? (
-                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                    <span className="flex items-center gap-1 text-emerald-600">Выполнено <CheckCircle2 className="w-3.5 h-3.5" /></span>
+                                  <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">Выполнено <CheckCircle2 className="w-3.5 h-3.5" /></span>
                                   </span>
                                 ) : isOverdue ? (
-                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                  <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
                                     Просрочено ⏰
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 bg-sky-100 text-sky-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                  <span className="px-2 py-0.5 bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
                                     В процессе ⏳
                                   </span>
                                 )
                               ) : (
-                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                <span className="px-2 py-0.5 bg-indigo-55 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
                                   Сдали: {completionsCount} из {totalStudents}
                                 </span>
                               )}
@@ -623,15 +623,15 @@ export default function TeacherDashboard() {
                                   onClick={() => handleToggleCompletion(a.id)}
                                   className={`px-3 py-1.5 font-bold rounded-lg text-xs transition border ${
                                     isDone 
-                                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' 
-                                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 border-emerald-200 dark:border-emerald-900/50' 
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
                                   }`}
                                 >
                                   {isDone ? 'Выполнено' : 'Выполнить'}
                                 </button>
                                 <button
                                   onClick={() => navigate(`/library/${a.material_id}`)}
-                                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition"
+                                  className="px-3.5 py-1.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold rounded-lg text-xs transition"
                                 >
                                   Изучить →
                                 </button>
@@ -647,20 +647,20 @@ export default function TeacherDashboard() {
 
               {/* Teacher-only Assignment completions matrix */}
               {role === 'teacher' && assignments.length > 0 && (
-                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm p-6 space-y-4">
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm p-6 space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <Check className="w-5 h-5 text-emerald-500" />
-                    <h3 className="font-extrabold text-slate-800 text-base">Контроль выполнения заданий 🧭</h3>
+                    <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">Контроль выполнения заданий 🧭</h3>
                   </div>
                   
                   {members.length === 0 ? (
                     <p className="text-slate-400 text-xs italic">Нет студентов в классе для отображения прогресса.</p>
                   ) : (
-                    <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-100">
+                    <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-100 dark:border-slate-800">
                       <table className="w-full text-left text-xs min-w-[500px]">
                         <thead>
-                          <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold">
-                            <th className="p-3 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_#f1f5f9]">Студент</th>
+                          <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
+                            <th className="p-3 sticky left-0 bg-slate-50 dark:bg-slate-950 z-10 shadow-[1px_0_0_rgba(255,255,255,0.05)]">Студент</th>
                             {assignments.map(a => (
                               <th key={a.id} className="p-3 font-bold truncate max-w-[120px]" title={a.material?.title}>
                                 {a.material?.title || 'Удаленный'}
@@ -668,10 +668,10 @@ export default function TeacherDashboard() {
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {members.map(m => (
-                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
-                              <td className="p-3 font-bold text-slate-700 sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-[1px_0_0_#f1f5f9] transition-colors">
+                            <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-colors group">
+                              <td className="p-3 font-bold text-slate-700 dark:text-slate-300 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 z-10 shadow-[1px_0_0_rgba(255,255,255,0.05)] transition-colors">
                                 {m.student_name}
                               </td>
                               {assignments.map(a => {
@@ -681,15 +681,15 @@ export default function TeacherDashboard() {
                                 return (
                                   <td key={a.id} className="p-3">
                                     {completion ? (
-                                      <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                                         <Check className="w-3.5 h-3.5" /> Выполнено
                                       </span>
                                     ) : isOverdue ? (
-                                      <span className="flex items-center gap-1 text-rose-500 font-semibold">
+                                      <span className="flex items-center gap-1 text-rose-500 dark:text-rose-400 font-semibold">
                                         ❌ Просрочено
                                       </span>
                                     ) : (
-                                      <span className="flex items-center gap-1 text-slate-400">
+                                      <span className="flex items-center gap-1 text-slate-400 dark:text-slate-500">
                                         ⏳ В процессе
                                       </span>
                                     )}
@@ -706,23 +706,23 @@ export default function TeacherDashboard() {
               )}
 
               {/* LEADERBOARD / STUDENTS PERFORMANCE */}
-              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm p-6 space-y-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm p-6 space-y-6">
                 
                 {/* Section header & Toggles */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-amber-500" />
-                    <h3 className="font-extrabold text-slate-800 text-lg">Рейтинг участников класса ({members.length})</h3>
+                    <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-lg">Рейтинг участников класса ({members.length})</h3>
                   </div>
                   
                   {/* Weekly / All-time toggle */}
-                  <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto">
                     <button
                       onClick={() => setLeaderboardTab('all-time')}
                       className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         leaderboardTab === 'all-time'
-                          ? 'bg-slate-900 text-white shadow-sm'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-slate-900 dark:bg-slate-950 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                       }`}
                     >
                       За все время
@@ -731,8 +731,8 @@ export default function TeacherDashboard() {
                       onClick={() => setLeaderboardTab('weekly')}
                       className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         leaderboardTab === 'weekly'
-                          ? 'bg-slate-900 text-white shadow-sm'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-slate-900 dark:bg-slate-950 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                       }`}
                     >
                       За 7 дней
@@ -741,7 +741,7 @@ export default function TeacherDashboard() {
                 </div>
 
                 {members.length === 0 ? (
-                  <p className="text-center text-slate-500 py-10">
+                  <p className="text-center text-slate-500 dark:text-slate-400 py-10">
                     Пока никто не присоединился к этой группе.
                   </p>
                 ) : (
@@ -756,20 +756,20 @@ export default function TeacherDashboard() {
                           <div className="flex flex-col items-center">
                             <div className="relative mb-3 flex flex-col items-center">
                               {podium[0].student_avatar ? (
-                                <img src={podium[0].student_avatar} alt="avatar" className="w-14 h-14 rounded-full border-2 border-slate-300 shadow-md" />
+                                <img src={podium[0].student_avatar} alt="avatar" className="w-14 h-14 rounded-full border-2 border-slate-300 dark:border-slate-700 shadow-md" />
                               ) : (
-                                <div className="w-14 h-14 rounded-full bg-slate-200 border-2 border-slate-300 flex items-center justify-center text-slate-500 font-bold text-sm shadow-md">
+                                <div className="w-14 h-14 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-500 font-bold text-sm shadow-md">
                                   {podium[0].student_name?.[0]}
                                 </div>
                               )}
-                              <span className="absolute -top-3 bg-slate-300 text-slate-800 p-0.5 rounded-full shadow border border-white text-xs font-black">
+                              <span className="absolute -top-3 bg-slate-300 text-slate-800 p-0.5 rounded-full shadow border border-white dark:border-slate-850 text-xs font-black">
                                 <Medal className="w-3.5 h-3.5 text-slate-600" />
                               </span>
                             </div>
-                            <span className="text-xs font-bold text-slate-700 max-w-[90px] truncate text-center mb-1">{podium[0].student_name}</span>
-                            <div className="w-20 md:w-24 bg-slate-100/80 border-t-2 border-slate-300 rounded-t-xl h-24 flex flex-col items-center justify-center shadow-sm">
-                              <span className="font-mono text-xs font-black text-slate-600">2 место</span>
-                              <span className="text-[10px] font-black text-indigo-500 mt-1">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-350 max-w-[90px] truncate text-center mb-1">{podium[0].student_name}</span>
+                            <div className="w-20 md:w-24 bg-slate-100/80 dark:bg-slate-850 border-t-2 border-slate-300 dark:border-slate-700 rounded-t-xl h-24 flex flex-col items-center justify-center shadow-sm">
+                              <span className="font-mono text-xs font-black text-slate-600 dark:text-slate-400">2 место</span>
+                              <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 mt-1">
                                 {leaderboardTab === 'all-time' ? podium[0].total_xp : (podium[0] as any).weekly_xp} XP
                               </span>
                             </div>
@@ -783,18 +783,18 @@ export default function TeacherDashboard() {
                               {podium[1].student_avatar ? (
                                 <img src={podium[1].student_avatar} alt="avatar" className="w-16 h-16 rounded-full border-4 border-amber-400 shadow-lg" />
                               ) : (
-                                <div className="w-16 h-16 rounded-full bg-amber-50 border-4 border-amber-400 flex items-center justify-center text-amber-700 font-black text-base shadow-lg">
+                                <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/40 border-4 border-amber-400 dark:border-amber-700 flex items-center justify-center text-amber-700 dark:text-amber-450 font-black text-base shadow-lg">
                                   {podium[1].student_name?.[0]}
                                 </div>
                               )}
-                              <span className="absolute -top-3.5 bg-amber-400 text-white p-0.5 rounded-full shadow border-2 border-white animate-bounce">
+                              <span className="absolute -top-3.5 bg-amber-400 text-amber-950 p-0.5 rounded-full shadow border-2 border-white dark:border-slate-850 animate-bounce">
                                 <Crown className="w-4 h-4 fill-amber-300" />
                               </span>
                             </div>
-                            <span className="text-xs font-black text-slate-800 max-w-[100px] truncate text-center mb-1">{podium[1].student_name}</span>
-                            <div className="w-24 md:w-28 bg-gradient-to-t from-amber-50 to-amber-100/50 border-t-4 border-amber-400 rounded-t-2xl h-32 flex flex-col items-center justify-center shadow-md">
-                              <span className="font-mono text-xs font-black text-amber-700">1 место</span>
-                              <span className="text-xs font-black text-indigo-600 mt-1">
+                            <span className="text-xs font-black text-slate-800 dark:text-slate-200 max-w-[100px] truncate text-center mb-1">{podium[1].student_name}</span>
+                            <div className="w-24 md:w-28 bg-gradient-to-t from-amber-50 to-amber-100/50 dark:bg-amber-950/40 border-t-4 border-amber-400 dark:border-amber-600 rounded-t-2xl h-32 flex flex-col items-center justify-center shadow-md">
+                              <span className="font-mono text-xs font-black text-amber-800 dark:text-amber-400">1 место</span>
+                              <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-1">
                                 {leaderboardTab === 'all-time' ? podium[1].total_xp : (podium[1] as any).weekly_xp} XP
                               </span>
                             </div>
@@ -808,7 +808,7 @@ export default function TeacherDashboard() {
                               {podium[2].student_avatar ? (
                                 <img src={podium[2].student_avatar} alt="avatar" className="w-12 h-12 rounded-full border-2 border-amber-600 shadow-md" />
                               ) : (
-                                <div className="w-12 h-12 rounded-full bg-slate-200 border-2 border-amber-600 flex items-center justify-center text-slate-500 font-bold text-xs shadow-md">
+                                <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-amber-600 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs shadow-md">
                                   {podium[2].student_name?.[0]}
                                 </div>
                               )}
@@ -816,10 +816,10 @@ export default function TeacherDashboard() {
                                 <Award className="w-3.5 h-3.5 text-amber-200" />
                               </span>
                             </div>
-                            <span className="text-xs font-bold text-slate-700 max-w-[80px] truncate text-center mb-1">{podium[2].student_name}</span>
-                            <div className="w-18 md:w-20 bg-amber-50/20 border-t-2 border-amber-600 rounded-t-xl h-20 flex flex-col items-center justify-center shadow-sm">
-                              <span className="font-mono text-[10px] font-black text-amber-800">3 место</span>
-                              <span className="text-[10px] font-black text-indigo-500 mt-1">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[80px] truncate text-center mb-1">{podium[2].student_name}</span>
+                            <div className="w-18 md:w-20 bg-amber-50/20 dark:bg-amber-950/20 border-t-2 border-amber-600 rounded-t-xl h-20 flex flex-col items-center justify-center shadow-sm">
+                              <span className="font-mono text-[10px] font-black text-amber-800 dark:text-amber-500">3 место</span>
+                              <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 mt-1">
                                 {leaderboardTab === 'all-time' ? podium[2].total_xp : (podium[2] as any).weekly_xp} XP
                               </span>
                             </div>
@@ -831,37 +831,37 @@ export default function TeacherDashboard() {
 
                     {/* REST OF THE RANKINGS LIST */}
                     {restRankings.length > 0 && (
-                      <div className="overflow-x-auto custom-scrollbar border border-slate-100 rounded-2xl">
+                      <div className="overflow-x-auto custom-scrollbar border border-slate-100 dark:border-slate-800 rounded-2xl">
                         <table className="w-full text-left text-xs min-w-[400px]">
                           <thead>
-                            <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold">
+                            <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold">
                               <th className="p-4 w-12 text-center">Ранг</th>
                               <th className="p-4">Студент</th>
                               <th className="p-4 text-right">Опыт в этой группе (XP)</th>
                               <th className="p-4 text-right">Повторений</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100">
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {restRankings.map((m, index) => {
                               const rank = index + 4;
                               const score = leaderboardTab === 'all-time' ? m.total_xp : (m as any).weekly_xp;
                               return (
-                                <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                                  <td className="p-4 font-mono font-bold text-slate-400 text-center">{rank}</td>
+                                <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
+                                  <td className="p-4 font-mono font-bold text-slate-400 dark:text-slate-500 text-center">{rank}</td>
                                   <td className="p-4">
                                     <div className="flex items-center gap-3">
                                       {m.student_avatar ? (
                                         <img src={m.student_avatar} alt="avatar" className="w-8 h-8 rounded-full" />
                                       ) : (
-                                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">
+                                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-550 font-bold text-xs">
                                           {m.student_name?.[0] || '?'}
                                         </div>
                                       )}
-                                      <span className="font-bold text-slate-800">{m.student_name}</span>
+                                      <span className="font-bold text-slate-800 dark:text-slate-200">{m.student_name}</span>
                                     </div>
                                   </td>
-                                  <td className="p-4 text-right font-mono text-indigo-600 font-bold">{score} XP</td>
-                                  <td className="p-4 text-right text-slate-600 font-medium">{m.total_reviews || 0}</td>
+                                  <td className="p-4 text-right font-mono text-indigo-600 dark:text-indigo-400 font-bold">{score} XP</td>
+                                  <td className="p-4 text-right text-slate-600 dark:text-slate-400 font-medium">{m.total_reviews || 0}</td>
                                 </tr>
                               );
                             })}

@@ -495,7 +495,7 @@ export default function Courses() {
       {loading && (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-slate-500 font-medium">Загрузка ваших курсов...</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Загрузка ваших курсов...</p>
         </div>
       )}
 
@@ -506,14 +506,14 @@ export default function Courses() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-lg">
                   <Layers className="w-6 h-6" />
                 </div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
                   Мои учебные траектории
                 </h1>
               </div>
-              <p className="text-sm text-slate-500 max-w-2xl">
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
                 ИИ-методист структурирует материалы вашей библиотеки в пошаговые курсы для системного и глубокого освоения тем.
               </p>
             </div>
@@ -524,7 +524,7 @@ export default function Courses() {
                 setBuilderStep('setup');
                 setSelectedMaterialIds([]);
               }}
-              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:scale-[1.02] transition-all"
+              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 dark:hover:shadow-none hover:scale-[1.02] transition-all"
             >
               <Plus className="w-5 h-5" />
               Новый курс
@@ -534,22 +534,22 @@ export default function Courses() {
           {/* Quick stats */}
           {courses.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/40 border border-indigo-100/80 rounded-2xl p-5 flex items-center gap-4">
+              <div className="bg-gradient-to-br from-indigo-50/60 to-indigo-100/40 dark:from-indigo-950/40 dark:to-indigo-950/20 border border-indigo-100/80 dark:border-indigo-900/40 rounded-2xl p-5 flex items-center gap-4">
                 <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-md">
                   {courses.length}
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Создано курсов</h3>
-                  <p className="text-xs text-slate-500">Персональные учебные планы</p>
+                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Создано курсов</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Персональные учебные планы</p>
                 </div>
               </div>
-              <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/40 border border-emerald-100/80 rounded-2xl p-5 flex items-center gap-4">
+              <div className="bg-gradient-to-br from-emerald-50/60 to-emerald-100/40 dark:from-emerald-950/30 dark:to-emerald-950/10 border border-emerald-100/80 dark:border-emerald-900/30 rounded-2xl p-5 flex items-center gap-4">
                 <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black shadow-md">
                   {courses.reduce((acc, c) => acc + getCourseProgress(c).completed, 0)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Темы изучены</h3>
-                  <p className="text-xs text-slate-500">Материалы отмечены как готовые</p>
+                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Темы изучены</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Материалы отмечены как готовые</p>
                 </div>
               </div>
             </div>
@@ -557,19 +557,19 @@ export default function Courses() {
 
           {/* Empty State */}
           {courses.length === 0 && (
-            <div className="flex flex-col items-center justify-center text-center p-8 py-20 bg-white border border-slate-100 rounded-3xl shadow-sm max-w-2xl mx-auto">
+            <div className="flex flex-col items-center justify-center text-center p-8 py-20 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm dark:shadow-none max-w-2xl mx-auto">
               <div className="relative mb-6">
-                <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center shadow-inner">
                   <Layers className="w-10 h-10" />
                 </div>
                 <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 p-1.5 rounded-lg text-white shadow-md">
                   <Sparkles className="w-4 h-4 animate-pulse" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">
                 У вас еще нет учебных курсов
               </h2>
-              <p className="text-slate-500 text-sm max-w-md mb-8">
+              <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mb-8">
                 Выберите несколько лекций из вашей библиотеки, и наш искусственный интеллект упорядочит их по сложности, разобьет на разделы и составит программу обучения!
               </p>
               <button
@@ -577,7 +577,7 @@ export default function Courses() {
                   setView('builder');
                   setBuilderStep('setup');
                 }}
-                className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-all flex items-center gap-2"
+                className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none transition-all flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
                 ✨ Создать ИИ-курс
@@ -598,41 +598,41 @@ export default function Courses() {
                       setSelectedCourse(course);
                       setView('detail');
                     }}
-                    className="bg-white border border-slate-100 rounded-2xl p-6 cursor-pointer shadow-sm hover:shadow-md transition-all flex flex-col justify-between group relative overflow-hidden"
+                    className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 cursor-pointer shadow-sm dark:shadow-none hover:shadow-md transition-all flex flex-col justify-between group relative overflow-hidden"
                   >
                     {/* Background glows */}
-                    <div className="absolute -right-12 -bottom-12 w-28 h-28 bg-indigo-50/50 rounded-full blur-xl group-hover:bg-indigo-100/50 transition-all" />
+                    <div className="absolute -right-12 -bottom-12 w-28 h-28 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-full blur-xl group-hover:bg-indigo-100/50 dark:group-hover:bg-indigo-950/40 transition-all" />
 
                     <div>
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                        <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                           Курс
                         </span>
                         
                         <button
                           onClick={(e) => handleDeleteCourse(e, course.id)}
-                          className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                          className="p-1.5 text-slate-300 dark:text-slate-650 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all"
                           title="Удалить курс"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
 
-                      <h3 className="font-extrabold text-slate-800 text-lg leading-snug mb-2 group-hover:text-indigo-600 transition-colors line-clamp-2">
+                      <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-lg leading-snug mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
                         {course.title}
                       </h3>
                       
-                      <p className="text-slate-500 text-xs mb-6 line-clamp-3 leading-relaxed">
+                      <p className="text-slate-500 dark:text-slate-400 text-xs mb-6 line-clamp-3 leading-relaxed">
                         {course.description || 'Без описания.'}
                       </p>
                     </div>
 
                     <div className="space-y-3 mt-auto">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
                         <span>Прогресс</span>
                         <span>{prog.completed} из {prog.total} тем ({prog.percent}%)</span>
                       </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <motion.div
                           className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
                           initial={{ width: 0 }}
@@ -640,7 +640,7 @@ export default function Courses() {
                           transition={{ duration: 0.8, ease: 'easeOut' }}
                         />
                       </div>
-                      <div className="flex items-center justify-end text-xs font-extrabold text-indigo-600 pt-2 group-hover:translate-x-1 transition-transform">
+                      <div className="flex items-center justify-end text-xs font-extrabold text-indigo-600 dark:text-indigo-400 pt-2 group-hover:translate-x-1 transition-transform">
                         Продолжить обучение →
                       </div>
                     </div>
@@ -659,15 +659,15 @@ export default function Courses() {
           <div className="flex items-center gap-3 mb-6">
             <button
               onClick={() => setView('list')}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900">
+              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100">
                 Конструктор учебного курса
               </h1>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {builderStep === 'setup' 
                   ? 'Шаг 1: Выберите лекции для объединения в курс' 
                   : 'Шаг 2: Настройте разделы и порядок тем'}
@@ -677,15 +677,15 @@ export default function Courses() {
 
           {/* GENERATING LOADING OVERLAY */}
           {generating && (
-            <div className="bg-white border border-slate-100 shadow-xl rounded-3xl p-8 py-16 text-center max-w-lg mx-auto my-10 flex flex-col items-center">
+            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-xl dark:shadow-none rounded-3xl p-8 py-16 text-center max-w-lg mx-auto my-10 flex flex-col items-center">
               <div className="relative w-24 h-24 mb-6">
                 <div className="absolute inset-0 border-4 border-indigo-600/30 rounded-full" />
                 <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                <div className="absolute inset-4 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center shadow-inner">
-                  <Sparkles className="w-8 h-8 animate-pulse text-indigo-600" />
+                <div className="absolute inset-4 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center shadow-inner">
+                  <Sparkles className="w-8 h-8 animate-pulse text-indigo-600 dark:text-indigo-400" />
                 </div>
               </div>
-              <h3 className="font-extrabold text-slate-800 text-xl mb-2">
+              <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-xl mb-2">
                 ИИ-методист составляет курс
               </h3>
               
@@ -697,14 +697,14 @@ export default function Courses() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.3 }}
-                    className="text-indigo-600 font-bold text-sm"
+                    className="text-indigo-600 dark:text-indigo-400 font-bold text-sm"
                   >
                     {LOADING_TIPS[loadingTipIndex]}
                   </motion.p>
                 </AnimatePresence>
               </div>
 
-              <p className="text-xs text-slate-400 max-w-xs">
+              <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs">
                 Обычно это занимает около 5-10 секунд. Мы выстраиваем темы от простых к продвинутым.
               </p>
             </div>
@@ -714,30 +714,30 @@ export default function Courses() {
           {!generating && builderStep === 'setup' && (
             <div className="space-y-6">
               {/* Materials list */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-sm">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                   <div>
-                    <h2 className="font-bold text-slate-800">1. Выберите лекции ({selectedMaterialIds.length} выбрано)</h2>
-                    <p className="text-xs text-slate-500">Материалы, которые лягут в основу курса</p>
+                    <h2 className="font-bold text-slate-800 dark:text-slate-200">1. Выберите лекции ({selectedMaterialIds.length} выбрано)</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Материалы, которые лягут в основу курса</p>
                   </div>
                   
                   {/* Search and filter */}
                   <div className="flex gap-2">
                     <div className="relative">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                       <input
                         type="text"
                         placeholder="Поиск..."
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 w-44"
+                        className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 w-44"
                       />
                     </div>
                     {subjects.length > 0 && (
                       <select
                         value={subjectFilter}
                         onChange={e => setSubjectFilter(e.target.value)}
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">Все предметы</option>
                         {subjects.map(s => <option key={s} value={s}>{s}</option>)}
@@ -747,10 +747,10 @@ export default function Courses() {
                 </div>
 
                 {materials.length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-xl">
-                    <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500 text-sm font-medium mb-1">Ваша библиотека пуста</p>
-                    <p className="text-xs text-slate-400 mb-4">Сначала загрузите материалы для анализа</p>
+                  <div className="text-center py-12 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">
+                    <BookOpen className="w-12 h-12 text-slate-300 dark:text-slate-650 mx-auto mb-3" />
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Ваша библиотека пуста</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Сначала загрузите материалы для анализа</p>
                     <button 
                       onClick={() => navigate('/analyze')}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition"
@@ -772,19 +772,19 @@ export default function Courses() {
                           }}
                           className={`p-4 border rounded-xl cursor-pointer transition-all flex items-start gap-3 ${
                             isSelected 
-                              ? 'border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-500' 
-                              : 'border-slate-100 hover:border-slate-200 bg-slate-50/50'
+                              ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20 ring-1 ring-indigo-500' 
+                              : 'border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50'
                           }`}
                         >
                           <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                            isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
+                            isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800'
                           }`}>
                             {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-xs font-bold text-slate-700 truncate mb-1">{m.title}</h4>
+                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate mb-1">{m.title}</h4>
                             {m.subject && (
-                              <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded uppercase tracking-wider">
+                              <span className="inline-block px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[9px] font-bold rounded uppercase tracking-wider">
                                 {m.subject}
                               </span>
                             )}
@@ -797,14 +797,14 @@ export default function Courses() {
               </div>
 
               {/* Goals / Wishes */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-sm">
-                <h2 className="font-bold text-slate-800 mb-2">2. Опишите ваши цели или пожелания (необязательно)</h2>
-                <p className="text-xs text-slate-500 mb-4">Например: "Хочу сначала изучить простые понятия, сделать упор на практические задачи" или "Подготовить структуру под формат экзамена"</p>
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none">
+                <h2 className="font-bold text-slate-800 dark:text-slate-200 mb-2">2. Опишите ваши цели или пожелания (необязательно)</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Например: "Хочу сначала изучить простые понятия, сделать упор на практические задачи" или "Подготовить структуру под формат экзамена"</p>
                 <textarea
                   value={goals}
                   onChange={e => setGoals(e.target.value)}
                   placeholder="Пример: Сделай упор на основы темы, сгруппируй материал по хронологическому принципу..."
-                  className="w-full p-4 bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl text-xs min-h-[100px] outline-none transition"
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl text-xs min-h-[100px] outline-none transition text-slate-800 dark:text-slate-200"
                 />
               </div>
 
@@ -813,14 +813,14 @@ export default function Courses() {
                 <button
                   onClick={handleCreateManual}
                   disabled={selectedMaterialIds.length === 0}
-                  className="px-5 py-3 text-slate-700 font-bold border border-slate-200 rounded-xl hover:bg-slate-50 transition disabled:opacity-50"
+                  className="px-5 py-3 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-750 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
                 >
                   Собрать вручную
                 </button>
                 <button
                   onClick={handleGenerateAI}
                   disabled={selectedMaterialIds.length === 0}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 hover:shadow-indigo-200 hover:scale-[1.02] transition-all disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 dark:hover:shadow-none hover:scale-[1.02] transition-all disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4" />
                   Сгенерировать с ИИ
@@ -833,23 +833,23 @@ export default function Courses() {
           {!generating && builderStep === 'edit' && (
             <div className="space-y-6">
               {/* Metadata Inputs */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-sm space-y-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm dark:shadow-none space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Название курса</label>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Название курса</label>
                   <input
                     type="text"
                     value={courseTitle}
                     onChange={e => setCourseTitle(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
                     placeholder="Например: Введение в биологию клетки"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Описание курса</label>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Описание курса</label>
                   <textarea
                     value={courseDescription}
                     onChange={e => setCourseDescription(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[70px]"
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-600 dark:text-slate-350 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[70px]"
                     placeholder="Чему посвящен этот курс..."
                   />
                 </div>
@@ -858,10 +858,10 @@ export default function Courses() {
               {/* Sections Editor */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h2 className="font-extrabold text-slate-800">Разделы и материалы курса</h2>
+                  <h2 className="font-extrabold text-slate-800 dark:text-slate-200">Разделы и материалы курса</h2>
                   <button
                     onClick={handleAddSection}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Добавить раздел
@@ -869,19 +869,19 @@ export default function Courses() {
                 </div>
 
                 {courseStructure.length === 0 && (
-                  <p className="text-center text-slate-400 text-xs py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <p className="text-center text-slate-400 dark:text-slate-500 text-xs py-8 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
                     Нет созданных разделов. Добавьте первый раздел!
                   </p>
                 )}
 
                 {courseStructure.map((section, sIndex) => (
-                  <div key={section.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4 relative">
+                  <div key={section.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none space-y-4 relative">
                     {/* Section controls */}
                     <div className="absolute top-4 right-4 flex items-center gap-1">
                       <button
                         onClick={() => handleMoveSection(sIndex, 'up')}
                         disabled={sIndex === 0}
-                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded disabled:opacity-30"
+                        className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
                         title="Поднять раздел"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
@@ -889,14 +889,14 @@ export default function Courses() {
                       <button
                         onClick={() => handleMoveSection(sIndex, 'down')}
                         disabled={sIndex === courseStructure.length - 1}
-                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded disabled:opacity-30"
+                        className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
                         title="Опустить раздел"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteSection(section.id)}
-                        className="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded"
+                        className="p-1 text-slate-300 dark:text-slate-650 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded"
                         title="Удалить раздел"
                       >
                         <Trash className="w-3.5 h-3.5" />
@@ -909,34 +909,34 @@ export default function Courses() {
                         type="text"
                         value={section.title}
                         onChange={e => handleUpdateSectionTitle(section.id, e.target.value)}
-                        className="w-full bg-transparent text-sm font-extrabold text-slate-800 border-b border-dashed border-slate-200 focus:border-indigo-500 outline-none pb-0.5"
+                        className="w-full bg-transparent text-sm font-extrabold text-slate-800 dark:text-slate-200 border-b border-dashed border-slate-200 dark:border-slate-800 focus:border-indigo-500 outline-none pb-0.5"
                         placeholder="Название раздела"
                       />
                       <input
                         type="text"
                         value={section.description}
                         onChange={e => handleUpdateSectionDesc(section.id, e.target.value)}
-                        className="w-full bg-transparent text-xs text-slate-500 outline-none"
+                        className="w-full bg-transparent text-xs text-slate-500 dark:text-slate-400 outline-none"
                         placeholder="Что изучаем в этом разделе..."
                       />
                     </div>
 
                     {/* Materials inside this section */}
-                    <div className="space-y-2 pl-4 border-l-2 border-indigo-100">
+                    <div className="space-y-2 pl-4 border-l-2 border-indigo-100 dark:border-indigo-900">
                       {section.materials.length === 0 && (
-                        <p className="text-slate-400 text-[10px] italic py-1">Нет материалов в этом разделе</p>
+                        <p className="text-slate-400 dark:text-slate-500 text-[10px] italic py-1">Нет материалов в этом разделе</p>
                       )}
                       
                       {section.materials.map((m, mIndex) => (
-                        <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-50 hover:bg-slate-100/80 p-2 rounded-lg text-xs transition-colors">
-                          <span className="font-bold text-slate-700 truncate">{m.title}</span>
+                        <div key={m.id} className="flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 p-2 rounded-lg text-xs transition-colors">
+                          <span className="font-bold text-slate-700 dark:text-slate-300 truncate">{m.title}</span>
                           
                           <div className="flex items-center gap-1 shrink-0">
                             {/* Move material up */}
                             <button
                               onClick={() => handleMoveMaterial(section.id, mIndex, 'up')}
                               disabled={mIndex === 0}
-                              className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                              className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-30"
                             >
                               <ArrowUp className="w-3 h-3" />
                             </button>
@@ -944,7 +944,7 @@ export default function Courses() {
                             <button
                               onClick={() => handleMoveMaterial(section.id, mIndex, 'down')}
                               disabled={mIndex === section.materials.length - 1}
-                              className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
+                              className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-30"
                             >
                               <ArrowDown className="w-3 h-3" />
                             </button>
@@ -953,7 +953,7 @@ export default function Courses() {
                               <select
                                 onChange={(e) => handleMoveMaterialToSection(section.id, m.id, e.target.value)}
                                 value={section.id}
-                                className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[10px] outline-none"
+                                className="px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded text-[10px] outline-none"
                               >
                                 {courseStructure.map(s => (
                                   <option key={s.id} value={s.id}>
@@ -965,7 +965,7 @@ export default function Courses() {
                             {/* Remove */}
                             <button
                               onClick={() => handleRemoveMaterialFromSection(section.id, m.id)}
-                              className="p-1 text-slate-300 hover:text-rose-600"
+                              className="p-1 text-slate-300 dark:text-slate-600 hover:text-rose-600"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -987,7 +987,7 @@ export default function Courses() {
                           }
                         }}
                         defaultValue=""
-                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-indigo-500"
                       >
                         <option value="" disabled>+ Добавить материал в раздел...</option>
                         {materials
@@ -1008,14 +1008,14 @@ export default function Courses() {
               <div className="flex justify-between items-center pt-4">
                 <button
                   onClick={() => setBuilderStep('setup')}
-                  className="px-5 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition"
+                  className="px-5 py-3 text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl transition"
                 >
                   ← Вернуться к выбору лекций
                 </button>
                 <button
                   onClick={handleSaveCourse}
                   disabled={saving}
-                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 transition-all"
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none transition-all"
                 >
                   {saving ? 'Сохранение...' : 'Создать учебный курс'}
                 </button>
@@ -1032,20 +1032,20 @@ export default function Courses() {
           <div className="flex items-center gap-3 mb-6">
             <button
               onClick={() => setView('list')}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-extrabold rounded uppercase tracking-wider">
+                <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[9px] font-extrabold rounded uppercase tracking-wider">
                   Курс
                 </span>
-                <span className="text-slate-400 text-xs">
+                <span className="text-slate-400 dark:text-slate-500 text-xs">
                   Создан {new Date(selectedCourse.created_at).toLocaleDateString('ru-RU')}
                 </span>
               </div>
-              <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight">
+              <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
                 {selectedCourse.title}
               </h1>
             </div>
@@ -1055,8 +1055,8 @@ export default function Courses() {
             {/* LEFT COLUMN: COURSE TIMELINE */}
             <div className="lg:col-span-2 space-y-6">
               {/* Course Info Card & Progress */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                <p className="text-xs text-slate-500 leading-relaxed">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none space-y-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   {selectedCourse.description || 'Нет описания курса.'}
                 </p>
                 
@@ -1065,11 +1065,11 @@ export default function Courses() {
                   const prog = getCourseProgress(selectedCourse);
                   return (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
                         <span>Прогресс курса</span>
                         <span>{prog.completed} из {prog.total} тем ({prog.percent}%)</span>
                       </div>
-                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <motion.div
                           className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
                           initial={{ width: 0 }}
@@ -1093,38 +1093,38 @@ export default function Courses() {
                     <div key={section.id} className="relative pl-8">
                       {/* Timeline Line */}
                       {sIndex < selectedCourse.structure.length - 1 && (
-                        <div className="absolute left-[15px] top-8 bottom-0 w-0.5 bg-slate-200" />
+                        <div className="absolute left-[15px] top-8 bottom-0 w-0.5 bg-slate-200 dark:bg-slate-800" />
                       )}
                       
                       {/* Timeline Bullet */}
                       <div className={`absolute left-0 top-1.5 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-md border ${
                         isSectDone 
                           ? 'bg-emerald-500 border-emerald-500 text-white' 
-                          : 'bg-white border-slate-200 text-slate-500'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
                       }`}>
                         {isSectDone ? '✓' : sIndex + 1}
                       </div>
 
                       {/* Section Card */}
-                      <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none space-y-4">
                         <div>
                           <div className="flex items-center justify-between gap-3 mb-1">
-                            <h3 className="font-extrabold text-slate-800 text-base">
+                            <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-base">
                               {section.title}
                             </h3>
-                            <span className="text-[10px] font-bold text-slate-400">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
                               {sectCompleted}/{sectTotal} изучено
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {section.description}
                           </p>
                         </div>
 
                         {/* Material checklist inside section */}
-                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                           {section.materials.length === 0 && (
-                            <p className="text-[10px] text-slate-400 italic">Нет материалов в этом разделе</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">Нет материалов в этом разделе</p>
                           )}
                           
                           {section.materials.map(m => (
@@ -1132,8 +1132,8 @@ export default function Courses() {
                               key={m.id}
                               className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
                                 m.completed 
-                                  ? 'bg-emerald-50/30 border-emerald-100' 
-                                  : 'bg-slate-50/50 border-slate-100 hover:border-slate-200'
+                                  ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900' 
+                                  : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700'
                               }`}
                             >
                               <div className="flex items-center gap-3 min-w-0">
@@ -1143,7 +1143,7 @@ export default function Courses() {
                                   className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
                                     m.completed
                                       ? 'bg-emerald-500 border-emerald-500 text-white'
-                                      : 'border-slate-300 hover:border-slate-400 bg-white'
+                                      : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-655 bg-white dark:bg-slate-800'
                                   }`}
                                 >
                                   {m.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -1151,8 +1151,8 @@ export default function Courses() {
 
                                 <span 
                                   onClick={() => handleOpenPreview(m.id)}
-                                  className={`text-xs font-bold cursor-pointer hover:text-indigo-600 transition truncate ${
-                                    m.completed ? 'text-slate-400 line-through font-normal' : 'text-slate-700'
+                                  className={`text-xs font-bold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition truncate ${
+                                    m.completed ? 'text-slate-400 dark:text-slate-500 line-through font-normal' : 'text-slate-700 dark:text-slate-300'
                                   }`}
                                 >
                                   {m.title}
@@ -1163,7 +1163,7 @@ export default function Courses() {
                               <div className="flex items-center gap-2 shrink-0 ml-2">
                                 <button
                                   onClick={() => handleOpenPreview(m.id)}
-                                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                  className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors"
                                   title="Быстрый просмотр конспекта"
                                 >
                                   <Eye className="w-4 h-4" />
@@ -1181,21 +1181,21 @@ export default function Courses() {
 
             {/* RIGHT COLUMN: QUICK PREVIEW PANEL */}
             <div className="lg:col-span-1">
-              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm sticky top-6 min-h-[400px] flex flex-col">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-none sticky top-6 min-h-[400px] flex flex-col">
                 {previewLoading && (
                   <div className="flex-1 flex flex-col items-center justify-center py-10">
                     <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
-                    <p className="text-xs text-slate-400">Загрузка краткого содержания...</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">Загрузка краткого содержания...</p>
                   </div>
                 )}
 
                 {!previewLoading && !previewMaterial && (
                   <div className="flex-1 flex flex-col items-center justify-center text-center py-10 px-4">
-                    <BookOpen className="w-12 h-12 text-slate-200 mb-4" />
-                    <h3 className="font-bold text-slate-800 text-sm mb-1">
+                    <BookOpen className="w-12 h-12 text-slate-200 dark:text-slate-700 mb-4" />
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm mb-1">
                       Материал не выбран
                     </h3>
-                    <p className="text-xs text-slate-400 max-w-[200px]">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 max-w-[200px]">
                       Нажмите на название любого материала или иконку глаза слева для быстрого изучения.
                     </p>
                   </div>
@@ -1208,37 +1208,37 @@ export default function Courses() {
                       <div className="flex items-start justify-between gap-2 mb-4">
                         <div className="min-w-0">
                           {previewMaterial.subject && (
-                            <span className="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-bold rounded uppercase tracking-wider mb-1.5">
+                            <span className="inline-block px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[9px] font-bold rounded uppercase tracking-wider mb-1.5">
                               {previewMaterial.subject}
                             </span>
                           )}
-                          <h3 className="font-extrabold text-slate-800 text-sm leading-snug truncate">
+                          <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm leading-snug truncate">
                             {previewMaterial.title}
                           </h3>
                         </div>
                         <button
                           onClick={() => setPreviewMaterial(null)}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100"
+                          className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
 
                       {/* Summary content formatted by SummaryView */}
-                      <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-xs border-t border-slate-100 pt-3">
+                      <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-xs border-t border-slate-100 dark:border-slate-800 pt-3">
                         {previewMaterial.summary_json ? (
                           <SummaryView data={previewMaterial.summary_json} />
                         ) : (
-                          <p className="italic text-slate-400">Конспект не найден.</p>
+                          <p className="italic text-slate-400 dark:text-slate-500">Конспект не найден.</p>
                         )}
                       </div>
                     </div>
 
                     {/* Action links */}
-                    <div className="border-t border-slate-100 pt-4 mt-6 space-y-2">
+                    <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 space-y-2">
                       <button
                         onClick={() => navigate(`/library/${previewMaterial.id}`)}
-                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition"
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition"
                       >
                         <BookOpen className="w-3.5 h-3.5" />
                         Полный материал →

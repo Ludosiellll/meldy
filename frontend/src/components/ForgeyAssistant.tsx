@@ -165,7 +165,23 @@ export default function ForgeyAssistant() {
     setSelectedFaq(null);
   }, [location.pathname]);
 
-  if (!isVisible) return null;
+  // Если бот скрыт — показываем маленькую кнопку восстановления
+  if (!isVisible) return (
+    <div className="fixed bottom-[72px] right-4 md:bottom-6 md:right-6 z-[9999]">
+      <motion.button
+        onClick={() => {
+          setIsVisible(true);
+          localStorage.removeItem('forgey_assistant_hidden');
+        }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        title="Показать помощника"
+        className="w-10 h-10 bg-slate-200 dark:bg-slate-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-full flex items-center justify-center shadow-md border border-slate-300 dark:border-slate-600 text-slate-400 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition"
+      >
+        <Bot className="w-5 h-5" />
+      </motion.button>
+    </div>
+  );
 
   return (
     <>
@@ -194,10 +210,10 @@ export default function ForgeyAssistant() {
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-[140px] right-4 md:bottom-24 md:right-6 w-[340px] max-h-[500px] bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-2xl z-[9998] flex flex-col overflow-hidden"
+            className="fixed bottom-[140px] right-4 md:bottom-24 md:right-6 w-[340px] max-w-[calc(100vw-2rem)] max-h-[500px] bg-white dark:bg-slate-900 backdrop-blur-md rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl z-[9998] flex flex-col overflow-hidden"
           >
             {/* PANEL HEADER */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-indigo-500 flex items-center justify-center shadow-md">
                   <Bot className="w-5 h-5 text-white" />
@@ -230,29 +246,29 @@ export default function ForgeyAssistant() {
                     className="space-y-4"
                   >
                     {/* Character Balloon */}
-                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-3.5 relative">
-                      <div className="absolute top-3 -left-2 w-4 h-4 bg-indigo-50/50 border-l border-b border-indigo-100 rotate-45 hidden md:block" />
-                      <h4 className="font-black text-indigo-900 mb-1 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-spin-slow" />
+                    <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl p-3.5 relative">
+                      <div className="absolute top-3 -left-2 w-4 h-4 bg-indigo-50/80 dark:bg-indigo-950/40 border-l border-b border-indigo-100 dark:border-indigo-900/50 rotate-45 hidden md:block" />
+                      <h4 className="font-black text-indigo-900 dark:text-indigo-200 mb-1 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-spin-slow" />
                         {currentAdvice.title}
                       </h4>
-                      <p className="text-slate-600 leading-relaxed font-medium">
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                         {currentAdvice.text}
                       </p>
                     </div>
 
                     {/* Quick Questions (FAQ) */}
                     <div>
-                      <h5 className="font-bold text-slate-400 uppercase tracking-widest text-[9px] mb-2 px-1">Частые вопросы</h5>
+                      <h5 className="font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-[9px] mb-2 px-1">Частые вопросы</h5>
                       <div className="space-y-1.5">
                         {FAQ_DATABASE.map((item, idx) => (
                           <button
                             key={idx}
                             onClick={() => setSelectedFaq(item)}
-                            className="w-full text-left p-2.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl transition font-semibold text-slate-700 flex items-center justify-between border border-slate-100 hover:border-indigo-100 group"
+                            className="w-full text-left p-2.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 rounded-xl transition font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between border border-slate-100 dark:border-slate-700/60 hover:border-indigo-100 dark:hover:border-indigo-800/50 group"
                           >
                             <span className="truncate pr-2">{item.q}</span>
-                            <span className="text-slate-300 group-hover:text-indigo-400 transition shrink-0">→</span>
+                            <span className="text-slate-300 dark:text-slate-600 group-hover:text-indigo-400 dark:group-hover:text-indigo-400 transition shrink-0">→</span>
                           </button>
                         ))}
                       </div>
@@ -276,11 +292,11 @@ export default function ForgeyAssistant() {
                     </button>
 
                     {/* FAQ Answer */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                      <h4 className="font-extrabold text-slate-900 text-sm leading-tight">
+                    <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-2">
+                      <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm leading-tight">
                         {selectedFaq.q}
                       </h4>
-                      <p className="text-slate-600 leading-relaxed font-medium">
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                         {selectedFaq.a}
                       </p>
                     </div>
@@ -316,21 +332,20 @@ export default function ForgeyAssistant() {
             </div>
 
             {/* PANEL FOOTER */}
-            <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-400 shrink-0">
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-[10px] font-bold text-slate-400 shrink-0">
               <button 
                 onClick={() => {
                   setIsOpen(false);
                   setIsVisible(false);
                   localStorage.setItem('forgey_assistant_hidden', 'true');
                 }} 
-                className="hover:text-rose-500 transition"
+                className="hover:text-rose-500 dark:hover:text-rose-400 transition"
               >
                 Скрыть помощника
               </button>
               
               <button 
                 onClick={() => {
-                  // Триггерим сброс онбординга для повторного тура
                   if (user) {
                     localStorage.removeItem('forgey_assistant_hidden');
                     supabase.from('profiles').update({
@@ -341,9 +356,9 @@ export default function ForgeyAssistant() {
                     });
                   }
                 }}
-                className="text-indigo-600 hover:text-indigo-800 transition"
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition flex items-center gap-1"
               >
-                <RefreshCw className="w-3.5 h-3.5 mr-1" /> Начать тур заново
+                <RefreshCw className="w-3.5 h-3.5" /> Начать тур заново
               </button>
             </div>
           </motion.div>

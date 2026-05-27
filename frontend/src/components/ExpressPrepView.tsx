@@ -43,6 +43,27 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
     };
   }, []);
 
+  // Синхронизация паузы при блокировке экрана / сворачивании вкладки
+  useEffect(() => {
+    const handleVisibilitySync = () => {
+      if (document.visibilityState === 'visible') {
+        // Если в стейте мы «играем», но под капотом синтез прерван/остановлен, переводим в паузу
+        if (isPlaying && !isPaused) {
+          if (window.speechSynthesis && !window.speechSynthesis.speaking) {
+            setIsPaused(true);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+    window.addEventListener('focus', handleVisibilitySync);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
+      window.removeEventListener('focus', handleVisibilitySync);
+    };
+  }, [isPlaying, isPaused]);
+
   const stopPodcast = () => {
     stopTTS();
     setIsPlaying(false);
@@ -226,22 +247,28 @@ export default function ExpressPrepView({ summaryJson }: { summaryJson: any }) {
                       >
                         <div
                           className={`relative max-w-[85%] sm:max-w-[70%] px-5 py-3.5 rounded-2xl shadow-sm transition-all duration-300 ${
-                            isSpeaking
-                              ? 'bg-indigo-50 border border-indigo-200 ring-2 ring-indigo-500/20 scale-[1.02]'
-                              : isMax
-                              ? 'bg-white border border-slate-100 text-slate-800 rounded-bl-sm'
-                              : 'bg-indigo-600 border border-indigo-500 text-white rounded-br-sm'
+                            isMax
+                              ? `bg-white dark:bg-slate-900 border text-slate-800 dark:text-slate-100 rounded-bl-sm ${
+                                  isSpeaking
+                                    ? 'border-indigo-500 dark:border-indigo-500 ring-4 ring-indigo-500/20 shadow-md'
+                                    : 'border-slate-105 dark:border-slate-800/80 border-slate-100'
+                                }`
+                              : `bg-indigo-600 dark:bg-indigo-700 border text-white rounded-br-sm ${
+                                  isSpeaking
+                                    ? 'border-indigo-400 dark:border-indigo-400 ring-4 ring-indigo-500/30 shadow-md'
+                                    : 'border-indigo-500 dark:border-indigo-600'
+                                }`
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1.5 opacity-90">
-                            <span className={`text-[10px] font-black uppercase tracking-wider ${isMax ? 'text-slate-500' : 'text-indigo-200'}`}>
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${isMax ? 'text-slate-500 dark:text-slate-400' : 'text-indigo-200'}`}>
                               {line.speaker}
                             </span>
                             {isSpeaking && (
-                              <Volume2 className={`w-3.5 h-3.5 ${isMax ? 'text-indigo-500' : 'text-white'} animate-pulse`} />
+                              <Volume2 className={`w-3.5 h-3.5 ${isMax ? 'text-indigo-500 dark:text-indigo-400' : 'text-white'} animate-pulse`} />
                             )}
                           </div>
-                          <p className={`text-[13px] sm:text-sm leading-relaxed font-medium ${isMax ? 'text-slate-700' : 'text-white'}`}>
+                          <p className={`text-[13px] sm:text-sm leading-relaxed font-medium ${isMax ? 'text-slate-700 dark:text-slate-200' : 'text-white'}`}>
                             {line.text}
                           </p>
                         </div>

@@ -7,11 +7,32 @@
     @apply m-0 bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased font-sans;
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   }
+
+  /* Native select dark theme fix */
+  select {
+    color-scheme: light;
+  }
+  .dark select {
+    color-scheme: dark;
+  }
+
+  /* Better tap targets on mobile */
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area for mobile notches */
+  .pb-safe {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
 }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { @apply bg-slate-100 dark:bg-slate-900; }
 ::-webkit-scrollbar-thumb { @apply bg-slate-300 dark:bg-slate-700 rounded-sm; }
+
+/* For horizontal scrollbars */
+::-webkit-scrollbar:horizontal { height: 4px; }
 
 .card {
   @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm;
@@ -19,6 +40,11 @@
 
 .card-hover:hover {
   @apply shadow-md border-slate-300 dark:border-slate-700;
+}
+
+/* Dark select styling */
+.dark-select {
+  @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition;
 }
 
 /* Markdown styles for Chat and Summaries */

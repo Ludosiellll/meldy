@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../contexts/ThemeProvider';
 
 interface GraphNode {
   id: string;
@@ -47,6 +48,8 @@ const SUBJECT_COLORS = [
 export default function KnowledgeMap() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   const [loading, setLoading] = useState(true);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -496,16 +499,16 @@ export default function KnowledgeMap() {
   }, [nodes]);
 
   return (
-    <div className="p-3 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6 min-h-screen text-slate-900">
+    <div className="p-3 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6 min-h-screen text-slate-900 dark:text-slate-100">
       {/* Заголовок */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-950/50 rounded-xl flex items-center justify-center border border-indigo-500/20">
             <Network className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Интерактивная карта знаний</h1>
-            <p className="text-xs text-slate-500">Граф понятий лекций и междисциплинарных связей в стиле Obsidian</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Интерактивная карта знаний</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Граф понятий лекций и междисциплинарных связей в стиле Obsidian</p>
           </div>
         </div>
       </div>
@@ -515,17 +518,17 @@ export default function KnowledgeMap() {
           <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : materials.length === 0 ? (
-        <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-white border border-slate-200 rounded-2xl">
-          <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto border border-indigo-100">
+        <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+          <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center mx-auto border border-indigo-100 dark:border-indigo-900/50">
             <BookOpen className="w-8 h-8 text-indigo-500" />
           </div>
-          <h3 className="font-bold text-slate-800">Библиотека пуста</h3>
-          <p className="text-sm text-slate-500">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100">Библиотека пуста</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Загрузите конспекты лекций в разделе «Анализ материалов», чтобы AI извлёк термины и построил карту знаний.
           </p>
           <button
             onClick={() => navigate('/analyze')}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-500/10"
+            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-500/10 dark:shadow-none"
           >
             Загрузить материалы
           </button>
@@ -537,8 +540,8 @@ export default function KnowledgeMap() {
           <div className="lg:col-span-3 flex flex-col space-y-4">
             
             {/* Панель управления картой */}
-            <div className="p-4 flex flex-wrap gap-4 items-center justify-between bg-white border border-slate-200 rounded-2xl shadow-sm">
-              <div className="flex items-center gap-4 text-xs text-slate-500 font-semibold">
+            <div className="p-4 flex flex-wrap gap-4 items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-[0_0_8px_rgba(239,68,68,0.5)]" /> 
                   Слабое место (ошибка)
@@ -556,31 +559,31 @@ export default function KnowledgeMap() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={zoomOut}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition border border-slate-300"
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-750"
                   title="Отдалить"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-[11px] font-black text-slate-700 w-12 text-center">
+                <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 w-12 text-center">
                   {Math.round(scale * 100)}%
                 </span>
                 <button
                   onClick={zoomIn}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition border border-slate-300"
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-750"
                   title="Приблизить"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={resetZoom}
-                  className="ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-bold text-white transition shadow-lg shadow-indigo-600/10"
+                  className="ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-bold text-white transition shadow-lg shadow-indigo-600/10 dark:shadow-none"
                 >
                   Сбросить
                 </button>
               </div>
             </div>
 
-            <div className="relative bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm select-none min-h-[60vh] md:min-h-[550px]">
+            <div className="relative bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm select-none min-h-[60vh] md:min-h-[550px]">
               
               <svg
                 ref={svgRef}
@@ -599,7 +602,7 @@ export default function KnowledgeMap() {
               >
                 <defs>
                   <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
-                    <circle cx="1" cy="1" r="1" fill="#cbd5e1" />
+                    <circle cx="1" cy="1" r="1" fill={isDark ? '#475569' : '#cbd5e1'} />
                   </pattern>
                   <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
                     <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
@@ -627,7 +630,7 @@ export default function KnowledgeMap() {
                 <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
                   
                   {/* Фоновая сетка внутри SVG */}
-                  <rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#grid)" className="opacity-40" />
+                  <rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#grid)" className="opacity-40 dark:opacity-20" />
                   
                   {/* Рендеринг связей (линии) */}
                   {links.map((link, idx) => {
@@ -652,7 +655,7 @@ export default function KnowledgeMap() {
                         y1={sourceNode.y}
                         x2={targetNode.x}
                         y2={targetNode.y}
-                        stroke={isHighlight ? '#6366f1' : '#cbd5e1'}
+                        stroke={isHighlight ? '#6366f1' : isDark ? '#334155' : '#cbd5e1'}
                         strokeOpacity={(isHighlight ? 0.9 : 0.4) * searchOpacity}
                         strokeWidth={isHighlight ? 2 : 1}
                         strokeDasharray={targetNode.type === 'concept' ? '3,3' : undefined}
@@ -745,10 +748,14 @@ export default function KnowledgeMap() {
                         <text
                           y={labelY}
                           textAnchor="middle"
-                          fill={isSelected ? '#1e293b' : isMaterial ? '#334155' : '#64748b'}
+                          fill={isDark 
+                            ? (isSelected ? '#f8fafc' : isMaterial ? '#e2e8f0' : '#94a3b8') 
+                            : (isSelected ? '#1e293b' : isMaterial ? '#334155' : '#64748b')}
                           className="text-[10px] font-bold select-none pointer-events-none transition-colors"
                           style={{
-                            textShadow: '0px 1px 2px #ffffff, 0px 0px 4px #ffffff'
+                            textShadow: isDark 
+                              ? '0px 1px 2px #0f172a, 0px 0px 4px #0f172a' 
+                              : '0px 1px 2px #ffffff, 0px 0px 4px #ffffff'
                           }}
                         >
                           {node.label.length > 20 ? `${node.label.slice(0, 18)}...` : node.label}
@@ -761,11 +768,11 @@ export default function KnowledgeMap() {
 
               {/* Хинт по использованию */}
               <div className="absolute bottom-4 left-4 z-10 group">
-                <div className="md:hidden w-10 h-10 bg-white/90 backdrop-blur border border-slate-200 rounded-full flex items-center justify-center text-slate-500 shadow-sm cursor-pointer">
+                <div className="md:hidden w-10 h-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm cursor-pointer">
                   <Info className="w-5 h-5 text-indigo-400" />
                 </div>
-                <div className="hidden group-hover:block md:block absolute md:static bottom-full left-0 mb-2 md:mb-0 p-3.5 bg-white/90 backdrop-blur border border-slate-200 rounded-xl text-[10px] text-slate-500 w-48 md:w-auto md:max-w-xs space-y-1.5 shadow-xl md:shadow-none pointer-events-none">
-                  <p className="font-bold text-slate-800 flex items-center gap-1">
+                <div className="hidden group-hover:block md:block absolute md:static bottom-full left-0 mb-2 md:mb-0 p-3.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] text-slate-500 dark:text-slate-400 w-48 md:w-auto md:max-w-xs space-y-1.5 shadow-xl md:shadow-none pointer-events-none">
+                  <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
                     <Info className="hidden md:block w-3.5 h-3.5 text-indigo-400" /> Навигация по графу
                   </p>
                   <div className="hidden md:block space-y-1.5">
@@ -788,21 +795,21 @@ export default function KnowledgeMap() {
           <div className="lg:col-span-1 space-y-6">
             
             {/* Поиск по карте */}
-            <div className="p-4 space-y-3 bg-white border border-slate-200 rounded-2xl shadow-sm">
-              <h3 className="font-bold text-slate-800 text-sm">Поиск по карте</h3>
+            <div className="p-4 space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Поиск по карте</h3>
               <div className="relative">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Найти понятие или лекцию..."
-                  className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
+                  className="w-full pl-8 pr-8 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-xs outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
                 />
                 <span className="absolute left-2.5 top-2.5 text-[10px] text-slate-500">🔍</span>
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-2 text-slate-500 hover:text-slate-800 text-sm font-bold"
+                    className="absolute right-2.5 top-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-250 text-sm font-bold"
                   >
                     ×
                   </button>
@@ -811,16 +818,16 @@ export default function KnowledgeMap() {
             </div>
 
             {/* Статистика карты */}
-            <div className="p-5 space-y-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
-              <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">Статистика знаний</h3>
+            <div className="p-5 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm border-b border-slate-200 dark:border-slate-800 pb-2">Статистика знаний</h3>
               <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                  <p className="text-lg font-black text-slate-900">{graphStats.materialsCount}</p>
-                  <p className="text-[10px] text-slate-500">Лекций</p>
+                <div className="bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                  <p className="text-lg font-black text-slate-900 dark:text-slate-200">{graphStats.materialsCount}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Лекций</p>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                  <p className="text-lg font-black text-slate-900">{graphStats.conceptCount}</p>
-                  <p className="text-[10px] text-slate-500">Понятий</p>
+                <div className="bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                  <p className="text-lg font-black text-slate-900 dark:text-slate-200">{graphStats.conceptCount}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Понятий</p>
                 </div>
                 {graphStats.weakCount > 0 ? (
                   <div className="bg-red-950/20 p-2.5 rounded-xl border border-red-500/20 col-span-2">
@@ -843,17 +850,17 @@ export default function KnowledgeMap() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="p-5 bg-white border border-slate-200 border-l-4 rounded-2xl space-y-4"
+                  className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 border-l-4 rounded-2xl space-y-4 shadow-sm"
                   style={{ borderLeftColor: selectedNode.color }}
                 >
                   {selectedNode.type === 'material' ? (
                     // ДЕТАЛИ ЛЕКЦИИ
                     <>
                       <div>
-                        <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                        <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                           Лекция
                         </span>
-                        <h4 className="font-bold text-slate-900 mt-2 leading-snug">{selectedNode.label}</h4>
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug">{selectedNode.label}</h4>
                         {selectedNode.details?.subject && (
                           <span className="text-xs text-indigo-400 font-semibold mt-1 block">
                             Предмет: {selectedNode.details.subject}
@@ -861,20 +868,20 @@ export default function KnowledgeMap() {
                         )}
                       </div>
 
-                      <div className="text-xs text-slate-500 space-y-1">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
                         <p>Добавлена: {new Date(selectedNode.details?.created_at).toLocaleDateString('ru-RU')}</p>
                       </div>
 
-                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                         <button
                           onClick={() => navigate(`/library/${selectedNode.id}`)}
-                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
+                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10 dark:shadow-none"
                         >
                           <BookOpen className="w-3.5 h-3.5" /> Изучать лекцию
                         </button>
                         <button
                           onClick={() => navigate('/exam')}
-                          className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition border border-slate-300 flex items-center justify-center gap-1.5"
+                          className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-xl text-xs transition border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5"
                         >
                           <Zap className="w-3.5 h-3.5 text-amber-400" /> Проверить знания
                         </button>
@@ -885,7 +892,7 @@ export default function KnowledgeMap() {
                     <>
                       <div>
                         <div className="flex justify-between items-center">
-                          <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                          <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                             Понятие
                           </span>
                           {selectedNode.status === 'weak' ? (
@@ -898,25 +905,25 @@ export default function KnowledgeMap() {
                             </span>
                           ) : null}
                         </div>
-                        <h4 className="font-bold text-slate-900 mt-2 leading-snug">{selectedNode.label}</h4>
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug">{selectedNode.label}</h4>
                       </div>
 
                       {selectedNode.definition && (
-                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
-                          <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 block">Определение</span>
-                          <p className="text-xs text-slate-700 leading-relaxed">{selectedNode.definition}</p>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1.5">
+                          <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 dark:text-slate-400 block">Определение</span>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{selectedNode.definition}</p>
                         </div>
                       )}
 
                       {selectedNode.materials && selectedNode.materials.length > 0 && (
-                        <div className="space-y-2 border-t border-slate-200 pt-3">
-                          <span className="text-[10px] font-bold text-slate-500 block">Встречается в лекциях:</span>
+                        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">Встречается в лекциях:</span>
                           <div className="space-y-1.5">
                             {selectedNode.materials.map(m => (
                               <button
                                 key={m.id}
                                 onClick={() => navigate(`/library/${m.id}`)}
-                                className="w-full text-left p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 flex justify-between items-center transition border border-slate-200"
+                                className="w-full text-left p-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 flex justify-between items-center transition border border-slate-200 dark:border-slate-800"
                               >
                                 <span className="truncate pr-2">{m.title}</span>
                                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -929,7 +936,7 @@ export default function KnowledgeMap() {
                       {selectedNode.status === 'weak' && (
                         <button
                           onClick={() => navigate('/mistakes')}
-                          className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/15"
+                          className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/15 dark:shadow-none"
                         >
                           <Zap className="w-3.5 h-3.5" /> Исправить в практике
                         </button>
@@ -942,10 +949,10 @@ export default function KnowledgeMap() {
                   key="empty"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="p-6 text-center text-slate-450 italic text-xs space-y-2 py-10 bg-white border border-slate-200 rounded-2xl shadow-sm"
+                  className="p-6 text-center text-slate-400 italic text-xs space-y-2 py-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm"
                 >
-                  <HelpCircle className="w-6 h-6 mx-auto text-slate-500" />
-                  <p className="text-slate-500">Нажмите на любой элемент графа, чтобы просмотреть его описание, связи и статус освоения.</p>
+                  <HelpCircle className="w-6 h-6 mx-auto text-slate-500 dark:text-slate-400" />
+                  <p className="text-slate-500 dark:text-slate-400">Нажмите на любой элемент графа, чтобы просмотреть его описание, связи и статус освоения.</p>
                 </motion.div>
               )}
             </AnimatePresence>

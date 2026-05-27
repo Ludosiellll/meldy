@@ -383,7 +383,7 @@ export default function CoStudy() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh]">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-slate-500 font-medium">Подключение к учебной комнате...</p>
+        <p className="text-slate-500 dark:text-slate-400 font-medium">Подключение к учебной комнате...</p>
       </div>
     );
   }
@@ -392,7 +392,7 @@ export default function CoStudy() {
     return (
       <div className="p-8 text-center">
         <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-        <p className="text-slate-700 font-bold mb-4">Материал не найден</p>
+        <p className="text-slate-700 dark:text-slate-300 font-bold mb-4">Материал не найден</p>
         <button onClick={() => navigate('/library')} className="px-4 py-2 bg-indigo-600 text-white rounded-xl">← В библиотеку</button>
       </div>
     );
@@ -405,13 +405,13 @@ export default function CoStudy() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(`/library/${materialId}`)}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+              <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                 Совместная комната
               </span>
               <span className="flex h-2 w-2 relative">
@@ -419,7 +419,7 @@ export default function CoStudy() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
             </div>
-            <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
+            <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
               {material.title}
             </h1>
           </div>
@@ -430,16 +430,16 @@ export default function CoStudy() {
         {/* LEFT COLUMN: MATERIAL STUDY + POMODORO */}
         <div className="lg:col-span-2 space-y-6">
           {/* Pomodoro Timer widget */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
             <div className="absolute top-0 left-0 bottom-0 w-2 bg-indigo-500" />
             
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center shadow-inner">
                 <Clock className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-extrabold text-slate-800 text-base">Совместный Pomodoro</h3>
-                <p className="text-xs text-slate-400 max-w-xs mt-0.5">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">Совместный Pomodoro</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs mt-0.5">
                   Синхронный таймер фокусировки для совместного заучивания карточек или конспекта.
                 </p>
               </div>
@@ -447,17 +447,17 @@ export default function CoStudy() {
 
             <div className="flex flex-col items-center sm:items-end gap-3 shrink-0">
               <div className="flex items-center gap-3">
-                <span className="text-3xl font-black text-slate-800 font-mono tracking-wider">
+                <span className="text-3xl font-black text-slate-800 dark:text-slate-100 font-mono tracking-wider">
                   {formatTime(timerSeconds)}
                 </span>
                 
                 {timerActive ? (
                   <button
                     onClick={handleStopTimer}
-                    className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition"
+                    className="p-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-xl transition"
                     title="Приостановить таймер"
                   >
-                    <Square className="w-4 h-4 fill-rose-600" />
+                    <Square className="w-4 h-4 fill-rose-600 dark:fill-rose-400" />
                   </button>
                 ) : (
                   <div className="flex gap-1.5">
@@ -470,7 +470,7 @@ export default function CoStudy() {
                     </button>
                     <button
                       onClick={() => handleStartTimer(15)}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition"
+                      className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition"
                     >
                       15 мин
                     </button>
@@ -479,14 +479,14 @@ export default function CoStudy() {
                 
                 <button
                   onClick={handleResetTimer}
-                  className="px-2.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-bold transition"
+                  className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-xs font-bold transition"
                 >
                   Сбросить
                 </button>
               </div>
               
               {timerActive && (
-                <div className="w-full sm:w-44 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="w-full sm:w-44 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-indigo-500 transition-all duration-1000"
                     style={{ width: `${(timerSeconds / timerDuration) * 100}%` }}
@@ -497,10 +497,10 @@ export default function CoStudy() {
           </div>
 
           {/* Material summary document */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <BookOpen className="w-5 h-5 text-indigo-500" />
-              <h2 className="font-extrabold text-slate-800 text-lg">Совместное изучение конспекта</h2>
+              <h2 className="font-extrabold text-slate-800 dark:text-slate-100 text-lg">Совместное изучение конспекта</h2>
             </div>
             
             <div className="overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
@@ -517,11 +517,11 @@ export default function CoStudy() {
         <div className="space-y-6">
           
           {/* Online Users Presence */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-500" />
-                <h3 className="font-extrabold text-slate-800 text-sm">В комнате ({onlineUsers.length})</h3>
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">В комнате ({onlineUsers.length})</h3>
               </div>
             </div>
 
@@ -531,22 +531,22 @@ export default function CoStudy() {
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="relative">
                       {u.avatar ? (
-                        <img src={u.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-slate-100" />
+                        <img src={u.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-700" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400">
                           {u.name?.[0] || '?'}
                         </div>
                       )}
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
                     </div>
-                    <span className="font-bold text-slate-700 truncate">{u.name}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{u.name}</span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                     {u.user_id === user?.id ? (
                       <select 
                         value={myStatus} 
                         onChange={e => handleUpdateStatus(e.target.value)}
-                        className="bg-transparent font-bold outline-none cursor-pointer text-indigo-600"
+                        className="bg-transparent dark:bg-slate-800 font-bold outline-none cursor-pointer text-indigo-600 dark:text-indigo-400"
                       >
                         <option value="Изучает конспект">Изучаю конспект</option>
                         <option value="Решает тест">Решаю тест</option>
@@ -561,16 +561,16 @@ export default function CoStudy() {
           </div>
 
           {/* Realtime Chat */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm h-[400px] flex flex-col">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3 shrink-0">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 shadow-sm h-[400px] flex flex-col">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800 mb-3 shrink-0">
               <MessageSquare className="w-4 h-4 text-indigo-500" />
-              <h3 className="font-extrabold text-slate-800 text-sm">Обсуждение</h3>
+              <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">Обсуждение</h3>
             </div>
 
             {/* Message feed */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4 custom-scrollbar text-xs">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 italic">
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 italic">
                   Нет сообщений. Напишите что-нибудь первым!
                 </div>
               ) : (
@@ -582,7 +582,7 @@ export default function CoStudy() {
                         m.sender_avatar ? (
                           <img src={m.sender_avatar} alt="avatar" className="w-7 h-7 rounded-full object-cover shrink-0" />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
                             {m.sender_name?.[0]}
                           </div>
                         )
@@ -590,18 +590,18 @@ export default function CoStudy() {
                       
                       <div>
                         {!isMe && (
-                          <span className="block text-[10px] font-bold text-slate-400 mb-0.5 pl-1">
+                          <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-0.5 pl-1">
                             {m.sender_name}
                           </span>
                         )}
                         <div className={`p-2.5 rounded-2xl ${
                           isMe 
                             ? 'bg-indigo-600 text-white rounded-tr-none' 
-                            : 'bg-slate-100 text-slate-700 rounded-tl-none'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-tl-none'
                         }`}>
                           <p className="leading-relaxed break-words">{m.content}</p>
                         </div>
-                        <span className="block text-[9px] text-slate-400 mt-0.5 text-right pl-1">
+                        <span className="block text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 text-right pl-1">
                           {format(new Date(m.created_at), 'HH:mm')}
                         </span>
                       </div>
@@ -613,13 +613,13 @@ export default function CoStudy() {
             </div>
 
             {/* Message Input */}
-            <form onSubmit={handleSendMessage} className="flex gap-2 shrink-0 border-t border-slate-100 pt-3">
+            <form onSubmit={handleSendMessage} className="flex gap-2 shrink-0 border-t border-slate-100 dark:border-slate-800 pt-3">
               <input
                 type="text"
                 value={messageInput}
                 onChange={e => setMessageInput(e.target.value)}
                 placeholder="Задать вопрос или написать сообщение..."
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-indigo-500 outline-none rounded-xl text-xs"
+                className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-indigo-500 outline-none rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400"
               />
               <button
                 type="submit"

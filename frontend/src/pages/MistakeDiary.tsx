@@ -193,7 +193,7 @@ export default function MistakeDiary() {
 
                 {/* Карточка вопроса */}
                 <div className="card p-4 md:p-8 space-y-4 md:space-y-6">
-                  <h3 className="text-lg font-bold text-slate-800 leading-relaxed">
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 leading-relaxed">
                     {practiceQuestions[currentQIndex]?.question}
                   </h3>
 
@@ -204,14 +204,14 @@ export default function MistakeDiary() {
                       const isCorrect = opt.startsWith(practiceQuestions[currentQIndex]?.correct);
                       const hasAnswered = selectedOption !== null;
 
-                      let btnStyle = 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700';
+                      let btnStyle = 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200';
                       if (hasAnswered) {
                         if (isCorrect) {
-                          btnStyle = 'bg-emerald-50 border-emerald-300 text-emerald-800';
+                          btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300';
                         } else if (isSelected) {
-                          btnStyle = 'bg-rose-50 border-rose-300 text-rose-800';
+                          btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300';
                         } else {
-                          btnStyle = 'border-slate-100 text-slate-400 opacity-60';
+                          btnStyle = 'border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 opacity-60';
                         }
                       }
 
@@ -240,10 +240,10 @@ export default function MistakeDiary() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       style={{ overflow: 'hidden' }}
-                      className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl space-y-1"
+                      className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 rounded-xl space-y-1"
                     >
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Разбор и пояснение</h4>
-                      <p className="text-xs text-slate-600 leading-relaxed">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Разбор и пояснение</h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                         {practiceQuestions[currentQIndex]?.explanation}
                       </p>
                     </motion.div>
@@ -277,19 +277,19 @@ export default function MistakeDiary() {
                 {/* Тексты результатов */}
                 {correctCount / practiceQuestions.length >= 0.6 ? (
                   <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-800">Отличная работа! 🎉</h2>
-                    <p className="text-sm text-slate-500 max-w-md mx-auto">
+                    <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">Отличная работа! 🎉</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                       Вы ответили верно на {correctCount} из {practiceQuestions.length} вопросов. AI подтверждает: ваши слабые места усвоены!
                     </p>
-                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-full px-4 py-2 mt-2">
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-full px-4 py-2 mt-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                       Ошибки исправлены &amp; Получено +50 XP
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <h2 className="text-xl font-bold text-slate-800">Попробуйте еще раз 💔</h2>
-                    <p className="text-sm text-slate-500 max-w-md mx-auto">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Попробуйте еще раз 💔</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                       Вы ответили верно на {correctCount} из {practiceQuestions.length} вопросов. Нужно хотя бы 2 правильных ответа, чтобы исправить ошибки в дневнике.
                     </p>
                   </div>
@@ -319,8 +319,8 @@ export default function MistakeDiary() {
               <BookMarked className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Дневник ошибок</h1>
-              <p className="text-xs text-slate-500">Все слабые места после AI-Экзаменатора</p>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Дневник ошибок</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Все слабые места после AI-Экзаменатора</p>
             </div>
           </div>
 
@@ -348,16 +348,16 @@ export default function MistakeDiary() {
           {/* Статистика */}
           <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
             <div className="card p-2 md:p-4 text-center">
-              <p className="text-xl md:text-2xl font-black text-slate-900">{mistakes.length}</p>
-              <p className="text-[10px] md:text-xs text-slate-500 mt-1">Всего ошибок</p>
+              <p className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100">{mistakes.length}</p>
+              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Всего ошибок</p>
             </div>
             <div className="card p-2 md:p-4 text-center border-l-4 border-l-rose-400">
               <p className="text-xl md:text-2xl font-black text-rose-600">{openCount}</p>
-              <p className="text-[10px] md:text-xs text-slate-500 mt-1">Внимания</p>
+              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Внимания</p>
             </div>
             <div className="card p-2 md:p-4 text-center border-l-4 border-l-emerald-400">
               <p className="text-xl md:text-2xl font-black text-emerald-600">{resolvedCount}</p>
-              <p className="text-[10px] md:text-xs text-slate-500 mt-1">Исправлено</p>
+              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Исправлено</p>
             </div>
           </div>
 
@@ -371,7 +371,7 @@ export default function MistakeDiary() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                   filter === f
                     ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span className="flex items-center gap-1.5">
@@ -400,7 +400,7 @@ export default function MistakeDiary() {
               <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
                 <CheckCircle2 className="w-7 h-7 text-emerald-500" />
               </div>
-              <h3 className="font-bold text-slate-700 mb-1">
+              <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-1">
                 {filter === 'open' ? 'Отличная работа!' : 'Пока пусто'}
               </h3>
               <p className="text-sm text-slate-400">
@@ -436,16 +436,16 @@ export default function MistakeDiary() {
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 leading-snug line-clamp-2">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">
                           {mistake.question}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           {mistake.topic && (
-                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+                            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">
                               {mistake.topic}
                             </span>
                           )}
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500">
                             {new Date(mistake.created_at).toLocaleDateString('ru-RU')}
                           </span>
                         </div>
@@ -464,23 +464,23 @@ export default function MistakeDiary() {
                           exit={{ height: 0 }}
                           className="overflow-hidden"
                         >
-                          <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
+                          <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-800 pt-3 space-y-3">
                             {/* Ответ студента */}
-                            <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl">
-                              <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mb-1">
+                            <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-xl">
+                              <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">
                                 Мой ответ
                               </p>
-                              <p className="text-sm text-slate-700 leading-relaxed">
+                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {mistake.student_answer || '— (пусто)'}
                               </p>
                             </div>
 
                             {/* Правильный ответ */}
-                            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
-                              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-xl">
+                              <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
                                 Правильный ответ
                               </p>
-                              <p className="text-sm text-slate-700 leading-relaxed">
+                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {mistake.correct_answer}
                               </p>
                             </div>
@@ -498,7 +498,7 @@ export default function MistakeDiary() {
                               )}
                               <button
                                 onClick={() => deleteMistake(mistake.id)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 text-xs font-bold rounded-lg transition"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 text-xs font-bold rounded-lg transition"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 Удалить

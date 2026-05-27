@@ -85,7 +85,7 @@ export default function MaterialDetail() {
             <input
               value={subjectInput}
               onChange={e => setSubjectInput(e.target.value)}
-              className="px-3 py-1 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Предмет"
               autoFocus
             />

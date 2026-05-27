@@ -161,32 +161,32 @@ export default function Chat() {
   const chatContent = (
     <div className={`flex flex-col transition-all duration-300 ${
       isFullScreen 
-        ? 'fixed inset-0 z-[200] bg-slate-50 p-4 md:p-8 h-screen w-screen' 
-        : 'h-full p-4 md:p-6 bg-slate-50/50'
+        ? 'fixed inset-0 z-[200] bg-slate-50 dark:bg-slate-950 p-4 md:p-8 h-screen w-screen' 
+        : 'h-full p-4 md:p-6 bg-slate-50/50 dark:bg-transparent'
     }`}>
       {/* Header */}
       <div className={`flex items-center justify-between mb-4 ${isFullScreen ? 'max-w-7xl mx-auto w-full' : ''}`}>
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
-            <MessageSquare className="w-5 h-5 text-indigo-600" />
+          <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-950/50 rounded-xl flex items-center justify-center shrink-0">
+            <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-slate-900 truncate">AI-чат</h1>
-            <p className="text-xs text-slate-500 truncate">Задавайте вопросы по вашим материалам</p>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 truncate">AI-чат</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Задавайте вопросы по вашим материалам</p>
           </div>
         </div>
         
         <div className="flex items-center gap-2 shrink-0">
           <button 
             onClick={() => setIsFullScreen(!isFullScreen)}
-            className="p-2 text-slate-400 hover:text-indigo-600 transition rounded-lg hover:bg-indigo-50"
+            className="p-2 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
             title={isFullScreen ? "Уменьшить" : "На весь экран"}
           >
             {isFullScreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
           
           {messages.length > 0 && (
-            <button onClick={handleClearHistory} className="p-2 text-slate-400 hover:text-rose-500 transition rounded-lg hover:bg-rose-50" title="Очистить чат">
+            <button onClick={handleClearHistory} className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 transition rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30" title="Очистить чат">
               <Trash2 className="w-5 h-5" />
             </button>
           )}
@@ -198,7 +198,7 @@ export default function Chat() {
         <select
           value={selectedId}
           onChange={e => setSelectedId(e.target.value)}
-          className="w-full md:w-72 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm"
+          className="w-full md:w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm"
         >
           <option value="">Выберите материал...</option>
           {materials.map(m => (
@@ -208,14 +208,14 @@ export default function Chat() {
       </div>
 
       {/* Chat area */}
-      <div className={`flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative ${isFullScreen ? 'max-w-7xl mx-auto w-full h-full' : ''}`}>
+      <div className={`flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col relative ${isFullScreen ? 'max-w-7xl mx-auto w-full h-full' : ''}`}>
         {!selectedId ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-              <MessageSquare className="w-8 h-8 text-slate-300" />
+            <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+              <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600" />
             </div>
-            <h3 className="text-slate-900 font-semibold mb-1">Чат не выбран</h3>
-            <p className="text-slate-500 text-sm max-w-xs">Выберите лекцию из списка выше, чтобы начать обсуждение с AI</p>
+            <h3 className="text-slate-900 dark:text-slate-100 font-semibold mb-1">Чат не выбран</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs">Выберите лекцию из списка выше, чтобы начать обсуждение с AI</p>
           </div>
         ) : (
           <>
@@ -226,10 +226,10 @@ export default function Chat() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="inline-block px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium mb-3">
+                  <div className="inline-block px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full text-xs font-medium mb-3">
                     Конспект загружен в память
                   </div>
-                  <p className="text-slate-400 text-sm">
+                  <p className="text-slate-400 dark:text-slate-500 text-sm">
                     Спросите что-нибудь о «{selectedMaterial?.title}»
                   </p>
                 </div>
@@ -240,7 +240,7 @@ export default function Chat() {
                       className={`max-w-[85%] md:max-w-[75%] lg:max-w-[65%] p-3.5 text-sm rounded-2xl shadow-sm ${
                         msg.role === 'user'
                           ? 'bg-indigo-600 text-white rounded-tr-none'
-                          : 'bg-slate-100 border border-slate-200 text-slate-800 rounded-tl-none'
+                          : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-none'
                       }`}
                     >
                       <div className={`markdown-content ${msg.role === 'user' ? 'white-text' : ''}`}>
@@ -252,10 +252,10 @@ export default function Chat() {
               )}
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-slate-100 border border-slate-200 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-sm">
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-sm">
+                    <span className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               )}
@@ -263,14 +263,14 @@ export default function Chat() {
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200">
+            <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
               <div className="flex gap-2">
                 <input
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                   placeholder="Напишите вопрос по материалу..."
-                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm bg-white"
+                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                   disabled={loading}
                 />
                 <button
