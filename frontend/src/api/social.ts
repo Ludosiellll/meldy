@@ -167,3 +167,20 @@ export async function getPublicMaterialPreview(materialId: string) {
   }
   return data;
 }
+
+export async function uploadAvatar(userId: string, file: File): Promise<string | null> {
+  const fileExt = file.name.split('.').pop() || 'png';
+  const fileName = `${userId}-${Date.now()}.${fileExt}`;
+  
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+  if (uploadError) {
+    console.error('Avatar upload error:', uploadError);
+    return null;
+  }
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+  return data.publicUrl;
+}

@@ -326,12 +326,12 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* ═══ MOBILE HEADER ════════════════════════════════════════════════ */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shrink-0 z-30">
-          <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 hover:opacity-80 transition text-left">
             <div className="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
               <GraduationCap className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
-          </div>
+          </button>
           <div className="flex items-center gap-1">
             <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="p-2 text-slate-500 hover:text-indigo-600 transition" title="Переключить тему">
               {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}

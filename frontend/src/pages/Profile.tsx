@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getProfile, updateProfile, UserProfile } from '../api/social';
+import { getProfile, updateProfile, uploadAvatar, UserProfile } from '../api/social';
 import { getFriends, sendFriendRequest, respondFriendRequest, Friendship } from '../api/chat';
-import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX, Bell, BellOff } from 'lucide-react';
+import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX, Bell, BellOff, Camera } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
+import UniversitySelect from '../components/UniversitySelect';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -27,6 +28,9 @@ export default function Profile() {
   // Push notifications state
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(true);
+
+  // Avatar Upload state
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
@@ -107,6 +111,26 @@ export default function Profile() {
     setPushLoading(false);
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    
+    setUploadingAvatar(true);
+    const url = await uploadAvatar(user.id, file);
+    setUploadingAvatar(false);
+
+    if (url) {
+      setEditForm({ ...editForm, avatar_url: url });
+      // Если не в режиме редактирования, сохраним сразу
+      if (!isEditing) {
+        await updateProfile(user.id, { avatar_url: url });
+        setProfile(prev => prev ? { ...prev, avatar_url: url } : null);
+      }
+    } else {
+      alert('Ошибка при загрузке фото.');
+    }
+  };
+
   if (loading) return <div className="flex min-h-[85vh] items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-500 animate-spin" /></div>;
   if (!profile) return <div className="p-8 text-center text-slate-500">Профиль не найден.</div>;
 
@@ -117,16 +141,25 @@ export default function Profile() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden mb-8"
       >
-        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-indigo-500 to-purple-600" />
+        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-tr from-indigo-600 via-purple-600 to-rose-500" />
         
         <div className="relative pt-12 flex flex-col md:flex-row items-center md:items-end gap-6 mb-8">
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt="avatar" className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 object-cover" />
-          ) : (
-            <div className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <UserCircle2 className="w-16 h-16 text-slate-400" />
-            </div>
-          )}
+          <div className="relative group">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt="avatar" className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-900 shadow-xl bg-white dark:bg-slate-900 object-cover" />
+            ) : (
+              <div className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-900 shadow-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <UserCircle2 className="w-16 h-16 text-slate-400" />
+              </div>
+            )}
+            
+            {isMyProfile && (
+              <label className="absolute bottom-0 right-0 w-10 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg transition-transform hover:scale-105">
+                {uploadingAvatar ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={uploadingAvatar} />
+              </label>
+            )}
+          </div>
           
           <div className="flex-1 text-center md:text-left mb-2">
             <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{profile.full_name || 'Студент'}</h1>
@@ -137,7 +170,7 @@ export default function Profile() {
               </div>
             )}
             {profile.role === 'teacher' && (
-              <div className="inline-flex mt-2 items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 rounded-lg text-xs font-bold uppercase tracking-wider border border-transparent dark:border-amber-900/50">
+              <div className="inline-flex mt-2 items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 rounded-lg text-xs font-bold uppercase tracking-wider border border-amber-200 dark:border-amber-900/50">
                 Преподаватель
               </div>
             )}
@@ -178,29 +211,25 @@ export default function Profile() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя и Фамилия</label>
-                <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm" placeholder="Иван Иванов" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Университет / Школа</label>
-                <input type="text" value={editForm.university} onChange={e => setEditForm({...editForm, university: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ссылка на аватарку (URL)</label>
-                <input type="text" value={editForm.avatar_url} onChange={e => setEditForm({...editForm, avatar_url: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://example.com/avatar.jpg" />
+                <UniversitySelect value={editForm.university} onChange={(val) => setEditForm({...editForm, university: val})} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">О себе (Био)</label>
-                <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} />
+                <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm min-h-[100px]" rows={3} placeholder="Расскажите немного о себе..." />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Роль в системе</label>
-                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm appearance-none cursor-pointer">
                   <option value="student">Студент</option>
                   <option value="teacher">Преподаватель</option>
                 </select>
               </div>
               <div className="flex justify-end pt-2">
-                <button onClick={handleSaveProfile} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Сохранить</button>
+                <button onClick={handleSaveProfile} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg hover:-translate-y-0.5">Сохранить изменения</button>
               </div>
             </div>
           </motion.div>
