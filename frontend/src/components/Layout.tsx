@@ -93,6 +93,7 @@ export default function Layout() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
   const { theme, setTheme } = useTheme();
+  const isDarkActive = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   
   const [isAssistantHidden, setIsAssistantHidden] = useState(() => {
     return localStorage.getItem('forgey_assistant_hidden') === 'true';
@@ -330,8 +331,8 @@ export default function Layout() {
                 <Bot className="w-4 h-4" />
               </button>
 
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-400 transition relative p-1" title="Переключить тему">
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-400 transition relative p-1" title="Переключить тему">
+                {isDarkActive ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               
               <button onClick={handleOpenNotifications} className="text-slate-500 hover:text-slate-200 transition relative p-1">

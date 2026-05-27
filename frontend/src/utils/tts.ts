@@ -182,7 +182,11 @@ const speakBrowserCurrentSegment = async () => {
   };
 
   utterance.onerror = (e) => {
-    if (e.error === 'interrupted' && isBrowserPaused) {
+    if (e.error === 'interrupted') {
+      // OS or browser interrupted/paused speech (e.g. screen lock, tab background, focus loss)
+      currentParaOffset += currentParaLastCharIndex;
+      currentParaLastCharIndex = 0;
+      isBrowserPaused = true;
       return;
     }
     console.error('Browser TTS error:', e);
@@ -199,6 +203,13 @@ const playBrowserTTS = async (
   onEnd?: () => void,
   onError?: (e: any) => void
 ) => {
+  // Check if we are resuming the exact same message that was paused or interrupted
+  if (isBrowserSpeaking && isBrowserPaused && currentParaText === text) {
+    isBrowserPaused = false;
+    await speakBrowserCurrentSegment();
+    return;
+  }
+
   currentParaText = text;
   currentParaOffset = 0;
   currentParaLastCharIndex = 0;

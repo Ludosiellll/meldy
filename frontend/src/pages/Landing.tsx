@@ -47,6 +47,7 @@ function Navbar() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const isDarkActive = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50">
@@ -67,8 +68,8 @@ function Navbar() {
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-2 sm:gap-3">
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-500 transition mr-2">
-            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-500 transition mr-2" title="Переключить тему">
+            {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
           <button onClick={() => navigate('/login')}
             className="text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition px-3 py-2">
@@ -82,8 +83,8 @@ function Navbar() {
 
         {/* Mobile Menu Toggle */}
         <div className="md:hidden flex items-center gap-4 z-50">
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-500 transition">
-            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-500 transition" title="Переключить тему">
+            {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
           <button 
             onClick={() => setIsMenuOpen(!isMenuOpen)} 
@@ -706,38 +707,38 @@ function ProductSimulation() {
   };
 
   return (
-    <section id="how-it-works" className="py-24 px-6 relative bg-slate-50 border-y border-slate-200 overflow-hidden select-none">
+    <section id="how-it-works" className="py-24 px-6 relative bg-slate-50 dark:bg-slate-950 border-y border-slate-200 dark:border-slate-800 overflow-hidden select-none transition-colors duration-300">
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="text-center mb-16 space-y-3">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Один клик — и всё готово
           </h2>
-          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+          <p className="text-slate-500 dark:text-slate-400 text-lg max-w-xl mx-auto">
             Посмотрите, как за пару секунд StudyForge раскладывает лекцию на атомы: от загрузки до 3D-карточек и аудиоподкаста.
           </p>
         </div>
 
         {/* Адаптивный контейнер симулятора */}
         <div className="relative w-full h-[230px] min-[400px]:h-[280px] min-[500px]:h-[350px] sm:h-[450px] lg:h-[620px] overflow-hidden flex items-center justify-center">
-          <div className="absolute w-[1000px] h-[600px] scale-[0.32] min-[400px]:scale-[0.38] min-[500px]:scale-[0.48] sm:scale-[0.68] lg:scale-100 origin-center shrink-0 border border-slate-200 shadow-2xl rounded-2xl bg-white overflow-hidden flex flex-col">
+          <div className="absolute w-[1000px] h-[600px] scale-[0.32] min-[400px]:scale-[0.38] min-[500px]:scale-[0.48] sm:scale-[0.68] lg:scale-100 origin-center shrink-0 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl bg-white dark:bg-slate-900 overflow-hidden flex flex-col transition-colors duration-300">
             
             {/* Имитация заголовка браузера */}
-            <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between z-20 shrink-0">
+            <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between z-20 shrink-0 transition-colors duration-300">
               <div className="flex gap-2">
                 <div className="w-3 h-3 rounded-full bg-rose-400" />
                 <div className="w-3 h-3 rounded-full bg-amber-400" />
                 <div className="w-3 h-3 rounded-full bg-emerald-400" />
               </div>
-              <div className="flex bg-white border border-slate-200 rounded-md px-3 py-1 flex-1 max-w-md mx-4 items-center justify-center gap-2">
-                <Search className="w-3 h-3 text-slate-400" />
-                <span className="text-xs font-semibold text-slate-400">app.studyforge.ru/dashboard</span>
+              <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3 py-1 flex-1 max-w-md mx-4 items-center justify-center gap-2 transition-colors duration-300">
+                <Search className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">app.studyforge.ru/dashboard</span>
               </div>
               <div className="flex items-center gap-3 pr-2">
-                <div className="bg-indigo-50 border border-indigo-100 text-indigo-700 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
                   <Sparkles className="w-3 h-3 text-amber-500 fill-amber-300" />
                   <span>450 XP</span>
                 </div>
-                <div className="w-6.5 h-6.5 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-[10px] text-slate-600">
+                <div className="w-6.5 h-6.5 rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-600 dark:text-slate-300">
                   АИ
                 </div>
               </div>
@@ -747,44 +748,44 @@ function ProductSimulation() {
             <div className="flex flex-1 overflow-hidden relative">
               
               {/* Боковое меню */}
-              <div className="w-60 border-r border-slate-100 bg-slate-50/50 p-4 flex flex-col gap-4 shrink-0">
-                <div className="h-8 bg-indigo-50 border border-indigo-100 rounded-lg w-full flex items-center px-3 gap-2">
-                  <LayoutDashboard className="w-4 h-4 text-indigo-600 animate-pulse" />
-                  <span className="text-[11px] font-extrabold text-indigo-700">Дашборд</span>
+              <div className="w-60 border-r border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 p-4 flex flex-col gap-4 shrink-0 transition-colors duration-300">
+                <div className="h-8 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 rounded-lg w-full flex items-center px-3 gap-2 transition-colors duration-300">
+                  <LayoutDashboard className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                  <span className="text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300">Дашборд</span>
                 </div>
                 <div className="space-y-2 mt-2">
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 rounded-lg hover:bg-slate-100">
-                    <FileText className="w-4 h-4 text-slate-400" />
+                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
+                    <FileText className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <span className="text-[11px] font-bold">Мои конспекты</span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 rounded-lg hover:bg-slate-100">
-                    <Brain className="w-4 h-4 text-slate-400" />
+                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
+                    <Brain className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <span className="text-[11px] font-bold">Карточки</span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 rounded-lg hover:bg-slate-100">
-                    <Headphones className="w-4 h-4 text-slate-400" />
+                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
+                    <Headphones className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <span className="text-[11px] font-bold">Подкасты</span>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 rounded-lg hover:bg-slate-100">
-                    <Trophy className="w-4 h-4 text-slate-400" />
+                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
+                    <Trophy className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <span className="text-[11px] font-bold">Учебные квесты</span>
                   </div>
                 </div>
                 
                 {/* Нижняя часть меню (прогресс) */}
-                <div className="mt-auto bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
-                  <div className="flex justify-between text-[9px] font-bold text-slate-400 mb-1">
+                <div className="mt-auto bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-sm transition-colors duration-300">
+                  <div className="flex justify-between text-[9px] font-bold text-slate-400 dark:text-slate-500 mb-1">
                     <span>Уровень 3</span>
                     <span>120 / 500 XP</span>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-100 border border-slate-200/50 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-600 rounded-full w-[24%]" />
+                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 rounded-full overflow-hidden transition-colors duration-300">
+                    <div className="h-full bg-indigo-600 dark:bg-indigo-500 rounded-full w-[24%]" />
                   </div>
                 </div>
               </div>
 
               {/* Главный рабочий стол */}
-              <div className="flex-1 relative bg-white overflow-hidden">
+              <div className="flex-1 relative bg-white dark:bg-slate-900/95 overflow-hidden transition-colors duration-300">
                 
                 <AnimatePresence mode="wait">
                   {/* ШАГ 0, 1: Экран загрузки файла */}
@@ -796,17 +797,17 @@ function ProductSimulation() {
                       exit={{ opacity: 0, scale: 0.95 }}
                       className="absolute inset-0 flex flex-col items-center justify-center gap-6"
                     >
-                      <div className="w-24 h-24 bg-indigo-50/50 border-2 border-dashed border-indigo-200 rounded-3xl flex items-center justify-center shadow-inner group">
-                        <Upload className="w-10 h-10 text-indigo-400 group-hover:scale-110 transition duration-300" />
+                      <div className="w-24 h-24 bg-indigo-50/50 dark:bg-indigo-950/20 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-3xl flex items-center justify-center shadow-inner group transition-colors">
+                        <Upload className="w-10 h-10 text-indigo-400 dark:text-indigo-500 group-hover:scale-110 transition duration-300" />
                       </div>
                       <div className="text-center space-y-1">
-                        <h3 className="text-lg font-extrabold text-slate-800">Загрузите материалы для разбора</h3>
-                        <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                        <h3 className="text-lg font-extrabold text-slate-800 dark:text-slate-100">Загрузите материалы для разбора</h3>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs mx-auto">
                           Перетащите Word, PDF или лекционный текст сюда
                         </p>
                       </div>
                       <button 
-                        className="px-8 py-3 bg-indigo-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition"
+                        className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none transition"
                       >
                         Загрузить файл
                       </button>
@@ -822,9 +823,9 @@ function ProductSimulation() {
                       exit={{ opacity: 0 }}
                       className="absolute inset-0 flex flex-col items-center justify-center gap-6"
                     >
-                      <div className="w-20 h-24 bg-white border border-slate-200 rounded-xl shadow-lg flex items-center justify-center relative overflow-hidden">
+                      <div className="w-20 h-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg flex items-center justify-center relative overflow-hidden transition-colors">
                         <div className="absolute top-0 right-0 w-5 h-5 bg-indigo-600 rounded-bl-lg rounded-tr flex items-center justify-center text-[9px] font-bold text-white">W</div>
-                        <FileText className="w-10 h-10 text-indigo-600" />
+                        <FileText className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
                         <motion.div
                           animate={{ top: ["100%", "0%", "100%"] }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
@@ -832,14 +833,14 @@ function ProductSimulation() {
                         />
                       </div>
                       <div className="w-full max-w-xs text-center space-y-2">
-                        <p className="text-xs font-bold text-slate-800">Загрузка: Лекция_1_Нейросети.docx</p>
-                        <div className="h-2 w-full bg-slate-100 border border-slate-200 rounded-full overflow-hidden relative">
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Загрузка: Лекция_1_Нейросети.docx</p>
+                        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full overflow-hidden relative transition-colors">
                           <div 
-                            className="h-full bg-indigo-600 rounded-full transition-all duration-100" 
+                            className="h-full bg-indigo-600 dark:bg-indigo-500 rounded-full transition-all duration-100" 
                             style={{ width: `${uploadProgress}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-slate-400 font-bold">{uploadProgress}% завершено</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{uploadProgress}% завершено</span>
                       </div>
                     </motion.div>
                   )}
@@ -851,14 +852,14 @@ function ProductSimulation() {
                       initial={{ opacity: 0, filter: 'blur(4px)' }}
                       animate={{ opacity: 1, filter: 'blur(0px)' }}
                       exit={{ opacity: 0 }}
-                      className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-slate-50/50"
+                      className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-slate-50/50 dark:bg-slate-900/40"
                     >
                       <div className="text-center mb-6 space-y-1">
-                        <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5 justify-center">
-                          <Cpu className="w-4 h-4 text-indigo-600 animate-spin" />
+                        <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-1.5 justify-center">
+                          <Cpu className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-spin" />
                           Мультиагентный ИИ-анализ лекции
                         </h4>
-                        <p className="text-[10px] text-slate-400 font-medium">6 специализированных агентов обрабатывают данные...</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">6 специализированных агентов обрабатывают данные...</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
@@ -874,32 +875,32 @@ function ProductSimulation() {
                               transition={{ delay: idx * 0.05 }}
                               className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-300 ${
                                 isDone 
-                                  ? 'bg-white border-emerald-200/80 shadow-sm' 
+                                  ? 'bg-white dark:bg-slate-800 border-emerald-200/80 dark:border-emerald-900/40 shadow-sm' 
                                   : isActive
-                                  ? 'bg-white border-indigo-300 ring-2 ring-indigo-500/10 shadow-sm'
-                                  : 'bg-slate-50/50 border-slate-200/60 opacity-60'
+                                  ? 'bg-white dark:bg-slate-800 border-indigo-300 dark:border-indigo-700 ring-2 ring-indigo-500/10 dark:ring-indigo-500/20 shadow-sm'
+                                  : 'bg-slate-50/50 dark:bg-slate-800/20 border-slate-200/60 dark:border-slate-700/40 opacity-60'
                               }`}
                             >
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                                 isDone 
-                                  ? 'bg-emerald-50 text-emerald-500' 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 dark:text-emerald-400' 
                                   : isActive 
-                                  ? 'bg-indigo-50 text-indigo-600' 
-                                  : 'bg-slate-100 text-slate-400'
+                                  ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400' 
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
                               }`}>
                                 {isDone ? (
                                   <Check className="w-4 h-4" />
                                 ) : isActive ? (
-                                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
                                 ) : (
                                   <agent.icon className="w-4.5 h-4.5" />
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <p className={`text-[10.5px] font-extrabold truncate ${isDone ? 'text-emerald-700' : isActive ? 'text-indigo-900' : 'text-slate-500'}`}>
+                                <p className={`text-[10.5px] font-extrabold truncate ${isDone ? 'text-emerald-700 dark:text-emerald-400' : isActive ? 'text-indigo-900 dark:text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
                                   {agent.name}
                                 </p>
-                                <p className="text-[8.5px] text-slate-400 truncate leading-normal">{agent.desc}</p>
+                                <p className="text-[8.5px] text-slate-400 dark:text-slate-500 truncate leading-normal">{agent.desc}</p>
                               </div>
                             </motion.div>
                           );
@@ -916,25 +917,25 @@ function ProductSimulation() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0, x: -60, filter: 'blur(5px)' }}
                       transition={{ duration: 0.4 }}
-                      className="absolute inset-0 p-6 flex gap-6 bg-slate-50/50"
+                      className="absolute inset-0 p-6 flex gap-6 bg-slate-50/50 dark:bg-slate-900/30"
                     >
                       {/* Левая панель: Умный конспект */}
                       <motion.div 
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="flex-1 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm overflow-hidden flex flex-col"
+                        className="flex-1 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-sm overflow-hidden flex flex-col transition-colors duration-300"
                       >
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/80">
                           <div className="flex items-center gap-2">
-                            <FileCheck className="w-4.5 h-4.5 text-emerald-500" />
-                            <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">Умный Конспект</h4>
+                            <FileCheck className="w-4.5 h-4.5 text-emerald-500 dark:text-emerald-400" />
+                            <h4 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">Умный Конспект</h4>
                           </div>
-                          <span className="text-[9px] font-bold text-slate-400">PDF Разбор</span>
+                          <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">PDF Разбор</span>
                         </div>
                         
                         <div className="space-y-4 flex-1 overflow-y-auto pr-1">
                           <div>
-                            <h5 className="font-extrabold text-slate-800 text-[13px] mb-1.5">Тема: Нейронные сети и веса связей</h5>
+                            <h5 className="font-extrabold text-slate-800 dark:text-slate-100 text-[13px] mb-1.5">Тема: Нейронные сети и веса связей</h5>
                             <div className="h-0.5 bg-indigo-500/20 rounded w-full mb-3" />
                           </div>
                           
@@ -944,9 +945,9 @@ function ProductSimulation() {
                               initial={{ opacity: 0, y: 5 }} 
                               animate={{ opacity: 1, y: 0 }} 
                               transition={{ delay: 0.3 }}
-                              className="text-[11px] leading-relaxed text-slate-600 flex gap-2"
+                              className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 flex gap-2"
                             >
-                              <span className="text-indigo-500 font-bold shrink-0">•</span>
+                              <span className="text-indigo-500 dark:text-indigo-400 font-bold shrink-0">•</span>
                               <p>
                                 <strong>Искусственная нейронная сеть</strong> — это математическая модель, имитирующая биологические синаптические связи для распознавания образов.
                               </p>
@@ -956,12 +957,12 @@ function ProductSimulation() {
                               initial={{ opacity: 0, y: 5 }} 
                               animate={{ opacity: 1, y: 0 }} 
                               transition={{ delay: 0.8 }}
-                              className="text-[11px] leading-relaxed text-slate-600 flex gap-2"
+                              className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 flex gap-2"
                             >
-                              <span className="text-indigo-500 font-bold shrink-0">•</span>
+                              <span className="text-indigo-500 dark:text-indigo-400 font-bold shrink-0">•</span>
                               <div>
                                 <p className="font-bold mb-1">Основные структурные элементы:</p>
-                                <div className="pl-3 space-y-1 text-slate-500">
+                                <div className="pl-3 space-y-1 text-slate-500 dark:text-slate-400">
                                   <p>— Входные нейроны (получение сырых данных)</p>
                                   <p>— Скрытые слои (автоматическое выделение признаков)</p>
                                   <p>— Выходные нейроны (выдача финальной классификации)</p>
@@ -973,9 +974,9 @@ function ProductSimulation() {
                               initial={{ opacity: 0, y: 5 }} 
                               animate={{ opacity: 1, y: 0 }} 
                               transition={{ delay: 1.4 }}
-                              className="text-[11px] leading-relaxed text-slate-600 flex gap-2"
+                              className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 flex gap-2"
                             >
-                              <span className="text-indigo-500 font-bold shrink-0">•</span>
+                              <span className="text-indigo-500 dark:text-indigo-400 font-bold shrink-0">•</span>
                               <p>
                                 <strong>Обучение</strong> происходит через алгоритм обратного распространения ошибки (Backpropagation) путем многократной корректировки весов.
                               </p>
@@ -988,10 +989,10 @@ function ProductSimulation() {
                       <div className="w-[330px] flex flex-col gap-6 shrink-0">
                         
                         {/* Карточка */}
-                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col">
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col transition-colors duration-300">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Карточка 1/14</span>
-                            <Brain className="w-3.5 h-3.5 text-indigo-500" />
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Карточка 1/14</span>
+                            <Brain className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                           </div>
                           
                           {/* 3D Переворачивающаяся карточка */}
@@ -1004,16 +1005,16 @@ function ProductSimulation() {
                             >
                               {/* Лицо */}
                               <div 
-                                className="absolute inset-0 bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex flex-col items-center justify-center shadow-inner"
+                                className="absolute inset-0 bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 rounded-xl p-3 flex flex-col items-center justify-center shadow-inner transition-colors duration-300"
                                 style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
                               >
-                                <p className="text-[9px] font-semibold text-slate-400 mb-0.5">Термин</p>
-                                <p className="text-sm font-extrabold text-slate-800 text-center">Нейронная сеть</p>
+                                <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 mb-0.5">Термин</p>
+                                <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100 text-center">Нейронная сеть</p>
                               </div>
 
                               {/* Оборот */}
                               <div 
-                                className="absolute inset-0 bg-indigo-50/30 border border-indigo-100 rounded-xl p-3 flex flex-col items-center justify-between shadow-inner"
+                                className="absolute inset-0 bg-indigo-50/30 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-3 flex flex-col items-center justify-between shadow-inner transition-colors duration-300"
                                 style={{ 
                                   backfaceVisibility: 'hidden', 
                                   WebkitBackfaceVisibility: 'hidden',
@@ -1021,23 +1022,23 @@ function ProductSimulation() {
                                 }}
                               >
                                 <div className="text-center">
-                                  <p className="text-[9px] font-semibold text-indigo-500 mb-0.5">Определение</p>
-                                  <p className="text-[10.5px] font-medium text-slate-700 leading-tight">
+                                  <p className="text-[9px] font-semibold text-indigo-500 dark:text-indigo-400 mb-0.5">Определение</p>
+                                  <p className="text-[10.5px] font-medium text-slate-700 dark:text-slate-300 leading-tight">
                                     Математическая модель, имитирующая биологические синаптические связи.
                                   </p>
                                 </div>
                                 
                                 {/* Кнопки на обороте карточки */}
                                 <div className="flex gap-2 w-full mt-1.5">
-                                  <button className="h-6.5 flex-1 bg-white border border-rose-200 rounded-md text-[9px] font-bold text-rose-500 pointer-events-none">
+                                  <button className="h-6.5 flex-1 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/50 rounded-md text-[9px] font-bold text-rose-500 dark:text-rose-450 pointer-events-none transition-colors">
                                     Забыл
                                   </button>
                                   <motion.button 
                                     animate={step === 9 ? { scale: [1, 0.9, 1] } : {}}
                                     className={`h-6.5 flex-1 border rounded-md text-[9px] font-bold transition-all duration-300 pointer-events-none flex items-center justify-center gap-1 ${
                                       cardCompleted 
-                                        ? 'bg-emerald-500 border-emerald-600 text-white' 
-                                        : 'bg-white border-emerald-200 text-emerald-600'
+                                        ? 'bg-emerald-500 border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700 text-white' 
+                                        : 'bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-450'
                                     }`}
                                   >
                                     {cardCompleted ? <Check className="w-3 h-3 text-white" /> : null}
@@ -1069,8 +1070,8 @@ function ProductSimulation() {
                         <div 
                           className={`rounded-2xl p-4 text-white shadow-lg transition-all duration-500 relative overflow-hidden flex flex-col ${
                             step >= 10 
-                              ? 'bg-indigo-700 scale-[0.98] ring-4 ring-indigo-500/25 border-indigo-400' 
-                              : 'bg-gradient-to-br from-indigo-600 to-indigo-800 border border-indigo-500/20'
+                              ? 'bg-indigo-700 dark:bg-indigo-800 scale-[0.98] ring-4 ring-indigo-500/25 dark:ring-indigo-500/40 border-indigo-400 dark:border-indigo-650' 
+                              : 'bg-gradient-to-br from-indigo-600 to-indigo-800 dark:from-indigo-700 dark:to-indigo-900 border border-indigo-500/20 dark:border-indigo-800/40'
                           }`}
                         >
                           <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
@@ -1085,7 +1086,7 @@ function ProductSimulation() {
                                 <div key={i} className="w-1 bg-white/40 h-2 rounded-full" />
                               ))}
                             </div>
-                            <span className="text-[9px] font-bold bg-white text-indigo-600 px-3 py-1 rounded-lg shadow-sm">
+                            <span className="text-[9px] font-bold bg-white text-indigo-600 dark:bg-slate-900 dark:text-indigo-400 px-3 py-1 rounded-lg shadow-sm">
                               Открыть плеер
                             </span>
                           </div>
@@ -1103,10 +1104,10 @@ function ProductSimulation() {
                       animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.4 }}
-                      className="absolute inset-0 p-6 bg-slate-50/50 flex flex-col gap-5 overflow-hidden"
+                      className="absolute inset-0 p-6 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col gap-5 overflow-hidden transition-colors duration-300"
                     >
                       {/* Шапка/Плеер подкаста */}
-                      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-2xl p-5 shadow-md border border-indigo-500/20 flex items-center justify-between gap-5 relative overflow-hidden shrink-0">
+                      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 dark:from-indigo-700 dark:to-indigo-900 text-white rounded-2xl p-5 shadow-md border border-indigo-500/20 flex items-center justify-between gap-5 relative overflow-hidden shrink-0">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none -mt-10 -mr-10" />
                         
                         <div className="flex items-center gap-3.5 relative z-10 w-auto">
@@ -1149,7 +1150,7 @@ function ProductSimulation() {
 
                           {/* Кнопка запуска */}
                           <button
-                            className="px-5 py-2.5 bg-white hover:bg-indigo-50 text-indigo-600 font-extrabold rounded-lg text-[11px] transition flex items-center gap-1.5 shadow-md hover:-translate-y-0.5"
+                            className="px-5 py-2.5 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-extrabold rounded-lg text-[11px] transition flex items-center gap-1.5 shadow-md hover:-translate-y-0.5 border border-transparent dark:border-slate-800"
                           >
                             {podcastPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
                             {podcastPlaying ? 'Пауза' : 'Слушать'}
@@ -1171,6 +1172,35 @@ function ProductSimulation() {
                           if (step < msg.stepActive) return null;
                           const isSpeaking = step === msg.stepActive;
                           
+                          // Style determination
+                          let bubbleBgClass = '';
+                          let textHeaderClass = '';
+                          let textBodyClass = '';
+                          
+                          if (msg.isMax) {
+                            // Max (Left)
+                            if (isSpeaking) {
+                              bubbleBgClass = 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 ring-2 ring-inset ring-indigo-500/20 dark:ring-indigo-500/30';
+                              textHeaderClass = 'text-indigo-900 dark:text-indigo-400';
+                              textBodyClass = 'text-slate-800 dark:text-slate-200';
+                            } else {
+                              bubbleBgClass = 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700';
+                              textHeaderClass = 'text-slate-500 dark:text-slate-400';
+                              textBodyClass = 'text-slate-700 dark:text-slate-300';
+                            }
+                          } else {
+                            // Sofia (Right)
+                            if (isSpeaking) {
+                              bubbleBgClass = 'bg-indigo-700 dark:bg-indigo-800 border-indigo-50 dark:border-indigo-600 ring-4 ring-indigo-500/30 dark:ring-indigo-500/40';
+                              textHeaderClass = 'text-white';
+                              textBodyClass = 'text-white';
+                            } else {
+                              bubbleBgClass = 'bg-indigo-600 dark:bg-indigo-900/60 border-indigo-700 dark:border-indigo-800/80';
+                              textHeaderClass = 'text-indigo-200 dark:text-indigo-300';
+                              textBodyClass = 'text-indigo-50 dark:text-indigo-200';
+                            }
+                          }
+                          
                           return (
                             <motion.div
                               key={i}
@@ -1180,39 +1210,21 @@ function ProductSimulation() {
                               className={`flex ${msg.isMax ? 'justify-start' : 'justify-end'} mb-1`}
                             >
                               <div
-                                className={`relative max-w-[80%] px-4 py-3 rounded-2xl shadow-sm border transition-all duration-300 ${
+                                className={`relative max-w-[80%] pl-4 pr-10 py-3 rounded-2xl shadow-sm border transition-all duration-300 ${
                                   msg.isMax ? 'rounded-bl-sm' : 'rounded-br-sm'
-                                } ${
-                                  isSpeaking
-                                    ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/10'
-                                    : msg.isMax
-                                    ? 'bg-white border-slate-200 text-slate-800'
-                                    : 'bg-indigo-600 border-indigo-700 text-white'
-                                }`}
+                                } ${bubbleBgClass}`}
                               >
-                                <div className="flex items-center justify-between mb-1.5 opacity-80 gap-6">
-                                  <span className={`text-[10px] font-black uppercase tracking-wider ${
-                                    isSpeaking
-                                      ? 'text-indigo-900'
-                                      : msg.isMax
-                                      ? 'text-slate-500'
-                                      : 'text-indigo-200'
-                                  }`}>
+                                <div className="flex items-center mb-1.5 opacity-90">
+                                  <span className={`text-[10px] font-black uppercase tracking-wider ${textHeaderClass}`}>
                                     {msg.speaker}
                                   </span>
-                                  {isSpeaking && (
-                                    <Volume2 className={`w-3.5 h-3.5 text-indigo-600 animate-pulse`} />
-                                  )}
                                 </div>
-                                <p className={`text-[12px] leading-relaxed font-medium ${
-                                  isSpeaking
-                                    ? 'text-slate-800'
-                                    : msg.isMax
-                                    ? 'text-slate-700'
-                                    : 'text-white'
-                                }`}>
+                                <p className={`text-[12px] leading-relaxed font-medium ${textBodyClass}`}>
                                   {msg.text}
                                 </p>
+                                {isSpeaking && (
+                                  <Volume2 className="w-3.5 h-3.5 absolute top-3.5 right-3.5 text-indigo-600 dark:text-indigo-400 animate-pulse shrink-0" />
+                                )}
                               </div>
                             </motion.div>
                           );
@@ -1278,133 +1290,133 @@ function ProductSimulation() {
                       animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }}
                       exit={{ opacity: 0, scale: 0.95, y: '-40%', x: '-50%' }}
                       transition={{ duration: 0.25 }}
-                      className="absolute top-1/2 left-1/2 w-[620px] h-[390px] bg-white border border-slate-300 rounded-xl shadow-2xl z-30 flex flex-col overflow-hidden text-slate-800 text-xs"
+                      className="absolute top-1/2 left-1/2 w-[620px] h-[390px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl shadow-2xl z-30 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 text-xs transition-colors duration-300"
                     >
                       {/* Explorer Title Bar */}
-                      <div className="bg-[#f3f4f6] px-3 py-2 flex items-center justify-between border-b border-slate-200 select-none shrink-0">
+                      <div className="bg-[#f3f4f6] dark:bg-slate-950 px-3 py-2 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 select-none shrink-0 transition-colors duration-300">
                         <div className="flex items-center gap-2">
                           <div className="w-3.5 h-3.5 bg-indigo-600 rounded flex items-center justify-center text-white font-bold text-[8px]">W</div>
-                          <span className="font-semibold text-slate-700 text-[11px]">Открыть — Проводник</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">Открыть — Проводник</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <div className="w-6 h-6 hover:bg-slate-200 rounded flex items-center justify-center text-slate-500 font-medium">－</div>
-                          <div className="w-6 h-6 hover:bg-slate-200 rounded flex items-center justify-center text-slate-500 text-[10px]">⬜</div>
-                          <div className="w-6 h-6 hover:bg-rose-500 hover:text-white rounded flex items-center justify-center text-slate-500">✕</div>
+                          <div className="w-6 h-6 hover:bg-slate-200 dark:hover:bg-slate-800 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 font-medium">－</div>
+                          <div className="w-6 h-6 hover:bg-slate-200 dark:hover:bg-slate-800 rounded flex items-center justify-center text-slate-500 dark:text-slate-400 text-[10px]">⬜</div>
+                          <div className="w-6 h-6 hover:bg-rose-500 hover:text-white rounded flex items-center justify-center text-slate-500 dark:text-slate-400">✕</div>
                         </div>
                       </div>
 
                       {/* Explorer Navigation Bar */}
-                      <div className="bg-white px-3 py-1.5 flex items-center gap-2 border-b border-slate-200 shrink-0">
+                      <div className="bg-white dark:bg-slate-900 px-3 py-1.5 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 shrink-0 transition-colors duration-300">
                         <div className="flex items-center gap-1">
-                          <button className="p-1 hover:bg-slate-100 rounded text-slate-400"><ArrowLeft className="w-3.5 h-3.5" /></button>
-                          <button className="p-1 hover:bg-slate-100 rounded text-slate-400 rotate-180"><ArrowLeft className="w-3.5 h-3.5" /></button>
+                          <button className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 dark:text-slate-500"><ArrowLeft className="w-3.5 h-3.5" /></button>
+                          <button className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 dark:text-slate-500 rotate-180"><ArrowLeft className="w-3.5 h-3.5" /></button>
                         </div>
                         
                         {/* Explorer Path Bar */}
-                        <div className="flex-1 flex items-center gap-1 px-2.5 py-1 bg-[#f3f4f6] border border-slate-200 rounded text-[11px] text-slate-600 overflow-hidden truncate">
-                          <Monitor className="w-3 h-3 text-slate-400 shrink-0" />
-                          <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                        <div className="flex-1 flex items-center gap-1 px-2.5 py-1 bg-[#f3f4f6] dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-[11px] text-slate-600 dark:text-slate-300 overflow-hidden truncate transition-colors duration-300">
+                          <Monitor className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                          <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
                           <span>Этот компьютер</span>
-                          <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
+                          <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
                           <span>Документы</span>
-                          <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="font-semibold text-slate-800">Учеба</span>
+                          <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-slate-100">Учеба</span>
                         </div>
 
                         {/* Explorer Search */}
-                        <div className="w-36 flex items-center gap-1.5 px-2 py-1 border border-slate-200 rounded text-[11px] bg-slate-50">
-                          <Search className="w-3 h-3 text-slate-400" />
-                          <span className="text-slate-400">Поиск в: Учеба</span>
+                        <div className="w-36 flex items-center gap-1.5 px-2 py-1 border border-slate-200 dark:border-slate-800 rounded text-[11px] bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+                          <Search className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                          <span className="text-slate-400 dark:text-slate-500">Поиск в: Учеба</span>
                         </div>
                       </div>
 
                       {/* Explorer Main Body */}
-                      <div className="flex flex-1 min-h-0 bg-white">
+                      <div className="flex flex-1 min-h-0 bg-white dark:bg-slate-900 transition-colors duration-300">
                         {/* Explorer Sidebar */}
-                        <div className="w-40 border-r border-slate-200 bg-[#f9fafb] p-2 flex flex-col gap-1 select-none shrink-0">
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-slate-600">
-                            <Monitor className="w-3.5 h-3.5 text-slate-400" />
+                        <div className="w-40 border-r border-slate-200 dark:border-slate-800 bg-[#f9fafb] dark:bg-slate-950/70 p-2 flex flex-col gap-1 select-none shrink-0 transition-colors duration-300">
+                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300">
+                            <Monitor className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                             <span>Этот компьютер</span>
                           </div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-slate-600 pl-4">
-                            <Download className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 pl-4">
+                            <Download className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                             <span>Загрузки</span>
                           </div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 border-l-2 border-indigo-500 rounded-r text-indigo-700 pl-4 font-semibold">
-                            <Folder className="w-3.5 h-3.5 text-indigo-500" />
+                          <div className="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 border-l-2 border-indigo-500 rounded-r text-indigo-700 dark:text-indigo-300 pl-4 font-semibold">
+                            <Folder className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                             <span>Документы</span>
                           </div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-slate-600 pl-6">
-                            <Folder className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 pl-6">
+                            <Folder className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                             <span>Учеба</span>
                           </div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-slate-600 pl-4">
-                            <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 pl-4">
+                            <HardDrive className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                             <span>Локальный диск (C:)</span>
                           </div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 rounded text-slate-600 pl-4">
-                            <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 pl-4">
+                            <HardDrive className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                             <span>Локальный диск (D:)</span>
                           </div>
                         </div>
 
                         {/* Explorer Content Pane */}
-                        <div className="flex-1 p-3 bg-white overflow-y-auto select-none flex flex-wrap gap-3 content-start">
+                        <div className="flex-1 p-3 bg-white dark:bg-slate-900 overflow-y-auto select-none flex flex-wrap gap-3 content-start transition-colors duration-300">
                           {/* Folder */}
-                          <div className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-100 w-24 text-center shrink-0">
-                            <Folder className="w-10 h-10 text-amber-400 fill-amber-200" />
-                            <span className="text-[10px] font-medium text-slate-700 mt-1 truncate w-full">Семестр 2</span>
+                          <div className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 w-24 text-center shrink-0">
+                            <Folder className="w-10 h-10 text-amber-400 fill-amber-200 dark:fill-amber-900/30" />
+                            <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 mt-1 truncate w-full">Семестр 2</span>
                           </div>
 
                           {/* Target File Docx (clickable) */}
                           <div 
                             className={`flex flex-col items-center justify-center p-2 rounded-lg border w-24 text-center transition duration-200 shrink-0 ${
                               step >= 3
-                                ? 'bg-indigo-100/60 border-indigo-300 shadow-sm' 
-                                : 'hover:bg-slate-100 border-transparent'
+                                ? 'bg-indigo-100/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 shadow-sm' 
+                                : 'hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent'
                             }`}
                           >
-                            <div className="w-9 h-11 bg-white border border-slate-200 rounded flex items-center justify-center relative shadow-sm shrink-0">
+                            <div className="w-9 h-11 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center relative shadow-sm shrink-0">
                               <div className="absolute top-0 right-0 w-3 h-3 bg-indigo-600 rounded-bl rounded-tr flex items-center justify-center text-[6px] font-bold text-white">W</div>
-                              <FileText className="w-6 h-6 text-indigo-600" />
+                              <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                             </div>
-                            <span className="text-[10px] font-medium text-slate-800 mt-1 truncate w-full">Лекция_1_Нейросети.docx</span>
+                            <span className="text-[10px] font-medium text-slate-800 dark:text-slate-200 mt-1 truncate w-full font-semibold">Лекция_1_Нейросети.docx</span>
                           </div>
 
                           {/* Disabled files for decoration */}
-                          <div className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-100 w-24 text-center opacity-40 shrink-0">
-                            <div className="w-9 h-11 bg-white border border-slate-200 rounded flex items-center justify-center relative shadow-sm shrink-0">
+                          <div className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 w-24 text-center opacity-40 shrink-0">
+                            <div className="w-9 h-11 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center relative shadow-sm shrink-0">
                               <div className="absolute top-0 right-0 w-3 h-3 bg-indigo-600 rounded-bl rounded-tr flex items-center justify-center text-[6px] font-bold text-white">W</div>
-                              <FileText className="w-6 h-6 text-indigo-600" />
+                              <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                             </div>
-                            <span className="text-[10px] font-medium text-slate-700 mt-1 truncate w-full">Курсовая_Черновик.docx</span>
+                            <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 mt-1 truncate w-full">Курсовая_Черновик.docx</span>
                           </div>
 
-                          <div className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-100 w-24 text-center opacity-40 shrink-0">
-                            <div className="w-9 h-11 bg-white border border-slate-200 rounded flex items-center justify-center relative shadow-sm shrink-0">
-                              <FileText className="w-6 h-6 text-slate-400" />
+                          <div className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 w-24 text-center opacity-40 shrink-0">
+                            <div className="w-9 h-11 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center relative shadow-sm shrink-0">
+                              <FileText className="w-6 h-6 text-slate-400 dark:text-slate-500" />
                             </div>
-                            <span className="text-[10px] font-medium text-slate-700 mt-1 truncate w-full">Схема_Алгоритма.png</span>
+                            <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 mt-1 truncate w-full">Схема_Алгоритма.png</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Explorer Footer bar */}
-                      <div className="bg-[#f3f4f6] px-4 py-2 border-t border-slate-200 flex items-center justify-between shrink-0">
-                        <div className="text-[10px] text-slate-500">
-                          Имя файла: <span className="font-semibold text-slate-700">{step >= 3 ? 'Лекция_1_Нейросети.docx' : ''}</span>
+                      <div className="bg-[#f3f4f6] dark:bg-slate-950 px-4 py-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 transition-colors duration-300">
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Имя файла: <span className="font-semibold text-slate-700 dark:text-slate-300">{step >= 3 ? 'Лекция_1_Нейросети.docx' : ''}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <button 
                             className={`px-5 py-1 border rounded text-[11px] font-medium shadow-sm transition ${
                               step >= 3 
-                                ? 'bg-indigo-600 hover:bg-indigo-700 border-indigo-700 text-white font-semibold'
-                                : 'bg-white border-slate-300 text-slate-400'
+                                ? 'bg-indigo-600 hover:bg-indigo-700 border-indigo-700 dark:border-indigo-600 text-white font-semibold'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-400'
                             }`}
                           >
                             Открыть
                           </button>
-                          <button className="px-5 py-1 bg-white border border-slate-300 hover:bg-slate-50 rounded text-[11px] font-medium text-slate-700 shadow-sm">
+                          <button className="px-5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded text-[11px] font-medium text-slate-700 dark:text-slate-300 shadow-sm transition-colors">
                             Отмена
                           </button>
                         </div>
@@ -1502,22 +1514,22 @@ function Features() {
   ];
 
   const colorMap: Record<string, string> = {
-    indigo: 'bg-indigo-50 border-indigo-100 text-indigo-600',
-    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-600',
-    blue: 'bg-blue-50 border-blue-100 text-blue-600',
-    amber: 'bg-amber-50 border-amber-100 text-amber-600',
-    rose: 'bg-rose-50 border-rose-100 text-rose-600',
-    sky: 'bg-sky-50 border-sky-100 text-sky-600',
+    indigo: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-100 dark:border-indigo-900/30 text-indigo-600 dark:text-indigo-400',
+    emerald: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+    blue: 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400',
+    amber: 'bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400',
+    rose: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-455',
+    sky: 'bg-sky-50 dark:bg-sky-950/40 border-sky-100 dark:border-sky-900/30 text-sky-600 dark:text-sky-400',
   };
 
   return (
-    <section id="features" className="py-24 px-6 bg-white border-y border-slate-200/50">
+    <section id="features" className="py-24 px-6 bg-white dark:bg-slate-900 border-y border-slate-200/50 dark:border-slate-800/80 transition-colors duration-300">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16 space-y-3">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
             Полный инструментарий студента
           </h2>
-          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+          <p className="text-slate-500 dark:text-slate-400 text-lg max-w-xl mx-auto">
             Объединяем передовые когнитивные технологии с удобством Notion
           </p>
         </div>
@@ -1525,12 +1537,12 @@ function Features() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((f, i) => (
             <div key={i}
-              className="group p-6 rounded-2xl bg-slate-50/50 border border-slate-200/80 hover:border-slate-300 hover:bg-white hover:shadow-xl hover:shadow-slate-100 transition-all duration-300 hover:-translate-y-1">
+              className="group p-6 rounded-2xl bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-750 hover:bg-white dark:hover:bg-slate-800/80 hover:shadow-xl hover:shadow-slate-100 dark:hover:shadow-slate-950 transition-all duration-300 hover:-translate-y-1">
               <div className={`w-12 h-12 rounded-xl border flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110 ${colorMap[f.color]}`}>
                 <f.icon className="w-6 h-6" />
               </div>
-              <h3 className="text-slate-900 font-bold text-base mb-2 group-hover:text-indigo-600 transition-colors">{f.title}</h3>
-              <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
+              <h3 className="text-slate-900 dark:text-slate-100 font-bold text-base mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{f.title}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
@@ -1556,26 +1568,26 @@ function EducatorsSection() {
   ];
 
   return (
-    <section id="educators" className="py-24 px-6 bg-slate-50/50 relative">
+    <section id="educators" className="py-24 px-6 bg-slate-50/50 dark:bg-slate-950 border-b border-slate-200/50 dark:border-slate-800/50 relative transition-colors duration-300">
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
         {/* Картинка или графический элемент */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-lg relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-indigo-50 text-indigo-600 font-bold text-[10px] px-3 py-1 rounded-bl-xl border-l border-b border-slate-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-lg relative overflow-hidden transition-colors duration-300">
+            <div className="absolute top-0 right-0 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] px-3 py-1 rounded-bl-xl border-l border-b border-slate-200 dark:border-slate-800">
               ДЛЯ ВУЗОВ
             </div>
-            <h4 className="text-sm font-extrabold text-slate-800 mb-4 flex items-center gap-1.5">
-              <GraduationCap className="w-5 h-5 text-indigo-600" />
+            <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-1.5">
+              <GraduationCap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               Методическое обоснование
             </h4>
             <div className="space-y-4 text-xs">
-              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
-                <span className="font-bold text-slate-700 block mb-0.5">1. Active Recall</span>
-                <p className="text-slate-500 leading-relaxed">Интервальные тесты вместо пассивного перечитывания лекций.</p>
+              <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl transition-colors">
+                <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5">1. Active Recall</span>
+                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">Интервальные тесты вместо пассивного перечитывания лекций.</p>
               </div>
-              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
-                <span className="font-bold text-slate-700 block mb-0.5">2. Spaced Repetition</span>
-                <p className="text-slate-500 leading-relaxed">Кривая забывания Эббингауза сглаживается за счет своевременного повторения.</p>
+              <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl transition-colors">
+                <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5">2. Spaced Repetition</span>
+                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">Кривая забывания Эббингауза сглаживается за счет своевременного повторения.</p>
               </div>
             </div>
           </div>
@@ -1583,21 +1595,21 @@ function EducatorsSection() {
 
         {/* Текст */}
         <div className="lg:col-span-7 space-y-6">
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
             Основано на научном <br />подходе к обучению
           </h2>
-          <p className="text-slate-600 leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
             Мы строим StudyForge на принципах доказательного образования (Evidence-Based Learning). Сервис помогает превратить хаотичные конспекты лекций в четкую структуру, облегчая подготовку к сессии и работу с понятиями.
           </p>
           <div className="space-y-4">
             {points.map((p, i) => (
               <div key={i} className="flex gap-3">
-                <div className="w-5 h-5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-1">
+                <div className="w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/35 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-1 transition-colors">
                   <CheckCircle className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{p.title}</h4>
-                  <p className="text-slate-500 text-xs leading-relaxed mt-0.5">{p.desc}</p>
+                  <h4 className="font-bold text-slate-900 dark:text-slate-200 text-sm">{p.title}</h4>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed mt-0.5">{p.desc}</p>
                 </div>
               </div>
             ))}
@@ -1612,7 +1624,7 @@ function CtaSection() {
   const navigate = useNavigate();
   return (
     <section className="py-24 px-6 max-w-5xl mx-auto">
-      <div className="relative bg-gradient-to-r from-indigo-600 to-indigo-800 border border-indigo-700 rounded-3xl p-12 text-center text-white overflow-hidden shadow-xl shadow-indigo-100">
+      <div className="relative bg-gradient-to-r from-indigo-600 to-indigo-800 dark:from-indigo-750 dark:to-indigo-950 border border-indigo-700 dark:border-indigo-900 rounded-3xl p-12 text-center text-white overflow-hidden shadow-xl shadow-indigo-100 dark:shadow-none transition-all duration-350">
         {/* Фоновые круги */}
         <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-white/5 rounded-full blur-[80px] pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-indigo-500/30 rounded-full blur-[60px] pointer-events-none" />
@@ -1621,7 +1633,7 @@ function CtaSection() {
           <div className="flex justify-center gap-2 flex-wrap">
             {['✓ Бесплатно', '✓ Мгновенный запуск', '✓ Простой импорт'].map(t => (
               <span key={t}
-                className="text-xs text-indigo-200 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
+                className="text-xs text-indigo-200 bg-white/10 dark:bg-white/5 px-3 py-1 rounded-full backdrop-blur-sm">
                 {t}
               </span>
             ))}
@@ -1650,16 +1662,16 @@ function CtaSection() {
 
 function Footer() {
   return (
-    <footer className="py-12 px-6 border-t border-slate-200/50 bg-white text-slate-500 text-sm">
+    <footer className="py-12 px-6 border-t border-slate-200/50 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-500 dark:text-slate-400 text-sm transition-colors duration-300">
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         <div className="md:col-span-8 flex flex-col gap-6">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
-            <span className="text-slate-800 font-extrabold text-lg tracking-tight">StudyForge</span>
+            <span className="text-slate-800 dark:text-slate-200 font-extrabold text-lg tracking-tight">StudyForge</span>
           </div>
-          <p className="text-slate-500 text-sm leading-relaxed max-w-sm">
+          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-sm">
             Ваша персональная образовательная платформа. Объединяем нейросети и доказательную педагогику для эффективного обучения.
           </p>
           <div className="flex items-center gap-4 text-xs font-semibold pt-4">
@@ -1668,7 +1680,7 @@ function Footer() {
         </div>
 
         <div className="md:col-span-4 flex flex-col md:items-end gap-4">
-          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm inline-block">
+          <div className="p-3 bg-slate-50 dark:bg-white rounded-2xl border border-slate-100 dark:border-slate-200 shadow-sm inline-block transition-colors">
             <img 
               src="/qrcode.png" 
               alt="QR Code" 
@@ -1676,8 +1688,8 @@ function Footer() {
             />
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Открыть на телефоне</p>
-            <p className="text-xs font-semibold text-slate-600">Сканируйте, чтобы начать учиться везде</p>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Открыть на телефоне</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Сканируйте, чтобы начать учиться везде</p>
           </div>
         </div>
       </div>
