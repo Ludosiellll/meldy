@@ -7,6 +7,8 @@ export default function InstallPWA() {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
+  const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
     // Check if already installed
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
@@ -14,8 +16,12 @@ export default function InstallPWA() {
       return;
     }
 
-    // Detect iOS Safari
     const ua = window.navigator.userAgent;
+    
+    // Detect mobile
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua));
+
+    // Detect iOS Safari
     const webkit = !!ua.match(/WebKit/i);
     const isIOSDetect = !!ua.match(/iPad/i) || !!ua.match(/iPhone/i);
     const isSafari = isIOSDetect && webkit && !ua.match(/CriOS/i);
@@ -40,12 +46,15 @@ export default function InstallPWA() {
         duration: 8000,
       });
     } else {
-      toast('Приложение уже установлено или ваш браузер не поддерживает авто-установку.');
+      toast('Чтобы установить: откройте меню браузера (три точки вверху) и выберите «Добавить на главный экран» или «Установить»', {
+        icon: '💡',
+        duration: 8000,
+      });
     }
   };
 
-  // Не показываем кнопку если уже установлено или если нет prompt и не iOS
-  if (isStandalone || (!deferredPrompt && !isIOS)) return null;
+  // Не показываем кнопку если уже установлено или если это десктоп без prompt
+  if (isStandalone || (!isMobile && !deferredPrompt)) return null;
 
   return (
     <button
