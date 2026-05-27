@@ -216,7 +216,7 @@ export default function Layout() {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-slate-50 dark:bg-slate-950 overflow-hidden">
       <OnboardingManager />
       <ForgeyAssistant />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
@@ -363,6 +363,9 @@ export default function Layout() {
             <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
           </div>
           <div className="flex items-center gap-1">
+            <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="p-2 text-slate-500 hover:text-indigo-600 transition" title="Переключить тему">
+              {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
             <button onClick={handleOpenNotifications} className="p-2 text-slate-500 hover:text-indigo-600 transition relative">
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
