@@ -77,8 +77,8 @@ ${quizHtml || '<p style="color:#94a3b8">Нет данных</p>'}
 </html>`;
 }
 
-export default function ResultsPanel({ results, onReset, textLength, analysisDuration, sourceFileName }: {
-  results: AnalysisResults; onReset: () => void; textLength?: number; analysisDuration?: number; sourceFileName?: string;
+export default function ResultsPanel({ results, onReset, textLength, analysisDuration, sourceFileName, materialId }: {
+  results: AnalysisResults; onReset: () => void; textLength?: number; analysisDuration?: number; sourceFileName?: string; materialId?: string;
 }) {
   const [tab, setTab] = useState<Tab>('summary');
   const [copied, setCopied] = useState(false);
@@ -238,7 +238,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm">
               ИИ создал для вас персональный мини-квест на основе этого материала. Сыграем?
             </p>
-            <Link to="/missions" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
+            <Link to={materialId ? `/play?materialId=${materialId}` : '/play'} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
               <Gamepad2 className="w-5 h-5" />
               Начать игру
             </Link>

@@ -92,8 +92,6 @@ export default function ExpressPrepView({
           }
         });
       }
-
-      await alert({ title: 'Готово', message: 'Шпаргалка за 5 минут успешно создана!', type: 'info' });
     } catch (err) {
       console.error(err);
       await alert({ title: 'Ошибка', message: 'Не удалось сгенерировать шпаргалку. Попробуйте еще раз.', type: 'danger' });
@@ -269,9 +267,12 @@ export default function ExpressPrepView({
                 )}
               </div>
             ) : (
-              <div className="card p-6 md:p-8 bg-gradient-to-br from-amber-50/30 to-rose-50/10 border-amber-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-                <div className="prose prose-slate max-w-none text-slate-700 prose-sm cheatsheet-style">
+              <div className="bg-slate-900 dark:bg-slate-800/80 text-white rounded-2xl p-6 md:p-8 shadow-xl border border-slate-200/10 dark:border-slate-800 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+                <p className="text-[10px] font-extrabold text-indigo-300 dark:text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+                  ⚡ Экспресс-шпаргалка за 5 минут
+                </p>
+                <div className="prose prose-invert max-w-none text-sm text-slate-300 leading-relaxed cheatsheet-style">
                   <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{cheatsheet}</ReactMarkdown>
                 </div>
               </div>

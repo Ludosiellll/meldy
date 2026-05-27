@@ -180,6 +180,7 @@ export default function MaterialDetail() {
           }}
           onReset={() => navigate('/library')}
           textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
+          materialId={material.id}
         />
       ) : mode === 'podcast' ? (
         <ExpressPrepView 

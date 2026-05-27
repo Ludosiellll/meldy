@@ -204,7 +204,14 @@ export default function Analyze() {
         )}
         {state.phase === 'done' && state.results && (
           <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <ResultsPanel results={state.results} onReset={reset} textLength={state.textLength} analysisDuration={state.analysisDuration} sourceFileName={state.sourceFileName} />
+            <ResultsPanel 
+              results={state.results} 
+              onReset={reset} 
+              textLength={state.textLength} 
+              analysisDuration={state.analysisDuration} 
+              sourceFileName={state.sourceFileName} 
+              materialId={state.savedMaterialId} 
+            />
             
             {state.savedMaterialId && state.results.podcast && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-700">

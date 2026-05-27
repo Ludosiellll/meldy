@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -29,6 +29,8 @@ export default function Missions() {
   const { user } = useAuth();
   const { confirm, alert } = useConfirm();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryMaterialId = searchParams.get('materialId');
 
   // Восстановление состояния из sessionStorage
   const savedStateStr = sessionStorage.getItem('studyforge_missions_state');
@@ -36,7 +38,7 @@ export default function Missions() {
 
   // Состояние материалов
   const [materials, setMaterials] = useState<any[]>([]);
-  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(savedState?.selectedMaterialId || '');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(queryMaterialId || savedState?.selectedMaterialId || '');
   
   // Состояние игры
   const [phase, setPhase] = useState<'select' | 'loading' | 'game' | 'completed'>(
@@ -67,8 +69,61 @@ export default function Missions() {
   // Загрузка материалов
   useEffect(() => {
     if (!user) return;
-    getMaterials(user.id).then(setMaterials).catch(console.error);
-  }, [user?.id]);
+    getMaterials(user.id)
+      .then((data) => {
+        setMaterials(data);
+        
+        // Если передан queryMaterialId и мы еще не начали играть, автоматически запускаем
+        if (queryMaterialId && phase === 'select') {
+          const found = data.find(m => m.id === queryMaterialId);
+          if (found) {
+            (async () => {
+              setPhase('loading');
+              setSelectedOption(null);
+              setIsCorrect(null);
+              setShowHint(false);
+              setActiveStep(0);
+
+              // 1. Проверяем, есть ли уже сгенерированные миссии в БД
+              const foundAny = found as any;
+              if (foundAny.missions_json && foundAny.missions_json.missions && foundAny.missions_json.missions.length > 0) {
+                setMissions(foundAny.missions_json.missions);
+                setPhase('game');
+                return;
+              }
+
+              // 2. Если нет (старый материал), генерируем на лету
+              const summary = typeof found.summary_json === 'string'
+                ? found.summary_json
+                : (found.summary_json?.content || '');
+              const context = (found.original_text || summary || '').slice(0, 15000);
+
+              try {
+                const res = await fetch('/api/missions/generate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ context })
+                });
+
+                if (!res.ok) throw new Error('Ошибка генерации игры');
+                const gData = await res.json();
+                
+                if (gData.missions && gData.missions.length > 0) {
+                  setMissions(gData.missions);
+                  setPhase('game');
+                } else {
+                  throw new Error('Пустой список миссий');
+                }
+              } catch (err) {
+                console.error(err);
+                setPhase('select');
+              }
+            })();
+          }
+        }
+      })
+      .catch(console.error);
+  }, [user?.id, queryMaterialId]);
 
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId);
 
