@@ -842,7 +842,7 @@ export default function KnowledgeMap() {
                         <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                           Лекция
                         </span>
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug">{selectedNode.label}</h4>
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug line-clamp-3 break-words">{selectedNode.label}</h4>
                         {selectedNode.details?.subject && (
                           <span className="text-xs text-indigo-400 font-semibold mt-1 block">
                             Предмет: {selectedNode.details.subject}
@@ -887,7 +887,7 @@ export default function KnowledgeMap() {
                             </span>
                           ) : null}
                         </div>
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug">{selectedNode.label}</h4>
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug line-clamp-3 break-words">{selectedNode.label}</h4>
                       </div>
 
                       {selectedNode.definition && (

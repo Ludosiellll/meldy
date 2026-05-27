@@ -76,7 +76,7 @@ export default function MaterialDetail() {
 
       {/* Title & Subject */}
       <div className="mb-2">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{material.title}</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 break-words">{material.title}</h1>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-2">

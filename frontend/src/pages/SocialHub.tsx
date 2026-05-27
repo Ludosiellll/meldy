@@ -218,7 +218,7 @@ export default function SocialHub() {
 
                   <div className="mb-5">
                     <div className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">{m.subject || 'Без предмета'}</div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 line-clamp-2">{m.title}</h3>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 line-clamp-2 break-words">{m.title}</h3>
                   </div>
 
                   <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800/60">
@@ -328,7 +328,7 @@ export default function SocialHub() {
                   <div className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-1">
                     {previewMaterial.subject || 'Без предмета'}
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">{previewMaterial.title}</h3>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 break-words line-clamp-3">{previewMaterial.title}</h3>
                   <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
                     <UserCircle2 className="w-4 h-4" /> Автор: {previewMaterial.author_name}
                   </div>

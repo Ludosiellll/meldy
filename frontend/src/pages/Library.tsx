@@ -213,7 +213,7 @@ export default function Library() {
                         </button>
                       )}
                     </div>
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">{m.title}</h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 break-words">{m.title}</h3>
                   </div>
                   {!(m as any).is_assigned && (
                     <button

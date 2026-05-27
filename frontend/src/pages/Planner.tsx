@@ -441,7 +441,7 @@ export default function Planner() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getColorForSubject(task.subject) }} />
-                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">{task.subject}</h3>
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg break-words line-clamp-2">{task.subject}</h3>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">

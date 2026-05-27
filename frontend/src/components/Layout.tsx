@@ -181,8 +181,8 @@ export default function Layout() {
         ) : (
           notifications.map(n => (
             <div key={n.id} className="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">
-              <p className="text-sm text-slate-800 dark:text-slate-100 font-medium mb-1">{n.title}</p>
-              <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{n.body}</p>
+              <p className="text-sm text-slate-800 dark:text-slate-100 font-medium mb-1 line-clamp-2 break-words">{n.title}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 break-words">{n.body}</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">
                 {new Date(n.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
               </p>
