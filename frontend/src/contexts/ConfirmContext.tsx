@@ -75,25 +75,25 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-[calc(100%-32px)] md:w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-100"
+              className="relative w-[calc(100%-32px)] md:w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800"
             >
               <div className="flex flex-col items-center text-center">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-                  options.type === 'danger' ? 'bg-rose-100 text-rose-600' :
-                  options.type === 'info' ? 'bg-indigo-100 text-indigo-600' :
-                  'bg-amber-100 text-amber-600'
+                  options.type === 'danger' ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-450' :
+                  options.type === 'info' ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400' :
+                  'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
                 }`}>
                   <AlertTriangle className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">{options.title}</h3>
-                <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">{options.title}</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">
                   {options.message}
                 </p>
                 <div className="flex w-full gap-3">
                   {!isAlert && (
                     <button
                       onClick={handleCancel}
-                      className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition flex items-center justify-center gap-2"
+                      className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition flex items-center justify-center gap-2"
                     >
                       <X className="w-4 h-4" />
                       {options.cancelText || 'Отмена'}
@@ -102,9 +102,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                   <button
                     onClick={handleConfirm}
                     className={`flex-1 py-3 px-4 rounded-xl font-bold transition flex items-center justify-center gap-2 text-white shadow-lg ${
-                      options.type === 'danger' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-200' :
-                      options.type === 'info' ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200' :
-                      'bg-amber-600 hover:bg-amber-700 shadow-amber-200'
+                      options.type === 'danger' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-200 dark:shadow-none' :
+                      options.type === 'info' ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 dark:shadow-none' :
+                      'bg-amber-600 hover:bg-amber-700 shadow-amber-200 dark:shadow-none'
                     }`}
                   >
                     <Check className="w-4 h-4" />
