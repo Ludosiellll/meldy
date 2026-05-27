@@ -25,7 +25,17 @@ export default function Library() {
 
   const loadData = async () => {
     if (!user) return;
-    setLoading(true);
+    
+    const cached = localStorage.getItem(`library_cache_${user.id}`);
+    if (cached) {
+      try {
+        setMaterials(JSON.parse(cached));
+        setLoading(false);
+      } catch (e) {}
+    } else {
+      setLoading(true);
+    }
+    
     try {
       const [myMats, assignedMats] = await Promise.all([
         getMaterials(user.id),
@@ -35,6 +45,7 @@ export default function Library() {
       const all = [...myMats, ...assignedMats];
       const unique = Array.from(new Map(all.map(m => [m.id, m])).values());
       setMaterials(unique);
+      localStorage.setItem(`library_cache_${user.id}`, JSON.stringify(unique));
     } catch (e) {
       console.error(e);
     }

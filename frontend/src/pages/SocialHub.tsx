@@ -4,6 +4,7 @@ import { Globe, Trophy, Heart, Download, UserCircle2, Loader2, Search, X, CheckC
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getLeaderboard, getPublicMaterials, toggleLike, copyMaterialToLibrary, getPublicMaterialPreview, LeaderboardEntry, PublicMaterial } from '../api/social';
+import { getMaterials } from '../api/materials';
 import { searchUsers } from '../api/chat';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -18,6 +19,7 @@ export default function SocialHub() {
   const [feed, setFeed] = useState<PublicMaterial[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [myMaterials, setMyMaterials] = useState<any[]>([]);
 
   // Поиск пользователей
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,6 +37,7 @@ export default function SocialHub() {
   useEffect(() => {
     if (!user) return;
     setLoading(true);
+    getMaterials(user.id).then(setMyMaterials);
     if (activeTab === 'feed') {
       getPublicMaterials(user.id).then(data => { setFeed(data); setLoading(false); });
     } else if (activeTab === 'leaderboard') {
@@ -242,13 +245,14 @@ export default function SocialHub() {
                         </button>
                         <button
                           onClick={() => handleCopy(m)}
+                          disabled={copiedId === m.id || myMaterials.some(my => my.title === m.title + ' (копия)')}
                           className={`flex items-center justify-center gap-2 font-bold text-sm transition-colors px-3 py-1.5 rounded-lg ${
-                            copiedId === m.id
+                            (copiedId === m.id || myMaterials.some(my => my.title === m.title + ' (копия)'))
                               ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
                               : 'bg-indigo-600 dark:bg-indigo-700 text-white hover:bg-indigo-700 dark:hover:bg-indigo-600'
                           }`}
                         >
-                          {copiedId === m.id ? (
+                          {(copiedId === m.id || myMaterials.some(my => my.title === m.title + ' (копия)')) ? (
                             <><CheckCircle2 className="w-4 h-4" /> Сохранено!</>
                           ) : (
                             <><Download className="w-4 h-4" /> <span>Сохранить</span></>
@@ -406,13 +410,23 @@ export default function SocialHub() {
                 </button>
                 <button
                   onClick={() => {
-                    handleCopy(previewMaterial);
-                    setPreviewMaterial(null);
+                    if (!(copiedId === previewMaterial.id || myMaterials.some(my => my.title === previewMaterial.title + ' (копия)'))) {
+                      handleCopy(previewMaterial);
+                      setPreviewMaterial(null);
+                    }
                   }}
-                  className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                  disabled={copiedId === previewMaterial.id || myMaterials.some(my => my.title === previewMaterial.title + ' (копия)')}
+                  className={`flex-1 py-3 px-4 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
+                    (copiedId === previewMaterial.id || myMaterials.some(my => my.title === previewMaterial.title + ' (копия)'))
+                      ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100'
+                  }`}
                 >
-                  <Download className="w-5 h-5" />
-                  Сохранить себе
+                  {(copiedId === previewMaterial.id || myMaterials.some(my => my.title === previewMaterial.title + ' (копия)')) ? (
+                    <><CheckCircle2 className="w-5 h-5" /> Сохранено!</>
+                  ) : (
+                    <><Download className="w-5 h-5" /> Сохранить себе</>
+                  )}
                 </button>
               </div>
             </motion.div>
