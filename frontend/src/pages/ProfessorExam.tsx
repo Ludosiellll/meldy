@@ -103,12 +103,23 @@ export default function ProfessorExam() {
   // Загрузка материалов и истории экзаменов
   useEffect(() => {
     if (!user?.id) return;
-    getMaterials(user.id).then(setMaterials).catch(console.error);
+    const cacheMats = localStorage.getItem(`prof_materials_${user.id}`);
+    if (cacheMats) { try { setMaterials(JSON.parse(cacheMats)); } catch(e){} }
+    
+    getMaterials(user.id).then(data => {
+      setMaterials(data);
+      localStorage.setItem(`prof_materials_${user.id}`, JSON.stringify(data));
+    }).catch(console.error);
+    
     fetchExamHistory();
   }, [user?.id]);
 
   const fetchExamHistory = async () => {
     if (!user) return;
+    const cacheKey = `prof_history_${user.id}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) { try { setExamHistory(JSON.parse(cached)); } catch(e){} }
+    
     const { data } = await supabase
       .from('exam_sessions')
       .select('*')
@@ -116,7 +127,11 @@ export default function ProfessorExam() {
       .eq('status', 'completed')
       .order('completed_at', { ascending: false })
       .limit(10);
-    if (data) setExamHistory(data);
+      
+    if (data) {
+      setExamHistory(data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    }
   };
 
   // Настройка голосового распознавания
@@ -492,10 +507,8 @@ export default function ProfessorExam() {
                     <CustomSelect
                       value={selectedMaterialId}
                       onChange={val => setSelectedMaterialId(val)}
-                      options={[
-                        { value: '', label: 'Выберите материал для сдачи' },
-                        ...materials.map(m => ({ value: m.id, label: m.title }))
-                      ]}
+                      placeholder="Выберите материал для сдачи"
+                      options={materials.map(m => ({ value: m.id, label: m.title }))}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-500 shadow-sm"
                     />
                   </div>
