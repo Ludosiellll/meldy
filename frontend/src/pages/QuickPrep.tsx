@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, BookOpen, HelpCircle, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, X, Clock } from 'lucide-react';
+import { Zap, BookOpen, HelpCircle, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, ChevronDown, X, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -29,6 +29,7 @@ export default function QuickPrep() {
   const savedState = savedStateStr ? JSON.parse(savedStateStr) : null;
 
   const [materials, setMaterials] = useState<any[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(savedState?.selectedId || '');
   const [phase, setPhase] = useState<Phase>(
     savedState?.phase === 'loading' ? 'select' : (savedState?.phase || 'select')
@@ -150,16 +151,51 @@ export default function QuickPrep() {
               Выберите лекцию — AI мгновенно создаст шпаргалку и 2 разогревочных вопроса. Идеально для освежения памяти.
             </p>
             <div className="max-w-sm mx-auto space-y-4">
-              <select
-                value={selectedId}
-                onChange={e => setSelectedId(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 transition"
-              >
-                <option value="">Выберите лекцию</option>
-                {materials.map(m => (
-                  <option key={m.id} value={m.id}>{m.title}</option>
-                ))}
-              </select>
+              <div className="relative text-left">
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 transition shadow-sm flex items-center justify-between font-medium"
+                >
+                  <span>{selectedMaterial ? selectedMaterial.title : 'Выберите лекцию'}</span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence>
+                  {isDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute left-0 right-0 mt-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedId(''); setIsDropdownOpen(false); }}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 dark:text-slate-500 transition-colors border-b border-slate-100 dark:border-slate-900"
+                        >
+                          Выберите лекцию
+                        </button>
+                        {materials.map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => { setSelectedId(m.id); setIsDropdownOpen(false); }}
+                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
+                              selectedId === m.id
+                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-bold'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <span>{m.title}</span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
               <button
                 disabled={!selectedId}
                 onClick={startPrep}

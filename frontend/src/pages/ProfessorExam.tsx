@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles, Play, Pause, Square } from 'lucide-react';
+import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles, Play, Pause, Square, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -40,6 +40,7 @@ export default function ProfessorExam() {
   // Состояние материалов
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>(savedState?.selectedMaterialId || '');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
   // Состояние экзамена
   const [phase, setPhase] = useState<'select' | 'question' | 'evaluation' | 'loading'>(
@@ -484,18 +485,53 @@ export default function ProfessorExam() {
               </p>
 
               <div className="max-w-md mx-auto space-y-4">
-                <div className="text-left">
+                <div className="text-left relative">
                   <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
-                  <select
-                    value={selectedMaterialId}
-                    onChange={e => setSelectedMaterialId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-500 transition shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-rose-500"
-                  >
-                    <option value="">Выберите материал для сдачи</option>
-                    {materials.map(m => (
-                      <option key={m.id} value={m.id}>{m.title}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rose-500 transition shadow-sm flex items-center justify-between font-medium"
+                    >
+                      <span>{selectedMaterial ? selectedMaterial.title : 'Выберите материал для сдачи'}</span>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                      {isDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="absolute left-0 right-0 mt-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedMaterialId(''); setIsDropdownOpen(false); }}
+                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 dark:text-slate-500 transition-colors border-b border-slate-100 dark:border-slate-900"
+                            >
+                              Выберите материал для сдачи
+                            </button>
+                            {materials.map(m => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => { setSelectedMaterialId(m.id); setIsDropdownOpen(false); }}
+                                className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
+                                  selectedMaterialId === m.id
+                                    ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-450 font-bold'
+                                    : 'hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                <span>{m.title}</span>
+                              </button>
+                            ))}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
                 <button
