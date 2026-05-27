@@ -62,3 +62,17 @@
 .markdown-content.white-text code { background: rgba(255,255,255,0.2); color: white; }
 .markdown-content hr { @apply border-t border-slate-200 dark:border-slate-800 my-4; }
 .markdown-content.white-text hr { border-top-color: rgba(255,255,255,0.2); }
+
+/* Disable bright colored glowing shadows globally in dark mode to keep buttons clean & premium */
+.dark [class*="shadow-indigo-"],
+.dark [class*="shadow-purple-"],
+.dark [class*="shadow-blue-"],
+.dark [class*="shadow-emerald-"],
+.dark [class*="shadow-rose-"],
+.dark [class*="shadow-sky-"],
+.dark [class*="shadow-amber-"],
+.dark [class*="shadow-slate-"] {
+  --tw-shadow-color: transparent !important;
+  --tw-shadow: 0 0 #0000 !important;
+  box-shadow: none !important;
+}

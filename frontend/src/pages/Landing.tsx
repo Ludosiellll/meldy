@@ -165,7 +165,7 @@ function Hero() {
             hidden: { opacity: 0, y: 20 },
             visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
           }}
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full text-indigo-700 text-xs font-semibold tracking-wide"
+          className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 rounded-full text-indigo-700 dark:text-indigo-400 text-xs font-semibold tracking-wide transition-colors duration-300"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span>Доказательная педагогика и ИИ</span>
@@ -176,10 +176,10 @@ function Hero() {
             hidden: { opacity: 0, y: 20 },
             visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
           }}
-          className="text-4xl md:text-6xl font-black tracking-tight leading-[1.1] text-slate-900"
+          className="text-4xl md:text-6xl font-black tracking-tight leading-[1.1] text-slate-900 dark:text-white transition-colors duration-300"
         >
           Осваивайте лекции <br className="hidden md:block" />
-          <span className="text-indigo-600">в 4 раза быстрее</span>
+          <span className="text-indigo-600 dark:text-indigo-400">в 4 раза быстрее</span>
         </motion.h1>
 
         <motion.p 
@@ -187,7 +187,7 @@ function Hero() {
             hidden: { opacity: 0, y: 20 },
             visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
           }}
-          className="text-lg text-slate-600 leading-relaxed max-w-xl"
+          className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl transition-colors duration-300"
         >
           Автоматизируйте рутину конспектирования. StudyForge анализирует материалы, создаёт интерактивные конспекты, карточки для интервального повторения по методу Лейтнера и проводит устные экзамены.
         </motion.p>
@@ -201,7 +201,7 @@ function Hero() {
           className="flex items-center gap-4 flex-wrap pt-2"
         >
           <button onClick={() => navigate('/register')}
-            className="group relative flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition-all shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 active:translate-y-0 duration-300 overflow-hidden">
+            className="group relative flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-650 dark:hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-900/10 hover:shadow-indigo-300 dark:hover:shadow-indigo-850/20 hover:-translate-y-1 active:translate-y-0 duration-300 overflow-hidden">
             <span className="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-black" />
             <span className="relative">Начать бесплатно</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform relative" />
@@ -210,8 +210,8 @@ function Hero() {
               const el = document.getElementById('how-it-works');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="flex items-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-base rounded-xl transition-all shadow-sm hover:shadow-md hover:-translate-y-1 active:translate-y-0 duration-300">
-            <Zap className="w-4 h-4 text-indigo-600" />
+            className="flex items-center gap-2 px-8 py-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-base rounded-xl transition-all shadow-sm hover:shadow-md hover:-translate-y-1 active:translate-y-0 duration-300 transition-colors">
+            <Zap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             Смотреть демо
           </button>
         </motion.div>
@@ -222,7 +222,7 @@ function Hero() {
             hidden: { opacity: 0, y: 20 },
             visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
           }}
-          className="flex items-center gap-6 pt-4 text-xs font-semibold text-slate-500"
+          className="flex items-center gap-6 pt-4 text-xs font-semibold text-slate-500 dark:text-slate-400"
         >
           <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /> Без привязки карт</span>
           <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /> Сделано для вузов</span>
@@ -268,45 +268,45 @@ function Hero() {
             
             {/* Базовый слой: Панель Дашборда */}
             <div 
-              className="absolute inset-0 bg-white/90 backdrop-blur-xl border border-white/60 rounded-3xl shadow-[0_20px_50px_rgba(79,70,229,0.1)] p-6 flex flex-col gap-4 select-none"
+              className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(79,70,229,0.1)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.45)] p-6 flex flex-col gap-4 select-none transition-colors duration-300"
               style={{ transform: "translateZ(0px)" }}
             >
               {/* Хедер дашборда */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 transition-colors">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-rose-400 shadow-sm" />
                   <div className="w-3 h-3 rounded-full bg-amber-400 shadow-sm" />
                   <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-sm" />
                 </div>
-                <div className="h-4 w-32 bg-slate-100 rounded-full" />
-                <div className="w-6 h-6 rounded-full bg-slate-100" />
+                <div className="h-4 w-32 bg-slate-100 dark:bg-slate-800 rounded-full transition-colors" />
+                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800" />
               </div>
 
               {/* Тело дашборда */}
               <div className="grid grid-cols-12 gap-4 flex-1 mt-2">
                 {/* Левое меню */}
                 <div className="col-span-3 space-y-3 pr-2">
-                  <div className="h-6 bg-indigo-50 rounded-lg w-full" />
-                  <div className="h-5 bg-slate-50 rounded-lg w-5/6" />
-                  <div className="h-5 bg-slate-50 rounded-lg w-4/5" />
-                  <div className="h-5 bg-slate-50 rounded-lg w-3/4" />
+                  <div className="h-6 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg w-full transition-colors" />
+                  <div className="h-5 bg-slate-50 dark:bg-slate-800 rounded-lg w-5/6 transition-colors" />
+                  <div className="h-5 bg-slate-50 dark:bg-slate-800 rounded-lg w-4/5 transition-colors" />
+                  <div className="h-5 bg-slate-50 dark:bg-slate-800 rounded-lg w-3/4 transition-colors" />
                 </div>
                 
                 {/* Рабочая зона */}
                 <div className="col-span-9 space-y-4">
-                  <div className="h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center px-4 justify-between">
-                    <span className="text-xs font-bold text-slate-400">Мой прогресс</span>
-                    <span className="text-xs text-indigo-600 font-extrabold bg-indigo-50 px-2 py-1 rounded-md">+120 XP</span>
+                  <div className="h-10 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center px-4 justify-between transition-colors">
+                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500">Мой прогресс</span>
+                    <span className="text-xs text-indigo-600 dark:text-indigo-400 font-extrabold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-md transition-colors">+120 XP</span>
                   </div>
                   {/* Анимированный график */}
-                  <div className="h-28 bg-white border border-slate-100 rounded-xl p-3 flex items-end justify-between gap-1.5 shadow-inner">
+                  <div className="h-28 bg-white dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-xl p-3 flex items-end justify-between gap-1.5 shadow-inner transition-colors">
                     {[30, 45, 20, 60, 80, 50, 95, 40, 70, 85].map((h, i) => (
                       <motion.div 
                         key={i} 
                         initial={{ height: 0 }}
                         animate={{ height: `${h}%` }}
                         transition={{ duration: 1, delay: 0.5 + i * 0.05, type: "spring" }}
-                        className="bg-indigo-200 hover:bg-indigo-400 transition-colors w-full rounded-t-sm" 
+                        className="bg-indigo-200 dark:bg-indigo-900/60 hover:bg-indigo-400 dark:hover:bg-indigo-500 transition-colors w-full rounded-t-sm" 
                       />
                     ))}
                   </div>
@@ -323,18 +323,18 @@ function Hero() {
                 y: { duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 },
                 x: { delay: 1, duration: 0.5, type: "spring" }
               }}
-              className="hidden md:flex absolute top-[-10%] left-[-10%] w-[55%] bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl p-4 flex-col gap-2"
+              className="hidden md:flex absolute top-[-10%] left-[-10%] w-[55%] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-4 flex-col gap-2 transition-colors duration-300"
               style={{ transform: "translateZ(80px)" }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-indigo-600 flex items-center gap-1">📝 Конспект</span>
+                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">📝 Конспект</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
               </div>
-              <p className="text-[11px] font-bold text-slate-800 line-clamp-1">Тема: Дифференциальные уравнения</p>
+              <p className="text-[11px] font-bold text-slate-800 dark:text-slate-100 line-clamp-1">Тема: Дифференциальные уравнения</p>
               <div className="space-y-1.5 mt-1">
-                <div className="h-1.5 bg-slate-200/80 rounded-full w-full" />
-                <div className="h-1.5 bg-slate-200/80 rounded-full w-5/6" />
-                <div className="h-1.5 bg-slate-200/80 rounded-full w-2/3" />
+                <div className="h-1.5 bg-slate-200/80 dark:bg-slate-700/60 rounded-full w-full transition-colors" />
+                <div className="h-1.5 bg-slate-200/80 dark:bg-slate-700/60 rounded-full w-5/6 transition-colors" />
+                <div className="h-1.5 bg-slate-200/80 dark:bg-slate-700/60 rounded-full w-2/3 transition-colors" />
               </div>
             </motion.div>
 
@@ -347,20 +347,20 @@ function Hero() {
                 y: { duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1.5 },
                 x: { delay: 1.2, duration: 0.5, type: "spring" }
               }}
-              className="hidden md:flex absolute bottom-[12%] right-[-12%] w-[50%] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-2xl p-4 flex-col gap-3"
+              className="hidden md:flex absolute bottom-[12%] right-[-12%] w-[50%] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl p-4 flex-col gap-3 transition-colors duration-300"
               style={{ transform: "translateZ(120px)" }}
             >
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                 <Brain className="w-4 h-4" />
                 <span>Интервальное повторение</span>
               </div>
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center shadow-inner">
+              <div className="bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-center shadow-inner transition-colors">
                 <p className="text-[10px] font-medium text-slate-500 mb-1">Термин</p>
-                <p className="text-xs font-bold text-slate-800">Интеграл Фурье</p>
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Интеграл Фурье</p>
               </div>
               <div className="flex items-center justify-center gap-2">
-                <span className="text-[9px] font-bold px-2 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-md shadow-sm">Помню плохо</span>
-                <span className="text-[9px] font-bold px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-md shadow-sm">Отлично помню</span>
+                <span className="text-[9px] font-bold px-2 py-1 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/40 rounded-md shadow-sm transition-colors">Помню плохо</span>
+                <span className="text-[9px] font-bold px-2 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40 rounded-md shadow-sm transition-colors">Отлично помню</span>
               </div>
             </motion.div>
 
@@ -405,12 +405,12 @@ function Stats() {
     { value: 'Co-Study', label: 'защита от выгорания' },
   ];
   return (
-    <section className="py-16 px-6 border-y border-slate-200/60 bg-white/50 backdrop-blur">
+    <section className="py-16 px-6 border-y border-slate-200/60 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/50 backdrop-blur transition-colors duration-300">
       <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
         {items.map((s, i) => (
           <div key={i} className="text-center space-y-1">
-            <p className="text-3xl font-extrabold text-indigo-600 tracking-tight">{s.value}</p>
-            <p className="text-slate-500 text-sm font-semibold">{s.label}</p>
+            <p className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 tracking-tight transition-colors">{s.value}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold transition-colors">{s.label}</p>
           </div>
         ))}
       </div>
