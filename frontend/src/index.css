@@ -76,3 +76,81 @@
   --tw-shadow: 0 0 #0000 !important;
   box-shadow: none !important;
 }
+
+@media print {
+  /* Hide sidebars, mobile headers, chatbot assistants, notifications and other non-printable components */
+  aside,
+  header,
+  .no-print,
+  .tour-step-xp,
+  nav,
+  button,
+  .fixed,
+  .absolute:not(.printable-section *) {
+    display: none !important;
+  }
+
+  /* Reset outer application wrappers to display block with visible overflow and height auto */
+  html, body, #root, .flex.h-screen, .flex-1.flex.flex-col, main, .py-6 {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Force the printable section wrapper to stretch to full width without cards/backgrounds */
+  .printable-section {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .printable-section .card {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Keep all texts black and clear */
+  .printable-section h1,
+  .printable-section h2,
+  .printable-section h3,
+  .printable-section h4,
+  .printable-section p,
+  .printable-section li,
+  .printable-section span,
+  .printable-section div,
+  .markdown-content p,
+  .markdown-content li,
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content strong {
+    color: #0f172a !important;
+  }
+
+  /* Smart page breaks */
+  h2, h3 {
+    page-break-after: avoid;
+  }
+  .mb-5, .mt-6 {
+    page-break-inside: avoid;
+  }
+}
+

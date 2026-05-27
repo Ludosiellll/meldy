@@ -9,29 +9,121 @@ import QuizView from './QuizView';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions';
 
+function extractCleanContent(data: any): string {
+  let raw = data?.content || (data as any)?.raw || '';
+  if (typeof raw === 'string' && raw.trimStart().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.content) raw = parsed.content;
+    } catch {
+      const match = raw.match(/"content"\s*:\s*"([\s\S]*?)(?:"\s*[,}])/);
+      if (match) raw = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+  }
+  if (!raw && typeof data === 'string') {
+    raw = data;
+    if (raw.trimStart().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.content) raw = parsed.content;
+      } catch {}
+    }
+  }
+  const jsonTailIdx = raw.search(/\s*[,"]?\s*"terms"\s*:/);
+  if (jsonTailIdx > 0) raw = raw.slice(0, jsonTailIdx);
+  return raw.trim();
+}
+
+function parseMarkdownToHtml(md: string): string {
+  if (!md) return '';
+  let html = md.replace(/\r\n/g, '\n');
+  
+  // Headers
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  
+  // Bold
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Italic
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
+  // Bullet lists & numbered lists line-by-line
+  let lines = html.split('\n');
+  let inList = false;
+  let inOrderedList = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (line.startsWith('* ') || line.startsWith('- ')) {
+      let content = line.substring(2);
+      if (!inList) {
+        lines[i] = '<ul>\n<li>' + content + '</li>';
+        inList = true;
+      } else {
+        lines[i] = '<li>' + content + '</li>';
+      }
+    } else if (/^\d+\.\s/.test(line)) {
+      let content = line.replace(/^\d+\.\s/, '');
+      if (!inOrderedList) {
+        lines[i] = '<ol>\n<li>' + content + '</li>';
+        inOrderedList = true;
+      } else {
+        lines[i] = '<li>' + content + '</li>';
+      }
+    } else {
+      let extra = '';
+      if (inList) {
+        extra += '</ul>\n';
+        inList = false;
+      }
+      if (inOrderedList) {
+        extra += '</ol>\n';
+        inOrderedList = false;
+      }
+      
+      if (line !== '' && !line.startsWith('<h') && !line.startsWith('<ul') && !line.startsWith('<ol') && !line.startsWith('<li')) {
+        lines[i] = extra + '<p>' + line + '</p>';
+      } else {
+        lines[i] = extra + lines[i];
+      }
+    }
+  }
+  
+  html = lines.join('\n');
+  if (inList) html += '\n</ul>';
+  if (inOrderedList) html += '\n</ol>';
+  
+  return html;
+}
+
 function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): string {
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  const summaryContent = results.summarizer?.content || (results.summarizer as any)?.raw || '<p>Нет данных</p>';
+  
+  const cleanSummary = extractCleanContent(results.summarizer);
+  const summaryHtml = parseMarkdownToHtml(cleanSummary) || '<p style="color:#94a3b8">Нет данных</p>';
+  
   const flashcards = results.flashcards?.flashcards || [];
   const quiz = results.quiz?.quiz || [];
 
   const flashcardsHtml = flashcards.map((c: Flashcard, i: number) =>
-    `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px">
-      <p style="font-weight:600;margin:0 0 8px 0">Вопрос ${i+1}: ${c.question}</p>
-      <p style="margin:0;color:#475569;border-top:1px solid #f1f5f9;padding-top:8px">${c.answer}</p>
+    `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid">
+      <p style="font-weight:600;margin:0 0 8px 0;color:#0f172a">Вопрос ${i+1}: ${c.question}</p>
+      <p style="margin:0;color:#334155;border-top:1px solid #f1f5f9;padding-top:8px">${c.answer}</p>
     </div>`
   ).join('\n');
 
   const quizHtml = quiz.map((q: QuizQuestion, i: number) => {
     const options = (q.options || []).map((o: string) => {
       const isCorrect = o.startsWith(q.correct);
-      return `<li style="padding:6px 12px;margin:4px 0;border-radius:6px;${isCorrect ? 'background:#d1fae5;font-weight:600' : 'background:#f8fafc'}">${o}${isCorrect ? ' ✓' : ''}</li>`;
+      return `<li style="padding:6px 12px;margin:4px 0;border-radius:6px;${isCorrect ? 'background:#d1fae5;font-weight:600;color:#065f46' : 'background:#f8fafc;color:#334155'}">${o}${isCorrect ? ' ✓' : ''}</li>`;
     }).join('\n');
-    return `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px">
-      <p style="font-weight:600;margin:0 0 8px 0">${i+1}. ${q.question}</p>
+    return `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid">
+      <p style="font-weight:600;margin:0 0 8px 0;color:#0f172a">${i+1}. ${q.question}</p>
       <ul style="list-style:none;padding:0;margin:0">${options}</ul>
-      ${q.explanation ? `<p style="margin:8px 0 0;color:#64748b;font-style:italic;border-top:1px solid #f1f5f9;padding-top:8px">💡 ${q.explanation}</p>` : ''}
+      ${q.explanation ? `<p style="margin:8px 0 0;color:#475569;font-style:italic;border-top:1px solid #f1f5f9;padding-top:8px">💡 ${q.explanation}</p>` : ''}
     </div>`;
   }).join('\n');
 
@@ -46,6 +138,10 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
   h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; color: #0f172a; }
   .meta { color: #94a3b8; font-size: 13px; margin-bottom: 32px; }
   h2 { font-size: 18px; font-weight: 700; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #4F46E5; color: #1e293b; }
+  h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px; color: #334155; }
+  p { margin-bottom: 12px; color: #334155; font-size: 15px; }
+  ul, ol { margin-bottom: 16px; padding-left: 20px; color: #334155; font-size: 15px; }
+  li { margin-bottom: 6px; }
   .section { margin-bottom: 24px; }
   @media print {
     body { padding: 0; }
@@ -60,7 +156,7 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
 
 <div class="section">
 <h2>📝 Конспект</h2>
-<div style="white-space:pre-wrap;font-size:15px;color:#334155;line-height:1.7">${summaryContent}</div>
+<div style="font-size:15px;color:#334155;line-height:1.7">${summaryHtml}</div>
 </div>
 
 <div class="section">
@@ -140,14 +236,14 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
   return (
     <div className="py-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 no-print">
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Результаты</h2>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={handleCopy}
             className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700 flex whitespace-nowrap">
             <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{copied ? 'Скопировано' : 'Копировать'}
           </button>
-          {tab === 'summary' && (
+          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
             <button onClick={handlePrintPdf}
               className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700 flex whitespace-nowrap">
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В PDF / Печать
@@ -173,7 +269,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       </div>
 
       {/* Статистика */}
-      <div className="flex overflow-x-auto pb-4 gap-3 mb-2 snap-x -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:pb-0 hide-scrollbar">
+      <div className="flex overflow-x-auto pb-4 gap-3 mb-2 snap-x -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:pb-0 hide-scrollbar no-print">
         <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
           <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center shrink-0">
             <Hash className="w-4 h-4 text-brand-500 dark:text-brand-400" />
@@ -207,7 +303,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       </div>
 
       {/* Pill-вкладки */}
-      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar">
+      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={'flex shrink-0 snap-start items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm transition font-bold ' +
@@ -225,7 +321,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         ))}
       </div>
 
-      <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px]">
+      <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px] printable-section">
         {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} /></div>}
         {tab === 'flashcards' && <FlashcardsView data={results.flashcards} />}
         {tab === 'quiz' && <QuizView data={results.quiz} />}
