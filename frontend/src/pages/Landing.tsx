@@ -451,7 +451,7 @@ function ProductSimulation() {
       }
       case 1: {
         // Летим к зоне загрузки (кнопка центрирована)
-        setCursorPos({ x: 380, y: 375, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 372, y: 390, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Кликаем по зоне загрузки
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
@@ -464,7 +464,7 @@ function ProductSimulation() {
       }
       case 2: {
         // Проводник открыт. Летим к файлу docx (центрировано)
-        setCursorPos({ x: 398, y: 200, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 370, y: 230, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Выбираем файл
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
@@ -477,7 +477,7 @@ function ProductSimulation() {
       }
       case 3: {
         // Летим к кнопке "Открыть" в проводнике (центрировано)
-        setCursorPos({ x: 565, y: 450, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 520, y: 450, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           // Кликаем по кнопке
           setCursorPos(prev => ({ ...prev, scale: 0.8, clicked: true }));
@@ -524,7 +524,7 @@ function ProductSimulation() {
         // Дашборд открылся. Курсор летит к карточке
         setCursorPos({ x: 380, y: 250, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
-          setCursorPos({ x: 570, y: 120, scale: 1, opacity: 1, clicked: false });
+          setCursorPos({ x: 580, y: 180, scale: 1, opacity: 1, clicked: false });
           timer = setTimeout(() => {
             setStep(7); // Клик по карточке (переворот)
           }, 1000);
@@ -545,7 +545,7 @@ function ProductSimulation() {
       }
       case 8: {
         // Летим к Помню (центрировано)
-        setCursorPos({ x: 635, y: 186, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 650, y: 250, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           setStep(9); // Клик по Помню
         }, 1000);
@@ -570,7 +570,7 @@ function ProductSimulation() {
       }
       case 10: {
         // Летим к кнопке Открыть плеер на виджете подкаста (центрировано)
-        setCursorPos({ x: 655, y: 328, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 670, y: 310, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
           setStep(11); // Клик по подкасту
         }, 1000);
@@ -587,9 +587,9 @@ function ProductSimulation() {
       }
       case 12: {
         // Плеер открыт. Летим к кнопке Play
-        setCursorPos({ x: 655, y: 328, scale: 1, opacity: 1, clicked: false });
+        setCursorPos({ x: 670, y: 310, scale: 1, opacity: 1, clicked: false });
         timer = setTimeout(() => {
-          setCursorPos({ x: 660, y: 70, scale: 1, opacity: 1, clicked: false });
+          setCursorPos({ x: 560, y: 174, scale: 1, opacity: 1, clicked: false });
           timer = setTimeout(() => {
             setStep(13); // Клик по Play
           }, 1000);
@@ -635,7 +635,7 @@ function ProductSimulation() {
         // Показываем курсор и летим к кнопке Начать заново в оверлее
         setCursorPos({ x: 380, y: 250, scale: 1, opacity: 0, clicked: false });
         timer = setTimeout(() => {
-          setCursorPos({ x: 380, y: 405, scale: 1, opacity: 1, clicked: false });
+          setCursorPos({ x: 360, y: 420, scale: 1, opacity: 1, clicked: false });
           timer = setTimeout(() => {
             setStep(18); // Клик по Начать заново
           }, 1200);
