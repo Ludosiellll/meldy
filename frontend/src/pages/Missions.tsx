@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { CustomSelect } from '../components/CustomSelect';
 import { getMaterials, updateMaterialMissions } from '../api/materials';
 import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
@@ -267,7 +268,7 @@ export default function Missions() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="card p-4 md:p-8 text-center"
+            className="card p-4 md:p-8 text-center relative z-20"
           >
             <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Gamepad2 className="w-8 h-8 text-emerald-500" />
@@ -281,49 +282,15 @@ export default function Missions() {
               <div className="text-left relative">
                 <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm flex items-center justify-between font-medium"
-                  >
-                    <span>{selectedMaterial ? selectedMaterial.title : 'Выберите лекцию для игры'}</span>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  <AnimatePresence>
-                    {isDropdownOpen && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
-                        <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="absolute left-0 right-0 mt-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedMaterialId(''); setIsDropdownOpen(false); }}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 dark:text-slate-500 transition-colors border-b border-slate-100 dark:border-slate-900"
-                          >
-                            Выберите лекцию для игры
-                          </button>
-                          {materials.map(m => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => { setSelectedMaterialId(m.id); setIsDropdownOpen(false); }}
-                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
-                                selectedMaterialId === m.id
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold'
-                                  : 'hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300'
-                              }`}
-                            >
-                              <span>{m.title}</span>
-                            </button>
-                          ))}
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
+                  <CustomSelect
+                    value={selectedMaterialId}
+                    onChange={val => setSelectedMaterialId(val)}
+                    options={[
+                      { value: '', label: 'Выберите лекцию для игры' },
+                      ...materials.map(m => ({ value: m.id, label: m.title }))
+                    ]}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                  />
                 </div>
               </div>
 
