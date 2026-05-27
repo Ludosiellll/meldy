@@ -109,21 +109,21 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
   const quiz = results.quiz?.quiz || [];
 
   const flashcardsHtml = flashcards.map((c: Flashcard, i: number) =>
-    `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid">
-      <p style="font-weight:600;margin:0 0 8px 0;color:#0f172a">Вопрос ${i+1}: ${c.question}</p>
-      <p style="margin:0;color:#334155;border-top:1px solid #f1f5f9;padding-top:8px">${c.answer}</p>
+    `<div class="card">
+      <p class="card-q">Карточка ${i+1}: ${c.question}</p>
+      <p class="card-a">${c.answer}</p>
     </div>`
   ).join('\n');
 
   const quizHtml = quiz.map((q: QuizQuestion, i: number) => {
     const options = (q.options || []).map((o: string) => {
       const isCorrect = o.startsWith(q.correct);
-      return `<li style="padding:6px 12px;margin:4px 0;border-radius:6px;${isCorrect ? 'background:#d1fae5;font-weight:600;color:#065f46' : 'background:#f8fafc;color:#334155'}">${o}${isCorrect ? ' ✓' : ''}</li>`;
+      return `<li class="${isCorrect ? 'correct' : ''}">${o}${isCorrect ? ' ✓' : ''}</li>`;
     }).join('\n');
-    return `<div style="margin-bottom:16px;padding:16px;border:1px solid #e2e8f0;border-radius:8px;page-break-inside:avoid">
-      <p style="font-weight:600;margin:0 0 8px 0;color:#0f172a">${i+1}. ${q.question}</p>
-      <ul style="list-style:none;padding:0;margin:0">${options}</ul>
-      ${q.explanation ? `<p style="margin:8px 0 0;color:#475569;font-style:italic;border-top:1px solid #f1f5f9;padding-top:8px">💡 ${q.explanation}</p>` : ''}
+    return `<div class="card">
+      <p class="card-q">${i+1}. ${q.question}</p>
+      <ul class="opt-list">${options}</ul>
+      ${q.explanation ? `<p class="explanation">💡 ${q.explanation}</p>` : ''}
     </div>`;
   }).join('\n');
 
@@ -131,43 +131,162 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>StudyForge — Анализ материала</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudyForge — ${sourceFileName || 'Анализ материала'}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1e293b; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 40px 24px; background: #fff; }
-  h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; color: #0f172a; }
-  .meta { color: #94a3b8; font-size: 13px; margin-bottom: 32px; }
-  h2 { font-size: 18px; font-weight: 700; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #4F46E5; color: #1e293b; }
-  h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px; color: #334155; }
-  p { margin-bottom: 12px; color: #334155; font-size: 15px; }
-  ul, ol { margin-bottom: 16px; padding-left: 20px; color: #334155; font-size: 15px; }
-  li { margin-bottom: 6px; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    color: #1e293b;
+    line-height: 1.7;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 32px 64px;
+    background: #fff;
+    font-size: 15px;
+  }
+  /* Header */
+  .doc-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .doc-logo {
+    width: 36px; height: 36px;
+    background: #4f46e5;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 900; font-size: 16px;
+    letter-spacing: -1px; flex-shrink: 0;
+  }
+  .doc-header-text h1 {
+    font-size: 13px; font-weight: 700;
+    color: #4f46e5; letter-spacing: 0.05em;
+    text-transform: uppercase; margin: 0;
+  }
+  .doc-header-text p {
+    font-size: 12px; color: #94a3b8; margin: 0;
+  }
+  /* Material title */
+  .doc-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+  .doc-meta {
+    color: #94a3b8;
+    font-size: 13px;
+    margin-bottom: 36px;
+  }
+  /* Section headings */
+  h2 {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 36px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #4f46e5;
+    color: #0f172a;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 18px 0 8px;
+    color: #334155;
+  }
+  p { margin-bottom: 12px; color: #334155; }
+  ul, ol { margin-bottom: 16px; padding-left: 22px; color: #334155; }
+  li { margin-bottom: 5px; }
+  strong { color: #0f172a; font-weight: 600; }
   .section { margin-bottom: 24px; }
+
+  /* Cards (flashcards, quiz) */
+  .card {
+    margin-bottom: 14px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    page-break-inside: avoid;
+  }
+  .card-q {
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .card-a {
+    color: #334155;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+    font-size: 14px;
+  }
+  .opt-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 0;
+  }
+  .opt-list li {
+    padding: 6px 12px;
+    margin: 4px 0;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #f8fafc;
+    color: #334155;
+  }
+  .opt-list li.correct {
+    background: #d1fae5;
+    font-weight: 600;
+    color: #065f46;
+  }
+  .explanation {
+    margin-top: 8px;
+    font-style: italic;
+    color: #64748b;
+    font-size: 13px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+  }
   @media print {
-    body { padding: 0; }
+    body { padding: 0 24px; }
+    .doc-header { page-break-after: avoid; }
     h2 { page-break-after: avoid; }
     .section { page-break-inside: avoid; }
+    .card { page-break-inside: avoid; }
   }
 </style>
 </head>
 <body>
-<h1>StudyForge — Анализ материала</h1>
-<p class="meta">${sourceFileName || 'Демо'} · ${date} ${time}</p>
+<div class="doc-header">
+  <div class="doc-logo">SF</div>
+  <div class="doc-header-text">
+    <h1>StudyForge</h1>
+    <p>ИИ-анализ учебных материалов · ${date}, ${time}</p>
+  </div>
+</div>
+
+<h2 class="doc-title" style="border:none;margin-top:0;padding-bottom:0;font-size:22px">${sourceFileName ? sourceFileName.replace(/\.[^.]+$/, '') : 'Учебный материал'}</h2>
+<p class="doc-meta">${date}</p>
 
 <div class="section">
 <h2>📝 Конспект</h2>
-<div style="font-size:15px;color:#334155;line-height:1.7">${summaryHtml}</div>
+<div style="line-height:1.8">${summaryHtml}</div>
 </div>
 
-<div class="section">
+${flashcards.length > 0 ? `<div class="section">
 <h2>🃏 Карточки (${flashcards.length})</h2>
-${flashcardsHtml || '<p style="color:#94a3b8">Нет данных</p>'}
-</div>
+${flashcardsHtml}
+</div>` : ''}
 
-<div class="section">
+${quiz.length > 0 ? `<div class="section">
 <h2>❓ Тест (${quiz.length})</h2>
-${quizHtml || '<p style="color:#94a3b8">Нет данных</p>'}
-</div>
+${quizHtml}
+</div>` : ''}
 
 </body>
 </html>`;
@@ -231,7 +350,21 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   };
 
   const handlePrintPdf = () => {
-    window.print();
+    // Build a standalone printable HTML page in isolation so that none of the
+    // app's UI (sidebar, header, audio players, etc.) leaks into the PDF.
+    const html = buildHtmlExport(results, sourceFileName);
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) {
+      alert('Разрешите открытие всплывающих окон в браузере для печати.');
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    // Small delay to allow fonts/styles to load before printing
+    setTimeout(() => {
+      win.focus();
+      win.print();
+    }, 600);
   };
 
   return (
