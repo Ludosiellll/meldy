@@ -722,64 +722,88 @@ function ProductSimulation() {
         <div className="relative w-full h-[230px] min-[400px]:h-[280px] min-[500px]:h-[350px] sm:h-[450px] lg:h-[620px] overflow-hidden flex items-center justify-center">
           <div className="absolute w-[1000px] h-[600px] scale-[0.32] min-[400px]:scale-[0.38] min-[500px]:scale-[0.48] sm:scale-[0.68] lg:scale-100 origin-center shrink-0 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl bg-white dark:bg-slate-900 overflow-hidden flex flex-col transition-colors duration-300">
             
-            {/* Имитация заголовка браузера */}
-            <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between z-20 shrink-0 transition-colors duration-300">
-              <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full bg-rose-400" />
-                <div className="w-3 h-3 rounded-full bg-amber-400" />
-                <div className="w-3 h-3 rounded-full bg-emerald-400" />
-              </div>
-              <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3 py-1 flex-1 max-w-md mx-4 items-center justify-center gap-2 transition-colors duration-300">
-                <Search className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">app.studyforge.ru/dashboard</span>
-              </div>
-              <div className="flex items-center gap-3 pr-2">
-                <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                  <Sparkles className="w-3 h-3 text-amber-500 fill-amber-300" />
-                  <span>450 XP</span>
-                </div>
-                <div className="w-6.5 h-6.5 rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-600 dark:text-slate-300">
-                  АИ
-                </div>
-              </div>
-            </div>
-
-            {/* Тело приложения */}
+            {/* Тело приложения (на весь экран, как в PWA) */}
             <div className="flex flex-1 overflow-hidden relative">
               
-              {/* Боковое меню */}
-              <div className="w-60 border-r border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 p-4 flex flex-col gap-4 shrink-0 transition-colors duration-300">
-                <div className="h-8 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 rounded-lg w-full flex items-center px-3 gap-2 transition-colors duration-300">
-                  <LayoutDashboard className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
-                  <span className="text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300">Дашборд</span>
-                </div>
-                <div className="space-y-2 mt-2">
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                    <FileText className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-[11px] font-bold">Мои конспекты</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                    <Brain className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-[11px] font-bold">Карточки</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                    <Headphones className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-[11px] font-bold">Подкасты</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                    <Trophy className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                    <span className="text-[11px] font-bold">Учебные квесты</span>
+              {/* Боковое меню (как в реальном Layout) */}
+              <div className="w-64 bg-slate-900/95 dark:bg-slate-950/95 flex flex-col shrink-0 transition-colors duration-300">
+                {/* Logo */}
+                <div className="p-4 flex items-center justify-between w-full border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
+                      <GraduationCap className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
                   </div>
                 </div>
-                
-                {/* Нижняя часть меню (прогресс) */}
-                <div className="mt-auto bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-sm transition-colors duration-300">
-                  <div className="flex justify-between text-[9px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                    <span>Уровень 3</span>
-                    <span>120 / 500 XP</span>
+
+                {/* XP / Level блок */}
+                <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level 3</p>
+                      <p className="text-xs font-semibold text-slate-200">Искатель знаний</p>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                   </div>
-                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 rounded-full overflow-hidden transition-colors duration-300">
-                    <div className="h-full bg-indigo-600 dark:bg-indigo-500 rounded-full w-[24%]" />
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                    <div className="h-full bg-indigo-500 rounded-full w-[24%]" />
+                  </div>
+                  <div className="flex justify-between mt-1.5">
+                    <span className="text-[10px] font-medium text-slate-500">450 XP</span>
+                    <span className="text-[10px] font-medium text-slate-500">120/500</span>
+                  </div>
+                </div>
+
+                {/* Navigation */}
+                <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto">
+                  <div>
+                    <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Платформа</h3>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-lg bg-slate-800 text-white shadow-sm ring-1 ring-white/5">
+                        <LayoutDashboard className="w-4 h-4 opacity-80" />
+                        Дашборд
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Обучение</h3>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-lg text-slate-400">
+                        <Zap className="w-4 h-4 opacity-80" />
+                        Добавить материал
+                      </div>
+                      <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-lg text-slate-400">
+                        <BookOpen className="w-4 h-4 opacity-80" />
+                        Библиотека
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Практика</h3>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-lg text-slate-400">
+                        <Brain className="w-4 h-4 opacity-80" />
+                        Смарт-карточки
+                      </div>
+                      <div className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-lg text-slate-400">
+                        <Award className="w-4 h-4 opacity-80" />
+                        Устный экзамен
+                      </div>
+                    </div>
+                  </div>
+                </nav>
+
+                {/* User section */}
+                <div className="p-4 border-t border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+                      АИ
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-300 text-xs font-medium truncate">Александр Иванов</p>
+                      <p className="text-slate-500 text-[10px] truncate">student@mail.ru</p>
+                    </div>
                   </div>
                 </div>
               </div>
