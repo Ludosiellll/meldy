@@ -11,6 +11,8 @@ import { getUserXP, calcLevel } from '../api/quests';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
 import { CustomSelect } from '../components/CustomSelect';
+import { loadDemoData } from '../api/demo';
+import { Zap } from 'lucide-react';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -40,6 +42,7 @@ export default function Profile() {
   // XP / Level state
   const [xp, setXp] = useState(0);
   const [levelInfo, setLevelInfo] = useState({ level: 1, name: 'Новичок', currentXP: 0, nextXP: 100, progress: 0 });
+  const [demoLoading, setDemoLoading] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
@@ -154,6 +157,20 @@ export default function Profile() {
       toast.success('Фото успешно обновлено!');
     } else {
       toast.error('Ошибка при загрузке фото.');
+    }
+  };
+
+  const handleGenerateDemo = async () => {
+    if (!user) return;
+    if (!confirm('Внимание! Это добавит тестовые данные в ваш аккаунт (лекцию, ошибки, статистику) для презентации. Продолжить?')) return;
+    setDemoLoading(true);
+    const ok = await loadDemoData(user.id);
+    setDemoLoading(false);
+    if (ok) {
+      toast.success('Демо-данные успешно сгенерированы! Проверьте библиотеку и аналитику.');
+      window.location.reload();
+    } else {
+      toast.error('Ошибка при генерации демо-данных.');
     }
   };
 
@@ -362,6 +379,29 @@ export default function Profile() {
                 }`}
               >
                 {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
+              </button>
+            </div>
+            
+            {/* Demo Generator Button */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-amber-100 dark:bg-amber-950/40">
+                  <Zap className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-slate-900 dark:text-slate-200 text-sm">Режим презентации (Демо-данные)</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">В один клик заполнит аккаунт красивой статистикой и лекциями для показа жюри.</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleGenerateDemo}
+                disabled={demoLoading}
+                className={`w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 ${
+                  demoLoading ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed' :
+                  'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
+                }`}
+              >
+                {demoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Сгенерировать'}
               </button>
             </div>
           </div>

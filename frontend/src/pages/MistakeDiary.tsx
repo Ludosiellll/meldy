@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { useSound } from '../hooks/useSound';
 import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
 
@@ -25,6 +26,8 @@ export default function MistakeDiary() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const { playFlipSound, playSuccessSound, playErrorSound, playXpSound } = useSound();
 
   // Состояния для AI-Работы над ошибками
   const [isPracticing, setIsPracticing] = useState(false);
@@ -72,7 +75,10 @@ export default function MistakeDiary() {
     setShowExplanation(true);
     const q = practiceQuestions[currentQIndex];
     if (opt.startsWith(q.correct)) {
+      playFlipSound(); // Pleasant sound for correct
       setCorrectCount(prev => prev + 1);
+    } else {
+      playErrorSound();
     }
   };
 
@@ -107,6 +113,9 @@ export default function MistakeDiary() {
           await addXP(user.id, 50);
         }
         
+        playSuccessSound();
+        setTimeout(() => playXpSound(), 800);
+
         confetti({
           particleCount: 120,
           spread: 70,

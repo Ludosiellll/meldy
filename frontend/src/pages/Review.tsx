@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useSound } from '../hooks/useSound';
 import { getDueCards, updateCardProgress } from '../api/flashcards';
 import { updateQuestProgress, recordStudyActivity } from '../api/quests';
 
@@ -24,6 +25,7 @@ export default function Review() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { isDark } = (window as any).__useTheme?.() ?? { isDark: document.documentElement.classList.contains('dark') };
+  const { playFlipSound, playSuccessSound } = useSound();
   const [cards, setCards] = useState<any[]>([]);
   const [idx, setIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -43,6 +45,13 @@ export default function Review() {
 
   useEffect(() => { loadCards(); }, [user?.id]);
 
+  const handleReveal = () => {
+    if (!revealed) {
+      playFlipSound();
+      setRevealed(true);
+    }
+  };
+
   const handleAnswer = async (quality: number) => {
     if (processing || !cards[idx]) return;
     setProcessing(true);
@@ -55,7 +64,10 @@ export default function Review() {
       if (quality >= 3) setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
       else setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
 
-      if (idx + 1 >= cards.length) setDone(true);
+      if (idx + 1 >= cards.length) {
+        playSuccessSound();
+        setDone(true);
+      }
       else { setIdx(p => p + 1); setRevealed(false); }
     } finally {
       setProcessing(false);
@@ -134,7 +146,7 @@ export default function Review() {
         initial={{ opacity: 0, x: 30 }}
         animate={{ opacity: 1, x: 0 }}
         className="card min-h-48 p-6 md:p-8 flex flex-col items-center justify-center cursor-pointer active:scale-[0.99] transition-transform"
-        onClick={() => !revealed && setRevealed(true)}
+        onClick={handleReveal}
       >
         <span className="text-xs uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-3">Вопрос</span>
         <p className="text-lg md:text-xl font-medium text-slate-900 dark:text-slate-100 text-center mb-6">{card.question}</p>
@@ -155,7 +167,7 @@ export default function Review() {
       <div className="mt-6">
         {!revealed ? (
           <button
-            onClick={() => setRevealed(true)}
+            onClick={handleReveal}
             className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-semibold transition text-base"
           >
             Показать ответ
