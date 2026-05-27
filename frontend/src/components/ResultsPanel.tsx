@@ -388,7 +388,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В Anki (.txt)
             </button>
           )}
-          {(tab === 'quiz' || tab === 'missions') && (
+          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
             <button onClick={handleDownloadHtml}
               className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700 flex whitespace-nowrap">
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Скачать HTML
