@@ -10,6 +10,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
+import toast from 'react-hot-toast';
 
 interface QuickPrepData {
   key_points: string[];
@@ -77,6 +79,17 @@ export default function QuickPrep() {
       ? selectedMaterial.summary_json
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
+
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id);
+      if (!limitCheck.allowed) {
+        setPhase('select');
+        toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id);
+    }
 
     try {
       const res = await fetch('/api/quick-prep', {

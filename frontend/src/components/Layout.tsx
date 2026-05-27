@@ -4,7 +4,7 @@ import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Calendar, MessageSquare, LogOut, Award, Gamepad2,
   BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
-  Globe, Briefcase, MessageCircle, User, Bell, Menu, X, Layers, Users
+  Globe, Briefcase, MessageCircle, User, Bell, Menu, X, Layers, Users, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
@@ -25,6 +25,7 @@ const navGroups = [
       { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
       { to: '/profile',     icon: User,            label: 'Мой профиль' },
       { to: '/career',      icon: Briefcase,       label: 'Карьерный трек' },
+      { to: '/pricing',     icon: CreditCard,      label: 'Тарифы PRO' },
     ]
   },
   {

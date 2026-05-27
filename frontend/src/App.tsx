@@ -28,6 +28,7 @@ import Career from './pages/Career';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
 import TeacherDashboard from './pages/TeacherDashboard';
+import Pricing from './pages/Pricing';
 import PWAUpdater from './components/PWAUpdater';
 import InstallPWA from './components/InstallPWA';
 
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="quick-prep" element={<QuickPrep />} />
           <Route path="knowledge-map" element={<KnowledgeMap />} />
           <Route path="teacher" element={<TeacherDashboard />} />
+          <Route path="pricing" element={<Pricing />} />
         </Route>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />

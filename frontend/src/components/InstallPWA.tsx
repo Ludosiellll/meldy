@@ -55,8 +55,8 @@ export default function InstallPWA() {
     }
   };
 
-  // Не показываем кнопку если уже установлено или если это десктоп без prompt
-  if (isStandalone || (!isMobile && !deferredPrompt)) return null;
+  // Не показываем кнопку если уже установлено или если это десктоп
+  if (isStandalone || !isMobile) return null;
 
   return (
     <button

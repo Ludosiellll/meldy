@@ -262,7 +262,15 @@ export default function OnboardingManager() {
         const targetElement = document.querySelector(step.target as string);
         if (targetElement) {
           const isInsideSidebar = targetElement.closest('aside') !== null;
-          if (!isInsideSidebar && !step.disableScrolling && step.target !== 'body') {
+          if (isInsideSidebar) {
+            const sidebar = targetElement.closest('aside');
+            if (sidebar) {
+              sidebar.scrollTo({
+                top: (targetElement as HTMLElement).offsetTop - 100,
+                behavior: 'smooth'
+              });
+            }
+          } else if (!step.disableScrolling && step.target !== 'body') {
             targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }
         }
@@ -317,15 +325,21 @@ export default function OnboardingManager() {
           borderRadius: '12px',
           fontWeight: 'bold',
           padding: '8px 16px',
+          outline: 'none',
+          border: 'none',
         },
         buttonBack: {
           marginRight: 10,
           color: '#64748b',
           fontWeight: 'bold',
+          outline: 'none',
+          border: 'none',
         },
         buttonSkip: {
           color: '#94a3b8',
           fontWeight: 'bold',
+          outline: 'none',
+          border: 'none',
         }
       }}
       locale={{

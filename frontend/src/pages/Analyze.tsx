@@ -12,6 +12,8 @@ import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
 import { updateQuestProgress, recordStudyActivity } from '../api/quests';
 import { hasBadWords } from '../utils/moderation';
+import toast from 'react-hot-toast';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
 
 const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
@@ -65,6 +67,18 @@ export default function Analyze() {
     const isMedia = youtubeUrl || (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/')));
     const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
     
+    // ПРОВЕРКА ЛИМИТОВ ИИ
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id);
+      if (!limitCheck.allowed) {
+        setState(p => ({ ...p, phase: 'upload' }));
+        toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id);
+    }
+
     try {
       const abortController = new AbortController();
       (window as any)._analyzeAbort = abortController;
@@ -245,10 +259,27 @@ export default function Analyze() {
         )}
         {state.phase === 'error' && (
           <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-            <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Ошибка</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">{state.error}</p>
-            <button onClick={reset} className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm hover:bg-brand-700 transition">Попробовать снова</button>
+            {state.error?.includes('429') || state.error?.includes('API_LIMIT_REACHED') ? (
+              <>
+                <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="w-8 h-8 text-amber-500" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Нейросеть перегружена</h2>
+                <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm max-w-sm mx-auto leading-relaxed">
+                  Сейчас слишком много студентов анализируют материалы одновременно, и мы достигли лимита запросов к Google AI. Пожалуйста, сделайте паузу и попробуйте через 5 минут!
+                </p>
+                <button onClick={reset} className="px-6 py-2.5 bg-amber-500 text-white font-bold rounded-xl text-sm hover:bg-amber-600 transition shadow-lg shadow-amber-500/20">
+                  Попробовать снова
+                </button>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Ошибка</h2>
+                <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">{state.error}</p>
+                <button onClick={reset} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition">Попробовать снова</button>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

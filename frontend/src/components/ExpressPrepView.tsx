@@ -1,6 +1,6 @@
 import { SummaryInfo } from '../types';
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -12,6 +12,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
 import { supabase } from '../lib/supabase';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
+import toast from 'react-hot-toast';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
@@ -32,15 +34,14 @@ export default function ExpressPrepView({
   const { user } = useAuth();
   const { alert } = useConfirm();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Вытаскиваем данные из составного JSON
   const cheatsheet = summaryJson?.cheatsheet || '';
   const podcastLines: PodcastLine[] = summaryJson?.podcast || [];
 
   const [tab, setTab] = useState<'cheatsheet' | 'podcast'>(
-    summaryJson?._startTab === 'podcast' || searchParams.get('tab') === 'podcast' 
-      ? 'podcast' 
-      : 'cheatsheet'
+    summaryJson?._startTab === 'podcast' ? 'podcast' : 'cheatsheet'
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -57,6 +58,17 @@ export default function ExpressPrepView({
       await alert({ title: 'Ошибка', message: 'Недостаточно контента для создания шпаргалки.', type: 'danger' });
       setIsGenerating(false);
       return;
+    }
+
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id);
+      if (!limitCheck.allowed) {
+        setIsGenerating(false);
+        toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id);
     }
 
     try {

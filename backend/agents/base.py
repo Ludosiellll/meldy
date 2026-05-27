@@ -4,6 +4,7 @@ import random
 import asyncio
 import google.generativeai as genai
 from google.generativeai.types import SafetySettingDict, HarmCategory, HarmBlockThreshold
+from fastapi import HTTPException
 
 def build_summarizer_prompt(detail: str = "medium") -> str:
     detail_map = {
@@ -372,7 +373,7 @@ class BaseAgent:
                 groq_err = str(e)
                 if "429" in groq_err:
                     debug_info = "\n".join(gemini_errors) if gemini_errors else "Ключи Gemini не найдены"
-                    return f"Ошибка: Лимиты ИИ исчерпаны.\n\nGemini ошибки:\n{debug_info}\n\nGroq ошибка: 429."
-                return f"Ошибка ИИ (Groq): {groq_err}"
+                    raise HTTPException(status_code=429, detail="API_LIMIT_REACHED")
+                raise HTTPException(status_code=500, detail=f"Ошибка ИИ (Groq): {groq_err}")
         
-        return "Ошибка: API ключи не настроены."
+        raise HTTPException(status_code=500, detail="Ошибка: API ключи не настроены.")

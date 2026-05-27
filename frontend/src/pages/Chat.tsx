@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Send, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -11,10 +12,13 @@ import { CustomSelect } from '../components/CustomSelect';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 import { updateQuestProgress } from '../api/quests';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
+import toast from 'react-hot-toast';
 
 export default function Chat() {
   const { user } = useAuth();
   const { confirm } = useConfirm();
+  const navigate = useNavigate();
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
@@ -92,6 +96,15 @@ export default function Chat() {
 
   const handleSend = async () => {
     if (!input.trim() || !selectedId || !user || loading) return;
+    
+    // Проверка лимитов
+    const limitCheck = await checkAILimit(user.id);
+    if (!limitCheck.allowed) {
+      toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+      navigate('/pricing');
+      return;
+    }
+    await incrementAIUsage(user.id);
     
     const userMsg = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
