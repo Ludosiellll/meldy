@@ -216,7 +216,7 @@ export default function Layout() {
   );
 
   return (
-    <div className="flex h-screen h-[100dvh] bg-slate-50 dark:bg-slate-950 overflow-hidden">
+    <div className="fixed inset-0 flex bg-slate-50 dark:bg-slate-950 overflow-hidden">
       <OnboardingManager />
       <ForgeyAssistant />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
