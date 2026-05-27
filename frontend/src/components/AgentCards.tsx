@@ -160,7 +160,7 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
         <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 mb-3 tracking-tight">
           {phase === 'extracting' ? 'Извлечение текста из файла...' : 'Интеллектуальный анализ материала'}
         </h2>
-        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-md mb-8 leading-relaxed">
+        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-xl mb-8 leading-relaxed">
           {phase === 'extracting'
             ? 'Пожалуйста, подождите. Мы считываем содержимое и подготавливаем данные для ИИ-агентов.'
             : `Нейросетевые агенты работают параллельно. Завершено: ${doneCount} из ${agents.length}`}

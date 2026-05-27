@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
@@ -235,10 +236,10 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm">
               ИИ создал для вас персональный мини-квест на основе этого материала. Сыграем?
             </p>
-            <a href="/missions" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
+            <Link to="/missions" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
               <Gamepad2 className="w-5 h-5" />
               Начать игру
-            </a>
+            </Link>
           </div>
         )}
       </motion.div>
