@@ -28,6 +28,8 @@ import Career from './pages/Career';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
 import TeacherDashboard from './pages/TeacherDashboard';
+import PWAUpdater from './components/PWAUpdater';
+import InstallPWA from './components/InstallPWA';
 
 import { Smartphone } from 'lucide-react';
 
@@ -56,6 +58,8 @@ import { Toaster } from 'react-hot-toast';
 export default function App() {
   return (
     <BrowserRouter>
+      <PWAUpdater />
+      <InstallPWA />
       <PortraitLock />
       <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#1e293b', color: '#fff', borderRadius: '12px' } }} />
       <Routes>
