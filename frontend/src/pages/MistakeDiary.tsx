@@ -437,7 +437,7 @@ export default function MistakeDiary() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">
-                          {mistake.question}
+                          {mistake.correct_answer}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           {mistake.topic && (
@@ -465,6 +465,16 @@ export default function MistakeDiary() {
                           className="overflow-hidden"
                         >
                           <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-800 pt-3 space-y-3">
+                            {/* Контекст (Вопрос) */}
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 rounded-xl">
+                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                Контекст / Вопрос
+                              </p>
+                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                                "{mistake.question}"
+                              </p>
+                            </div>
+
                             {/* Ответ студента */}
                             <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-xl">
                               <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">
@@ -475,10 +485,10 @@ export default function MistakeDiary() {
                               </p>
                             </div>
 
-                            {/* Правильный ответ */}
+                            {/* Суть ошибки / Правильный ответ */}
                             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-xl">
                               <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
-                                Правильный ответ
+                                Суть ошибки / Что нужно было сказать
                               </p>
                               <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {mistake.correct_answer}
