@@ -1449,7 +1449,7 @@ function ProductSimulation() {
                   )}
                 </AnimatePresence>
 
-                {/* Анимированный курсор */}
+                {/* Анимированный курсор и волна клика */}
                 {cursorPos.opacity > 0 && (
                   <motion.div
                     animate={{ 
@@ -1467,22 +1467,22 @@ function ProductSimulation() {
                     className="absolute z-50 pointer-events-none select-none drop-shadow-xl"
                     style={{ left: 0, top: 0 }}
                   >
+                    {/* Волна пульсации клика */}
+                    {cursorPos.clicked && (
+                      <motion.div
+                        initial={{ scale: 0.3, opacity: 0.8 }}
+                        animate={{ scale: 2.0, opacity: 0 }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
+                        className="absolute w-10 h-10 rounded-full border-2 border-indigo-600 bg-indigo-500/10 pointer-events-none -translate-x-1/2 -translate-y-1/2 animate-ping"
+                        style={{ left: 0, top: 0 }}
+                      />
+                    )}
+                    
                     <MousePointer2 
                       className="w-6 h-6 text-slate-900 fill-white absolute" 
-                      style={{ marginLeft: '-5px', marginTop: '-5px' }}
+                      style={{ marginLeft: '-4px', marginTop: '-4px', transform: 'rotate(-10deg)' }}
                     />
                   </motion.div>
-                )}
-
-                {/* Волна пульсации клика */}
-                {cursorPos.clicked && (
-                  <motion.div
-                    initial={{ scale: 0.3, opacity: 0.8 }}
-                    animate={{ scale: 2.0, opacity: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="absolute w-10 h-10 rounded-full border-2 border-indigo-600 bg-indigo-500/10 pointer-events-none z-50 -translate-x-1/2 -translate-y-1/2 animate-ping"
-                    style={{ left: cursorPos.x, top: cursorPos.y }}
-                  />
                 )}
 
               </div>
