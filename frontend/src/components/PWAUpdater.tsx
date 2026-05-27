@@ -1,3 +1,4 @@
+// @ts-ignore
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -7,7 +8,7 @@ export default function PWAUpdater() {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) {
+    onRegistered(r: any) {
       if (r) {
         // Проверяем обновления каждые 15 секунд (специально для презентации)
         setInterval(() => {
