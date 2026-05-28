@@ -119,26 +119,8 @@ export default function ExpressPrepView({
     };
   }, []);
 
-  // Синхронизация паузы при блокировке экрана / сворачивании вкладки
-  useEffect(() => {
-    const handleVisibilitySync = () => {
-      if (document.visibilityState === 'visible') {
-        // Если в стейте мы «играем», но под капотом синтез прерван/остановлен, переводим в паузу
-        if (isPlaying && !isPaused) {
-          if (window.speechSynthesis && !window.speechSynthesis.speaking) {
-            setIsPaused(true);
-          }
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilitySync);
-    window.addEventListener('focus', handleVisibilitySync);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilitySync);
-      window.removeEventListener('focus', handleVisibilitySync);
-    };
-  }, [isPlaying, isPaused]);
+  // Синхронизация паузы убрана, так как теперь используется надежный backend TTS (edge-tts/audio element), 
+  // который не прерывается при потере фокуса, в отличие от старого window.speechSynthesis.
 
   const stopPodcast = () => {
     stopTTS();
