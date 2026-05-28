@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload } from 'lucide-react';
+import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload, ArrowLeft, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
@@ -77,6 +77,8 @@ export default function Gradebook() {
   }]);
   const [scanning, setScanning] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -107,12 +109,15 @@ export default function Gradebook() {
   const handleAddSubject = () => addSubjectMutation.mutate();
 
   const addGradeMutation = useMutation({
-    mutationFn: async () => {
-      if (!user || !gradeSubId) throw new Error('No user or subject');
+    mutationFn: async (params?: { subId: string, val: number }) => {
+      if (!user) throw new Error('No user');
+      const targetSubId = params?.subId || gradeSubId;
+      const targetVal = params?.val !== undefined ? params.val : gradeValue;
+      if (!targetSubId) throw new Error('No subject');
       const { data, error } = await supabase.from('academic_grades').insert({
         user_id: user.id,
-        subject_id: gradeSubId,
-        value: gradeValue,
+        subject_id: targetSubId,
+        value: targetVal,
         date: new Date().toISOString().split('T')[0]
       }).select().single();
       if (error) throw error;
@@ -126,7 +131,18 @@ export default function Gradebook() {
     }
   });
 
-  const handleAddGrade = () => addGradeMutation.mutate();
+  const handleAddGrade = (params?: { subId: string, val: number }) => addGradeMutation.mutate(params);
+
+  const deleteGradeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('academic_grades').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
+      toast.success('Оценка удалена');
+    }
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -247,6 +263,70 @@ export default function Gradebook() {
   const isFivePoint = subjects.length > 0 && subjects.every(s => s.target_grade <= 5) && grades.every(g => g.value <= 5);
   const maxScore = isFivePoint ? 5.0 : 10.0;
 
+  if (selectedSubject) {
+    const subGrades = grades.filter(g => g.subject_id === selectedSubject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const subStat = subjectStats.find(s => s.id === selectedSubject.id);
+    
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSelectedSubject(null)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+              <ArrowLeft className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+            </button>
+            <h2 className="font-bold text-xl text-slate-900 dark:text-slate-100">{selectedSubject.name}</h2>
+          </div>
+          <div className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-bold">
+            Средний балл: {subStat?.avg ? subStat.avg.toFixed(2) : '-'}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800">
+          <h3 className="font-bold text-sm text-slate-500 mb-3 uppercase tracking-wider">Быстрое добавление (сегодня)</h3>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => (
+              <button 
+                key={v}
+                onClick={() => handleAddGrade({ subId: selectedSubject.id, val: v })}
+                disabled={addGradeMutation.isPending}
+                className="w-10 h-10 rounded-xl font-black text-base bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
+                <th className="p-4 font-bold">Оценка</th>
+                <th className="p-4 font-bold">Дата</th>
+                <th className="p-4 font-bold text-right">Действие</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {subGrades.length === 0 ? (
+                <tr><td colSpan={3} className="p-8 text-center text-slate-500">Пока нет оценок</td></tr>
+              ) : subGrades.map(g => (
+                <tr key={g.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                  <td className="p-4 font-black text-lg text-slate-800 dark:text-slate-200">{g.value}</td>
+                  <td className="p-4 text-slate-500">{new Date(g.date).toLocaleDateString()}</td>
+                  <td className="p-4 text-right">
+                    <button onClick={() => deleteGradeMutation.mutate(g.id)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Widget */}
@@ -282,7 +362,7 @@ export default function Gradebook() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {subjectStats.map(sub => (
-          <div key={sub.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition">
+          <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-500/30 transition">
             <div className="flex justify-between items-start mb-3">
               <h3 className="font-bold text-slate-800 dark:text-slate-100">{sub.name}</h3>
               <div className={`px-2 py-1 rounded-md text-xs font-bold ${
