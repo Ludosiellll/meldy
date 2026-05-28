@@ -3233,7 +3233,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
 import ForgeyAssistant from './ForgeyAssistant';
 import { useTheme } from '../contexts/ThemeProvider';
-import { Moon, Sun, Zap } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
 import TokenInfoModal from './TokenInfoModal';
 
