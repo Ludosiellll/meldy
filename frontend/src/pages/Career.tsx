@@ -176,9 +176,9 @@ export default function Career() {
             <div className="space-y-5">
               {profile?.professions?.map((prof, i) => (
                 <div key={i}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{prof.title}</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{prof.match}% match</span>
+                  <div className="flex justify-between items-start gap-3 text-sm mb-1">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 leading-tight">{prof.title}</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">{prof.match}% match</span>
                   </div>
                   <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <motion.div 

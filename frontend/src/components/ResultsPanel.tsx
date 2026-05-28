@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2 } from 'lucide-react';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2, Mic, Smartphone, Headphones, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
@@ -8,7 +8,7 @@ import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
 
-type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions';
+type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions' | 'podcast' | 'shorts';
 
 function extractCleanContent(data: any): string {
   let raw = data?.content || (data as any)?.raw || '';
@@ -319,6 +319,8 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
     { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
     { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" />, count: results.missions?.missions?.length || 0 },
+    { id: 'podcast', label: 'Подкаст', icon: <Mic className="w-4 h-4" /> },
+    { id: 'shorts', label: 'ТикТок', icon: <Smartphone className="w-4 h-4" /> },
   ];
 
   const getContent = () => {
@@ -513,6 +515,40 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
               <Gamepad2 className="w-5 h-5" />
               Начать игру
             </Link>
+          </div>
+        )}
+        {tab === 'podcast' && (
+          <div className="card p-10 flex flex-col items-center text-center justify-center min-h-[300px]">
+            <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mb-4">
+              <Mic className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Аудио-подкаст готов</h3>
+            <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm">
+              ИИ сгенерировал увлекательный диалог ведущих по этой теме. Слушайте его в библиотеке.
+            </p>
+            <Link to={materialId ? `/library/${materialId}` : '/library'} className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
+              <Headphones className="w-5 h-5" />
+              Слушать в библиотеке
+            </Link>
+          </div>
+        )}
+        {tab === 'shorts' && (
+          <div className="card p-10 flex flex-col items-center text-center justify-center min-h-[300px]">
+            <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center mb-4">
+              <Smartphone className="w-8 h-8 text-rose-600 dark:text-rose-400" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Учебный TikTok</h3>
+            <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm">
+              Изучайте ключевые концепции через короткие вертикальные видео с озвучкой.
+            </p>
+            {materialId ? (
+              <Link to={`/shorts/${materialId}`} className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
+                <Play className="w-5 h-5" />
+                Смотреть Shorts
+              </Link>
+            ) : (
+              <p className="text-sm text-amber-600">Сначала сохраните материал в библиотеку, чтобы смотреть Shorts</p>
+            )}
           </div>
         )}
       </motion.div>

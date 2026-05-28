@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 from datetime import date
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -456,7 +456,7 @@ async def generate_course(request: Request, req: CourseGenerateRequest):
 class ProfessorQuestionRequest(BaseModel):
     context: str
     history_text: str = ""
-    mood: dict = None
+    mood: Optional[dict] = None
     socratic_mode: bool = False
     exam_history: List[dict] = []
     recent_mistakes: List[str] = []
