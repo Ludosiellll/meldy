@@ -73,10 +73,10 @@ export default function Pricing() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-black text-white mb-6">
+        <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-6">
           Раскройте <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">весь потенциал</span> ИИ
         </h1>
-        <p className="text-xl text-slate-400 max-w-2xl mx-auto">
+        <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
           Обычный план отлично подходит для старта. Но если вы готовитесь к сессии или пишете диплом — вам нужен безлимит.
         </p>
       </div>
@@ -84,38 +84,38 @@ export default function Pricing() {
       <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
         
         {/* Базовый тариф */}
-        <div className="bg-slate-800/50 rounded-3xl p-8 border border-slate-700/50 backdrop-blur-xl relative flex flex-col">
+        <div className="bg-white dark:bg-slate-800/50 rounded-3xl p-8 border border-slate-200 dark:border-slate-700/50 backdrop-blur-xl relative flex flex-col shadow-sm dark:shadow-none">
           <div className="mb-8">
-            <h3 className="text-2xl font-bold text-white mb-2">Студент</h3>
-            <p className="text-slate-400 mb-6">Бесплатно навсегда</p>
-            <div className="text-4xl font-black text-white mb-1">0 ₽<span className="text-lg text-slate-500 font-normal"> / мес</span></div>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Студент</h3>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">Бесплатно навсегда</p>
+            <div className="text-4xl font-black text-slate-900 dark:text-white mb-1">0 ₽<span className="text-lg text-slate-500 font-normal"> / мес</span></div>
           </div>
           
           <ul className="space-y-4 mb-8 flex-1">
-            <li className="flex items-center gap-3 text-slate-300">
-              <Check className="w-5 h-5 text-indigo-400 shrink-0" />
-              <span>Базовый анализ лекций</span>
+            <li className="flex items-center gap-3">
+              <Check className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+              <span className="text-slate-700 dark:text-slate-300">Базовый анализ лекций</span>
             </li>
-            <li className="flex items-center gap-3 text-slate-300">
-              <Check className="w-5 h-5 text-indigo-400 shrink-0" />
-              <span>Создание флеш-карточек</span>
+            <li className="flex items-center gap-3">
+              <Check className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+              <span className="text-slate-700 dark:text-slate-300">Создание флеш-карточек</span>
             </li>
-            <li className="flex items-center gap-3 text-slate-300">
+            <li className="flex items-center gap-3">
               <Zap className="w-5 h-5 text-amber-500 shrink-0" />
-              <span className="font-medium text-white">Лимит: 10 запросов ИИ в день</span>
+              <span className="font-medium text-slate-900 dark:text-white">Лимит: 10 запросов ИИ в день</span>
             </li>
           </ul>
 
           <button 
             disabled 
-            className="w-full py-4 rounded-xl bg-slate-700 text-slate-300 font-bold opacity-50 cursor-not-allowed"
+            className="w-full py-4 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 font-bold opacity-70 dark:opacity-50 cursor-not-allowed"
           >
             Текущий тариф
           </button>
         </div>
 
         {/* PRO Тариф */}
-        <div className="bg-gradient-to-b from-indigo-900/80 to-slate-800/80 rounded-3xl p-8 border-2 border-indigo-500/50 backdrop-blur-xl relative flex flex-col transform md:-translate-y-4 shadow-2xl shadow-indigo-900/20">
+        <div className="bg-gradient-to-b from-indigo-700 to-slate-800 dark:from-indigo-900/80 dark:to-slate-800/80 rounded-3xl p-8 border-2 border-indigo-400 dark:border-indigo-500/50 backdrop-blur-xl relative flex flex-col transform md:-translate-y-4 shadow-2xl shadow-indigo-500/20 dark:shadow-indigo-900/20">
           
           {isPro && (
              <div className="absolute -top-4 -right-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1 transform rotate-12">
