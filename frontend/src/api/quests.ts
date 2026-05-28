@@ -2,7 +2,7 @@ import { ExamResult, StudySession } from '../types';
 import { supabase } from '../lib/supabase';
 
 export type QuestType = 'daily' | 'weekly';
-export type TargetType = 'analyze' | 'quiz' | 'chat' | 'mood' | 'exam' | 'review' | 'podcast';
+export type TargetType = 'analyze' | 'quiz' | 'chat' | 'mood' | 'exam' | 'review' | 'podcast' | 'grade';
 
 // ── XP / Уровни ───────────────────────────────────────────────────────────────
 

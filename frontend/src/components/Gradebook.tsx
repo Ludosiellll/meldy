@@ -4,6 +4,10 @@ import { useAuth } from '../hooks/useAuth';
 import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { updateQuestProgress } from '../api/quests';
+import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -28,6 +32,7 @@ interface Grade {
 
 export default function Gradebook() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +90,7 @@ export default function Gradebook() {
       setSubjects([...subjects, data]);
       setShowAddSubject(false);
       setNewSubName('');
+      toast.success('Предмет успешно добавлен!');
     }
   };
 
@@ -100,6 +106,8 @@ export default function Gradebook() {
     if (data) {
       setGrades([data, ...grades]);
       setShowAddGrade(false);
+      updateQuestProgress(user.id, 'grade', 1);
+      toast.success('Оценка сохранена!');
     }
   };
 
@@ -118,6 +126,16 @@ export default function Gradebook() {
   const handleScan = async () => {
     if (!scanText && !scanImage) return;
     
+    // Проверка лимитов для AI
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id);
+      if (!limitCheck.allowed) {
+        toast.error('Лимит запросов исчерпан. Перейдите на PRO!');
+        navigate('/pricing');
+        return;
+      }
+    }
+
     const newUserMsg: ChatMessage = {
       role: 'user',
       content: scanText,
@@ -128,6 +146,8 @@ export default function Gradebook() {
     setScanning(true);
     
     try {
+      if (user?.id) await incrementAIUsage(user.id);
+      
       const res = await fetch('/api/academic/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,6 +192,11 @@ export default function Gradebook() {
             setGrades(prev => [newGr, ...prev]);
           }
         }
+      }
+      
+      if (data.grades && data.grades.length > 0) {
+        updateQuestProgress(user!.id, 'grade', data.grades.length);
+        toast.success(`Распознано и добавлено ${data.grades.length} оценок!`);
       }
       
       setScanImage(null);

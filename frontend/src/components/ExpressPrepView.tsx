@@ -332,7 +332,7 @@ export default function ExpressPrepView({
                               ? `bg-white dark:bg-slate-900 border text-slate-800 dark:text-slate-100 rounded-bl-sm ${
                                   isSpeaking
                                     ? 'border-indigo-500 dark:border-indigo-500 ring-4 ring-indigo-500/20 shadow-md'
-                                    : 'border-slate-105 dark:border-slate-800/80 border-slate-100'
+                                    : 'border-slate-200 dark:border-slate-800/80'
                                 }`
                               : `bg-indigo-600 dark:bg-indigo-700 border text-white rounded-br-sm ${
                                   isSpeaking
