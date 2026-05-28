@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload, ArrowLeft, Trash2, LayoutGrid, Table } from 'lucide-react';
+import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload, ArrowLeft, Trash2, LayoutGrid, Table, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
@@ -80,6 +80,7 @@ export default function Gradebook() {
   
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -153,7 +154,10 @@ export default function Gradebook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
       queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
-      setSelectedSubject(null);
+      if (selectedSubject && subjectToDelete && selectedSubject.id === subjectToDelete.id) {
+        setSelectedSubject(null);
+      }
+      setSubjectToDelete(null);
       toast.success('Предмет удален');
     }
   });
@@ -294,7 +298,7 @@ export default function Gradebook() {
             <div className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-bold">
               Средний балл: {subStat?.avg ? subStat.avg.toFixed(2) : '-'}
             </div>
-            <button onClick={() => { if(confirm('Удалить предмет и все его оценки?')) deleteSubjectMutation.mutate(selectedSubject.id); }} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition" title="Удалить предмет">
+            <button onClick={() => setSubjectToDelete(selectedSubject)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition" title="Удалить предмет">
               <Trash2 className="w-5 h-5" />
             </button>
           </div>
@@ -394,12 +398,17 @@ export default function Gradebook() {
           {subjectStats.map(sub => (
             <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-500/30 transition">
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">{sub.name}</h3>
-                <div className={`px-2 py-1 rounded-md text-xs font-bold ${
-                  sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
-                  sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                }`}>
-                  {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 pr-2">{sub.name}</h3>
+                <div className="flex items-center gap-2">
+                  <div className={`px-2 py-1 rounded-md text-xs font-bold ${
+                    sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                    sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                  }`}>
+                    {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition" title="Удалить предмет">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
               
@@ -458,11 +467,16 @@ export default function Gradebook() {
                       </div>
                     </td>
                     <td className="p-4 text-right">
-                      <div className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${
-                        sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
-                        sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                      }`}>
-                        {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                      <div className="flex items-center justify-end gap-3">
+                        <div className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${
+                          sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                          sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                        }`}>
+                          {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition" title="Удалить предмет">
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -486,6 +500,19 @@ export default function Gradebook() {
 
       {/* Modals */}
       <AnimatePresence>
+        {subjectToDelete && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 shadow-2xl">
+              <h3 className="font-bold text-lg mb-2 text-slate-900 dark:text-slate-100">Удалить предмет?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Вы уверены, что хотите удалить предмет <span className="font-bold text-slate-800 dark:text-slate-200">«{subjectToDelete.name}»</span> и все его оценки? Это действие нельзя отменить.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setSubjectToDelete(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold transition hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
+                <button onClick={() => deleteSubjectMutation.mutate(subjectToDelete.id)} disabled={deleteSubjectMutation.isPending} className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-bold transition hover:bg-rose-700 disabled:opacity-50">Удалить</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {showAddSubject && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm">
