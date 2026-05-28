@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import toast from 'react-hot-toast';
 import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions } from '../api/groups';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
@@ -262,6 +263,24 @@ export default function TeacherDashboard() {
           localStorage.setItem(`group_completions_${selectedGroupId}`, JSON.stringify(data));
         });
       }
+
+      // Realtime subscription for assignments
+      const channel = supabase.channel(`group_updates_${selectedGroupId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'assignments', filter: `group_id=eq.${selectedGroupId}` },
+          () => {
+            getGroupAssignments(selectedGroupId).then(data => {
+              setAssignments(data);
+              localStorage.setItem(`group_assignments_${selectedGroupId}`, JSON.stringify(data));
+            });
+          }
+        )
+        .subscribe();
+        
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [selectedGroupId, role, groups, user?.id]);
 
@@ -278,6 +297,12 @@ export default function TeacherDashboard() {
 
   const handleAssign = async () => {
     if (!selectedGroupId || !selectedMaterial) return;
+    
+    if (deadline && new Date(deadline) < new Date()) {
+      toast.error('Дедлайн не может быть в прошлом!');
+      return;
+    }
+
     const ok = await createAssignment(selectedGroupId, selectedMaterial, deadline || undefined);
     if (ok) {
       getGroupAssignments(selectedGroupId).then(setAssignments);
@@ -592,7 +617,13 @@ export default function TeacherDashboard() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Дедлайн (опционально)</label>
-                      <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      <input 
+                        type="datetime-local" 
+                        value={deadline} 
+                        min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                        onChange={e => setDeadline(e.target.value)} 
+                        className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" 
+                      />
                     </div>
                     <div className="flex gap-2 justify-end pt-2">
                       <button onClick={() => setShowAssignModal(false)} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-350 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
