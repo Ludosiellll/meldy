@@ -62,7 +62,7 @@ export default function Gradebook() {
 
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [newSubName, setNewSubName] = useState('');
-  const [newSubTarget, setNewSubTarget] = useState(5.0);
+  const [newSubTarget, setNewSubTarget] = useState(9.0);
 
   const [showAddGrade, setShowAddGrade] = useState(false);
   const [gradeSubId, setGradeSubId] = useState('');
@@ -195,11 +195,11 @@ export default function Gradebook() {
       for (const g of data.grades || []) {
         let sub = localSubjects.find(s => s.name.toLowerCase() === g.subject.toLowerCase());
         if (!sub) {
-          const isTenPoint = g.value > 5;
+          const isFive = subjects.length > 0 && subjects.every(s => s.target_grade <= 5) && grades.every(gr => gr.value <= 5);
           const { data: newSub } = await supabase.from('academic_subjects').insert({
             user_id: user!.id,
             name: g.subject,
-            target_grade: isTenPoint ? 9.0 : 5.0,
+            target_grade: (isFive && g.value <= 5) ? 5.0 : 9.0,
             color: '#6366f1'
           }).select().single();
           if (newSub) {
@@ -243,7 +243,9 @@ export default function Gradebook() {
     ? subjectStats.reduce((sum, s) => sum + s.avg, 0) / subjectStats.filter(s => s.avg > 0).length 
     : 0;
 
-  const maxScore = subjects.some(s => s.target_grade > 5) || grades.some(g => g.value > 5) ? 10.0 : 5.0;
+  // Default to 10.0 unless there are grades/subjects that explicitly suggest a 5-point system
+  const isFivePoint = subjects.length > 0 && subjects.every(s => s.target_grade <= 5) && grades.every(g => g.value <= 5);
+  const maxScore = isFivePoint ? 5.0 : 10.0;
 
   return (
     <div className="space-y-6">
