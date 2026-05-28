@@ -348,6 +348,14 @@ export default function TeacherDashboard() {
 
   const restRankings = sortedMembers.slice(3);
 
+  if (role === null) {
+    return (
+      <div className="flex items-center justify-center min-h-[85vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-[85vh]">
       {/* Role Switcher Widget */}
