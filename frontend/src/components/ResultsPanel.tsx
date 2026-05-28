@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
@@ -299,6 +299,18 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const [tab, setTab] = useState<Tab>('summary');
   const [copied, setCopied] = useState(false);
 
+  const [showExport, setShowExport] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('.export-menu-container')) {
+        setShowExport(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const flashcardCount = results.flashcards?.flashcards?.length || 0;
   const quizCount = results.quiz?.quiz?.length || 0;
 
@@ -372,32 +384,60 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     <div className="py-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 no-print">
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Результаты</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={handleCopy}
-            className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700 flex whitespace-nowrap">
-            <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{copied ? 'Скопировано' : 'Копировать'}
-          </button>
-          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-            <button onClick={handlePrintPdf}
-              className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700 flex whitespace-nowrap">
-              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В PDF / Печать
+        <div className="flex items-center gap-2">
+          
+          {/* Export Dropdown */}
+          <div className="relative export-menu-container">
+            <button 
+              onClick={() => setShowExport(!showExport)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Экспорт</span>
             </button>
-          )}
-          {tab === 'flashcards' && (
-            <button onClick={handleExportAnki}
-              title="Anki — это популярная бесплатная программа для запоминания информации с помощью интервального повторения. Эта кнопка скачает файл, который можно сразу импортировать в Anki."
-              className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm flex whitespace-nowrap">
-              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В Anki (.txt)
-            </button>
-          )}
-          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-            <button onClick={handleDownloadHtml}
-              className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700 flex whitespace-nowrap">
-              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />Скачать HTML
-            </button>
-          )}
+
+            <AnimatePresence>
+              {showExport && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50 flex flex-col gap-1"
+                >
+                  <button onClick={() => { handleCopy(); setShowExport(false); }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full text-left">
+                    <Copy className="w-4 h-4" />{copied ? 'Скопировано' : 'Копировать'}
+                  </button>
+                  
+                  {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                    <button onClick={() => { handlePrintPdf(); setShowExport(false); }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full text-left">
+                      <Download className="w-4 h-4" />В PDF / Печать
+                    </button>
+                  )}
+                  
+                  {tab === 'flashcards' && (
+                    <button onClick={() => { handleExportAnki(); setShowExport(false); }}
+                      title="Anki — это популярная бесплатная программа..."
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition w-full text-left">
+                      <Download className="w-4 h-4" />В Anki (.txt)
+                    </button>
+                  )}
+                  
+                  {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                    <button onClick={() => { handleDownloadHtml(); setShowExport(false); }}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full text-left">
+                      <Download className="w-4 h-4" />Скачать HTML
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button onClick={onReset}
-            className="w-full md:w-auto items-center justify-center gap-1 sm:gap-1.5 px-3 py-2.5 sm:py-2 rounded-lg text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex mt-1 md:mt-0 whitespace-nowrap">
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-sm whitespace-nowrap">
             <RotateCcw className="w-4 h-4" />Новый анализ
           </button>
         </div>
