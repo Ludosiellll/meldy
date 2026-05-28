@@ -350,6 +350,7 @@ export default function Gradebook() {
             </tbody>
           </table>
         </div>
+        <div className="h-24 sm:h-4"></div>
       </div>
     );
   }
@@ -575,8 +576,8 @@ export default function Gradebook() {
         )}
 
         {showScan && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="bg-white dark:bg-slate-900 w-full max-w-lg sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[80vh] overflow-hidden">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4">
+            <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="bg-white dark:bg-slate-900 w-full max-w-lg sm:rounded-2xl shadow-2xl flex flex-col h-[100dvh] sm:h-[80vh] overflow-hidden">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-indigo-500" />
@@ -612,7 +613,7 @@ export default function Gradebook() {
                 )}
               </div>
 
-              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 pb-safe">
+              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 pb-8 sm:pb-3">
                 {scanImages.length > 0 && (
                   <div className="mb-3 flex gap-2 overflow-x-auto py-1 custom-scrollbar">
                     {scanImages.map((img, idx) => (
@@ -656,6 +657,7 @@ export default function Gradebook() {
           </div>
         )}
       </AnimatePresence>
+      <div className="h-24 sm:h-4"></div>
     </div>
   );
 }
