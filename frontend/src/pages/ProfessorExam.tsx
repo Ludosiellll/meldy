@@ -581,7 +581,7 @@ export default function ProfessorExam() {
                   onClick={() => startExamOrNextQuestion(true)}
                   className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
                 >
-                  <ArrowRight className="w-5 h-5" /> Войти в аудиторию
+                  <ArrowRight className="w-5 h-5" /> Войти в аудиторию (1 ⚡ ИИ)
                 </button>
               </div>
             </div>
@@ -897,7 +897,7 @@ export default function ProfessorExam() {
                 onClick={() => startExamOrNextQuestion(false)}
                 className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100 dark:shadow-none"
               >
-                <RefreshCw className="w-4 h-4" /> Следующий билет
+                <RefreshCw className="w-4 h-4" /> Следующий билет (1 ⚡ ИИ)
               </button>
               
               <button

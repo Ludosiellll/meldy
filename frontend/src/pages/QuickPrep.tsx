@@ -214,7 +214,7 @@ export default function QuickPrep() {
                 onClick={startPrep}
                 className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-100 dark:shadow-amber-950/20"
               >
-                <Zap className="w-5 h-5" /> Подготовить за 5 минут
+                <Zap className="w-5 h-5" /> Подготовить за 5 минут (5 ⚡ ИИ)
               </button>
             </div>
           </motion.div>

@@ -208,7 +208,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed')}
         >
           <Zap className="w-5 h-5" />
-          {isReady ? 'Запустить анализ' : 'Сначала выберите файл или вставьте ссылку'}
+          {isReady ? 'Запустить анализ (20 ⚡ ИИ)' : 'Сначала выберите файл или вставьте ссылку'}
         </button>
       </motion.div>
     </div>

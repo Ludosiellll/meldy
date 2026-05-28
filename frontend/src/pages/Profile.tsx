@@ -172,9 +172,9 @@ export default function Profile() {
         <div className="relative flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
           <div className="relative group shrink-0">
             {/* Анимированное кольцо прогресса уровня */}
-            <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]">
-              <circle cx="50%" cy="50%" r="48%" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-200/50 dark:text-slate-800/50" />
-              <circle cx="50%" cy="50%" r="48%" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={`${levelInfo.progress * 3.01} 301`} strokeLinecap="round" className="text-indigo-500 transition-all duration-1000 ease-out" />
+            <svg viewBox="0 0 100 100" className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none">
+              <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-200/50 dark:text-slate-800/50" />
+              <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={`${levelInfo.progress * 3.01} 301`} strokeLinecap="round" className="text-indigo-500 transition-all duration-1000 ease-out" />
             </svg>
 
             <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] border-white dark:border-slate-900 shadow-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative z-10 ${profile.is_pro ? 'ring-4 ring-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.6)]' : ''}`}>

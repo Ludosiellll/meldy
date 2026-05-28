@@ -255,7 +255,7 @@ export default function ExpressPrepView({
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                        Создать шпаргалку за 5 минут
+                        Создать шпаргалку за 5 минут (5 ⚡ ИИ)
                       </>
                     )}
                   </button>

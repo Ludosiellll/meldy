@@ -357,7 +357,7 @@ export default function Planner() {
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-5 h-5" />}
-              {loading ? 'Создаем персональный план...' : selectedSubjectIds.length === 0 ? 'Выберите предметы для плана' : `Сформировать план (${selectedSubjectIds.length} предм.)`}
+              {loading ? 'Создаем персональный план...' : selectedSubjectIds.length === 0 ? 'Выберите предметы для плана' : `Сформировать план (${selectedSubjectIds.length} предм.) (5 ⚡ ИИ)`}
             </button>
           </div>
 

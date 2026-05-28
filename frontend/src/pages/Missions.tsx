@@ -322,7 +322,7 @@ export default function Missions() {
                 onClick={startGame}
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
               >
-                <ArrowRight className="w-5 h-5" /> Начать игру
+                <ArrowRight className="w-5 h-5" /> Начать игру (2 ⚡ ИИ)
               </button>
             </div>
           </motion.div>

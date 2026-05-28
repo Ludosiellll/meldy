@@ -112,7 +112,7 @@ export default function Career() {
             className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-3 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none mx-auto"
           >
             <Cpu className="w-6 h-6" />
-            Оцифровать мои навыки
+            Оцифровать мои навыки (5 ⚡ ИИ)
           </button>
         </motion.div>
       </div>
@@ -155,7 +155,7 @@ export default function Career() {
           className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-70 flex items-center gap-2 transition"
         >
           <Zap className="w-4 h-4" />
-          Пересчитать навыки
+          Пересчитать навыки (5 ⚡ ИИ)
         </button>
       </div>
 

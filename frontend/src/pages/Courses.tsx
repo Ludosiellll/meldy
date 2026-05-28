@@ -836,7 +836,7 @@ export default function Courses() {
                   className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 dark:hover:shadow-none hover:scale-[1.02] transition-all disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Сгенерировать с ИИ
+                  Сгенерировать с ИИ (5 ⚡ ИИ)
                 </button>
               </div>
             </div>

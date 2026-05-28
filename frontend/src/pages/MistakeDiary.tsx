@@ -361,7 +361,7 @@ export default function MistakeDiary() {
               ) : (
                 <>
                   <Zap className="w-4 h-4 text-amber-200 animate-pulse" />
-                  ⚡ Запустить AI-работу над ошибками (+50 XP)
+                  ⚡ Запустить AI-работу над ошибками (2 ⚡ ИИ)
                 </>
               )}
             </button>
