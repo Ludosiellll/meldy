@@ -15,7 +15,8 @@ export default function Pricing() {
   const [processing, setProcessing] = useState(false);
   const [paymentSent, setPaymentSent] = useState(false);
 
-  const adminEmails = ['pokolele20@gmail.com', 'admin@studyforge.com']; // Список email админов, можно вынести в базу
+  // Впишите сюда свой актуальный email администратора
+  const adminEmails = ['test@example.com', 'admin@studyforge.com'];
   const isAdmin = user && adminEmails.includes(user.email || '');
 
   useEffect(() => {
@@ -48,25 +49,26 @@ export default function Pricing() {
   const handleAdminBypass = async () => {
     if (!user) return;
     
-    const confirmBypass = window.confirm('Выдать PRO-статус мгновенно (Admin Bypass)?');
+    const action = isPro ? 'Забрать' : 'Выдать';
+    const confirmBypass = window.confirm(`${action} PRO-статус (Admin)?`);
     if (!confirmBypass) return;
 
     setProcessing(true);
     const { error } = await supabase
       .from('profiles')
-      .update({ is_pro: true })
+      .update({ is_pro: !isPro })
       .eq('id', user.id);
       
     setProcessing(false);
     
     if (error) {
-      toast.error('Ошибка выдачи статуса');
+      toast.error('Ошибка изменения статуса');
       return;
     }
     
-    setIsPro(true);
+    setIsPro(!isPro);
     setShowCheckout(false);
-    toast.success('PRO статус успешно активирован! (Admin)');
+    toast.success(!isPro ? 'PRO статус успешно активирован! (Admin)' : 'PRO статус снят (Admin)');
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -130,9 +132,20 @@ export default function Pricing() {
         <div className="bg-gradient-to-b from-indigo-700 to-slate-800 dark:from-indigo-900/80 dark:to-slate-800/80 rounded-3xl p-8 border-2 border-indigo-400 dark:border-indigo-500/50 backdrop-blur-xl relative flex flex-col transform md:-translate-y-4 shadow-2xl shadow-indigo-500/20 dark:shadow-indigo-900/20">
           
           {isPro && (
-             <div className="absolute -top-4 -right-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1 transform rotate-12">
+             <div className="absolute -top-4 -right-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1 transform rotate-12 z-10">
                <Crown className="w-4 h-4" /> АКТИВИРОВАНО
              </div>
+          )}
+
+          {/* Админская кнопка (Toggle PRO) */}
+          {isAdmin && (
+            <button
+              onClick={handleAdminBypass}
+              className={`absolute -left-4 -top-4 p-2.5 rounded-full transition shadow-lg border z-20 ${isPro ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-400' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-400 border-slate-700'}`}
+              title={isPro ? "Admin: Забрать PRO" : "Admin: Выдать PRO"}
+            >
+              <Key className="w-5 h-5" />
+            </button>
           )}
 
           <div className="mb-8">
@@ -164,7 +177,7 @@ export default function Pricing() {
           </ul>
 
           {isPro ? (
-            <button className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold shadow-lg shadow-emerald-500/20 cursor-default flex items-center justify-center gap-2">
+            <button className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold shadow-lg shadow-emerald-500/20 cursor-default flex items-center justify-center gap-2 relative">
                <Check className="w-5 h-5" /> У вас есть PRO
             </button>
           ) : (
@@ -182,17 +195,6 @@ export default function Pricing() {
               >
                 Оформить PRO
               </button>
-              
-              {/* Админская кнопка выдачи PRO */}
-              {isAdmin && (
-                <button
-                  onClick={handleAdminBypass}
-                  className="absolute -right-14 top-1/2 -translate-y-1/2 p-3 bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-amber-400 rounded-xl transition shadow-lg border border-slate-700/50"
-                  title="Admin Bypass: Выдать PRO"
-                >
-                  <Key className="w-5 h-5" />
-                </button>
-              )}
             </div>
           )}
         </div>
