@@ -16,6 +16,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import SummaryView from '../components/SummaryView';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
 
 interface CourseMaterialItem {
   id: string;
@@ -214,6 +215,16 @@ export default function Courses() {
         type: 'warning'
       });
       return;
+    }
+
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id, 5);
+      if (!limitCheck.allowed) {
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id, 5);
     }
 
     setGenerating(true);

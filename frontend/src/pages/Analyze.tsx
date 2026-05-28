@@ -69,14 +69,14 @@ export default function Analyze() {
     
     // ПРОВЕРКА ЛИМИТОВ ИИ
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id);
+      const limitCheck = await checkAILimit(user.id, 20);
       if (!limitCheck.allowed) {
         setState(p => ({ ...p, phase: 'upload' }));
-        toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+        toast.error('Не хватает энергии ИИ (нужно 20). Перейдите на PRO-тариф для безлимитного доступа!');
         navigate('/pricing');
         return;
       }
-      await incrementAIUsage(user.id);
+      await incrementAIUsage(user.id, 20);
     }
 
     try {

@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
 
 export default function Career() {
   const { user } = useAuth();
@@ -60,6 +61,15 @@ export default function Career() {
       });
 
       const contextStr = contextLines.join("\n\n---\n\n").slice(0, 15000);
+
+      const limitCheck = await checkAILimit(user.id, 5);
+      if (!limitCheck.allowed) {
+        setIsGenerating(false);
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id, 5);
 
       // 3. Вызываем API
       const newProfile = await generateCareerProfile(user.id, contextStr);

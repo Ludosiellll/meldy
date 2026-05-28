@@ -62,14 +62,14 @@ export default function ExpressPrepView({
     }
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id);
+      const limitCheck = await checkAILimit(user.id, 5);
       if (!limitCheck.allowed) {
         setIsGenerating(false);
-        toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+        toast.error('Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф для безлимитного доступа!');
         navigate('/pricing');
         return;
       }
-      await incrementAIUsage(user.id);
+      await incrementAIUsage(user.id, 5);
     }
 
     try {

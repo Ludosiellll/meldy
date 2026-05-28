@@ -16,6 +16,7 @@ import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
 import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -289,6 +290,17 @@ export default function ProfessorExam() {
     const examHistory = examHistoryRes.data || [];
     const recentMistakes = (mistakesRes.data || []).map(m => m.topic).filter(Boolean);
 
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id, 1);
+      if (!limitCheck.allowed) {
+        setPhase(clearHistory ? 'select' : 'evaluation');
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 1). Перейдите на PRO-тариф!', type: 'danger' });
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id, 1);
+    }
+
     try {
       const res = await fetch('/api/professor/question', {
         method: 'POST',
@@ -323,6 +335,17 @@ export default function ProfessorExam() {
       ? selectedMaterial.summary_json
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
+
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id, 1);
+      if (!limitCheck.allowed) {
+        setPhase('question');
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 1). Перейдите на PRO-тариф!', type: 'danger' });
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id, 1);
+    }
 
     try {
       const res = await fetch('/api/professor/evaluate', {

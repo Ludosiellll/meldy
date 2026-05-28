@@ -15,6 +15,7 @@ import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } f
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
 
 interface Mission {
   id: number;
@@ -102,6 +103,17 @@ export default function Missions() {
                 : (found.summary_json?.content || '');
               const context = (found.original_text || summary || '').slice(0, 15000);
 
+              if (user?.id) {
+                const limitCheck = await checkAILimit(user.id, 2);
+                if (!limitCheck.allowed) {
+                  setPhase('select');
+                  await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 2). Перейдите на PRO-тариф!', type: 'danger' });
+                  navigate('/pricing');
+                  return;
+                }
+                await incrementAIUsage(user.id, 2);
+              }
+
               try {
                 const res = await fetch('/api/missions/generate', {
                   method: 'POST',
@@ -153,6 +165,17 @@ export default function Missions() {
       ? selectedMaterial.summary_json
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
+
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id, 2);
+      if (!limitCheck.allowed) {
+        setPhase('select');
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 2). Перейдите на PRO-тариф!', type: 'danger' });
+        navigate('/pricing');
+        return;
+      }
+      await incrementAIUsage(user.id, 2);
+    }
 
     try {
       const res = await fetch('/api/missions/generate', {

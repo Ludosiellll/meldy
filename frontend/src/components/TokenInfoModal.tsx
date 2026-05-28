@@ -1,0 +1,108 @@
+import { X, Zap, Crown } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FREE_DAILY_LIMIT } from '../api/limits';
+import { useNavigate } from 'react-router-dom';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  usedTokens: number;
+}
+
+export default function TokenInfoModal({ isOpen, onClose, usedTokens }: Props) {
+  const navigate = useNavigate();
+  const remaining = Math.max(0, FREE_DAILY_LIMIT - usedTokens);
+  const percentage = Math.min((usedTokens / FREE_DAILY_LIMIT) * 100, 100);
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[300] flex items-center justify-center px-4 sm:px-0">
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }} 
+          className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
+        >
+          {/* Header */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-6 text-center relative border-b border-slate-100 dark:border-slate-800">
+            <button 
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-white dark:bg-slate-800 rounded-full shadow-sm transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner transform rotate-3">
+              <Zap className="w-8 h-8 text-amber-500 fill-amber-500" />
+            </div>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Энергия ИИ</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Осталось на сегодня</p>
+            <div className="text-4xl font-black text-slate-800 dark:text-slate-100 mt-2 flex items-center justify-center gap-1">
+              {remaining} <span className="text-xl text-slate-400 font-bold">/ {FREE_DAILY_LIMIT}</span>
+            </div>
+          </div>
+
+          {/* Progress */}
+          <div className="px-6 pt-6 pb-2">
+            <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-2 shadow-inner border border-slate-200/50 dark:border-slate-700/50">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${percentage}%` }}
+                transition={{ duration: 1, ease: 'easeOut' }}
+                className={`h-full rounded-full ${percentage >= 100 ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 'bg-gradient-to-r from-amber-400 to-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'}`}
+              />
+            </div>
+            {percentage >= 100 && (
+              <p className="text-xs font-bold text-rose-500 text-center animate-pulse">Энергия исчерпана!</p>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="p-6 pt-2 space-y-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            <p>
+              Энергия расходуется на создание конспектов, генерацию тестов и общение с ИИ. 
+            </p>
+            <div className="flex items-center gap-2 p-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 rounded-xl font-medium border border-indigo-100 dark:border-indigo-900">
+              <Zap className="w-5 h-5 shrink-0" />
+              <span>Бесплатная энергия восстанавливается каждую полночь по Москве.</span>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="p-6 pt-0 bg-slate-50 dark:bg-slate-900">
+            <button 
+              onClick={() => {
+                onClose();
+                navigate('/pricing');
+              }}
+              className="w-full relative group overflow-hidden rounded-2xl p-[2px]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 rounded-2xl opacity-70 group-hover:opacity-100 transition duration-300 animate-pulse" />
+              <div className="relative bg-white dark:bg-slate-900 rounded-[14px] px-6 py-3 transition group-hover:bg-opacity-0">
+                <div className="flex items-center justify-center gap-2 group-hover:text-white transition-colors text-slate-800 dark:text-slate-100 font-bold">
+                  <Crown className="w-5 h-5 text-amber-500 group-hover:text-white transition-colors" />
+                  Получить Безлимит (PRO)
+                </div>
+              </div>
+            </button>
+            <button 
+              onClick={onClose}
+              className="w-full mt-3 px-6 py-3 text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-800 dark:hover:text-slate-200 transition"
+            >
+              Понятно
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}

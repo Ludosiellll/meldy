@@ -11,6 +11,8 @@ export interface UserProfile {
   total_materials: number;
   role?: string;
   onboarding_status?: Record<string, boolean>;
+  is_pro?: boolean;
+  pro_until?: string;
 }
 
 export interface PublicMaterial {

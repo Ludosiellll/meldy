@@ -14,7 +14,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
 import ForgeyAssistant from './ForgeyAssistant';
 import { useTheme } from '../contexts/ThemeProvider';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Zap } from 'lucide-react';
+import { checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
+import TokenInfoModal from './TokenInfoModal';
 
 const navGroups = [
   {
@@ -99,6 +101,8 @@ export default function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [usedTokens, setUsedTokens] = useState(0);
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
   
   const { theme, setTheme } = useTheme();
   const isDarkActive = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -134,6 +138,10 @@ export default function Layout() {
     const unsub = subscribeToNotifications(user.id, () => {
       getUnreadCount(user.id).then(setUnreadCount);
     });
+
+    const fetchTokens = () => checkAILimit(user.id, 0).then(res => setUsedTokens(res.count));
+    fetchTokens();
+    // It's possible to add event listener for 'ai_usage_updated' but for now fetching on mount is fine.
 
     return () => {
       window.removeEventListener('xp_updated', fetchXP);
@@ -204,6 +212,14 @@ export default function Layout() {
   return (
     <div className="fixed inset-0 flex bg-slate-50 dark:bg-slate-950 overflow-hidden">
       <OnboardingManager />
+      
+      {/* Token Modal */}
+      <TokenInfoModal 
+        isOpen={isTokenModalOpen} 
+        onClose={() => setIsTokenModalOpen(false)} 
+        usedTokens={usedTokens} 
+      />
+
       <ForgeyAssistant />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
       {isMobileMenuOpen && (
@@ -244,15 +260,45 @@ export default function Layout() {
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50 mb-1.5">
             <div
               className="h-full bg-indigo-500 rounded-full transition-all duration-700"
               style={{ width: `${levelInfo.progress}%` }}
             />
           </div>
-          <div className="flex justify-between mt-1.5">
+          <div className="flex justify-between mb-4">
             <span className="text-[10px] font-medium text-slate-500">{xp} XP</span>
             <span className="text-[10px] font-medium text-slate-500">{levelInfo.currentXP}/{levelInfo.nextXP}</span>
+          </div>
+
+          {/* AI Tokens Bar */}
+          <div 
+            onClick={() => setIsTokenModalOpen(true)}
+            className="group cursor-pointer p-1.5 -mx-1.5 rounded-xl hover:bg-slate-700/30 transition"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <Zap className={`w-3.5 h-3.5 ${profile?.is_pro ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400 transition'}`} />
+                <p className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition uppercase tracking-widest">Энергия ИИ</p>
+              </div>
+              {profile?.is_pro ? (
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(251,191,36,0.3)]">PRO</span>
+              ) : null}
+            </div>
+            {!profile?.is_pro && (
+              <>
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${usedTokens >= FREE_DAILY_LIMIT ? 'bg-rose-500' : 'bg-amber-400'}`}
+                    style={{ width: `${Math.min((usedTokens / FREE_DAILY_LIMIT) * 100, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1.5">
+                  <span className="text-[10px] font-medium text-slate-500">Потрачено</span>
+                  <span className="text-[10px] font-medium text-slate-500">{usedTokens} / {FREE_DAILY_LIMIT}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -294,17 +340,19 @@ export default function Layout() {
         {/* User section */}
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/profile')} className="shrink-0">
+            <button onClick={() => navigate('/profile')} className="shrink-0 relative">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/50" />
+                <img src={avatarUrl} alt="avatar" className={`w-8 h-8 rounded-full object-cover ring-2 ${profile?.is_pro ? 'ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]' : 'ring-indigo-500/50'}`} />
               ) : (
-                <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ring-2 ${profile?.is_pro ? 'bg-gradient-to-br from-amber-400 to-amber-600 ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]' : 'bg-indigo-600 ring-indigo-500/50'}`}>
                   {initial}
                 </div>
               )}
             </button>
             <div className="flex-1 min-w-0">
-              <p className="text-slate-300 text-xs font-medium truncate">{name}</p>
+              <p className="text-slate-300 text-xs font-medium truncate flex items-center gap-1">
+                {name} 
+              </p>
               <p className="text-slate-500 text-[10px] truncate">{email}</p>
             </div>
             
@@ -341,6 +389,22 @@ export default function Layout() {
             <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
           </button>
           <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setIsTokenModalOpen(true)}
+              className="mr-1 flex items-center hover:scale-105 transition"
+            >
+              {profile?.is_pro ? (
+                <div className="flex items-center gap-1 text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 shadow-[0_0_8px_rgba(251,191,36,0.2)]">
+                  <Zap className="w-4 h-4" />
+                  <span className="text-[10px] font-black tracking-wider uppercase">PRO</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 transition">
+                  <Zap className={`w-4 h-4 ${usedTokens >= FREE_DAILY_LIMIT ? 'text-rose-500' : 'text-amber-500'}`} />
+                  <span className={`text-[11px] font-bold ${usedTokens >= FREE_DAILY_LIMIT ? 'text-rose-500' : ''}`}>{FREE_DAILY_LIMIT - usedTokens}</span>
+                </div>
+              )}
+            </button>
             <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="p-2 text-slate-500 hover:text-indigo-600 transition" title="Переключить тему">
               {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>

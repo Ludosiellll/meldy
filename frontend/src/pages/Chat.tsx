@@ -97,14 +97,14 @@ export default function Chat() {
   const handleSend = async () => {
     if (!input.trim() || !selectedId || !user || loading) return;
     
-    // Проверка лимитов
-    const limitCheck = await checkAILimit(user.id);
+    // Проверка лимитов (1 токен за сообщение)
+    const limitCheck = await checkAILimit(user.id, 1);
     if (!limitCheck.allowed) {
-      toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+      toast.error('Не хватает энергии ИИ (нужно 1). Перейдите на PRO-тариф!');
       navigate('/pricing');
       return;
     }
-    await incrementAIUsage(user.id);
+    await incrementAIUsage(user.id, 1);
     
     const userMsg = { role: 'user', content: input };
     setMessages(prev => [...prev, userMsg]);
@@ -282,7 +282,7 @@ export default function Chat() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Напишите вопрос по материалу..."
+                  placeholder="Напишите вопрос по материалу... (1 ⚡ ИИ)"
                   className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                   disabled={loading}
                 />

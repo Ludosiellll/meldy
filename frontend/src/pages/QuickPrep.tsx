@@ -81,14 +81,14 @@ export default function QuickPrep() {
     const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id);
+      const limitCheck = await checkAILimit(user.id, 5);
       if (!limitCheck.allowed) {
         setPhase('select');
-        toast.error('Дневной запас энергии ИИ исчерпан. Перейдите на PRO-тариф для безлимитного доступа!');
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
         navigate('/pricing');
         return;
       }
-      await incrementAIUsage(user.id);
+      await incrementAIUsage(user.id, 5);
     }
 
     try {

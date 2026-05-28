@@ -177,7 +177,7 @@ export default function Profile() {
               <circle cx="50%" cy="50%" r="48%" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={`${levelInfo.progress * 3.01} 301`} strokeLinecap="round" className="text-indigo-500 transition-all duration-1000 ease-out" />
             </svg>
 
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] border-white dark:border-slate-900 shadow-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
+            <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] border-white dark:border-slate-900 shadow-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative z-10 ${profile.is_pro ? 'ring-4 ring-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.6)]' : ''}`}>
               {profile.avatar_url ? (
                 <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
               ) : (
@@ -200,7 +200,22 @@ export default function Profile() {
           </div>
           
           <div className="flex-1 text-center md:text-left pt-2">
-            <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-2">{profile.full_name || 'Студент'}</h1>
+            <div className="flex flex-col md:flex-row items-center md:justify-start gap-3 mb-2">
+              <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">{profile.full_name || 'Студент'}</h1>
+              {profile.is_pro && (
+                <div className="flex flex-col items-center md:items-start">
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-lg shadow-[0_0_15px_rgba(251,191,36,0.5)]">
+                    <Star className="w-4 h-4 fill-current" />
+                    <span className="text-xs font-black tracking-widest uppercase">PRO</span>
+                  </div>
+                  {profile.pro_until && (
+                    <span className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-bold">
+                      до {new Date(profile.pro_until).toLocaleDateString('ru-RU')}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             {profile.university && (
               <div className="flex items-center justify-center md:justify-start gap-2 text-indigo-600 dark:text-indigo-400 font-semibold mb-3">
                 <GraduationCap className="w-5 h-5" />

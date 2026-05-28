@@ -1,20 +1,20 @@
 import { supabase } from '../lib/supabase';
 
-// Лимит запросов для бесплатного аккаунта
-export const FREE_DAILY_LIMIT = 10;
+// Лимит токенов ИИ для бесплатного аккаунта (в день)
+export const FREE_DAILY_LIMIT = 100;
 
 export interface AIUsage {
   id: string;
   user_id: string;
   date: string;
-  requests_count: number;
+  requests_count: number; // логически теперь это `used_tokens`
 }
 
 /**
- * Проверяет, может ли пользователь сделать еще один запрос к ИИ.
+ * Проверяет, может ли пользователь потратить указанное количество токенов ИИ.
  * Возвращает { allowed: true/false, isPro: boolean, count: number }
  */
-export async function checkAILimit(userId: string): Promise<{ allowed: boolean; isPro: boolean; count: number }> {
+export async function checkAILimit(userId: string, cost: number = 1): Promise<{ allowed: boolean; isPro: boolean; count: number }> {
   try {
     // 1. Проверяем статус PRO
     const { data: profile } = await supabase
@@ -30,7 +30,7 @@ export async function checkAILimit(userId: string): Promise<{ allowed: boolean; 
       return { allowed: true, isPro: true, count: 0 };
     }
 
-    // 2. Иначе проверяем кол-во запросов сегодня
+    // 2. Иначе проверяем кол-во потраченных токенов сегодня
     const today = new Date().toISOString().split('T')[0];
     const { data: usage } = await supabase
       .from('ai_usage')
@@ -42,22 +42,22 @@ export async function checkAILimit(userId: string): Promise<{ allowed: boolean; 
     const count = usage?.requests_count || 0;
 
     return {
-      allowed: count < FREE_DAILY_LIMIT,
+      allowed: (count + cost) <= FREE_DAILY_LIMIT,
       isPro: false,
       count
     };
   } catch (err) {
     console.error('Ошибка при проверке лимитов:', err);
-    // В случае технической ошибки разрешаем, чтобы не блокировать приложение ложными срабатываниями
+    // В случае технической ошибки разрешаем, чтобы не блокировать приложение
     return { allowed: true, isPro: false, count: 0 };
   }
 }
 
 /**
- * Увеличивает счетчик запросов за сегодня.
+ * Списывает токены ИИ за сегодня.
  * Если записи нет, создает её.
  */
-export async function incrementAIUsage(userId: string): Promise<void> {
+export async function incrementAIUsage(userId: string, cost: number = 1): Promise<void> {
   try {
     const today = new Date().toISOString().split('T')[0];
     
@@ -70,19 +70,19 @@ export async function incrementAIUsage(userId: string): Promise<void> {
       .maybeSingle();
 
     if (existing) {
-      // Обновляем
+      // Обновляем (прибавляем стоимость)
       await supabase
         .from('ai_usage')
-        .update({ requests_count: existing.requests_count + 1 })
+        .update({ requests_count: existing.requests_count + cost })
         .eq('id', existing.id);
     } else {
-      // Создаем новую
+      // Создаем новую с начальной стоимостью
       await supabase
         .from('ai_usage')
         .insert({
           user_id: userId,
           date: today,
-          requests_count: 1
+          requests_count: cost
         });
     }
   } catch (err) {

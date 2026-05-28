@@ -6,10 +6,13 @@ import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { useNavigate } from 'react-router-dom';
 
 export default function Planner() {
   const { user } = useAuth();
   const { alert } = useConfirm();
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -98,6 +101,18 @@ export default function Planner() {
       return;
     }
     setLoading(true);
+
+    if (user?.id) {
+      const limitCheck = await checkAILimit(user.id, 5);
+      if (!limitCheck.allowed) {
+        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
+        navigate('/pricing');
+        setLoading(false);
+        return;
+      }
+      await incrementAIUsage(user.id, 5);
+    }
+
     try {
       const selectedContent = materials
         .filter(m => selectedMaterials.includes(m.id))
