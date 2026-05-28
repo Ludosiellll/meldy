@@ -148,10 +148,11 @@ export default function Gradebook() {
       for (const g of data.grades || []) {
         let sub = subjects.find(s => s.name.toLowerCase() === g.subject.toLowerCase());
         if (!sub) {
+          const isTenPoint = g.value > 5;
           const { data: newSub } = await supabase.from('academic_subjects').insert({
             user_id: user!.id,
             name: g.subject,
-            target_grade: 5.0,
+            target_grade: isTenPoint ? 9.0 : 5.0,
             color: '#6366f1'
           }).select().single();
           if (newSub) {
@@ -247,13 +248,13 @@ export default function Gradebook() {
               </div>
               <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full ${sub.avg >= sub.target_grade ? 'bg-emerald-500' : sub.avg < sub.target_grade - 0.5 ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                  style={{ width: `${Math.min(100, (sub.avg / 5) * 100)}%` }}
+                  className={`h-full rounded-full ${sub.avg >= sub.target_grade ? 'bg-emerald-500' : sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) ? 'bg-rose-500' : 'bg-amber-500'}`} 
+                  style={{ width: `${Math.min(100, (sub.avg / (sub.target_grade > 5 ? 10 : 5)) * 100)}%` }}
                 />
               </div>
             </div>
 
-            {sub.avg > 0 && sub.avg < sub.target_grade - 0.5 && (
+            {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
               <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 p-2.5 rounded-lg text-xs font-medium flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>Оценки падают! Рекомендуем сгенерировать ИИ-подкаст по последней теме.</span>
@@ -303,12 +304,12 @@ export default function Gradebook() {
                 options={subjects.map(s => ({ value: s.id, label: s.name }))}
                 className="w-full mb-3"
               />
-              <div className="flex gap-2 mb-6">
-                {[2, 3, 4, 5].map(v => (
+              <div className="grid grid-cols-5 gap-2 mb-6">
+                {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => (
                   <button 
                     key={v} 
                     onClick={() => setGradeValue(v)} 
-                    className={`flex-1 py-3 rounded-xl font-black text-lg transition ${gradeValue === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                    className={`py-2 rounded-xl font-black text-base transition ${gradeValue === v ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
                   >
                     {v}
                   </button>
