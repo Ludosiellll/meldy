@@ -271,8 +271,9 @@ export default function CoStudy() {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      coChannel.unsubscribe();
-      msgChannel.unsubscribe();
+      coChannel.untrack();
+      supabase.removeChannel(coChannel);
+      supabase.removeChannel(msgChannel);
     };
   }, [materialId, user?.id, profile]);
 
