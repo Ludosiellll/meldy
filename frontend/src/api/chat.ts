@@ -22,7 +22,7 @@ export interface DirectMessage {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'friend_request' | 'message' | 'like' | 'invite';
+  type: 'friend_request' | 'message' | 'like' | 'invite' | 'assignment';
   title: string;
   body?: string;
   related_id?: string;
@@ -224,6 +224,46 @@ export function subscribeToNotifications(userId: string, onChange: () => void) {
     .channel(`notif_${userId}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
       onChange)
+    .subscribe();
+  return () => supabase.removeChannel(channel);
+}
+
+// ── Групповой чат (Realtime) ─────────────────────────────────────────────────
+
+export interface GroupChatMessage {
+  id: string;
+  group_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+}
+
+export async function getGroupMessages(groupId: string): Promise<GroupChatMessage[]> {
+  const { data, error } = await supabase
+    .from('group_chat_messages')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) console.error('getGroupMessages error:', error);
+  return data || [];
+}
+
+export async function sendGroupMessage(groupId: string, senderId: string, content: string) {
+  const { data, error } = await supabase.from('group_chat_messages').insert({
+    group_id: groupId,
+    sender_id: senderId,
+    content
+  }).select('*').single();
+  if (error) console.error('sendGroupMessage error:', error);
+  return data;
+}
+
+export function subscribeToGroupChat(groupId: string, onMessage: (msg: GroupChatMessage) => void) {
+  const channel = supabase
+    .channel(`group_chat_${groupId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_chat_messages', filter: `group_id=eq.${groupId}` },
+      (payload) => onMessage(payload.new as GroupChatMessage))
     .subscribe();
   return () => supabase.removeChannel(channel);
 }

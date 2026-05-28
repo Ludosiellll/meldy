@@ -40,6 +40,10 @@ export function generateInviteCode() {
 }
 
 export async function createGroup(name: string, teacherId: string): Promise<Group | null> {
+  const existing = await getTeacherGroups(teacherId);
+  if (existing.some(g => g.name.trim().toLowerCase() === name.trim().toLowerCase())) {
+    throw new Error('Класс с таким названием уже существует');
+  }
   const { data, error } = await supabase.from('groups').insert({
     name,
     teacher_id: teacherId,
@@ -74,7 +78,7 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
     const p = profileMap.get(m.student_id);
     return {
       ...m,
-      student_name: p?.full_name,
+      student_name: m.class_nickname || p?.full_name,
       student_avatar: p?.avatar_url,
       total_reviews: p?.total_reviews,
       total_xp: xpMap.get(m.student_id) || 0
@@ -82,7 +86,7 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
   });
 }
 
-export async function joinGroup(studentId: string, inviteCode: string): Promise<boolean> {
+export async function joinGroup(studentId: string, inviteCode: string, classNickname?: string): Promise<boolean> {
   // 1. Find group by code
   const { data: group, error: grpErr } = await supabase.from('groups').select('id').eq('invite_code', inviteCode.toUpperCase()).single();
   if (grpErr || !group) return false;
@@ -90,7 +94,8 @@ export async function joinGroup(studentId: string, inviteCode: string): Promise<
   // 2. Insert membership
   const { error } = await supabase.from('group_members').insert({
     group_id: group.id,
-    student_id: studentId
+    student_id: studentId,
+    class_nickname: classNickname || null
   });
 
   if (error && error.code !== '23505') { // Ignore unique constraint violation
@@ -100,16 +105,48 @@ export async function joinGroup(studentId: string, inviteCode: string): Promise<
   return true;
 }
 
+export async function updateStudentNickname(groupId: string, studentId: string, nickname: string) {
+  const { error } = await supabase.from('group_members').update({ class_nickname: nickname }).match({ group_id: groupId, student_id: studentId });
+  return !error;
+}
+
+export async function removeStudentFromGroup(groupId: string, studentId: string) {
+  const { error } = await supabase.from('group_members').delete().match({ group_id: groupId, student_id: studentId });
+  return !error;
+}
+
+export async function deleteGroup(groupId: string) {
+  const { error } = await supabase.from('groups').delete().eq('id', groupId);
+  return !error;
+}
+
 export async function createAssignment(groupId: string, materialId: string, deadline?: string, passingScore?: number, maxAttempts?: number): Promise<boolean> {
-  const { error } = await supabase.from('assignments').insert({
+  const { data: assignment, error } = await supabase.from('assignments').insert({
     group_id: groupId,
     material_id: materialId,
     deadline: deadline || null,
     passing_score: passingScore !== undefined ? passingScore : 80,
     max_attempts: maxAttempts || null
-  });
-  if (error) console.error('createAssignment', error);
-  return !error;
+  }).select('*').single();
+  if (error) { console.error('createAssignment', error); return false; }
+  
+  const { data: material } = await supabase.from('materials').select('title').eq('id', materialId).single();
+  const matTitle = material?.title || 'Новое задание';
+
+  const members = await getGroupMembers(groupId);
+  const notifications = members.map(m => ({
+    user_id: m.student_id,
+    type: 'assignment',
+    title: 'Новое задание',
+    body: `Преподаватель добавил задание: ${matTitle}`,
+    related_id: assignment.id
+  }));
+
+  if (notifications.length > 0) {
+    await supabase.from('notifications').insert(notifications);
+  }
+
+  return true;
 }
 
 export async function getAssignmentById(id: string): Promise<Assignment | null> {
@@ -120,6 +157,12 @@ export async function getAssignmentById(id: string): Promise<Assignment | null> 
     .single();
   if (error || !data) return null;
   return data;
+}
+
+export async function deleteAssignment(id: string): Promise<boolean> {
+  const { error } = await supabase.from('assignments').delete().eq('id', id);
+  if (error) console.error('deleteAssignment', error);
+  return !error;
 }
 
 export async function recordAssignmentAttempt(assignmentId: string, userId: string, score: number, passed: boolean) {

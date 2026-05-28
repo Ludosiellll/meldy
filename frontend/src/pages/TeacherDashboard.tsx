@@ -2,16 +2,18 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
-import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions } from '../api/groups';
+import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions, deleteGroup, removeStudentFromGroup, updateStudentNickname } from '../api/groups';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
-import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check, Backpack, CheckCircle2 } from 'lucide-react';
+import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check, Backpack, CheckCircle2, Trash2, Edit2, UserMinus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CustomSelect } from '../components/CustomSelect';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-qr-code';
+import { GroupChat } from '../components/GroupChat';
+import { MiniprofileModal } from '../components/MiniprofileModal';
 
 // Функция получения участников группы с подсчетом недельного XP
 async function getGroupMembersWithWeeklyXP(groupId: string): Promise<GroupMember[]> {
@@ -74,7 +76,7 @@ async function getGroupMembersWithWeeklyXP(groupId: string): Promise<GroupMember
     const p = profileMap.get(m.student_id);
     return {
       ...m,
-      student_name: p?.full_name || 'Студент',
+      student_name: m.class_nickname || p?.full_name || 'Студент',
       student_avatar: p?.avatar_url,
       total_reviews: p?.total_reviews || 0,
       total_xp: xpMap.get(m.student_id) || 0,
@@ -120,9 +122,19 @@ export default function TeacherDashboard() {
   // QR код
   const [showQRModal, setShowQRModal] = useState(false);
 
+  // Никнейм
+  const [showNicknamePrompt, setShowNicknamePrompt] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState('');
+
   // Настройка лидерборда
   const [leaderboardTab, setLeaderboardTab] = useState<'all-time' | 'weekly'>('all-time');
   const [loading, setLoading] = useState(true);
+
+  // Вкладки панели класса
+  const [activeTab, setActiveTab] = useState<'assignments' | 'members' | 'chat'>('assignments');
+  
+  // Минипрофиль
+  const [selectedUserForProfile, setSelectedUserForProfile] = useState<GroupMember | null>(null);
 
   // Определение роли и подписка на изменения
   useEffect(() => {
@@ -245,6 +257,13 @@ export default function TeacherDashboard() {
       getGroupMembersWithWeeklyXP(selectedGroupId).then(data => {
         setMembers(data);
         localStorage.setItem(`group_members_${selectedGroupId}`, JSON.stringify(data));
+        
+        if (role === 'student') {
+          const myMember = data.find(m => m.student_id === user.id);
+          if (myMember && !myMember.class_nickname) {
+            setShowNicknamePrompt(true);
+          }
+        }
       });
 
       const cacheAssignments = localStorage.getItem(`group_assignments_${selectedGroupId}`);
@@ -300,12 +319,16 @@ export default function TeacherDashboard() {
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || !user) return;
-    const g = await createGroup(newGroupName, user.id);
-    if (g) {
-      setGroups([g, ...groups]);
-      setSelectedGroupId(g.id);
-      setShowCreateGroup(false);
-      setNewGroupName('');
+    try {
+      const g = await createGroup(newGroupName, user.id);
+      if (g) {
+        setGroups([g, ...groups]);
+        setSelectedGroupId(g.id);
+        setShowCreateGroup(false);
+        setNewGroupName('');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Ошибка создания группы');
     }
   };
 
@@ -349,6 +372,70 @@ export default function TeacherDashboard() {
       );
       // Перезагружаем сдачи группы, чтобы преподаватель видел обновления в реальном времени
       getGroupCompletions(selectedGroupId).then(setGroupCompletions);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    if (!window.confirm('Вы уверены, что хотите удалить это задание?')) return;
+    const ok = await deleteAssignment(assignmentId);
+    if (ok) {
+      toast.success('Задание удалено');
+      setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+    } else {
+      toast.error('Ошибка при удалении задания');
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!selectedGroupId) return;
+    if (window.confirm('Вы уверены, что хотите безвозвратно удалить этот класс? Все данные о студентах и заданиях будут потеряны.')) {
+      const ok = await deleteGroup(selectedGroupId);
+      if (ok) {
+        toast.success('Класс удалён');
+        setGroups(prev => prev.filter(g => g.id !== selectedGroupId));
+        setSelectedGroupId(null);
+      } else {
+        toast.error('Ошибка при удалении класса');
+      }
+    }
+  };
+
+  const handleKickStudent = async (studentId: string) => {
+    if (!selectedGroupId) return;
+    if (window.confirm('Вы уверены, что хотите исключить этого студента из класса?')) {
+      const ok = await removeStudentFromGroup(selectedGroupId, studentId);
+      if (ok) {
+        toast.success('Студент исключён');
+        setMembers(prev => prev.filter(m => m.student_id !== studentId));
+      } else {
+        toast.error('Ошибка при удалении студента');
+      }
+    }
+  };
+
+  const handleRenameStudent = async (studentId: string, currentName: string) => {
+    if (!selectedGroupId) return;
+    const newName = window.prompt('Введите новое Имя и Фамилию для студента:', currentName);
+    if (newName && newName.trim() !== currentName) {
+      const ok = await updateStudentNickname(selectedGroupId, studentId, newName.trim());
+      if (ok) {
+        toast.success('Имя изменено');
+        setMembers(prev => prev.map(m => m.student_id === studentId ? { ...m, student_name: newName.trim(), class_nickname: newName.trim() } : m));
+      } else {
+        toast.error('Ошибка при изменении имени');
+      }
+    }
+  };
+
+  const handleSaveNickname = async () => {
+    if (!user || !selectedGroupId || !nicknameInput.trim()) return;
+    const ok = await updateStudentNickname(selectedGroupId, user.id, nicknameInput.trim());
+    if (ok) {
+      toast.success('Имя сохранено!');
+      setShowNicknamePrompt(false);
+      setMembers(prev => prev.map(m => m.student_id === user.id ? { ...m, student_name: nicknameInput.trim(), class_nickname: nicknameInput.trim() } : m));
+    } else {
+      toast.error('Ошибка сохранения');
     }
   };
 
@@ -593,12 +680,21 @@ export default function TeacherDashboard() {
                 </div>
                 
                 {role === 'teacher' && (
-                  <button 
-                    onClick={() => setShowAssignModal(true)}
-                    className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shrink-0"
-                  >
-                    Назначить задание
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowAssignModal(true)}
+                      className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shrink-0"
+                    >
+                      Назначить задание
+                    </button>
+                    <button 
+                      onClick={handleDeleteGroup}
+                      className="p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 dark:text-rose-400 rounded-xl transition shrink-0 border border-rose-200 dark:border-rose-800/30"
+                      title="Удалить класс"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -686,54 +782,81 @@ export default function TeacherDashboard() {
                 </motion.div>
               )}
 
-              {/* EMPTY STATE FOR NEW GROUP */}
-              {assignments.length === 0 && members.length === 0 && (
-                <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 border-dashed rounded-3xl p-10 text-center flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 rounded-full flex items-center justify-center">
-                    <Users className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Класс готов к работе! 🎉</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto mt-2 leading-relaxed">
-                      Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-sm text-indigo-600 dark:text-indigo-400 font-bold">{selectedGroup.invite_code}</span> и отправьте им.
-                    </p>
-                  </div>
-                  {role === 'teacher' && (
-                    <button 
-                      onClick={() => setShowAssignModal(true)}
-                      className="mt-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200 dark:shadow-none flex items-center gap-2"
-                    >
-                      <Plus className="w-5 h-5" /> Назначить первое задание
-                    </button>
+              {/* TABS NAVIGATION */}
+              <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1 shadow-sm overflow-x-auto custom-scrollbar gap-1 mb-6">
+                <button 
+                  onClick={() => setActiveTab('assignments')}
+                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'assignments' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                  <BookOpen className="w-4 h-4" /> Задания
+                </button>
+                <button 
+                  onClick={() => setActiveTab('members')}
+                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'members' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                  <Users className="w-4 h-4" /> Участники & Топ
+                </button>
+                <button 
+                  onClick={() => setActiveTab('chat')}
+                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                  <MessageSquare className="w-4 h-4" /> Чат класса
+                </button>
+              </div>
+
+              {/* ACTIVE TAB CONTENT */}
+              
+              {/* ASSIGNMENTS TAB */}
+              {activeTab === 'assignments' && (
+                <div className="space-y-6">
+                  {/* EMPTY STATE FOR NEW GROUP */}
+                  {assignments.length === 0 && members.length === 0 && (
+                    <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 border-dashed rounded-3xl p-10 text-center flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-500 dark:text-indigo-400 rounded-full flex items-center justify-center">
+                        <Users className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Класс готов к работе! 🎉</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto mt-2 leading-relaxed">
+                          Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-sm text-indigo-600 dark:text-indigo-400 font-bold">{selectedGroup.invite_code}</span> и отправьте им.
+                        </p>
+                      </div>
+                      {role === 'teacher' && (
+                        <button 
+                          onClick={() => setShowAssignModal(true)}
+                          className="mt-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200 dark:shadow-none flex items-center gap-2"
+                        >
+                          <Plus className="w-5 h-5" /> Назначить первое задание
+                        </button>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {/* Assignments List */}
-              {assignments.length > 0 && (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
-                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 bg-slate-50 dark:bg-slate-950/40">
-                    <BookOpen className="w-5 h-5 text-indigo-500" />
-                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Назначенные задания ({assignments.length})</h3>
-                  </div>
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {assignments.map(a => {
-                      const isDone = completedAssignments.includes(a.id);
-                      const isOverdue = a.deadline && new Date(a.deadline) < new Date();
-                      const completionsCount = groupCompletions.filter(c => c.assignment_id === a.id).length;
-                      const totalStudents = members.length;
+                  {/* Assignments List */}
+                  {assignments.length > 0 && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 bg-slate-50 dark:bg-slate-950/40">
+                        <BookOpen className="w-5 h-5 text-indigo-500" />
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Назначенные задания ({assignments.length})</h3>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {assignments.map(a => {
+                          const isDone = completedAssignments.includes(a.id);
+                          const isOverdue = a.deadline && new Date(a.deadline) < new Date();
+                          const completionsCount = groupCompletions.filter(c => c.assignment_id === a.id).length;
+                          const totalStudents = members.length;
 
-                      return (
-                        <div key={a.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-slate-800 dark:text-slate-200">{a.material?.title || 'Удаленный материал'}</span>
-                              {role === 'student' ? (
-                                isDone ? (
-                                  <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
-                                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">Выполнено <CheckCircle2 className="w-3.5 h-3.5" /></span>
-                                  </span>
-                                ) : isOverdue ? (
+                          return (
+                            <div key={a.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{a.material?.title || 'Удаленный материал'}</span>
+                                  {role === 'student' ? (
+                                    isDone ? (
+                                      <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
+                                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">Выполнено <CheckCircle2 className="w-3.5 h-3.5" /></span>
+                                      </span>
+                                    ) : isOverdue ? (
                                   <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-[10px] font-bold rounded-md uppercase tracking-wider">
                                     Просрочено ⏰
                                   </span>
@@ -836,8 +959,9 @@ export default function TeacherDashboard() {
                 </div>
               )}
 
-              {/* LEADERBOARD / STUDENTS PERFORMANCE */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm p-6 space-y-6">
+              {/* MEMBERS AND LEADERBOARD TAB */}
+              {activeTab === 'members' && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm p-6 space-y-6">
                 
                 {/* Section header & Toggles */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -887,9 +1011,9 @@ export default function TeacherDashboard() {
                           <div className="flex flex-col items-center">
                             <div className="relative mb-3 flex flex-col items-center">
                               {podium[0].student_avatar ? (
-                                <img src={podium[0].student_avatar} alt="avatar" className="w-14 h-14 rounded-full border-2 border-slate-300 dark:border-slate-700 shadow-md" />
+                                <img src={podium[0].student_avatar} alt="avatar" className="w-14 h-14 rounded-full border-2 border-slate-300 dark:border-slate-700 shadow-md cursor-pointer hover:scale-105 transition" onClick={() => setSelectedUserForProfile(podium[0])} />
                               ) : (
-                                <div className="w-14 h-14 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-500 font-bold text-sm shadow-md">
+                                <div onClick={() => setSelectedUserForProfile(podium[0])} className="w-14 h-14 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-500 font-bold text-sm shadow-md cursor-pointer hover:scale-105 transition">
                                   {podium[0].student_name?.[0]}
                                 </div>
                               )}
@@ -912,9 +1036,9 @@ export default function TeacherDashboard() {
                           <div className="flex flex-col items-center scale-110 -translate-y-2 z-10">
                             <div className="relative mb-3 flex flex-col items-center">
                               {podium[1].student_avatar ? (
-                                <img src={podium[1].student_avatar} alt="avatar" className="w-16 h-16 rounded-full border-4 border-amber-400 shadow-lg" />
+                                <img src={podium[1].student_avatar} alt="avatar" className="w-16 h-16 rounded-full border-4 border-amber-400 shadow-lg cursor-pointer hover:scale-105 transition" onClick={() => setSelectedUserForProfile(podium[1])} />
                               ) : (
-                                <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/40 border-4 border-amber-400 dark:border-amber-700 flex items-center justify-center text-amber-700 dark:text-amber-450 font-black text-base shadow-lg">
+                                <div onClick={() => setSelectedUserForProfile(podium[1])} className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/40 border-4 border-amber-400 dark:border-amber-700 flex items-center justify-center text-amber-700 dark:text-amber-450 font-black text-base shadow-lg cursor-pointer hover:scale-105 transition">
                                   {podium[1].student_name?.[0]}
                                 </div>
                               )}
@@ -937,9 +1061,9 @@ export default function TeacherDashboard() {
                           <div className="flex flex-col items-center">
                             <div className="relative mb-3 flex flex-col items-center">
                               {podium[2].student_avatar ? (
-                                <img src={podium[2].student_avatar} alt="avatar" className="w-12 h-12 rounded-full border-2 border-amber-600 shadow-md" />
+                                <img src={podium[2].student_avatar} alt="avatar" className="w-12 h-12 rounded-full border-2 border-amber-600 shadow-md cursor-pointer hover:scale-105 transition" onClick={() => setSelectedUserForProfile(podium[2])} />
                               ) : (
-                                <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-amber-600 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs shadow-md">
+                                <div onClick={() => setSelectedUserForProfile(podium[2])} className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-amber-600 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs shadow-md cursor-pointer hover:scale-105 transition">
                                   {podium[2].student_name?.[0]}
                                 </div>
                               )}
@@ -970,6 +1094,7 @@ export default function TeacherDashboard() {
                               <th className="p-4">Студент</th>
                               <th className="p-4 text-right">Опыт в этой группе (XP)</th>
                               <th className="p-4 text-right">Повторений</th>
+                              {role === 'teacher' && <th className="p-4 text-right">Управление</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -982,17 +1107,29 @@ export default function TeacherDashboard() {
                                   <td className="p-4">
                                     <div className="flex items-center gap-3">
                                       {m.student_avatar ? (
-                                        <img src={m.student_avatar} alt="avatar" className="w-8 h-8 rounded-full" />
+                                        <img src={m.student_avatar} alt="avatar" className="w-8 h-8 rounded-full cursor-pointer hover:ring-2 ring-indigo-500 transition" onClick={() => setSelectedUserForProfile(m)} />
                                       ) : (
-                                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-550 font-bold text-xs">
+                                        <div onClick={() => setSelectedUserForProfile(m)} className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-550 font-bold text-xs cursor-pointer hover:ring-2 ring-indigo-500 transition">
                                           {m.student_name?.[0] || '?'}
                                         </div>
                                       )}
-                                      <span className="font-bold text-slate-800 dark:text-slate-200">{m.student_name}</span>
+                                      <span className="font-bold text-slate-800 dark:text-slate-200 hover:text-indigo-600 cursor-pointer" onClick={() => setSelectedUserForProfile(m)}>{m.student_name}</span>
                                     </div>
                                   </td>
                                   <td className="p-4 text-right font-mono text-indigo-600 dark:text-indigo-400 font-bold">{score} XP</td>
                                   <td className="p-4 text-right text-slate-600 dark:text-slate-400 font-medium">{m.total_reviews || 0}</td>
+                                  {role === 'teacher' && (
+                                    <td className="p-4 text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                        <button onClick={() => handleRenameStudent(m.student_id, m.student_name || '')} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Изменить имя">
+                                          <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => handleKickStudent(m.student_id)} className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition" title="Исключить студента">
+                                          <UserMinus className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
@@ -1003,9 +1140,55 @@ export default function TeacherDashboard() {
                   </div>
                 )}
               </div>
+              )}
+
+              {/* CHAT TAB */}
+              {activeTab === 'chat' && user && (
+                <div className="mb-4">
+                  <GroupChat 
+                    groupId={selectedGroupId} 
+                    currentUserId={user.id} 
+                    members={members}
+                    onUserClick={(userId) => {
+                      const m = members.find(mbr => mbr.student_id === userId);
+                      if (m) setSelectedUserForProfile(m);
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
+      )}
+
+      {/* Nickname Prompt Modal */}
+      {showNicknamePrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-xl border border-slate-200 dark:border-slate-800">
+            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">Как вас зовут?</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Преподаватель просит указать настоящие Имя и Фамилию для этого класса.</p>
+            <input 
+              autoFocus
+              value={nicknameInput} 
+              onChange={e => setNicknameInput(e.target.value)}
+              placeholder="Иван Иванов" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-4 text-center text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowNicknamePrompt(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700">Пропустить</button>
+              <button onClick={handleSaveNickname} disabled={!nicknameInput.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Сохранить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Miniprofile Modal */}
+      {selectedUserForProfile && user && (
+        <MiniprofileModal 
+          member={selectedUserForProfile} 
+          currentUserId={user.id}
+          onClose={() => setSelectedUserForProfile(null)} 
+        />
       )}
     </div>
   );

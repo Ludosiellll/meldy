@@ -22,6 +22,7 @@ export default function Library() {
 
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
+  const [classNickname, setClassNickname] = useState('');
   const [joinError, setJoinError] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -92,12 +93,13 @@ export default function Library() {
   };
 
   const handleJoinGroup = async () => {
-    if (!user || !inviteCode.trim()) return;
+    if (!user || !inviteCode.trim() || !classNickname.trim()) return;
     setJoinError('');
-    const ok = await joinGroup(user.id, inviteCode.trim());
+    const ok = await joinGroup(user.id, inviteCode.trim(), classNickname.trim());
     if (ok) {
       setShowJoinModal(false);
       setInviteCode('');
+      setClassNickname('');
       loadData(); // Reload materials to get assignments
       toast.success('Успешно присоединились к классу!');
       navigate('/teacher');
@@ -132,18 +134,24 @@ export default function Library() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-xl border border-slate-200 dark:border-slate-800">
             <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">Присоединиться к группе</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Введите инвайт-код, который дал вам преподаватель.</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Введите код класса и ваши настоящие имя и фамилию (для преподавателя).</p>
             <input 
               autoFocus
               value={inviteCode} 
               onChange={e => setInviteCode(e.target.value.toUpperCase())}
-              placeholder="A7B-9X2" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-2 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+              placeholder="Код: A7B-9X2" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-3 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+            />
+            <input 
+              value={classNickname} 
+              onChange={e => setClassNickname(e.target.value)}
+              placeholder="Ваши Имя и Фамилия" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-2 text-center text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
             />
             {joinError && <p className="text-rose-500 text-sm mb-4 text-center">{joinError}</p>}
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowJoinModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
-              <button onClick={handleJoinGroup} disabled={!inviteCode.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Вступить</button>
+              <button onClick={handleJoinGroup} disabled={!inviteCode.trim() || !classNickname.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Вступить</button>
             </div>
           </div>
         </div>
