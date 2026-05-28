@@ -9,6 +9,7 @@ import { getProfile } from '../api/social';
 import SummaryView from '../components/SummaryView';
 import { format } from 'date-fns';
 import { CustomSelect } from '../components/CustomSelect';
+import { getFriends, Friendship, sendMessage } from '../api/chat';
 
 interface Message {
   id: string;
@@ -48,6 +49,11 @@ export default function CoStudy() {
   // Загрузки
   const [loading, setLoading] = useState(true);
   
+  // Приглашения
+  const [friends, setFriends] = useState<Friendship[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState<string | null>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const coChannelRef = useRef<any>(null);
@@ -67,11 +73,13 @@ export default function CoStudy() {
         .select('*')
         .eq('material_id', materialId)
         .order('created_at', { ascending: true })
-        .limit(50)
-    ]).then(([matRes, profRes, msgRes]) => {
+        .limit(50),
+      getFriends(user.id)
+    ]).then(([matRes, profRes, msgRes, friendsRes]) => {
       if (matRes.data) setMaterial(matRes.data);
       if (profRes) setProfile(profRes);
       if (msgRes.data) setMessages(msgRes.data);
+      if (friendsRes) setFriends(friendsRes.filter(f => f.status === 'accepted'));
       setLoading(false);
     }).catch(err => {
       console.error(err);
@@ -381,6 +389,23 @@ export default function CoStudy() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Отправка приглашения в личку
+  const handleSendInvite = async (friendId: string) => {
+    if (!user || !materialId || !material) return;
+    setInviteLoading(friendId);
+    
+    const inviteLink = `${window.location.origin}/co-study/${materialId}`;
+    const text = `👋 Привет! Присоединяйся ко мне в совместную комнату для изучения материала «${material.title}»: ${inviteLink}`;
+    
+    const msg = await sendMessage(user.id, friendId, text);
+    if (msg) {
+      toast.success('Приглашение отправлено!');
+    } else {
+      toast.error('Ошибка при отправке приглашения');
+    }
+    setInviteLoading(null);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh]">
@@ -426,17 +451,70 @@ export default function CoStudy() {
             </h1>
           </div>
         </div>
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success('Ссылка на комнату скопирована!');
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shrink-0"
-        >
-          <Share2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Пригласить друга</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shrink-0"
+          >
+            <Share2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Пригласить друга</span>
+          </button>
+        </div>
       </div>
+
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Пригласить друга</h3>
+            
+            <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 mb-6">
+              {friends.length === 0 ? (
+                <p className="text-slate-500 dark:text-slate-400 text-center py-4">У вас пока нет друзей. Добавьте их в Social Hub!</p>
+              ) : (
+                friends.map(f => (
+                  <div key={f.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                    <div className="flex items-center gap-3">
+                      {f.friend_avatar ? (
+                        <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                          <span className="text-slate-500 dark:text-slate-400 font-bold">{f.friend_name?.[0]}</span>
+                        </div>
+                      )}
+                      <span className="font-bold text-slate-700 dark:text-slate-200">{f.friend_name}</span>
+                    </div>
+                    <button
+                      onClick={() => handleSendInvite(f.friend_id!)}
+                      disabled={inviteLoading === f.friend_id}
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold disabled:opacity-50 transition"
+                    >
+                      {inviteLoading === f.friend_id ? 'Отправка...' : 'Отправить'}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center gap-2">
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast.success('Ссылка скопирована!');
+                }}
+                className="text-sm font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 px-4 py-2"
+              >
+                Копировать ссылку
+              </button>
+              <button 
+                onClick={() => setShowInviteModal(false)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* LEFT COLUMN: MATERIAL STUDY + POMODORO */}
