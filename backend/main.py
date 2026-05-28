@@ -544,12 +544,18 @@ async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
     try:
         return parse_llm_json(raw)
     except Exception as e:
+        err_str = str(e)
+        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
+            verdict_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
+        else:
+            verdict_msg = f"Произошла ошибка при анализе ответа. Сырой комментарий: {raw}"
+            
         return {
             "score": 50,
             "grade": "3",
-            "verdict": f"Произошла ошибка при анализе ответа. Сырой комментарий: {raw}",
+            "verdict": verdict_msg,
             "correct_points": ["Ответ получен системой"],
-            "errors": [f"Ошибка парсинга: {str(e)}"],
+            "errors": [f"Ошибка: {err_str}"],
             "missing_points": ["Пожалуйста, сформулируйте ответ более академично"]
         }
 
@@ -564,12 +570,18 @@ async def generate_missions(request: Request, req: MissionsGenerateRequest):
     try:
         return parse_llm_json(raw)
     except Exception as e:
+        err_str = str(e)
+        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
+            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
+        else:
+            expl_msg = f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}"
+            
         return {
             "missions": [
                 {
                     "id": 1,
-                    "title": "Введение в тему",
-                    "explanation": f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}",
+                    "title": "Внимание: Сервер перегружен" if "API_LIMIT" in err_str else "Введение в тему",
+                    "explanation": expl_msg,
                     "question": "Готовы ли вы начать изучение самостоятельно?",
                     "options": ["A) Да, готов!", "B) Нет, нужно время", "C) Хочу перечитать конспект"],
                     "correct": "A",
@@ -592,10 +604,16 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
 
     try:
         return parse_llm_json(raw)
-    except Exception:
+    except Exception as e:
+        err_str = str(e)
+        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
+            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
+        else:
+            expl_msg = "Не удалось автоматически создать шпаргалку. Обратитесь к оригинальному материалу."
+            
         return {
             "key_points": ["Изучите основные термины темы", "Разберитесь с ключевыми определениями", "Повторите главные выводы лекции"],
-            "cheatsheet": "Не удалось автоматически создать шпаргалку. Обратитесь к оригинальному материалу.",
+            "cheatsheet": expl_msg,
             "questions": [
                 {"question": "Какие главные понятия этой темы вы знаете?", "answer": "Обратитесь к тексту лекции для детального ответа."},
                 {"question": "Как вы можете применить эти знания на практике?", "answer": "Подумайте о конкретных примерах из материала."}
@@ -616,13 +634,19 @@ async def mistakes_practice(request: Request, req: MistakesPracticeRequest):
 
     try:
         return parse_llm_json(raw)
-    except Exception:
+    except Exception as e:
+        err_str = str(e)
+        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
+            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
+        else:
+            expl_msg = "Осознанный разбор неверных ответов и верных решений — единственный путь к реальному прогрессу."
+            
         return {
             "practice": [
                 {
                     "id": 1,
                     "mistake_id": "",
-                    "question": "Какое ключевое правило нужно соблюдать, чтобы не допускать повторных ошибок?",
+                    "question": expl_msg if "API_LIMIT" in err_str else "Какое ключевое правило нужно соблюдать, чтобы не допускать повторных ошибок?",
                     "options": [
                         "A) Внимательно анализировать свои неверные ответы и пояснения",
                         "B) Заучивать правильные формулировки наизусть без понимания",
@@ -630,7 +654,7 @@ async def mistakes_practice(request: Request, req: MistakesPracticeRequest):
                         "D) Проходить только простые темы для хорошего настроения"
                     ],
                     "correct": "A",
-                    "explanation": "Осознанный разбор неверных ответов и верных решений — единственный путь к реальному прогрессу."
+                    "explanation": expl_msg
                 }
             ]
         }
@@ -730,6 +754,7 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
     else:
         user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Ответь на последнее сообщение пользователя.")
     
+    raw = None
     try:
         if req.images_base64:
             raw = await agent.run_with_images(system_prompt, user_prompt, req.images_base64, req.mime_type)
@@ -738,8 +763,17 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
             
         return parse_llm_json(raw)
     except Exception as e:
-        print(f"Academic Scan Error: {e}")
-        return {"message": "Произошла ошибка при обработке запроса.", "grades": []}
+        err_str = str(e)
+        print(f"Academic Scan Error: {err_str}")
+        
+        if raw:
+            # Parsing failed, but we got a response from AI
+            return {"message": f"Я распознал текст, но не смог автоматически занести оценки в таблицу. Вот что удалось прочитать:\n\n{raw}", "grades": []}
+            
+        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
+            return {"message": "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова.", "grades": []}
+            
+        return {"message": f"Произошла техническая ошибка: {err_str}", "grades": []}
 
 
 if __name__ == "__main__":
