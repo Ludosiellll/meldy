@@ -1,8 +1,8 @@
 import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest } from '../api/chat';
-import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus, Users, Check, X } from 'lucide-react';
+import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest, searchUsers } from '../api/chat';
+import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus, Users, Check, X, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getMaterials } from '../api/materials';
@@ -26,6 +26,10 @@ export default function Messages() {
   const [showInvite, setShowInvite] = useState(false);
   const [myMaterials, setMyMaterials] = useState<any[]>([]);
   const [friendRequestSent, setFriendRequestSent] = useState(false);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +81,20 @@ export default function Messages() {
     });
     return () => { unsubscribe(); };
   }, [user?.id, activeFriend]);
+
+  useEffect(() => {
+    if (!user || !searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      const res = await searchUsers(searchQuery, user.id);
+      setSearchResults(res);
+      setIsSearching(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, user?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -192,7 +210,69 @@ export default function Messages() {
             )
           ) : (
             <div className="p-4 space-y-6">
-              {incomingRequests.length > 0 && (
+              {/* Поиск пользователей */}
+              <div>
+                <div className="relative mb-4">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Поиск по имени или ID (например #1234)"
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition dark:text-white placeholder-slate-400"
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  {isSearching && (
+                    <Loader2 className="w-4 h-4 text-indigo-500 animate-spin absolute right-3.5 top-3" />
+                  )}
+                </div>
+
+                {searchQuery.trim() && (
+                  <div className="mb-6 space-y-2">
+                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Результаты поиска</h3>
+                    {searchResults.length === 0 && !isSearching ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-2">Ничего не найдено</p>
+                    ) : (
+                      searchResults.map(u => {
+                        const isAlreadyFriend = friendships.some(f => (f.requester_id === u.id || f.addressee_id === u.id) && f.status === 'accepted');
+                        return (
+                          <div key={u.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {u.avatar_url ? (
+                                <img src={u.avatar_url} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                                  <UserCircle2 className="w-6 h-6 text-slate-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0 text-left">
+                                <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{u.full_name || 'Без имени'}</div>
+                                <div className="text-xs text-slate-400 dark:text-slate-500">#{u.public_id}</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const contact: ChatContact = {
+                                  id: u.id,
+                                  friend_id: u.id,
+                                  friend_name: u.full_name || 'Неизвестный',
+                                  friend_avatar: u.avatar_url
+                                };
+                                setActiveFriend(contact);
+                              }}
+                              className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 rounded-lg transition shrink-0 ml-2"
+                              title="Написать"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!searchQuery.trim() && incomingRequests.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Заявки в друзья</h3>
                   <div className="space-y-2">
@@ -228,11 +308,12 @@ export default function Messages() {
                 </div>
               )}
 
-              <div>
-                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 flex items-center justify-between">
-                  Мои друзья
-                  <span className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{acceptedFriends.length}</span>
-                </h3>
+              {!searchQuery.trim() && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+                    Мои друзья
+                    <span className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{acceptedFriends.length}</span>
+                  </h3>
                 {acceptedFriends.length === 0 ? (
                   <div className="text-center py-6">
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">У вас пока нет друзей.</p>
@@ -275,6 +356,7 @@ export default function Messages() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           )}
         </div>
