@@ -14,6 +14,7 @@ export interface GroupMember {
   group_id: string;
   student_id: string;
   joined_at: string;
+  class_nickname?: string;
   student_name?: string;
   student_avatar?: string;
   total_xp?: number;

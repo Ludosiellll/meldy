@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
-import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions, deleteGroup, removeStudentFromGroup, updateStudentNickname } from '../api/groups';
+import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions, deleteGroup, removeStudentFromGroup, updateStudentNickname, deleteAssignment } from '../api/groups';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
-import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check, Backpack, CheckCircle2, Trash2, Edit2, UserMinus } from 'lucide-react';
+import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check, Backpack, CheckCircle2, Trash2, Edit2, UserMinus, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -958,6 +958,8 @@ export default function TeacherDashboard() {
                   )}
                 </div>
               )}
+            </div>
+          )}
 
               {/* MEMBERS AND LEADERBOARD TAB */}
               {activeTab === 'members' && (
@@ -1146,7 +1148,7 @@ export default function TeacherDashboard() {
               {activeTab === 'chat' && user && (
                 <div className="mb-4">
                   <GroupChat 
-                    groupId={selectedGroupId} 
+                    groupId={selectedGroupId!} 
                     currentUserId={user.id} 
                     members={members}
                     onUserClick={(userId) => {
