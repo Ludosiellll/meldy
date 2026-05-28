@@ -1,7 +1,8 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, BookOpen, Trash2, Plus, Headphones, Globe, Lock } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
@@ -22,6 +23,18 @@ export default function Library() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle ?join=CODE parameter
+  useEffect(() => {
+    const joinCode = searchParams.get('join');
+    if (joinCode) {
+      setInviteCode(joinCode);
+      setShowJoinModal(true);
+      // Clean up URL to avoid re-triggering if page is refreshed
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
 
   const loadData = async () => {
     if (!user) return;
@@ -86,6 +99,8 @@ export default function Library() {
       setShowJoinModal(false);
       setInviteCode('');
       loadData(); // Reload materials to get assignments
+      toast.success('Успешно присоединились к классу!');
+      navigate('/teacher');
     } else {
       setJoinError('Неверный код или вы уже состоите в группе.');
     }
