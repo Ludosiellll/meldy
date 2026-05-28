@@ -657,14 +657,11 @@ async def career_generate(request: Request, req: CareerRequest):
         raise HTTPException(status_code=500, detail=f"Ошибка генерации карьерного профиля: {str(e)}")
 
 
-
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-
-# ElevenLabs voice IDs (multilingual v2 — отлично говорят по-русски)
-ELEVENLABS_VOICES = {
-    "professor": "onwK4e9ZLuTAKqWW03F9",  # Daniel — глубокий, академический
-    "male":      "pNInz6obpgDQGcFmaJgB",  # Adam — естественный мужской
-    "female":    "21m00Tcm4TlvDq8ikWAM",  # Rachel — спокойный женский
+# Edge-TTS voice IDs (Azure Neural Voices)
+EDGE_TTS_VOICES = {
+    "professor": "ru-RU-DmitryNeural",  # Глубокий, академический мужской
+    "male":      "ru-RU-DmitryNeural",  # Стандартный мужской
+    "female":    "ru-RU-SvetlanaNeural",  # Стандартный женский
 }
 
 class TTSRequest(BaseModel):
@@ -675,43 +672,29 @@ class TTSRequest(BaseModel):
 @app.post("/api/tts")
 @limiter.limit("30/minute")
 async def text_to_speech(request: Request, req: TTSRequest):
-    if not ELEVENLABS_API_KEY:
-        raise HTTPException(status_code=503, detail="ElevenLabs API key не настроен")
+    voice_id = EDGE_TTS_VOICES.get(req.role, EDGE_TTS_VOICES["professor"])
+    text = req.text.strip()[:4000]
+    
+    if not text:
+        raise HTTPException(status_code=400, detail="Текст для озвучки пуст")
 
-    voice_id = ELEVENLABS_VOICES.get(req.role, ELEVENLABS_VOICES["professor"])
-    text = req.text.strip()[:4000]  # ElevenLabs ограничение на запрос
-
-    import httpx
-
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-    headers = {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
-    }
-    payload = {
-        "text": text,
-        "model_id": "eleven_multilingual_v2",
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75,
-            "style": 0.0,
-            "use_speaker_boost": True,
-        },
-    }
+    import edge_tts
+    from fastapi.responses import Response
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail=f"ElevenLabs error: {resp.text}")
-            audio_bytes = resp.content
+        communicate = edge_tts.Communicate(text, voice_id)
+        audio_data = b""
+        
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+                
+        if not audio_data:
+            raise Exception("Не удалось сгенерировать аудио")
 
-        from fastapi.responses import Response
-        return Response(content=audio_bytes, media_type="audio/mpeg")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="ElevenLabs timeout")
+        return Response(content=audio_data, media_type="audio/mpeg")
     except Exception as e:
+        print(f"Edge-TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

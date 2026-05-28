@@ -46,7 +46,7 @@ export const playTTS = async (
 
     await audio.play();
   } catch (err) {
-    console.warn('ElevenLabs TTS failed, falling back to browser speech synthesis:', err);
+    console.warn('Backend TTS (Edge-TTS) failed, falling back to browser speech synthesis:', err);
     // Fallback — браузерный синтез
     playBrowserTTS(text, role, onEnd, onError);
   }
