@@ -40,14 +40,12 @@ export default function Career() {
 
   const handleGenerate = async () => {
     if (!user) return;
-    setIsGenerating(true);
 
     try {
       // 1. Собираем все материалы пользователя
       const materials = await getMaterials(user.id);
       
       if (!materials || materials.length === 0) {
-        setIsGenerating(false);
         await alert({ title: 'Нет конспектов', message: 'У вас пока нет загруженных конспектов. Добавьте материалы, чтобы ИИ смог проанализировать ваши навыки!', type: 'warning' });
         return;
       }
@@ -66,9 +64,10 @@ export default function Career() {
 
       const ok = await verifyEnergy(user.id, 5, 'Оцифровка навыков');
       if (!ok) {
-        setIsGenerating(false);
         return;
       }
+      
+      setIsGenerating(true);
       await incrementAIUsage(user.id, 5);
 
       // 3. Вызываем API
@@ -152,7 +151,7 @@ export default function Career() {
         </div>
         <button 
           onClick={handleGenerate}
-          className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-70 flex items-center gap-2 transition"
+          className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 transition"
         >
           <Zap className="w-4 h-4" />
           Пересчитать навыки
