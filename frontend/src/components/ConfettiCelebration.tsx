@@ -23,13 +23,14 @@ export default function ConfettiCelebration({ trigger, type = 'quest' }: Props) 
       frame();
     } else if (type === 'exam5') {
       // Двойной залп по бокам для пятёрки
-      confetti({ particleCount: 100, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#4f46e5', '#7c3aed', '#06b6d4'] });
-      confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#4f46e5', '#7c3aed', '#06b6d4'] });
+      confetti({ particleCount: 100, angle: 60, spread: 55, origin: { x: 0, y: 1 }, colors: ['#4f46e5', '#7c3aed', '#06b6d4'], zIndex: 9999 });
+      confetti({ particleCount: 100, angle: 120, spread: 55, origin: { x: 1, y: 1 }, colors: ['#4f46e5', '#7c3aed', '#06b6d4'], zIndex: 9999 });
     } else if (type === 'achievement') {
-      confetti({ particleCount: 80, spread: 80, origin: { y: 0.6 }, colors: ['#f59e0b', '#fbbf24', '#fcd34d'] });
+      confetti({ particleCount: 80, spread: 80, origin: { y: 0.6 }, colors: ['#f59e0b', '#fbbf24', '#fcd34d'], zIndex: 9999 });
     } else {
-      // Обычный квест — лёгкий
-      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 }, colors: ['#4f46e5', '#10b981', '#f59e0b'] });
+      // Обычный квест — лёгкий залп с двух сторон
+      confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0, y: 1 }, colors: ['#4f46e5', '#10b981', '#f59e0b'], zIndex: 9999 });
+      confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1, y: 1 }, colors: ['#4f46e5', '#10b981', '#f59e0b'], zIndex: 9999 });
     }
   }, [trigger, type]);
 
