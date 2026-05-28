@@ -38,8 +38,8 @@ export default function ShortsPlayer() {
         if (cards.length > 0) {
           const generatedSlides = cards.map((c: any, i: number) => ({
             id: i,
-            title: c.front,
-            content: c.back,
+            title: c.question,
+            content: c.answer,
             gradient: GRADIENTS[i % GRADIENTS.length],
             emoji: EMOJIS[i % EMOJIS.length],
           }));
