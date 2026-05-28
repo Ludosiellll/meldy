@@ -145,6 +145,19 @@ export default function Gradebook() {
     }
   });
 
+  const deleteSubjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('academic_subjects').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
+      queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
+      setSelectedSubject(null);
+      toast.success('Предмет удален');
+    }
+  });
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -277,8 +290,13 @@ export default function Gradebook() {
             </button>
             <h2 className="font-bold text-xl text-slate-900 dark:text-slate-100">{selectedSubject.name}</h2>
           </div>
-          <div className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-bold">
-            Средний балл: {subStat?.avg ? subStat.avg.toFixed(2) : '-'}
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-bold">
+              Средний балл: {subStat?.avg ? subStat.avg.toFixed(2) : '-'}
+            </div>
+            <button onClick={() => { if(confirm('Удалить предмет и все его оценки?')) deleteSubjectMutation.mutate(selectedSubject.id); }} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition" title="Удалить предмет">
+              <Trash2 className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -408,13 +426,13 @@ export default function Gradebook() {
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-          <table className="w-full text-left border-collapse">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[300px]">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
-                <th className="p-4 font-bold">Предмет</th>
-                <th className="p-4 font-bold hidden sm:table-cell">Оценки</th>
-                <th className="p-4 font-bold text-right">Ср. балл</th>
+                <th className="p-4 font-bold whitespace-nowrap">Предмет</th>
+                <th className="p-4 font-bold hidden sm:table-cell w-full">Оценки</th>
+                <th className="p-4 font-bold text-right whitespace-nowrap">Ср. балл</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -451,6 +469,17 @@ export default function Gradebook() {
                 );
               })}
             </tbody>
+            <tfoot className="bg-slate-50 dark:bg-slate-800/30">
+              <tr>
+                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">Итого</td>
+                <td className="p-4 hidden sm:table-cell text-slate-500 text-sm">Общий средний балл по всем предметам</td>
+                <td className="p-4 text-right">
+                  <div className="inline-block px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 rounded-md text-sm font-bold">
+                    {overallAvg > 0 ? overallAvg.toFixed(2) : '-'}
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
