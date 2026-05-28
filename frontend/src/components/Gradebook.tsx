@@ -182,8 +182,9 @@ export default function Gradebook() {
       }
       
       // Auto-create subjects if they don't exist
+      let localSubjects = [...subjects];
       for (const g of data.grades || []) {
-        let sub = subjects.find(s => s.name.toLowerCase() === g.subject.toLowerCase());
+        let sub = localSubjects.find(s => s.name.toLowerCase() === g.subject.toLowerCase());
         if (!sub) {
           const isTenPoint = g.value > 5;
           const { data: newSub } = await supabase.from('academic_subjects').insert({
@@ -194,20 +195,17 @@ export default function Gradebook() {
           }).select().single();
           if (newSub) {
             sub = newSub;
-            setSubjects(prev => [...prev, newSub]);
+            localSubjects.push(newSub as Subject);
           }
         }
         
         if (sub) {
-          const { data: newGr } = await supabase.from('academic_grades').insert({
+          await supabase.from('academic_grades').insert({
             user_id: user!.id,
             subject_id: sub.id,
             value: g.value,
             date: g.date || new Date().toISOString().split('T')[0]
-          }).select().single();
-          if (newGr) {
-            setGrades(prev => [newGr, ...prev]);
-          }
+          });
         }
       }
       
