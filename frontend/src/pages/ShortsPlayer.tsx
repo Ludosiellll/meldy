@@ -150,25 +150,22 @@ export default function ShortsPlayer() {
 
               {/* Main Content */}
               <div className="relative z-10 p-8 md:p-12 pr-20 md:pr-24 max-w-4xl mx-auto w-full flex flex-col items-start">
-                <AnimatePresence mode="wait">
-                  {isActive && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
-                      className="w-full"
-                    >
-                      <div className="text-6xl md:text-8xl mb-6 filter drop-shadow-lg">{slide.emoji}</div>
-                      <h2 className="text-3xl md:text-5xl font-black text-white mb-6 leading-tight drop-shadow-md">
-                        {slide.title}
-                      </h2>
-                      <div className="w-16 h-1.5 bg-white/50 rounded-full mb-6"></div>
-                      <p className="text-xl md:text-2xl text-white/95 font-medium leading-relaxed drop-shadow-sm max-w-2xl">
-                        {slide.content}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <motion.div
+                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                  viewport={{ amount: 0.4 }}
+                  transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
+                  className="w-full"
+                >
+                  <div className="text-6xl md:text-8xl mb-6 filter drop-shadow-lg">{slide.emoji}</div>
+                  <h2 className="text-3xl md:text-5xl font-black text-white mb-6 leading-tight drop-shadow-md">
+                    {slide.title}
+                  </h2>
+                  <div className="w-16 h-1.5 bg-white/50 rounded-full mb-6"></div>
+                  <p className="text-xl md:text-2xl text-white/95 font-medium leading-relaxed drop-shadow-sm max-w-2xl">
+                    {slide.content}
+                  </p>
+                </motion.div>
               </div>
 
               {/* TikTok Style Side Actions */}
