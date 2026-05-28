@@ -1,10 +1,20 @@
 export type VoiceRole = 'professor' | 'male' | 'female';
 
 let currentAudio: HTMLAudioElement | null = null;
+let currentPlaybackRate: number = 1.0;
+
+export const setTTSPlaybackRate = (rate: number) => {
+  currentPlaybackRate = rate;
+  if (currentAudio) {
+    currentAudio.playbackRate = rate;
+  }
+};
+
+export const getTTSPlaybackRate = () => currentPlaybackRate;
 
 /**
- * Запрашивает озвучку с бэкенда (ElevenLabs) и воспроизводит её.
- * Если ElevenLabs недоступен — автоматически падает на браузерный синтез.
+ * Запрашивает озвучку с бэкенда (Edge-TTS) и воспроизводит её.
+ * Если недоступен — автоматически падает на браузерный синтез.
  */
 export const playTTS = async (
   text: string,
@@ -44,6 +54,7 @@ export const playTTS = async (
       if (onError) onError(e);
     };
 
+    audio.playbackRate = currentPlaybackRate;
     await audio.play();
   } catch (err) {
     console.warn('Backend TTS (Edge-TTS) failed, falling back to browser speech synthesis:', err);

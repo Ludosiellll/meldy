@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { updateQuestProgress } from '../api/quests';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
+import { playTTS, stopTTS, pauseTTS, resumeTTS, getTTSPlaybackRate, setTTSPlaybackRate } from '../utils/tts';
 import { supabase } from '../lib/supabase';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
 import toast from 'react-hot-toast';
@@ -300,24 +300,37 @@ export default function ExpressPrepView({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 relative z-10 w-full md:w-auto">
-                    <button
-                      onClick={playPodcast}
-                      className="flex-1 md:flex-none justify-center px-6 py-3.5 bg-white hover:bg-indigo-50 text-indigo-600 font-black rounded-xl text-sm transition flex items-center gap-2 shadow-lg hover:-translate-y-0.5"
-                    >
-                      {isPlaying && !isPaused ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
-                      {isPlaying && !isPaused ? 'Пауза' : currentSpeakingIndex !== -1 ? 'Продолжить' : 'Слушать'}
-                    </button>
-                    {currentSpeakingIndex !== -1 && (
+                    <div className="flex items-center gap-3 relative z-10 w-full md:w-auto">
                       <button
-                        onClick={stopPodcast}
-                        className="p-3.5 bg-indigo-900/50 hover:bg-indigo-900 text-indigo-200 hover:text-white rounded-xl transition border border-indigo-400/30"
-                        title="Остановить"
+                        onClick={() => {
+                          const current = getTTSPlaybackRate();
+                          const next = current === 1.0 ? 1.25 : current === 1.25 ? 1.5 : current === 1.5 ? 2.0 : 1.0;
+                          setTTSPlaybackRate(next);
+                          // Forcing re-render to update the button text
+                          setTab(tab); 
+                        }}
+                        className="px-3 py-3.5 bg-indigo-900/50 hover:bg-indigo-900 text-indigo-200 hover:text-white rounded-xl transition border border-indigo-400/30 font-bold"
+                        title="Скорость"
                       >
-                        <Square className="w-5 h-5 fill-current" />
+                        {getTTSPlaybackRate()}x
                       </button>
-                    )}
-                  </div>
+                      <button
+                        onClick={playPodcast}
+                        className="flex-1 md:flex-none justify-center px-6 py-3.5 bg-white hover:bg-indigo-50 text-indigo-600 font-black rounded-xl text-sm transition flex items-center gap-2 shadow-lg hover:-translate-y-0.5"
+                      >
+                        {isPlaying && !isPaused ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
+                        {isPlaying && !isPaused ? 'Пауза' : currentSpeakingIndex !== -1 ? 'Продолжить' : 'Слушать'}
+                      </button>
+                      {currentSpeakingIndex !== -1 && (
+                        <button
+                          onClick={stopPodcast}
+                          className="p-3.5 bg-indigo-900/50 hover:bg-indigo-900 text-indigo-200 hover:text-white rounded-xl transition border border-indigo-400/30"
+                          title="Остановить"
+                        >
+                          <Square className="w-5 h-5 fill-current" />
+                        </button>
+                      )}
+                    </div>
                 </div>
 
                 {/* Бегущий диалог подкаста */}

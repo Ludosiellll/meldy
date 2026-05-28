@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, Bookmark, Volume2, Share2, Play, Pause, X } from 'lucide-react';
 import { getMaterialById } from '../api/materials';
-import { playTTS, stopTTS, pauseTTS, resumeTTS } from '../utils/tts';
+import { playTTS, stopTTS, pauseTTS, resumeTTS, getTTSPlaybackRate, setTTSPlaybackRate } from '../utils/tts';
 import toast from 'react-hot-toast';
 
 const GRADIENTS = [
@@ -195,6 +195,19 @@ export default function ShortsPlayer() {
                   <span className="text-white text-xs font-bold drop-shadow-md">
                     {isPlaying && isActive ? 'Пауза' : 'Слушать'}
                   </span>
+                </div>
+
+                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => {
+                  const current = getTTSPlaybackRate();
+                  const next = current === 1.0 ? 1.25 : current === 1.25 ? 1.5 : current === 1.5 ? 2.0 : 1.0;
+                  setTTSPlaybackRate(next);
+                  // Force render to update UI
+                  setIsPlaying(isPlaying); 
+                }}>
+                  <div className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-110 group-active:scale-90 border border-white/10 shadow-xl font-black text-white text-sm">
+                    {getTTSPlaybackRate()}x
+                  </div>
+                  <span className="text-white text-xs font-bold drop-shadow-md">Скорость</span>
                 </div>
 
                 <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => toast('Ссылка скопирована', { icon: '🔗' })}>

@@ -679,20 +679,16 @@ async def text_to_speech(request: Request, req: TTSRequest):
         raise HTTPException(status_code=400, detail="Текст для озвучки пуст")
 
     import edge_tts
-    from fastapi.responses import Response
+    from fastapi.responses import StreamingResponse
 
     try:
-        communicate = edge_tts.Communicate(text, voice_id)
-        audio_data = b""
-        
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio_data += chunk["data"]
-                
-        if not audio_data:
-            raise Exception("Не удалось сгенерировать аудио")
-
-        return Response(content=audio_data, media_type="audio/mpeg")
+        async def generate_audio():
+            communicate = edge_tts.Communicate(text, voice_id, rate="+20%")
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    yield chunk["data"]
+                    
+        return StreamingResponse(generate_audio(), media_type="audio/mpeg")
     except Exception as e:
         print(f"Edge-TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
