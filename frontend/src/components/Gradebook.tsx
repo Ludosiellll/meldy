@@ -226,6 +226,8 @@ export default function Gradebook() {
       
       // Auto-create subjects if they don't exist
       let localSubjects = [...subjects];
+      const clearedSubjects = new Set<string>();
+      
       for (const g of data.grades || []) {
         let sub = localSubjects.find(s => s.name.toLowerCase() === g.subject.toLowerCase());
         if (!sub) {
@@ -243,6 +245,10 @@ export default function Gradebook() {
         }
         
         if (sub) {
+          if (data.replace_existing && !clearedSubjects.has(sub.id)) {
+            await supabase.from('academic_grades').delete().eq('subject_id', sub.id).eq('user_id', user!.id);
+            clearedSubjects.add(sub.id);
+          }
           await supabase.from('academic_grades').insert({
             user_id: user!.id,
             subject_id: sub.id,
