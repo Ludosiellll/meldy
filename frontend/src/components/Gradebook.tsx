@@ -5,6 +5,12 @@ import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Uplo
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  image?: string;
+}
+
 interface Subject {
   id: string;
   name: string;
@@ -37,7 +43,18 @@ export default function Gradebook() {
   const [showScan, setShowScan] = useState(false);
   const [scanText, setScanText] = useState('');
   const [scanImage, setScanImage] = useState<string | null>(null);
+  const [scanMessages, setScanMessages] = useState<ChatMessage[]>([{
+    role: 'assistant',
+    content: 'Привет! Загрузите фото дневника или зачётки, и я помогу автоматически перенести оценки. Можете добавить текст (например, "Я Иванов Иван, предмет физика").'
+  }]);
   const [scanning, setScanning] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [scanMessages, scanning]);
 
   useEffect(() => {
     fetchData();
@@ -100,7 +117,16 @@ export default function Gradebook() {
 
   const handleScan = async () => {
     if (!scanText && !scanImage) return;
+    
+    const newUserMsg: ChatMessage = {
+      role: 'user',
+      content: scanText,
+      image: scanImage || undefined
+    };
+    
+    setScanMessages(prev => [...prev, newUserMsg]);
     setScanning(true);
+    
     try {
       const res = await fetch('/api/academic/scan', {
         method: 'POST',
@@ -108,10 +134,15 @@ export default function Gradebook() {
         body: JSON.stringify({
           image_base64: scanImage,
           text: scanText,
-          mime_type: 'image/jpeg'
+          mime_type: 'image/jpeg',
+          chat_history: scanMessages.map(m => ({ role: m.role, content: m.content }))
         })
       });
       const data = await res.json();
+      
+      if (data.message) {
+        setScanMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+      }
       
       // Auto-create subjects if they don't exist
       for (const g of data.grades || []) {
@@ -120,7 +151,8 @@ export default function Gradebook() {
           const { data: newSub } = await supabase.from('academic_subjects').insert({
             user_id: user!.id,
             name: g.subject,
-            target_grade: 5.0
+            target_grade: 5.0,
+            color: '#6366f1'
           }).select().single();
           if (newSub) {
             sub = newSub;
@@ -140,11 +172,12 @@ export default function Gradebook() {
           }
         }
       }
-      setShowScan(false);
+      
       setScanImage(null);
       setScanText('');
     } catch (err) {
       console.error(err);
+      setScanMessages(prev => [...prev, { role: 'assistant', content: 'Ой, произошла ошибка! Попробуйте еще раз.' }]);
     }
     setScanning(false);
   };
@@ -290,34 +323,74 @@ export default function Gradebook() {
         )}
 
         {showScan && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md">
-              <h3 className="font-bold text-lg mb-2 text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-indigo-500" />
-                Smart Scan
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Вставьте текст с оценками или загрузите скриншот Дневника/Зачётки.</p>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="bg-white dark:bg-slate-900 w-full max-w-lg sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[80vh] overflow-hidden">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-500" />
+                  Smart Scan
+                </h3>
+                <button onClick={() => setShowScan(false)} className="text-slate-400 hover:text-slate-600 transition">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
               
-              <textarea
-                placeholder="Скопируйте текст с оценками сюда..."
-                value={scanText}
-                onChange={e => setScanText(e.target.value)}
-                className="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-sm mb-4"
-              />
-
-              <div className="relative border-2 border-dashed border-indigo-200 dark:border-indigo-800/50 rounded-xl p-6 text-center hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition mb-6 cursor-pointer">
-                <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <Upload className="w-8 h-8 mx-auto text-indigo-400 mb-2" />
-                <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                  {scanImage ? "Картинка загружена" : "Загрузить скриншот"}
-                </span>
+              <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+                {scanMessages.map((msg, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'}`}>
+                      {msg.image && (
+                        <img src={`data:image/jpeg;base64,${msg.image}`} alt="Scan target" className="w-full max-w-[200px] rounded-xl mb-2 object-cover border border-white/20" />
+                      )}
+                      {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
+                    </div>
+                  </motion.div>
+                ))}
+                {scanning && (
+                  <div className="flex justify-start">
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-2xl rounded-tl-sm p-3 shadow-sm flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs font-bold text-slate-500">Изучаю оценки...</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex gap-2">
-                <button onClick={() => setShowScan(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
-                <button onClick={handleScan} disabled={scanning || (!scanText && !scanImage)} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50 flex items-center justify-center gap-2">
-                  {scanning ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Распознать"}
-                </button>
+              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0 pb-safe">
+                {scanImage && (
+                  <div className="mb-3 relative inline-block">
+                    <img src={`data:image/jpeg;base64,${scanImage}`} alt="Preview" className="w-20 h-20 object-cover rounded-xl border-2 border-indigo-500" />
+                    <button onClick={() => setScanImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:scale-110 transition">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-2 items-end">
+                  <label className="shrink-0 w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    <Camera className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                  </label>
+                  <textarea
+                    placeholder="Напишите комментарий..."
+                    value={scanText}
+                    onChange={e => setScanText(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleScan();
+                      }
+                    }}
+                    className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl p-3 max-h-32 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 resize-none custom-scrollbar"
+                    rows={scanText.split('\n').length > 1 ? 2 : 1}
+                  />
+                  <button 
+                    onClick={handleScan} 
+                    disabled={scanning || (!scanText.trim() && !scanImage)} 
+                    className="shrink-0 w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

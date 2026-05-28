@@ -694,33 +694,52 @@ async def text_to_speech(request: Request, req: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+from typing import List, Dict, Optional
+
 class AcademicScanRequest(BaseModel):
-    image_base64: str = None
-    text: str = None
+    image_base64: Optional[str] = None
+    text: Optional[str] = None
     mime_type: str = "image/jpeg"
+    chat_history: List[Dict[str, str]] = []
 
 from agents.base import build_academic_scan_prompt
 
 @app.post("/api/academic/scan")
 @limiter.limit("10/minute")
 async def academic_scan(request: Request, req: AcademicScanRequest):
-    if not req.image_base64 and not req.text:
-        raise HTTPException(status_code=400, detail="Нужно передать либо текст, либо картинку")
+    if not req.image_base64 and not req.text and not req.chat_history:
+        raise HTTPException(status_code=400, detail="Нужно передать текст, картинку или историю чата")
         
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_academic_scan_prompt()
     
+    # Строим контекст из истории
+    history_text = ""
+    if req.chat_history:
+        for msg in req.chat_history:
+            role = "Пользователь" if msg.get("role") == "user" else "Ассистент"
+            history_text += f"[{role}]: {msg.get('content', '')}\n"
+            
+    # Добавляем текущий запрос пользователя
+    user_prompt = ""
+    if history_text:
+        user_prompt += f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\n"
+        
+    if req.image_base64:
+        user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Пожалуйста, распознай оценки с прикрепленной картинки.")
+    else:
+        user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Ответь на последнее сообщение пользователя.")
+    
     try:
         if req.image_base64:
-            user_text = req.text if req.text else "Пожалуйста, распознай оценки с этой картинки."
-            raw = await agent.run_with_image(system_prompt, user_text, req.image_base64, req.mime_type)
+            raw = await agent.run_with_image(system_prompt, user_prompt, req.image_base64, req.mime_type)
         else:
-            raw = await agent.run(system_prompt, req.text)
+            raw = await agent.run(system_prompt, user_prompt)
             
         return parse_llm_json(raw)
     except Exception as e:
         print(f"Academic Scan Error: {e}")
-        return {"grades": []}
+        return {"message": "Произошла ошибка при обработке запроса.", "grades": []}
 
 
 if __name__ == "__main__":
