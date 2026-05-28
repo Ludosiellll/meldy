@@ -1,8 +1,8 @@
 import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage } from '../api/chat';
-import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft } from 'lucide-react';
+import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest } from '../api/chat';
+import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getMaterials } from '../api/materials';
@@ -21,8 +21,11 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [myMaterials, setMyMaterials] = useState<any[]>([]);
+  const [friendRequestSent, setFriendRequestSent] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setFriendRequestSent(false); }, [activeFriend]);
 
   useEffect(() => {
     if (!user) return;
@@ -170,15 +173,31 @@ export default function Messages() {
               <div className="flex-1">
                 <div className="font-bold text-slate-800 dark:text-slate-200">{activeFriend.friend_name}</div>
               </div>
-              {/* Кнопка "Пригласить к материалу" */}
-              <div className="relative">
+              {/* Кнопки */}
+              <div className="flex items-center gap-2 relative">
+                {!friendRequestSent && (
+                  <button
+                    onClick={async () => {
+                      if (!user || !activeFriend) return;
+                      await sendFriendRequest(user.id, activeFriend.friend_id!);
+                      setFriendRequestSent(true);
+                      toast.success('Заявка в друзья отправлена!');
+                    }}
+                    className="flex items-center justify-center w-8 h-8 md:w-auto md:px-3 md:py-1.5 text-sm font-bold text-slate-500 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/40 rounded-lg transition"
+                    title="Добавить в друзья"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="hidden md:inline md:ml-2">Добавить</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setShowInvite(v => !v)}
-                  className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition px-3 py-1.5 rounded-lg"
+                  className="flex items-center justify-center w-8 h-8 md:w-auto md:px-3 md:py-1.5 text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition rounded-lg"
                   title="Поделиться материалом"
                 >
                   <BookOpen className="w-4 h-4" />
-                  Поделиться материалом
+                  <span className="hidden md:inline md:ml-2">Поделиться</span>
                 </button>
 
                 {showInvite && (
