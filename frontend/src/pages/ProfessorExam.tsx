@@ -85,17 +85,9 @@ export default function ProfessorExam() {
     }));
   }, [selectedMaterialId, phase, currentQuestion, answerText, history, evaluation, socraticMode]);
 
-  // Автоозвучка при появлении вопроса
+  // Остановка озвучки при смене фазы или уходе со страницы
   useEffect(() => {
-    if (phase === 'question' && currentQuestion) {
-      setTtsState('playing');
-      playTTS(
-        currentQuestion, 
-        'professor', 
-        () => setTtsState('stopped'),
-        () => setTtsState('stopped')
-      );
-    } else {
+    if (phase !== 'question') {
       stopTTS();
       setTtsState('stopped');
     }
@@ -103,7 +95,7 @@ export default function ProfessorExam() {
     return () => {
       stopTTS();
     };
-  }, [phase, currentQuestion]);
+  }, [phase]);
 
   // Загрузка материалов и истории экзаменов
   useEffect(() => {
