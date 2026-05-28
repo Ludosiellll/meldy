@@ -385,6 +385,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
           )}
           {tab === 'flashcards' && (
             <button onClick={handleExportAnki}
+              title="Anki — это популярная бесплатная программа для запоминания информации с помощью интервального повторения. Эта кнопка скачает файл, который можно сразу импортировать в Anki."
               className="flex-1 md:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm flex whitespace-nowrap">
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />В Anki (.txt)
             </button>
