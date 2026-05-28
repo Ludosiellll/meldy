@@ -1,17 +1,21 @@
 import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getFriends, Friendship, getMessages, sendMessage, subscribeToMessages, DirectMessage } from '../api/chat';
+import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage } from '../api/chat';
 import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getMaterials } from '../api/materials';
+import { getProfile } from '../api/social';
+import toast from 'react-hot-toast';
 
 export default function Messages() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [friends, setFriends] = useState<Friendship[]>([]);
-  const [activeFriend, setActiveFriend] = useState<Friendship | null>(null);
+  const { id: urlId } = useParams();
+  
+  const [friends, setFriends] = useState<ChatContact[]>([]);
+  const [activeFriend, setActiveFriend] = useState<ChatContact | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -22,12 +26,31 @@ export default function Messages() {
 
   useEffect(() => {
     if (!user) return;
-    getFriends(user.id).then(f => {
-      setFriends(f.filter(x => x.status === 'accepted'));
+    
+    const loadChats = async () => {
+      const chats = await getChats(user.id);
+      
+      if (urlId && !chats.some(c => c.friend_id === urlId)) {
+        const p = await getProfile(urlId);
+        if (p) {
+          chats.unshift({ id: p.id, friend_id: p.id, friend_name: p.full_name, friend_avatar: p.avatar_url });
+        }
+      }
+      
+      setFriends(chats);
+      
+      if (urlId) {
+        setActiveFriend(chats.find(c => c.friend_id === urlId) || null);
+      } else if (chats.length > 0 && !activeFriend) {
+        // Optionally select first chat, or leave null
+      }
+      
       setLoading(false);
-    });
+    };
+    
+    loadChats();
     getMaterials(user.id).then(setMyMaterials);
-  }, [user?.id]);
+  }, [user?.id, urlId]);
 
   useEffect(() => {
     if (!user || !activeFriend) return;
@@ -55,7 +78,11 @@ export default function Messages() {
     const content = newMessage.trim();
     setNewMessage('');
     const msg = await sendMessage(user.id, activeFriend.friend_id!, content);
-    if (msg) setMessages(prev => [...prev, msg]);
+    if (msg) {
+      setMessages(prev => [...prev, msg]);
+    } else {
+      toast.error('Не удалось отправить сообщение. Возможно, вы заблокированы.');
+    }
   };
 
   const handleSendInvite = async (material: Material) => {
@@ -63,7 +90,12 @@ export default function Messages() {
     const inviteText = `📚 Приглашаю изучить материал: «${material.title}» (${material.subject || 'Без предмета'}) — открой в своей библиотеке или найди в Study Network!`;
     setShowInvite(false);
     const msg = await sendMessage(user.id, activeFriend.friend_id!, inviteText);
-    if (msg) setMessages(prev => [...prev, msg]);
+    if (msg) {
+      setMessages(prev => [...prev, msg]);
+      toast.success('Материал отправлен!');
+    } else {
+      toast.error('Не удалось отправить материал.');
+    }
   };
 
   if (loading) {
@@ -85,12 +117,12 @@ export default function Messages() {
           {friends.length === 0 ? (
             <div className="p-6 text-center">
               <UserCircle2 className="w-10 h-10 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет друзей.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет диалогов.</p>
               <button
                 onClick={() => navigate('/network')}
                 className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:text-indigo-700 dark:hover:text-indigo-300"
               >
-                Найти в Хабе →
+                Найти людей в Хабе →
               </button>
             </div>
           ) : (

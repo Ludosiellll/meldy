@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 
 export interface UserProfile {
   id: string;
+  public_id?: string;
   full_name: string;
   avatar_url?: string;
   bio?: string;
@@ -35,9 +36,34 @@ export interface LeaderboardEntry {
   level: number;
 }
 
+export async function ensurePublicId(userId: string): Promise<string> {
+  let unique = false;
+  let newId = '';
+  while (!unique) {
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    newId = '';
+    for (let i = 0; i < 6; i++) {
+      newId += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const { error } = await supabase.from('profiles').update({ public_id: newId }).eq('id', userId);
+    if (!error) {
+      unique = true;
+    } else if (error.code !== '23505') { // Not a unique constraint violation
+      break;
+    }
+  }
+  return newId;
+}
+
 export async function getProfile(userId: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+  let { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
   if (error) { console.error('getProfile error:', error); return null; }
+  
+  if (data && !data.public_id) {
+    const newId = await ensurePublicId(userId);
+    data.public_id = newId;
+  }
+  
   return data;
 }
 

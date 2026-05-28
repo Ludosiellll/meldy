@@ -127,7 +127,7 @@ export default function SocialHub() {
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Найдите студентов по имени..."
+              placeholder="Найдите студентов по имени или #ID..."
               className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900 dark:text-slate-100 shadow-sm"
               autoFocus
             />
@@ -166,6 +166,7 @@ export default function SocialHub() {
                   )}
                   <div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{u.full_name}</div>
+                    {u.public_id && <div className="text-xs font-mono text-indigo-500 font-bold mb-0.5">#{u.public_id}</div>}
                     {u.university && <div className="text-sm text-slate-500 dark:text-slate-400">{u.university}</div>}
                   </div>
                 </button>

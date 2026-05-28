@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, updateProfile, uploadAvatar, UserProfile } from '../api/social';
-import { getFriends, sendFriendRequest, respondFriendRequest, Friendship } from '../api/chat';
-import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX, Bell, BellOff, Camera, Star } from 'lucide-react';
+import { getFriends, sendFriendRequest, respondFriendRequest, Friendship, blockUser, unblockUser, getBlockedUserIds } from '../api/chat';
+import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX, Bell, BellOff, Camera, Star, MessageSquare, Ban } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
@@ -23,6 +23,9 @@ export default function Profile() {
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'accepted'>('none');
   const [incomingRequests, setIncomingRequests] = useState<Friendship[]>([]);
   
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+
   const isMyProfile = user?.id === targetId;
 
   // Edit State
@@ -74,6 +77,12 @@ export default function Profile() {
           setIncomingRequests(incoming);
         }
       });
+      
+      if (!isMyProfile && targetId) {
+        getBlockedUserIds(user.id).then(blockedIds => {
+          setIsBlocked(blockedIds.includes(targetId));
+        });
+      }
     }
 
     checkPushSubscription().then(enabled => {
@@ -91,6 +100,21 @@ export default function Profile() {
   const handleRespondRequest = async (id: string, status: 'accepted' | 'declined') => {
     await respondFriendRequest(id, status);
     setIncomingRequests(prev => prev.filter(req => req.id !== id));
+  };
+
+  const handleToggleBlock = async () => {
+    if (!user || !targetId) return;
+    setBlockLoading(true);
+    if (isBlocked) {
+      await unblockUser(user.id, targetId);
+      setIsBlocked(false);
+      toast.success('Пользователь разблокирован');
+    } else {
+      await blockUser(user.id, targetId);
+      setIsBlocked(true);
+      toast.success('Пользователь заблокирован');
+    }
+    setBlockLoading(false);
   };
 
   const handleSaveProfile = async () => {
@@ -216,6 +240,18 @@ export default function Profile() {
                 </div>
               )}
             </div>
+            
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-4">
+              <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono text-sm font-bold rounded-lg cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition" onClick={() => {
+                if (profile.public_id) {
+                  navigator.clipboard.writeText(profile.public_id);
+                  toast.success('ID скопирован!');
+                }
+              }} title="Нажмите, чтобы скопировать ID">
+                ID: #{profile.public_id || 'загрузка...'}
+              </span>
+            </div>
+
             {profile.university && (
               <div className="flex items-center justify-center md:justify-start gap-2 text-indigo-600 dark:text-indigo-400 font-semibold mb-3">
                 <GraduationCap className="w-5 h-5" />
@@ -229,22 +265,41 @@ export default function Profile() {
             )}
 
             {!isMyProfile ? (
-              <div className="mt-4 flex justify-center md:justify-start gap-3">
+              <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
                 {friendStatus === 'none' && (
-                  <button onClick={handleAddFriend} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-500 transition shadow-lg hover:shadow-indigo-500/25">
+                  <button onClick={handleAddFriend} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-500 transition shadow-lg hover:shadow-indigo-500/25">
                     <UserPlus className="w-5 h-5" /> Добавить в друзья
                   </button>
                 )}
                 {friendStatus === 'pending' && (
-                  <button disabled className="px-6 py-2.5 bg-white/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed border border-slate-200 dark:border-slate-700">
+                  <button disabled className="px-5 py-2.5 bg-white/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed border border-slate-200 dark:border-slate-700">
                     <Check className="w-5 h-5" /> Заявка отправлена
                   </button>
                 )}
                 {friendStatus === 'accepted' && (
-                  <button className="px-6 py-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl font-bold flex items-center gap-2 border border-emerald-500/20">
-                    <Check className="w-5 h-5" /> Уже в друзьях
+                  <button className="px-5 py-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl font-bold flex items-center gap-2 border border-emerald-500/20">
+                    <Check className="w-5 h-5" /> В друзьях
                   </button>
                 )}
+                
+                <button 
+                  onClick={() => navigate(`/messages/${targetId}`)}
+                  className="px-5 py-2.5 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 rounded-xl font-bold flex items-center gap-2 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition"
+                >
+                  <MessageSquare className="w-5 h-5" /> Написать
+                </button>
+
+                <button 
+                  onClick={handleToggleBlock}
+                  disabled={blockLoading}
+                  className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition border ${
+                    isBlocked 
+                      ? 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' 
+                      : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-900/40'
+                  }`}
+                >
+                  <Ban className="w-5 h-5" /> {isBlocked ? 'Разблокировать' : 'Заблокировать'}
+                </button>
               </div>
             ) : (
               <div className="mt-4 flex justify-center md:justify-start">

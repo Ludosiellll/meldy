@@ -84,17 +84,72 @@ export async function respondFriendRequest(friendshipId: string, status: 'accept
 }
 
 export async function searchUsers(query: string, currentUserId: string) {
+  const q = query.replace('#', '').trim();
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, avatar_url, university')
-    .ilike('full_name', `%${query}%`)
+    .select('id, full_name, avatar_url, university, public_id')
     .neq('id', currentUserId)
+    .or(`full_name.ilike.%${query}%,public_id.eq.${q}`)
     .limit(20);
   if (error) return [];
   return data || [];
 }
 
+// ── Блокировки ────────────────────────────────────────────────────────────────
+
+export async function blockUser(blockerId: string, blockedId: string) {
+  const { error } = await supabase.from('user_blocks').insert({
+    blocker_id: blockerId,
+    blocked_id: blockedId
+  });
+  return !error;
+}
+
+export async function unblockUser(blockerId: string, blockedId: string) {
+  const { error } = await supabase.from('user_blocks').delete().match({
+    blocker_id: blockerId,
+    blocked_id: blockedId
+  });
+  return !error;
+}
+
+export async function getBlockedUserIds(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('user_blocks')
+    .select('blocked_id')
+    .eq('blocker_id', userId);
+  return (data || []).map(b => b.blocked_id);
+}
+
 // ── Чат (Realtime) ───────────────────────────────────────────────────────────
+
+export interface ChatContact {
+  id: string;
+  friend_id: string; // To match the old API structure for Messages
+  friend_name: string;
+  friend_avatar?: string;
+}
+
+export async function getChats(userId: string): Promise<ChatContact[]> {
+  const { data: sent } = await supabase.from('direct_messages').select('receiver_id').eq('sender_id', userId);
+  const { data: received } = await supabase.from('direct_messages').select('sender_id').eq('receiver_id', userId);
+  
+  const ids = new Set([
+    ...(sent || []).map(d => d.receiver_id),
+    ...(received || []).map(d => d.sender_id)
+  ]);
+  
+  if (ids.size === 0) return [];
+  
+  const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url').in('id', Array.from(ids));
+  
+  return (profiles || []).map(p => ({
+    id: p.id,
+    friend_id: p.id,
+    friend_name: p.full_name || 'Неизвестный',
+    friend_avatar: p.avatar_url
+  }));
+}
 
 export async function getMessages(user1: string, user2: string): Promise<DirectMessage[]> {
   const { data, error } = await supabase
