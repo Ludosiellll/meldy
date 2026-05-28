@@ -508,7 +508,7 @@ export default function Gradebook() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setShowAddGrade(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
-                <button onClick={handleAddGrade} disabled={!gradeSubId} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Сохранить</button>
+                <button onClick={() => handleAddGrade()} disabled={!gradeSubId} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Сохранить</button>
               </div>
             </motion.div>
           </div>
