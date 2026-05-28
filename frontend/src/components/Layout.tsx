@@ -290,12 +290,12 @@ export default function Layout() {
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${usedTokens >= FREE_DAILY_LIMIT ? 'bg-rose-500' : 'bg-amber-400'}`}
-                    style={{ width: `${Math.min((usedTokens / FREE_DAILY_LIMIT) * 100, 100)}%` }}
+                    style={{ width: `${Math.max(0, ((FREE_DAILY_LIMIT - usedTokens) / FREE_DAILY_LIMIT) * 100)}%` }}
                   />
                 </div>
                 <div className="flex justify-between mt-1.5">
-                  <span className="text-[10px] font-medium text-slate-500">Потрачено</span>
-                  <span className="text-[10px] font-medium text-slate-500">{usedTokens} / {FREE_DAILY_LIMIT}</span>
+                  <span className="text-[10px] font-medium text-slate-500">Осталось</span>
+                  <span className="text-[10px] font-medium text-slate-500">{FREE_DAILY_LIMIT - usedTokens} / {FREE_DAILY_LIMIT}</span>
                 </div>
               </>
             )}

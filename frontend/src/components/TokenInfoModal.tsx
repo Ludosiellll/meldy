@@ -12,7 +12,7 @@ interface Props {
 export default function TokenInfoModal({ isOpen, onClose, usedTokens }: Props) {
   const navigate = useNavigate();
   const remaining = Math.max(0, FREE_DAILY_LIMIT - usedTokens);
-  const percentage = Math.min((usedTokens / FREE_DAILY_LIMIT) * 100, 100);
+  const percentage = Math.max(0, (remaining / FREE_DAILY_LIMIT) * 100);
 
   if (!isOpen) return null;
 
@@ -58,10 +58,10 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens }: Props) {
                 initial={{ width: 0 }}
                 animate={{ width: `${percentage}%` }}
                 transition={{ duration: 1, ease: 'easeOut' }}
-                className={`h-full rounded-full ${percentage >= 100 ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 'bg-gradient-to-r from-amber-400 to-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'}`}
+                className={`h-full rounded-full ${percentage <= 0 ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 'bg-gradient-to-r from-amber-400 to-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'}`}
               />
             </div>
-            {percentage >= 100 && (
+            {percentage <= 0 && (
               <p className="text-xs font-bold text-rose-500 text-center animate-pulse">Энергия исчерпана!</p>
             )}
           </div>
