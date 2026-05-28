@@ -232,17 +232,6 @@ export default function MaterialDetail() {
         />
       )}
 
-      {/* Review CTA */}
-      {hasFlashcards && mode === 'full' && (
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => navigate('/review')}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition"
-          >
-            🧠 Начать повторение карточек
-          </button>
-        </div>
-      )}
     </div>
   );
 }

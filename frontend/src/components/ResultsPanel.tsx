@@ -318,7 +318,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
     { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
     { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
-    { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" />, count: results.missions?.missions?.length || 0 },
+    { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" /> },
   ];
 
   const getContent = () => {
@@ -498,7 +498,16 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
       <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px] printable-section">
         {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} /></div>}
-        {tab === 'flashcards' && <FlashcardsView data={results.flashcards} />}
+        {tab === 'flashcards' && (
+          <div className="flex flex-col gap-4">
+            <FlashcardsView data={results.flashcards} />
+            <div className="mt-2 text-center no-print">
+              <Link to="/review" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-2 rounded-lg text-sm font-medium transition shadow-sm">
+                🧠 Начать повторение карточек
+              </Link>
+            </div>
+          </div>
+        )}
         {tab === 'quiz' && <QuizView data={results.quiz} />}
         {tab === 'missions' && (
           <div className="card p-10 flex flex-col items-center text-center justify-center min-h-[300px]">
