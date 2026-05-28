@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload, ArrowLeft, Trash2 } from 'lucide-react';
+import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload, ArrowLeft, Trash2, LayoutGrid, Table } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
@@ -79,6 +79,7 @@ export default function Gradebook() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -355,46 +356,104 @@ export default function Gradebook() {
           <BookOpen className="w-5 h-5 text-indigo-500" />
           Мои предметы
         </h2>
-        <button onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:opacity-80 transition">
-          + Добавить предмет
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {subjectStats.map(sub => (
-          <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-500/30 transition">
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="font-bold text-slate-800 dark:text-slate-100">{sub.name}</h3>
-              <div className={`px-2 py-1 rounded-md text-xs font-bold ${
-                sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
-                sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-              }`}>
-                {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
-              </div>
-            </div>
-            
-            <div className="space-y-2 mb-4">
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>Цель: {sub.target_grade.toFixed(1)}</span>
-                <span>{sub.count} оценок</span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full ${sub.avg >= sub.target_grade ? 'bg-emerald-500' : sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                  style={{ width: `${Math.min(100, (sub.avg / (sub.target_grade > 5 ? 10 : 5)) * 100)}%` }}
-                />
-              </div>
-            </div>
-
-            {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
-              <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 p-2.5 rounded-lg text-xs font-medium flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Оценки падают! Рекомендуем сгенерировать ИИ-подкаст по последней теме.</span>
-              </div>
-            )}
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+            <button onClick={() => setViewMode('cards')} className={`p-1.5 rounded-md transition ${viewMode === 'cards' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
+              <Table className="w-4 h-4" />
+            </button>
           </div>
-        ))}
+          <button onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:opacity-80 transition">
+            + Предмет
+          </button>
+        </div>
       </div>
+
+      {viewMode === 'cards' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {subjectStats.map(sub => (
+            <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-500/30 transition">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">{sub.name}</h3>
+                <div className={`px-2 py-1 rounded-md text-xs font-bold ${
+                  sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                  sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                }`}>
+                  {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                </div>
+              </div>
+              
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Цель: {sub.target_grade.toFixed(1)}</span>
+                  <span>{sub.count} оценок</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full ${sub.avg >= sub.target_grade ? 'bg-emerald-500' : sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) ? 'bg-rose-500' : 'bg-amber-500'}`} 
+                    style={{ width: `${Math.min(100, (sub.avg / (sub.target_grade > 5 ? 10 : 5)) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
+                <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 p-2.5 rounded-lg text-xs font-medium flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Оценки падают! Рекомендуем сгенерировать ИИ-подкаст по последней теме.</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
+                <th className="p-4 font-bold">Предмет</th>
+                <th className="p-4 font-bold hidden sm:table-cell">Оценки</th>
+                <th className="p-4 font-bold text-right">Ср. балл</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {subjectStats.map(sub => {
+                const subGrades = grades.filter(g => g.subject_id === sub.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                return (
+                  <tr key={sub.id} onClick={() => setSelectedSubject(sub)} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition cursor-pointer">
+                    <td className="p-4 font-bold text-slate-800 dark:text-slate-200">
+                      {sub.name}
+                      <div className="sm:hidden flex gap-1 flex-wrap mt-2">
+                        {subGrades.slice(0, 5).map((g, i) => <span key={i} className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{g.value}</span>)}
+                        {subGrades.length > 5 && <span className="text-[10px] font-bold text-slate-400">+{subGrades.length - 5}</span>}
+                      </div>
+                    </td>
+                    <td className="p-4 hidden sm:table-cell">
+                      <div className="flex gap-1.5 flex-wrap">
+                        {subGrades.slice(0, 8).map((g, i) => (
+                          <span key={i} className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md">
+                            {g.value}
+                          </span>
+                        ))}
+                        {subGrades.length > 8 && <span className="text-xs font-bold text-slate-400 ml-1 flex items-center">+{subGrades.length - 8}</span>}
+                      </div>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${
+                        sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                        sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                      }`}>
+                        {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modals */}
       <AnimatePresence>
