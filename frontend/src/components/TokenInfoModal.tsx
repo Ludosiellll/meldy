@@ -1,4 +1,4 @@
-import { X, Zap, Crown } from 'lucide-react';
+import { X, Zap, Crown, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FREE_DAILY_LIMIT } from '../api/limits';
 import { useNavigate } from 'react-router-dom';
@@ -7,14 +7,88 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   usedTokens: number;
+  isPro?: boolean;
 }
 
-export default function TokenInfoModal({ isOpen, onClose, usedTokens }: Props) {
+export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: Props) {
   const navigate = useNavigate();
   const remaining = Math.max(0, FREE_DAILY_LIMIT - usedTokens);
   const percentage = Math.max(0, (remaining / FREE_DAILY_LIMIT) * 100);
 
   if (!isOpen) return null;
+
+  if (isPro) {
+    return (
+      <AnimatePresence>
+        <div className="fixed inset-0 z-[300] flex items-center justify-center px-4 sm:px-0">
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800"
+          >
+            {/* Header */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 text-center relative border-b border-slate-100 dark:border-slate-800">
+              <button 
+                onClick={onClose}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-white dark:bg-slate-800 rounded-full shadow-sm transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_15px_rgba(251,191,36,0.5)] transform rotate-3">
+                <Crown className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">PRO Академик</h2>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold border border-emerald-200 dark:border-emerald-500/20">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                АКТИВЕН
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="p-6 space-y-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-center font-medium">
+                У вас безлимитный доступ к нейросетям. Энергия больше не заканчивается! ⚡
+              </p>
+              
+              <ul className="space-y-3 mt-4">
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <span>Безлимитная генерация тестов и карточек</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <span>Приоритетные подкасты без очереди</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <span>Экзамен с ИИ-профессором</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* CTA */}
+            <div className="p-6 pt-2 bg-slate-50 dark:bg-slate-900">
+              <button 
+                onClick={onClose}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition"
+              >
+                Супер!
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>

@@ -218,6 +218,7 @@ export default function Layout() {
         isOpen={isTokenModalOpen} 
         onClose={() => setIsTokenModalOpen(false)} 
         usedTokens={usedTokens} 
+        isPro={profile?.is_pro}
       />
 
       <ForgeyAssistant />
