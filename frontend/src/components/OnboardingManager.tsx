@@ -28,19 +28,46 @@ const DASHBOARD_STEPS: Step[] = [
     ),
   },
   {
+    target: '.tour-step-chat',
+    content: (
+      <div className="text-left space-y-1">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Чат-наставник</h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
+          Если что-то непонятно в конспекте лекции — просто напиши мне сюда. Я объясню любую тему простыми словами и приведу примеры!
+        </p>
+      </div>
+    ),
+    placement: 'right',
+  },
+  {
+    target: '.tour-step-gradebook',
+    content: (
+      <div className="text-left space-y-1">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-amber-500" />
+          Умный Дневник
+        </h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
+          Загрузи фото своего бумажного дневника или зачётки, и алгоритм Smart Scan распознает оценки!
+        </p>
+      </div>
+    ),
+    placement: 'right',
+  },
+  {
     target: '.tour-step-upload',
     content: (
       <div className="text-left space-y-1">
         <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
           <Sparkles className="w-4 h-4 text-indigo-500" />
-          Загрузка материалов
+          Добавить материал
         </h4>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
           Сюда ты перетаскиваешь лекции, PDF-книги или аудиозаписи. Я сам составлю конспект, карточки для запоминания и подготовлю тесты!
         </p>
       </div>
     ),
-    placement: 'bottom',
+    placement: 'right',
   },
   {
     target: '.tour-step-library',
@@ -55,39 +82,12 @@ const DASHBOARD_STEPS: Step[] = [
     placement: 'right',
   },
   {
-    target: '.tour-step-chat',
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Чат-наставник</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Если что-то непонятно в конспекте лекции — просто напиши мне сюда. Я объясню любую тему простыми словами и приведу примеры!
-        </p>
-      </div>
-    ),
-    placement: 'top',
-  },
-  {
-    target: '.tour-step-gradebook',
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-amber-500" />
-          Умный Дневник
-        </h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Загрузи фото своего бумажного дневника или зачётки, и мой алгоритм Smart Scan автоматически распознает предметы и оценки! Веди дневник и получай за это XP.
-        </p>
-      </div>
-    ),
-    placement: 'top',
-  },
-  {
     target: '.tour-step-xp',
     content: (
       <div className="text-left space-y-1">
         <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Твой уровень и XP</h4>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          За каждое полезное действие (повторил карточку, сдал тест) ты получаешь XP. Выполняй квесты дня и недели, повышай уровень и обгоняй одногруппников!
+          За каждое полезное действие ты получаешь XP. Выполняй квесты дня и недели, повышай уровень и обгоняй одногруппников!
         </p>
       </div>
     ),
