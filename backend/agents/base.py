@@ -408,7 +408,7 @@ class BaseAgent:
         
         raise HTTPException(status_code=500, detail="Ошибка: API ключи не настроены.")
 
-    async def run_with_image(self, system_prompt: str, user_text: str, image_base64: str, mime_type: str = "image/jpeg") -> str:
+    async def run_with_images(self, system_prompt: str, user_text: str, images_base64: list[str], mime_type: str = "image/jpeg") -> str:
         gemini_errors = []
         json_mode = "JSON" in system_prompt or "json" in system_prompt
 
@@ -433,12 +433,9 @@ class BaseAgent:
                         try:
                             model_loaded = genai.GenerativeModel(model_name)
                             full_prompt = f"{system_prompt}\n\nЗАПРОС:\n{user_text}"
-                            image_part = {
-                                "mime_type": mime_type,
-                                "data": image_base64
-                            }
+                            image_parts = [{"mime_type": mime_type, "data": img} for img in images_base64]
                             response = await model_loaded.generate_content_async(
-                                [full_prompt, image_part],
+                                [full_prompt] + image_parts,
                                 generation_config=genai.types.GenerationConfig(
                                     temperature=0.3,
                                     max_output_tokens=8192,
@@ -470,9 +467,8 @@ class BaseAgent:
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": [
-                            {"type": "text", "text": user_text},
-                            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}}
-                        ]},
+                            {"type": "text", "text": user_text}
+                        ] + [{"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img}"}} for img in images_base64]},
                     ],
                     "temperature": 0.3,
                     "max_tokens": 8192,

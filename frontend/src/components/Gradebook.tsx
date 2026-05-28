@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  image?: string;
+  images?: string[];
 }
 
 interface Subject {
@@ -70,10 +70,10 @@ export default function Gradebook() {
 
   const [showScan, setShowScan] = useState(false);
   const [scanText, setScanText] = useState('');
-  const [scanImage, setScanImage] = useState<string | null>(null);
+  const [scanImages, setScanImages] = useState<string[]>([]);
   const [scanMessages, setScanMessages] = useState<ChatMessage[]>([{
     role: 'assistant',
-    content: 'Привет! Загрузите фото дневника или зачётки, и я помогу автоматически перенести оценки. Можете добавить текст (например, "Я Иванов Иван, предмет физика").'
+    content: 'Привет! Загрузите фото дневника или зачётки (можно несколько), и я помогу автоматически перенести оценки. Можете добавить текст (например, "Я Иванов Иван, предмет физика").'
   }]);
   const [scanning, setScanning] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -129,19 +129,23 @@ export default function Gradebook() {
   const handleAddGrade = () => addGradeMutation.mutate();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setScanImage(base64String.split(',')[1]); // remove data:image/...;base64,
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setScanImages(prev => [...prev, base64String.split(',')[1]]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+    // reset input
+    if (e.target) e.target.value = '';
   };
 
   const handleScan = async () => {
-    if (!scanText && !scanImage) return;
+    if (!scanText && scanImages.length === 0) return;
     
     // Проверка лимитов для AI
     if (user?.id) {
@@ -156,10 +160,15 @@ export default function Gradebook() {
     const newUserMsg: ChatMessage = {
       role: 'user',
       content: scanText,
-      image: scanImage || undefined
+      images: scanImages.length > 0 ? [...scanImages] : undefined
     };
     
+    const requestImages = [...scanImages];
+    const requestText = scanText;
+    
     setScanMessages(prev => [...prev, newUserMsg]);
+    setScanImages([]);
+    setScanText('');
     setScanning(true);
     
     try {
@@ -169,8 +178,8 @@ export default function Gradebook() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image_base64: scanImage,
-          text: scanText,
+          images_base64: requestImages,
+          text: requestText,
           mime_type: 'image/jpeg',
           chat_history: scanMessages.map(m => ({ role: m.role, content: m.content }))
         })
@@ -215,9 +224,6 @@ export default function Gradebook() {
         updateQuestProgress(user!.id, 'grade', data.grades.length);
         toast.success(`Распознано и добавлено ${data.grades.length} оценок!`);
       }
-      
-      setScanImage(null);
-      setScanText('');
     } catch (err) {
       console.error(err);
       setScanMessages(prev => [...prev, { role: 'assistant', content: 'Ой, произошла ошибка! Попробуйте еще раз.' }]);
@@ -368,7 +374,7 @@ export default function Gradebook() {
         {showScan && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
             <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="bg-white dark:bg-slate-900 w-full max-w-lg sm:rounded-2xl shadow-2xl flex flex-col h-[90vh] sm:h-[80vh] overflow-hidden">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-indigo-500" />
                   Smart Scan
@@ -378,12 +384,16 @@ export default function Gradebook() {
                 </button>
               </div>
               
-              <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+              <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50 custom-scrollbar">
                 {scanMessages.map((msg, i) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'}`}>
-                      {msg.image && (
-                        <img src={`data:image/jpeg;base64,${msg.image}`} alt="Scan target" className="w-full max-w-[200px] rounded-xl mb-2 object-cover border border-white/20" />
+                    <div className={`max-w-[90%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'}`}>
+                      {msg.images && msg.images.length > 0 && (
+                        <div className={`grid gap-2 mb-2 ${msg.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                          {msg.images.map((img, idx) => (
+                            <img key={idx} src={`data:image/jpeg;base64,${img}`} alt="Scan target" className="w-full max-w-[240px] rounded-xl object-contain bg-black/10 border border-white/20" />
+                          ))}
+                        </div>
                       )}
                       {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
                     </div>
@@ -399,18 +409,22 @@ export default function Gradebook() {
                 )}
               </div>
 
-              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shrink-0 pb-safe">
-                {scanImage && (
-                  <div className="mb-3 relative inline-block">
-                    <img src={`data:image/jpeg;base64,${scanImage}`} alt="Preview" className="w-20 h-20 object-cover rounded-xl border-2 border-indigo-500" />
-                    <button onClick={() => setScanImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:scale-110 transition">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 pb-safe">
+                {scanImages.length > 0 && (
+                  <div className="mb-3 flex gap-2 overflow-x-auto py-1 custom-scrollbar">
+                    {scanImages.map((img, idx) => (
+                      <div key={idx} className="relative inline-block shrink-0">
+                        <img src={`data:image/jpeg;base64,${img}`} alt="Preview" className="w-16 h-16 object-cover rounded-xl border-2 border-indigo-500" />
+                        <button onClick={() => setScanImages(prev => prev.filter((_, i) => i !== idx))} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:scale-110 transition">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
                 <div className="flex gap-2 items-end">
                   <label className="shrink-0 w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition">
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
                     <Camera className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   </label>
                   <textarea
@@ -428,7 +442,7 @@ export default function Gradebook() {
                   />
                   <button 
                     onClick={handleScan} 
-                    disabled={scanning || (!scanText.trim() && !scanImage)} 
+                    disabled={scanning || (!scanText.trim() && scanImages.length === 0)} 
                     className="shrink-0 w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>

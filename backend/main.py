@@ -697,7 +697,7 @@ async def text_to_speech(request: Request, req: TTSRequest):
 from typing import List, Dict, Optional
 
 class AcademicScanRequest(BaseModel):
-    image_base64: Optional[str] = None
+    images_base64: List[str] = []
     text: Optional[str] = None
     mime_type: str = "image/jpeg"
     chat_history: List[Dict[str, str]] = []
@@ -707,7 +707,7 @@ from agents.base import build_academic_scan_prompt
 @app.post("/api/academic/scan")
 @limiter.limit("10/minute")
 async def academic_scan(request: Request, req: AcademicScanRequest):
-    if not req.image_base64 and not req.text and not req.chat_history:
+    if not req.images_base64 and not req.text and not req.chat_history:
         raise HTTPException(status_code=400, detail="Нужно передать текст, картинку или историю чата")
         
     agent = BaseAgent(api_key=GROQ_API_KEY)
@@ -725,14 +725,14 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
     if history_text:
         user_prompt += f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\n"
         
-    if req.image_base64:
-        user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Пожалуйста, распознай оценки с прикрепленной картинки.")
+    if req.images_base64:
+        user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Пожалуйста, распознай оценки с прикрепленных картинок.")
     else:
         user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Ответь на последнее сообщение пользователя.")
     
     try:
-        if req.image_base64:
-            raw = await agent.run_with_image(system_prompt, user_prompt, req.image_base64, req.mime_type)
+        if req.images_base64:
+            raw = await agent.run_with_images(system_prompt, user_prompt, req.images_base64, req.mime_type)
         else:
             raw = await agent.run(system_prompt, user_prompt)
             
