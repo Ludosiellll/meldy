@@ -33,6 +33,7 @@ import PWAUpdater from './components/PWAUpdater';
 import InstallPWA from './components/InstallPWA';
 import ShortsPlayer from './pages/ShortsPlayer';
 import SharedMaterial from './pages/SharedMaterial';
+import AssignmentView from './pages/AssignmentView';
 
 import { Smartphone } from 'lucide-react';
 
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />
+          <Route path="assignment/:id" element={<AssignmentView />} />
           <Route path="co-study/:id" element={<CoStudy />} />
           <Route path="review" element={<Review />} />
           <Route path="planner" element={<Navigate to="/courses" replace />} />

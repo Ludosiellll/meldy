@@ -114,6 +114,8 @@ export default function TeacherDashboard() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [passingScore, setPassingScore] = useState<number>(80);
+  const [maxAttempts, setMaxAttempts] = useState<number | ''>('');
 
   // QR код
   const [showQRModal, setShowQRModal] = useState(false);
@@ -315,7 +317,13 @@ export default function TeacherDashboard() {
       return;
     }
 
-    const ok = await createAssignment(selectedGroupId, selectedMaterial, deadline || undefined);
+    const ok = await createAssignment(
+      selectedGroupId, 
+      selectedMaterial, 
+      deadline || undefined, 
+      passingScore, 
+      maxAttempts === '' ? undefined : maxAttempts
+    );
     if (ok) {
       getGroupAssignments(selectedGroupId).then(setAssignments);
       if (role === 'teacher') {
@@ -324,6 +332,8 @@ export default function TeacherDashboard() {
       setShowAssignModal(false);
       setSelectedMaterial('');
       setDeadline('');
+      setPassingScore(80);
+      setMaxAttempts('');
     }
   };
 
@@ -645,6 +655,29 @@ export default function TeacherDashboard() {
                         className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" 
                       />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Проходной балл (%)</label>
+                        <input 
+                          type="number" 
+                          min={1} max={100}
+                          value={passingScore} 
+                          onChange={e => setPassingScore(Number(e.target.value))} 
+                          className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Попытки (пусто = ∞)</label>
+                        <input 
+                          type="number" 
+                          min={1}
+                          value={maxAttempts} 
+                          onChange={e => setMaxAttempts(e.target.value ? Number(e.target.value) : '')} 
+                          className="w-full px-4 py-2 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" 
+                          placeholder="∞"
+                        />
+                      </div>
+                    </div>
                     <div className="flex gap-2 justify-end pt-2">
                       <button onClick={() => setShowAssignModal(false)} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-350 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
                       <button onClick={handleAssign} disabled={!selectedMaterial} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Назначить</button>
@@ -724,24 +757,16 @@ export default function TeacherDashboard() {
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-center">
                             {role === 'student' && a.material && (
-                              <>
-                                <button
-                                  onClick={() => handleToggleCompletion(a.id)}
-                                  className={`px-3 py-1.5 font-bold rounded-lg text-xs transition border ${
-                                    isDone 
-                                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 border-emerald-200 dark:border-emerald-900/50' 
-                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
-                                  }`}
-                                >
-                                  {isDone ? 'Выполнено' : 'Выполнить'}
-                                </button>
-                                <button
-                                  onClick={() => navigate(`/library/${a.material_id}`)}
-                                  className="px-3.5 py-1.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold rounded-lg text-xs transition"
-                                >
-                                  Изучить →
-                                </button>
-                              </>
+                              <button
+                                onClick={() => navigate(`/assignment/${a.id}`)}
+                                className={`px-4 py-1.5 font-bold rounded-lg text-xs transition ${
+                                  isDone 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-100 dark:hover:bg-emerald-900'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
+                                }`}
+                              >
+                                {isDone ? 'Результаты' : 'Выполнить'}
+                              </button>
                             )}
                           </div>
                         </div>

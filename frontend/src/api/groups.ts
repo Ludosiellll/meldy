@@ -25,6 +25,8 @@ export interface Assignment {
   group_id: string;
   material_id: string;
   deadline?: string;
+  passing_score?: number;
+  max_attempts?: number;
   created_at: string;
   material?: Material;
 }
@@ -98,14 +100,48 @@ export async function joinGroup(studentId: string, inviteCode: string): Promise<
   return true;
 }
 
-export async function createAssignment(groupId: string, materialId: string, deadline?: string): Promise<boolean> {
+export async function createAssignment(groupId: string, materialId: string, deadline?: string, passingScore?: number, maxAttempts?: number): Promise<boolean> {
   const { error } = await supabase.from('assignments').insert({
     group_id: groupId,
     material_id: materialId,
-    deadline: deadline || null
+    deadline: deadline || null,
+    passing_score: passingScore !== undefined ? passingScore : 80,
+    max_attempts: maxAttempts || null
   });
   if (error) console.error('createAssignment', error);
   return !error;
+}
+
+export async function getAssignmentById(id: string): Promise<Assignment | null> {
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('*, material:materials(*)')
+    .eq('id', id)
+    .single();
+  if (error || !data) return null;
+  return data;
+}
+
+export async function recordAssignmentAttempt(assignmentId: string, userId: string, score: number, passed: boolean) {
+  const { error } = await supabase.from('assignment_attempts').insert({
+    assignment_id: assignmentId,
+    user_id: userId,
+    score,
+    passed
+  });
+  if (error) console.error('recordAssignmentAttempt', error);
+  return !error;
+}
+
+export async function getStudentAttempts(assignmentId: string, userId: string) {
+  const { data, error } = await supabase
+    .from('assignment_attempts')
+    .select('*')
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data;
 }
 
 export async function getGroupAssignments(groupId: string): Promise<Assignment[]> {

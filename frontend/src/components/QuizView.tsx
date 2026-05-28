@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function QuizView({ data }: { data: any }) {
+export default function QuizView({ data, onComplete }: { data: any, onComplete?: (scorePct: number) => void }) {
   const quiz = data?.quiz;
 
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -24,8 +24,14 @@ export default function QuizView({ data }: { data: any }) {
   const handleSubmit = () => {
     setSubmitted(true);
     const score = quiz.filter((q: QuizQuestion, i: number) => answers[i]?.startsWith(q.correct)).length;
+    const pct = Math.round((score / quiz.length) * 100);
+    
     if (score === quiz.length) {
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#4F46E5', '#10b981', '#f59e0b'] });
+    }
+    
+    if (onComplete) {
+      onComplete(pct);
     }
   };
   const handleRetry = () => { setAnswers({}); setSubmitted(false); };
