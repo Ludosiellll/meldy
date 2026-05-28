@@ -510,7 +510,7 @@ export default function Dashboard() {
           <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/50 transition">
             <Zap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-350">Загрузить лекцию</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Загрузить лекцию</p>
         </button>
         
         <button
@@ -532,7 +532,7 @@ export default function Dashboard() {
           }`}>
             <Brain className="w-5 h-5" />
           </div>
-          <p className={`text-sm font-medium ${recTool === 'review' ? 'text-emerald-900 dark:text-emerald-100 font-bold' : 'text-slate-700 dark:text-slate-350'}`}>
+          <p className={`text-sm font-medium ${recTool === 'review' ? 'text-emerald-900 dark:text-emerald-100 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
             Повторить карточки
           </p>
         </button>
@@ -556,7 +556,7 @@ export default function Dashboard() {
           }`}>
             <Gamepad2 className="w-5 h-5" />
           </div>
-          <p className={`text-sm font-medium ${recTool === 'play' ? 'text-emerald-900 dark:text-emerald-100 font-bold' : 'text-slate-700 dark:text-slate-350'}`}>
+          <p className={`text-sm font-medium ${recTool === 'play' ? 'text-emerald-900 dark:text-emerald-100 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
             Микро-миссии
           </p>
         </button>
@@ -580,7 +580,7 @@ export default function Dashboard() {
           }`}>
             <MessageSquare className="w-5 h-5" />
           </div>
-          <p className={`text-sm font-medium ${recTool === 'chat' ? 'text-indigo-900 dark:text-indigo-100 font-bold' : 'text-slate-700 dark:text-slate-350'}`}>
+          <p className={`text-sm font-medium ${recTool === 'chat' ? 'text-indigo-900 dark:text-indigo-100 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
             Чат-помощник
           </p>
         </button>
@@ -604,7 +604,7 @@ export default function Dashboard() {
           }`}>
             <Award className="w-5 h-5" />
           </div>
-          <p className={`text-sm font-medium ${recTool === 'exam' ? 'text-rose-900 dark:text-rose-100 font-bold' : 'text-slate-700 dark:text-slate-350'}`}>
+          <p className={`text-sm font-medium ${recTool === 'exam' ? 'text-rose-900 dark:text-rose-100 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
             Устный экзамен
           </p>
         </button>
@@ -628,7 +628,7 @@ export default function Dashboard() {
           }`}>
             <Layers className="w-5 h-5" />
           </div>
-          <p className={`text-sm font-medium ${recTool === 'courses' ? 'text-amber-900 dark:text-amber-100 font-bold' : 'text-slate-700 dark:text-slate-350'}`}>
+          <p className={`text-sm font-medium ${recTool === 'courses' ? 'text-amber-900 dark:text-amber-100 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
             Мои курсы
           </p>
         </button>
