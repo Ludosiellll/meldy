@@ -274,6 +274,25 @@ def build_mistakes_practice_prompt(mistakes: list) -> str:
 Пиши на русском языке."""
 
 
+def build_academic_scan_prompt() -> str:
+    return """Ты — система распознавания оценок (Smart Gradebook).
+Пользователь передаёт тебе фотографию электронного дневника (Дневник.ру, Moodle), бумажной зачётки, или просто текст с оценками по предметам.
+Твоя задача — извлечь список предметов и оценок.
+
+Если оценка текстовая (например, "Отлично"), преобразуй её в числовую по 5-балльной или 100-балльной шкале, исходя из контекста (Отлично = 5). Если там несколько оценок по одному предмету, извлеки их как отдельные записи или просто возьми среднюю/итоговую (предпочтительнее итоговую за семестр/четверть).
+
+ОБЯЗАТЕЛЬНО верни ТОЛЬКО JSON:
+{
+  "grades": [
+    {
+      "subject": "Название предмета",
+      "value": 5.0,
+      "date": "2024-05-28" // примерная или текущая дата (YYYY-MM-DD)
+    }
+  ]
+}
+Пиши на русском языке, без markdown."""
+
 class BaseAgent:
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.groq_api_key = api_key
@@ -375,5 +394,87 @@ class BaseAgent:
                     debug_info = "\n".join(gemini_errors) if gemini_errors else "Ключи Gemini не найдены"
                     raise HTTPException(status_code=429, detail="API_LIMIT_REACHED")
                 raise HTTPException(status_code=500, detail=f"Ошибка ИИ (Groq): {groq_err}")
+        
+        raise HTTPException(status_code=500, detail="Ошибка: API ключи не настроены.")
+
+    async def run_with_image(self, system_prompt: str, user_text: str, image_base64: str, mime_type: str = "image/jpeg") -> str:
+        gemini_errors = []
+        json_mode = "JSON" in system_prompt or "json" in system_prompt
+
+        if self.gemini_keys:
+            shuffled_keys = list(self.gemini_keys)
+            import random
+            random.shuffle(shuffled_keys)
+            
+            for key in shuffled_keys:
+                try:
+                    genai.configure(api_key=key)
+                    GEMINI_MODELS = [
+                        "gemini-1.5-flash",
+                        "gemini-2.0-flash",
+                        "gemini-2.5-flash",
+                    ]
+                    
+                    response_text = None
+                    last_err = None
+                    
+                    for model_name in GEMINI_MODELS:
+                        try:
+                            model_loaded = genai.GenerativeModel(model_name)
+                            full_prompt = f"{system_prompt}\n\nЗАПРОС:\n{user_text}"
+                            image_part = {
+                                "mime_type": mime_type,
+                                "data": image_base64
+                            }
+                            response = await model_loaded.generate_content_async(
+                                [full_prompt, image_part],
+                                generation_config=genai.types.GenerationConfig(
+                                    temperature=0.3,
+                                    max_output_tokens=8192,
+                                    response_mime_type="application/json" if json_mode else "text/plain"
+                                ),
+                                safety_settings=self.safety_settings
+                            )
+                            if response and response.text:
+                                response_text = response.text
+                                break
+                        except Exception as e:
+                            last_err = str(e)
+                            continue
+                            
+                    if response_text:
+                        return response_text
+                        
+                    gemini_errors.append(f"Key {key[:6]}... error: {last_err[:100] if last_err else 'No text'}")
+                    continue
+                except Exception as e:
+                    gemini_errors.append(f"Key {key[:6]}... fatal error: {str(e)[:100]}")
+                    continue
+
+        if self.groq_client:
+            try:
+                # Use llama-3.2-90b-vision-preview
+                kwargs = {
+                    "model": "llama-3.2-90b-vision-preview",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": [
+                            {"type": "text", "text": user_text},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}}
+                        ]},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 8192,
+                }
+                if json_mode:
+                    kwargs["response_format"] = {"type": "json_object"}
+                    
+                response = await self.groq_client.chat.completions.create(**kwargs)
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                groq_err = str(e)
+                if "429" in groq_err:
+                    raise HTTPException(status_code=429, detail="API_LIMIT_REACHED")
+                raise HTTPException(status_code=500, detail=f"Ошибка ИИ (Groq Vision): {groq_err}")
         
         raise HTTPException(status_code=500, detail="Ошибка: API ключи не настроены.")

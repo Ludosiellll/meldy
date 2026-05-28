@@ -694,6 +694,35 @@ async def text_to_speech(request: Request, req: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class AcademicScanRequest(BaseModel):
+    image_base64: str = None
+    text: str = None
+    mime_type: str = "image/jpeg"
+
+from agents.base import build_academic_scan_prompt
+
+@app.post("/api/academic/scan")
+@limiter.limit("10/minute")
+async def academic_scan(request: Request, req: AcademicScanRequest):
+    if not req.image_base64 and not req.text:
+        raise HTTPException(status_code=400, detail="Нужно передать либо текст, либо картинку")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_academic_scan_prompt()
+    
+    try:
+        if req.image_base64:
+            user_text = req.text if req.text else "Пожалуйста, распознай оценки с этой картинки."
+            raw = await agent.run_with_image(system_prompt, user_text, req.image_base64, req.mime_type)
+        else:
+            raw = await agent.run(system_prompt, req.text)
+            
+        return parse_llm_json(raw)
+    except Exception as e:
+        print(f"Academic Scan Error: {e}")
+        return {"grades": []}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
