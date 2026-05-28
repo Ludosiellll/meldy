@@ -52,7 +52,7 @@ const navGroups = [
     title: 'Комьюнити',
     items: [
       { to: '/network',     icon: Globe,           label: 'Study Network' },
-      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
+      { to: '/messages',    icon: Users,           label: 'Друзья' },
       { to: '/teacher',     icon: Users,           label: 'Мой класс' },
     ]
   },
@@ -73,7 +73,7 @@ const teacherNavGroups = [
       { to: '/teacher',     icon: Network,         label: 'Мои группы' },
       { to: '/library',     icon: BookOpen,        label: 'Библиотека' },
       { to: '/analyze',     icon: Zap,             label: 'Добавить материал' },
-      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
+      { to: '/messages',    icon: Users,           label: 'Друзья' },
       { to: '/profile',     icon: User,            label: 'Мой профиль' },
     ]
   }

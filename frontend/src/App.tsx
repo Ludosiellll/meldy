@@ -80,6 +80,7 @@ export default function App() {
           <Route path="profile" element={<Profile />} />
           <Route path="profile/:id" element={<Profile />} />
           <Route path="messages" element={<Messages />} />
+          <Route path="messages/:id" element={<Messages />} />
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />

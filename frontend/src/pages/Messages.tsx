@@ -1,8 +1,8 @@
 import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest } from '../api/chat';
-import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus } from 'lucide-react';
+import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest } from '../api/chat';
+import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus, Users, Check, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getMaterials } from '../api/materials';
@@ -14,7 +14,11 @@ export default function Messages() {
   const navigate = useNavigate();
   const { id: urlId } = useParams();
   
+  const [viewTab, setViewTab] = useState<'chats' | 'friends'>('chats');
+  
   const [friends, setFriends] = useState<ChatContact[]>([]);
+  const [friendships, setFriendships] = useState<Friendship[]>([]);
+  
   const [activeFriend, setActiveFriend] = useState<ChatContact | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -27,32 +31,32 @@ export default function Messages() {
 
   useEffect(() => { setFriendRequestSent(false); }, [activeFriend]);
 
-  useEffect(() => {
+  const loadData = async () => {
     if (!user) return;
+    const chats = await getChats(user.id);
+    const fs = await getFriends(user.id);
     
-    const loadChats = async () => {
-      const chats = await getChats(user.id);
-      
-      if (urlId && !chats.some(c => c.friend_id === urlId)) {
-        const p = await getProfile(urlId);
-        if (p) {
-          chats.unshift({ id: p.id, friend_id: p.id, friend_name: p.full_name, friend_avatar: p.avatar_url });
-        }
+    if (urlId && !chats.some(c => c.friend_id === urlId)) {
+      const p = await getProfile(urlId);
+      if (p) {
+        chats.unshift({ id: p.id, friend_id: p.id, friend_name: p.full_name, friend_avatar: p.avatar_url });
       }
-      
-      setFriends(chats);
-      
-      if (urlId) {
-        setActiveFriend(chats.find(c => c.friend_id === urlId) || null);
-      } else if (chats.length > 0 && !activeFriend) {
-        // Optionally select first chat, or leave null
-      }
-      
-      setLoading(false);
-    };
+    }
     
-    loadChats();
-    getMaterials(user.id).then(setMyMaterials);
+    setFriends(chats);
+    setFriendships(fs);
+    
+    if (urlId) {
+      setActiveFriend(chats.find(c => c.friend_id === urlId) || null);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
+    if (user) {
+      getMaterials(user.id).then(setMyMaterials);
+    }
   }, [user?.id, urlId]);
 
   useEffect(() => {
@@ -66,6 +70,9 @@ export default function Messages() {
         (msg.sender_id === friendId && msg.receiver_id === user.id)
       ) {
         setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
+      } else {
+        // reload chats if we get a new message from someone else
+        getChats(user.id).then(setFriends);
       }
     });
     return () => { unsubscribe(); };
@@ -101,55 +108,174 @@ export default function Messages() {
     }
   };
 
+  const handleRespondRequest = async (friendshipId: string, status: 'accepted' | 'declined') => {
+    const success = await respondFriendRequest(friendshipId, status);
+    if (success) {
+      toast.success(status === 'accepted' ? 'Заявка принята!' : 'Заявка отклонена');
+      loadData();
+    } else {
+      toast.error('Произошла ошибка при обработке заявки.');
+    }
+  };
+
   if (loading) {
     return <div className="flex h-[85vh] items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-500 animate-spin" /></div>;
   }
 
+  const incomingRequests = friendships.filter(f => f.addressee_id === user?.id && f.status === 'pending');
+  const acceptedFriends = friendships.filter(f => f.status === 'accepted');
+
   return (
     <div className="flex h-[calc(100vh-80px)] md:h-[85vh] bg-white dark:bg-slate-900 md:rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden md:m-6 m-0 relative">
 
-      {/* Левая панель — список диалогов */}
+      {/* Левая панель */}
       <div className={`w-full md:w-80 border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 shrink-0 ${activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4">
           <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-indigo-500" />
-            Сообщения
+            <Users className="w-5 h-5 text-indigo-500" />
+            Друзья и Диалоги
           </h2>
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              onClick={() => setViewTab('chats')}
+              className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg transition-all ${viewTab === 'chats' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+            >
+              Диалоги
+            </button>
+            <button
+              onClick={() => setViewTab('friends')}
+              className={`flex-1 flex justify-center items-center gap-1 text-xs font-bold py-2 px-3 rounded-lg transition-all ${viewTab === 'friends' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+            >
+              Друзья
+              {incomingRequests.length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{incomingRequests.length}</span>
+              )}
+            </button>
+          </div>
         </div>
+
         <div className="flex-1 overflow-y-auto">
-          {friends.length === 0 ? (
-            <div className="p-6 text-center">
-              <UserCircle2 className="w-10 h-10 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет диалогов.</p>
-              <button
-                onClick={() => navigate('/network')}
-                className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:text-indigo-700 dark:hover:text-indigo-300"
-              >
-                Найти людей в Хабе →
-              </button>
-            </div>
+          {viewTab === 'chats' ? (
+            friends.length === 0 ? (
+              <div className="p-6 text-center">
+                <MessageSquare className="w-10 h-10 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
+                <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет диалогов.</p>
+                <button
+                  onClick={() => setViewTab('friends')}
+                  className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:text-indigo-700 dark:hover:text-indigo-300"
+                >
+                  Перейти к друзьям →
+                </button>
+              </div>
+            ) : (
+              friends.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setActiveFriend(f)}
+                  className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 dark:border-slate-800/40 ${
+                    activeFriend?.id === f.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'hover:bg-white dark:hover:bg-slate-800/30'
+                  }`}
+                >
+                  {f.friend_avatar ? (
+                    <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                      <UserCircle2 className="w-6 h-6 text-slate-500" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{f.friend_name}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500">Нажмите, чтобы открыть чат</div>
+                  </div>
+                </button>
+              ))
+            )
           ) : (
-            friends.map(f => (
-              <button
-                key={f.id}
-                onClick={() => setActiveFriend(f)}
-                className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 dark:border-slate-800/40 ${
-                  activeFriend?.id === f.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'hover:bg-white dark:hover:bg-slate-800/30'
-                }`}
-              >
-                {f.friend_avatar ? (
-                  <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
+            <div className="p-4 space-y-6">
+              {incomingRequests.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Заявки в друзья</h3>
+                  <div className="space-y-2">
+                    {incomingRequests.map(r => (
+                      <div key={r.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {r.friend_avatar ? (
+                            <img src={r.friend_avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                              <UserCircle2 className="w-5 h-5 text-slate-400" />
+                            </div>
+                          )}
+                          <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{r.friend_name}</div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleRespondRequest(r.id, 'accepted')}
+                            className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 rounded-lg transition"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRespondRequest(r.id, 'declined')}
+                            className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 rounded-lg transition"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+                  Мои друзья
+                  <span className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{acceptedFriends.length}</span>
+                </h3>
+                {acceptedFriends.length === 0 ? (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">У вас пока нет друзей.</p>
+                    <button
+                      onClick={() => navigate('/network')}
+                      className="text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+                    >
+                      Найти в Study Network
+                    </button>
+                  </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                    <UserCircle2 className="w-6 h-6 text-slate-500" />
+                  <div className="space-y-2">
+                    {acceptedFriends.map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          const contact: ChatContact = {
+                            id: f.friend_id!,
+                            friend_id: f.friend_id!,
+                            friend_name: f.friend_name!,
+                            friend_avatar: f.friend_avatar
+                          };
+                          setActiveFriend(contact);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-800/50 hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 transition"
+                      >
+                        {f.friend_avatar ? (
+                          <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                            <UserCircle2 className="w-6 h-6 text-slate-400" />
+                          </div>
+                        )}
+                        <div className="text-left min-w-0">
+                          <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{f.friend_name}</div>
+                          <div className="text-xs text-slate-400 dark:text-slate-500 truncate">Написать сообщение</div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
-                <div className="min-w-0">
-                  <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{f.friend_name}</div>
-                  <div className="text-xs text-slate-400 dark:text-slate-500">Нажмите, чтобы открыть чат</div>
-                </div>
-              </button>
-            ))
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -175,7 +301,7 @@ export default function Messages() {
               </div>
               {/* Кнопки */}
               <div className="flex items-center gap-2 relative">
-                {!friendRequestSent && (
+                {!friendRequestSent && !friendships.some(f => f.friend_id === activeFriend.friend_id && f.status === 'accepted') && (
                   <button
                     onClick={async () => {
                       if (!user || !activeFriend) return;
@@ -203,7 +329,7 @@ export default function Messages() {
                 {showInvite && (
                   <div className="absolute right-0 top-10 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 z-20 overflow-hidden">
                     <div className="p-3 border-b border-slate-100 dark:border-slate-700">
-                      <p className="font-bold text-sm text-slate-800 dark:text-slate-250">Отправить материал в чат</p>
+                      <p className="font-bold text-sm text-slate-800 dark:text-slate-200">Отправить материал в чат</p>
                     </div>
                     <div className="max-h-56 overflow-y-auto divide-y divide-slate-50 dark:divide-slate-700">
                       {myMaterials.length === 0 ? (
@@ -272,13 +398,13 @@ export default function Messages() {
                   type="text"
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
-                  placeholder="Написать сообщение..."
-                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm border border-transparent dark:border-slate-700"
+                  placeholder="Напишите сообщение..."
+                  className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm dark:text-white"
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -286,9 +412,9 @@ export default function Messages() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-            <MessageSquare className="w-16 h-16 mb-4 text-slate-200 dark:text-slate-800" />
-            <p className="font-medium">Выберите диалог слева</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 p-6 hidden md:flex">
+            <MessageSquare className="w-16 h-16 text-slate-200 dark:text-slate-800 mb-4" />
+            <p className="text-lg font-medium text-slate-600 dark:text-slate-300">Выберите друга или диалог слева</p>
             <p className="text-sm mt-1">чтобы начать общение</p>
           </div>
         )}
