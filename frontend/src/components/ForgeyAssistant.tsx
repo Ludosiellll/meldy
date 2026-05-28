@@ -352,7 +352,8 @@ export default function ForgeyAssistant() {
                       onboarding_status: {}
                     }).eq('id', user.id).then(() => {
                       setIsOpen(false);
-                      window.location.href = '/dashboard';
+                      window.dispatchEvent(new Event('profile_updated'));
+                      navigate('/dashboard');
                     });
                   }
                 }}
