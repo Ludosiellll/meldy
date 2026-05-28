@@ -32,6 +32,7 @@ import Pricing from './pages/Pricing';
 import PWAUpdater from './components/PWAUpdater';
 import InstallPWA from './components/InstallPWA';
 import ShortsPlayer from './pages/ShortsPlayer';
+import SharedMaterial from './pages/SharedMaterial';
 
 import { Smartphone } from 'lucide-react';
 
@@ -100,6 +101,7 @@ export default function App() {
         <Route path="/shorts/:id" element={
           <PrivateRoute><ShortsPlayer /></PrivateRoute>
         } />
+        <Route path="/shared/:id" element={<SharedMaterial />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

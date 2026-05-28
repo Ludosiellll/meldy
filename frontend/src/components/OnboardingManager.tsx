@@ -67,6 +67,21 @@ const DASHBOARD_STEPS: Step[] = [
     placement: 'top',
   },
   {
+    target: '.tour-step-gradebook',
+    content: (
+      <div className="text-left space-y-1">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-amber-500" />
+          Умный Дневник
+        </h4>
+        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
+          Загрузи фото своего бумажного дневника или зачётки, и мой алгоритм Smart Scan автоматически распознает предметы и оценки! Веди дневник и получай за это XP.
+        </p>
+      </div>
+    ),
+    placement: 'top',
+  },
+  {
     target: '.tour-step-xp',
     content: (
       <div className="text-left space-y-1">

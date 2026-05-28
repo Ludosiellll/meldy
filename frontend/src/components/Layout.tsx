@@ -51,7 +51,7 @@ const navGroups = [
     title: 'Аналитика',
     items: [
       { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
-      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Успеваемость' },
+      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Успеваемость', className: 'tour-step-desktop-gradebook' },
       { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
       { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-desktop-chat' },
@@ -75,7 +75,8 @@ const teacherNavGroups = [
 const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
   { to: '/library',   icon: BookOpen,         label: 'Материалы', className: 'tour-step-mobile-library' },
-  { to: '/messages',  icon: MessageCircle,    label: 'Сообщения' },
+  { to: '/chat',      icon: MessageSquare,    label: 'Чат', className: 'tour-step-mobile-chat' },
+  { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Оценки', className: 'tour-step-mobile-gradebook' },
   { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
 

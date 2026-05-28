@@ -14,6 +14,7 @@ import { playTTS, stopTTS, pauseTTS, resumeTTS, getTTSPlaybackRate, setTTSPlayba
 import { supabase } from '../lib/supabase';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
 import toast from 'react-hot-toast';
+import { Share2 } from 'lucide-react';
 
 interface PodcastLine {
   speaker: 'Макс' | 'Софья' | string;
@@ -189,8 +190,36 @@ export default function ExpressPrepView({
     if (user?.id) updateQuestProgress(user.id, 'podcast', 1);
   };
 
+  const handleShare = async () => {
+    if (!materialId) return;
+    try {
+      const { error } = await supabase
+        .from('materials')
+        .update({ is_public: true })
+        .eq('id', materialId);
+      
+      if (error) throw error;
+      
+      const shareUrl = `${window.location.origin}/shared/${materialId}`;
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Ссылка скопирована! Теперь вы можете отправить её друзьям.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Не удалось создать ссылку');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <button
+          onClick={handleShare}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
+        >
+          <Share2 className="w-4 h-4" />
+          Поделиться с друзьями
+        </button>
+      </div>
       <AnimatePresence mode="wait">
         {/* ВКЛАДКА 1: Шпаргалка */}
         {tab === 'cheatsheet' && (

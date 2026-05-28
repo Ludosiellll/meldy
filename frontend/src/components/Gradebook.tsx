@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload } from 'lucide-react';
@@ -33,9 +34,31 @@ interface Grade {
 export default function Gradebook() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [grades, setGrades] = useState<Grade[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const { data: subjects = [], isLoading: isLoadingSubjects } = useQuery({
+    queryKey: ['academic_subjects', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase.from('academic_subjects').select('*').eq('user_id', user.id);
+      if (error) throw error;
+      return data as Subject[];
+    },
+    enabled: !!user?.id
+  });
+
+  const { data: grades = [], isLoading: isLoadingGrades } = useQuery({
+    queryKey: ['academic_grades', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase.from('academic_grades').select('*').eq('user_id', user.id).order('date', { ascending: false });
+      if (error) throw error;
+      return data as Grade[];
+    },
+    enabled: !!user?.id
+  });
+
+  const loading = isLoadingSubjects || isLoadingGrades;
 
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [newSubName, setNewSubName] = useState('');
@@ -61,55 +84,49 @@ export default function Gradebook() {
     }
   }, [scanMessages, scanning]);
 
-  useEffect(() => {
-    fetchData();
-  }, [user?.id]);
-
-  const fetchData = async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    const [{ data: subData }, { data: grData }] = await Promise.all([
-      supabase.from('academic_subjects').select('*').eq('user_id', user.id),
-      supabase.from('academic_grades').select('*').eq('user_id', user.id).order('date', { ascending: false })
-    ]);
-    if (subData) setSubjects(subData);
-    if (grData) setGrades(grData);
-    setLoading(false);
-  };
-
-  const handleAddSubject = async () => {
-    if (!user || !newSubName.trim()) return;
-    const { data } = await supabase.from('academic_subjects').insert({
-      user_id: user.id,
-      name: newSubName.trim(),
-      target_grade: newSubTarget,
-      color: '#6366f1' // Default color
-    }).select().single();
-    
-    if (data) {
-      setSubjects([...subjects, data]);
+  const addSubjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!user || !newSubName.trim()) throw new Error('No user or name');
+      const { data, error } = await supabase.from('academic_subjects').insert({
+        user_id: user.id,
+        name: newSubName.trim(),
+        target_grade: newSubTarget,
+        color: '#6366f1'
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
       setShowAddSubject(false);
       setNewSubName('');
       toast.success('Предмет успешно добавлен!');
     }
-  };
+  });
 
-  const handleAddGrade = async () => {
-    if (!user || !gradeSubId) return;
-    const { data } = await supabase.from('academic_grades').insert({
-      user_id: user.id,
-      subject_id: gradeSubId,
-      value: gradeValue,
-      date: new Date().toISOString().split('T')[0]
-    }).select().single();
-    
-    if (data) {
-      setGrades([data, ...grades]);
+  const handleAddSubject = () => addSubjectMutation.mutate();
+
+  const addGradeMutation = useMutation({
+    mutationFn: async () => {
+      if (!user || !gradeSubId) throw new Error('No user or subject');
+      const { data, error } = await supabase.from('academic_grades').insert({
+        user_id: user.id,
+        subject_id: gradeSubId,
+        value: gradeValue,
+        date: new Date().toISOString().split('T')[0]
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
       setShowAddGrade(false);
-      updateQuestProgress(user.id, 'grade', 1);
+      if (user) updateQuestProgress(user.id, 'grade', 1);
       toast.success('Оценка сохранена!');
     }
-  };
+  });
+
+  const handleAddGrade = () => addGradeMutation.mutate();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -195,6 +212,8 @@ export default function Gradebook() {
       }
       
       if (data.grades && data.grades.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
+        queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
         updateQuestProgress(user!.id, 'grade', data.grades.length);
         toast.success(`Распознано и добавлено ${data.grades.length} оценок!`);
       }
