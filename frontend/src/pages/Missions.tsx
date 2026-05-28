@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, ChevronDown, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock } from 'lucide-react';
+import { Gamepad2, BookOpen, AlertCircle, CheckCircle2, ChevronRight, ChevronDown, HelpCircle, Trophy, Sparkles, X, ArrowRight, Lock, Unlock, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';

@@ -8,7 +8,6 @@ interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   type?: 'danger' | 'warning' | 'info';
-  type?: 'danger' | 'warning' | 'info';
   icon?: React.ElementType;
   checkboxLabel?: string;
   onCheckboxChange?: (checked: boolean) => void;
