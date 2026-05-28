@@ -18,43 +18,48 @@ import { Moon, Sun } from 'lucide-react';
 
 const navGroups = [
   {
-    title: 'Платформа',
+    title: 'Основное',
     items: [
       { to: '/dashboard',   icon: LayoutDashboard, label: 'Дашборд' },
-      { to: '/network',     icon: Globe,           label: 'Study Network' },
-      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
-      { to: '/profile',     icon: User,            label: 'Мой профиль' },
-      { to: '/career',      icon: Briefcase,       label: 'Карьерный трек' },
-      { to: '/pricing',     icon: CreditCard,      label: 'Тарифы PRO' },
+      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-desktop-chat' },
+      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Успеваемость', className: 'tour-step-desktop-gradebook' },
     ]
   },
   {
-    title: 'Обучение',
+    title: 'Обучение и Практика',
     items: [
       { to: '/analyze',     icon: Zap,             label: 'Добавить материал', className: 'tour-step-desktop-upload' },
       { to: '/library',     icon: BookOpen,        label: 'Библиотека', className: 'tour-step-desktop-library' },
-      { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
       { to: '/courses',     icon: Layers,          label: 'Мои курсы' },
-      { to: '/teacher',     icon: Users,           label: 'Мой класс' },
-    ]
-  },
-  {
-    title: 'Практика',
-    items: [
-      { to: '/play',        icon: Gamepad2,        label: 'Сюжетные миссии' },
       { to: '/review',      icon: Brain,           label: 'Смарт-карточки' },
       { to: '/exam',        icon: Award,           label: 'Устный экзамен', className: 'tour-step-desktop-exam' },
       { to: '/quick-prep',  icon: Clock,           label: 'Повтор за 5 минут' },
     ]
   },
   {
-    title: 'Аналитика',
+    title: 'Аналитика и Геймификация',
     items: [
       { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
-      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Успеваемость', className: 'tour-step-desktop-gradebook' },
       { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
+      { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
+      { to: '/play',        icon: Gamepad2,        label: 'Сюжетные миссии' },
+      { to: '/career',      icon: Briefcase,       label: 'Карьерный трек' },
+    ]
+  },
+  {
+    title: 'Комьюнити',
+    items: [
+      { to: '/network',     icon: Globe,           label: 'Study Network' },
+      { to: '/messages',    icon: MessageCircle,   label: 'Сообщения' },
+      { to: '/teacher',     icon: Users,           label: 'Мой класс' },
+    ]
+  },
+  {
+    title: 'Аккаунт',
+    items: [
+      { to: '/profile',     icon: User,            label: 'Мой профиль' },
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
-      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-desktop-chat' },
+      { to: '/pricing',     icon: CreditCard,      label: 'Тарифы PRO' },
     ]
   }
 ];
