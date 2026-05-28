@@ -243,6 +243,8 @@ export default function Gradebook() {
     ? subjectStats.reduce((sum, s) => sum + s.avg, 0) / subjectStats.filter(s => s.avg > 0).length 
     : 0;
 
+  const maxScore = subjects.some(s => s.target_grade > 5) || grades.some(g => g.value > 5) ? 10.0 : 5.0;
+
   return (
     <div className="space-y-6">
       {/* Header Widget */}
@@ -251,7 +253,7 @@ export default function Gradebook() {
           <p className="text-white/80 font-bold uppercase tracking-wider text-xs mb-1">Моя успеваемость (GPA)</p>
           <div className="flex items-end gap-3">
             <span className="text-4xl font-black">{overallAvg ? overallAvg.toFixed(2) : '-'}</span>
-            <span className="text-white/60 text-sm mb-1 pb-0.5">/ 5.0</span>
+            <span className="text-white/60 text-sm mb-1 pb-0.5">/ {maxScore.toFixed(1)}</span>
           </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -259,7 +261,7 @@ export default function Gradebook() {
             <Camera className="w-5 h-5" />
             <span className="text-[10px] font-bold">Скан по фото</span>
           </button>
-          <button onClick={() => setShowAddGrade(true)} className="flex-1 sm:flex-none bg-white text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition flex flex-col items-center gap-1 shadow-sm">
+          <button onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="flex-1 sm:flex-none bg-white text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition flex flex-col items-center gap-1 shadow-sm">
             <Plus className="w-5 h-5" />
             <span className="text-[10px] font-bold">Оценка</span>
           </button>
@@ -271,7 +273,7 @@ export default function Gradebook() {
           <BookOpen className="w-5 h-5 text-indigo-500" />
           Мои предметы
         </h2>
-        <button onClick={() => setShowAddSubject(true)} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:opacity-80 transition">
+        <button onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:opacity-80 transition">
           + Добавить предмет
         </button>
       </div>
