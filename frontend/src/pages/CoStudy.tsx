@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Send, Users, Play, Square, MessageSquare, Clock, Heart, Volume2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, BookOpen, Send, Users, Play, Square, MessageSquare, Clock, Heart, Volume2, ShieldAlert, Share2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getProfile } from '../api/social';
@@ -425,6 +426,16 @@ export default function CoStudy() {
             </h1>
           </div>
         </div>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(window.location.href);
+            toast.success('Ссылка на комнату скопирована!');
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition shrink-0"
+        >
+          <Share2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Пригласить друга</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -543,22 +554,29 @@ export default function CoStudy() {
                     <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{u.name}</span>
                   </div>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                    {u.user_id === user?.id ? (
-                      <CustomSelect 
-                        value={myStatus} 
-                        onChange={val => handleUpdateStatus(val)}
-                        options={[
-                          { value: 'Изучает конспект', label: 'Изучаю конспект' },
-                          { value: 'Решает тест', label: 'Решаю тест' },
-                          { value: 'Общается в чате', label: 'Общаюсь' },
-                          { value: 'Отошел', label: 'Отошел' }
-                        ]}
-                        className="bg-transparent font-bold outline-none cursor-pointer text-indigo-600 dark:text-indigo-400 w-36"
-                      />
-                    ) : u.status}
+                    {u.status}
                   </span>
                 </div>
               ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+              {myStatus !== 'Изучил конспект ✅' ? (
+                <button 
+                  onClick={() => handleUpdateStatus('Изучил конспект ✅')} 
+                  className="w-full py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Отметить как прочитанное
+                </button>
+              ) : (
+                <button 
+                  onClick={() => handleUpdateStatus('Изучает конспект')} 
+                  className="w-full py-2 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-xs rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  Вернуться к изучению
+                </button>
+              )}
             </div>
           </div>
 
