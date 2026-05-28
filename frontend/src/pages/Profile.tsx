@@ -15,6 +15,7 @@ import { CustomSelect } from '../components/CustomSelect';
 export default function Profile() {
   const { user } = useAuth();
   const { id: profileId } = useParams();
+  const navigate = useNavigate();
   const targetId = profileId || user?.id;
   
   const [profile, setProfile] = useState<UserProfile | null>(null);
