@@ -5,7 +5,7 @@ import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, D
 import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus, Users, Check, X, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getMaterials } from '../api/materials';
+import { getMaterials, updateMaterialVisibility } from '../api/materials';
 import { getProfile } from '../api/social';
 import toast from 'react-hot-toast';
 
@@ -115,7 +115,13 @@ export default function Messages() {
 
   const handleSendInvite = async (material: Material) => {
     if (!user || !activeFriend) return;
-    const inviteText = `📚 Приглашаю изучить материал: «${material.title}» (${material.subject || 'Без предмета'}) — открой в своей библиотеке или найди в Study Network!`;
+    
+    // Сделаем материал публичным, чтобы получатель мог его открыть
+    if (!material.is_public) {
+      await updateMaterialVisibility(material.id, true);
+    }
+    
+    const inviteText = `[MATERIAL_INVITE:${material.id}] 📚 Приглашаю изучить материал: «${material.title}» (${material.subject || 'Без предмета'})`;
     setShowInvite(false);
     const msg = await sendMessage(user.id, activeFriend.friend_id!, inviteText);
     if (msg) {
@@ -442,7 +448,9 @@ export default function Messages() {
               ) : (
                 messages.map(msg => {
                   const isMe = msg.sender_id === user?.id;
-                  const isInvite = msg.content.startsWith('📚');
+                  const isLegacyInvite = msg.content.startsWith('📚');
+                  const isNewInvite = msg.content.startsWith('[MATERIAL_INVITE:');
+                  const isInvite = isNewInvite || isLegacyInvite;
                   return (
                     <motion.div
                       initial={{ opacity: 0, y: 5 }}
@@ -457,12 +465,45 @@ export default function Messages() {
                             ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-slate-800 dark:text-slate-100 rounded-tl-sm shadow-sm'
                             : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'
                       }`}>
-                        {isInvite && !isMe && (
-                          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold text-xs mb-1">
-                            <Link2 className="w-3 h-3" /> Приглашение к материалу
-                          </div>
-                        )}
-                        {msg.content}
+                        {(() => {
+                          if (isNewInvite) {
+                            const match = msg.content.match(/^\[MATERIAL_INVITE:([a-zA-Z0-9-]+)\]\s*(.*)$/);
+                            if (match) {
+                              const materialId = match[1];
+                              const text = match[2];
+                              return (
+                                <div>
+                                  {(!isMe || true) && (
+                                    <div className={`flex items-center gap-1 font-bold text-xs mb-1.5 ${isMe ? 'text-indigo-200' : 'text-amber-600 dark:text-amber-400'}`}>
+                                      <Link2 className="w-3 h-3" /> Приглашение к материалу
+                                    </div>
+                                  )}
+                                  <div className="mb-2">{text}</div>
+                                  <button
+                                    onClick={() => navigate(`/shared/${materialId}`)}
+                                    className={`block w-full text-center px-4 py-2 mt-2 rounded-lg font-bold text-sm transition ${
+                                      isMe 
+                                        ? 'bg-white/20 hover:bg-white/30 text-white' 
+                                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
+                                    }`}
+                                  >
+                                    Открыть материал
+                                  </button>
+                                </div>
+                              );
+                            }
+                          }
+                          return (
+                            <>
+                              {isLegacyInvite && !isMe && (
+                                <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-bold text-xs mb-1">
+                                  <Link2 className="w-3 h-3" /> Приглашение к материалу
+                                </div>
+                              )}
+                              {msg.content}
+                            </>
+                          );
+                        })()}
                         <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-indigo-200 dark:text-indigo-300' : 'text-slate-400 dark:text-slate-500'}`}>
                           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
