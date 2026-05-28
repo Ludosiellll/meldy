@@ -40,6 +40,9 @@ export default function CoStudy() {
   // Presence (кто в комнате)
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const [myStatus, setMyStatus] = useState('Изучает конспект');
+  const [roomProfiles, setRoomProfiles] = useState<Record<string, any>>({});
+  const [hoveredUser, setHoveredUser] = useState<string | null>(null);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
 
   // Pomodoro таймер
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
@@ -130,6 +133,19 @@ export default function CoStudy() {
     }
   }, [materialId]);
 
+  // Загрузка профилей для мини-карточек
+  useEffect(() => {
+    const missing = onlineUsers.filter(u => !roomProfiles[u.user_id]);
+    if (missing.length > 0) {
+      missing.forEach(async u => {
+        const p = await getProfile(u.user_id);
+        if (p) {
+          setRoomProfiles(prev => ({ ...prev, [u.user_id]: p }));
+        }
+      });
+    }
+  }, [onlineUsers, roomProfiles]);
+
   // 3. Реализация Supabase Realtime (Presence + Broadcast + DB Changes)
   useEffect(() => {
     if (!materialId || !user || !profile) return;
@@ -161,7 +177,8 @@ export default function CoStudy() {
       // Прослушивание синхронизации таймера
       .on('broadcast', { event: 'timer' }, ({ payload }) => {
         if (payload.action === 'start') {
-          const endTime = payload.endTime;
+          const remaining = payload.remaining || payload.duration;
+          const endTime = Date.now() + remaining * 1000;
           timerEndTimeRef.current = endTime;
           setTimerDuration(payload.duration);
           setTimerActive(true);
@@ -180,22 +197,25 @@ export default function CoStudy() {
         } else if (payload.action === 'sync_request') {
           // Если у нас запущен таймер, отправляем его данные новому участнику
           if (timerEndTimeRef.current && timerEndTimeRef.current > Date.now()) {
+            const remaining = Math.floor((timerEndTimeRef.current - Date.now()) / 1000);
             coChannel.send({
               type: 'broadcast',
               event: 'timer',
               payload: {
                 action: 'sync_response',
-                endTime: timerEndTimeRef.current,
-                duration: timerDuration
+                duration: timerDuration,
+                remaining
               }
             });
           }
         } else if (payload.action === 'sync_response') {
-          if (payload.endTime > Date.now()) {
-            timerEndTimeRef.current = payload.endTime;
+          const remaining = payload.remaining;
+          if (remaining && remaining > 0) {
+            const endTime = Date.now() + remaining * 1000;
+            timerEndTimeRef.current = endTime;
             setTimerDuration(payload.duration);
             setTimerActive(true);
-            localStorage.setItem(`co_timer_end_${materialId}`, payload.endTime.toString());
+            localStorage.setItem(`co_timer_end_${materialId}`, endTime.toString());
             localStorage.setItem(`co_timer_dur_${materialId}`, payload.duration.toString());
           }
         }
@@ -261,21 +281,19 @@ export default function CoStudy() {
     myStatusRef.current = myStatus;
   }, [myStatus]);
 
-  // Обновление присутствия при смене статуса
-  useEffect(() => {
+  // Обновление статуса Presence локально и на сервере
+  const handleUpdateStatus = async (status: string) => {
+    setMyStatus(status);
+    setOnlineUsers(prev => prev.map(u => u.user_id === user?.id ? { ...u, status } : u));
+    
     if (coChannelRef.current && user && profile) {
-      coChannelRef.current.track({
+      await coChannelRef.current.track({
         user_id: user.id,
         name: profile.full_name || 'Студент',
         avatar: profile.avatar_url,
-        status: myStatus
+        status: status
       });
     }
-  }, [myStatus, user?.id, profile]);
-
-  // Обновление статуса Presence локально
-  const handleUpdateStatus = (status: string) => {
-    setMyStatus(status);
   };
 
   // 4. Работа с Pomodoro-таймером локально (вычисление по endTime для борьбы с дрейфом в фоне)
@@ -307,7 +325,7 @@ export default function CoStudy() {
       coChannelRef.current.send({
         type: 'broadcast',
         event: 'timer',
-        payload: { action: 'start', endTime, duration }
+        payload: { action: 'start', duration, remaining: duration }
       });
     }
 
@@ -426,7 +444,36 @@ export default function CoStudy() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto min-h-screen">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto min-h-screen relative">
+      {/* МИНИ ПРОФИЛЬ ПРИ НАВЕДЕНИИ */}
+      {hoveredUser && roomProfiles[hoveredUser] && (
+        <div 
+          className="fixed z-50 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-4 pointer-events-none transform -translate-y-1/2"
+          style={{ left: hoverPosition.x, top: hoverPosition.y }}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            {roomProfiles[hoveredUser].avatar_url ? (
+              <img src={roomProfiles[hoveredUser].avatar_url} alt="avatar" className="w-12 h-12 rounded-full object-cover shadow-sm" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500">
+                {roomProfiles[hoveredUser].full_name?.[0]}
+              </div>
+            )}
+            <div>
+              <div className="font-bold text-slate-900 dark:text-slate-100 line-clamp-1">{roomProfiles[hoveredUser].full_name}</div>
+              {roomProfiles[hoveredUser].public_id && (
+                <div className="text-xs font-mono text-indigo-500 font-bold">#{roomProfiles[hoveredUser].public_id}</div>
+              )}
+            </div>
+          </div>
+          {roomProfiles[hoveredUser].university && (
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg">
+              🎓 {roomProfiles[hoveredUser].university}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* HEADER */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
@@ -618,18 +665,27 @@ export default function CoStudy() {
             <div className="space-y-3 max-h-[180px] overflow-y-auto custom-scrollbar">
               {onlineUsers.map(u => (
                 <div key={u.user_id} className="flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div 
+                    className="flex items-center gap-2.5 min-w-0 cursor-pointer group"
+                    onMouseEnter={(e) => { 
+                      setHoveredUser(u.user_id);
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoverPosition({ x: rect.left - 270, y: rect.top + rect.height / 2 });
+                    }} 
+                    onMouseLeave={() => setHoveredUser(null)}
+                    onClick={() => navigate(`/profile/${u.user_id}`)}
+                  >
                     <div className="relative">
                       {u.avatar ? (
-                        <img src={u.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-700" />
+                        <img src={u.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-700 group-hover:ring-2 ring-indigo-500 transition-all" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 group-hover:ring-2 ring-indigo-500 transition-all">
                           {u.name?.[0] || '?'}
                         </div>
                       )}
                       <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
                     </div>
-                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{u.name}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate group-hover:text-indigo-500 transition-colors">{u.name}</span>
                   </div>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                     {u.status}
