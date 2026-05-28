@@ -130,64 +130,6 @@ const EXAM_STEPS: Step[] = [
   }
 ];
 
-const CLASS_STEPS: Step[] = [
-  {
-    target: 'body',
-    placement: 'center',
-    content: (
-      <div className="text-left space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Bot className="w-6 h-6 animate-bounce" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">Твой учебный класс!</h3>
-            <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Совместное обучение</span>
-          </div>
-        </div>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium pt-2">
-          Здесь происходит управление совместным обучением. Давай я помогу тебе разобраться!
-        </p>
-      </div>
-    ),
-  },
-  {
-    target: '.tour-step-role-toggle',
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Смена роли (Студент / Учитель)</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Ты можешь переключаться между ролями прямо здесь или на Дашборде. Роль преподавателя позволяет создавать свои классы и давать задания.
-        </p>
-      </div>
-    ),
-    placement: 'bottom',
-  },
-  {
-    target: '.tour-step-invite',
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Код приглашения</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Скопируйте этот код и передайте студентам. Они смогут присоединиться к классу со своих аккаунтов.
-        </p>
-      </div>
-    ),
-    placement: 'bottom',
-  },
-  {
-    target: '.tour-step-leaderboard',
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Рейтинг класса</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Следи за успехами одноклассников. Лидерборд автоматически ранжирует участников по XP за все время и за последние 7 дней!
-        </p>
-      </div>
-    ),
-    placement: 'top',
-  }
-];
 
 export default function OnboardingManager() {
   const { user } = useAuth();
@@ -256,16 +198,6 @@ export default function OnboardingManager() {
           setRun(true);
         }
       }, 100);
-    } else if ((location.pathname === '/teacher' || location.pathname === '/groups') && !status['class_tour']) {
-      const mappedSteps = CLASS_STEPS.map(mapStep);
-      setTimeout(() => {
-        if (document.querySelector('.tour-step-role-toggle')) {
-          setSteps(mappedSteps);
-          setTourKey('class_tour');
-          markOnboardingTourSeen(user.id, 'class_tour');
-          setRun(true);
-        }
-      }, 100);
     }
   };
 
@@ -298,7 +230,7 @@ export default function OnboardingManager() {
         getProfile(user.id).then(p => {
           if (!p) return;
           const current = p.onboarding_status || {};
-          const next = { ...current, dashboard_tour: true, exam_tour: true, class_tour: true, skipped_all: true };
+          const next = { ...current, dashboard_tour: true, exam_tour: true, skipped_all: true };
           supabase.from('profiles').update({ onboarding_status: next }).eq('id', user.id).then();
         });
       }
