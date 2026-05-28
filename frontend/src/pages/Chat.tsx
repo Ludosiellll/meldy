@@ -12,13 +12,15 @@ import { CustomSelect } from '../components/CustomSelect';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
 import { updateQuestProgress } from '../api/quests';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
 import toast from 'react-hot-toast';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 export default function Chat() {
   const { user } = useAuth();
   const { confirm } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
@@ -98,12 +100,8 @@ export default function Chat() {
     if (!input.trim() || !selectedId || !user || loading) return;
     
     // Проверка лимитов (1 токен за сообщение)
-    const limitCheck = await checkAILimit(user.id, 1);
-    if (!limitCheck.allowed) {
-      toast.error('Не хватает энергии ИИ (нужно 1). Перейдите на PRO-тариф!');
-      navigate('/pricing');
-      return;
-    }
+    const ok = await verifyEnergy(user.id, 1, 'Отправка сообщения');
+    if (!ok) return;
     await incrementAIUsage(user.id, 1);
     
     const userMsg = { role: 'user', content: input };
@@ -282,7 +280,7 @@ export default function Chat() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Напишите вопрос по материалу... (1 ⚡ ИИ)"
+                  placeholder="Напишите вопрос по материалу..."
                   className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
                   disabled={loading}
                 />

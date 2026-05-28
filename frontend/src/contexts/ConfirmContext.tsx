@@ -8,6 +8,10 @@ interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   type?: 'danger' | 'warning' | 'info';
+  type?: 'danger' | 'warning' | 'info';
+  icon?: React.ElementType;
+  checkboxLabel?: string;
+  onCheckboxChange?: (checked: boolean) => void;
 }
 
 interface ConfirmContextType {
@@ -20,12 +24,14 @@ const ConfirmContext = createContext<ConfirmContextType | null>(null);
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isAlert, setIsAlert] = useState(false);
+  const [isChecked, setIsChecked] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolvePromiseRef = useRef<((value: boolean) => void) | null>(null);
 
   const confirm = (opts: ConfirmOptions) => {
     setOptions(opts);
     setIsAlert(false);
+    setIsChecked(false);
     setIsOpen(true);
     return new Promise<boolean>((resolve) => {
       resolvePromiseRef.current = resolve;
@@ -43,6 +49,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   const handleConfirm = () => {
     setIsOpen(false);
+    if (options?.onCheckboxChange) {
+      options.onCheckboxChange(isChecked);
+    }
     if (resolvePromiseRef.current) {
       resolvePromiseRef.current(true);
       resolvePromiseRef.current = null;
@@ -83,12 +92,25 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                   options.type === 'info' ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400' :
                   'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
                 }`}>
-                  <AlertTriangle className="w-8 h-8" />
+                  {options.icon ? <options.icon className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">{options.title}</h3>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">
                   {options.message}
                 </p>
+                {options.checkboxLabel && !isAlert && (
+                  <label className="flex items-center gap-3 w-full text-left bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl cursor-pointer mb-6 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded text-indigo-600 bg-white border-slate-300 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700" 
+                      checked={isChecked}
+                      onChange={(e) => setIsChecked(e.target.checked)}
+                    />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 select-none">
+                      {options.checkboxLabel}
+                    </span>
+                  </label>
+                )}
                 <div className="flex w-full gap-3">
                   {!isAlert && (
                     <button

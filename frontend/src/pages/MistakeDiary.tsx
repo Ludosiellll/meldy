@@ -7,8 +7,9 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { useSound } from '../hooks/useSound';
 import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
 import { useNavigate } from 'react-router-dom';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface Mistake {
   id: string;
@@ -25,6 +26,7 @@ export default function MistakeDiary() {
   const { user } = useAuth();
   const { confirm, alert } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
@@ -50,12 +52,8 @@ export default function MistakeDiary() {
     const toPractice = openMistakes.slice(0, 5);
     
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 2);
-      if (!limitCheck.allowed) {
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 2). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
-        return;
-      }
+      const ok = await verifyEnergy(user.id, 2, 'Работа над ошибками');
+      if (!ok) return;
       await incrementAIUsage(user.id, 2);
     }
 
@@ -360,8 +358,7 @@ export default function MistakeDiary() {
                 </>
               ) : (
                 <>
-                  <Zap className="w-4 h-4 text-amber-200 animate-pulse" />
-                  ⚡ Запустить AI-работу над ошибками (2 ⚡ ИИ)
+                  ⚡ Запустить AI-работу над ошибками
                 </>
               )}
             </button>

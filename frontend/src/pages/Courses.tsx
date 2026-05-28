@@ -16,7 +16,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import SummaryView from '../components/SummaryView';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface CourseMaterialItem {
   id: string;
@@ -56,6 +57,7 @@ export default function Courses() {
   // Основные состояния режимов
   const [view, setView] = useState<'list' | 'builder' | 'detail'>('list');
   const [courses, setCourses] = useState<Course[]>([]);
+  const { verifyEnergy } = useEnergyConfirm();
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   
   // Состояния для конструктора курса
@@ -218,12 +220,8 @@ export default function Courses() {
     }
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 5);
-      if (!limitCheck.allowed) {
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
-        return;
-      }
+      const ok = await verifyEnergy(user.id, 5, 'Генерация курса');
+      if (!ok) return;
       await incrementAIUsage(user.id, 5);
     }
 
@@ -836,7 +834,7 @@ export default function Courses() {
                   className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 dark:hover:shadow-none hover:scale-[1.02] transition-all disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Сгенерировать с ИИ (5 ⚡ ИИ)
+                  Сгенерировать с ИИ
                 </button>
               </div>
             </div>

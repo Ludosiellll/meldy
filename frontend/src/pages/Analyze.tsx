@@ -14,6 +14,7 @@ import { updateQuestProgress, recordStudyActivity } from '../api/quests';
 import { hasBadWords } from '../utils/moderation';
 import toast from 'react-hot-toast';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 const initAgents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
@@ -41,6 +42,7 @@ export default function Analyze() {
   const textLengthRef = useRef<number>(0);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
 
   const addToast = (text: string) => {
     const id = ++toastId.current;
@@ -69,11 +71,9 @@ export default function Analyze() {
     
     // ПРОВЕРКА ЛИМИТОВ ИИ
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 20);
-      if (!limitCheck.allowed) {
+      const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
+      if (!ok) {
         setState(p => ({ ...p, phase: 'upload' }));
-        toast.error('Не хватает энергии ИИ (нужно 20). Перейдите на PRO-тариф для безлимитного доступа!');
-        navigate('/pricing');
         return;
       }
       await incrementAIUsage(user.id, 20);

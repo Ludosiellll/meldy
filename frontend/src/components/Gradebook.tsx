@@ -9,6 +9,7 @@ import { checkAILimit, incrementAIUsage } from '../api/limits';
 import { updateQuestProgress } from '../api/quests';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -35,6 +36,7 @@ export default function Gradebook() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { verifyEnergy } = useEnergyConfirm();
 
   const { data: subjects = [], isLoading: isLoadingSubjects } = useQuery({
     queryKey: ['academic_subjects', user?.id],
@@ -183,12 +185,8 @@ export default function Gradebook() {
     
     // Проверка лимитов для AI (1 токен за Smart Scan)
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 1);
-      if (!limitCheck.allowed) {
-        toast.error('Не хватает энергии ИИ (нужно 1). Перейдите на PRO!');
-        navigate('/pricing');
-        return;
-      }
+      const ok = await verifyEnergy(user.id, 1, 'Smart Scan оценок');
+      if (!ok) return;
     }
 
     const newUserMsg: ChatMessage = {
@@ -370,7 +368,7 @@ export default function Gradebook() {
         <div className="flex gap-2 w-full sm:w-auto">
           <button onClick={() => setShowScan(true)} className="flex-1 sm:flex-none bg-white/20 hover:bg-white/30 backdrop-blur-sm p-3 rounded-xl transition flex flex-col items-center gap-1">
             <Camera className="w-5 h-5" />
-            <span className="text-[10px] font-bold">Скан по фото (1 ⚡)</span>
+            <span className="text-[10px] font-bold">Скан по фото</span>
           </button>
           <button onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="flex-1 sm:flex-none bg-white text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition flex flex-col items-center gap-1 shadow-sm">
             <Plus className="w-5 h-5" />

@@ -15,7 +15,8 @@ import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } f
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface Mission {
   id: number;
@@ -31,6 +32,7 @@ export default function Missions() {
   const { user } = useAuth();
   const { confirm, alert } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
   const [searchParams] = useSearchParams();
   const queryMaterialId = searchParams.get('materialId');
 
@@ -104,11 +106,9 @@ export default function Missions() {
               const context = (found.original_text || summary || '').slice(0, 15000);
 
               if (user?.id) {
-                const limitCheck = await checkAILimit(user.id, 2);
-                if (!limitCheck.allowed) {
+                const ok = await verifyEnergy(user.id, 2, 'Генерация игры');
+                if (!ok) {
                   setPhase('select');
-                  await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 2). Перейдите на PRO-тариф!', type: 'danger' });
-                  navigate('/pricing');
                   return;
                 }
                 await incrementAIUsage(user.id, 2);
@@ -167,11 +167,9 @@ export default function Missions() {
     const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 2);
-      if (!limitCheck.allowed) {
+      const ok = await verifyEnergy(user.id, 2, 'Генерация игры');
+      if (!ok) {
         setPhase('select');
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 2). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
         return;
       }
       await incrementAIUsage(user.id, 2);
@@ -322,7 +320,7 @@ export default function Missions() {
                 onClick={startGame}
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
               >
-                <ArrowRight className="w-5 h-5" /> Начать игру (2 ⚡ ИИ)
+                <Zap className="w-5 h-5" /> Начать игру
               </button>
             </div>
           </motion.div>

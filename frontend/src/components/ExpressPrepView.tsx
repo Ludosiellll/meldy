@@ -12,7 +12,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { playTTS, stopTTS, pauseTTS, resumeTTS, getTTSPlaybackRate, setTTSPlaybackRate } from '../utils/tts';
 import { supabase } from '../lib/supabase';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import toast from 'react-hot-toast';
 import { Share2 } from 'lucide-react';
 
@@ -34,8 +35,9 @@ export default function ExpressPrepView({
 }) {
   const { user } = useAuth();
   const { alert } = useConfirm();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
+  const [searchParams] = useSearchParams();
 
   // Вытаскиваем данные из составного JSON
   const cheatsheet = summaryJson?.cheatsheet || '';
@@ -62,11 +64,9 @@ export default function ExpressPrepView({
     }
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 5);
-      if (!limitCheck.allowed) {
+      const ok = await verifyEnergy(user.id, 5, 'Создание шпаргалки');
+      if (!ok) {
         setIsGenerating(false);
-        toast.error('Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф для безлимитного доступа!');
-        navigate('/pricing');
         return;
       }
       await incrementAIUsage(user.id, 5);
@@ -255,7 +255,7 @@ export default function ExpressPrepView({
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                        Создать шпаргалку за 5 минут (5 ⚡ ИИ)
+                        Создать шпаргалку за 5 минут
                       </>
                     )}
                   </button>

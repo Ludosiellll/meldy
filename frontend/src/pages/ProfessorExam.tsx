@@ -16,7 +16,8 @@ import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
 import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 // Web Speech API
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -34,6 +35,7 @@ export default function ProfessorExam() {
   const { user } = useAuth();
   const { confirm, alert } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
 
   // Восстановление состояния из sessionStorage
   const savedStateStr = sessionStorage.getItem('studyforge_professor_exam_state');
@@ -291,11 +293,9 @@ export default function ProfessorExam() {
     const recentMistakes = (mistakesRes.data || []).map(m => m.topic).filter(Boolean);
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 1);
-      if (!limitCheck.allowed) {
+      const ok = await verifyEnergy(user.id, 1, 'AI-Экзаменатор');
+      if (!ok) {
         setPhase(clearHistory ? 'select' : 'evaluation');
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 1). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
         return;
       }
       await incrementAIUsage(user.id, 1);
@@ -337,11 +337,9 @@ export default function ProfessorExam() {
     const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 1);
-      if (!limitCheck.allowed) {
+      const ok = await verifyEnergy(user.id, 1, 'Оценка ответа');
+      if (!ok) {
         setPhase('question');
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 1). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
         return;
       }
       await incrementAIUsage(user.id, 1);
@@ -581,7 +579,7 @@ export default function ProfessorExam() {
                   onClick={() => startExamOrNextQuestion(true)}
                   className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
                 >
-                  <ArrowRight className="w-5 h-5" /> Войти в аудиторию (1 ⚡ ИИ)
+                  <ArrowRight className="w-5 h-5" /> Войти в аудиторию
                 </button>
               </div>
             </div>
@@ -897,7 +895,7 @@ export default function ProfessorExam() {
                 onClick={() => startExamOrNextQuestion(false)}
                 className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100 dark:shadow-none"
               >
-                <RefreshCw className="w-4 h-4" /> Следующий билет (1 ⚡ ИИ)
+                <RefreshCw className="w-4 h-4" /> Следующий билет
               </button>
               
               <button

@@ -10,7 +10,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import toast from 'react-hot-toast';
 
 interface QuickPrepData {
@@ -25,6 +26,7 @@ export default function QuickPrep() {
   const { user } = useAuth();
   const { alert } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
 
   // Восстановление состояния из sessionStorage
   const savedStateStr = sessionStorage.getItem('studyforge_quickprep_state');
@@ -70,6 +72,12 @@ export default function QuickPrep() {
 
   const startPrep = async () => {
     if (!selectedMaterial) return;
+    
+    if (user?.id) {
+      const ok = await verifyEnergy(user.id, 5, 'Быстрая подготовка');
+      if (!ok) return;
+    }
+
     setPhase('loading');
     setTimer(300);
     setQuizIndex(0);
@@ -81,13 +89,6 @@ export default function QuickPrep() {
     const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 5);
-      if (!limitCheck.allowed) {
-        setPhase('select');
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
-        return;
-      }
       await incrementAIUsage(user.id, 5);
     }
 
@@ -214,7 +215,7 @@ export default function QuickPrep() {
                 onClick={startPrep}
                 className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-100 dark:shadow-amber-950/20"
               >
-                <Zap className="w-5 h-5" /> Подготовить за 5 минут (5 ⚡ ИИ)
+                <Zap className="w-5 h-5" /> Подготовить за 5 минут
               </button>
             </div>
           </motion.div>

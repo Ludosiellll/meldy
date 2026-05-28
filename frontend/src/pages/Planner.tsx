@@ -6,13 +6,15 @@ import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
 import { useNavigate } from 'react-router-dom';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 export default function Planner() {
   const { user } = useAuth();
   const { alert } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -103,10 +105,8 @@ export default function Planner() {
     setLoading(true);
 
     if (user?.id) {
-      const limitCheck = await checkAILimit(user.id, 5);
-      if (!limitCheck.allowed) {
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
+      const ok = await verifyEnergy(user.id, 5, 'Формирование плана');
+      if (!ok) {
         setLoading(false);
         return;
       }
@@ -357,7 +357,7 @@ export default function Planner() {
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-5 h-5" />}
-              {loading ? 'Создаем персональный план...' : selectedSubjectIds.length === 0 ? 'Выберите предметы для плана' : `Сформировать план (${selectedSubjectIds.length} предм.) (5 ⚡ ИИ)`}
+              {loading ? 'Создаем персональный план...' : selectedSubjectIds.length === 0 ? 'Выберите предметы для плана' : `Сформировать план (${selectedSubjectIds.length} предм.)`}
             </button>
           </div>
 

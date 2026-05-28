@@ -11,12 +11,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { incrementAIUsage } from '../api/limits';
+import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 export default function Career() {
   const { user } = useAuth();
   const { alert } = useConfirm();
   const navigate = useNavigate();
+  const { verifyEnergy } = useEnergyConfirm();
 
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,11 +64,9 @@ export default function Career() {
 
       const contextStr = contextLines.join("\n\n---\n\n").slice(0, 15000);
 
-      const limitCheck = await checkAILimit(user.id, 5);
-      if (!limitCheck.allowed) {
+      const ok = await verifyEnergy(user.id, 5, 'Оцифровка навыков');
+      if (!ok) {
         setIsGenerating(false);
-        await alert({ title: 'Энергия ИИ исчерпана', message: 'Не хватает энергии ИИ (нужно 5). Перейдите на PRO-тариф!', type: 'danger' });
-        navigate('/pricing');
         return;
       }
       await incrementAIUsage(user.id, 5);
@@ -112,7 +112,7 @@ export default function Career() {
             className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-3 hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none mx-auto"
           >
             <Cpu className="w-6 h-6" />
-            Оцифровать мои навыки (5 ⚡ ИИ)
+            Оцифровать мои навыки
           </button>
         </motion.div>
       </div>
@@ -155,7 +155,7 @@ export default function Career() {
           className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-70 flex items-center gap-2 transition"
         >
           <Zap className="w-4 h-4" />
-          Пересчитать навыки (5 ⚡ ИИ)
+          Пересчитать навыки
         </button>
       </div>
 
