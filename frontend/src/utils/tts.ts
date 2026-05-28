@@ -2,6 +2,7 @@ export type VoiceRole = 'professor' | 'male' | 'female';
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentPlaybackRate: number = 1.0;
+let currentGenerationId: number = 0;
 
 export const setTTSPlaybackRate = (rate: number) => {
   currentPlaybackRate = rate;
@@ -23,6 +24,7 @@ export const playTTS = async (
   onError?: (e: any) => void
 ): Promise<void> => {
   stopTTS();
+  const genId = ++currentGenerationId;
 
   try {
     const resp = await fetch('/api/tts', {
@@ -31,11 +33,15 @@ export const playTTS = async (
       body: JSON.stringify({ text, role }),
     });
 
+    if (genId !== currentGenerationId) return;
+
     if (!resp.ok) {
       throw new Error(`TTS backend error: ${resp.status}`);
     }
 
     const blob = await resp.blob();
+    if (genId !== currentGenerationId) return;
+    
     const url = URL.createObjectURL(blob);
 
     const audio = new Audio(url);
@@ -115,6 +121,7 @@ export const resumeTTS = () => {
 };
 
 export const stopTTS = () => {
+  currentGenerationId++;
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.currentTime = 0;

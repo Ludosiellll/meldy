@@ -24,6 +24,7 @@ export default function ShortsPlayer() {
   const [slides, setSlides] = useState<any[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isWaitingTTS, setIsWaitingTTS] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +63,7 @@ export default function ShortsPlayer() {
         setActiveIndex(index);
         stopTTS();
         setIsPlaying(false);
+        setIsWaitingTTS(false);
       }
     };
     
@@ -74,16 +76,36 @@ export default function ShortsPlayer() {
     };
   }, [activeIndex]);
 
+  useEffect(() => {
+    if (slides.length > 0 && activeIndex >= 0 && activeIndex < slides.length) {
+      const slide = slides[activeIndex];
+      handlePlayTTS(`${slide.title}. ${slide.content}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, slides]);
+
   const handlePlayTTS = (text: string) => {
     if (isPlaying) {
       stopTTS();
       setIsPlaying(false);
+      setIsWaitingTTS(false);
       return;
     }
     
     setIsPlaying(true);
+    setIsWaitingTTS(true);
     // Исключительно премиум голос (professor / male / female - мы используем female для шортсов как более мягкий)
-    playTTS(text, 'female', () => setIsPlaying(false), () => setIsPlaying(false));
+    playTTS(
+      text, 
+      'female', 
+      () => { setIsPlaying(false); setIsWaitingTTS(false); }, 
+      () => { setIsPlaying(false); setIsWaitingTTS(false); }
+    ).then(() => {
+      setIsWaitingTTS(false);
+    }).catch(() => {
+      setIsPlaying(false);
+      setIsWaitingTTS(false);
+    });
   };
 
   if (loading) {
@@ -186,14 +208,16 @@ export default function ShortsPlayer() {
 
                 <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => handlePlayTTS(`${slide.title}. ${slide.content}`)}>
                   <div className={`w-12 h-12 rounded-full backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-110 group-active:scale-90 shadow-xl border ${isPlaying && isActive ? 'bg-indigo-600/80 border-indigo-400' : 'bg-black/20 border-white/10'}`}>
-                    {isPlaying && isActive ? (
+                    {isWaitingTTS && isActive ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : isPlaying && isActive ? (
                       <Pause className="w-6 h-6 text-white" />
                     ) : (
                       <Volume2 className="w-6 h-6 text-white" />
                     )}
                   </div>
                   <span className="text-white text-xs font-bold drop-shadow-md">
-                    {isPlaying && isActive ? 'Пауза' : 'Слушать'}
+                    {isWaitingTTS && isActive ? 'Загрузка...' : isPlaying && isActive ? 'Пауза' : 'Слушать'}
                   </span>
                 </div>
 
