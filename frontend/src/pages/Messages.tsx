@@ -383,13 +383,14 @@ export default function Messages() {
               </div>
               {/* Кнопки */}
               <div className="flex items-center gap-2 relative">
-                {!friendRequestSent && !friendships.some(f => f.friend_id === activeFriend.friend_id && f.status === 'accepted') && (
+                {!friendRequestSent && !friendships.some(f => f.friend_id === activeFriend.friend_id && (f.status === 'accepted' || f.status === 'pending')) && (
                   <button
                     onClick={async () => {
                       if (!user || !activeFriend) return;
                       await sendFriendRequest(user.id, activeFriend.friend_id!);
                       setFriendRequestSent(true);
                       toast.success('Заявка в друзья отправлена!');
+                      loadData();
                     }}
                     className="flex items-center justify-center w-8 h-8 md:w-auto md:px-3 md:py-1.5 text-sm font-bold text-slate-500 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/40 rounded-lg transition"
                     title="Добавить в друзья"
