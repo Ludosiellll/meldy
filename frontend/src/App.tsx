@@ -31,6 +31,7 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import Pricing from './pages/Pricing';
 import PWAUpdater from './components/PWAUpdater';
 import InstallPWA from './components/InstallPWA';
+import ShortsPlayer from './pages/ShortsPlayer';
 
 import { Smartphone } from 'lucide-react';
 
@@ -96,6 +97,9 @@ export default function App() {
           <Route path="teacher" element={<TeacherDashboard />} />
           <Route path="pricing" element={<Pricing />} />
         </Route>
+        <Route path="/shorts/:id" element={
+          <PrivateRoute><ShortsPlayer /></PrivateRoute>
+        } />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

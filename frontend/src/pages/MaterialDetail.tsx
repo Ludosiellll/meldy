@@ -135,7 +135,7 @@ export default function MaterialDetail() {
       </p>
 
       {/* Режимы обучения */}
-      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 ${hasPodcast ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 sm:grid-cols-2 ${hasPodcast && hasFlashcards ? 'md:grid-cols-4' : hasPodcast || hasFlashcards ? 'md:grid-cols-3' : ''}`}>
         <button
           onClick={() => setMode('full')}
           className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
@@ -166,6 +166,14 @@ export default function MaterialDetail() {
             }`}
           >
             <Headphones className="w-5 h-5 sm:w-4 sm:h-4" /> AI-Подкаст
+          </button>
+        )}
+        {hasFlashcards && (
+          <button
+            onClick={() => navigate(`/shorts/${id}`)}
+            className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-fuchsia-500/20 transition-transform hover:-translate-y-0.5 sm:col-span-full md:col-auto"
+          >
+            Учебный TikTok 📱
           </button>
         )}
       </div>
