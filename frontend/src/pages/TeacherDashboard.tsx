@@ -88,7 +88,12 @@ export default function TeacherDashboard() {
   const navigate = useNavigate();
   
   // Роль пользователя
-  const [role, setRole] = useState<'student' | 'teacher' | null>(null);
+  const [role, setRole] = useState<'student' | 'teacher' | null>(() => {
+    if (user) {
+      return (localStorage.getItem(`user_role_${user.id}`) as 'student' | 'teacher') || null;
+    }
+    return null;
+  });
   const [teacherName, setTeacherName] = useState('Загрузка...');
 
   // Группы
@@ -123,7 +128,11 @@ export default function TeacherDashboard() {
     const fetchRole = () => {
       supabase.from('profiles').select('role').eq('id', user.id).single()
         .then(({ data }) => {
-          if (data) setRole(data.role as 'student' | 'teacher');
+          if (data) {
+            const fetchedRole = data.role as 'student' | 'teacher';
+            setRole(fetchedRole);
+            localStorage.setItem(`user_role_${user.id}`, fetchedRole);
+          }
         });
     };
     fetchRole();
@@ -142,7 +151,10 @@ export default function TeacherDashboard() {
       .eq('id', user.id);
     if (!error) {
       setRole(newRole);
+      localStorage.setItem(`user_role_${user.id}`, newRole);
       window.dispatchEvent(new Event('profile_updated'));
+      // Если переключились на студента, сбрасываем выбранную группу, чтобы загрузилась первая доступная
+      setSelectedGroupId(null);
     }
   };
 
