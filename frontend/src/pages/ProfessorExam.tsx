@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles, Play, Pause, Square, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -60,6 +60,8 @@ export default function ProfessorExam() {
   const recognitionRef = useRef<any>(null);
   // Режим экзамена
   const [socraticMode, setSocraticMode] = useState<boolean>(savedState?.socraticMode || false);
+  const [todayMood, setTodayMood] = useState<any>(null);
+
   // Конфетти и достижения
   const [showConfetti, setShowConfetti] = useState(false);
   const [achievement, setAchievement] = useState<Achievement | null>(null);
@@ -112,7 +114,21 @@ export default function ProfessorExam() {
     }).catch(console.error);
     
     fetchExamHistory();
+    fetchTodayMood();
   }, [user?.id]);
+
+  const fetchTodayMood = async () => {
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+    const { data } = await supabase
+      .from('mood_log')
+      .select('mood, energy_level')
+      .eq('user_id', user.id)
+      .eq('logged_at', today)
+      .limit(1)
+      .maybeSingle();
+    setTodayMood(data);
+  };
 
   const fetchExamHistory = async () => {
     if (!user) return;
@@ -513,6 +529,29 @@ export default function ProfessorExam() {
                     />
                   </div>
                 </div>
+
+                {!todayMood && (
+                  <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 rounded-xl p-4 text-left shadow-sm">
+                    <p className="text-sm font-bold text-indigo-800 dark:text-indigo-300 mb-1">Настроим сложность под вас?</p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-3 leading-relaxed">
+                      ИИ-Профессор подстроит каверзность вопросов под ваше текущее состояние. 
+                    </p>
+                    <Link to="/mood" className="text-xs px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold inline-block hover:bg-indigo-700 transition shadow-sm">
+                      Указать настрой в Трекере
+                    </Link>
+                  </div>
+                )}
+                {todayMood && (
+                  <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 rounded-xl p-4 flex items-center justify-between text-left shadow-sm">
+                    <div>
+                      <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Состояние учтено</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Сложность экзамена будет адаптирована.</p>
+                    </div>
+                    <span className="text-3xl ml-3 filter drop-shadow-sm">
+                      {todayMood.mood === 'great' ? '🚀' : todayMood.mood === 'good' ? '😊' : todayMood.mood === 'okay' ? '😐' : todayMood.mood === 'tired' ? '😴' : '😰'}
+                    </span>
+                  </div>
+                )}
 
                 <button
                   disabled={!selectedMaterialId}
