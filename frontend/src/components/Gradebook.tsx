@@ -164,7 +164,7 @@ export default function Gradebook() {
   return (
     <div className="space-y-6">
       {/* Header Widget */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-500 rounded-2xl p-6 text-white flex justify-between items-center shadow-lg">
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-500 rounded-2xl p-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-lg">
         <div>
           <p className="text-white/80 font-bold uppercase tracking-wider text-xs mb-1">Моя успеваемость (GPA)</p>
           <div className="flex items-end gap-3">
@@ -172,12 +172,12 @@ export default function Gradebook() {
             <span className="text-white/60 text-sm mb-1 pb-0.5">/ 5.0</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowScan(true)} className="bg-white/20 hover:bg-white/30 backdrop-blur-sm p-3 rounded-xl transition flex flex-col items-center gap-1">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button onClick={() => setShowScan(true)} className="flex-1 sm:flex-none bg-white/20 hover:bg-white/30 backdrop-blur-sm p-3 rounded-xl transition flex flex-col items-center gap-1">
             <Camera className="w-5 h-5" />
             <span className="text-[10px] font-bold">Скан по фото</span>
           </button>
-          <button onClick={() => setShowAddGrade(true)} className="bg-white text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition flex flex-col items-center gap-1 shadow-sm">
+          <button onClick={() => setShowAddGrade(true)} className="flex-1 sm:flex-none bg-white text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition flex flex-col items-center gap-1 shadow-sm">
             <Plus className="w-5 h-5" />
             <span className="text-[10px] font-bold">Оценка</span>
           </button>
@@ -200,8 +200,8 @@ export default function Gradebook() {
             <div className="flex justify-between items-start mb-3">
               <h3 className="font-bold text-slate-800 dark:text-slate-100">{sub.name}</h3>
               <div className={`px-2 py-1 rounded-md text-xs font-bold ${
-                sub.avg >= sub.target_grade ? 'bg-emerald-100 text-emerald-700' : 
-                sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
+                sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
               }`}>
                 {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
               </div>
@@ -241,7 +241,7 @@ export default function Gradebook() {
                 placeholder="Название (например, Физика)" 
                 value={newSubName} 
                 onChange={e => setNewSubName(e.target.value)} 
-                className="w-full mb-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
+                className="w-full mb-3 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
               />
               <label className="text-xs text-slate-500 mb-1 block">Целевой балл</label>
               <input 
@@ -249,7 +249,7 @@ export default function Gradebook() {
                 step="0.1" 
                 value={newSubTarget} 
                 onChange={e => setNewSubTarget(parseFloat(e.target.value))} 
-                className="w-full mb-6 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
+                className="w-full mb-6 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
               />
               <div className="flex gap-2">
                 <button onClick={() => setShowAddSubject(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
@@ -275,7 +275,7 @@ export default function Gradebook() {
                   <button 
                     key={v} 
                     onClick={() => setGradeValue(v)} 
-                    className={`flex-1 py-3 rounded-xl font-black text-lg transition ${gradeValue === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}
+                    className={`flex-1 py-3 rounded-xl font-black text-lg transition ${gradeValue === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
                   >
                     {v}
                   </button>
@@ -302,7 +302,7 @@ export default function Gradebook() {
                 placeholder="Скопируйте текст с оценками сюда..."
                 value={scanText}
                 onChange={e => setScanText(e.target.value)}
-                className="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm mb-4"
+                className="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-sm mb-4"
               />
 
               <div className="relative border-2 border-dashed border-indigo-200 dark:border-indigo-800/50 rounded-xl p-6 text-center hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition mb-6 cursor-pointer">
