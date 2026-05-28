@@ -215,7 +215,7 @@ export default function Gradebook() {
           images_base64: requestImages,
           text: requestText,
           mime_type: 'image/jpeg',
-          chat_history: scanMessages.map(m => ({ role: m.role, content: m.content }))
+          chat_history: scanMessages.map(m => ({ role: m.role, content: m.content, images_base64: m.images || [] }))
         })
       });
       const data = await res.json();

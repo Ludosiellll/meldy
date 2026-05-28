@@ -718,13 +718,13 @@ async def text_to_speech(request: Request, req: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 class AcademicScanRequest(BaseModel):
     images_base64: List[str] = []
     text: Optional[str] = None
     mime_type: str = "image/jpeg"
-    chat_history: List[Dict[str, str]] = []
+    chat_history: List[Dict[str, Any]] = []
 
 from agents.base import build_academic_scan_prompt
 
@@ -734,6 +734,15 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
     if not req.images_base64 and not req.text and not req.chat_history:
         raise HTTPException(status_code=400, detail="Нужно передать текст, картинку или историю чата")
         
+    # Собери все картинки из истории чата, если в текущем запросе их нет
+    all_images = list(req.images_base64)
+    if req.chat_history:
+        for msg in req.chat_history:
+            if "images_base64" in msg and msg["images_base64"]:
+                for img in msg["images_base64"]:
+                    if img not in all_images:
+                        all_images.append(img)
+                        
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_academic_scan_prompt()
     
@@ -749,15 +758,15 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
     if history_text:
         user_prompt += f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\n"
         
-    if req.images_base64:
+    if all_images:
         user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Пожалуйста, распознай оценки с прикрепленных картинок.")
     else:
         user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Ответь на последнее сообщение пользователя.")
     
     raw = None
     try:
-        if req.images_base64:
-            raw = await agent.run_with_images(system_prompt, user_prompt, req.images_base64, req.mime_type)
+        if all_images:
+            raw = await agent.run_with_images(system_prompt, user_prompt, all_images, req.mime_type)
         else:
             raw = await agent.run(system_prompt, user_prompt)
             
