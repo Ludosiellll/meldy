@@ -515,7 +515,6 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             </Link>
           </div>
         )}
-        )}
       </motion.div>
     </div>
   );
