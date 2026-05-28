@@ -36,14 +36,20 @@ export default function Pricing() {
     checkStatus();
   }, [user]);
 
-  const handleCheckout = async () => {
-    setProcessing(true);
+  const PAYMENT_LINK = 'https://example.com/pay'; // Сюда нужно вставить реальную ссылку на оплату
+
+  const handleCheckout = () => {
+    if (!user) {
+      toast.error('Войдите в аккаунт');
+      navigate('/login');
+      return;
+    }
     
-    // Имитация задержки
-    setTimeout(() => {
-      setProcessing(false);
-      setPaymentSent(true);
-    }, 1500);
+    // По-настоящему перекидываем на страницу оплаты
+    window.open(PAYMENT_LINK, '_blank');
+    
+    // Опционально: можно показать toast о том, что оплата проверяется
+    toast.success('После успешной оплаты ожидайте зачисления статуса!');
   };
 
   const handleAdminBypass = async () => {
@@ -183,14 +189,7 @@ export default function Pricing() {
           ) : (
             <div className="relative">
               <button 
-                onClick={() => {
-                  if (!user) {
-                    toast.error('Войдите в аккаунт');
-                    navigate('/login');
-                    return;
-                  }
-                  setShowCheckout(true);
-                }}
+                onClick={handleCheckout}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-400 hover:to-purple-400 text-white font-bold shadow-lg shadow-indigo-500/30 transition transform hover:-translate-y-1"
               >
                 Оформить PRO
@@ -201,122 +200,7 @@ export default function Pricing() {
 
       </div>
 
-      {/* Окно оплаты (Ручная) */}
-      <AnimatePresence>
-        {showCheckout && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
-              onClick={() => !processing && setShowCheckout(false)}
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-slate-900 border border-slate-700 p-8 rounded-3xl w-full max-w-md relative z-10 shadow-2xl overflow-hidden"
-            >
-              {!paymentSent ? (
-                <>
-                  <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-                    <CreditCard className="w-6 h-6 text-indigo-400" /> Оплата PRO
-                  </h3>
-                  <p className="text-slate-400 mb-6 text-sm">
-                    Сделайте перевод на любую из указанных ниже карт/кошельков, чтобы активировать PRO Академик.
-                  </p>
-
-                  <div className="space-y-4 mb-6">
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700/50 flex justify-between items-center">
-                      <span className="text-slate-300 font-medium">К оплате:</span>
-                      <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">490 ₽</span>
-                    </div>
-                    
-                    {/* Сбербанк */}
-                    <div className="p-4 bg-gradient-to-tr from-slate-800 to-slate-700 rounded-xl border border-slate-600 relative">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                          <Wallet className="w-5 h-5" /> Сбербанк (Беларусь)
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700">
-                        <span className="text-white font-mono text-lg tracking-wider">1234 5678 9012 3456</span>
-                        <button 
-                          onClick={() => copyToClipboard('1234 5678 9012 3456', 'Номер карты')}
-                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-slate-400 text-xs mt-2 text-center">Получатель: Денис М.</p>
-                    </div>
-
-                    {/* Оплати */}
-                    <div className="p-4 bg-gradient-to-tr from-slate-800 to-slate-700 rounded-xl border border-slate-600 relative">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2 text-indigo-400 font-bold">
-                          <Wallet className="w-5 h-5" /> Сервис «Оплати»
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700">
-                        <span className="text-white font-mono text-lg tracking-wider">+375 29 123-45-67</span>
-                        <button 
-                          onClick={() => copyToClipboard('+375 29 123-45-67', 'Номер телефона')}
-                          className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => setShowCheckout(false)}
-                      disabled={processing}
-                      className="px-4 py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition"
-                    >
-                      Отмена
-                    </button>
-                    <button 
-                      onClick={handleCheckout}
-                      disabled={processing}
-                      className="flex-1 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-400 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
-                    >
-                      {processing ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" /> Обработка...</>
-                      ) : (
-                        "Я оплатил"
-                      )}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-6">
-                  <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Check className="w-10 h-10 text-emerald-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-3">Заявка принята!</h3>
-                  <p className="text-slate-400 mb-8 leading-relaxed">
-                    Мы проверяем поступление перевода. Как только деньги придут, ваш PRO статус будет активирован. <br/><br/>
-                    Обычно это занимает от 5 до 15 минут.
-                  </p>
-                  <button 
-                    onClick={() => {
-                      setShowCheckout(false);
-                      setPaymentSent(false); // Сброс
-                    }}
-                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition"
-                  >
-                    Понятно
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Окна оплаты больше нет, так как кнопка перекидывает по ссылке */}
     </div>
   );
 }
