@@ -125,16 +125,17 @@ export default function TeacherDashboard() {
   // Никнейм
   const [showNicknamePrompt, setShowNicknamePrompt] = useState(false);
   const [nicknameInput, setNicknameInput] = useState('');
-
-  // Настройка лидерборда
+  const [selectedUserForProfile, setSelectedUserForProfile] = useState<GroupMember | null>(null);
+  
+  const [confirmAction, setConfirmAction] = useState<{title: string, message: string, onConfirm: () => void, confirmText?: string} | null>(null);
+  const [promptAction, setPromptAction] = useState<{title: string, message: string, onConfirm: (val: string) => void} | null>(null);
+  const [promptInput, setPromptInput] = useState('');
   const [leaderboardTab, setLeaderboardTab] = useState<'all-time' | 'weekly'>('all-time');
   const [loading, setLoading] = useState(true);
 
   // Вкладки панели класса
   const [activeTab, setActiveTab] = useState<'assignments' | 'members' | 'chat'>('assignments');
   
-  // Минипрофиль
-  const [selectedUserForProfile, setSelectedUserForProfile] = useState<GroupMember | null>(null);
 
   // Определение роли и подписка на изменения
   useEffect(() => {
@@ -376,55 +377,77 @@ export default function TeacherDashboard() {
   };
 
   const handleDeleteAssignment = async (assignmentId: string) => {
-    if (!window.confirm('Вы уверены, что хотите удалить это задание?')) return;
-    const ok = await deleteAssignment(assignmentId);
-    if (ok) {
-      toast.success('Задание удалено');
-      setAssignments(prev => prev.filter(a => a.id !== assignmentId));
-    } else {
-      toast.error('Ошибка при удалении задания');
-    }
+    setConfirmAction({
+      title: 'Удалить задание?',
+      message: 'Вы уверены, что хотите удалить это задание?',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        const ok = await deleteAssignment(assignmentId);
+        if (ok) {
+          toast.success('Задание удалено');
+          setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+        } else {
+          toast.error('Ошибка при удалении задания');
+        }
+      }
+    });
   };
 
   const handleDeleteGroup = async () => {
     if (!selectedGroupId) return;
-    if (window.confirm('Вы уверены, что хотите безвозвратно удалить этот класс? Все данные о студентах и заданиях будут потеряны.')) {
-      const ok = await deleteGroup(selectedGroupId);
-      if (ok) {
-        toast.success('Класс удалён');
-        setGroups(prev => prev.filter(g => g.id !== selectedGroupId));
-        setSelectedGroupId(null);
-      } else {
-        toast.error('Ошибка при удалении класса');
+    setConfirmAction({
+      title: 'Удалить класс?',
+      message: 'Вы уверены, что хотите безвозвратно удалить этот класс? Все данные о студентах и заданиях будут потеряны.',
+      confirmText: 'Удалить класс',
+      onConfirm: async () => {
+        const ok = await deleteGroup(selectedGroupId);
+        if (ok) {
+          toast.success('Класс удалён');
+          setGroups(prev => prev.filter(g => g.id !== selectedGroupId));
+          setSelectedGroupId(null);
+        } else {
+          toast.error('Ошибка при удалении класса');
+        }
       }
-    }
+    });
   };
 
   const handleKickStudent = async (studentId: string) => {
     if (!selectedGroupId) return;
-    if (window.confirm('Вы уверены, что хотите исключить этого студента из класса?')) {
-      const ok = await removeStudentFromGroup(selectedGroupId, studentId);
-      if (ok) {
-        toast.success('Студент исключён');
-        setMembers(prev => prev.filter(m => m.student_id !== studentId));
-      } else {
-        toast.error('Ошибка при удалении студента');
+    setConfirmAction({
+      title: 'Исключить студента?',
+      message: 'Вы уверены, что хотите исключить этого студента из класса?',
+      confirmText: 'Исключить',
+      onConfirm: async () => {
+        const ok = await removeStudentFromGroup(selectedGroupId, studentId);
+        if (ok) {
+          toast.success('Студент исключён');
+          setMembers(prev => prev.filter(m => m.student_id !== studentId));
+        } else {
+          toast.error('Ошибка при удалении студента');
+        }
       }
-    }
+    });
   };
 
   const handleRenameStudent = async (studentId: string, currentName: string) => {
     if (!selectedGroupId) return;
-    const newName = window.prompt('Введите новое Имя и Фамилию для студента:', currentName);
-    if (newName && newName.trim() !== currentName) {
-      const ok = await updateStudentNickname(selectedGroupId, studentId, newName.trim());
-      if (ok) {
-        toast.success('Имя изменено');
-        setMembers(prev => prev.map(m => m.student_id === studentId ? { ...m, student_name: newName.trim(), class_nickname: newName.trim() } : m));
-      } else {
-        toast.error('Ошибка при изменении имени');
+    setPromptInput(currentName);
+    setPromptAction({
+      title: 'Переименовать студента',
+      message: 'Введите новое Имя и Фамилию для студента:',
+      onConfirm: async (newName: string) => {
+        if (newName && newName.trim() !== currentName) {
+          const ok = await updateStudentNickname(selectedGroupId, studentId, newName.trim());
+          if (ok) {
+            toast.success('Имя изменено');
+            setMembers(prev => prev.map(m => m.student_id === studentId ? { ...m, student_name: newName.trim(), class_nickname: newName.trim() } : m));
+          } else {
+            toast.error('Ошибка при изменении имени');
+          }
+        }
       }
-    }
+    });
   };
 
   const handleSaveNickname = async () => {
@@ -1181,6 +1204,43 @@ export default function TeacherDashboard() {
               <button onClick={handleSaveNickname} disabled={!nicknameInput.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50">Сохранить</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="w-12 h-12 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">{confirmAction.title}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">{confirmAction.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">Отмена</button>
+              <button onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }} className="flex-1 py-2.5 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-700 transition shadow-md shadow-rose-200 dark:shadow-none">{confirmAction.confirmText || 'Удалить'}</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Prompt Modal */}
+      {promptAction && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800">
+            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">{promptAction.title}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 leading-relaxed">{promptAction.message}</p>
+            <input 
+              autoFocus
+              value={promptInput} 
+              onChange={e => setPromptInput(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-4 text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setPromptAction(null)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">Отмена</button>
+              <button onClick={() => { promptAction.onConfirm(promptInput); setPromptAction(null); }} disabled={!promptInput.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200 dark:shadow-none disabled:opacity-50">Сохранить</button>
+            </div>
+          </motion.div>
         </div>
       )}
 
