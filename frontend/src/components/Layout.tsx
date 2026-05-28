@@ -51,6 +51,7 @@ const navGroups = [
     title: 'Аналитика',
     items: [
       { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
+      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Успеваемость' },
       { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
       { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
       { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-desktop-chat' },

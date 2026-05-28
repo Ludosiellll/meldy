@@ -1,7 +1,7 @@
 import { ExamResult, StudySession, Achievement, Mistake } from '../types';
 import { useState, useEffect } from 'react';
 import Gradebook from '../components/Gradebook';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   BarChart2, Flame, Trophy, BookMarked, Brain,
@@ -22,9 +22,11 @@ import { useTheme } from '../contexts/ThemeProvider';
 export default function Analytics() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { theme } = useTheme();
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  const [activeTab, setActiveTab] = useState<'platform' | 'gradebook'>('platform');
+  const activeTab = searchParams.get('tab') === 'gradebook' ? 'gradebook' : 'platform';
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
   const [loading, setLoading] = useState(true);
   const [xp, setXp] = useState(0);
   const [sessions, setSessions] = useState<any[]>([]);
