@@ -30,7 +30,6 @@ import Messages from './pages/Messages';
 import TeacherDashboard from './pages/TeacherDashboard';
 import Pricing from './pages/Pricing';
 import PWAUpdater from './components/PWAUpdater';
-import InstallPWA from './components/InstallPWA';
 import ShortsPlayer from './pages/ShortsPlayer';
 import SharedMaterial from './pages/SharedMaterial';
 import AssignmentView from './pages/AssignmentView';
@@ -63,7 +62,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <PWAUpdater />
-      <InstallPWA />
       <PortraitLock />
       <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#1e293b', color: '#fff', borderRadius: '12px' } }} />
       <Routes>

@@ -17,6 +17,8 @@ import { useTheme } from '../contexts/ThemeProvider';
 import { Moon, Sun } from 'lucide-react';
 import { checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
 import TokenInfoModal from './TokenInfoModal';
+import { useInstallPWA } from '../hooks/useInstallPWA';
+import { Download } from 'lucide-react';
 
 const navGroups = [
   {
@@ -109,6 +111,9 @@ export default function Layout() {
 
   // Mobile menu state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // PWA Install
+  const { handleInstallClick, showInstall } = useInstallPWA();
 
   // Close mobile menu on navigation
   useEffect(() => {
@@ -320,6 +325,17 @@ export default function Layout() {
         )}
 
         {/* Navigation */}
+        {showInstall && (
+          <div className="px-3 mb-4">
+            <button
+              onClick={handleInstallClick}
+              className="w-full flex items-center gap-2 justify-center px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[13px] font-bold transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Установить приложение
+            </button>
+          </div>
+        )}
         <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
           {currentNavGroups.map((group: any, idx: number) => (
             <div key={idx}>
