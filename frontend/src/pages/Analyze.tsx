@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import UploadZone from '../components/UploadZone';
@@ -43,6 +43,49 @@ export default function Analyze() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { verifyEnergy } = useEnergyConfirm();
+
+  useEffect(() => {
+    const activeTask = localStorage.getItem('active_analysis_task');
+    if (activeTask) {
+      reconnectToTask(activeTask);
+    }
+  }, []);
+
+  const reconnectToTask = async (taskId: string) => {
+    setState({ phase: 'analyzing', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: 'Восстановление...' });
+    
+    try {
+      const abortController = new AbortController();
+      (window as any)._analyzeAbort = abortController;
+      
+      const res = await fetch(`/api/analyze/stream/${taskId}`, { signal: abortController.signal });
+      if (!res.ok) {
+        localStorage.removeItem('active_analysis_task');
+        setState(p => ({ ...p, phase: 'upload' }));
+        return;
+      }
+      
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No body');
+      
+      const dec = new TextDecoder(); let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n'); buf = lines.pop() || '';
+        for (const l of lines) {
+          if (l.startsWith('data: ')) {
+            try { handleSSE(JSON.parse(l.slice(6))); } catch {}
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      localStorage.removeItem('active_analysis_task');
+      setState(p => ({ ...p, phase: 'error', error: err.message }));
+    }
+  };
 
   const addToast = (text: string) => {
     const id = ++toastId.current;
@@ -116,11 +159,15 @@ export default function Analyze() {
   };
 
   const handleSSE = (d: Record<string, any>) => {
-    if (d.type === 'text_extracted') { 
+    if (d.type === 'task_started') {
+      localStorage.setItem('active_analysis_task', d.task_id);
+    }
+    else if (d.type === 'text_extracted') { 
       if (hasBadWords(d.text)) {
         if ((window as any)._analyzeAbort) {
           (window as any)._analyzeAbort.abort();
         }
+        localStorage.removeItem('active_analysis_task');
         setState(p => ({ ...p, phase: 'error', error: 'Текст содержит недопустимые материалы (мат или неприемлемый контент).' }));
         return;
       }
@@ -151,13 +198,17 @@ export default function Analyze() {
       setState(p => ({ ...p, results, analysisDuration: dur || undefined }));
     }
     else if (d.type === 'done') {
+      localStorage.removeItem('active_analysis_task');
       if (d.material_id) {
         setState(p => ({ ...p, phase: 'done', savedMaterialId: d.material_id }));
       } else {
         setState(p => ({ ...p, phase: 'done' }));
       }
     }
-    else if (d.type === 'error') setState(p => ({ ...p, phase: 'error', error: d.message }));
+    else if (d.type === 'error') {
+      localStorage.removeItem('active_analysis_task');
+      setState(p => ({ ...p, phase: 'error', error: d.message }));
+    }
   };
 
   const reset = () => { setState({ phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS }); setIsDemo(false); };
