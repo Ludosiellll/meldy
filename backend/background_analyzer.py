@@ -10,6 +10,9 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 tasks_db = {} # type: dict[str, dict]
 
+def init_task(task_id: str):
+    tasks_db[task_id] = {"events": [], "queues": [], "status": "running"}
+
 async def run_background_analysis(
     task_id: str,
     user_id: str,
@@ -20,8 +23,9 @@ async def run_background_analysis(
     content_type: str,
     params: dict
 ):
-    tasks_db[task_id] = {"events": [], "queues": [], "status": "running"}
-    
+    if task_id not in tasks_db:
+        init_task(task_id)
+        
     async def emit(event):
         tasks_db[task_id]["events"].append(event)
         for q in tasks_db[task_id]["queues"]:

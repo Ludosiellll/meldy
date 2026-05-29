@@ -88,7 +88,7 @@ async def health():
 
 
 
-from background_analyzer import run_background_analysis, stream_task_events
+from background_analyzer import run_background_analysis, stream_task_events, init_task
 import uuid
 
 async def event_stream(
@@ -115,6 +115,7 @@ async def event_stream(
     }
     
     task_id = str(uuid.uuid4())
+    init_task(task_id)
     
     asyncio.create_task(run_background_analysis(
         task_id=task_id,
@@ -209,6 +210,7 @@ async def event_stream_media(
     }
     
     task_id = str(uuid.uuid4())
+    init_task(task_id)
     
     # Запускаем фон (он выживет даже если клиент отвалится)
     asyncio.create_task(run_background_analysis(
