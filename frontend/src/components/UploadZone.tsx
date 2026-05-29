@@ -167,7 +167,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
                 >
                   <Camera className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Сфотографировать конспект
                 </button>
-                <input id="camera-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { if (e.target.files?.[0]) validateAndSet(e.target.files[0]); }} />
+                <input id="camera-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { if (e.target.files?.[0]) { validateAndSet(e.target.files[0]); e.target.value = ''; } }} />
               </div>
             )}
           </>
@@ -187,7 +187,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
 
         <input id="fi" type="file" className="hidden" 
           accept={tab === 'docs' ? ".pdf,.docx,.txt,.md,.doc,.jpg,.jpeg,.png" : ".mp4,.mp3,.wav,.mpeg,.m4a"}
-          onChange={e => { if (e.target.files?.[0]) validateAndSet(e.target.files[0]); }} />
+          onChange={e => { if (e.target.files?.[0]) { validateAndSet(e.target.files[0]); e.target.value = ''; } }} />
         
         {sizeError && (
           <p className="mt-3 text-center text-sm text-rose-600">{sizeError}</p>

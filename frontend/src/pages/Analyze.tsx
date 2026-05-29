@@ -193,7 +193,10 @@ export default function Analyze() {
           }
         })();
       }
+      
+      setState(p => ({ ...p, results, analysisDuration: dur || undefined }));
     }
+    else if (d.type === 'done') setState(p => ({ ...p, phase: 'done' }));
     else if (d.type === 'error') setState(p => ({ ...p, phase: 'error', error: d.message }));
   };
 
