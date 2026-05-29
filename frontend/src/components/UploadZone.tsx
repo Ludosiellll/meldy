@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileText, X, Zap, Youtube, Video, FileAudio, Layers, CheckCircle2, FileVideo, Music, Camera } from 'lucide-react';
+import { Upload, FileText, X, Zap, Youtube, Video, FileAudio, Layers, CheckCircle2, FileVideo, Music, Camera, Loader2 } from 'lucide-react';
 import SettingsPanel from './SettingsPanel';
 import { AnalysisSettings } from '../types';
-import { hasBadWords } from '../utils/moderation';
+import { hasBadWords } from '../lib/badwords';
+import { compressImage } from '../lib/imageCompression';
 
 interface Props {
   settings: AnalysisSettings;
@@ -18,13 +19,24 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
   const [file, setFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [sizeError, setSizeError] = useState('');
+  const [isCompressing, setIsCompressing] = useState(false);
 
   const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
-  const validateAndSet = (f: File) => {
+  const validateAndSet = async (f: File) => {
     let finalFile = f;
     if (!f.name.includes('.') && f.size > 0 && f.type.startsWith('image/')) {
       finalFile = new File([f], f.name + '.jpg', { type: f.type });
+    }
+
+    if (finalFile.type.startsWith('image/')) {
+      setIsCompressing(true);
+      try {
+        finalFile = await compressImage(finalFile);
+      } catch (e) {
+        console.error('Ошибка сжатия:', e);
+      }
+      setIsCompressing(false);
     }
 
     if (finalFile.size > MAX_SIZE) {

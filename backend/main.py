@@ -87,7 +87,11 @@ async def health():
     )
 
 
+from utils import extract_text
+
 async def event_stream(
+    user_id: str,
+    source_file_name: str,
     file: UploadFile,
     summary_detail: str = "medium",
     flashcard_count: int = 6,
@@ -95,39 +99,40 @@ async def event_stream(
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
 ) -> AsyncGenerator[str, None]:
-    """SSE stream of agent progress."""
-    try:
-        contents = await file.read()
-        text = extract_text(contents, file.filename or "file.txt")
+    
+    # Считываем файл сразу, чтобы не потерять при отвале клиента
+    contents = await file.read()
+    text = extract_text(contents, file.filename or "file.txt")
 
-        if not text.strip():
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось извлечь текст из файла'})}\n\n"
-            return
-
-        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
-
-        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
-
-        async for event in coordinator.process(
-            text,
-            summary_detail=summary_detail,
-            flashcard_count=flashcard_count,
-            quiz_count=quiz_count,
-            quiz_difficulty=quiz_difficulty,
-            quiz_type=quiz_type,
-        ):
-            yield f"data: {json.dumps(event)}\n\n"
-
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-    except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    queue = asyncio.Queue()
+    params = {
+        "summary_detail": summary_detail,
+        "flashcard_count": flashcard_count,
+        "quiz_count": quiz_count,
+        "quiz_difficulty": quiz_difficulty,
+        "quiz_type": quiz_type
+    }
+    
+    asyncio.create_task(run_background_analysis(
+        user_id=user_id,
+        source_file_name=source_file_name,
+        text=text,
+        youtube_url=None,
+        tmp_path=None,
+        content_type=None,
+        queue=queue,
+        params=params
+    ))
+    
+    async for event in stream_from_queue(queue):
+        yield event
 
 
 @app.post("/api/analyze")
 @limiter.limit("5/minute")
 async def analyze(
     request: Request,
+    user_id: str = Form(None),
     file: UploadFile = File(...),
     summary_detail: str = Form("medium"),
     flashcard_count: int = Form(6),
@@ -149,8 +154,10 @@ async def analyze(
             detail=f"Неподдерживаемый формат. Поддерживаются: {', '.join(allowed_extensions)}",
         )
 
+    source_file_name = file.filename
+
     return StreamingResponse(
-        event_stream(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        event_stream(user_id, source_file_name, file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -164,10 +171,13 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
-from media_parser import extract_youtube_transcript, transcribe_media_file
+from background_analyzer import run_background_analysis, stream_from_queue
 import tempfile
+import asyncio
 
 async def event_stream_media(
+    user_id: str,
+    source_file_name: str,
     youtube_url: str = None,
     file: UploadFile = None,
     summary_detail: str = "medium",
@@ -176,51 +186,50 @@ async def event_stream_media(
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
 ) -> AsyncGenerator[str, None]:
-    try:
-        text = ""
-        if youtube_url:
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Извлечение субтитров YouTube или скачивание аудио...'})}\n\n"
-            text = await extract_youtube_transcript(youtube_url)
-        elif file:
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Загрузка медиа в ИИ для транскрипции (до 2 минут)...'})}\n\n"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or "")[1].lower()) as tmp:
-                content = await file.read()
-                tmp.write(content)
-                tmp_path = tmp.name
-            try:
-                text = await transcribe_media_file(tmp_path, file.content_type)
-            finally:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-        
-        if not text or not text.strip():
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось получить текст из медиа.'})}\n\n"
-            return
-            
-        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
+    
+    tmp_path = None
+    content_type = None
+    if file:
+        content_type = file.content_type
+        import tempfile
+        import os
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or "")[1].lower()) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
 
-        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
+    queue = asyncio.Queue()
+    params = {
+        "summary_detail": summary_detail,
+        "flashcard_count": flashcard_count,
+        "quiz_count": quiz_count,
+        "quiz_difficulty": quiz_difficulty,
+        "quiz_type": quiz_type
+    }
+    
+    # Запускаем фон (он выживет даже если клиент отвалится)
+    asyncio.create_task(run_background_analysis(
+        user_id=user_id,
+        source_file_name=source_file_name,
+        text="",
+        youtube_url=youtube_url,
+        tmp_path=tmp_path,
+        content_type=content_type,
+        queue=queue,
+        params=params
+    ))
+    
+    # Стримим из очереди
+    async for event in stream_from_queue(queue):
+        yield event
 
-        async for event in coordinator.process(
-            text,
-            summary_detail=summary_detail,
-            flashcard_count=flashcard_count,
-            quiz_count=quiz_count,
-            quiz_difficulty=quiz_difficulty,
-            quiz_type=quiz_type,
-        ):
-            yield f"data: {json.dumps(event)}\n\n"
-
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-    except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 @app.post("/api/analyze/media")
 @limiter.limit("3/minute")
 async def analyze_media(
     request: Request,
+    user_id: str = Form(None),
     youtube_url: str = Form(None),
     file: UploadFile = File(None),
     summary_detail: str = Form("medium"),
@@ -235,6 +244,7 @@ async def analyze_media(
             detail="GROQ_API_KEY не настроен на сервере",
         )
 
+    source_file_name = ""
     if file:
         allowed_extensions = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a", ".jpg", ".jpeg", ".png")
         ext = os.path.splitext(file.filename or "")[1].lower()
@@ -243,6 +253,7 @@ async def analyze_media(
                 status_code=400,
                 detail=f"Неподдерживаемый формат медиа. Поддерживаются: {', '.join(allowed_extensions)}",
             )
+        source_file_name = file.filename
             
     if not youtube_url and not file:
          raise HTTPException(
@@ -251,7 +262,7 @@ async def analyze_media(
          )
 
     return StreamingResponse(
-        event_stream_media(youtube_url, file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        event_stream_media(user_id, source_file_name, youtube_url, file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
