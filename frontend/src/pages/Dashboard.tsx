@@ -272,15 +272,18 @@ export default function Dashboard() {
         <StatCard icon={GraduationCap} label="Предметов" value={subjects.length} color="amber" />
         {/* Стрик с анимацией огня */}
         <motion.div
-          className="card p-4 flex items-center gap-3 cursor-default"
+          className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow cursor-default"
           whileHover={{ scale: 1.02 }}
         >
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${streak >= 3 ? 'bg-rose-500' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
-            <Flame className={`w-5 h-5 ${streak >= 3 ? 'text-white' : 'text-rose-400 dark:text-rose-500'} ${streak >= 3 ? 'animate-pulse' : ''}`} />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${streak >= 3 ? 'bg-rose-500' : 'bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50'}`}>
+            <Flame className={`w-5 h-5 ${streak >= 3 ? 'text-white' : 'text-rose-600 dark:text-rose-400'} ${streak >= 3 ? 'animate-pulse' : ''}`} />
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{streak}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1">{streak >= 3 ? <><Flame className="w-3 h-3 text-orange-500" /> Дней подряд!</> : 'Дней подряд'}</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{streak}</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+              {streak >= 3 && <Flame className="w-3 h-3 text-orange-500 shrink-0" />} 
+              {streak >= 3 ? 'Дней подряд!' : 'Дней подряд'}
+            </p>
           </div>
         </motion.div>
       </div>

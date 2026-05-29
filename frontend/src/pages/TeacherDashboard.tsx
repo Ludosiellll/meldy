@@ -806,22 +806,22 @@ export default function TeacherDashboard() {
               )}
 
               {/* TABS NAVIGATION */}
-              <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1 shadow-sm overflow-x-auto custom-scrollbar gap-1 mb-6">
+              <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1 shadow-sm overflow-x-auto custom-scrollbar gap-1 mb-6 flex-nowrap">
                 <button 
                   onClick={() => setActiveTab('assignments')}
-                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'assignments' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`shrink-0 flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'assignments' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   <BookOpen className="w-4 h-4" /> Задания
                 </button>
                 <button 
                   onClick={() => setActiveTab('members')}
-                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'members' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`shrink-0 flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'members' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   <Users className="w-4 h-4" /> Участники & Топ
                 </button>
                 <button 
                   onClick={() => setActiveTab('chat')}
-                  className={`flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`shrink-0 flex-1 min-w-[120px] py-2.5 px-4 rounded-xl text-sm font-bold transition whitespace-nowrap flex items-center justify-center gap-2 ${activeTab === 'chat' ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   <MessageSquare className="w-4 h-4" /> Чат класса
                 </button>
@@ -841,7 +841,7 @@ export default function TeacherDashboard() {
                       <div>
                         <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Класс готов к работе! 🎉</h3>
                         <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto mt-2 leading-relaxed">
-                          Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-sm text-indigo-600 dark:text-indigo-400 font-bold">{selectedGroup.invite_code}</span> и отправьте им.
+                          Теперь пригласите учеников. Скопируйте код приглашения <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-sm text-indigo-600 dark:text-indigo-400 font-bold whitespace-nowrap">{selectedGroup.invite_code}</span> и отправьте им.
                         </p>
                       </div>
                       {role === 'teacher' && (
