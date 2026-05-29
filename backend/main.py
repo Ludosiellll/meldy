@@ -87,7 +87,6 @@ async def health():
     )
 
 
-from utils import extract_text
 
 async def event_stream(
     user_id: str,
