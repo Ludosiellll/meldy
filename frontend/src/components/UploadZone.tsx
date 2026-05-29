@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Upload, FileText, X, Zap, Youtube, Video, FileAudio, Layers, CheckCircle2, FileVideo, Music, Camera, Loader2 } from 'lucide-react';
 import SettingsPanel from './SettingsPanel';
 import { AnalysisSettings } from '../types';
-import { hasBadWords } from '../lib/badwords';
+import { hasBadWords } from '../utils/moderation';
 import { compressImage } from '../lib/imageCompression';
 
 interface Props {
