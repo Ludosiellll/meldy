@@ -73,7 +73,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
         if (!match) {
           // Первый блок без заголовка — обычный абзац
           return (
-            <div key={i} className="prose prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 mb-4">
+            <div key={i} className="markdown-content text-slate-700 dark:text-slate-300 mb-4">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{sec.trim()}</ReactMarkdown>
             </div>
           );
@@ -93,7 +93,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
 
         return (
           <SectionBlock key={i} icon={icon} title={cleanTitle}>
-            <div className="prose prose-slate dark:prose-invert prose-sm max-w-none">
+            <div className="markdown-content">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{body}</ReactMarkdown>
             </div>
           </SectionBlock>
