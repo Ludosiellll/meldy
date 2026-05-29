@@ -28,7 +28,20 @@ app = FastAPI(title="AI Student Assistant", version="1.0.0")
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
+app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+from fastapi.responses import JSONResponse
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"Global exception: {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "traceback": traceback.format_exc()}
+    )
 
 origins = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
 
