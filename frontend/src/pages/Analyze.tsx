@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import UploadZone from '../components/UploadZone';
@@ -44,49 +44,6 @@ export default function Analyze() {
   const navigate = useNavigate();
   const { verifyEnergy } = useEnergyConfirm();
 
-  useEffect(() => {
-    const activeTask = localStorage.getItem('active_analysis_task');
-    if (activeTask) {
-      reconnectToTask(activeTask);
-    }
-  }, []);
-
-  const reconnectToTask = async (taskId: string) => {
-    setState({ phase: 'analyzing', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: 'Восстановление...' });
-    
-    try {
-      const abortController = new AbortController();
-      (window as any)._analyzeAbort = abortController;
-      
-      const res = await fetch(`/api/analyze/stream/${taskId}`, { signal: abortController.signal });
-      if (!res.ok) {
-        localStorage.removeItem('active_analysis_task');
-        setState(p => ({ ...p, phase: 'upload' }));
-        return;
-      }
-      
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('No body');
-      
-      const dec = new TextDecoder(); let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const l of lines) {
-          if (l.startsWith('data: ')) {
-            try { handleSSE(JSON.parse(l.slice(6))); } catch {}
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') return;
-      localStorage.removeItem('active_analysis_task');
-      setState(p => ({ ...p, phase: 'error', error: err.message }));
-    }
-  };
-
   const addToast = (text: string) => {
     const id = ++toastId.current;
     setToasts(prev => [...prev, { id, text }]);
@@ -107,21 +64,19 @@ export default function Analyze() {
     fd.append('quiz_count', String(state.settings.quizCount));
     fd.append('quiz_difficulty', state.settings.quizDifficulty);
     fd.append('quiz_type', state.settings.quizType);
-    if (user?.id) {
-      fd.append('user_id', user.id);
-    }
     
     // Определяем эндпоинт в зависимости от типа
     const isMedia = youtubeUrl || (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/')));
     const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
     
-    // ПРОВЕРКА ЛИМИТОВ ИИ (без предварительного списания, спишет бэкенд после успеха)
+    // ПРОВЕРКА ЛИМИТОВ ИИ
     if (user?.id) {
       const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
       if (!ok) {
         setState(p => ({ ...p, phase: 'upload' }));
         return;
       }
+      await incrementAIUsage(user.id, 20);
     }
 
     try {
@@ -159,15 +114,11 @@ export default function Analyze() {
   };
 
   const handleSSE = (d: Record<string, any>) => {
-    if (d.type === 'task_started') {
-      localStorage.setItem('active_analysis_task', d.task_id);
-    }
-    else if (d.type === 'text_extracted') { 
+    if (d.type === 'text_extracted') { 
       if (hasBadWords(d.text)) {
         if ((window as any)._analyzeAbort) {
           (window as any)._analyzeAbort.abort();
         }
-        localStorage.removeItem('active_analysis_task');
         setState(p => ({ ...p, phase: 'error', error: 'Текст содержит недопустимые материалы (мат или неприемлемый контент).' }));
         return;
       }
@@ -195,20 +146,53 @@ export default function Analyze() {
       const dur = analysisStartRef.current
         ? Math.round((Date.now() - analysisStartRef.current) / 1000)
         : 0;
-      setState(p => ({ ...p, results, analysisDuration: dur || undefined }));
-    }
-    else if (d.type === 'done') {
-      localStorage.removeItem('active_analysis_task');
-      if (d.material_id) {
-        setState(p => ({ ...p, phase: 'done', savedMaterialId: d.material_id }));
-      } else {
-        setState(p => ({ ...p, phase: 'done' }));
+      setState(p => ({ ...p, phase: 'done', results, analysisDuration: dur || undefined }));
+
+      if (user) {
+        const title = sourceFileNameRef.current
+          ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
+          : 'Без названия';
+
+        (async () => {
+          const { data: inserted, error } = await supabase
+            .from('materials')
+            .insert({
+              user_id: user.id,
+              title,
+              subject: results.summarizer?.subject || '',
+              original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
+              summary_json: {
+                content: results.summarizer?.content || '',
+                terms: results.summarizer?.terms || [],
+                cheatsheet: results.cheatsheet?.content || '',
+                podcast: results.podcast?.podcast || []
+              },
+              missions_json: results.missions,
+              flashcards_json: results.flashcards,
+              quiz_json: results.quiz,
+            })
+            .select('id')
+            .single();
+
+          if (error) {
+            console.error('Supabase insert error:', error);
+            return;
+          }
+
+          if (inserted?.id) {
+            setState(p => ({ ...p, savedMaterialId: inserted.id }));
+          }
+
+          const cards = results.flashcards?.flashcards || [];
+          if (cards.length > 0 && inserted?.id) {
+            await syncFlashcards(user.id, inserted.id, cards);
+          }
+          await updateQuestProgress(user.id, 'analyze', 1);
+          await recordStudyActivity(user.id, 0, 1);
+        })();
       }
     }
-    else if (d.type === 'error') {
-      localStorage.removeItem('active_analysis_task');
-      setState(p => ({ ...p, phase: 'error', error: d.message }));
-    }
+    else if (d.type === 'error') setState(p => ({ ...p, phase: 'error', error: d.message }));
   };
 
   const reset = () => { setState({ phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS }); setIsDemo(false); };
