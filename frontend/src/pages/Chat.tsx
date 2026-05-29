@@ -136,7 +136,7 @@ export default function Chat() {
         body: JSON.stringify({ 
           message: userMsg.content, 
           context: getContext(), 
-          history: messages.slice(-6), // Отправляем последние 6 сообщений для памяти
+          history: messages.slice(-10), // Отправляем последние сообщения для памяти
           extra_params: moodData ? { mood: moodData } : {}
         }),
       });

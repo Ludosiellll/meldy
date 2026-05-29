@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, BookOpen, Trash2, Plus, Headphones, Globe, Lock } from 'lucide-react';
+import { Search, BookOpen, Trash2, Plus, Headphones, Globe, Lock, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -58,8 +58,12 @@ export default function Library() {
       // Remove duplicates by ID (if teacher assigned my own material)
       const all = [...myMats, ...assignedMats];
       const unique = Array.from(new Map(all.map(m => [m.id, m])).values());
-      setMaterials(unique);
-      localStorage.setItem(`library_cache_${user.id}`, JSON.stringify(unique));
+      
+      const hidden = JSON.parse(localStorage.getItem(`hidden_assignments_${user.id}`) || '[]');
+      const visible = unique.filter(m => !hidden.includes(m.id));
+      
+      setMaterials(visible);
+      localStorage.setItem(`library_cache_${user.id}`, JSON.stringify(visible));
     } catch (e) {
       console.error(e);
     }
@@ -83,6 +87,19 @@ export default function Library() {
     if (!(await confirm({ title: 'Удаление', message: 'Удалить этот материал навсегда?', type: 'danger' }))) return;
     await deleteMaterial(id);
     setMaterials(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleHideAssignment = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!user) return;
+    const hidden = JSON.parse(localStorage.getItem(`hidden_assignments_${user.id}`) || '[]');
+    hidden.push(id);
+    localStorage.setItem(`hidden_assignments_${user.id}`, JSON.stringify(hidden));
+    
+    const newMaterials = materials.filter(m => m.id !== id);
+    setMaterials(newMaterials);
+    localStorage.setItem(`library_cache_${user.id}`, JSON.stringify(newMaterials));
+    toast.success('Задание скрыто из библиотеки');
   };
 
   const handleTogglePublic = async (e: React.MouseEvent, material: any) => {
@@ -270,8 +287,18 @@ export default function Library() {
                     <button
                       onClick={e => handleDelete(e, m.id)}
                       className="shrink-0 p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      title="Удалить"
                     >
                       <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {(m as any).is_assigned && (
+                    <button
+                      onClick={e => handleHideAssignment(e, m.id)}
+                      className="shrink-0 p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      title="Скрыть задание"
+                    >
+                      <EyeOff className="w-4 h-4" />
                     </button>
                   )}
                 </div>

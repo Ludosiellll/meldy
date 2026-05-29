@@ -309,7 +309,7 @@ async def chat(request: Request, req: ChatRequest):
 МАТЕРИАЛ ДЛЯ СПРАВКИ:
 {req.context[:25000]}"""
 
-    history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-5:]])
+    history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-10:]])
     full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС: {req.message}"
 
     # Добавляем контекст настроения пользователя
@@ -327,6 +327,8 @@ async def chat(request: Request, req: ChatRequest):
             mood_context += "Студент полон сил. Можешь давать более глубокие, сложные и детальные пояснения."
 
     system_prompt += mood_context
+
+    system_prompt += "\n\nВАЖНОЕ ПРАВИЛО: Это продолжающийся диалог. НЕ здоровайся заново, не повторяй вступительные слова поддержки из прошлых сообщений. Отвечай сразу по делу, опираясь на историю диалога."
 
     reply = await agent.run(system_prompt, full_user_query)
     return {"reply": reply}
