@@ -7,12 +7,12 @@ import yt_dlp
 import google.generativeai as genai
 import random
 
-def get_gemini_key():
+def get_gemini_keys():
     raw_keys = os.getenv("GEMINI_API_KEY", "")
     keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
     if not keys:
         raise ValueError("GEMINI_API_KEY не настроен для расшифровки аудио.")
-    return random.choice(keys)
+    return keys
 
 def extract_youtube_id(url: str) -> str:
     pattern = r"(?:v=|\/)([0-9A-Za-z_-]{11}).*"
@@ -102,53 +102,64 @@ async def _download_and_transcribe_youtube(youtube_url: str) -> str:
             os.remove(temp_path)
 
 async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
-    key = get_gemini_key()
-    genai.configure(api_key=key)
+    keys = get_gemini_keys()
+    shuffled_keys = list(keys)
+    random.shuffle(shuffled_keys)
     
     loop = asyncio.get_event_loop()
+    last_error = None
     
-    # Загружаем файл в Gemini
-    myfile = await loop.run_in_executor(None, lambda: genai.upload_file(file_path, mime_type=mime_type))
+    GEMINI_MODELS = [
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+    ]
     
-    try:
-        # Ожидаем завершения процессинга на стороне Google
-        while myfile.state.name == "PROCESSING":
-            await asyncio.sleep(2)
-            myfile = await loop.run_in_executor(None, lambda: genai.get_file(myfile.name))
-            
-        if myfile.state.name == "FAILED":
-            raise ValueError("Ошибка обработки медиа-файла серверами Google.")
-            
-        # Ищем рабочую модель
-        GEMINI_MODELS = [
-            "gemini-3.1-flash-lite",
-            "gemini-2.5-flash-preview-05-20",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-        ]
-        
-        response = None
-        for model_name in GEMINI_MODELS:
-            try:
-                model = genai.GenerativeModel(model_name)
-                is_image = mime_type and mime_type.startswith('image/')
-                if is_image:
-                    prompt = "Внимательно изучи это изображение. Это фотография конспекта, школьной доски или страницы учебника. Извлеки АБСОЛЮТНО ВЕСЬ текст, который ты видишь. Сохрани структуру: заголовки, списки, абзацы. Если видишь математические формулы, запиши их в формате LaTeX (KaTeX). Если часть текста неразборчива, напиши [неразборчиво], но постарайся восстановить по контексту. Твоя единственная цель - сделать идеальный текстовый слепок изображения без лишних комментариев."
-                else:
-                    prompt = "Сделай максимально полную и точную текстовую расшифровку всего, что сказано в этом аудио/видео. Передай речь дословно на языке оригинала."
-                
-                response = await model.generate_content_async([myfile, prompt])
-                if response and response.text:
-                    break
-            except Exception:
-                continue
-                
-        if not response or not response.text:
-            raise ValueError("Ни одна модель Gemini не смогла расшифровать медиа. Убедитесь, что ключи активны.")
-            
-        return response.text
-    finally:
+    for key in shuffled_keys:
         try:
-            await loop.run_in_executor(None, lambda: genai.delete_file(myfile.name))
-        except:
-            pass
+            genai.configure(api_key=key)
+            
+            # Загружаем файл в Gemini
+            myfile = await loop.run_in_executor(None, lambda: genai.upload_file(file_path, mime_type=mime_type))
+            
+            try:
+                # Ожидаем завершения процессинга на стороне Google
+                while myfile.state.name == "PROCESSING":
+                    await asyncio.sleep(2)
+                    myfile = await loop.run_in_executor(None, lambda: genai.get_file(myfile.name))
+                    
+                if myfile.state.name == "FAILED":
+                    raise ValueError("Ошибка обработки медиа-файла серверами Google.")
+                    
+                response = None
+                for model_name in GEMINI_MODELS:
+                    try:
+                        model = genai.GenerativeModel(model_name)
+                        is_image = mime_type and mime_type.startswith('image/')
+                        if is_image:
+                            prompt = "Внимательно изучи это изображение. Это фотография конспекта, школьной доски или страницы учебника. Извлеки АБСОЛЮТНО ВЕСЬ текст, который ты видишь. Сохрани структуру: заголовки, списки, абзацы. Если видишь математические формулы, запиши их в формате LaTeX (KaTeX). Если часть текста неразборчива, напиши [неразборчиво], но постарайся восстановить по контексту. Твоя единственная цель - сделать идеальный текстовый слепок изображения без лишних комментариев."
+                        else:
+                            prompt = "Сделай максимально полную и точную текстовую расшифровку всего, что сказано в этом аудио/видео. Передай речь дословно на языке оригинала."
+                        
+                        response = await model.generate_content_async([myfile, prompt])
+                        if response and response.text:
+                            break
+                    except Exception as model_err:
+                        continue
+                        
+                if not response or not response.text:
+                    raise ValueError("Модели Gemini не справились с задачей.")
+                    
+                return response.text
+                
+            finally:
+                try:
+                    await loop.run_in_executor(None, lambda: genai.delete_file(myfile.name))
+                except:
+                    pass
+        except Exception as e:
+            last_error = str(e)
+            continue
+            
+    raise ValueError(f"Не удалось расшифровать медиа. Убедитесь, что ключи активны. Последняя ошибка: {last_error}")

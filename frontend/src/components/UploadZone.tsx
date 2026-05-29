@@ -22,15 +22,20 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
   const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
   const validateAndSet = (f: File) => {
-    if (f.size > MAX_SIZE) {
-      setSizeError(`Файл слишком большой (${(f.size / 1024 / 1024).toFixed(1)} МБ). Максимум — 50 МБ.`);
+    let finalFile = f;
+    if (!f.name.includes('.') && f.size > 0 && f.type.startsWith('image/')) {
+      finalFile = new File([f], f.name + '.jpg', { type: f.type });
+    }
+
+    if (finalFile.size > MAX_SIZE) {
+      setSizeError(`Файл слишком большой (${(finalFile.size / 1024 / 1024).toFixed(1)} МБ). Максимум — 50 МБ.`);
       setFile(null);
-    } else if (hasBadWords(f.name)) {
+    } else if (hasBadWords(finalFile.name)) {
       setSizeError('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
       setFile(null);
     } else {
       setSizeError('');
-      setFile(f);
+      setFile(finalFile);
       setYoutubeUrl('');
     }
   };
