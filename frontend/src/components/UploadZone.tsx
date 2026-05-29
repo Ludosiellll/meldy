@@ -17,7 +17,6 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
   const [tab, setTab] = useState<'docs' | 'media'>('docs');
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [sizeError, setSizeError] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
 
@@ -48,7 +47,6 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
     } else {
       setSizeError('');
       setFile(finalFile);
-      setYoutubeUrl('');
     }
   };
 
@@ -59,11 +57,10 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
   }, []);
 
   const handleStart = () => { 
-    if (tab === 'docs' && file) onUpload(file); 
-    if (tab === 'media' && (file || youtubeUrl.trim())) onUpload(file, youtubeUrl.trim() || undefined);
+    if (file) onUpload(file); 
   };
 
-  const isReady = tab === 'docs' ? !!file : (!!file || !!youtubeUrl.trim());
+  const isReady = !!file;
 
   return (
     <div className="py-10 space-y-8">
@@ -95,13 +92,13 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
          <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl max-w-sm mx-auto">
             <button
-              onClick={() => { setTab('docs'); setFile(null); setYoutubeUrl(''); }}
+              onClick={() => { setTab('docs'); setFile(null); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition ${tab === 'docs' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               📄 Документы
             </button>
             <button
-              onClick={() => { setTab('media'); setFile(null); setYoutubeUrl(''); }}
+              onClick={() => { setTab('media'); setFile(null); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition ${tab === 'media' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               ▶️ Видео / Аудио
@@ -114,32 +111,11 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
         <div className="flex items-center gap-2 mb-3">
           <span className="w-7 h-7 rounded-full bg-brand-600 dark:bg-brand-500 text-white text-sm flex items-center justify-center font-bold">1</span>
           <span className="font-medium text-slate-800 dark:text-slate-200">
-            {tab === 'docs' ? 'Выберите файл' : 'Вставьте ссылку или загрузите файл'}
+            {tab === 'docs' ? 'Выберите файл' : 'Загрузите файл'}
           </span>
         </div>
 
-        {tab === 'media' && !file && (
-            <div className="mb-4">
-                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-brand-500 transition">
-                    <div className="pl-4 text-slate-400"><Youtube className="w-5 h-5"/></div>
-                    <input 
-                        type="text" 
-                        placeholder="Ссылка на YouTube..." 
-                        value={youtubeUrl}
-                        onChange={e => setYoutubeUrl(e.target.value)}
-                        className="w-full py-3 px-3 outline-none text-slate-700 dark:text-slate-200 bg-transparent text-sm placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                    />
-                    {youtubeUrl && (
-                        <button onClick={() => setYoutubeUrl('')} className="pr-4 text-slate-400 hover:text-rose-500 transition">
-                            <X className="w-5 h-5"/>
-                        </button>
-                    )}
-                </div>
-                {!youtubeUrl && <div className="text-center text-slate-400 dark:text-slate-600 my-4 text-sm font-medium">ИЛИ</div>}
-            </div>
-        )}
-
-        {(!file && (!youtubeUrl || tab === 'docs')) ? (
+        {!file ? (
           <>
             <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -225,7 +201,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed')}
         >
           <Zap className="w-5 h-5" />
-          {isReady ? 'Запустить анализ' : 'Сначала выберите файл или вставьте ссылку'}
+          {isReady ? 'Запустить анализ' : 'Сначала выберите файл'}
         </button>
       </motion.div>
     </div>

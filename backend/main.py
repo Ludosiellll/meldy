@@ -168,7 +168,6 @@ from media_parser import extract_youtube_transcript, transcribe_media_file
 import tempfile
 
 async def event_stream_media(
-    youtube_url: str = None,
     file: UploadFile = None,
     summary_detail: str = "medium",
     flashcard_count: int = 6,
@@ -178,10 +177,7 @@ async def event_stream_media(
 ) -> AsyncGenerator[str, None]:
     try:
         text = ""
-        if youtube_url:
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Извлечение субтитров YouTube или скачивание аудио...'})}\n\n"
-            text = await extract_youtube_transcript(youtube_url)
-        elif file:
+        if file:
             yield f"data: {json.dumps({'type': 'status', 'message': 'Загрузка медиа в ИИ для транскрипции (до 2 минут)...'})}\n\n"
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or "")[1].lower()) as tmp:
                 content = await file.read()
@@ -221,7 +217,6 @@ async def event_stream_media(
 @limiter.limit("3/minute")
 async def analyze_media(
     request: Request,
-    youtube_url: str = Form(None),
     file: UploadFile = File(None),
     summary_detail: str = Form("medium"),
     flashcard_count: int = Form(6),
@@ -251,7 +246,7 @@ async def analyze_media(
          )
 
     return StreamingResponse(
-        event_stream_media(youtube_url, file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        event_stream_media(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

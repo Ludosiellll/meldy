@@ -50,7 +50,7 @@ export default function Analyze() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   };
 
-  const handleUpload = async (file: File | null, youtubeUrl?: string) => {
+  const handleUpload = async (file: File | null) => {
     // ПРОВЕРКА ЛИМИТОВ ИИ перед сменой интерфейса
     if (user?.id) {
       const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
@@ -60,12 +60,11 @@ export default function Analyze() {
     }
 
     analysisStartRef.current = Date.now();
-    sourceFileNameRef.current = file ? file.name : (youtubeUrl ? 'YouTube Video' : 'Unknown');
+    sourceFileNameRef.current = file ? file.name : 'Unknown';
     setState({ phase: 'extracting', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
     
     const fd = new FormData();
     if (file) fd.append('file', file);
-    if (youtubeUrl) fd.append('youtube_url', youtubeUrl);
     
     fd.append('summary_detail', state.settings.summaryDetail);
     fd.append('flashcard_count', String(state.settings.flashcardCount));
@@ -74,7 +73,7 @@ export default function Analyze() {
     fd.append('quiz_type', state.settings.quizType);
     
     // Определяем эндпоинт в зависимости от типа
-    const isMedia = youtubeUrl || (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/')));
+    const isMedia = file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/'));
     const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
 
     try {
