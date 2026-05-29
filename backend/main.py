@@ -88,6 +88,9 @@ async def health():
 
 
 
+from background_analyzer import run_background_analysis, stream_task_events
+import uuid
+
 async def event_stream(
     user_id: str,
     source_file_name: str,
@@ -103,7 +106,6 @@ async def event_stream(
     contents = await file.read()
     text = extract_text(contents, file.filename or "file.txt")
 
-    queue = asyncio.Queue()
     params = {
         "summary_detail": summary_detail,
         "flashcard_count": flashcard_count,
@@ -112,18 +114,20 @@ async def event_stream(
         "quiz_type": quiz_type
     }
     
+    task_id = str(uuid.uuid4())
+    
     asyncio.create_task(run_background_analysis(
+        task_id=task_id,
         user_id=user_id,
         source_file_name=source_file_name,
         text=text,
         youtube_url=None,
         tmp_path=None,
         content_type=None,
-        queue=queue,
         params=params
     ))
     
-    async for event in stream_from_queue(queue):
+    async for event in stream_task_events(task_id):
         yield event
 
 
@@ -170,7 +174,6 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
-from background_analyzer import run_background_analysis, stream_from_queue
 import tempfile
 import asyncio
 
@@ -197,7 +200,6 @@ async def event_stream_media(
             tmp.write(content)
             tmp_path = tmp.name
 
-    queue = asyncio.Queue()
     params = {
         "summary_detail": summary_detail,
         "flashcard_count": flashcard_count,
@@ -206,23 +208,35 @@ async def event_stream_media(
         "quiz_type": quiz_type
     }
     
+    task_id = str(uuid.uuid4())
+    
     # Запускаем фон (он выживет даже если клиент отвалится)
     asyncio.create_task(run_background_analysis(
+        task_id=task_id,
         user_id=user_id,
         source_file_name=source_file_name,
         text="",
         youtube_url=youtube_url,
         tmp_path=tmp_path,
         content_type=content_type,
-        queue=queue,
         params=params
     ))
     
-    # Стримим из очереди
-    async for event in stream_from_queue(queue):
+    # Стримим из истории и очереди
+    async for event in stream_task_events(task_id):
         yield event
 
-
+@app.get("/api/analyze/stream/{task_id}")
+async def stream_analysis(task_id: str):
+    return StreamingResponse(
+        stream_task_events(task_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @app.post("/api/analyze/media")
 @limiter.limit("3/minute")

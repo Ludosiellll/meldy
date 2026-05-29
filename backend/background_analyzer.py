@@ -8,22 +8,33 @@ from media_parser import extract_youtube_transcript, transcribe_media_file
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+tasks_db = {} # type: dict[str, dict]
+
 async def run_background_analysis(
+    task_id: str,
     user_id: str,
     source_file_name: str,
     text: str,
     youtube_url: str,
     tmp_path: str,
     content_type: str,
-    queue: asyncio.Queue,
     params: dict
 ):
+    tasks_db[task_id] = {"events": [], "queues": [], "status": "running"}
+    
+    async def emit(event):
+        tasks_db[task_id]["events"].append(event)
+        for q in tasks_db[task_id]["queues"]:
+            await q.put(event)
+            
+    await emit({"type": "task_started", "task_id": task_id})
+
     try:
         if youtube_url:
-            await queue.put({"type": "status", "message": "Извлечение субтитров YouTube или скачивание аудио..."})
+            await emit({"type": "status", "message": "Извлечение субтитров YouTube или скачивание аудио..."})
             text = await extract_youtube_transcript(youtube_url)
         elif tmp_path:
-            await queue.put({"type": "status", "message": "Загрузка медиа в ИИ для транскрипции (до 2 минут)..."})
+            await emit({"type": "status", "message": "Загрузка медиа в ИИ для транскрипции (до 2 минут)..."})
             try:
                 text = await transcribe_media_file(tmp_path, content_type)
             finally:
@@ -31,15 +42,16 @@ async def run_background_analysis(
                     os.remove(tmp_path)
                     
         if not text or not text.strip():
-            await queue.put({"type": "error", "message": "Не удалось получить текст из файла/медиа."})
+            await emit({"type": "error", "message": "Не удалось получить текст из файла/медиа."})
+            tasks_db[task_id]["status"] = "error"
             return
             
-        await queue.put({"type": "text_extracted", "length": len(text), "text": text})
+        await emit({"type": "text_extracted", "length": len(text), "text": text})
         
         coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
         results = {}
         async for event in coordinator.process(text, **params):
-            await queue.put(event)
+            await emit(event)
             if event["type"] == "results":
                 results = event
                 
@@ -47,6 +59,20 @@ async def run_background_analysis(
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_KEY")
         
+        if not supabase_url or not supabase_key:
+            try:
+                import pathlib
+                env_path = pathlib.Path(__file__).parent.parent / "frontend" / ".env"
+                if env_path.exists():
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.startswith("VITE_SUPABASE_URL="):
+                                supabase_url = line.split("=", 1)[1].strip()
+                            elif line.startswith("VITE_SUPABASE_ANON_KEY="):
+                                supabase_key = line.split("=", 1)[1].strip()
+            except Exception as e:
+                print(f"Fallback env error: {e}")
+                
         if user_id and supabase_url and supabase_key:
             try:
                 headers = {
@@ -90,21 +116,50 @@ async def run_background_analysis(
             except Exception as e:
                 print(f"DB Save Error: {e}")
                 
-        await queue.put({"type": "done", "material_id": material_id})
-        await queue.put(None)
+        await emit({"type": "done", "material_id": material_id})
+        tasks_db[task_id]["status"] = "done"
+        await emit(None)
     except Exception as e:
-        await queue.put({"type": "error", "message": str(e)})
-        await queue.put(None)
+        await emit({"type": "error", "message": str(e)})
+        tasks_db[task_id]["status"] = "error"
+        await emit(None)
 
-async def stream_from_queue(queue: asyncio.Queue):
-    try:
-        while True:
-            event = await queue.get()
-            if event is None:
-                break
-            yield f"data: {json.dumps(event)}\n\n"
-            if event.get("type") in ("error", "done"):
-                break
-    except asyncio.CancelledError:
-        print("Client disconnected, background task continues...")
-        raise
+async def stream_task_events(task_id: str):
+    if task_id not in tasks_db:
+        yield f"data: {json.dumps({'type': 'error', 'message': 'Task not found or expired'})}\n\n"
+        return
+        
+    task = tasks_db[task_id]
+    
+    # 1. Сначала отдаем всю историю
+    for event in task["events"]:
+        if event is None:
+            break
+        yield f"data: {json.dumps(event)}\n\n"
+        if event.get("type") in ("error", "done"):
+            return
+            
+    # 2. Если задача еще выполняется, подписываемся на очередь
+    if task["status"] == "running":
+        q = asyncio.Queue()
+        task["queues"].append(q)
+        try:
+            while True:
+                event = await q.get()
+                if event is None:
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("type") in ("error", "done"):
+                    break
+        except asyncio.CancelledError:
+            print("Client disconnected from stream")
+            raise
+        finally:
+            if q in task["queues"]:
+                task["queues"].remove(q)
+                
+    # Очистка задач (опционально, можно оставить пока так, чтобы не утекало, можно чистить done задачи)
+    if task["status"] in ("error", "done"):
+        # Дадим 5 минут на то, чтобы другие клиенты могли забрать статус, потом можно удалить
+        # Пока оставим как есть, утечка памяти минимальна
+        pass
