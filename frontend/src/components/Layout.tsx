@@ -247,61 +247,77 @@ export default function Layout() {
         </div>
 
         {/* XP / Level блок */}
-        <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 tour-step-xp">
-          <div className="flex items-center justify-between mb-2">
+        {profile === null ? (
+          <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 animate-pulse h-[116px] flex flex-col justify-between">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
-              <p className="text-xs font-semibold text-slate-200">{levelInfo.name}</p>
-            </div>
-            <button
-              onClick={() => navigate('/analytics')}
-              className="text-slate-500 hover:text-slate-300 transition bg-slate-800 p-1.5 rounded-md"
-              title="Аналитика"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50 mb-1.5">
-            <div
-              className="h-full bg-indigo-500 rounded-full transition-all duration-700"
-              style={{ width: `${levelInfo.progress}%` }}
-            />
-          </div>
-          <div className="flex justify-between mb-4">
-            <span className="text-[10px] font-medium text-slate-500">{xp} XP</span>
-            <span className="text-[10px] font-medium text-slate-500">{levelInfo.currentXP}/{levelInfo.nextXP}</span>
-          </div>
-
-          {/* AI Tokens Bar */}
-          <div 
-            onClick={() => setIsTokenModalOpen(true)}
-            className="group cursor-pointer p-1.5 -mx-1.5 rounded-xl hover:bg-slate-700/30 transition"
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <Zap className={`w-3.5 h-3.5 ${profile?.is_pro ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400 transition'}`} />
-                <p className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition uppercase tracking-widest">Энергия ИИ</p>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="h-3 bg-slate-700/50 rounded w-16 mb-1.5"></div>
+                  <div className="h-4 bg-slate-700/50 rounded w-24"></div>
+                </div>
+                <div className="w-7 h-7 bg-slate-700/50 rounded-md"></div>
               </div>
-              {profile?.is_pro ? (
-                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(251,191,36,0.3)]">PRO</span>
-              ) : null}
+              <div className="h-1.5 bg-slate-700/50 rounded-full w-full mb-4"></div>
             </div>
-            {!profile?.is_pro && (
-              <>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${usedTokens >= FREE_DAILY_LIMIT ? 'bg-rose-500' : 'bg-amber-400'}`}
-                    style={{ width: `${Math.max(0, ((FREE_DAILY_LIMIT - usedTokens) / FREE_DAILY_LIMIT) * 100)}%` }}
-                  />
-                </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-[10px] font-medium text-slate-500">Осталось</span>
-                  <span className="text-[10px] font-medium text-slate-500">{FREE_DAILY_LIMIT - usedTokens} / {FREE_DAILY_LIMIT}</span>
-                </div>
-              </>
-            )}
+            <div className="h-8 bg-slate-700/50 rounded-xl w-full mt-auto"></div>
           </div>
-        </div>
+        ) : (
+          <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 tour-step-xp">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
+                <p className="text-xs font-semibold text-slate-200">{levelInfo.name}</p>
+              </div>
+              <button
+                onClick={() => navigate('/analytics')}
+                className="text-slate-500 hover:text-slate-300 transition bg-slate-800 p-1.5 rounded-md"
+                title="Аналитика"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50 mb-1.5">
+              <div
+                className="h-full bg-indigo-500 rounded-full transition-all duration-700"
+                style={{ width: `${levelInfo.progress}%` }}
+              />
+            </div>
+            <div className="flex justify-between mb-4">
+              <span className="text-[10px] font-medium text-slate-500">{xp} XP</span>
+              <span className="text-[10px] font-medium text-slate-500">{levelInfo.currentXP}/{levelInfo.nextXP}</span>
+            </div>
+
+            {/* AI Tokens Bar */}
+            <div 
+              onClick={() => setIsTokenModalOpen(true)}
+              className="group cursor-pointer p-1.5 -mx-1.5 rounded-xl hover:bg-slate-700/30 transition"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Zap className={`w-3.5 h-3.5 ${profile?.is_pro ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400 transition'}`} />
+                  <p className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition uppercase tracking-widest">Энергия ИИ</p>
+                </div>
+                {profile?.is_pro ? (
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(251,191,36,0.3)]">PRO</span>
+                ) : null}
+              </div>
+              {!profile?.is_pro && (
+                <>
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${usedTokens >= FREE_DAILY_LIMIT ? 'bg-rose-500' : 'bg-amber-400'}`}
+                      style={{ width: `${Math.max(0, ((FREE_DAILY_LIMIT - usedTokens) / FREE_DAILY_LIMIT) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1.5">
+                    <span className="text-[10px] font-medium text-slate-500">Осталось</span>
+                    <span className="text-[10px] font-medium text-slate-500">{FREE_DAILY_LIMIT - usedTokens} / {FREE_DAILY_LIMIT}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
