@@ -51,6 +51,14 @@ export default function Analyze() {
   };
 
   const handleUpload = async (file: File | null, youtubeUrl?: string) => {
+    // ПРОВЕРКА ЛИМИТОВ ИИ перед сменой интерфейса
+    if (user?.id) {
+      const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
+      if (!ok) {
+        return; // остаемся на экране загрузки
+      }
+    }
+
     analysisStartRef.current = Date.now();
     sourceFileNameRef.current = file ? file.name : (youtubeUrl ? 'YouTube Video' : 'Unknown');
     setState({ phase: 'extracting', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
@@ -69,15 +77,7 @@ export default function Analyze() {
     const isMedia = youtubeUrl || (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/')));
     const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
     
-    // ПРОВЕРКА ЛИМИТОВ ИИ
-    if (user?.id) {
-      const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
-      if (!ok) {
-        setState(p => ({ ...p, phase: 'upload' }));
-        return;
-      }
-      await incrementAIUsage(user.id, 20);
-    }
+    const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
 
     try {
       const abortController = new AbortController();
@@ -124,14 +124,12 @@ export default function Analyze() {
       }
       setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); 
       textLengthRef.current = d.length;
-      (window as any)._lastExtractedText = d.text; // Сохраняем текст из события
+      (window as any)._lastExtractedText = d.text;
     }
     else if (d.type === 'status') {
-      // No toast needed, handled in main UI
     }
     else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
     else if (d.type === 'agent_done') {
-      // No toast needed, visualized directly in agent card
       setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
     }
     else if (d.type === 'results') {
@@ -146,49 +144,55 @@ export default function Analyze() {
       const dur = analysisStartRef.current
         ? Math.round((Date.now() - analysisStartRef.current) / 1000)
         : 0;
-      setState(p => ({ ...p, phase: 'done', results, analysisDuration: dur || undefined }));
 
       if (user) {
-        const title = sourceFileNameRef.current
-          ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
-          : 'Без названия';
 
         (async () => {
-          const { data: inserted, error } = await supabase
-            .from('materials')
-            .insert({
-              user_id: user.id,
-              title,
-              subject: results.summarizer?.subject || '',
-              original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
-              summary_json: {
-                content: results.summarizer?.content || '',
-                terms: results.summarizer?.terms || [],
-                cheatsheet: results.cheatsheet?.content || '',
-                podcast: results.podcast?.podcast || []
-              },
-              missions_json: results.missions,
-              flashcards_json: results.flashcards,
-              quiz_json: results.quiz,
-            })
-            .select('id')
-            .single();
+          try {
+            await incrementAIUsage(user.id, 20); // списываем 20 за анализ
+            
+            const title = sourceFileNameRef.current
+              ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
+              : 'Без названия';
 
-          if (error) {
-            console.error('Supabase insert error:', error);
-            return;
-          }
+            const { data: inserted, error } = await supabase
+              .from('materials')
+              .insert({
+                user_id: user.id,
+                title,
+                subject: results.summarizer?.subject || '',
+                original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
+                summary_json: {
+                  content: results.summarizer?.content || '',
+                  terms: results.summarizer?.terms || [],
+                  cheatsheet: results.cheatsheet?.content || '',
+                  podcast: results.podcast?.podcast || []
+                },
+                missions_json: results.missions,
+                flashcards_json: results.flashcards,
+                quiz_json: results.quiz,
+              })
+              .select('id')
+              .single();
 
-          if (inserted?.id) {
-            setState(p => ({ ...p, savedMaterialId: inserted.id }));
-          }
+            if (error) {
+              console.error('Supabase insert error:', error);
+              return;
+            }
 
-          const cards = results.flashcards?.flashcards || [];
-          if (cards.length > 0 && inserted?.id) {
-            await syncFlashcards(user.id, inserted.id, cards);
+            if (inserted?.id) {
+              setState(p => ({ ...p, savedMaterialId: inserted.id }));
+            }
+
+            const cards = results.flashcards?.flashcards || [];
+            if (cards.length > 0 && inserted?.id) {
+              await syncFlashcards(user.id, inserted.id, cards);
+            }
+            await updateQuestProgress(user.id, 'analyze', 1);
+            await recordStudyActivity(user.id, 0, 1);
+          } catch (err) {
+            console.error('AI Usage or DB error:', err);
           }
-          await updateQuestProgress(user.id, 'analyze', 1);
-          await recordStudyActivity(user.id, 0, 1);
         })();
       }
     }
