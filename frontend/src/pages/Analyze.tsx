@@ -76,8 +76,6 @@ export default function Analyze() {
     // Определяем эндпоинт в зависимости от типа
     const isMedia = youtubeUrl || (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/')));
     const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
-    
-    const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
 
     try {
       const abortController = new AbortController();
