@@ -239,10 +239,10 @@ async def analyze_media(
                 detail=f"Неподдерживаемый формат медиа. Поддерживаются: {', '.join(allowed_extensions)}",
             )
             
-    if not youtube_url and not file:
+    if not file:
          raise HTTPException(
                 status_code=400,
-                detail="Укажите youtube_url или загрузите файл.",
+                detail="Укажите загрузите файл.",
          )
 
     return StreamingResponse(
