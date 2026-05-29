@@ -99,17 +99,23 @@ export default function Chat() {
   const handleSend = async () => {
     if (!input.trim() || !selectedId || !user || loading) return;
     
-    // Проверка лимитов (1 токен за сообщение)
-    const ok = await verifyEnergy(user.id, 1, 'Отправка сообщения');
-    if (!ok) return;
-    await incrementAIUsage(user.id, 1);
-    
-    const userMsg = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
     setLoading(true);
 
+    // Проверка лимитов (1 токен за сообщение)
+    const ok = await verifyEnergy(user.id, 1, 'Отправка сообщения');
+    if (!ok) {
+      setLoading(false);
+      return;
+    }
+
+    const currentInput = input;
+    setInput('');
+
     try {
+      await incrementAIUsage(user.id, 1);
+      
+      const userMsg = { role: 'user', content: currentInput };
+      setMessages(prev => [...prev, userMsg]);
       // 1. Сохраняем сообщение пользователя в БД
       await supabase.from('chat_messages').insert({
         user_id: user.id,
