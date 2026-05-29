@@ -94,26 +94,52 @@ export default function KnowledgeMap() {
     }).catch(console.error);
   }, [user?.id]);
 
-  // Парсер терминов из секции "📚 Термины и определения" конспекта
+  // Парсер терминов из конспекта
   const extractTerms = (summaryJson: any) => {
     const content = summaryJson?.content || (summaryJson as any)?.raw || '';
     if (!content) return [];
 
+    const terms: { term: string; definition: string }[] = [];
+    
+    // Попытка 1: Ищем специализированную секцию терминов (стандартный формат)
     const sections = content.split(/(?=^## )/gm);
     const termsSection = sections.find((s: string) => 
       s.includes('Термины') || s.includes('Терминология') || s.includes('📚')
     );
-    if (!termsSection) return [];
 
-    const terms: { term: string; definition: string }[] = [];
-    const lineRegex = /(?:\d+\.|\*|-)\s+\*\*([^*]+)\*\*\s*(?:—|-|–)\s*(.+)/g;
-    let match;
-    while ((match = lineRegex.exec(termsSection)) !== null) {
-      terms.push({
-        term: match[1].trim(),
-        definition: match[2].trim()
-      });
+    const lineRegex = /(?:\d+\.|\*|-)\s+\*\*([^*]+)\*\*\s*(?:—|-|–|:)\s*(.+)/g;
+    
+    if (termsSection) {
+      let match;
+      while ((match = lineRegex.exec(termsSection)) !== null) {
+        terms.push({
+          term: match[1].trim(),
+          definition: match[2].trim()
+        });
+      }
     }
+    
+    // Попытка 2: Если терминов не найдено (или секции нет), ищем любые выделенные термины по всему тексту
+    // Паттерн: **Термин** — Определение (или **Термин:** Определение)
+    if (terms.length === 0) {
+      const globalRegex = /\*\*([^*]+)\*\*\s*(?:—|-|–|:)\s*([^\n]+)/g;
+      let match;
+      while ((match = globalRegex.exec(content)) !== null) {
+        const term = match[1].trim();
+        let definition = match[2].trim();
+        
+        // Отсеиваем слишком длинные "термины" (это скорее заголовки абзацев)
+        if (term.length > 0 && term.length <= 45 && definition.length > 5) {
+          // Отрезаем определение по первой точке, если оно слишком длинное, чтобы на карте не было стены текста
+          if (definition.length > 150) {
+             const dotIndex = definition.indexOf('.');
+             if (dotIndex > 10) definition = definition.substring(0, dotIndex + 1);
+          }
+          terms.push({ term, definition });
+        }
+      }
+    }
+
     return terms;
   };
 
