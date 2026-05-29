@@ -9,9 +9,9 @@ import random
 
 def get_gemini_key():
     raw_keys = os.getenv("GEMINI_API_KEY", "")
-    keys = [k.strip() for k in raw_keys.split(",") if k.strip() and k.strip().startswith("AIza")]
+    keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
     if not keys:
-        raise ValueError("Среди GEMINI_API_KEY нет ключей формата AIza (остальные форматы не поддерживают загрузку файлов).")
+        raise ValueError("GEMINI_API_KEY не настроен для расшифровки аудио.")
     return random.choice(keys)
 
 def extract_youtube_id(url: str) -> str:
