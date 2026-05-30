@@ -569,7 +569,24 @@ async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
             "missing_points": ["Пожалуйста, сформулируйте ответ более академично"]
         }
 
-
+@app.post("/api/missions/generate")
+@limiter.limit("5/minute")
+async def generate_missions(request: Request, req: MissionsGenerateRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    system_prompt = build_missions_prompt()
+    raw = await agent.run(system_prompt, req.context)
+    
+    try:
+        return parse_llm_json(raw)
+    except Exception as e:
+        err_str = str(e)
+        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
+            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
+        else:
+            expl_msg = f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}"
+            
+        return {
+            "missions": [
                 {
                     "id": 1,
                     "title": "Внимание: Сервер перегружен" if "API_LIMIT" in err_str else "Введение в тему",
