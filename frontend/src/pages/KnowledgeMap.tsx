@@ -191,6 +191,12 @@ export default function KnowledgeMap() {
     }, []);
 
     const numMats = uniqueMaterials.length;
+    // Грид-размещение лекций: гарантирует равномерное заполнение всего холста
+    const numCols = Math.ceil(Math.sqrt(numMats * 1.6));
+    const numRows = Math.ceil(numMats / numCols);
+    const cellW = width / numCols;
+    const cellH = height / numRows;
+
     uniqueMaterials.forEach((mat, idx) => {
       const subject = mat.subject || 'Общее';
       if (!subjectColorMap[subject]) {
@@ -198,11 +204,13 @@ export default function KnowledgeMap() {
         colorIdx++;
       }
 
-      // Начальный посев лекций близко к центру для органичного расширения во все стороны и заполнения центра
-      const angle = (idx / Math.max(1, numMats)) * Math.PI * 2;
-      const dist = 80 + Math.random() * 60;
-      const initX = width / 2 + Math.cos(angle) * dist;
-      const initY = height / 2 + Math.sin(angle) * dist;
+      // Размещаем лекции в центре каждой ячейки грида с легким цасем для естественности
+      const col = idx % numCols;
+      const row = Math.floor(idx / numCols);
+      const jitterX = (Math.random() - 0.5) * cellW * 0.2;
+      const jitterY = (Math.random() - 0.5) * cellH * 0.2;
+      const initX = cellW * (col + 0.5) + jitterX;
+      const initY = cellH * (row + 0.5) + jitterY;
 
       tempNodes.push({
         id: mat.id,
@@ -212,7 +220,7 @@ export default function KnowledgeMap() {
         y: initY,
         vx: 0,
         vy: 0,
-        radius: 36, // Звезда больше
+        radius: 36,
         status: 'neutral',
         color: subjectColorMap[subject],
         details: mat
@@ -254,21 +262,36 @@ export default function KnowledgeMap() {
     });
 
     const conceptKeys = Object.keys(conceptMap);
+
+    // Группируем понятия по их первой лекции для равномерного размещения по орбите (a не случайного)
+    const conceptsByFirstMat: Record<string, string[]> = {};
+    conceptKeys.forEach(key => {
+      const firstMatId = conceptMap[key].materials[0]?.id;
+      if (firstMatId) {
+        if (!conceptsByFirstMat[firstMatId]) conceptsByFirstMat[firstMatId] = [];
+        conceptsByFirstMat[firstMatId].push(key);
+      }
+    });
+
     conceptKeys.forEach((key, idx) => {
       const value = conceptMap[key];
       const linksCount = value.materials.length;
 
-      // Инициализируем планету на случайном угле по орбите ее первой лекции (звезды)
-      // Это предотвращает слипание планет в одну кучу и сразу задает круговую структуру
+      // Размещаем понятия на равномерных углах по орбите вокруг своей первой лекции
       let startX = width / 2;
       let startY = height / 2;
       if (value.materials.length > 0) {
         const firstMat = tempNodes.find(n => n.id === value.materials[0].id);
         if (firstMat) {
-          const termAngle = Math.random() * Math.PI * 2;
-          const termDist = 120 + Math.random() * 20;
-          startX = firstMat.x + Math.cos(termAngle) * termDist;
-          startY = firstMat.y + Math.sin(termAngle) * termDist;
+          const firstMatId = value.materials[0].id;
+          const group = conceptsByFirstMat[firstMatId] || [key];
+          const conceptIdx = group.indexOf(key);
+          const groupSize = group.length;
+          // Равномерные углы, начиная сверху (-π/2) для красивого круга
+          const termAngle = (conceptIdx / Math.max(1, groupSize)) * Math.PI * 2 - Math.PI / 2;
+          const orbitR = firstMat.radius + 90; // Орбита достаточно широкая, чтобы не налезать на лекцию
+          startX = firstMat.x + Math.cos(termAngle) * orbitR;
+          startY = firstMat.y + Math.sin(termAngle) * orbitR;
         }
       }
 
@@ -295,160 +318,89 @@ export default function KnowledgeMap() {
       });
     });
 
-    nodesRef.current = tempNodes;
-    linksRef.current = tempLinks;
-    setNodes(tempNodes);
-    setLinks(tempLinks);
-  }, [loading, materials, mistakes]);
+    // ===== ПРОХОД РАЗДЕЛЕНИЯ: устраняем все перекрытия синхронно =====
+    // Это заменяет физическую симуляцию, давая детерминированный результат без конфликтов сил
+    for (let pass = 0; pass < 200; pass++) {
+      let anyMoved = false;
+      for (let i = 0; i < tempNodes.length; i++) {
+        for (let j = i + 1; j < tempNodes.length; j++) {
+          const a = tempNodes[i];
+          const b = tempNodes[j];
+          const dx = (b.x - a.x) || 0.01;
+          const dy = (b.y - a.y) || 0.01;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
 
-  // 3. Симуляция физики (Галактическая модель)
-  useEffect(() => {
-    if (nodes.length === 0) return;
-
-    const width = 1600;
-    const height = 1000;
-
-    const tick = () => {
-      const currentNodes = [...nodesRef.current];
-      const currentLinks = linksRef.current;
-
-      // 1. Силы отталкивания
-      for (let i = 0; i < currentNodes.length; i++) {
-        const nodeA = currentNodes[i];
-        for (let j = i + 1; j < currentNodes.length; j++) {
-          const nodeB = currentNodes[j];
-          const dx = nodeB.x - nodeA.x;
-          const dy = nodeB.y - nodeA.y;
-          const distSq = dx * dx + dy * dy + 0.1;
-          const dist = Math.sqrt(distSq);
-          
-          let minDist = 120;
-          let strength = 0.5;
-
-          if (nodeA.type === 'material' && nodeB.type === 'material') {
-            // Лекция от лекции
-            minDist = 380; 
-            strength = 0.75;
-          } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-            // Понятие от понятия
-            const shareMaterial = nodeA.materials?.some(ma => 
-              nodeB.materials?.some(mb => mb.id === ma.id)
-            );
-
-            if (shareMaterial) {
-              // Понятия одной лекции расталкиваются на орбите
-              minDist = nodeA.radius + nodeB.radius + 75; 
-              strength = 0.6;
-            } else {
-              // Понятия разных лекций расталкиваются очень сильно
-              minDist = nodeA.radius + nodeB.radius + 140; 
-              strength = 0.8;
-            }
+          let minDist: number;
+          if (a.type === 'material' && b.type === 'material') {
+            // Лекция от лекции: должно быть между ними много места
+            minDist = a.radius + b.radius + 200;
+          } else if (a.type === 'concept' && b.type === 'concept') {
+            // Понятие от понятия: учитываем примерную ширину текстовой метки (~80пк)
+            minDist = a.radius + b.radius + 80;
           } else {
-            // Понятие от лекции (включая свои же)
-            const materialNode = nodeA.type === 'material' ? nodeA : nodeB;
-            const conceptNode = nodeA.type === 'concept' ? nodeA : nodeB;
-            
-            const isLinked = currentLinks.some(l => 
-              (l.source === materialNode.id && l.target === conceptNode.id) ||
-              (l.target === materialNode.id && l.source === conceptNode.id)
+            // Понятие от лекции
+            const mat = a.type === 'material' ? a : b;
+            const con = a.type === 'concept' ? a : b;
+            const linked = tempLinks.some(l =>
+              (l.source === mat.id && l.target === con.id) ||
+              (l.target === mat.id && l.source === con.id)
             );
-
-            if (isLinked) {
-              // Своя лекция - держим узел на орбите, не давая наезжать на центр лекции
-              minDist = materialNode.radius + conceptNode.radius + 80;
-              strength = 0.6;
-            } else {
-              // Чужая лекция - сильное отталкивание
-              minDist = materialNode.radius + conceptNode.radius + 160;
-              strength = 0.85;
-            }
+            // Своя: не давать понятию наезжать на центр лекции
+            // Чужая: выталкивать очень сильно
+            minDist = linked
+              ? mat.radius + con.radius + 70
+              : mat.radius + con.radius + 160;
           }
 
           if (dist < minDist) {
-            const force = (minDist - dist) * strength;
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            
-            if (nodeA.fx === undefined || nodeA.fx === null) {
-              nodeA.vx -= fx;
-              nodeA.vy -= fy;
-            }
-            if (nodeB.fx === undefined || nodeB.fx === null) {
-              nodeB.vx += fx;
-              nodeB.vy += fy;
-            }
+            const overlap = (minDist - dist) * 0.5;
+            const nx = (dx / dist) * overlap;
+            const ny = (dy / dist) * overlap;
+            a.x -= nx; a.y -= ny;
+            b.x += nx; b.y += ny;
+            anyMoved = true;
           }
         }
       }
+      // Удерживаем все узлы внутри границ холста
+      tempNodes.forEach(n => {
+        n.x = Math.max(70, Math.min(width - 70, n.x));
+        n.y = Math.max(70, Math.min(height - 70, n.y));
+      });
+      if (!anyMoved) break; // ранняя сходимость
+    }
 
-      // 2. Сила притяжения связей (Орбиты)
-      for (const link of currentLinks) {
-        const source = currentNodes.find(n => n.id === link.source);
-        const target = currentNodes.find(n => n.id === link.target);
-        if (source && target) {
-          const dx = target.x - source.x;
-          const dy = target.y - source.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
-          
-          // Желаемое расстояние орбиты
-          const desiredDist = source.radius + target.radius + 95; 
-          const force = (dist - desiredDist) * 0.15; // Мощно удерживаем на орбите
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
+    nodesRef.current = tempNodes;
+    linksRef.current = tempLinks;
+    setNodes([...tempNodes]);
+    setLinks(tempLinks);
+  }, [loading, materials, mistakes]);
 
-          if (source.fx === undefined || source.fx === null) {
-            source.vx += fx;
-            source.vy += fy;
-          }
-          if (target.fx === undefined || target.fx === null) {
-            target.vx -= fx;
-            target.vy -= fy;
-          }
-        }
-      }
+  // 3. Обработчик перетаскивания (без физики — позиции статичны)
+  useEffect(() => {
+    if (nodes.length === 0) return;
 
-      // 3. Формирование органичного кластера
-      const centerX = width / 2;
-      const centerY = height / 2;
-
-      currentNodes.forEach(node => {
-        if (node.fx !== undefined && node.fx !== null && node.fy !== undefined && node.fy !== null) {
+    const tick = () => {
+      const currentNodes = nodesRef.current;
+      let hasDrag = false;
+      for (const node of currentNodes) {
+        if (node.fx !== null && node.fx !== undefined &&
+            node.fy !== null && node.fy !== undefined) {
           node.x = node.fx;
           node.y = node.fy;
-          node.vx = 0;
-          node.vy = 0;
-        } else {
-          // Мягко стягиваем все к центру, чтобы граф заполнял центр и не разлетался.
-          // Лекции стягиваются чуть сильнее, чтобы оставаться каркасом графа.
-          const gravity = node.type === 'material' ? 0.0018 : 0.0006;
-          node.vx += (centerX - node.x) * gravity;
-          node.vy += (centerY - node.y) * gravity;
-
-          node.vx *= 0.8; // Трение сбалансировано на 0.8 для плавного затухания и гашения колебаний
-          node.vy *= 0.8;
-
-          node.x += node.vx;
-          node.y += node.vy;
-
-          // Жесткие границы, чтобы ничего не улетало за пределы
-          node.x = Math.max(50, Math.min(width - 50, node.x));
-          node.y = Math.max(50, Math.min(height - 50, node.y));
+          hasDrag = true;
         }
-      });
-
-      // Синхронизируем nodesRef для следующего кадра
-      nodesRef.current = currentNodes;
-      setNodes([...currentNodes]);
+      }
+      if (hasDrag) setNodes([...currentNodes]);
       requestRef.current = requestAnimationFrame(tick);
     };
 
     requestRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
+    return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [loading]);
+
+
+
 
   // Zoom wheel
   useEffect(() => {
