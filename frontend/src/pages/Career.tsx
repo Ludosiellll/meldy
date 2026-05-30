@@ -8,7 +8,7 @@ import {
   Award, Sparkles, Database, Eye, Smile, RefreshCw, 
   Sliders, ChevronRight, X, ArrowLeft, ThumbsUp,
   RotateCcw, BookOpen, Trophy, HelpCircle, GitBranch, Star,
-  TrendingUp, Flame, Layers2
+  TrendingUp, Flame, Layers2, MapPin, Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -91,6 +91,16 @@ export default function Career() {
   // Sprint 3: GitHub README States
   const [isReadmeLoading, setIsReadmeLoading] = useState(false);
   const [githubReadme, setGithubReadme] = useState<string | null>(null);
+  // States for manual vacancy search & filter (Variant B)
+  const [searchProfession, setSearchProfession] = useState('');
+  const [searchLocation, setSearchLocation] = useState('');
+
+  useEffect(() => {
+    if (pendingCourseParams) {
+      setSearchProfession(pendingCourseParams.profession || '');
+      setSearchLocation(pendingCourseParams.location || '');
+    }
+  }, [pendingCourseParams]);
 
   // Helper for dynamic formatting of salaries
   const formatSalary = (salary: string, location?: string) => {
@@ -347,7 +357,42 @@ export default function Career() {
     
     try {
       const reply = await sendVacancyChat(vacancyChatInput, newMsg.slice(-8), selectedVacancy);
-      setVacancyChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      
+      // Parse trigger token for updating vacancy search: [UPDATE_VACANCIES_ACTION:NewProfession|NewLocation]
+      const triggerRegex = /\[UPDATE_VACANCIES_ACTION:(.+?)\|(.+?)\]/;
+      const match = reply.match(triggerRegex);
+
+      if (match) {
+        const newProf = match[1].trim();
+        const newLoc = match[2].trim();
+        
+        // Remove token from text visible to user
+        const cleanReply = reply.replace(triggerRegex, '').trim();
+        setVacancyChatMessages(prev => [...prev, { role: 'assistant', content: cleanReply }]);
+        
+        toast.success(`Переключаем вакансии на: ${newProf} (${newLoc || 'любой регион'})!`);
+        
+        // Update inputs and pending params
+        setSearchProfession(newProf);
+        setSearchLocation(newLoc);
+        setPendingCourseParams(prev => prev ? {
+          ...prev,
+          profession: newProf,
+          location: newLoc
+        } : {
+          profession: newProf,
+          level: 'Junior',
+          salary: '',
+          location: newLoc,
+          extraContext: '',
+          gender: ''
+        });
+        
+        // Re-fetch vacancies
+        fetchAndSetVacancies(newProf, newLoc);
+      } else {
+        setVacancyChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      }
     } catch (e) {
       console.error(e);
       toast.error('Ошибка связи с ИИ-консультантом.');
@@ -1625,6 +1670,55 @@ export default function Career() {
                   className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 transition"
                 >
                   <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Manual Search & Filter Bar (Variant B) */}
+              <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 items-center shrink-0">
+                <div className="w-full sm:flex-1 relative">
+                  <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchProfession}
+                    onChange={(e) => setSearchProfession(e.target.value)}
+                    placeholder="Направление / профессия (например: Backend-разработчик)"
+                    className="w-full pl-10 pr-4 py-2.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="w-full sm:w-[250px] relative">
+                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchLocation}
+                    onChange={(e) => setSearchLocation(e.target.value)}
+                    placeholder="Город или регион (например: Минск)"
+                    className="w-full pl-10 pr-4 py-2.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!searchProfession.trim()) {
+                      toast.error("Пожалуйста, введите название профессии.");
+                      return;
+                    }
+                    setPendingCourseParams(prev => prev ? {
+                      ...prev,
+                      profession: searchProfession,
+                      location: searchLocation
+                    } : {
+                      profession: searchProfession,
+                      level: 'Junior',
+                      salary: '',
+                      location: searchLocation,
+                      extraContext: '',
+                      gender: ''
+                    });
+                    fetchAndSetVacancies(searchProfession, searchLocation);
+                  }}
+                  disabled={loadingVacancies}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-2 whitespace-nowrap animate-all"
+                >
+                  <Search className="w-4 h-4" /> Найти вакансии
                 </button>
               </div>
 
