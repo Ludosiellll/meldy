@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { CustomSelect } from '../components/CustomSelect';
 import { getMaterials } from '../api/materials';
 import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
@@ -33,7 +34,6 @@ export default function QuickPrep() {
   const savedState = savedStateStr ? JSON.parse(savedStateStr) : null;
 
   const [materials, setMaterials] = useState<any[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(savedState?.selectedId || '');
   const [phase, setPhase] = useState<Phase>(
     savedState?.phase === 'loading' ? 'select' : (savedState?.phase || 'select')
@@ -166,52 +166,16 @@ export default function QuickPrep() {
             </p>
             <div className="max-w-sm mx-auto space-y-4">
               <div className="relative text-left">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className={`w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm outline-none transition shadow-sm flex items-center justify-between font-medium ${
-                    isDropdownOpen ? 'ring-2 ring-amber-500 border-amber-500' : ''
-                  }`}
-                >
-                  <span>{selectedMaterial ? selectedMaterial.title : 'Выберите лекцию'}</span>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                <AnimatePresence>
-                  {isDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.1, ease: 'easeOut' }}
-                        className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedId(''); setIsDropdownOpen(false); }}
-                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-400 dark:text-slate-500 transition-colors border-b border-slate-100 dark:border-slate-900"
-                        >
-                          Выберите лекцию
-                        </button>
-                        {materials.map(m => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => { setSelectedId(m.id); setIsDropdownOpen(false); }}
-                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
-                              selectedId === m.id
-                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-bold'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <span>{m.title}</span>
-                          </button>
-                        ))}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+                <CustomSelect
+                  value={selectedId}
+                  onChange={(val) => setSelectedId(val)}
+                  placeholder="Выберите лекцию"
+                  options={materials.map(m => ({
+                    value: m.id,
+                    label: m.title
+                  }))}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 shadow-sm"
+                />
               </div>
               <button
                 disabled={!selectedId}
