@@ -298,16 +298,16 @@ export default function Dashboard() {
             className="p-5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl text-white relative overflow-hidden"
           >
             <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-            <div className="relative flex items-center gap-3">
+            <div className="relative flex items-start sm:items-center gap-3 w-full min-w-0">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md text-xl animate-pulse">
                 🔮
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <h4 className="font-extrabold text-white text-sm flex items-center gap-2">
                   Твой личный наставник подготовил сессию обучения! ✨
                 </h4>
-                <p className="text-xs text-indigo-100 max-w-xl mt-0.5 leading-relaxed">
-                  Сегодня в плане: повторение {cardsCount} карточек + разбор лекции "{activeMaterialName}". Пройди сессию и получи <span className="font-extrabold text-amber-300 animate-pulse">+50 XP</span>!
+                <p className="text-xs text-indigo-100 max-w-xl mt-0.5 leading-relaxed break-words">
+                  Сегодня в плане: повторение {cardsCount} карточек + разбор лекции <span className="font-bold break-all">"{activeMaterialName}"</span>. Пройди сессию и получи <span className="font-extrabold text-amber-300 animate-pulse">+50 XP</span>!
                 </p>
               </div>
             </div>

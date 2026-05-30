@@ -223,7 +223,7 @@ export default function Messages() {
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Поиск по имени или ID (например #1234)"
+                    placeholder="Поиск по имени или ID..."
                     className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition dark:text-white placeholder-slate-400"
                   />
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />

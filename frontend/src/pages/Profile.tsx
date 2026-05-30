@@ -195,7 +195,7 @@ export default function Profile() {
         <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 via-purple-500/5 to-rose-500/10 pointer-events-none rounded-3xl" />
         
         <div className="relative flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
-          <div className="relative group shrink-0">
+          <div className="relative group shrink-0 mb-4 md:mb-0">
             {/* Анимированное кольцо прогресса уровня */}
             <svg viewBox="0 0 100 100" className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none">
               <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-200/50 dark:text-slate-800/50" />
