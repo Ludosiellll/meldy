@@ -1,31 +1,66 @@
 from .base import BaseAgent
 import json
 
+
 def get_expert_persona(profession: str) -> dict:
     prof_lower = profession.lower()
-    if any(k in prof_lower for k in ["разработчик", "developer", "программист", "frontend", "backend", "fullstack", "devops", "qa", "тестировщик"]):
+    if any(k in prof_lower for k in ["разработчик", "developer", "программист", "frontend", "backend", "fullstack", "devops", "qa", "тестировщик", "engineer", "инженер"]):
         return {
             "title": "Элитный Технический Архитектор & Principal Engineer",
-            "tone": "Глубокий технический разбор, архитектурный подход, чистота кода, масштабируемость систем и алгоритмическая эффективность O(N)."
+            "tone": "Глубокий технический разбор, архитектурный подход, чистота кода, масштабируемость систем и алгоритмическая эффективность O(N).",
+            "radar_axes": ["Algorithms", "System Design", "Code Quality", "DevOps", "SQL/Data", "Soft Skills"]
         }
-    elif any(k in prof_lower for k in ["аналитик", "analyst", "sql", "data", "дата", "scientist", "python"]):
+    elif any(k in prof_lower for k in ["аналитик", "analyst", "sql", "data", "дата", "scientist", "аналитика"]):
         return {
             "title": "Principal DBA & Ведущий Дата-Сайентист",
-            "tone": "Фокус на оптимизацию запросов, правильность выборок, работу с индексами, статистическую достоверность и data-driven выводы."
+            "tone": "Фокус на оптимизацию запросов, правильность выборок, работу с индексами, статистическую достоверность и data-driven выводы.",
+            "radar_axes": ["SQL/Queries", "Statistics", "Python/R", "Visualization", "Business Logic", "Soft Skills"]
         }
-    elif any(k in prof_lower for k in ["дизайнер", "designer", "ui", "ux", "верстка", "figma"]):
+    elif any(k in prof_lower for k in ["дизайнер", "designer", "ui", "ux", "верстка", "figma", "графика"]):
         return {
             "title": "Креативный Директор & Шеф UI/UX лаборатории",
-            "tone": "Внимание к пиксельной точности, сеткам, контрастности, типографике, пользовательским паттернам (F-pattern, Z-pattern) и эргономике."
+            "tone": "Внимание к пиксельной точности, сеткам, контрастности, типографике, пользовательским паттернам (F-pattern, Z-pattern) и эргономике.",
+            "radar_axes": ["Visual Design", "UX Research", "Prototyping", "Typography", "Accessibility", "Soft Skills"]
         }
-    elif any(k in prof_lower for k in ["менеджер", "manager", "pm", "product", "project", "продукт", "проект"]):
+    elif any(k in prof_lower for k in ["менеджер", "manager", "pm", "product", "project", "продукт", "проект", "scrum", "agile"]):
         return {
             "title": "VP of Product & Agile Coach крупного финтех-гиганта",
-            "tone": "Ориентация на бизнес-метрики (ROI, LTV, CAC), приоритезацию по RICE/ICE, управление рисками, юнит-экономику и стратегическое планирование."
+            "tone": "Ориентация на бизнес-метрики (ROI, LTV, CAC), приоритезацию по RICE/ICE, управление рисками, юнит-экономику и стратегическое планирование.",
+            "radar_axes": ["Strategy", "Metrics/Analytics", "Team Leadership", "Agile/Scrum", "Stakeholders", "Soft Skills"]
         }
-    elif any(k in prof_lower for k in ["маркетолог", "marketing", "def build_course_designer_prompt(profession: str, level: str, salary: str, user_materials: str, vacancy_context: str, age: int = None, gender: str = "", location: str = "", extra_context: str = "") -> str:
+    elif any(k in prof_lower for k in ["маркетолог", "marketing", "маркетинг", "smm", "seo", "контент", "content", "реклама", "ads", "копирайт"]):
+        return {
+            "title": "Chief Marketing Officer & Growth Hacking Expert",
+            "tone": "Фокус на конверсию, воронки, A/B тестирование, ROI рекламных кампаний, сегментацию аудитории и контент-стратегию.",
+            "radar_axes": ["Content Strategy", "SEO/SEM", "Analytics", "Copywriting", "Paid Ads", "Soft Skills"]
+        }
+    elif any(k in prof_lower for k in ["финанс", "бухгалт", "accountant", "finance", "economist", "экономист"]):
+        return {
+            "title": "CFO & Финансовый директор с 15-летним опытом в FMCG",
+            "tone": "Точность в расчётах, понимание P&L, Cash Flow, EBITDA. Работа с отчётностью, налоговым планированием и финансовым моделированием.",
+            "radar_axes": ["Financial Modeling", "Accounting", "Tax Law", "Excel/BI", "Reporting", "Soft Skills"]
+        }
+    else:
+        return {
+            "title": "Элитный Карьерный Коуч & Эксперт-Практик в своей области",
+            "tone": "Глубокое понимание рынка труда, профессиональных стандартов, переговорных навыков и построения карьерной траектории.",
+            "radar_axes": ["Core Skills", "Industry Knowledge", "Communication", "Problem Solving", "Leadership", "Soft Skills"]
+        }
+
+
+def build_course_designer_prompt(
+    profession: str,
+    level: str,
+    salary: str,
+    user_materials: str,
+    vacancy_context: str,
+    age: int = None,
+    gender: str = "",
+    location: str = "",
+    extra_context: str = ""
+) -> str:
     expert = get_expert_persona(profession)
-    
+
     demographics_block = ""
     if age or gender or location or extra_context:
         demographics_block = f"""
@@ -37,35 +72,34 @@ def get_expert_persona(profession: str) -> dict:
 
 ИНСТРУКЦИЯ ПО АДАПТАЦИИ:
 1. Если студент — подросток/студент: давай более простые и яркие жизненные метафоры, фокусируйся на стажировках и бесплатном опенсорсе.
-2. Если студент — взрослый свитчер (сменил профессию): делай упор на переносе его прошлого жизненного опыта, жестком тайм-менеджменте и быстром выходе на фриланс или джуниор-позиции.
-3. Если есть особые семейные/жизненные условия (например, молодая мама, совмещение с тяжелой работой): оптимизируй нагрузку, планируй короткие 1-часовые учебные спринты и подбирай песочницы Soft-Skills на бесконфликтное отстаивание личных границ.
-4. Локация и валюта: строй карьерные инсайты строго под рынок указанного региона (например, если это Беларусь — рассчитывай зарплату в BYN/бел.руб. и никогда не пиши про российские рубли, если Казахстан — пиши про тенге ₸, если Москва — пиши про рубли ₽).
+2. Если студент — взрослый свитчер (сменил профессию): делай упор на переносе его прошлого жизненного опыта, жёстком тайм-менеджменте и быстром выходе на фриланс или джуниор-позиции.
+3. Если есть особые семейные/жизненные условия (например, молодая мама, совмещение с тяжёлой работой): оптимизируй нагрузку, планируй короткие 1-часовые учебные спринты.
+4. Локация и валюта: строй карьерные инсайты строго под рынок указанного региона (Беларусь — BYN, Казахстан — ₸, Россия — ₽).
 """
 
     return f"""Ты — {expert['title']}.
 Твой стиль преподавания и тон: {expert['tone']}
 
 Твоя задача — спроектировать ультимативно глубокую, колоссальную по объёму и ценности учебную программу (курс) для студента, который хочет освоить профессию "{profession}" (уровень: {level}, целевая зарплата: {salary}).
-Этот курс должен быть во много раз подробнее, глубже и практичнее, чем любые коммерческие курсы на рынке. Программа обязана дать студенту реальный практический уровень Junior/Middle, готовый к прохождению самых сложных технических интервью.
+Этот курс должен быть во много раз подробнее, глубже и практичнее, чем любые коммерческие курсы на рынке.
 {demographics_block}
 При проектировании курса опирайся на реальные требования рынка, собранные из свежих вакансий:
 {vacancy_context}
 
-Ты должен связать теорию с хардкорной практикой! Спроектируй от 10 до 14 крупных, последовательных и детализированных модулей. Модули должны быть чрезвычайно подробными, распланированными на длительное время обучения (особенно если темп спокойный 1-2 часа в день - разбей на мелкие, твердые шаги). Каждый модуль должен быть проработан до мельчайших деталей.
+Спроектируй от 10 до 14 крупных, последовательных и детализированных модулей.
 
-Для каждого модуля ты обязан предоставить:
-1. Зачем это нужно работодателям: конкретная привязка к реальным вакансиям и требованиям бизнеса (почему без этого не возьмут на работу).
-2. Подробная теория темы: 2-3 больших, содержательных абзаца с детальным раскрытием ключевых концепций, архитектурных шаблонов или методик.
-3. Лучшие отобранные ресурсы в сети (документация, глубокие статьи, гайды) с объяснением, почему именно этот ресурс идеален для этой темы.
-   КРИТИЧЕСКИЙ РЕЖИМ ТОЧНЫХ ССЫЛОК (DEEP LINKS): Запрещено давать общие ссылки на главные страницы сайтов вроде 'https://leetcode.com' или 'https://postgresql.org'. Ты обязан предоставлять прямые рабочие URL-адреса на конкретные задачи LeetCode (например, 'https://leetcode.com/problems/two-sum/'), официальные статьи MDN (например, 'https://developer.mozilla.org/ru/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce'), точечные разделы документации Django, React, Postgres и т.д. Используй только стандартные, точные и реально существующие глубокие адреса!
-4. Одно интерактивное практическое задание, идеально подходящее под тему. Выбери наиболее релевантный тип из 7 доступных интерактивных песочниц:
-   - "algo": Алгоритмическая задача (LeetCode). Требует написать код функции в JavaScript/TypeScript. Дай подробное ТЗ, шаблон функции и не менее 3 реальных тест-кейсов в формате JSON (input и expected).
-   - "sql": Написание SQL-запроса. Опиши схему таблиц, связи, дай ТЗ на выборку и эталонный результат/запрос.
-   - "web": Верстка элемента на HTML/CSS (Frontend). Дай детальные инструкции, какие теги и CSS-свойства должен применить студент.
-   - "business": Задача на расчет бизнес-метрик (ROI, LTV, CAC, конверсии) или RICE-приоритизацию. Дай формулы, исходные данные и числовой тест-кейс.
-   - "design": Дизайн-критика макета с ошибками. Дай текстовое описание UI-экрана с 3-5 явными ошибками (плохой контраст, съехавшая сетка, нечитаемый шрифт), студент должен кликнуть на зоны ошибок или указать их.
-   - "copywriting": Редактирование текста/заголовка. Текст с избытком канцеляризмов, спама или воды, который нужно переписать в емкий инфостиль.
-   - "roleplay": Симуляция переговоров с клиентом/боссом/инвестором (Soft Skills). Настрой характер оппонента (например, разгневанный клиент) и стартовую реплику.
+Для каждого модуля ты ОБЯЗАН предоставить:
+1. Зачем это нужно работодателям: конкретная привязка к реальным вакансиям.
+2. Подробная теория темы: 2-3 больших, содержательных абзаца. Разбей на отдельные параграфы через символ "|||" — каждый параграф будет отображаться как отдельный блок с кнопкой «Не понял».
+3. Лучшие отобранные ресурсы с ТОЧНЫМИ deep links (не главные страницы — конкретные статьи, задачи LeetCode, разделы MDN).
+4. ТРЁХУРОВНЕВАЯ ПРАКТИКА (это ключевое):
+   - Уровень Guided (с подсказками): та же задача но с пошаговыми подсказками-шагами для студентов которые только начинают
+   - Уровень Independent (стандарт): полноценное задание без подсказок
+   - Уровень Expert (челлендж): то же задание но с дополнительным ограничением (например, "реши за O(n)", "без использования встроенных методов", "добавь обработку ошибок")
+5. Симуляция реального собеседования: конкретная компания + каверзные вопросы интервьюера.
+6. Шаг сквозного проекта: какой конкретный компонент/файл/функцию студент добавляет в свой сквозной проект в рамках этого модуля.
+
+КРИТИЧЕСКИЙ РЕЖИМ ТОЧНЫХ ССЫЛОК: Запрещено давать общие ссылки вроде 'https://leetcode.com'. Обязательно прямые рабочие URL на конкретные задачи LeetCode (например, 'https://leetcode.com/problems/two-sum/'), точные статьи MDN, разделы документации.
 
 ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
 {{
@@ -73,224 +107,350 @@ def get_expert_persona(profession: str) -> dict:
   "salary": "{salary}",
   "level": "{level}",
   "location": "{location}",
-  "insights": "Крайне подробный, профессиональный аналитический обзор рынка труда по этой профессии. Главные технологические тренды, требования работодателей, дефицитные скиллы, на которые стоит сделать упор.",
+  "project_name": "Название сквозного проекта (например: 'Portfolio Website', 'Task Manager API', 'Analytics Dashboard')",
+  "project_description": "Краткое описание сквозного проекта — что это будет на выходе курса",
+  "insights": "Крайне подробный аналитический обзор рынка труда: тренды, требования, дефицитные скиллы.",
   "modules": [
     {{
       "id": "mod_1",
-      "title": "Название первого модуля (четкое, академическое, солидное)",
-      "description": "Исчерпывающее, глубокое описание содержания модуля. Опиши все концепции, которые будут изучены.",
-      "why_needed": "Четкая привязка к вакансиям (например: 'В 87% вакансий уровня Middle требуется глубокое понимание этого...').",
-      "detailed_theory": "Очень подробный теоретический блок (2-3 абзаца). Разжуй ключевые понятия, тонкости реализации, паттерны и архитектурные решения так, чтобы это превосходило любой учебник.",
+      "title": "Название первого модуля",
+      "description": "Исчерпывающее описание содержания модуля.",
+      "why_needed": "Привязка к вакансиям (например: 'В 87% вакансий уровня Middle требуется...').",
+      "detailed_theory": "Параграф 1 с детальным разбором концепции. ||| Параграф 2 с примерами и паттернами. ||| Параграф 3 с архитектурными решениями и нюансами реализации.",
       "resources": [
         {{
-          "title": "Название учебного материала (например, 'Официальный гайд по TS Generics')",
-          "url": "https://...",
-          "description": "Подробное объяснение, почему этот ресурс — лучший в сети по данной теме и как по нему заниматься."
+          "title": "Название материала",
+          "url": "https://конкретная-ссылка.com/точный-путь",
+          "description": "Почему именно этот ресурс и как по нему заниматься."
         }}
       ],
       "practice_type": "algo | sql | web | business | design | copywriting | roleplay",
       "practice_task": {{
-        "task_description": "Подробнейшее техническое задание для песочницы. Опишите сценарий, требования к выполнению, формат ввода/вывода.",
-        "origin_interview_questions": "СИМУЛЯЦИЯ РЕАЛЬНОГО СОБЕСЕДОВАНИЯ: Укажи конкретную компанию (например, Яндекс, Сбер, Tinkoff, Авито, Google), где спрашивали эту задачу или тему на интервью, и распиши каверзные вопросы технического интервьюера по этой теме.",
+        "task_description": "Подробнейшее ТЗ для уровня Independent.",
+        "origin_interview_questions": "Компания: [Яндекс/Тинькофф/Авито/Google]. Вопросы на реальном техническом интервью: 1) ... 2) ... 3) ... Каверзные follow-up вопросы интервьюера.",
         "code_template": "function solution() {{\\n  // напиши свой код здесь\\n}}",
         "test_cases": [
-          {{ "input": "[2, 3]", "expected": "5" }},
-          {{ "input": "[10, -2]", "expected": "8" }},
-          {{ "input": "[-5, -5]", "expected": "-10" }}
+          {{ "input": "[2, 7, 11, 15]", "expected": "[0, 1]" }},
+          {{ "input": "[3, 2, 4]", "expected": "[1, 2]" }},
+          {{ "input": "[3, 3]", "expected": "[0, 1]" }}
         ],
         "non_code_options": ["Вариант А", "Вариант B"],
         "non_code_correct": "Ответ или ключ",
-        "explanation": "Подробный разбор правильного решения, алгоритма или логики выполнения от ИИ-эксперта."
-      }}
+        "explanation": "Подробный разбор правильного решения."
+      }},
+      "practice_guided": {{
+        "hints": [
+          "Шаг 1: Сначала разберись с...",
+          "Шаг 2: Используй конструкцию...",
+          "Шаг 3: Проверь крайний случай когда..."
+        ],
+        "simplified_template": "// Guided version\\nfunction solution(input) {{\\n  // Шаг 1: ..\\n  // Шаг 2: ..\\n  return result;\\n}}"
+      }},
+      "practice_expert": {{
+        "constraint": "Дополнительное ограничение которое делает задачу сложнее (например: 'Реши за O(n) без дополнительной памяти', 'Без использования .map()/.filter()', 'Добавь полную обработку ошибок и TypeScript типы')",
+        "bonus_description": "Что студент докажет решив expert-версию — какой навык это демонстрирует на собеседовании."
+      }},
+      "project_thread_step": "Конкретное описание что студент добавляет в сквозной проект в этом модуле: файл/компонент/функцию/раздел."
     }}
   ]
 }}
 
-Ты ОБЯЗАН спроектировать полноценный учебный трек, состоящий из 10-14 глубоких модулей. Описания должны быть колоссальными по объему, профессиональными и максимально детальными.
-Конспекты пользователя для адаптивного усиления тем (если есть):
-{user_materials[:10000]}
-"""кции, какие теги и CSS-свойства должен применить студент.
-   - "business": Задача на расчет бизнес-метрик (ROI, LTV, CAC, конверсии) или RICE-приоритизацию. Дай формулы, исходные данные и числовой тест-кейс.
-   - "design": Дизайн-критика макета с ошибками. Дай текстовое описание UI-экрана с 3-5 явными ошибками (плохой контраст, съехавшая сетка, нечитаемый шрифт), студент должен кликнуть на зоны ошибок или указать их.
-   - "copywriting": Редактирование текста/заголовка. Текст с избытком канцеляризмов, спама или воды, который нужно переписать в емкий инфостиль.
-   - "roleplay": Симуляция переговоров с клиентом/боссом/инвестором (Soft Skills). Настрой характер оппонента (например, разгневанный клиент) и стартовую реплику.
-
-ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
-{{
-  "profession": "{profession}",
-  "salary": "{salary}",
-  "level": "{level}",
-  "insights": "Крайне подробный, профессиональный аналитический обзор рынка труда по этой профессии. Главные технологические тренды, требования работодателей, дефицитные скиллы, на которые стоит сделать упор.",
-  "modules": [
-    {{
-      "id": "mod_1",
-      "title": "Название первого модуля (четкое, академическое, солидное)",
-      "description": "Исчерпывающее, глубокое описание содержания модуля. Опиши все концепции, которые будут изучены.",
-      "why_needed": "Четкая привязка к вакансиям (например: 'В 87% вакансий уровня Middle требуется глубокое понимание этого...').",
-      "detailed_theory": "Очень подробный теоретический блок (2-3 абзаца). Разжуй ключевые понятия, тонкости реализации, паттерны и архитектурные решения так, чтобы это превосходило любой учебник.",
-      "resources": [
-        {{
-          "title": "Название учебного материала (например, 'Официальный гайд по TS Generics')",
-          "url": "https://...",
-          "description": "Подробное объяснение, почему этот ресурс — лучший в сети по данной теме и как по нему заниматься."
-        }}
-      ],
-      "practice_type": "algo | sql | web | business | design | copywriting | roleplay",
-      "practice_task": {{
-        "task_description": "Подробнейшее техническое задание для песочницы. Опишите сценарий, требования к выполнению, формат ввода/вывода.",
-        "code_template": "function solution() {{\\n  // напиши свой код здесь\\n}}",
-        "test_cases": [
-          {{ "input": "[2, 3]", "expected": "5" }},
-          {{ "input": "[10, -2]", "expected": "8" }},
-          {{ "input": "[-5, -5]", "expected": "-10" }}
-        ],
-        "non_code_options": ["Вариант А", "Вариант B"],
-        "non_code_correct": "Ответ или ключ",
-        "explanation": "Подробный разбор правильного решения, алгоритма или логики выполнения от ИИ-эксперта."
-      }}
-    }}
-  ]
-}}
-
-Постарайся сгенерировать 6-8 больших модулей. Описания должны быть объемными, профессиональными и максимально полезными.
+Ты ОБЯЗАН спроектировать полноценный учебный трек из 10-14 глубоких модулей. Описания должны быть колоссальными по объёму.
 Конспекты пользователя для адаптивного усиления тем (если есть):
 {user_materials[:10000]}
 """
 
-class CareerCourseAgent(BaseAgent):
-    async def generate_course(self, profession: str, level: str, salary: str, user_materials: str, vacancy_context: str, age: int = None, gender: str = "", location: str = "", extra_context: str = "") -> dict:
-        prompt = build_course_designer_prompt(profession, level, salary, user_materials, vacancy_context, age, gender, location, extra_context)
-        context = f"РЕАЛЬНЫЕ ТРЕБОВАНИЯ ИЗ ВАКАНСИЙ С РЫНКА ТРУДА:\n{vacancy_context}\n\nПожалуйста, сгенерируй ультимативный подробнейший курс."
-        
-        raw_result = await self.run(prompt, context)
-        
-        try:
-            cleaned = raw_result.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            
-            return json.loads(cleaned.strip())
-        except Exception as e:
-            print(f"CareerCourseAgent JSON error: {e}, raw: {raw_result}")
-            # Fallback structure
-            return {
-                "profession": profession,
-                "salary": salary,
-                "level": level,
-                "insights": f"Не удалось автоматически собрать аналитику рынка для {profession}. Тем не менее, данная специальность крайне востребована.",
-                "modules": [
-                    {
-                        "id": "mod_1",
-                        "title": "Основы и введение в " + profession,
-                        "description": "Изучение базовых концепций и инструментов, необходимых для успешного старта в профессии.",
-                        "why_needed": "Базовые требования в 95% вакансий.",
-                        "detailed_theory": "Для успешной работы в качестве " + profession + " необходимо досконально понимать базовые принципы и ключевые рабочие инструменты. Данный модуль закладывает прочный теоретический фундамент.",
-                        "resources": [
-                            {
-                                "title": "Официальное руководство и документация",
-                                "url": "https://google.com",
-                                "description": "Рекомендуется начать изучение с официальных источников и спецификаций."
-                            }
-                        ],
-                        "practice_type": "copywriting",
-                        "practice_task": {
-                          "task_description": "Напишите краткий профессиональный план развития на первый месяц обучения в сфере " + profession,
-                          "code_template": "",
-                          "test_cases": [],
-                          "non_code_options": ["План готов", "Пропустить"],
-                          "non_code_correct": "План готов",
-                          "explanation": "Отличная отправная точка для вашей карьеры!"
-                        }
-                    }
-                ]
-            }
 
-    async def expand_course(self, current_course: dict, additional_focus: str, extra_context: str = "") -> list:
-        prompt = build_course_expansion_prompt(current_course, additional_focus, extra_context)
-        context = f"ТЕКУЩИЙ КУРС ИМЕЕТ {len(current_course.get('modules', []))} МОДУЛЕЙ. Сгенерируй только новые продвинутые модули."
-        
-        raw_result = await self.run(prompt, context)
-        
-        try:
-            cleaned = raw_result.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            
-            data = json.loads(cleaned.strip())
-            return data.get("modules", [])
-        except Exception as e:
-            print(f"CareerCourseAgent expand JSON error: {e}, raw: {raw_result}")
-            return []
-
-
-def build_course_expansion_prompt(current_course: dict, additional_focus: str, extra_context: str = "") -> str:
+def build_course_expansion_prompt(
+    current_course: dict,
+    additional_focus: str,
+    extra_context: str = ""
+) -> str:
     profession = current_course.get("profession", "IT-специалист")
     level = current_course.get("level", "Junior")
     existing_modules = current_course.get("modules", [])
     num_existing = len(existing_modules)
-    
-    modules_summary = "\n".join([f"- ID: {m.get('id')} | Название: {m.get('title')}" for m in existing_modules])
+    project_name = current_course.get("project_name", "Сквозной проект")
+
+    modules_summary = "\n".join([
+        f"- ID: {m.get('id')} | Название: {m.get('title')} | Оценка студента: {m.get('score', 'не пройден')}/100"
+        for m in existing_modules
+    ])
     expert = get_expert_persona(profession)
-    
+
     return f"""Ты — {expert['title']}.
 Твой стиль преподавания и тон: {expert['tone']}
 
-Студент только что успешно завершил твой базовый курс по профессии "{profession}" (уровень: {level}).
-Пройденные модули курса:
+Студент только что успешно завершил базовый курс по профессии "{profession}" (уровень: {level}).
+Сквозной проект курса: "{project_name}"
+
+Пройденные модули:
 {modules_summary}
 
-Теперь твоя задача — РАСШИРИТЬ эту учебную программу продвинутыми, узкоспециализированными темами!
-Новый фокус/цель обучения, которую выбрал студент:
-"{additional_focus}"
-{f"Дополнительный контекст/пожелания: {extra_context}" if extra_context else ""}
+Новый фокус/цель обучения: "{additional_focus}"
+{f"Дополнительный контекст: {extra_context}" if extra_context else ""}
 
-Спроектируй от 5 до 8 новых продвинутых модулей (модулей повышенной сложности), которые логически продолжают существующие.
-Сквозная нумерация ID модулей должна продолжаться! Поскольку у нас уже есть {num_existing} модулей, первый новый модуль должен иметь ID "mod_{num_existing + 1}", второй "mod_{num_existing + 2}" и так далее.
+Спроектируй от 5 до 8 новых ПРОДВИНУТЫХ модулей, которые логически продолжают существующие.
+Нумерация ID продолжается: первый новый модуль = "mod_{num_existing + 1}".
 
-Для каждого продвинутого модуля ты обязан предоставить:
-1. Зачем это нужно работодателям: привязка к сложным задачам бизнеса.
-2. Подробная теория темы: 2-3 больших, содержательных абзаца с детальным раскрытием концепций.
-3. Лучшие отобранные ресурсы в сети с точечными ссылками (Deep Links). Обязательно давай прямые рабочие URL на LeetCode задачи (например, 'https://leetcode.com/problems/group-anagrams/'), MDN, Django/React specs, learn.javascript.ru и т.д.
-4. Одно интерактивное практическое задание продвинутого уровня повышенной сложности под одну из песочниц (algo, sql, web, business, design, copywriting, roleplay). Каждое ТЗ практики обязано содержать поле "origin_interview_questions" с указанием компании и каверзных вопросов.
+Каждый продвинутый модуль обязан содержать:
+1. Привязку к сложным вакансиям Middle/Senior уровня.
+2. Подробную теорию (2-3 параграфа, разделённых через |||).
+3. Deep Links на продвинутые ресурсы (конкретные URL, не главные страницы).
+4. Трёхуровневую практику: practice_task (Independent) + practice_guided + practice_expert.
+5. Симуляцию реального собеседования в крупной компании с origin_interview_questions.
+6. Шаг сквозного проекта: что добавляется в "{project_name}" в этом модуле.
 
-ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
+ОБЯЗАТЕЛЬНО верни строго JSON без markdown-оберток (НИКАКИХ ```json или ```):
 {{
   "modules": [
     {{
       "id": "mod_{num_existing + 1}",
       "title": "Название первого продвинутого модуля",
-      "description": "Исчерпывающее, глубокое описание продвинутого содержания модуля.",
-      "why_needed": "Четкая привязка к сложным вакансиям Middle/Senior.",
-      "detailed_theory": "Очень подробный теоретический блок (2-3 абзаца). Разжуй продвинутые архитектурные нюансы.",
+      "description": "Исчерпывающее описание продвинутого содержания.",
+      "why_needed": "Привязка к сложным вакансиям Middle/Senior.",
+      "detailed_theory": "Параграф 1 с продвинутыми концепциями. ||| Параграф 2 с архитектурными паттернами. ||| Параграф 3 с примерами из production-систем.",
       "resources": [
         {{
           "title": "Название продвинутого материала",
-          "url": "https://...",
-          "description": "Подробное объяснение, как по нему заниматься."
+          "url": "https://конкретная-ссылка.com/точный-путь",
+          "description": "Как по нему заниматься."
         }}
       ],
       "practice_type": "algo | sql | web | business | design | copywriting | roleplay",
       "practice_task": {{
-        "task_description": "Продвинутое ТЗ для песочницы.",
-        "origin_interview_questions": "СИМУЛЯЦИЯ РЕАЛЬНОГО СОБЕСЕДОВАНИЯ: Укажи компанию (например, Яндекс, Tinkoff, Google) и хитрые вопросы технического интервьюера по этой теме.",
+        "task_description": "Продвинутое ТЗ без подсказок.",
+        "origin_interview_questions": "Компания: [название]. Вопросы интервьюера: 1) ... 2) ... 3) ...",
         "code_template": "function solution() {{\\n  // напиши свой код здесь\\n}}",
-        "test_cases": [
-          {{ "input": "[...]", "expected": "..." }}
-        ],
+        "test_cases": [{{ "input": "[...]", "expected": "..." }}],
         "non_code_options": ["..."],
         "non_code_correct": "...",
-        "explanation": "Подробный разбор решения от ИИ."
-      }}
+        "explanation": "Подробный разбор решения."
+      }},
+      "practice_guided": {{
+        "hints": ["Шаг 1: ...", "Шаг 2: ...", "Шаг 3: ..."],
+        "simplified_template": "// Guided version\\nfunction solution() {{\\n  // hints here\\n}}"
+      }},
+      "practice_expert": {{
+        "constraint": "Дополнительное ограничение повышенной сложности.",
+        "bonus_description": "Что демонстрирует решение expert-версии."
+      }},
+      "project_thread_step": "Что добавляется в {project_name} в этом модуле."
     }}
   ]
 }}
 """
 
+
+def build_review_test_prompt(module_title: str, module_theory: str, practice_type: str) -> str:
+    return f"""Ты — строгий эксперт по созданию проверочных тестов для Spaced Repetition системы.
+
+Студент изучал модуль: "{module_title}"
+Тип практики: {practice_type}
+Ключевые концепции из теории:
+{module_theory[:3000]}
+
+Твоя задача — создать ровно 3 вопроса для быстрой проверки через Spaced Repetition.
+Вопросы должны проверять ПОНИМАНИЕ, а не механическое запоминание.
+Сложность: средняя. Время на вопрос: 30-60 секунд.
+
+ОБЯЗАТЕЛЬНО верни строго JSON без markdown-оберток:
+{{
+  "questions": [
+    {{
+      "id": 1,
+      "question": "Чёткий вопрос на понимание концепции",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+      "correct": "A",
+      "explanation": "Почему именно этот ответ верен — объяснение для студента."
+    }},
+    {{
+      "id": 2,
+      "question": "Вопрос на применение знаний",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+      "correct": "B",
+      "explanation": "..."
+    }},
+    {{
+      "id": 3,
+      "question": "Вопрос на типичную ошибку или edge case",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+      "correct": "C",
+      "explanation": "..."
+    }}
+  ]
+}}
+"""
+
+
+def build_retry_task_prompt(module_title: str, practice_type: str, original_task: str, weaknesses: list) -> str:
+    weaknesses_str = "\n".join([f"- {w}" for w in weaknesses]) if weaknesses else "Не указаны"
+    return f"""Ты — опытный педагог-методист.
+
+Студент проходил практическое задание по модулю "{module_title}" (тип: {practice_type}) и не достиг порога мастерства (70 баллов).
+
+Оригинальное задание:
+{original_task[:2000]}
+
+Слабые стороны студента по итогам ревью:
+{weaknesses_str}
+
+Твоя задача — создать АЛЬТЕРНАТИВНОЕ задание той же темы, но с другими данными и немного другим углом подхода. Задание должно:
+1. Проверять те же концепции что и оригинал
+2. Иметь другие входные данные / сценарий
+3. Быть чуть легче там, где студент ошибся — но не тривиальным
+
+ОБЯЗАТЕЛЬНО верни строго JSON без markdown-оберток:
+{{
+  "task_description": "Полное новое ТЗ для студента",
+  "code_template": "function solution() {{\\n  // твой код здесь\\n}}",
+  "test_cases": [
+    {{ "input": "...", "expected": "..." }},
+    {{ "input": "...", "expected": "..." }},
+    {{ "input": "...", "expected": "..." }}
+  ],
+  "non_code_options": ["..."],
+  "non_code_correct": "...",
+  "explanation": "Объяснение правильного подхода с акцентом на слабые места студента.",
+  "guided_hints": ["Шаг 1: ...", "Шаг 2: ...", "Шаг 3: ..."]
+}}
+"""
+
+
+def build_module_hint_prompt(paragraph_text: str, profession: str) -> str:
+    expert = get_expert_persona(profession)
+    return f"""Ты — {expert['title']}. {expert['tone']}
+
+Студент читает теорию по профессии "{profession}" и не понял следующий абзац:
+
+---
+{paragraph_text}
+---
+
+Объясни ЭТУ ЖЕ КОНЦЕПЦИЮ по-другому:
+1. Используй другую аналогию из реальной жизни
+2. Приведи конкретный пример из практики (реальный код, реальный сценарий)
+3. Объясни простыми словами как будто студенту 16 лет, но без потери смысла
+4. В конце — одно короткое резюме «Суть в одном предложении»
+
+Отвечай напрямую, без вступлений вроде «Конечно!» или «Отличный вопрос!».
+Длина ответа: 3-5 абзацев. Используй markdown для форматирования.
+"""
+
+
+class CareerCourseAgent(BaseAgent):
+
+    async def generate_course(
+        self,
+        profession: str,
+        level: str,
+        salary: str,
+        user_materials: str,
+        vacancy_context: str,
+        age: int = None,
+        gender: str = "",
+        location: str = "",
+        extra_context: str = ""
+    ) -> dict:
+        prompt = build_course_designer_prompt(
+            profession, level, salary, user_materials, vacancy_context,
+            age, gender, location, extra_context
+        )
+        context = f"РЕАЛЬНЫЕ ТРЕБОВАНИЯ ИЗ ВАКАНСИЙ С РЫНКА ТРУДА:\n{vacancy_context}\n\nПожалуйста, сгенерируй ультимативный подробнейший курс."
+
+        raw_result = await self.run(prompt, context)
+        return self._parse_json(raw_result, self._fallback_course(profession, salary, level))
+
+    async def expand_course(
+        self,
+        current_course: dict,
+        additional_focus: str,
+        extra_context: str = ""
+    ) -> list:
+        prompt = build_course_expansion_prompt(current_course, additional_focus, extra_context)
+        context = f"ТЕКУЩИЙ КУРС ИМЕЕТ {len(current_course.get('modules', []))} МОДУЛЕЙ. Сгенерируй только новые продвинутые модули."
+
+        raw_result = await self.run(prompt, context)
+        data = self._parse_json(raw_result, {"modules": []})
+        return data.get("modules", [])
+
+    async def generate_review_test(
+        self,
+        module_title: str,
+        module_theory: str,
+        practice_type: str
+    ) -> dict:
+        prompt = build_review_test_prompt(module_title, module_theory, practice_type)
+        raw_result = await self.run(prompt, "Создай 3 вопроса для Spaced Repetition теста.")
+        return self._parse_json(raw_result, {"questions": []})
+
+    async def generate_retry_task(
+        self,
+        module_title: str,
+        practice_type: str,
+        original_task: str,
+        weaknesses: list
+    ) -> dict:
+        prompt = build_retry_task_prompt(module_title, practice_type, original_task, weaknesses)
+        raw_result = await self.run(prompt, "Создай альтернативное задание.")
+        return self._parse_json(raw_result, {
+            "task_description": f"Повторная попытка по теме: {module_title}",
+            "code_template": "function solution() {\n  // твой код здесь\n}",
+            "test_cases": [],
+            "non_code_options": [],
+            "non_code_correct": "",
+            "explanation": "Разбор задания.",
+            "guided_hints": []
+        })
+
+    async def get_module_hint(self, paragraph_text: str, profession: str) -> str:
+        prompt = build_module_hint_prompt(paragraph_text, profession)
+        raw_result = await self.run(prompt, "Объясни этот абзац по-другому.")
+        return raw_result.strip()
+
+    def _parse_json(self, raw_result: str, fallback: dict) -> dict:
+        try:
+            cleaned = raw_result.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            return json.loads(cleaned.strip())
+        except Exception as e:
+            print(f"CareerCourseAgent JSON parse error: {e}, raw[:200]: {raw_result[:200]}")
+            return fallback
+
+    def _fallback_course(self, profession: str, salary: str, level: str) -> dict:
+        return {
+            "profession": profession,
+            "salary": salary,
+            "level": level,
+            "project_name": f"Учебный проект по {profession}",
+            "project_description": "Сквозной проект который будет расти вместе с курсом.",
+            "insights": f"Специальность {profession} крайне востребована на рынке. Начните с базовых концепций.",
+            "modules": [
+                {
+                    "id": "mod_1",
+                    "title": f"Основы и введение в {profession}",
+                    "description": "Изучение базовых концепций и инструментов.",
+                    "why_needed": "Базовые требования в 95% вакансий.",
+                    "detailed_theory": f"Для работы в качестве {profession} необходимо понимать базовые принципы. ||| Этот модуль закладывает теоретический фундамент. ||| Практические навыки строятся на крепкой теории.",
+                    "resources": [{"title": "Официальная документация", "url": "https://developer.mozilla.org", "description": "Начните с официальных источников."}],
+                    "practice_type": "copywriting",
+                    "practice_task": {
+                        "task_description": f"Напишите краткий план обучения на первый месяц в сфере {profession}",
+                        "origin_interview_questions": "Стандартный вопрос на любом собеседовании: 'Расскажите о себе и своём опыте'",
+                        "code_template": "",
+                        "test_cases": [],
+                        "non_code_options": ["План готов", "Пропустить"],
+                        "non_code_correct": "План готов",
+                        "explanation": "Отличная отправная точка!"
+                    },
+                    "practice_guided": {"hints": ["Шаг 1: Определи 3 главные темы", "Шаг 2: Оцени время на каждую", "Шаг 3: Запиши конкретные ресурсы"], "simplified_template": ""},
+                    "practice_expert": {"constraint": "Оформи план в формате OKR с измеримыми результатами", "bonus_description": "Умение ставить цели по OKR — ценный навык."},
+                    "project_thread_step": "Создай README.md для своего учебного репозитория."
+                }
+            ]
+        }

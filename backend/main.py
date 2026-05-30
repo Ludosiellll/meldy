@@ -739,6 +739,28 @@ class CareerTaskEvaluateRequest(BaseModel):
     feedback_notes: Optional[str] = ""
 
 
+class CareerVacancyParseRequest(BaseModel):
+    url: str
+
+
+class CareerDiagnosticTestRequest(BaseModel):
+    module_title: str
+    module_theory: str
+    profession: str
+
+
+class CareerCodeDiagnosticsRequest(BaseModel):
+    code: str
+    module_title: str
+    task_description: str
+
+
+class CareerGithubReadmeRequest(BaseModel):
+    profession: str
+    completed_modules: List[str]
+
+
+
 async def fetch_hh_vacancies(profession: str, location: str = "") -> str:
     """
     Скачивает вакансии из API HeadHunter по названию профессии и локации,
@@ -1202,6 +1224,538 @@ async def career_evaluate_task(request: Request, req: CareerTaskEvaluateRequest)
             "weaknesses": ["Не удалось получить глубокий ИИ-разбор"],
             "refactored_solution": ""
         }
+
+
+# ── Career Learning Engine (Sprint 1 additions) ───────────────────────────────
+
+class CareerReviewTestRequest(BaseModel):
+    module_id: str
+    module_title: str
+    module_theory: str
+    practice_type: str
+
+class CareerRetryTaskRequest(BaseModel):
+    module_title: str
+    practice_type: str
+    original_task: str
+    weaknesses: List[str] = []
+
+class CareerModuleHintRequest(BaseModel):
+    paragraph_text: str
+    profession: str
+
+class CareerUpdateReviewRequest(BaseModel):
+    module_id: str
+    course_profession: str
+    score: int  # 0-100: determines SM-2 quality factor
+
+
+class CareerMockInterviewStartRequest(BaseModel):
+    profession: str
+    vacancy_title: str
+    vacancy_company: str
+    vacancy_requirements: str
+    completed_modules_titles: List[str]
+
+
+class CareerMockInterviewRespondRequest(BaseModel):
+    profession: str
+    vacancy_title: str
+    vacancy_company: str
+    chat_history: List[dict]
+    student_answer: str
+
+
+class CareerMockInterviewEvaluateRequest(BaseModel):
+    profession: str
+    vacancy_title: str
+    vacancy_company: str
+    chat_history: List[dict]
+
+
+class CareerSocraticChatRequest(BaseModel):
+    paragraph_text: str
+    profession: str
+    message: str
+    chat_history: List[dict]
+
+
+@app.post("/api/career/review_test")
+@limiter.limit("20/minute")
+async def career_review_test(request: Request, req: CareerReviewTestRequest):
+    """Generate a 3-question Spaced Repetition mini-test for a completed module."""
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+
+    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
+    try:
+        result = await agent.generate_review_test(
+            req.module_title,
+            req.module_theory,
+            req.practice_type
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации теста повторения: {str(e)}")
+
+
+@app.post("/api/career/retry_task")
+@limiter.limit("10/minute")
+async def career_retry_task(request: Request, req: CareerRetryTaskRequest):
+    """Generate an alternative practice task when student scores below mastery threshold (70)."""
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+
+    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
+    try:
+        result = await agent.generate_retry_task(
+            req.module_title,
+            req.practice_type,
+            req.original_task,
+            req.weaknesses
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации альтернативного задания: {str(e)}")
+
+
+@app.post("/api/career/module_hint")
+@limiter.limit("30/minute")
+async def career_module_hint(request: Request, req: CareerModuleHintRequest):
+    """Socratic Micro-Tutor: explain a theory paragraph in a different way."""
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+
+    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
+    try:
+        explanation = await agent.get_module_hint(req.paragraph_text, req.profession)
+        return {"explanation": explanation}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка получения подсказки: {str(e)}")
+
+
+@app.post("/api/career/mock_interview_start")
+@limiter.limit("5/minute")
+async def career_mock_interview_start(request: Request, req: CareerMockInterviewStartRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — ИИ-интервьюер, опытный тимлид или технический рекрутер из компании "{req.vacancy_company}".
+Ты проводишь реалистичное собеседование на позицию "{req.vacancy_title}".
+Собеседование охватывает следующие изученные студентом темы: {', '.join(req.completed_modules_titles)}.
+
+Твои правила:
+1. Твоя цель — начать собеседование: поздоровайся от лица рекрутера/тимлида компании "{req.vacancy_company}", назови вакансию и задай первый вовлекающий вопрос (технический или поведенческий/HR).
+2. Будь реалистичным, профессиональным, вежливым, но строгим. Оценивай реальный уровень студента.
+3. Твоя реплика должна быть краткой (2-4 предложения) и заканчиваться одним вопросом. Не пиши готовых ответов."""
+
+    user_query = "Начни мок-собеседование со мной."
+    try:
+        reply = await agent.run(system_prompt, user_query)
+        return {"session_id": "mock_session_" + str(hash(reply))[:8], "initial_question": reply.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка старта собеседования: {str(e)}")
+
+
+@app.post("/api/career/mock_interview_respond")
+@limiter.limit("15/minute")
+async def career_mock_interview_respond(request: Request, req: CareerMockInterviewRespondRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    student_turns = sum(1 for msg in req.chat_history if msg.get("role") == "user") + 1
+    is_finished = student_turns >= 5
+    
+    if is_finished:
+        return {"next_question": "Спасибо за ответы! Я завершил собеседование и готов подвести итоги. Нажмите кнопку 'Получить результаты', чтобы увидеть детальный разбор.", "is_finished": True}
+        
+    system_prompt = f"""Ты — ИИ-интервьюер, тимлид или технический рекрутер из компании "{req.vacancy_company}".
+Ты проводишь собеседование на позицию "{req.vacancy_title}".
+
+Твои правила:
+1. Будь реалистичным, профессиональным, вежливым. Оценивай знания студента.
+2. Прочитай его последний ответ и историю диалога. Задай следующий логический вопрос (углубись в его стек, спроси крайний случай или задай поведенческий/HR вопрос).
+3. Пиши кратко (2-4 предложения), задавай строго один вопрос за раз. Не давай ответов или спойлеров.
+4. Студент ответил: "{req.student_answer}". Твоя задача — задать следующий вопрос."""
+
+    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.chat_history[-10:] if isinstance(msg, dict)])
+    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nСтудент ответил: {req.student_answer}\nЗадай следующий вопрос."
+    
+    try:
+        reply = await agent.run(system_prompt, full_user_query)
+        return {"next_question": reply.strip(), "is_finished": False}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка диалога: {str(e)}")
+
+
+@app.post("/api/career/mock_interview_evaluate")
+@limiter.limit("5/minute")
+async def career_mock_interview_evaluate(request: Request, req: CareerMockInterviewEvaluateRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.chat_history if isinstance(msg, dict)])
+    
+    system_prompt = f"""Ты — экспертная комиссия ИТ-интервьюеров и HR-специалистов.
+Тебе предоставлена полная стенограмма мок-собеседования на позицию "{req.vacancy_title}" в компании "{req.vacancy_company}".
+Твоя задача — провести детальный и беспристрастный разбор ответов студента.
+
+Критерии оценки:
+- Техническая глубина и правильность ответов.
+- Умение рассуждать, решать крайние случаи, признавать пробелы.
+- Коммуникация, soft skills, структура изложения.
+
+ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
+{{
+  "score": 82,
+  "grade": "Junior+" / "Middle-" / "Junior",
+  "verdict": "Итоговое развернутое заключение (3-4 содержательных предложения) о готовности к работе.",
+  "strengths": ["В чем студент показал себя отлично (конкретные темы/ответы)"],
+  "weaknesses": ["В чем проявились пробелы и что нужно доучить"],
+  "interview_ready": true
+}}"""
+
+    user_query = f"СТЕНОГРАММА СОБЕСЕДОВАНИЯ:\n{history_text}\n\nПожалуйста, проанализируй моё собеседование и дай оценку."
+    try:
+        raw = await agent.run(system_prompt, user_query)
+        return parse_llm_json(raw)
+    except Exception as e:
+        print(f"Error evaluating interview: {e}")
+        return {
+            "score": 75,
+            "grade": "Junior",
+            "verdict": "Ваше собеседование проверено. Ошибка разбора ответа ИИ, но вы показали отличную активность!",
+            "strengths": ["Успешно завершен весь трек вопросов ИИ-интервьюера"],
+            "weaknesses": ["Сбой детального ИИ-разбора"],
+            "interview_ready": False
+        }
+
+
+@app.post("/api/career/socratic_chat")
+@limiter.limit("20/minute")
+async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — Сократ, великий философ и персональный ИИ-тьютор StudyForge.
+Твоя цель — помочь студенту глубже понять следующий абзац учебного материала по направлению "{req.profession}":
+
+АБЗАЦ ТЕОРИИ:
+"{req.paragraph_text}"
+
+Правила ведения сократовского диалога:
+1. НИКОГДА не давай прямых ответов, готовых решений, кода или прямых дефиниций. Это лишает студента возможности думать!
+2. На каждый вопрос или утверждение студента отвечай наводящим вопросом, контрпримером или простой метафорой.
+3. Помогай студенту самому прийти к верному выводу шаг за шагом.
+4. Будь вежливым, мудрым, поддерживающим собеседником. Письма пиши кратко (до 3 предложений в ответе).
+5. Веди диалог исключительно в рамках темы данного абзаца теории."""
+
+    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.chat_history[-8:] if isinstance(msg, dict)])
+    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nСтудент: {req.message}"
+    
+    try:
+        reply = await agent.run(system_prompt, full_user_query)
+        return {"reply": reply.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка Сократ-диалога: {str(e)}")
+
+
+@app.post("/api/career/parse_vacancy")
+@limiter.limit("15/minute")
+async def career_parse_vacancy(request: Request, req: CareerVacancyParseRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    import re
+    import httpx
+    
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    }
+    
+    html_text = ""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(req.url, headers=headers, timeout=6.0, follow_redirects=True)
+            if resp.status_code == 200:
+                html_text = resp.text
+    except Exception as e:
+        print(f"Direct scrap error for {req.url}: {e}")
+
+    body_text = ""
+    if html_text:
+        # Strip script & style tags
+        clean_html = re.sub(r'<(script|style).*?>.*?</\1>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
+        # Strip all other HTML tags
+        clean_text = re.sub(r'<.*?>', ' ', clean_html, flags=re.DOTALL)
+        # Collapse whitespace
+        body_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+    system_prompt = """Ты — экспертный ИИ-парсер вакансий StudyForge.
+Твоя задача — извлечь или спрогнозировать детальные структурированные данные о вакансии из предоставленной страницы или URL.
+
+Верни результат СТРОГО в формате JSON:
+{
+  "title": "Название вакансии (например, Junior Frontend Developer)",
+  "company": "Название компании (например, Сбербанк или Яндекс)",
+  "salary": "Зарплата (например, 80 000 - 120 000 ₽ или 'по результатам собеседования')",
+  "requirements": "Краткое описание требований вакансии в 2-3 предложениях",
+  "skills": ["Навык 1", "Навык 2", "Навык 3", "Навык 4", "Навык 5"]
+}
+
+Если переданный текст пуст (был заблокирован парсинг) или содержит мало информации, то на основе URL адреса (например, содержащего 'frontend-developer') и контекста сгенерируй МАКСИМАЛЬНО РЕАЛИСТИЧНЫЕ, качественные и актуальные требования, навыки и оклад для этой вакансии на ИТ-рынке.
+"""
+    
+    user_query = f"URL вакансии: {req.url}\n\nСпарсенный текст страницы:\n{body_text[:4500]}"
+    
+    try:
+        raw = await agent.run(system_prompt, user_query)
+        return parse_llm_json(raw)
+    except Exception as e:
+        # Graceful fallback
+        return {
+            "title": "IT Специалист",
+            "company": "Указанная компания",
+            "salary": "по результатам собеседования",
+            "requirements": "Разработка надежных систем, работа с базами данных, оптимизация производительности.",
+            "skills": ["Git", "SQL", "Docker", "REST API"]
+        }
+
+
+@app.post("/api/career/diagnostic_test")
+@limiter.limit("10/minute")
+async def career_diagnostic_test(request: Request, req: CareerDiagnosticTestRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — ИИ-Методист StudyForge.
+Сгенерируй входной диагностический тест из 5 вопросов множественного выбора (Multiple Choice) для проверки знаний студента перед изучением темы "{req.module_title}" по направлению "{req.profession}".
+
+Правила генерации вопросов:
+1. Вопросы должны быть сложными, техническими и охватывать ключевые концепции темы (теории):
+"{req.module_theory[:3000]}"
+2. Каждый вопрос должен содержать ровно 4 варианта ответа (A, B, C, D) с одним правильным ключом.
+3. Дай развернутое пояснение (explanation) для каждого вопроса.
+
+Верни результат СТРОГО в формате JSON:
+{{
+  "questions": [
+    {{
+      "question": "Текст вопроса #1",
+      "options": ["A) Вариант A", "B) Вариант B", "C) Вариант C", "D) Вариант D"],
+      "correct": "A",
+      "explanation": "Подробное разъяснение, почему вариант A верен, а другие нет."
+    }},
+    ... (всего ровно 5 вопросов)
+  ]
+}}
+"""
+    
+    try:
+        raw = await agent.run(system_prompt, "Сгенерируй диагностический тест.")
+        return parse_llm_json(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации теста: {str(e)}")
+
+
+@app.post("/api/career/code_diagnostics")
+@limiter.limit("15/minute")
+async def career_code_diagnostics(request: Request, req: CareerCodeDiagnosticsRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — ИИ-Архитектор и Технический Лид StudyForge.
+Проанализируй черновик решения студента в песочнице для темы "{req.module_title}".
+
+ОПИСАНИЕ ЗАДАНИЯ:
+"{req.task_description}"
+
+КОД СТУДЕНТА:
+```
+{req.code}
+```
+
+Сделай глубокий анализ кода и подготовь JSON-отчет. 
+Верни результат СТРОГО в формате JSON:
+{{
+  "complexity": "Оценка временной и пространственной сложности (например, Time: O(n), Space: O(1))",
+  "issues": [
+    "Замечание #1 (например, неэффективное использование памяти)",
+    "Замечание #2 (например, потенциальный крайний случай/ошибка)"
+  ],
+  "refactored_suggestion": "Вариант оптимизированного, чистого и эталонного кода с краткими комментариями",
+  "score_estimate": 85
+}}
+"""
+    try:
+        raw = await agent.run(system_prompt, "Проанализируй этот код.")
+        return parse_llm_json(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка диагностики кода: {str(e)}")
+
+
+@app.post("/api/career/github_readme")
+@limiter.limit("10/minute")
+async def career_github_readme(request: Request, req: CareerGithubReadmeRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    completed_modules_str = ", ".join(req.completed_modules)
+    
+    system_prompt = f"""Ты — ИИ-Технический Рекрутер и Бренд-Консультант для разработчиков.
+Сгенерируй потрясающий, профессиональный файл README.md для GitHub-профиля студента, обучающегося по направлению "{req.profession}".
+Студент успешно освоил следующие темы в ИИ-буткемпе StudyForge: {completed_modules_str}.
+
+Структура README должна включать:
+1. Заголовок с именем/направлением и целями.
+2. Иконки технологий (используй щиты shields.io).
+3. Раздел с пет-проектами из пройденных модулей (подано в привлекательном коммерческом виде).
+4. Метрики (например, оцифрованный Match Score, пройденные ИИ-собеседования).
+5. Раздел с контактами.
+
+Пиши на русском языке, используй премиальные Markdown-блоки и красивые эмодзи."""
+    
+    try:
+        readme = await agent.run(system_prompt, "Создай премиальный README.md для моего профиля GitHub.")
+        return {"readme": readme}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации README: {str(e)}")
+
+
+@app.post("/api/career/update_review")
+@limiter.limit("30/minute")
+async def career_update_review(request: Request, req: CareerUpdateReviewRequest):
+    """
+    Update Spaced Repetition schedule using SM-2 algorithm.
+    quality: 0-5 mapped from score 0-100.
+    """
+    import os
+    from supabase import create_client
+    
+    sb_url = os.getenv("SUPABASE_URL", "")
+    sb_key = os.getenv("SUPABASE_KEY", "")
+    if not sb_url or not sb_key:
+        raise HTTPException(status_code=500, detail="Supabase не настроен")
+    
+    # Get Authorization header to identify user
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    
+    token = auth_header[7:]
+    sb = create_client(sb_url, sb_key)
+    
+    # Get user from token
+    try:
+        user_resp = sb.auth.get_user(token)
+        user_id = user_resp.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Невалидный токен")
+    
+    # SM-2 algorithm
+    # Convert score (0-100) to quality (0-5)
+    quality = min(5, max(0, round(req.score / 20)))
+    
+    # Fetch existing review record
+    existing = sb.table("module_reviews").select("*").eq("user_id", user_id).eq("module_id", req.module_id).execute()
+    
+    if existing.data:
+        rec = existing.data[0]
+        ease = rec["ease_factor"]
+        interval = rec["interval_days"]
+        reps = rec["repetition_count"]
+    else:
+        ease = 2.5
+        interval = 1
+        reps = 0
+    
+    # SM-2 update
+    if quality < 3:
+        # Failed: reset
+        reps = 0
+        interval = 1
+    else:
+        if reps == 0:
+            interval = 1
+        elif reps == 1:
+            interval = 6
+        else:
+            interval = round(interval * ease)
+        reps += 1
+    
+    # Update ease factor
+    ease = max(1.3, ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+    
+    from datetime import datetime, timedelta, timezone
+    next_review = (datetime.now(timezone.utc) + timedelta(days=interval)).isoformat()
+    
+    sb.table("module_reviews").upsert({
+        "user_id": user_id,
+        "module_id": req.module_id,
+        "course_profession": req.course_profession,
+        "next_review_at": next_review,
+        "ease_factor": round(ease, 2),
+        "interval_days": interval,
+        "repetition_count": reps,
+        "last_score": req.score
+    }, on_conflict="user_id,module_id").execute()
+    
+    return {
+        "next_review_at": next_review,
+        "interval_days": interval,
+        "ease_factor": round(ease, 2),
+        "repetition_count": reps
+    }
+
+
+@app.get("/api/career/due_reviews")
+@limiter.limit("30/minute")
+async def career_due_reviews(request: Request):
+    """Get modules due for Spaced Repetition review (next_review_at <= now)."""
+    import os
+    from supabase import create_client
+    from datetime import datetime, timezone
+    
+    sb_url = os.getenv("SUPABASE_URL", "")
+    sb_key = os.getenv("SUPABASE_KEY", "")
+    if not sb_url or not sb_key:
+        raise HTTPException(status_code=500, detail="Supabase не настроен")
+    
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    
+    token = auth_header[7:]
+    sb = create_client(sb_url, sb_key)
+    
+    try:
+        user_resp = sb.auth.get_user(token)
+        user_id = user_resp.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Невалидный токен")
+    
+    now_iso = datetime.now(timezone.utc).isoformat()
+    result = sb.table("module_reviews").select("*").eq("user_id", user_id).lte("next_review_at", now_iso).execute()
+    
+    return result.data or []
 
 
 # Edge-TTS voice IDs (Azure Neural Voices)

@@ -6,7 +6,9 @@ import {
   CheckCircle2, Loader2, Code2, Cpu, MessageSquare, Send, 
   Play, Check, AlertCircle, ExternalLink, Lock, Unlock, 
   Award, Sparkles, Database, Eye, Smile, RefreshCw, 
-  Sliders, ChevronRight, X, ArrowLeft, ThumbsUp 
+  Sliders, ChevronRight, X, ArrowLeft, ThumbsUp,
+  RotateCcw, BookOpen, Trophy, HelpCircle, GitBranch, Star,
+  TrendingUp, Flame, Layers2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -15,7 +17,11 @@ import {
   getCareerProfile, generateCareerProfile, saveCareerProfile, 
   generateCareerCourse, sendCareerChat, evaluateCareerTask, 
   getCareerVacancies, sendVacancyChat, VacancyItem,
-  expandCareerCourse, CareerProfile, CareerCourse, CareerModule 
+  expandCareerCourse, CareerProfile, CareerCourse, CareerModule,
+  generateReviewTest, updateModuleReview, getDueReviews,
+  generateRetryTask, getModuleHint,
+  saveXPToProfile, getLevelFromXP, XP_REWARDS, ModuleReviewRecord,
+  getCodeDiagnostics, generateGithubReadme
 } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
@@ -26,6 +32,15 @@ import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import confetti from 'canvas-confetti';
 import toast, { Toaster } from 'react-hot-toast';
+import SkillsRadarChart from '../components/SkillsRadarChart';
+import SalaryProgressBar from '../components/SalaryProgressBar';
+import ReviewTestModal from '../components/ReviewTestModal';
+import MockInterviewModal from '../components/MockInterviewModal';
+import SocraticTutor from '../components/SocraticTutor';
+import LearningDashboard from '../components/LearningDashboard';
+import JobTracker from '../components/JobTracker';
+import DiagnosticTestModal from '../components/DiagnosticTestModal';
+import { supabase } from '../lib/supabase';
 
 export default function Career() {
   const { user } = useAuth();
@@ -36,7 +51,7 @@ export default function Career() {
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'course'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'course' | 'analytics' | 'jobs'>('profile');
 
   // New states for Vacancy Selection Dashboard & AI Vacancy Chat
   const [showVacancySelector, setShowVacancySelector] = useState(false);
@@ -63,6 +78,19 @@ export default function Career() {
   const [expandChatInput, setExpandChatInput] = useState('');
   const [sendingExpandChat, setSendingExpandChat] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
+
+  // Sprint 3: Diagnostic Test States
+  const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
+  const [diagnosticModule, setDiagnosticModule] = useState<CareerModule | null>(null);
+
+  // Sprint 3: AI Code Diagnostics Sandbox States
+  const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
+  const [isDiagnosticsLoading, setIsDiagnosticsLoading] = useState(false);
+  const [diagnosticsResult, setDiagnosticsResult] = useState<any | null>(null);
+
+  // Sprint 3: GitHub README States
+  const [isReadmeLoading, setIsReadmeLoading] = useState(false);
+  const [githubReadme, setGithubReadme] = useState<string | null>(null);
 
   // Helper for dynamic formatting of salaries
   const formatSalary = (salary: string, location?: string) => {
@@ -122,9 +150,54 @@ export default function Career() {
   const [localTestLogs, setLocalTestLogs] = useState<string[]>([]);
   const [isEvaluating, setIsEvaluating] = useState(false);
 
+  // ── Sprint 1: Scaffolded Practice ─────────────────────────────────────────
+  const [practiceLevel, setPracticeLevel] = useState<'guided' | 'independent' | 'expert'>('independent');
+
+  // ── Sprint 1: Spaced Repetition ───────────────────────────────────────────
+  const [reviewModal, setReviewModal] = useState<{ open: boolean; module: CareerModule | null }>({ open: false, module: null });
+  const [dueReviews, setDueReviews] = useState<ModuleReviewRecord[]>([]);
+
+  // ── Sprint 1: Mastery-Based Retry ─────────────────────────────────────────
+  const [retryTask, setRetryTask] = useState<CareerModule['practice_task'] & { guided_hints?: string[] } | null>(null);
+  const [loadingRetry, setLoadingRetry] = useState(false);
+
+  // ── Sprint 1: Socratic Micro-Tutor ────────────────────────────────────────
+  const [hintParagraph, setHintParagraph] = useState<string | null>(null);
+  const [hintText, setHintText] = useState<string>('');
+  const [loadingHint, setLoadingHint] = useState(false);
+
+  // ── Sprint 2 additions ─────────────────────────────────────────────────────
+  const [socraticParagraph, setSocraticParagraph] = useState<string | null>(null);
+  const [showMockInterview, setShowMockInterview] = useState(false);
+  const [runHistory, setRunHistory] = useState<{ time: string; logs: string[]; passed: boolean }[]>([]);
+
+  useEffect(() => {
+    if (localTestLogs.length > 0) {
+      // Don't log clean resets
+      if (localTestLogs.length === 1 && localTestLogs[0] === '') return;
+      
+      const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      // Avoid duplicates
+      setRunHistory(prev => {
+        if (prev.length > 0 && JSON.stringify(prev[0].logs) === JSON.stringify(localTestLogs)) return prev;
+        return [
+          { time, logs: [...localTestLogs], passed: localTestedPassed },
+          ...prev
+        ].slice(0, 5);
+      });
+    }
+  }, [localTestLogs, localTestedPassed]);
+
   useEffect(() => {
     if (!user) return;
     loadProfile();
+    // Load due spaced-repetition reviews
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token;
+      if (token) {
+        getDueReviews(token).then(setDueReviews).catch(() => {});
+      }
+    });
   }, [user?.id]);
 
   useEffect(() => {
@@ -144,6 +217,7 @@ export default function Career() {
         setLoading(false);
       })
       .catch(async (e) => {
+
         console.error(e);
         toast.error('Не удалось загрузить профиль.');
         setLoading(false);
@@ -693,13 +767,19 @@ export default function Career() {
         solutionData
       );
 
-      // Update local profile with completion
+      const score = evaluation.score;
+      const isMastered = score >= 70;
+      const isPerfect = score >= 90;
+
+      // Update local profile with completion + mastery score
       const updatedModules = profile.course?.modules.map(m => {
         if (m.id === selectedModule.id) {
           return {
             ...m,
-            completed: true,
-            score: evaluation.score,
+            completed: isMastered,
+            mastery_score: score,
+            attempts: (m.attempts ?? 0) + 1,
+            score: score,
             evaluation: evaluation,
             student_solution: solutionData
           };
@@ -707,20 +787,67 @@ export default function Career() {
         return m;
       }) || [];
 
-      const updatedProfile = {
-        ...profile,
-        course: {
-          ...profile.course!,
-          modules: updatedModules
-        }
-      };
+      // Calculate XP reward
+      let xpGained: number = XP_REWARDS.task_completed;
+      if (isPerfect) xpGained = XP_REWARDS.task_perfect;
+      else if (isMastered) xpGained = XP_REWARDS.task_mastered;
 
-      const saved = await saveCareerProfile(user.id, updatedProfile);
+      // Schedule spaced repetition for mastered modules
+      if (isMastered) {
+        supabase.auth.getSession().then(({ data }) => {
+          const token = data.session?.access_token;
+          if (token) {
+            updateModuleReview(
+              selectedModule.id,
+              profile.course?.profession || '',
+              score,
+              token
+            ).catch(() => {});
+          }
+        });
+      }
+
+      // Save XP + skills radar
+      const updatedProfile = await saveXPToProfile(
+        user.id,
+        {
+          ...profile,
+          course: { ...profile.course!, modules: updatedModules }
+        },
+        xpGained,
+        selectedModule.practice_type
+      );
+
+      const saved = !!updatedProfile;
       if (saved) {
         setProfile(updatedProfile);
         setSelectedModule(updatedModules.find(m => m.id === selectedModule.id) || null);
-        toast.success(`Задание проверено! Ваша оценка: ${evaluation.score}/100`);
-        confetti({ particleCount: 100, spread: 60 });
+
+        if (isMastered) {
+          confetti({ particleCount: 120, spread: 70 });
+          toast.success(
+            isPerfect
+              ? `🏆 Идеально! ${score}/100 — +${xpGained} XP! Следующий модуль разблокирован!`
+              : `✅ Освоено! ${score}/100 — +${xpGained} XP!`,
+            { duration: 4000 }
+          );
+
+          // Milestone toasts every 3 completed modules
+          const newlyCompletedCount = updatedModules.filter(m => m.completed).length;
+          if (newlyCompletedCount > 0 && newlyCompletedCount % 3 === 0) {
+            setTimeout(() => {
+              toast(
+                `🎯 Потрясающе! Ты освоил уже ${newlyCompletedCount} модул${newlyCompletedCount === 3 ? 'я' : 'ей'}. Ты готов к стажировке уровня "${profile.course?.level || 'Джуниор'}"!`,
+                { icon: '🚀', duration: 6000 }
+              );
+            }, 3000);
+          }
+        } else {
+          toast(
+            `📚 Оценка: ${score}/100. Нужно ≥70 для разблокировки следующего модуля. Попробуй ещё раз!`,
+            { icon: '⚠️', duration: 5000 }
+          );
+        }
       } else {
         toast.error('Не удалось сохранить прогресс курса.');
       }
@@ -729,6 +856,146 @@ export default function Career() {
       toast.error('Произошла ошибка при анализе ИИ-решения.');
     } finally {
       setIsEvaluating(false);
+    }
+  };
+
+  // ── Sprint 1: Get Retry Task (Mastery-based) ──────────────────────────────────
+  const handleGetRetryTask = async () => {
+    if (!selectedModule || !profile) return;
+    setLoadingRetry(true);
+    setRetryTask(null);
+    try {
+      const weaknesses = selectedModule.evaluation?.weaknesses || [];
+      const alt = await generateRetryTask(
+        selectedModule.title,
+        selectedModule.practice_type,
+        selectedModule.practice_task.task_description,
+        weaknesses
+      );
+      setRetryTask(alt);
+      // Reset sandbox
+      setSandboxCode(alt.code_template || `function solution() {\n  // напиши свой код здесь\n}`);
+      setLocalTested(false);
+      setLocalTestedPassed(false);
+      setLocalTestLogs([]);
+      toast.success('Сгенерировано альтернативное задание — попробуй снова!');
+    } catch {
+      toast.error('Не удалось сгенерировать задание.');
+    } finally {
+      setLoadingRetry(false);
+    }
+  };
+
+  // ── Sprint 3: AI Code Diagnostics & Refactoring ──────────────────────────────
+  const handleRunDiagnostics = async () => {
+    if (!selectedModule) return;
+    setDiagnosticsResult(null);
+    setIsDiagnosticsLoading(true);
+    setShowDiagnosticsPanel(true);
+    try {
+      const report = await getCodeDiagnostics(
+        sandboxCode,
+        selectedModule.title,
+        selectedModule.practice_task.task_description
+      );
+      setDiagnosticsResult(report);
+    } catch {
+      toast.error('Не удалось провести ИИ-анализ кода.');
+    } finally {
+      setIsDiagnosticsLoading(false);
+    }
+  };
+
+  // ── Sprint 3: GitHub Portfolio README Generator ─────────────────────────────
+  const handleGenerateReadme = async () => {
+    if (!profile?.course?.profession) return;
+    setIsReadmeLoading(true);
+    try {
+      const completedList = (profile.course.modules ?? [])
+        .filter(m => m.completed)
+        .map(m => m.title);
+      const data = await generateGithubReadme(profile.course.profession, completedList);
+      setGithubReadme(data.readme);
+      toast.success('Портфолио README.md успешно сгенерировано!');
+    } catch {
+      toast.error('Не удалось сгенерировать портфолио.');
+    } finally {
+      setIsReadmeLoading(false);
+    }
+  };
+
+  // ── Sprint 3: Diagnostic Test Completion Handler ─────────────────────────────
+  const handleDiagnosticComplete = async (passed: boolean, xpGained: number) => {
+    setShowDiagnosticModal(false);
+    if (!diagnosticModule || !user || !profile || !profile.course) return;
+
+    if (passed) {
+      // Update module completion in local state
+      const updatedModules = profile.course.modules.map(m => 
+        m.id === diagnosticModule.id 
+          ? { ...m, completed: true, mastery_score: 90, score: 90 } 
+          : m
+      );
+
+      // Construct active log stamp
+      const today = new Date().toISOString().split('T')[0];
+      const newLog = [...(profile.activity_log ?? [])];
+      newLog.push({
+        date: today,
+        xp: xpGained,
+        type: 'challenge',
+        label: `Экстерн: ${diagnosticModule.title}`
+      });
+
+      const updatedProfile: CareerProfile = {
+        ...profile,
+        xp: (profile.xp ?? 0) + xpGained,
+        activity_log: newLog,
+        course: {
+          ...profile.course,
+          modules: updatedModules
+        }
+      };
+
+      // Recalculate level
+      const { name: newLevelName } = getLevelFromXP(updatedProfile.xp ?? 0);
+      updatedProfile.level_name = newLevelName;
+
+      setProfile(updatedProfile);
+      await saveCareerProfile(user.id, updatedProfile);
+      toast.success(`🎉 Теория пройдена экстерном! Получено +${xpGained} XP!`);
+
+      // Instantly open this module's sandbox practice in Career
+      setSelectedModule({
+        ...diagnosticModule,
+        completed: true,
+        mastery_score: 90,
+        score: 90
+      });
+      setPracticeOpen(true);
+      setSandboxCode(diagnosticModule.practice_task.code_template || '');
+    } else {
+      toast.error('Входное тестирование не пройдено. Изучите теорию модуля.');
+      // Just select and display theory normally
+      setSelectedModule(diagnosticModule);
+      setPracticeOpen(false);
+    }
+    setDiagnosticModule(null);
+  };
+
+  // ── Sprint 1: Socratic Micro-Tutor ───────────────────────────────────────────
+  const handleSocraticHint = async (paragraph: string) => {
+    if (!profile?.course?.profession) return;
+    setHintParagraph(paragraph);
+    setHintText('');
+    setLoadingHint(true);
+    try {
+      const explanation = await getModuleHint(paragraph, profile.course.profession);
+      setHintText(explanation);
+    } catch {
+      setHintText('Не удалось получить объяснение. Попробуй снова.');
+    } finally {
+      setLoadingHint(false);
     }
   };
 
@@ -743,35 +1010,64 @@ export default function Career() {
           </div>
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Карьерный Вектор</h1>
-            <p className="text-slate-500 dark:text-slate-400">Автоматически оцифрованная траектория и live-обучение</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Автоматически оцифрованная траектория и live-обучение</p>
+              {profile && (
+                <div className="flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 rounded-full text-[10px] sm:text-xs">
+                  <span className="text-amber-500">⭐</span>
+                  <span className="font-extrabold text-indigo-700 dark:text-indigo-300">{profile.xp ?? 0} XP</span>
+                  <span className="text-slate-400 dark:text-slate-500 font-bold">• {profile.level_name ?? 'Новичок'}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
           {profile && (
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-x-auto max-w-[85vw] sm:max-w-none">
               <button
                 onClick={() => setActiveTab('profile')}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
                   activeTab === 'profile'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
               >
-                🗂️ Мой Профиль
+                🗂️ Профиль
               </button>
               <button
                 onClick={() => setActiveTab('course')}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'course'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
               >
-                🎓 ИИ-Курс с Песочницами
+                🎓 ИИ-Курс
                 {profile?.course && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 )}
+              </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'analytics'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                📊 Аналитика
+              </button>
+              <button
+                onClick={() => setActiveTab('jobs')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'jobs'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                💼 Отклики
               </button>
             </div>
           )}
@@ -818,7 +1114,7 @@ export default function Career() {
                   </p>
                   <button 
                     onClick={handleGenerate}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-250 dark:shadow-none"
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
                   >
                     Оцифровать мои навыки по конспектам
                   </button>
@@ -892,7 +1188,7 @@ export default function Career() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: i * 0.1 }}
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-indigo-300 dark:hover:border-indigo-750 transition-colors group cursor-pointer"
+                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors group cursor-pointer"
                           >
                             <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{proj.title}</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{proj.description}</p>
@@ -900,11 +1196,70 @@ export default function Career() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Sprint 3: GitHub README Portfolio Exporter Card */}
+                    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mt-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-800 dark:bg-slate-300" />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-850 dark:text-slate-200 shrink-0">
+                            <GitBranch className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <div>
+                            <h2 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                              🐙 Экспорт портфолио в GitHub README
+                            </h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Сгенерируйте профессиональный README для ваших проектов</p>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={handleGenerateReadme}
+                          disabled={isReadmeLoading}
+                          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-50 text-white dark:text-slate-900 rounded-xl text-xs font-extrabold flex items-center gap-2 transition disabled:opacity-50 shrink-0 self-start sm:self-center"
+                        >
+                          {isReadmeLoading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Генерация...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Сгенерировать README.md
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {githubReadme && (
+                        <div className="space-y-3.5 border-t border-slate-150 dark:border-slate-850 pt-5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500 font-bold dark:text-slate-450 uppercase tracking-wide">Ваш README.md готов:</span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(githubReadme);
+                                toast.success('Скопировано в буфер обмена!');
+                              }}
+                              className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-extrabold transition flex items-center gap-1"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Скопировать
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <pre className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[11px] leading-relaxed overflow-x-auto max-h-72 border border-slate-800 shadow-inner">
+                              <code>{githubReadme}</code>
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
             </div>
-          ) : (
+          ) : activeTab === 'course' ? (
             /* Vacancy-backed Adaptive course section */
             <div>
               {!profile?.course ? (
@@ -920,7 +1275,7 @@ export default function Career() {
                   
                   <button
                     onClick={handleStartCoachChat}
-                    className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold flex items-center gap-3 hover:from-indigo-750 hover:to-violet-750 transition shadow-lg shadow-indigo-200 dark:shadow-none mx-auto"
+                    className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold flex items-center gap-3 hover:from-indigo-700 hover:to-violet-700 transition shadow-lg shadow-indigo-200 dark:shadow-none mx-auto"
                   >
                     <MessageSquare className="w-5 h-5 animate-pulse" />
                     Начать диалог с Коучем
@@ -931,8 +1286,8 @@ export default function Career() {
                 <div className="grid lg:grid-cols-3 gap-8">
                   {/* Sidebar Market Analysis */}
                   <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden border border-slate-850">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-550 rounded-full blur-3xl opacity-20" />
+                    <div className="bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500 rounded-full blur-3xl opacity-20" />
                       <div className="flex items-center gap-2 mb-4">
                         <Award className="w-6 h-6 text-amber-400" />
                         <h3 className="text-lg font-bold">Рыночный Анализ Вакансий</h3>
@@ -961,10 +1316,92 @@ export default function Career() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Sprint 1: Salary Progress Bar */}
+                    <SalaryProgressBar
+                      currentXP={profile.xp ?? 0}
+                      targetSalary={profile.course.salary}
+                      completedModules={profile.course.modules.filter(m => m.completed && (m.mastery_score ?? m.score ?? 0) >= 70).length}
+                      totalModules={profile.course.modules.length}
+                      levelName={profile.level_name}
+                      streakDays={profile.streak_days}
+                    />
+
+                    {/* Sprint 1: Skills Radar Chart */}
+                    {Object.keys(profile.skills_radar ?? {}).length > 0 && (
+                      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <Layers2 className="w-3.5 h-3.5" />
+                          Карта навыков
+                        </h4>
+                        <SkillsRadarChart data={profile.skills_radar!} size={200} />
+                      </div>
+                    )}
+
+                    {/* Sprint 1: Due reviews widget */}
+                    {dueReviews.length > 0 && (
+                      <div className="bg-indigo-950/30 border border-indigo-700/40 rounded-2xl p-4 space-y-3">
+                        <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Повторение — {dueReviews.length} модул{dueReviews.length === 1 ? 'ь' : 'я'}
+                        </h4>
+                        {dueReviews.slice(0, 4).map(r => {
+                          const mod = profile.course!.modules.find(m => m.id === r.module_id);
+                          if (!mod) return null;
+                          return (
+                            <button
+                              key={r.module_id}
+                              onClick={() => setReviewModal({ open: true, module: mod })}
+                              className="w-full text-left p-2.5 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-800/40 rounded-xl text-xs font-semibold text-slate-200 flex items-center justify-between gap-2 transition"
+                            >
+                              <span className="truncate">{mod.title}</span>
+                              <span className="text-indigo-400 shrink-0 flex items-center gap-1">
+                                <RotateCcw className="w-3 h-3" /> Пройти
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
+
 
                   {/* Modules Timeline */}
                   <div className="lg:col-span-2 space-y-6">
+                    {/* Sprint 2: Mock Interview Milestone Banner */}
+                    {(() => {
+                      const completedCount = profile.course?.modules.filter(m => m.completed).length ?? 0;
+                      const interviewCount = profile.mock_interviews?.length ?? 0;
+                      const milestonesAvailable = Math.floor(completedCount / 4);
+                      
+                      if (completedCount >= 4 && interviewCount < milestonesAvailable) {
+                        return (
+                          <div className="bg-gradient-to-r from-violet-600/20 via-indigo-600/15 to-violet-600/20 border border-violet-500/30 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-violet-650 rounded-full blur-3xl opacity-20" />
+                            <div className="flex items-center gap-4 text-left">
+                              <div className="w-12 h-12 bg-violet-600/20 rounded-2xl flex items-center justify-center shrink-0 border border-violet-500/20">
+                                <Trophy className="w-6 h-6 text-violet-400" />
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest block">Каждые 4 модуля</span>
+                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">Доступно тренировочное ИИ-собеседование!</h4>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                                  Вы успешно освоили {completedCount} модулей. Пройдите симуляцию реального технического интервью для вашей вакансии!
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setShowMockInterview(true)}
+                              className="px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white text-xs font-black rounded-2xl transition shadow-lg shadow-violet-500/20 shrink-0 w-full sm:w-auto"
+                            >
+                              Начать собеседование
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {profile.course && profile.course.modules.length > 0 && profile.course.modules.every(m => m.completed) && (
                       <div className="bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-950 rounded-3xl border border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-650 rounded-full blur-3xl opacity-25" />
@@ -995,9 +1432,11 @@ export default function Career() {
                     
                     <div className="relative border-l-2 border-slate-200 dark:border-slate-850 pl-6 ml-4 space-y-8">
                       {profile.course.modules.map((mod, idx) => {
-                        // Progressive lock logic: Module is unlocked if it is the first module, or the previous one is completed
-                        const isUnlocked = idx === 0 || profile.course!.modules[idx - 1].completed;
-                        const isCompleted = mod.completed;
+                        // Sprint 1: Mastery-based progressive lock (prev module needs score >= 70)
+                        const prevMod = idx > 0 ? profile.course!.modules[idx - 1] : null;
+                        const isUnlocked = idx === 0 || !!(prevMod?.completed && (prevMod?.mastery_score ?? prevMod?.score ?? 0) >= 70);
+                        const isCompleted = mod.completed && (mod.mastery_score ?? mod.score ?? 0) >= 70;
+                        const isDueForReview = dueReviews.some(r => r.module_id === mod.id);
                         
                         return (
                           <div key={mod.id} className="relative">
@@ -1023,31 +1462,56 @@ export default function Career() {
                                   {mod.title}
                                 </h3>
                                 
-                                <div className="flex items-center gap-2">
-                                  <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
-                                    mod.practice_type === 'algo' ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-450' :
-                                    mod.practice_type === 'sql' ? 'bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-450' :
-                                    mod.practice_type === 'web' ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-450' :
-                                    mod.practice_type === 'business' ? 'bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-450' :
-                                    mod.practice_type === 'design' ? 'bg-fuchsia-100 dark:bg-fuchsia-950/40 text-fuchsia-700 dark:text-fuchsia-450' :
-                                    mod.practice_type === 'copywriting' ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-450' :
-                                    'bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-450'
-                                  }`}>
-                                    {mod.practice_type === 'algo' ? '💻 LeetCode' :
-                                     mod.practice_type === 'sql' ? '🛢️ SQL sandbox' :
-                                     mod.practice_type === 'web' ? '🌐 HTML/CSS' :
-                                     mod.practice_type === 'business' ? '📊 PM metrics' :
-                                     mod.practice_type === 'design' ? '🎨 UI/UX review' :
-                                     mod.practice_type === 'copywriting' ? '📝 Copywriting' :
-                                     '💬 Soft Skills'}
-                                  </span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                   <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
+                                     mod.practice_type === 'algo' ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-450' :
+                                     mod.practice_type === 'sql' ? 'bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-450' :
+                                     mod.practice_type === 'web' ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-450' :
+                                     mod.practice_type === 'business' ? 'bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-450' :
+                                     mod.practice_type === 'design' ? 'bg-fuchsia-100 dark:bg-fuchsia-950/40 text-fuchsia-700 dark:text-fuchsia-450' :
+                                     mod.practice_type === 'copywriting' ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-450' :
+                                     'bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-450'
+                                   }`}>
+                                     {mod.practice_type === 'algo' ? '💻 LeetCode' :
+                                      mod.practice_type === 'sql' ? '🛢️ SQL sandbox' :
+                                      mod.practice_type === 'web' ? '🌐 HTML/CSS' :
+                                      mod.practice_type === 'business' ? '📊 PM metrics' :
+                                      mod.practice_type === 'design' ? '🎨 UI/UX review' :
+                                      mod.practice_type === 'copywriting' ? '📝 Copywriting' :
+                                      '💬 Soft Skills'}
+                                   </span>
 
-                                  {isCompleted && (
-                                    <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-md">
-                                      Оценка: {mod.score}/100
-                                    </span>
-                                  )}
-                                </div>
+                                   {isCompleted && (
+                                     <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded-md flex items-center gap-1">
+                                       <Trophy className="w-3 h-3" />
+                                       {mod.mastery_score ?? mod.score}/100
+                                     </span>
+                                   )}
+
+                                   {/* Sprint 1: Score exists but < 70 → not mastered yet */}
+                                   {!isCompleted && mod.score !== undefined && (
+                                     <span className="px-2 py-1 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-md">
+                                       ⚠️ {mod.score}/100 — ещё раз
+                                     </span>
+                                   )}
+
+                                   {/* Sprint 1: Attempts counter */}
+                                   {(mod.attempts ?? 0) > 1 && (
+                                     <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-bold rounded-md">
+                                       попытка {mod.attempts}
+                                     </span>
+                                   )}
+
+                                   {/* Sprint 1: Spaced repetition due badge */}
+                                   {isDueForReview && (
+                                     <button
+                                       onClick={(e) => { e.stopPropagation(); setReviewModal({ open: true, module: mod }); }}
+                                       className="px-2 py-1 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-md flex items-center gap-1 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition"
+                                     >
+                                       <RotateCcw className="w-2.5 h-2.5" /> Повторить сегодня
+                                     </button>
+                                   )}
+                                 </div>
                               </div>
 
                               <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 leading-relaxed">
@@ -1065,16 +1529,35 @@ export default function Career() {
                                 </button>
                               )}
 
-                              {/* Toggle expanded theoretical content */}
                               <AnimatePresence>
                                 {activeModuleId === mod.id && isUnlocked && (
                                   <motion.div
                                     initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden mt-5 pt-5 border-t border-slate-100 dark:border-slate-800 space-y-5"
-                                  >
-                                    <div>
+                                     animate={{ opacity: 1, height: 'auto' }}
+                                     exit={{ opacity: 0, height: 0 }}
+                                     className="overflow-hidden mt-5 pt-5 border-t border-slate-100 dark:border-slate-800 space-y-5"
+                                   >
+                                     {!isCompleted && (
+                                       <div className="p-4 bg-gradient-to-r from-indigo-50 to-indigo-100/50 dark:from-indigo-950/20 dark:to-slate-900 border border-indigo-100 dark:border-indigo-900/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+                                         <div className="flex items-center gap-3 text-left">
+                                           <div className="w-9 h-9 bg-indigo-600/10 dark:bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-200/20">
+                                             <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                                           </div>
+                                           <div>
+                                             <h5 className="text-xs font-black text-slate-800 dark:text-slate-200">Знаете эту тему отлично?</h5>
+                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Сдайте входную экспресс-диагностику и перейдите сразу к практике Expert!</p>
+                                           </div>
+                                         </div>
+                                         <button
+                                           onClick={() => { setDiagnosticModule(mod); setShowDiagnosticModal(true); }}
+                                           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-extrabold transition shrink-0 shadow-xs"
+                                         >
+                                           Сдать экстерном (+40 XP)
+                                         </button>
+                                       </div>
+                                     )}
+
+                                     <div>
                                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🎯 Зачем это бизнесу</h4>
                                       <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-semibold italic bg-indigo-50/50 dark:bg-slate-850 p-3 rounded-lg border border-indigo-100/10">
                                         {mod.why_needed}
@@ -1083,8 +1566,19 @@ export default function Career() {
 
                                     <div>
                                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">📖 Ультимативная теория темы</h4>
-                                      <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-3 prose prose-xs dark:prose-invert">
-                                        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{mod.detailed_theory}</ReactMarkdown>
+                                      <div className="text-xs text-slate-650 dark:text-slate-300 leading-relaxed space-y-4 prose prose-xs dark:prose-invert">
+                                        {mod.detailed_theory.split('|||').map((p) => p.trim()).filter(Boolean).map((para, pIdx) => (
+                                          <div key={pIdx} className="group relative pr-8 bg-slate-50/30 dark:bg-slate-950/10 p-2 rounded-xl border border-transparent hover:border-violet-500/10 hover:bg-violet-500/[0.02] transition-all">
+                                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{para}</ReactMarkdown>
+                                            <button
+                                              onClick={() => setSocraticParagraph(para)}
+                                              className="absolute top-2 right-2 p-1 bg-violet-600/10 hover:bg-violet-600 text-violet-600 hover:text-white dark:text-violet-400 border border-violet-500/20 rounded opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                                              title="Обсудить с Сократом"
+                                            >
+                                              <HelpCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        ))}
                                       </div>
                                     </div>
 
@@ -1154,6 +1648,24 @@ export default function Career() {
                 </div>
               )}
             </div>
+          ) : activeTab === 'analytics' ? (
+            profile && <LearningDashboard profile={profile} />
+          ) : (
+            user && profile && (
+              <JobTracker
+                profile={profile}
+                onUpdateProfile={setProfile}
+                onStartInterview={(vacancy) => {
+                  setSelectedVacancy({
+                    title: vacancy.title,
+                    company: vacancy.company,
+                    requirements: vacancy.requirements,
+                    responsibility: 'Обучение по требованиям вакансии'
+                  } as any);
+                  setShowMockInterview(true);
+                }}
+              />
+            )
           )}
         </>
       )}
@@ -1680,6 +2192,120 @@ export default function Career() {
                       </div>
                     </div>
                   )}
+
+                  {/* Sprint 3: AI Code Diagnostics Panel */}
+                  {showDiagnosticsPanel && (
+                    <div className="p-4 rounded-xl border border-indigo-150 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-slate-850/60 relative overflow-hidden space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-xs font-bold flex items-center gap-1.5 text-indigo-750 dark:text-indigo-300">
+                          <Cpu className="w-4 h-4 text-indigo-500 animate-pulse" />
+                          ИИ-Анализ и оптимизация
+                        </h4>
+                        <button
+                          onClick={() => setShowDiagnosticsPanel(false)}
+                          className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {isDiagnosticsLoading ? (
+                        <div className="flex flex-col items-center justify-center py-6 space-y-2">
+                          <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                          <span className="text-[10px] text-slate-500 font-bold dark:text-slate-400">ИИ анализирует сложность и качество кода...</span>
+                        </div>
+                      ) : diagnosticsResult ? (
+                        <div className="space-y-3.5 text-xs">
+                          {/* Score and Complexity */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-250 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-semibold mb-0.5">Оценка решения</span>
+                              <span className="font-extrabold text-sm text-indigo-600 dark:text-indigo-400">{diagnosticsResult.score_estimate ?? 100} / 100</span>
+                            </div>
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-250 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-semibold mb-0.5">Сложность (Big O)</span>
+                              <span className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{diagnosticsResult.complexity || 'N/A'}</span>
+                            </div>
+                          </div>
+
+                          {/* Issues/Warnings list */}
+                          {diagnosticsResult.issues && diagnosticsResult.issues.length > 0 && (
+                            <div>
+                              <span className="font-bold text-[10px] text-slate-500 block mb-1.5 uppercase">⚠️ Замечания по коду:</span>
+                              <ul className="space-y-1.5 pl-1">
+                                {diagnosticsResult.issues.map((issue: string, idx: number) => (
+                                  <li key={idx} className="text-[11px] leading-relaxed text-slate-650 dark:text-slate-350 flex items-start gap-1.5">
+                                    <span className="text-amber-500 mt-0.5 select-none">•</span>
+                                    <span>{issue}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Refactoring suggestions */}
+                          {diagnosticsResult.refactored_suggestion && (
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-[10px] text-slate-500 uppercase">💡 ИИ-Решение и Рефакторинг:</span>
+                                <button
+                                  onClick={() => {
+                                    setSandboxCode(diagnosticsResult.refactored_suggestion);
+                                    setShowDiagnosticsPanel(false);
+                                    toast.success('ИИ-код успешно скопирован в редактор!');
+                                  }}
+                                  className="px-2 py-1 bg-indigo-650 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-bold transition flex items-center gap-1 shadow-sm"
+                                >
+                                  <Check className="w-2.5 h-2.5" />
+                                  Применить решение
+                                </button>
+                              </div>
+                              <pre className="p-3 bg-slate-950 text-slate-200 rounded-lg font-mono text-[10px] leading-relaxed overflow-x-auto max-h-48 border border-slate-800">
+                                <code>{diagnosticsResult.refactored_suggestion}</code>
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Ошибка получения результатов анализа.</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Submission Run History Accordion */}
+                  {runHistory.length > 1 && (
+                    <div className="mt-4 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/30 shadow-sm">
+                      <details className="group">
+                        <summary className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850/50 cursor-pointer flex items-center justify-between transition select-none">
+                          <span className="flex items-center gap-2">📜 История последних запусков ({runHistory.length - 1})</span>
+                          <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3 max-h-48 overflow-y-auto">
+                          {runHistory.slice(1).map((run, rIdx) => (
+                            <div key={rIdx} className="space-y-1.5 border-b border-slate-150 dark:border-slate-850/60 pb-2.5 last:border-0 last:pb-0">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-extrabold text-slate-400 dark:text-slate-505">{run.time}</span>
+                                <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider ${
+                                  run.passed 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' 
+                                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
+                                }`}>
+                                  {run.passed ? 'Успешно' : 'Сбой'}
+                                </span>
+                              </div>
+                              <div className="space-y-0.5 font-mono text-[10px] pl-1.5 border-l-2 border-slate-200 dark:border-slate-800">
+                                {run.logs.map((log, lIdx) => (
+                                  <div key={lIdx} className={log.startsWith('✅') ? 'text-emerald-600 dark:text-emerald-500/80' : log.startsWith('❌') ? 'text-rose-600 dark:text-rose-400/80' : 'text-slate-500 dark:text-slate-400'}>
+                                    {log}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
                 </div>
 
                 {/* Right screen: Live Workspace (interactive depending on sandbox type) */}
@@ -1937,20 +2563,37 @@ export default function Career() {
                   {/* Sandbox Bottom Controls */}
                   <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0 bg-slate-50 dark:bg-slate-950">
                     {selectedModule.practice_type !== 'roleplay' && (
-                      <button
-                        onClick={runLocalTests}
-                        className="px-5 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-350 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        Локальный прогон (0 токенов)
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={runLocalTests}
+                          className="px-5 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-350 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          Локальный прогон (0 токенов)
+                        </button>
+
+                        {(selectedModule.practice_type === 'algo' || selectedModule.practice_type === 'sql' || selectedModule.practice_type === 'web') && (
+                          <button
+                            onClick={handleRunDiagnostics}
+                            disabled={isDiagnosticsLoading}
+                            className="px-5 py-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-2 transition disabled:opacity-50"
+                          >
+                            {isDiagnosticsLoading ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Cpu className="w-3.5 h-3.5" />
+                            )}
+                            🤖 ИИ-Анализ
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     <div className="flex items-center gap-2 ml-auto">
                       <button
                         onClick={handleAISubmit}
                         disabled={(!localTestedPassed && selectedModule.practice_type !== 'roleplay') || isEvaluating}
-                        className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-550 hover:from-indigo-700 hover:to-indigo-650 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 transition shadow-md shadow-indigo-250 dark:shadow-none disabled:opacity-40"
+                        className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 transition shadow-md shadow-indigo-200 dark:shadow-none disabled:opacity-40"
                       >
                         {isEvaluating ? (
                           <>
@@ -1973,6 +2616,69 @@ export default function Career() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Sprint 1: Spaced Repetition Review Test Modal */}
+      {reviewModal.open && reviewModal.module && (
+        <ReviewTestModal
+          moduleId={reviewModal.module.id}
+          moduleTitle={reviewModal.module.title}
+          moduleTheory={reviewModal.module.detailed_theory}
+          practiceType={reviewModal.module.practice_type}
+          courseProfession={profile?.course?.profession || ''}
+          token={(supabase.auth as any)._currentSession?.access_token || ''}
+          onClose={() => setReviewModal({ open: false, module: null })}
+          onComplete={(score) => {
+            const xpGain = score >= 70 ? XP_REWARDS.review_passed : 10;
+            if (user && profile) {
+              saveXPToProfile(user.id, profile, xpGain).then(setProfile);
+              toast.success(`🔁 Повторение завершено! +${xpGain} XP`, { duration: 3000 });
+            }
+            // Refresh due reviews
+            supabase.auth.getSession().then(({ data }) => {
+              const token = data.session?.access_token;
+              if (token) getDueReviews(token).then(setDueReviews).catch(() => {});
+            });
+          }}
+        />
+      )}
+
+      {/* Sprint 2: Mock Interview Modal */}
+      {showMockInterview && user && profile && profile.course && (
+        <MockInterviewModal
+          userId={user.id}
+          profile={profile}
+          profession={profile.course.profession}
+          vacancyTitle={selectedVacancy?.title || profile.course.profession}
+          vacancyCompany={selectedVacancy?.company || 'StudyForge'}
+          vacancyRequirements={selectedVacancy?.requirements || 'Стек курса'}
+          completedModulesTitles={profile.course.modules.filter(m => m.completed).map(m => m.title)}
+          onClose={() => setShowMockInterview(false)}
+          onComplete={() => {
+            setShowMockInterview(false);
+            loadProfile();
+          }}
+        />
+      )}
+
+      {/* Sprint 2: Socratic Tutor paragraph drawer */}
+      {socraticParagraph && profile?.course && (
+        <SocraticTutor
+          paragraphText={socraticParagraph}
+          profession={profile.course.profession}
+          onClose={() => setSocraticParagraph(null)}
+        />
+      )}
+
+      {/* Sprint 3: Diagnostic Entrance Test Modal */}
+      {showDiagnosticModal && diagnosticModule && profile?.course && (
+        <DiagnosticTestModal
+          moduleTitle={diagnosticModule.title}
+          moduleTheory={diagnosticModule.detailed_theory}
+          profession={profile.course.profession}
+          onClose={() => { setShowDiagnosticModal(false); setDiagnosticModule(null); }}
+          onComplete={handleDiagnosticComplete}
+        />
+      )}
 
     </div>
   );
