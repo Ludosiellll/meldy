@@ -224,6 +224,35 @@ export async function markAllRead(userId: string) {
   await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId).eq('is_read', false);
 }
 
+export async function getUnreadDMsGrouped(userId: string): Promise<Record<string, number>> {
+  const { data } = await supabase
+    .from('notifications')
+    .select('related_id')
+    .eq('user_id', userId)
+    .eq('type', 'message')
+    .eq('is_read', false);
+  
+  const counts: Record<string, number> = {};
+  if (data) {
+    data.forEach(n => {
+      if (n.related_id) {
+        counts[n.related_id] = (counts[n.related_id] || 0) + 1;
+      }
+    });
+  }
+  return counts;
+}
+
+export async function markNotificationsAsReadForSender(userId: string, senderId: string) {
+  await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('related_id', senderId)
+    .eq('type', 'message')
+    .eq('is_read', false);
+}
+
 export function subscribeToNotifications(userId: string, onChange: (payload: any) => void) {
   const channel = supabase
     .channel(`notif_${userId}`)

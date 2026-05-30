@@ -359,7 +359,7 @@ export default function Dashboard() {
           }`}
         >
           <div className="flex items-center justify-between w-full">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500 text-white'}`}>
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${dueCards.length > 0 ? 'bg-white/20 border-white/25' : 'bg-emerald-500 text-white border-emerald-600/20'}`}>
               <Brain className="w-6 h-6 text-white" />
             </div>
             <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${dueCards.length > 0 ? 'bg-white/10 text-indigo-100' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
@@ -387,7 +387,7 @@ export default function Dashboard() {
           }`}
         >
           <div className="flex items-center justify-between w-full">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${streak >= 3 ? 'bg-white/20 border-white/25' : 'bg-rose-50 dark:bg-rose-950/30 border-rose-100 dark:border-rose-900/40 text-rose-500'}`}>
               <Flame className={`w-6 h-6 ${streak >= 3 ? 'text-white animate-pulse' : 'text-rose-500'}`} />
             </div>
             <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${streak >= 3 ? 'bg-white/10 text-orange-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
@@ -412,7 +412,7 @@ export default function Dashboard() {
             className="p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white shadow-xl shadow-amber-200 dark:shadow-none border border-amber-500/30 dark:border-amber-500/20"
           >
             <div className="flex items-center justify-between w-full">
-              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center border border-white/25">
                 <Clock className="w-6 h-6 text-white" />
               </div>
               <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/10 text-amber-100">
@@ -434,7 +434,7 @@ export default function Dashboard() {
             className="p-5 rounded-3xl text-left border-2 border-dashed border-indigo-300 dark:border-indigo-800 hover:border-indigo-500 dark:hover:border-indigo-600 transition-all group flex flex-col justify-between h-44 bg-white/40 dark:bg-slate-900/40"
           >
             <div className="flex items-center justify-between w-full">
-              <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center group-hover:bg-indigo-100 group-hover:dark:bg-indigo-900 transition">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center group-hover:bg-indigo-100 group-hover:dark:bg-indigo-900 transition border border-indigo-100 dark:border-indigo-900/40">
                 <Zap className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               </div>
               <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-500 dark:text-indigo-400">

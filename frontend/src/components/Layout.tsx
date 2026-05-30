@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
 import { getProfile, UserProfile } from '../api/social';
-import { getUnreadCount, subscribeToNotifications, subscribeToMessages, getNotifications, markAllRead, Notification } from '../api/chat';
+import { getUnreadCount, subscribeToNotifications, subscribeToMessages, getNotifications, markAllRead, Notification, getUnreadDMsGrouped } from '../api/chat';
 import toast from 'react-hot-toast';
 import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
@@ -23,7 +23,7 @@ import { Download } from 'lucide-react';
 
 const navGroups = [
   {
-    title: '📚 Учёба',
+    title: 'Учёба',
     items: [
       { to: '/dashboard',     icon: LayoutDashboard, label: 'Дашборд',              className: '' },
       { to: '/analyze',       icon: Zap,             label: 'Добавить материал',    className: 'tour-step-desktop-upload' },
@@ -32,7 +32,7 @@ const navGroups = [
     ]
   },
   {
-    title: '🎯 Практика',
+    title: 'Практика',
     items: [
       { to: '/chat',          icon: MessageSquare,   label: 'Чат-наставник',        className: 'tour-step-desktop-chat' },
       { to: '/review',        icon: Brain,           label: 'Смарт-карточки',       className: '' },
@@ -41,8 +41,9 @@ const navGroups = [
     ]
   },
   {
-    title: '📊 Прогресс',
+    title: 'Прогресс',
     items: [
+      { to: '/messages',                icon: MessageSquare,   label: 'Диалоги и друзья',     className: '' },
       { to: '/analytics?tab=platform',  icon: BarChart2,       label: 'Аналитика обучения',   className: '' },
       { to: '/analytics?tab=gradebook', icon: GraduationCap,   label: 'Дневник оценок',       className: 'tour-step-desktop-gradebook' },
       { to: '/mistakes',                icon: BookMarked,      label: 'Дневник ошибок',       className: '' },
@@ -53,9 +54,10 @@ const navGroups = [
 
 const teacherNavGroups = [
   {
-    title: '📚 Управление',
+    title: 'Управление',
     items: [
       { to: '/teacher',   icon: Network,   label: 'Мои группы' },
+      { to: '/messages',  icon: MessageSquare, label: 'Диалоги и друзья' },
       { to: '/library',   icon: BookOpen,  label: 'Библиотека' },
       { to: '/analyze',   icon: Zap,       label: 'Добавить материал' },
     ]
@@ -84,6 +86,7 @@ export default function Layout() {
   const [levelInfo, setLevelInfo] = useState(calcLevel(0));
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadDMs, setUnreadDMs] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [usedTokens, setUsedTokens] = useState(0);
@@ -110,6 +113,14 @@ export default function Layout() {
     };
   }, []);
 
+  const fetchUnreadDMs = () => {
+    if (!user?.id) return;
+    getUnreadDMsGrouped(user.id).then(counts => {
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      setUnreadDMs(total);
+    });
+  };
+
   useEffect(() => {
     if (!user?.id) return;
 
@@ -122,9 +133,17 @@ export default function Layout() {
     window.addEventListener('profile_updated', fetchProfile);
 
     getUnreadCount(user.id).then(setUnreadCount);
+    fetchUnreadDMs();
+
+    const handleNotificationRead = () => {
+      fetchUnreadDMs();
+      getUnreadCount(user.id).then(setUnreadCount);
+    };
+    window.addEventListener('notification_read', handleNotificationRead);
 
     const unsub = subscribeToNotifications(user.id, (payload) => {
       getUnreadCount(user.id).then(setUnreadCount);
+      fetchUnreadDMs();
       
       const newNotif = payload?.new;
       if (newNotif) {
@@ -178,6 +197,7 @@ export default function Layout() {
     return () => {
       window.removeEventListener('xp_updated', fetchXP);
       window.removeEventListener('profile_updated', fetchProfile);
+      window.removeEventListener('notification_read', handleNotificationRead);
       unsub();
     };
   }, [user?.id]);
@@ -385,6 +405,11 @@ export default function Layout() {
                       <item.icon className="w-4 h-4 opacity-80" />
                       {item.label}
                     </div>
+                    {item.to === '/messages' && unreadDMs > 0 && (
+                      <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                        {unreadDMs}
+                      </span>
+                    )}
                     {(item as any).isNew && (
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 uppercase tracking-widest">
                         New
@@ -400,15 +425,15 @@ export default function Layout() {
         {/* Разделитель + быстрые иконки: Сообщество и Профиль */}
         <div className="px-4 pb-3 border-t border-slate-800 pt-3 flex items-center gap-2">
           <NavLink
-            to="/messages"
-            title="Сообщество и друзья"
+            to="/network"
+            title="Study Network"
             className={({ isActive }) =>
               `flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition ${
                 isActive ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300'
               }`
             }
           >
-            <Users className="w-4 h-4" />
+            <Globe className="w-4 h-4" />
             <span>Сообщество</span>
           </NavLink>
           <NavLink
@@ -504,13 +529,16 @@ export default function Layout() {
                 </span>
               )}
             </button>
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -mr-2 text-slate-500 hover:text-indigo-600 transition">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -mr-2 text-slate-500 hover:text-indigo-600 transition relative">
               <Menu className="w-6 h-6" />
+              {unreadDMs > 0 && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white dark:border-slate-900 animate-pulse" />
+              )}
             </button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto pb-[70px] md:pb-0 custom-scrollbar relative scroll-smooth">
+        <main className={`flex-1 overflow-x-hidden ${location.pathname.startsWith('/messages') ? 'overflow-y-hidden pb-[56px] md:pb-0' : 'overflow-y-auto pb-[70px] md:pb-0'} custom-scrollbar relative scroll-smooth`}>
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
@@ -528,10 +556,15 @@ export default function Layout() {
               }
             >
               {({ isActive }) => (
-                <>
+                <div className="relative flex flex-col items-center justify-center">
                   <item.icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
                   {item.label}
-                </>
+                  {item.to === '/chat' && unreadDMs > 0 && (
+                    <span className="absolute -top-1 -right-2 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border border-white dark:border-slate-900 animate-pulse">
+                      {unreadDMs}
+                    </span>
+                  )}
+                </div>
               )}
             </NavLink>
           ))}

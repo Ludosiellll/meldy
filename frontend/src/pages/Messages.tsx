@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest, searchUsers, subscribeToFriendships } from '../api/chat';
+import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest, searchUsers, subscribeToFriendships, getUnreadDMsGrouped, markNotificationsAsReadForSender } from '../api/chat';
 import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus, Users, Check, X, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -30,25 +30,39 @@ export default function Messages() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setFriendRequestSent(false); }, [activeFriend]);
 
+  // Self-chat prevention
+  useEffect(() => {
+    if (user && urlId && urlId === user.id) {
+      toast.error('Вы не можете общаться с самим собой!');
+      navigate('/messages');
+    }
+  }, [user, urlId, navigate]);
+
   const loadData = async () => {
     if (!user) return;
+    if (urlId === user.id) return;
+    
     const chats = await getChats(user.id);
     const fs = await getFriends(user.id);
+    const counts = await getUnreadDMsGrouped(user.id);
+    
+    setFriends(chats);
+    setFriendships(fs);
+    setUnreadCounts(counts);
     
     if (urlId && !chats.some(c => c.friend_id === urlId)) {
       const p = await getProfile(urlId);
       if (p) {
         chats.unshift({ id: p.id, friend_id: p.id, friend_name: p.full_name, friend_avatar: p.avatar_url });
+        setFriends([...chats]);
       }
     }
-    
-    setFriends(chats);
-    setFriendships(fs);
     
     if (urlId) {
       setActiveFriend(chats.find(c => c.friend_id === urlId) || null);
@@ -79,11 +93,20 @@ export default function Messages() {
     const unsubscribe = subscribeToMessages(user.id, (msg) => {
       // Reload chats list so new conversations show up immediately
       getChats(user.id).then(setFriends);
+      getUnreadDMsGrouped(user.id).then(setUnreadCounts);
 
       // If the message belongs to the currently active friend thread, append it
       setActiveFriend(current => {
         if (current && (msg.sender_id === current.friend_id || msg.receiver_id === current.friend_id)) {
           setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
+          
+          // Mark as read immediately if the active friend sent it
+          if (msg.sender_id === current.friend_id) {
+            markNotificationsAsReadForSender(user.id, current.friend_id).then(() => {
+              getUnreadDMsGrouped(user.id).then(setUnreadCounts);
+              window.dispatchEvent(new Event('notification_read'));
+            });
+          }
         }
         return current;
       });
@@ -91,6 +114,15 @@ export default function Messages() {
 
     return () => { unsubscribe(); };
   }, [user?.id]);
+
+  // Mark active friend messages as read when opened
+  useEffect(() => {
+    if (!user || !activeFriend) return;
+    markNotificationsAsReadForSender(user.id, activeFriend.friend_id).then(() => {
+      getUnreadDMsGrouped(user.id).then(setUnreadCounts);
+      window.dispatchEvent(new Event('notification_read'));
+    });
+  }, [user?.id, activeFriend?.friend_id]);
 
   // Load message history when active friend changes
   useEffect(() => {
@@ -169,7 +201,7 @@ export default function Messages() {
   const acceptedFriends = friendships.filter(f => f.status === 'accepted');
 
   return (
-    <div className="flex h-[calc(100vh-80px)] md:h-[calc(100vh-48px)] bg-white dark:bg-slate-900 md:rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden md:m-6 m-0 relative">
+    <div className="flex h-full md:h-[calc(100vh-48px)] bg-white dark:bg-slate-900 md:rounded-2xl rounded-none shadow-sm border-0 md:border border-slate-200 dark:border-slate-800 overflow-hidden md:m-6 m-0 relative">
 
       {/* Левая панель */}
       <div className={`w-full md:w-80 border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 shrink-0 ${activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
@@ -215,17 +247,24 @@ export default function Messages() {
                 <button
                   key={f.id}
                   onClick={() => setActiveFriend(f)}
-                  className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 dark:border-slate-800/40 ${
+                  className={`w-full p-4 flex items-center gap-3 text-left transition-colors border-b border-slate-100 dark:border-slate-800/40 relative ${
                     activeFriend?.id === f.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'hover:bg-white dark:hover:bg-slate-800/30'
                   }`}
                 >
-                  {f.friend_avatar ? (
-                    <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                      <UserCircle2 className="w-6 h-6 text-slate-500" />
-                    </div>
-                  )}
+                  <div className="relative shrink-0">
+                    {f.friend_avatar ? (
+                      <img src={f.friend_avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                        <UserCircle2 className="w-6 h-6 text-slate-500" />
+                      </div>
+                    )}
+                    {unreadCounts[f.friend_id] > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border border-white dark:border-slate-900 animate-pulse z-10">
+                        {unreadCounts[f.friend_id]}
+                      </span>
+                    )}
+                  </div>
                   <div className="min-w-0">
                     <div className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate">{f.friend_name}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500">Нажмите, чтобы открыть чат</div>
