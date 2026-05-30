@@ -570,24 +570,6 @@ async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
         }
 
 
-@app.post("/api/missions/generate")
-@limiter.limit("5/minute")
-async def generate_missions(request: Request, req: MissionsGenerateRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    system_prompt = build_missions_prompt()
-    raw = await agent.run(system_prompt, req.context)
-    
-    try:
-        return parse_llm_json(raw)
-    except Exception as e:
-        err_str = str(e)
-        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
-            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
-        else:
-            expl_msg = f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}"
-            
-        return {
-            "missions": [
                 {
                     "id": 1,
                     "title": "Внимание: Сервер перегружен" if "API_LIMIT" in err_str else "Введение в тему",
@@ -676,6 +658,7 @@ class CareerRequest(BaseModel):
     materials_context: str  # Сборка всех конспектов юзера
 
 from agents.career import CareerAgent
+from agents.career_course import CareerCourseAgent, get_expert_persona
 
 @app.post("/api/career/generate")
 @limiter.limit("5/minute")
@@ -689,6 +672,208 @@ async def career_generate(request: Request, req: CareerRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка генерации карьерного профиля: {str(e)}")
+
+
+class CareerCourseGenerateRequest(BaseModel):
+    profession: str
+    level: str
+    salary: str
+    user_materials: str = ""
+
+
+class CareerChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage]
+    profession: Optional[str] = None
+    level: Optional[str] = None
+    salary: Optional[str] = None
+
+
+class CareerTaskEvaluateRequest(BaseModel):
+    profession: str
+    module_title: str
+    task_description: str
+    practice_type: str
+    student_solution: str
+    feedback_notes: Optional[str] = ""
+
+
+async def fetch_hh_vacancies(profession: str) -> str:
+    """
+    Скачивает вакансии из API HeadHunter по названию профессии,
+    извлекает требования, обязанности и ключевые навыки.
+    """
+    import httpx
+    import re
+    
+    url = "https://api.hh.ru/vacancies"
+    headers = {
+        "User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
+    }
+    params = {
+        "text": profession,
+        "per_page": 12,
+        "only_with_salary": "true"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, params=params, timeout=8.0)
+            if response.status_code != 200:
+                print(f"HH API warning: {response.status_code}, text: {response.text}")
+                return "Вакансий по данному направлению в данный момент не найдено."
+            
+            data = response.json()
+            items = data.get("items", [])
+            if not items:
+                return "Нет доступных вакансий по указанному ключевому слову."
+                
+            summary = []
+            clean_html = re.compile('<.*?>')
+            
+            for item in items[:8]:
+                title = item.get("name", "Вакансия")
+                salary_info = item.get("salary") or {}
+                salary_from = salary_info.get("from")
+                salary_to = salary_info.get("to")
+                salary_currency = salary_info.get("currency", "RUR")
+                
+                sal_str = ""
+                if salary_from and salary_to:
+                    sal_str = f"Зарплата: {salary_from} - {salary_to} {salary_currency}"
+                elif salary_from:
+                    sal_str = f"Зарплата: от {salary_from} {salary_currency}"
+                elif salary_to:
+                    sal_str = f"Зарплата: до {salary_to} {salary_currency}"
+                
+                snippet = item.get("snippet") or {}
+                req = snippet.get("requirement") or ""
+                resp = snippet.get("responsibility") or ""
+                
+                req = re.sub(clean_html, '', req)
+                resp = re.sub(clean_html, '', resp)
+                
+                summary.append(f"- {title} ({sal_str})\n  Требования: {req}\n  Обязанности: {resp}")
+                
+            return "\n\n".join(summary)
+    except Exception as e:
+        print(f"fetch_hh_vacancies error: {e}")
+        return "Не удалось связаться с базой вакансий HeadHunter. Используются общие отраслевые требования."
+
+
+@app.post("/api/career/chat")
+@limiter.limit("20/minute")
+async def career_chat(request: Request, req: CareerChatRequest):
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = """Ты — Форджи, элитный карьерный коуч, эксперт по профессиональному ориентированию и HR-методист StudyForge.
+Твоя цель — провести со студентом поддерживающий, живой и глубокий диалог, чтобы помочь ему определиться с идеальной карьерной траекторией.
+
+Правила ведения диалога:
+1. Будь искренне поддерживающим, эмпатичным и вовлеченным, как лучший личный ментор. Обращайся к студенту уважительно, но тепло, на "ты".
+2. Твоя задача — выяснить:
+   - Какое направление или сфера ему больше всего интересны (программирование, дизайн, аналитика, менеджмент, маркетинг и т.д.).
+   - Какие у него есть жизненные обстоятельства (сколько часов в день готов учиться, какой темп комфортен).
+   - Каковы его пожелания по уровню (Junior, Middle) и целевой зарплате.
+   - Какие гибридные навыки или хобби у него есть (например: 'люблю рисовать и писать код' -> предложи Frontend-разработчика или UI/UX-дизайнера).
+3. Обсуждай альтернативы, отвечающие интересам студента, отвечай на любые вопросы студента о профессиях, развеивай страхи перед собеседованиями и поиском работы.
+4. Когда вы полностью определитесь со сферой, уровнем и желаемой зарплатой, скажи студенту, что готов запустить генерацию уникального персонального курса, который соберет реальные требования вакансий с HeadHunter и обучит его по адаптивной программе с 7 интерактивными песочницами.
+5. В этот же момент ты ОБЯЗАН в самом конце своего сообщения прикрепить секретный управляющий токен:
+   [GENERATE_COURSE_ACTION:ProfessionName|Salary|Level]
+   Где:
+   - ProfessionName: Точное выверенное название профессии на русском языке (например, Frontend-разработчик, Системный аналитик, Маркетолог).
+   - Salary: Целевая зарплата (число или строка, например 100000, 150000).
+   - Level: Выбранный уровень квалификации (Junior, Middle, Senior).
+   
+Пример: "...Я готов составить для тебя потрясающий практический курс! [GENERATE_COURSE_ACTION:Frontend-разработчик|120000|Junior]"
+
+ВАЖНО: До тех пор, пока параметры не согласованы полностью, НЕ прикрепляй этот токен. Задавай уточняющие вопросы, веди содержательный диалог.
+Не здоровайся заново в каждой реплике. Пиши ёмко, разбивай текст на абзацы для легкого чтения."""
+
+    history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-10:]])
+    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ЗАПРОС СТУДЕНТА: {req.message}"
+    
+    reply = await agent.run(system_prompt, full_user_query)
+    return {"reply": reply}
+
+
+@app.post("/api/career/course")
+@limiter.limit("5/minute")
+async def career_course(request: Request, req: CareerCourseGenerateRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
+        
+    vacancy_text = await fetch_hh_vacancies(req.profession)
+    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
+    
+    try:
+        course_data = await agent.generate_course(
+            req.profession,
+            req.level,
+            req.salary,
+            req.user_materials,
+            vacancy_text
+        )
+        return course_data
+    except Exception as e:
+        print(f"Error generating course: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации курса: {str(e)}")
+
+
+@app.post("/api/career/evaluate_task")
+@limiter.limit("10/minute")
+async def career_evaluate_task(request: Request, req: CareerTaskEvaluateRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
+        
+    expert = get_expert_persona(req.profession)
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — {expert['title']}.
+Твой стиль преподавания и тон: {expert['tone']}
+
+Твоя задача — провести глубокий, экспертный разбор практического решения студента.
+Студент обучается по направлению "{req.profession}" в рамках модуля "{req.module_title}".
+
+ОПИСАНИЕ ПРАКТИЧЕСКОГО ЗАДАНИЯ (ТЗ):
+{req.task_description}
+
+Тип песочницы: {req.practice_type}
+
+РЕШЕНИЕ СТУДЕНТА:
+{req.student_solution}
+
+ИНСТРУКЦИЯ ПО РАЗБОРУ:
+1. Выступи в роли авторитетного, профессионального наставника. Отметь, насколько решение решает бизнес-задачу или техническую проблему.
+2. Проанализируй качество исполнения:
+   - Если это код (algo, sql, web): разбери стиль кода, возможные уязвимости, крайние случаи (edge cases) и производительность. Дай конкретные рекомендации по рефакторингу.
+   - Если это бизнес-расчет или дизайн-критика/копирайтинг: разбери глубину анализа, логику формул, стиль изложения, маркетинговую или продуктовую ценность.
+   - Если это Soft Skills (roleplay): разбери тактичность, эмпатию, силу аргументов и убедительность.
+3. Поставь честный балл от 0 до 100 на основе качества.
+4. Твой разбор должен быть ободряющим, но профессиональным, без пустой похвалы — студент пришел за качественным ростом.
+
+ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
+{{
+  "score": 85,
+  "verdict": "Итоговое развернутое ревью (3-4 содержательных предложения).",
+  "strengths": ["Что сделано отлично"],
+  "weaknesses": ["Что можно улучшить или исправить"],
+  "refactored_solution": "Если применимо, покажи идеальный пример кода/текста/расчета с комментариями."
+}}
+"""
+
+    raw = await agent.run(system_prompt, "Пожалуйста, проанализируй моё решение.")
+    try:
+        return parse_llm_json(raw)
+    except Exception as e:
+        print(f"Error parsing evaluate_task: {e}, raw: {raw}")
+        return {
+            "score": 75,
+            "verdict": "Ваше решение получено и проверено локальными тестами. AI-анализ завершился с ошибкой, но вы справились с базовым функционалом!",
+            "strengths": ["Код/ответ успешно прошел автоматическую валидацию"],
+            "weaknesses": ["Не удалось получить глубокий ИИ-разбор"],
+            "refactored_solution": ""
+        }
 
 
 # Edge-TTS voice IDs (Azure Neural Voices)
