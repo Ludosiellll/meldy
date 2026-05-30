@@ -986,11 +986,18 @@ export default function Career() {
   // ── Sprint 3: GitHub Portfolio README Generator ─────────────────────────────
   const handleGenerateReadme = async () => {
     if (!profile?.course?.profession) return;
+    
+    const completedList = (profile.course.modules ?? [])
+      .filter(m => m.completed)
+      .map(m => m.title);
+      
+    if (completedList.length < 3) {
+      toast.error('Вы сможете сгенерировать GitHub README только после успешного завершения как минимум 3-х модулей вашего курса! Подтвердите ваши навыки реальными результатами.');
+      return;
+    }
+    
     setIsReadmeLoading(true);
     try {
-      const completedList = (profile.course.modules ?? [])
-        .filter(m => m.completed)
-        .map(m => m.title);
       const data = await generateGithubReadme(profile.course.profession, completedList);
       setGithubReadme(data.readme);
       toast.success('Портфолио README.md успешно сгенерировано!');
