@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest, searchUsers } from '../api/chat';
+import { getChats, ChatContact, getMessages, sendMessage, subscribeToMessages, DirectMessage, sendFriendRequest, getFriends, Friendship, respondFriendRequest, searchUsers, subscribeToFriendships } from '../api/chat';
 import { Send, UserCircle2, MessageSquare, Loader2, BookOpen, Link2, ChevronLeft, UserPlus, Users, Check, X, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -62,6 +62,15 @@ export default function Messages() {
       getMaterials(user.id).then(setMyMaterials);
     }
   }, [user?.id, urlId]);
+
+  // Subscribe to ALL friendships updates in real time to auto-reload friends lists and requests
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeToFriendships(user.id, () => {
+      loadData();
+    });
+    return () => { unsubscribe(); };
+  }, [user?.id]);
 
   // Subscribe to ALL incoming messages globally on Messages page
   useEffect(() => {

@@ -186,10 +186,15 @@ export async function sendMessage(senderId: string, receiverId: string, content:
 export function subscribeToMessages(userId: string, onMessage: (msg: DirectMessage) => void) {
   const channel = supabase
     .channel(`dm_${userId}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` },
-      (payload) => onMessage(payload.new as DirectMessage))
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `sender_id=eq.${userId}` },
-      (payload) => onMessage(payload.new as DirectMessage))
+    .on('postgres_changes', 
+      { event: 'INSERT', schema: 'public', table: 'direct_messages' },
+      (payload) => {
+        const msg = payload.new as DirectMessage;
+        if (msg && (msg.sender_id === userId || msg.receiver_id === userId)) {
+          onMessage(msg);
+        }
+      }
+    )
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
@@ -222,8 +227,31 @@ export async function markAllRead(userId: string) {
 export function subscribeToNotifications(userId: string, onChange: (payload: any) => void) {
   const channel = supabase
     .channel(`notif_${userId}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-      (payload) => onChange(payload))
+    .on('postgres_changes', 
+      { event: 'INSERT', schema: 'public', table: 'notifications' },
+      (payload) => {
+        const notif = payload.new as Notification;
+        if (notif && notif.user_id === userId) {
+          onChange(payload);
+        }
+      }
+    )
+    .subscribe();
+  return () => supabase.removeChannel(channel);
+}
+
+export function subscribeToFriendships(userId: string, onChange: () => void) {
+  const channel = supabase
+    .channel(`friendships_${userId}`)
+    .on('postgres_changes', 
+      { event: '*', schema: 'public', table: 'friendships' },
+      (payload) => {
+        const f = (payload.new || payload.old) as Friendship;
+        if (f && (f.requester_id === userId || f.addressee_id === userId)) {
+          onChange();
+        }
+      }
+    )
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
