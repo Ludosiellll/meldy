@@ -190,6 +190,7 @@ export default function KnowledgeMap() {
       return acc;
     }, []);
 
+    const numMats = uniqueMaterials.length;
     uniqueMaterials.forEach((mat, idx) => {
       const subject = mat.subject || 'Общее';
       if (!subjectColorMap[subject]) {
@@ -197,13 +198,19 @@ export default function KnowledgeMap() {
         colorIdx++;
       }
 
-      // Органичное случайное распределение по всей карте вместо жесткого круга
+      // Распределяем лекции равномерно по широкому эллипсу, чтобы избежать слипания в линию
+      const angle = (idx / Math.max(1, numMats)) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
+      const radiusX = 420 + (Math.random() - 0.5) * 80;
+      const radiusY = 280 + (Math.random() - 0.5) * 60;
+      const initX = width / 2 + Math.cos(angle) * radiusX;
+      const initY = height / 2 + Math.sin(angle) * radiusY;
+
       tempNodes.push({
         id: mat.id,
         label: mat.title,
         type: 'material',
-        x: 300 + Math.random() * (width - 600),
-        y: 200 + Math.random() * (height - 400),
+        x: initX,
+        y: initY,
         vx: 0,
         vy: 0,
         radius: 36, // Звезда больше
@@ -252,15 +259,17 @@ export default function KnowledgeMap() {
       const value = conceptMap[key];
       const linksCount = value.materials.length;
 
-      // Инициализируем планету рядом с ее первой лекцией (звездой)
-      // Это предотвращает слипание всех 45+ планет в мертвый шар в центре экрана
+      // Инициализируем планету на случайном угле по орбите ее первой лекции (звезды)
+      // Это предотвращает слипание планет в одну кучу и сразу задает круговую структуру
       let startX = width / 2;
       let startY = height / 2;
       if (value.materials.length > 0) {
         const firstMat = tempNodes.find(n => n.id === value.materials[0].id);
         if (firstMat) {
-          startX = firstMat.x + (Math.random() - 0.5) * 150;
-          startY = firstMat.y + (Math.random() - 0.5) * 150;
+          const termAngle = Math.random() * Math.PI * 2;
+          const termDist = 90 + Math.random() * 30;
+          startX = firstMat.x + Math.cos(termAngle) * termDist;
+          startY = firstMat.y + Math.sin(termAngle) * termDist;
         }
       }
 
@@ -318,14 +327,16 @@ export default function KnowledgeMap() {
           let strength = 0.5;
 
           if (nodeA.type === 'material' && nodeB.type === 'material') {
-            minDist = 450; // Звезды далеко друг от друга, чтобы их орбиты (планеты) не слипались
-            strength = 0.8;
+            minDist = 480; // Звезды далеко друг от друга, чтобы их орбиты (планеты) не слипались
+            strength = 0.7;
           } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-            minDist = nodeA.radius + nodeB.radius + 35; // Планеты расталкиваются, чтобы равномерно распределиться по орбите
+            // Планеты сильно расталкиваются, чтобы равномерно распределиться по орбите и не перекрывать тексты
+            minDist = nodeA.radius + nodeB.radius + 65; 
             strength = 0.6;
           } else {
-            minDist = nodeA.radius + nodeB.radius + 60; // Звезда отталкивает чужие планеты
-            strength = 0.5;
+            // Звезда и планета (родная или чужая) - держим дистанцию чуть меньше желаемой орбиты (85)
+            minDist = nodeA.radius + nodeB.radius + 60;
+            strength = 0.55;
           }
 
           if (dist < minDist) {
@@ -354,8 +365,9 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.radius + target.radius + 50; // Широкая орбита, как на 1-м скриншоте
-          const force = (dist - desiredDist) * 0.15; // Мощно держим на орбите
+          // Орбита достаточно широкая, чтобы тексты не перекрывали саму звезду
+          const desiredDist = source.radius + target.radius + 90; 
+          const force = (dist - desiredDist) * 0.15; // Мощно удерживаем на орбите
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -370,7 +382,7 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 3. Формирование органичного кластера в центре
+      // 3. Формирование органичного кластера
       const centerX = width / 2;
       const centerY = height / 2;
 
@@ -381,23 +393,29 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          // Мягко стягиваем все к центру, чтобы сформировать единый "остров" знаний
-          const gravity = node.type === 'material' ? 0.0008 : 0.0002;
-          node.vx += (centerX - node.x) * gravity;
-          node.vy += (centerY - node.y) * gravity;
+          // Мягко стягиваем к центру только звезды (лекции), чтобы острова не разлетались.
+          // Концепты (планеты) следуют исключительно за своими лекциями (звездами) благодаря связям,
+          // это исключает их стягивание в одну общую кучу или линию.
+          if (node.type === 'material') {
+            const gravity = 0.001;
+            node.vx += (centerX - node.x) * gravity;
+            node.vy += (centerY - node.y) * gravity;
+          }
 
-          node.vx *= 0.65; // Трение
-          node.vy *= 0.65;
+          node.vx *= 0.85; // Трение значительно ниже (0.85 вместо 0.65), чтобы узлы могли плавно скользить в оптимальные позиции
+          node.vy *= 0.85;
 
           node.x += node.vx;
           node.y += node.vy;
 
           // Жесткие границы, чтобы ничего не улетало за пределы
-          node.x = Math.max(-100, Math.min(width + 100, node.x));
-          node.y = Math.max(-100, Math.min(height + 100, node.y));
+          node.x = Math.max(50, Math.min(width - 50, node.x));
+          node.y = Math.max(50, Math.min(height - 50, node.y));
         }
       });
 
+      // Синхронизируем nodesRef для следующего кадра
+      nodesRef.current = currentNodes;
       setNodes([...currentNodes]);
       requestRef.current = requestAnimationFrame(tick);
     };
