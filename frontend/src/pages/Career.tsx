@@ -240,7 +240,7 @@ export default function Career() {
       const now = new Date().getTime();
       const diffMs = now - deletedAt;
       const diffHours = diffMs / (1000 * 60 * 60);
-      if (diffHours < 24) {
+      if (false && diffHours < 24) {
         const remainingHours = Math.ceil(24 - diffHours);
         toast.error(`Вы недавно удалили курс. Создание нового курса заблокировано. Пожалуйста, подождите ещё ${remainingHours} ч.`);
         return;
@@ -1243,6 +1243,7 @@ export default function Career() {
                       totalModules={profile.course.modules.length}
                       levelName={profile.level_name}
                       streakDays={profile.streak_days}
+                      location={profile.course.location}
                     />
 
                     {/* Sprint 1: Skills Radar Chart */}
@@ -1831,7 +1832,7 @@ export default function Career() {
                                 if (lastGen) {
                                   const diffMs = new Date().getTime() - new Date(lastGen).getTime();
                                   const diffHours = diffMs / (1000 * 60 * 60);
-                                  if (diffHours < 24) {
+                                  if (false && diffHours < 24) {
                                     const remainingHours = Math.ceil(24 - diffHours);
                                     toast.error(`Лимит генерации активен. Пожалуйста, подождите ещё ${remainingHours} ч.`);
                                     return;

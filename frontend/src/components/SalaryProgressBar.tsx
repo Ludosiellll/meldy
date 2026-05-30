@@ -11,6 +11,7 @@ interface SalaryProgressBarProps {
   levelName?: string;
   streakDays?: number;
   className?: string;
+  location?: string;
 }
 
 function parseSalaryNumber(salary: string): number {
@@ -24,11 +25,20 @@ function formatSalaryShort(num: number): string {
   return `${num}`;
 }
 
-function getCurrencySymbol(salary: string): string {
-  if (salary.includes('₽')) return '₽';
-  if (salary.includes('BYN') || salary.includes('Br')) return 'Br';
-  if (salary.includes('₸')) return '₸';
-  if (salary.includes('$')) return '$';
+function getCurrencySymbol(salary: string, location?: string): string {
+  const sal = salary.toUpperCase();
+  if (sal.includes('₽') || sal.includes('RUR') || sal.includes('RUB')) return '₽';
+  if (sal.includes('BYN') || sal.includes('BYR') || sal.includes('BR')) return ' BYN';
+  if (sal.includes('₸') || sal.includes('KZT')) return ' ₸';
+  if (sal.includes('$') || sal.includes('USD')) return '$';
+  if (sal.includes('€') || sal.includes('EUR')) return '€';
+  
+  if (location) {
+    const loc = location.toLowerCase();
+    if (loc.includes('беларусь') || loc.includes('belarus') || loc.includes('минск')) return ' BYN';
+    if (loc.includes('казахстан') || loc.includes('kazakhstan') || loc.includes('алматы') || loc.includes('астана')) return ' ₸';
+    if (loc.includes('сша') || loc.includes('usa') || loc.includes('usd')) return '$';
+  }
   return '₽';
 }
 
@@ -40,9 +50,10 @@ export default function SalaryProgressBar({
   levelName,
   streakDays = 0,
   className = '',
+  location,
 }: SalaryProgressBarProps) {
   const targetNum = parseSalaryNumber(targetSalary);
-  const currencySymbol = getCurrencySymbol(targetSalary);
+  const currencySymbol = getCurrencySymbol(targetSalary, location);
   const progressRatio = totalModules > 0 ? completedModules / totalModules : 0;
 
   // Estimated current market value: starts at ~30% of target, grows to 100%
@@ -59,6 +70,18 @@ export default function SalaryProgressBar({
     { pct: 75, label: 'Мидл-рассмотрение' },
     { pct: 100, label: 'Цель' },
   ];
+
+  const formatEstimated = () => {
+    if (currencySymbol === '$') return `$${formatSalaryShort(estimatedNum)}`;
+    if (currencySymbol === '€') return `€${formatSalaryShort(estimatedNum)}`;
+    return `${formatSalaryShort(estimatedNum)}${currencySymbol}`;
+  };
+
+  const formatTarget = () => {
+    if (currencySymbol === '$') return `$${formatSalaryShort(targetNum)}`;
+    if (currencySymbol === '€') return `€${formatSalaryShort(targetNum)}`;
+    return `${formatSalaryShort(targetNum)}${currencySymbol}`;
+  };
 
   return (
     <div className={`bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm ${className}`}>
@@ -91,13 +114,13 @@ export default function SalaryProgressBar({
             animate={{ opacity: 1, y: 0 }}
             className="text-lg font-black text-slate-800 dark:text-slate-100"
           >
-            {formatSalaryShort(estimatedNum)}{currencySymbol}
+            {formatEstimated()}
           </motion.p>
         </div>
         <div className="text-right">
           <p className="text-[10px] text-slate-500 font-semibold">Цель</p>
           <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-            {formatSalaryShort(targetNum)}{currencySymbol}
+            {formatTarget()}
           </p>
         </div>
       </div>
