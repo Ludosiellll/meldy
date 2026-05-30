@@ -4,7 +4,7 @@ import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   Clock, MessageSquare, LogOut, Award, Gamepad2,
   BookMarked, BarChart2, ChevronRight, Network,
-  Globe, User, Bell, Menu, X, Users, CreditCard
+  Globe, User, Bell, Menu, X, Users, CreditCard, Briefcase
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
@@ -38,6 +38,7 @@ const navGroups = [
       { to: '/review',        icon: Brain,           label: 'Смарт-карточки',       className: '' },
       { to: '/exam',          icon: Award,           label: 'Устный экзамен',       className: 'tour-step-desktop-exam' },
       { to: '/quick-prep',    icon: Clock,           label: 'Быстрый повтор',       className: '' },
+      { to: '/career',        icon: Briefcase,       label: 'Карьера и вакансии',   className: '' },
     ]
   },
   {
