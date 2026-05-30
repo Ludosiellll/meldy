@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
 import { CheckCircle2, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useSound } from '../hooks/useSound';
@@ -52,25 +57,33 @@ export default function Review() {
     }
   };
 
-  const handleAnswer = async (quality: number) => {
-    if (processing || !cards[idx]) return;
-    setProcessing(true);
-    try {
-      await updateCardProgress(cards[idx].id, quality);
-      if (user?.id) {
-        await updateQuestProgress(user.id, 'review', 1);
-        await recordStudyActivity(user.id, 1, 0);
-      }
-      if (quality >= 3) setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
-      else setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
+  const handleAnswer = (quality: number) => {
+    if (!cards[idx]) return;
+    
+    const currentCard = cards[idx];
 
-      if (idx + 1 >= cards.length) {
-        playSuccessSound();
-        setDone(true);
-      }
-      else { setIdx(p => p + 1); setRevealed(false); }
-    } finally {
-      setProcessing(false);
+    // 1. Сразу (синхронно) обновляем UI
+    if (quality >= 3) {
+      setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
+    } else {
+      setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
+    }
+
+    if (idx + 1 >= cards.length) {
+      playSuccessSound();
+      setDone(true);
+    } else {
+      setIdx(p => p + 1);
+      setRevealed(false);
+    }
+
+    // 2. Фоновые (асинхронные) запросы в Supabase, не блокирующие поток UI
+    if (currentCard.id) {
+      updateCardProgress(currentCard.id, quality).catch(err => console.error("Error updating card progress:", err));
+    }
+    if (user?.id) {
+      updateQuestProgress(user.id, 'review', 1).catch(err => console.error("Error updating quest progress:", err));
+      recordStudyActivity(user.id, 1, 0).catch(err => console.error("Error recording study activity:", err));
     }
   };
 
@@ -143,23 +156,34 @@ export default function Review() {
       {/* Card */}
       <motion.div
         key={idx}
-        initial={{ opacity: 0, x: 30 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="card min-h-48 p-6 md:p-8 flex flex-col items-center justify-center cursor-pointer active:scale-[0.99] transition-transform"
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2 }}
+        className="card min-h-[280px] p-6 md:p-10 flex flex-col items-center justify-center cursor-pointer relative active:scale-[0.99] transition-all shadow-lg hover:shadow-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/80 backdrop-blur-md"
         onClick={handleReveal}
       >
-        <span className="text-xs uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-3">Вопрос</span>
-        <p className="text-lg md:text-xl font-medium text-slate-900 dark:text-slate-100 text-center mb-6">{card.question}</p>
+        <span className="text-xs sm:text-sm font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider mb-4">Вопрос</span>
+        <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 text-center leading-snug max-w-xl px-2 mb-6 markdown-content">
+          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{card.question}</ReactMarkdown>
+        </div>
 
         {revealed && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full border-t border-slate-100 dark:border-slate-800 pt-6">
-            <span className="text-xs uppercase text-emerald-500 tracking-wider mb-2 block text-center">Ответ</span>
-            <p className="text-slate-700 dark:text-slate-200 text-center">{card.answer}</p>
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+            style={{ overflow: 'hidden' }}
+            className="w-full border-t border-slate-100 dark:border-slate-800/80 pt-6 mt-2"
+          >
+            <span className="text-xs sm:text-sm font-black uppercase text-emerald-500 tracking-wider mb-3 block text-center">Ответ</span>
+            <div className="text-slate-800 dark:text-slate-200 text-sm sm:text-base md:text-lg font-semibold text-center leading-relaxed max-w-xl mx-auto px-2 whitespace-pre-line markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{card.answer}</ReactMarkdown>
+            </div>
           </motion.div>
         )}
 
         {!revealed && (
-          <p className="text-xs text-slate-400 dark:text-slate-600 mt-4">Нажмите, чтобы открыть ответ</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-4 animate-pulse font-medium">Нажмите, чтобы открыть ответ</p>
         )}
       </motion.div>
 

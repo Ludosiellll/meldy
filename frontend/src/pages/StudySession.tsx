@@ -562,10 +562,10 @@ export default function StudySession() {
             {/* Карточка */}
             <motion.div
               key={cardIdx}
-              initial={{ opacity: 0, scale: 0.96, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -8 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
               className="card min-h-[300px] md:min-h-[360px] p-8 md:p-12 flex flex-col items-center justify-center cursor-pointer relative active:scale-[0.99] transition-all shadow-lg hover:shadow-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/80 backdrop-blur-md"
               onClick={handleRevealCard}
             >
@@ -575,9 +575,9 @@ export default function StudySession() {
                 </span>
               )}
               <span className="text-xs sm:text-sm font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider mb-3">Вопрос</span>
-              <p className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 text-center leading-snug max-w-xl px-2 mb-6">
-                {sessionCards[cardIdx].question}
-              </p>
+              <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 text-center leading-snug max-w-xl px-2 mb-6 markdown-content">
+                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{sessionCards[cardIdx].question}</ReactMarkdown>
+              </div>
 
               <AnimatePresence>
                 {cardRevealed && (
@@ -590,9 +590,9 @@ export default function StudySession() {
                     className="w-full border-t border-slate-100 dark:border-slate-800/80 pt-6 mt-2"
                   >
                     <span className="text-xs sm:text-sm font-black uppercase text-emerald-500 tracking-wider mb-3 block text-center">Ответ</span>
-                    <p className="text-slate-800 dark:text-slate-200 text-sm sm:text-base md:text-lg font-semibold text-center leading-relaxed max-w-xl mx-auto px-2 whitespace-pre-line">
-                      {sessionCards[cardIdx].answer}
-                    </p>
+                    <div className="text-slate-800 dark:text-slate-200 text-sm sm:text-base md:text-lg font-semibold text-center leading-relaxed max-w-xl mx-auto px-2 whitespace-pre-line markdown-content">
+                      <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{sessionCards[cardIdx].answer}</ReactMarkdown>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -192,36 +192,61 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── ШАПКА: приветствие + XP ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* ── ШАПКА: приветствие ── */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Привет, {name}! 👋</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm capitalize mt-0.5">
+          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Привет, {name}! 👋</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mt-1 capitalize">
             {format(new Date(), 'EEEE, d MMMM', { locale: ru })}
           </p>
         </div>
-        <motion.button
-          onClick={() => navigate('/analytics')}
-          whileHover={{ scale: 1.02 }}
-          className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none hover:shadow-indigo-300 transition-shadow tour-step-desktop-xp tour-step-mobile-xp"
-        >
-          <div>
-            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1">Ур. {levelInfo.level} · {levelInfo.name}</p>
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-1.5 bg-black/20 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-white/80 rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${levelInfo.progress}%` }}
-                  transition={{ duration: 1, ease: 'easeOut' }}
-                />
+      </div>
+
+      {/* ── НОВЫЙ СУПЕР-КРАСИВЫЙ БЛОК УРОВНЯ И ПРОГРЕССА (Full Width / Premium Card) ── */}
+      <motion.div
+        onClick={() => navigate('/analytics')}
+        whileHover={{ y: -2 }}
+        className="w-full bg-gradient-to-r from-indigo-600 via-indigo-650 to-purple-600 text-white rounded-3xl p-5 md:p-6 shadow-xl shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 transition-all duration-300 cursor-pointer relative overflow-hidden group tour-step-desktop-xp tour-step-mobile-xp"
+      >
+        <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/3 translate-x-1/4 pointer-events-none group-hover:scale-105 transition-transform duration-500" />
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-2xl md:text-3xl shadow-inner border border-white/20 shrink-0">
+              🏆
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] md:text-xs font-extrabold uppercase tracking-wider text-indigo-200">Текущий ранг</span>
+                {profile?.role === 'student' && (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-400 text-amber-950 uppercase tracking-widest animate-pulse">PRO</span>
+                )}
               </div>
-              <span className="text-xs font-black whitespace-nowrap">{xp} XP</span>
+              <h2 className="text-lg md:text-xl font-black text-white tracking-tight mt-0.5">Уровень {levelInfo.level} · {levelInfo.name}</h2>
             </div>
           </div>
-          <BarChart2 className="w-5 h-5 text-indigo-200 shrink-0 hidden sm:block" />
-        </motion.button>
-      </div>
+
+          <div className="flex-1 md:max-w-md w-full">
+            <div className="flex justify-between items-end text-xs font-bold text-indigo-100 mb-1.5">
+              <span>До следующего уровня</span>
+              <span className="text-white font-black text-sm">{levelInfo.currentXP} <span className="text-xs font-bold text-indigo-200">/ {levelInfo.nextXP} XP</span></span>
+            </div>
+            
+            <div className="h-3 bg-black/20 rounded-full overflow-hidden border border-white/10 relative">
+              <motion.div
+                className="h-full bg-gradient-to-r from-amber-300 to-amber-500 rounded-full shadow-[0_0_8px_rgba(251,191,36,0.5)]"
+                initial={{ width: 0 }}
+                animate={{ width: `${levelInfo.progress}%` }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
+              />
+            </div>
+            
+            <p className="text-[11px] text-indigo-100 mt-2 font-medium">
+              Осталось набрать <span className="text-white font-black">{levelInfo.nextXP - levelInfo.currentXP} XP</span> для перехода на новый уровень. Давай поднажмем! 🚀
+            </p>
+          </div>
+        </div>
+      </motion.div>
 
       {/* ── РЕЖИМ СЕССИИ: Умный наставник ── */}
       {(() => {
@@ -326,52 +351,56 @@ export default function Dashboard() {
         {/* Due cards — главный CTA */}
         <motion.button
           onClick={() => navigate('/review')}
-          whileHover={{ scale: 1.015 }}
-          className={`p-5 rounded-2xl text-left transition-all flex flex-col justify-between min-h-[145px] ${
+          whileHover={{ scale: 1.015, y: -2 }}
+          className={`p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 shadow-lg ${
             dueCards.length > 0
-              ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white shadow-xl shadow-indigo-200 dark:shadow-indigo-900/40'
-              : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400'
+              ? 'bg-gradient-to-br from-indigo-650 via-indigo-600 to-purple-650 text-white shadow-xl shadow-indigo-200 dark:shadow-none'
+              : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-150 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400'
           }`}
         >
           <div className="flex items-center justify-between w-full">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500 text-white'}`}>
-              <Brain className="w-5 h-5 text-white" />
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center backdrop-blur-md ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500 text-white'}`}>
+              <Brain className="w-6 h-6 text-white" />
             </div>
-            {dueCards.length > 0 && <span className="text-3xl font-black text-white">{dueCards.length}</span>}
+            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${dueCards.length > 0 ? 'bg-white/10 text-indigo-100' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
+              {dueCards.length > 0 ? 'Активно' : 'Готово'}
+            </span>
           </div>
-          <div className="mt-4">
-            <p className={`text-sm font-black tracking-tight leading-none mb-1 ${dueCards.length > 0 ? 'text-white' : 'text-emerald-900 dark:text-emerald-300'}`}>
-              {dueCards.length > 0 ? 'Карточки на повторение' : 'Всё повторено!'}
-            </p>
-            <p className={`text-xs ${dueCards.length > 0 ? 'text-indigo-200' : 'text-emerald-600 dark:text-emerald-500'}`}>
-              {dueCards.length > 0 ? 'Нажми, чтобы начать →' : 'Отличная работа сегодня ✓'}
-            </p>
+          <div>
+            <div className="flex items-baseline gap-1.5 mb-1">
+              <span className="text-4xl sm:text-5xl font-black tracking-tight">{dueCards.length}</span>
+              <span className="text-xs font-bold opacity-80">карточек</span>
+            </div>
+            <p className="text-xs font-black leading-none tracking-tight opacity-90">Карточки на повторение</p>
+            <p className="text-[11px] mt-1 opacity-75">{dueCards.length > 0 ? 'Нажми, чтобы начать →' : 'Отличная работа сегодня ✓'}</p>
           </div>
         </motion.button>
 
         {/* Стрик */}
         <motion.div
-          whileHover={{ scale: 1.015 }}
+          whileHover={{ scale: 1.015, y: -2 }}
           onClick={() => navigate('/analytics')}
-          className={`p-5 rounded-2xl text-left transition-all flex flex-col justify-between min-h-[145px] cursor-pointer ${
+          className={`p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 cursor-pointer shadow-lg ${
             streak >= 3
-              ? 'bg-gradient-to-br from-orange-500 to-rose-600 text-white shadow-xl shadow-orange-200 dark:shadow-orange-900/40'
-              : 'bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800'
+              ? 'bg-gradient-to-br from-orange-500 via-orange-550 to-rose-600 text-white shadow-xl shadow-orange-200 dark:shadow-none'
+              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
           }`}
         >
           <div className="flex items-center justify-between w-full">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
-              <Flame className={`w-5 h-5 ${streak >= 3 ? 'text-white animate-pulse' : 'text-rose-500'}`} />
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center backdrop-blur-md ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
+              <Flame className={`w-6 h-6 ${streak >= 3 ? 'text-white animate-pulse' : 'text-rose-500'}`} />
             </div>
-            <span className={`text-3xl font-black ${streak >= 3 ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>{streak}</span>
+            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${streak >= 3 ? 'bg-white/10 text-orange-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
+              {streak >= 3 ? 'В огне!' : 'Стрик'}
+            </span>
           </div>
-          <div className="mt-4">
-            <p className={`text-sm font-black tracking-tight leading-none mb-1 ${streak >= 3 ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
-              {streak >= 3 ? '🔥 дней подряд!' : 'Дней подряд'}
-            </p>
-            <p className={`text-xs ${streak >= 3 ? 'text-orange-100' : 'text-slate-400'}`}>
-              Твой ударный темп обучения
-            </p>
+          <div>
+            <div className="flex items-baseline gap-1.5 mb-1">
+              <span className="text-4xl sm:text-5xl font-black tracking-tight">{streak}</span>
+              <span className="text-xs font-bold opacity-80">дн. подряд</span>
+            </div>
+            <p className="text-xs font-black leading-none tracking-tight opacity-90">Ударный темп обучения</p>
+            <p className="text-[11px] mt-1 opacity-75">{streak >= 3 ? 'Твой темп на высоте! 🔥' : 'Занимайся ежедневно ✓'}</p>
           </div>
         </motion.div>
 
@@ -379,29 +408,40 @@ export default function Dashboard() {
         {materials.length > 0 ? (
           <motion.button
             onClick={() => navigate('/quick-prep')}
-            whileHover={{ scale: 1.015 }}
-            className="p-5 rounded-2xl text-left transition-all flex flex-col justify-between min-h-[145px] bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-xl shadow-amber-200 dark:shadow-amber-900/40"
+            whileHover={{ scale: 1.015, y: -2 }}
+            className="p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white shadow-xl shadow-amber-200 dark:shadow-none"
           >
             <div className="flex items-center justify-between w-full">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-white" />
+              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+                <Clock className="w-6 h-6 text-white" />
               </div>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/10 text-amber-100">
+                5 минут
+              </span>
             </div>
-            <div className="mt-4">
-              <p className="text-sm font-black tracking-tight leading-none mb-1 text-white">Быстрый повтор</p>
-              <p className="text-xs text-amber-100">5 минут — и материал свеж →</p>
+            <div>
+              <div className="flex items-baseline gap-1.5 mb-1">
+                <span className="text-4xl sm:text-5xl font-black tracking-tight">Быстрый</span>
+              </div>
+              <p className="text-xs font-black leading-none tracking-tight opacity-90">Повтор лекций</p>
+              <p className="text-[11px] mt-1 opacity-75">5 минут — и материал свеж →</p>
             </div>
           </motion.button>
         ) : (
           <motion.button
             onClick={() => navigate('/analyze')}
-            whileHover={{ scale: 1.015 }}
-            className="p-5 rounded-2xl text-left border-2 border-dashed border-indigo-300 dark:border-indigo-800 hover:border-indigo-500 dark:hover:border-indigo-600 transition-all group flex flex-col justify-between min-h-[145px]"
+            whileHover={{ scale: 1.015, y: -2 }}
+            className="p-5 rounded-3xl text-left border-2 border-dashed border-indigo-300 dark:border-indigo-800 hover:border-indigo-500 dark:hover:border-indigo-600 transition-all group flex flex-col justify-between h-44 bg-white/40 dark:bg-slate-900/40"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center group-hover:bg-indigo-100 transition">
-              <Zap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center group-hover:bg-indigo-100 group-hover:dark:bg-indigo-900 transition">
+                <Zap className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-500 dark:text-indigo-400">
+                ИИ
+              </span>
             </div>
-            <div className="mt-4">
+            <div>
               <p className="text-sm font-black tracking-tight leading-none mb-1 text-slate-700 dark:text-slate-300">Добавить материал</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">Загрузи лекцию или конспект →</p>
             </div>
