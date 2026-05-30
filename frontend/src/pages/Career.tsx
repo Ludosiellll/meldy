@@ -119,14 +119,18 @@ export default function Career() {
     try {
       const reply = await sendCareerChat(text, newMessages.slice(-10));
       
-      // Parse trigger token for course generation: [GENERATE_COURSE_ACTION:Profession|Salary|Level]
-      const triggerRegex = /\[GENERATE_COURSE_ACTION:(.+?)\|(.+?)\|(.+?)\]/;
+      // Parse trigger token for course generation: [GENERATE_COURSE_ACTION:Profession|Salary|Level|Location|Age|Gender|ExtraContext]
+      const triggerRegex = /\[GENERATE_COURSE_ACTION:(.+?)\|(.+?)\|(.+?)(?:\|(.+?)\|(.+?)\|(.+?)\|(.+?))?\]/;
       const match = reply.match(triggerRegex);
 
       if (match) {
         const profession = match[1].trim();
         const salary = match[2].trim();
         const level = match[3].trim();
+        const location = match[4] ? match[4].trim() : '';
+        const age = match[5] && match[5].trim() ? parseInt(match[5].trim()) : undefined;
+        const gender = match[6] ? match[6].trim() : '';
+        const extraContext = match[7] ? match[7].trim() : '';
         
         // Remove token from text visible to user
         const cleanReply = reply.replace(triggerRegex, '').trim();
@@ -134,7 +138,7 @@ export default function Career() {
         
         // Trigger automated roadmap creation
         toast.success(`Согласованы параметры: ${profession}, уровень ${level}, зарплата ${salary}₽!`);
-        await triggerCourseSyllabus(profession, level, salary);
+        await triggerCourseSyllabus(profession, level, salary, location, age, gender, extraContext);
       } else {
         setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
@@ -146,7 +150,15 @@ export default function Career() {
     }
   };
 
-  const triggerCourseSyllabus = async (profession: string, level: string, salary: string) => {
+  const triggerCourseSyllabus = async (
+    profession: string, 
+    level: string, 
+    salary: string,
+    location?: string,
+    age?: number,
+    gender?: string,
+    extraContext?: string
+  ) => {
     if (!user) return;
     
     setIsGenerating(true);
@@ -168,9 +180,19 @@ export default function Career() {
         contextStr = contextLines.join("\n\n---\n\n").slice(0, 10000);
       }
 
-      toast.loading('Подключаемся к HeadHunter API, собираем вакансии и генерируем подробнейший курс...', { id: 'gen_course' });
+      toast.loading('Подключаемся к API вакансий, собираем требования и генерируем подробнейший курс...', { id: 'gen_course' });
       
-      const newCourse = await generateCareerCourse(user.id, profession, level, salary, contextStr);
+      const newCourse = await generateCareerCourse(
+        user.id, 
+        profession, 
+        level, 
+        salary, 
+        contextStr,
+        location,
+        age,
+        gender,
+        extraContext
+      );
       
       if (newCourse) {
         toast.success('Элитный практический курс успешно составлен!', { id: 'gen_course' });

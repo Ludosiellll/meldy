@@ -679,6 +679,10 @@ class CareerCourseGenerateRequest(BaseModel):
     level: str
     salary: str
     user_materials: str = ""
+    location: Optional[str] = ""
+    age: Optional[int] = None
+    gender: Optional[str] = ""
+    extra_context: Optional[str] = ""
 
 
 class CareerChatRequest(BaseModel):
@@ -698,9 +702,9 @@ class CareerTaskEvaluateRequest(BaseModel):
     feedback_notes: Optional[str] = ""
 
 
-async def fetch_hh_vacancies(profession: str) -> str:
+async def fetch_hh_vacancies(profession: str, location: str = "") -> str:
     """
-    Скачивает вакансии из API HeadHunter по названию профессии,
+    Скачивает вакансии из API HeadHunter по названию профессии и локации,
     извлекает требования, обязанности и ключевые навыки.
     """
     import httpx
@@ -710,8 +714,12 @@ async def fetch_hh_vacancies(profession: str) -> str:
     headers = {
         "User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
     }
+    
+    # Геотаргетинг: добавляем локацию прямо в поисковый запрос (самый надежный способ фильтрации)
+    query_text = f"{profession} {location}".strip()
+    
     params = {
-        "text": profession,
+        "text": query_text,
         "per_page": 12,
         "only_with_salary": "true"
     }
@@ -756,7 +764,7 @@ async def fetch_hh_vacancies(profession: str) -> str:
         return "\n\n".join(summary)
 
 
-async def fetch_trudvsem_vacancies(profession: str) -> str:
+async def fetch_trudvsem_vacancies(profession: str, location: str = "") -> str:
     """
     Скачивает вакансии из государственного API 'Работа в России' (api.trudvsem.ru).
     Используется как резервный источник.
@@ -765,8 +773,10 @@ async def fetch_trudvsem_vacancies(profession: str) -> str:
     import re
     
     url = "https://opendata.trudvsem.ru/api/v1/vacancies/any/search"
+    query_text = f"{profession} {location}".strip()
+    
     params = {
-        "text": profession,
+        "text": query_text,
         "limit": 10
     }
     
@@ -809,21 +819,26 @@ async def career_chat(request: Request, req: CareerChatRequest):
 
 Правила ведения диалога:
 1. Будь искренне поддерживающим, эмпатичным и вовлеченным, как лучший личный ментор. Обращайся к студенту уважительно, но тепло, на "ты".
-2. Твоя задача — выяснить:
-   - Какое направление или сфера ему больше всего интересны (программирование, дизайн, аналитика, менеджмент, маркетинг и т.д.).
-   - Какие у него есть жизненные обстоятельства (сколько часов в день готов учиться, какой темп комфортен).
+2. Твоя задача — ненавязчиво выяснить:
+   - Какое направление или сфера ему интересны (программирование, дизайн, аналитика, менеджмент, маркетинг и т.д.).
    - Каковы его пожелания по уровню (Junior, Middle) и целевой зарплате.
-   - Какие гибридные навыки или хобби у него есть (например: 'люблю рисовать и писать код' -> предложи Frontend-разработчика или UI/UX-дизайнера).
-3. Обсуждай альтернативы, отвечающие интересам студента, отвечай на любые вопросы студента о профессиях, развеивай страхи перед собеседованиями и поиском работы.
-4. Когда вы полностью определитесь со сферой, уровнем и желаемой зарплатой, скажи студенту, что готов запустить генерацию уникального персонального курса, который соберет реальные требования вакансий с HeadHunter и обучит его по адаптивной программе с 7 интерактивными песочницами.
-5. В этот же момент ты ОБЯЗАН в самом конце своего сообщения прикрепить секретный управляющий токен:
-   [GENERATE_COURSE_ACTION:ProfessionName|Salary|Level]
+   - Где он живет (страна/город), чтобы курс учитывал локальный рынок труда (например, Москва, Санкт-Петербург, Минск, Алматы).
+   - Его возраст и пол (для адаптации педагогического подхода и психологических soft-skills заданий).
+   - Его особые условия или ограничения (сколько времени готов уделять учебе, есть ли совмещение с работой, уход за ребенком, особый график и т.д.).
+3. Обсуждай альтернативы, отвечающие интересам студента, отвечай на любые вопросы о профессиях, развеивай страхи перед собеседованиями.
+4. Когда вы полностью определитесь со всеми параметрами, скажи студенту, что готов запустить генерацию уникального персонального курса, который соберет реальные требования вакансий с HeadHunter именно по его локации и создаст адаптивный курс под его возраст и жизненную ситуацию с песочницами.
+5. В этот же момент ты ОБЯЗАН в самом конце своего сообщения прикрепить расширенный секретный управляющий токен:
+   [GENERATE_COURSE_ACTION:ProfessionName|Salary|Level|Location|Age|Gender|ExtraContext]
    Где:
    - ProfessionName: Точное выверенное название профессии на русском языке (например, Frontend-разработчик, Системный аналитик, Маркетолог).
    - Salary: Целевая зарплата (число или строка, например 100000, 150000).
    - Level: Выбранный уровень квалификации (Junior, Middle, Senior).
+   - Location: Выясненный город или страна (например: Москва, Алматы, Россия). Если не указано, поставь "Россия".
+   - Age: Выясненный возраст (например: 22, 35). Если не указан, поставь "".
+   - Gender: Пол (например: Мужской, Женский). Если не указан, поставь "".
+   - ExtraContext: Любые важные жизненные условия или ограничения через запятую (например: совмещаю с работой, молодая мама, 2 часа в день, нет опыта). Если нет, поставь "".
    
-Пример: "...Я готов составить для тебя потрясающий практический курс! [GENERATE_COURSE_ACTION:Frontend-разработчик|120000|Junior]"
+Пример: "...Я готов составить для тебя потрясающий практический курс! [GENERATE_COURSE_ACTION:Frontend-разработчик|120000|Junior|Москва|23|Мужской|совмещаю с основной работой, 2 часа в день]"
 
 ВАЖНО: До тех пор, пока параметры не согласованы полностью, НЕ прикрепляй этот токен. Задавай уточняющие вопросы, веди содержательный диалог.
 Не здоровайся заново в каждой реплике. Пиши ёмко, разбивай текст на абзацы для легкого чтения."""
@@ -843,13 +858,13 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
         
     # Сначала пытаемся получить вакансии из HH API
     try:
-        print(f"Trying to fetch vacancies from HH for {req.profession}...")
-        vacancy_text = await fetch_hh_vacancies(req.profession)
+        print(f"Trying to fetch vacancies from HH for {req.profession} in {req.location}...")
+        vacancy_text = await fetch_hh_vacancies(req.profession, req.location)
     except Exception as e_hh:
         print(f"HH API failed: {e_hh}. Trying fallback 'Работа в России' API...")
         # Если HH не сработал, пробуем резервный ТрудоВсем
         try:
-            vacancy_text = await fetch_trudvsem_vacancies(req.profession)
+            vacancy_text = await fetch_trudvsem_vacancies(req.profession, req.location)
             print("Successfully fetched vacancies from 'Работа в России' fallback API.")
         except Exception as e_trud:
             print(f"TrudVsem fallback API also failed: {e_trud}")
@@ -867,7 +882,11 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
             req.level,
             req.salary,
             req.user_materials,
-            vacancy_text
+            vacancy_text,
+            age=req.age,
+            gender=req.gender,
+            location=req.location,
+            extra_context=req.extra_context
         )
         return course_data
     except Exception as e:

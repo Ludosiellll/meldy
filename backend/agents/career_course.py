@@ -34,14 +34,31 @@ def get_expert_persona(profession: str) -> dict:
             "tone": "Сильный упор на коммуникативные навыки, управление конфликтами, Socratic soft-skills, эмпатию, лидерство и стрессоустойчивость."
         }
 
-def build_course_designer_prompt(profession: str, level: str, salary: str, user_materials: str, vacancy_context: str) -> str:
+def build_course_designer_prompt(profession: str, level: str, salary: str, user_materials: str, vacancy_context: str, age: int = None, gender: str = "", location: str = "", extra_context: str = "") -> str:
     expert = get_expert_persona(profession)
+    
+    demographics_block = ""
+    if age or gender or location or extra_context:
+        demographics_block = f"""
+УЧИТЫВАЙ ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ СТУДЕНТА ПРИ ПРОЕКТИРОВАНИИ:
+- Возраст: {age if age else 'Не указан'}
+- Пол: {gender if gender else 'Не указан'}
+- Локация (город/страна): {location if location else 'Не указана'}
+- Особые жизненные обстоятельства/условия: {extra_context if extra_context else 'Не указаны'}
+
+ИНСТРУКЦИЯ ПО АДАПТАЦИИ:
+1. Если студент — подросток/студент: давай более простые и яркие жизненные метафоры, фокусируйся на стажировках и бесплатном опенсорсе.
+2. Если студент — взрослый свитчер (сменил профессию): делай упор на переносе его прошлого жизненного опыта, жестком тайм-менеджменте и быстром выходе на фриланс или джуниор-позиции.
+3. Если есть особые семейные/жизненные условия (например, молодая мама, совмещение с тяжелой работой): оптимизируй нагрузку, планируй короткие 1-часовые учебные спринты и подбирай песочницы Soft-Skills на бесконфликтное отстаивание личных границ.
+4. Локация и валюта: строй карьерные инсайты строго под рынок указанного региона (например, если это Казахстан — рассчитывай зарплату в тенге и пиши специфику рынка Алматы/Астаны, если Москва — пиши про столичные офисы).
+"""
+
     return f"""Ты — {expert['title']}.
 Твой стиль преподавания и тон: {expert['tone']}
 
 Твоя задача — спроектировать ультимативно глубокую, колоссальную по объёму и ценности учебную программу (курс) для студента, который хочет освоить профессию "{profession}" (уровень: {level}, целевая зарплата: {salary}).
 Этот курс должен быть во много раз подробнее, глубже и практичнее, чем любые коммерческие курсы на рынке. Программа обязана дать студенту реальный практический уровень Junior/Middle, готовый к прохождению самых сложных технических интервью.
-
+{demographics_block}
 При проектировании курса опирайся на реальные требования рынка, собранные из свежих вакансий:
 {vacancy_context}
 
@@ -103,8 +120,8 @@ def build_course_designer_prompt(profession: str, level: str, salary: str, user_
 """
 
 class CareerCourseAgent(BaseAgent):
-    async def generate_course(self, profession: str, level: str, salary: str, user_materials: str, vacancy_context: str) -> dict:
-        prompt = build_course_designer_prompt(profession, level, salary, user_materials, vacancy_context)
+    async def generate_course(self, profession: str, level: str, salary: str, user_materials: str, vacancy_context: str, age: int = None, gender: str = "", location: str = "", extra_context: str = "") -> dict:
+        prompt = build_course_designer_prompt(profession, level, salary, user_materials, vacancy_context, age, gender, location, extra_context)
         context = f"РЕАЛЬНЫЕ ТРЕБОВАНИЯ ИЗ ВАКАНСИЙ С РЫНКА ТРУДА:\n{vacancy_context}\n\nПожалуйста, сгенерируй ультимативный подробнейший курс."
         
         raw_result = await self.run(prompt, context)

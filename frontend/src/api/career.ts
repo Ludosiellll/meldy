@@ -107,13 +107,17 @@ export async function generateCareerProfile(userId: string, context: string): Pr
   }
 }
 
-// Сгенерировать персональный курс на основе HH вакансий
+// Сгенерировать персональный курс на основе HH вакансий с демографической адаптацией
 export async function generateCareerCourse(
   userId: string,
   profession: string,
   level: string,
   salary: string,
-  userMaterials: string
+  userMaterials: string,
+  location?: string,
+  age?: number,
+  gender?: string,
+  extraContext?: string
 ): Promise<CareerCourse | null> {
   try {
     const res = await fetch('/api/career/course', {
@@ -123,7 +127,11 @@ export async function generateCareerCourse(
         profession,
         level,
         salary,
-        user_materials: userMaterials
+        user_materials: userMaterials,
+        location: location || "",
+        age: age || null,
+        gender: gender || "",
+        extra_context: extraContext || ""
       })
     });
     
