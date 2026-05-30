@@ -789,7 +789,7 @@ async def fetch_trudvsem_vacancies(profession: str, location: str = "") -> str:
     import httpx
     import re
     
-    url = "https://opendata.trudvsem.ru/api/v1/vacancies/any/search"
+    url = "https://opendata.trudvsem.ru/api/v1/vacancies"
     query_text = f"{profession} {location}".strip()
     
     params = {
