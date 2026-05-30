@@ -92,7 +92,7 @@ export default function DiagnosticTestModal({
           {/* Header */}
           <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/20 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-indigo-50 dark:bg-indigo-650/20 rounded-xl flex items-center justify-center border border-indigo-100 dark:border-indigo-900/30">
+              <div className="w-9 h-9 bg-indigo-50 dark:bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-100 dark:border-indigo-900/30">
                 <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div className="min-w-0">
@@ -100,7 +100,7 @@ export default function DiagnosticTestModal({
                 <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate pr-4">{moduleTitle}</h3>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-slate-150 dark:hover:bg-slate-800 rounded-full transition text-slate-400 hover:text-slate-650 dark:hover:text-slate-200">
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition text-slate-400 hover:text-slate-650 dark:hover:text-slate-200">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -148,7 +148,7 @@ export default function DiagnosticTestModal({
               /* Quiz View */
               <div className="space-y-5">
                 {/* Progress dot indicators */}
-                <div className="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-550 font-bold uppercase">
+                <div className="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                   <span>Вопрос {currentIdx + 1} из {questions.length}</span>
                   <div className="flex gap-1">
                     {questions.map((_, i) => (
@@ -178,7 +178,7 @@ export default function DiagnosticTestModal({
                     const isCorrect = q.correct === letter;
                     const isSelected = selectedOpt === opt;
                     
-                    let btnStyle = 'bg-slate-50/50 hover:bg-slate-50 dark:bg-slate-800/40 border-slate-250 dark:border-slate-800 hover:border-indigo-600 dark:hover:border-indigo-500 hover:bg-indigo-50/10 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-200';
+                    let btnStyle = 'bg-slate-50/50 hover:bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-indigo-600 dark:hover:border-indigo-500 hover:bg-indigo-50/10 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-200';
                     
                     if (answered) {
                       if (isCorrect) {
@@ -186,7 +186,7 @@ export default function DiagnosticTestModal({
                       } else if (isSelected && !isCorrect) {
                         btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-450 font-extrabold';
                       } else {
-                        btnStyle = 'bg-slate-100/40 dark:bg-slate-800/20 border-slate-200 dark:border-slate-850 opacity-40 text-slate-400 dark:text-slate-550';
+                        btnStyle = 'bg-slate-100/40 dark:bg-slate-800/20 border-slate-200 dark:border-slate-850 opacity-40 text-slate-400 dark:text-slate-500';
                       }
                     }
 
@@ -212,9 +212,9 @@ export default function DiagnosticTestModal({
                   <motion.div
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 bg-indigo-50/50 dark:bg-indigo-950/10 border border-indigo-100/50 dark:border-indigo-900/20 rounded-xl text-[10px] text-slate-600 dark:text-slate-350 leading-relaxed italic"
+                    className="p-3 bg-indigo-50/50 dark:bg-indigo-950/10 border border-indigo-100/50 dark:border-indigo-900/20 rounded-xl text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed italic"
                   >
-                    <span className="font-extrabold text-indigo-650 dark:text-indigo-400 not-italic block mb-0.5">Разбор ответа:</span>
+                    <span className="font-extrabold text-indigo-600 dark:text-indigo-400 not-italic block mb-0.5">Разбор ответа:</span>
                     {q?.explanation}
                   </motion.div>
                 )}
@@ -223,7 +223,7 @@ export default function DiagnosticTestModal({
                 {answered && (
                   <button
                     onClick={handleNext}
-                    className="w-full py-2.5 bg-indigo-650 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold transition shadow-sm"
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold transition shadow-sm"
                   >
                     {currentIdx < questions.length - 1 ? 'Следующий вопрос →' : 'Посмотреть результаты'}
                   </button>

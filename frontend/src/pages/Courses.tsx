@@ -669,7 +669,7 @@ export default function Courses() {
           <div className="flex items-center gap-3 mb-6">
             <button
               onClick={() => setView('list')}
-              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -824,7 +824,7 @@ export default function Courses() {
                 <button
                   onClick={handleCreateManual}
                   disabled={selectedMaterialIds.length === 0}
-                  className="px-5 py-3 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-750 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
+                  className="px-5 py-3 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
                 >
                   Собрать вручную
                 </button>
@@ -860,7 +860,7 @@ export default function Courses() {
                   <textarea
                     value={courseDescription}
                     onChange={e => setCourseDescription(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-600 dark:text-slate-350 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[70px]"
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-600 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[70px]"
                     placeholder="Чему посвящен этот курс..."
                   />
                 </div>
@@ -892,7 +892,7 @@ export default function Courses() {
                       <button
                         onClick={() => handleMoveSection(sIndex, 'up')}
                         disabled={sIndex === 0}
-                        className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
+                        className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
                         title="Поднять раздел"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
@@ -900,7 +900,7 @@ export default function Courses() {
                       <button
                         onClick={() => handleMoveSection(sIndex, 'down')}
                         disabled={sIndex === courseStructure.length - 1}
-                        className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
+                        className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded disabled:opacity-30"
                         title="Опустить раздел"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
@@ -1036,7 +1036,7 @@ export default function Courses() {
           <div className="flex items-center gap-3 mb-6">
             <button
               onClick={() => setView('list')}
-              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>

@@ -137,7 +137,7 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={fsNext}
-                className="mt-10 px-8 py-4 bg-indigo-600 hover:bg-indigo-550 text-white rounded-2xl text-base font-black transition shadow-lg shadow-indigo-600/20 duration-150 active:scale-[0.98] cursor-pointer"
+                className="mt-10 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-base font-black transition shadow-lg shadow-indigo-600/20 duration-150 active:scale-[0.98] cursor-pointer"
               >
                 {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест 🎯'}
               </motion.button>
@@ -201,10 +201,10 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
 
   return (
     <div className="relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-150 dark:border-slate-800/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80">
         <div>
           <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">Проверочное тестирование</h3>
-          <p className="text-xs text-slate-400 dark:text-slate-550">Ответьте на {total} вопросов для проверки знаний по материалу</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Ответьте на {total} вопросов для проверки знаний по материалу</p>
         </div>
         {!submitted && (
           <button
@@ -255,7 +255,7 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
                   } else if (isWrongOpt) {
                     cls += 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 line-through';
                   } else {
-                    cls += 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800/60 text-slate-400 dark:text-slate-550';
+                    cls += 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800/60 text-slate-400 dark:text-slate-500';
                   }
 
                   return (

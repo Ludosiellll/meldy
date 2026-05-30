@@ -464,7 +464,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
                   ИИ-Наставник Forgey заметил шаблонное название
                 </h4>
                 <p className="text-sm font-bold text-slate-850 dark:text-slate-200 leading-snug">
-                  Заменить нечитаемое <code className="text-xs px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-slate-700 dark:text-slate-350">{currentTitle}</code> на красивое название:
+                  Заменить нечитаемое <code className="text-xs px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-slate-700 dark:text-slate-300">{currentTitle}</code> на красивое название:
                 </p>
                 <p className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5 italic">
                   «{aiSuggestedTitle}»
@@ -481,7 +481,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
               </button>
               <button
                 onClick={applySuggestedTitle}
-                className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-xs font-black transition shadow-md shadow-indigo-500/10 active:scale-[0.96] flex items-center gap-1.5"
+                className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shadow-md shadow-indigo-500/10 active:scale-[0.96] flex items-center gap-1.5"
               >
                 Переименовать ✨
               </button>
@@ -624,7 +624,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       </div>
 
       {/* Pill-вкладки */}
-      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print border border-slate-250/20 dark:border-slate-800/60">
+      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print border border-slate-200/20 dark:border-slate-800/60">
         {tabs.map(t => {
           const isActive = tab === t.id;
           return (

@@ -113,7 +113,7 @@ export default function ReviewTestModal({
           {/* Header */}
           <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-indigo-650/10 dark:bg-indigo-600/30 rounded-xl flex items-center justify-center">
+              <div className="w-9 h-9 bg-indigo-600/10 dark:bg-indigo-600/30 rounded-xl flex items-center justify-center">
                 <RotateCcw className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div>
@@ -122,7 +122,7 @@ export default function ReviewTestModal({
               </div>
             </div>
             <button onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition">
-              <X className="w-4 h-4 text-slate-450 dark:text-slate-400" />
+              <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
             </button>
           </div>
 
@@ -153,11 +153,11 @@ export default function ReviewTestModal({
                       : 'Рекомендуем перечитать теорию и повторить через 1 день'}
                   </p>
                 </div>
-                {saving && <p className="text-xs text-indigo-650 dark:text-indigo-400 animate-pulse">Сохраняем прогресс...</p>}
+                {saving && <p className="text-xs text-indigo-600 dark:text-indigo-400 animate-pulse">Сохраняем прогресс...</p>}
                 <div className="flex gap-3 w-full mt-2">
                   <button
                     onClick={onClose}
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-650 dark:text-slate-300 rounded-2xl text-xs font-bold transition"
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-650 dark:text-slate-300 rounded-2xl text-xs font-bold transition"
                   >
                     Закрыть
                   </button>
@@ -205,7 +205,7 @@ export default function ReviewTestModal({
                     className="space-y-4"
                   >
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-relaxed">
-                      <span className="text-indigo-650 dark:text-indigo-400 font-black">Q{currentIdx + 1}.</span> {q?.question}
+                      <span className="text-indigo-600 dark:text-indigo-400 font-black">Q{currentIdx + 1}.</span> {q?.question}
                     </p>
 
                     {/* Options */}
@@ -218,7 +218,7 @@ export default function ReviewTestModal({
                         if (answered) {
                           if (isCorrect) bg = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300';
                           else if (isSelected && !isCorrect) bg = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300';
-                          else bg = 'bg-slate-100/40 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-50 text-slate-450 dark:text-slate-400';
+                          else bg = 'bg-slate-100/40 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-50 text-slate-400 dark:text-slate-400';
                         }
                         return (
                           <button

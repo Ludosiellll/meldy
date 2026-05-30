@@ -732,7 +732,7 @@ export default function StudySession() {
                       key={pill}
                       disabled={chatLoading}
                       onClick={() => handleSendMessage(pill)}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-xs text-indigo-300 font-bold whitespace-nowrap transition disabled:opacity-50 shrink-0 active:scale-[0.98]"
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs text-indigo-300 font-bold whitespace-nowrap transition disabled:opacity-50 shrink-0 active:scale-[0.98]"
                     >
                       {pill}
                     </button>
@@ -961,7 +961,7 @@ export default function StudySession() {
                   setSelectedOption(null);
                   setIsCorrect(null);
                 }}
-                className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-750 transition"
+                className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition"
               >
                 Пройти ещё раз ⚡
               </button>

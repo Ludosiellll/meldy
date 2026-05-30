@@ -137,7 +137,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
       {/* Top dashboard row cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         {/* Job readiness Index */}
-        <div className="bg-white dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Индекс трудоустройства</span>
             <Briefcase className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -162,7 +162,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
         </div>
 
         {/* Forecast card */}
-        <div className="bg-white dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Оффер прогнозируется</span>
             <Calendar className="w-4 h-4 text-slate-500" />
@@ -170,14 +170,14 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
           <div className="my-3">
             <p className="text-lg font-black text-slate-800 dark:text-slate-100 capitalize">{employmentForecast}</p>
           </div>
-          <div className="pt-2 border-t border-slate-150 dark:border-slate-850 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
             <span>Профессия:</span>
             <span className="text-slate-600 dark:text-slate-300 truncate max-w-[120px]">{profile.course?.profession ?? 'IT специалист'}</span>
           </div>
         </div>
 
         {/* Velocity card */}
-        <div className="bg-white dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Темп обучения (Velocity)</span>
             <TrendingUp className="w-4 h-4 text-slate-500" />
@@ -196,7 +196,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
         </div>
 
         {/* Streak card */}
-        <div className="bg-white dark:bg-slate-900/60 border border-slate-250 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Активный стрик</span>
             <Flame className="w-4 h-4 text-orange-500 dark:text-orange-400" />
@@ -205,7 +205,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
             <span className="text-3xl font-black text-orange-500 dark:text-orange-400">{streakDays}</span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase">дней подряд</span>
           </div>
-          <div className="pt-2 border-t border-slate-150 dark:border-slate-850 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
             <span>Рекорд:</span>
             <span className="text-slate-600 dark:text-slate-300 font-black">{Math.max(streakDays, 7)} дн.</span>
           </div>
@@ -223,10 +223,10 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
           
           <div className="h-64 w-full text-xs">
             {completedModules === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-slate-250 dark:border-slate-800 rounded-2xl">
-                <HelpCircle className="w-8 h-8 text-slate-350 dark:text-slate-600 mb-2" />
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                <HelpCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Здесь появится график ваших оценок</p>
-                <p className="text-[10px] text-slate-450 dark:text-slate-500 mt-0.5 max-w-xs">Пройдите практику вашего первого учебного модуля и отправьте ее на ревью.</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 max-w-xs">Пройдите практику вашего первого учебного модуля и отправьте ее на ревью.</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -258,7 +258,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
         {/* GitHub-style Heatmap widget */}
         <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex flex-col justify-between shadow-sm">
           <div className="space-y-1">
-            <span className="text-[10px] font-black text-indigo-650 dark:text-indigo-400 uppercase tracking-wider block">Тепловая карта активности</span>
+            <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Тепловая карта активности</span>
             <h4 className="text-xs text-slate-500 dark:text-slate-400">Набранный XP за последние 30 дней</h4>
           </div>
 
@@ -276,7 +276,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-between text-[8px] text-slate-450 dark:text-slate-500 font-extrabold uppercase tracking-wider border-t border-slate-150 dark:border-slate-850 pt-3">
+          <div className="flex items-center justify-between text-[8px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider border-t border-slate-100 dark:border-slate-850 pt-3">
             <span>Меньше</span>
             <div className="flex gap-1">
               <div className="w-2.5 h-2.5 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-900" />

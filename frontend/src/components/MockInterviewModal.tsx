@@ -164,7 +164,7 @@ export default function MockInterviewModal({
           {/* Header */}
           <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-gradient-to-r dark:from-indigo-950/40 dark:to-slate-900">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-650/10 dark:bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-500/20">
+              <div className="w-10 h-10 bg-indigo-600/10 dark:bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-500/20">
                 <Award className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div className="min-w-0">
@@ -330,7 +330,7 @@ export default function MockInterviewModal({
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
                         placeholder="Напишите ваш ответ..."
-                        className="flex-1 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-850 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-550 focus:outline-none focus:border-indigo-500/50"
+                        className="flex-1 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-850 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
                       />
                       <button
                         onClick={handleSend}

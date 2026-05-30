@@ -51,7 +51,7 @@ export default function Career() {
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'course' | 'analytics' | 'jobs'>('profile');
+  const [activeTab, setActiveTab] = useState<'course' | 'analytics' | 'jobs'>('course');
 
   // New states for Vacancy Selection Dashboard & AI Vacancy Chat
   const [showVacancySelector, setShowVacancySelector] = useState(false);
@@ -225,6 +225,18 @@ export default function Career() {
   };
 
   const handleStartCoachChat = () => {
+    if (profile?.last_course_deleted_at) {
+      const deletedAt = new Date(profile.last_course_deleted_at).getTime();
+      const now = new Date().getTime();
+      const diffMs = now - deletedAt;
+      const diffHours = diffMs / (1000 * 60 * 60);
+      if (diffHours < 24) {
+        const remainingHours = Math.ceil(24 - diffHours);
+        toast.error(`Вы недавно удалили курс. Создание нового курса заблокировано. Пожалуйста, подождите ещё ${remainingHours} ч.`);
+        return;
+      }
+    }
+
     setShowCoachChat(true);
     if (chatMessages.length === 0) {
       setChatMessages([
@@ -234,6 +246,26 @@ export default function Career() {
         }
       ]);
     }
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!profile || !user) return;
+    
+    const ok = await confirm({
+      title: '⚠️ Удаление текущего курса',
+      message: 'Вы действительно хотите удалить ваш текущий ИИ-курс? Обратите внимание: вы не сможете сгенерировать новый курс в течение следующих 24 часов!'
+    });
+    if (!ok) return;
+
+    const updatedProfile: CareerProfile = {
+      ...profile,
+      course: undefined,
+      last_course_deleted_at: new Date().toISOString()
+    };
+
+    setProfile(updatedProfile);
+    await saveCareerProfile(user.id, updatedProfile);
+    toast.success('ИИ-курс успешно удален! Лимит 24 часа на создание нового курса активирован.');
   };
 
   const handleSendCoachMessage = async (textToSend?: string) => {
@@ -1027,16 +1059,6 @@ export default function Career() {
           {profile && (
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-x-auto max-w-[85vw] sm:max-w-none">
               <button
-                onClick={() => setActiveTab('profile')}
-                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
-                  activeTab === 'profile'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                🗂️ Профиль
-              </button>
-              <button
                 onClick={() => setActiveTab('course')}
                 className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'course'
@@ -1071,15 +1093,6 @@ export default function Career() {
               </button>
             </div>
           )}
-          
-          <button 
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 transition disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-            Пересчитать профиль
-          </button>
         </div>
       </div>
 
@@ -1100,166 +1113,7 @@ export default function Career() {
       {/* Active Tab content */}
       {!isGenerating && (
         <>
-          {activeTab === 'profile' ? (
-            /* original profile display details */
-            <div className="grid lg:grid-cols-3 gap-6 md:gap-8">
-              {!profile ? (
-                <div className="lg:col-span-3 text-center py-20 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
-                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Briefcase className="w-8 h-8 text-indigo-500" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-3">Ваши навыки еще не оцифрованы</h3>
-                  <p className="text-slate-500 dark:text-slate-400 max-w-lg mx-auto mb-8 leading-relaxed">
-                    Изучите хотя бы одну лекцию в StudyForge, добавьте конспект, и наша система сможет составить ваш полный карьерный профиль.
-                  </p>
-                  <button 
-                    onClick={handleGenerate}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
-                  >
-                    Оцифровать мои навыки по конспектам
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* Skills & professions */}
-                  <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Code2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Ваши Хард-Скиллы</h2>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {profile.skills?.map((skill, i) => (
-                          <span key={i} className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Briefcase className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Спектр Профессий</h2>
-                      </div>
-                      <div className="space-y-4">
-                        {profile.professions?.map((prof, i) => (
-                          <div key={i}>
-                            <div className="flex justify-between items-start gap-3 text-xs mb-1">
-                              <span className="font-bold text-slate-700 dark:text-slate-300">{prof.title}</span>
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400 shrink-0">{prof.match}% match</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${prof.match}%` }}
-                                transition={{ duration: 1, delay: i * 0.2 }}
-                                className="h-full bg-indigo-500 rounded-full"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Summary & CV projects */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />
-                      <div className="flex items-center gap-2 mb-4">
-                        <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Карьерное Саммари (Для CV)</h2>
-                      </div>
-                      <div className="prose prose-sm prose-slate max-w-none text-slate-600 dark:text-slate-300 dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{profile.resume_summary || ''}</ReactMarkdown>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                        <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        Рекомендуемые пет-проекты для портфолио
-                      </h2>
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        {profile.projects?.map((proj, i) => (
-                          <motion.div 
-                            key={i}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors group cursor-pointer"
-                          >
-                            <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{proj.title}</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{proj.description}</p>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Sprint 3: GitHub README Portfolio Exporter Card */}
-                    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mt-6 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-800 dark:bg-slate-300" />
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-850 dark:text-slate-200 shrink-0">
-                            <GitBranch className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                          </div>
-                          <div>
-                            <h2 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                              🐙 Экспорт портфолио в GitHub README
-                            </h2>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Сгенерируйте профессиональный README для ваших проектов</p>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={handleGenerateReadme}
-                          disabled={isReadmeLoading}
-                          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-50 text-white dark:text-slate-900 rounded-xl text-xs font-extrabold flex items-center gap-2 transition disabled:opacity-50 shrink-0 self-start sm:self-center"
-                        >
-                          {isReadmeLoading ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              Генерация...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3.5 h-3.5" />
-                              Сгенерировать README.md
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {githubReadme && (
-                        <div className="space-y-3.5 border-t border-slate-150 dark:border-slate-850 pt-5">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500 font-bold dark:text-slate-450 uppercase tracking-wide">Ваш README.md готов:</span>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(githubReadme);
-                                toast.success('Скопировано в буфер обмена!');
-                              }}
-                              className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-extrabold transition flex items-center gap-1"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              Скопировать
-                            </button>
-                          </div>
-                          <div className="relative">
-                            <pre className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[11px] leading-relaxed overflow-x-auto max-h-72 border border-slate-800 shadow-inner">
-                              <code>{githubReadme}</code>
-                            </pre>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : activeTab === 'course' ? (
+          {activeTab === 'course' ? (
             /* Vacancy-backed Adaptive course section */
             <div>
               {!profile?.course ? (
@@ -1286,33 +1140,43 @@ export default function Career() {
                 <div className="grid lg:grid-cols-3 gap-8">
                   {/* Sidebar Market Analysis */}
                   <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-gradient-to-br from-indigo-900 to-slate-950 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500 rounded-full blur-3xl opacity-20" />
+                    <div className="bg-gradient-to-br from-indigo-50 to-slate-100 dark:from-indigo-950/60 dark:to-slate-900/50 text-slate-800 dark:text-white p-6 rounded-2xl shadow-xl relative overflow-hidden border border-slate-200 dark:border-slate-800">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500 dark:bg-indigo-500 rounded-full blur-3xl opacity-20" />
                       <div className="flex items-center gap-2 mb-4">
-                        <Award className="w-6 h-6 text-amber-400" />
+                        <Award className="w-6 h-6 text-amber-500 dark:text-amber-400" />
                         <h3 className="text-lg font-bold">Рыночный Анализ Вакансий</h3>
                       </div>
                       
                       <div className="space-y-4 text-sm">
                         <div>
-                          <span className="text-indigo-200 block text-xs">Целевая профессия</span>
-                          <span className="font-bold text-base">{profile.course.profession}</span>
+                          <span className="text-indigo-600 dark:text-indigo-300 block text-xs">Целевая профессия</span>
+                          <span className="font-bold text-base text-slate-900 dark:text-slate-100">{profile.course.profession}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <span className="text-indigo-200 block text-xs">Уровень трека</span>
-                            <span className="font-bold">{profile.course.level}</span>
+                            <span className="text-indigo-600 dark:text-indigo-300 block text-xs">Уровень трека</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{profile.course.level}</span>
                           </div>
                           <div>
-                            <span className="text-indigo-200 block text-xs">Ожидаемая ЗП</span>
-                            <span className="font-bold text-emerald-400">{formatSalary(profile.course.salary, profile.course.location)}</span>
+                            <span className="text-indigo-600 dark:text-indigo-300 block text-xs">Ожидаемая ЗП</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatSalary(profile.course.salary, profile.course.location)}</span>
                           </div>
                         </div>
-                        <div className="pt-3 border-t border-indigo-950">
-                          <span className="text-indigo-200 block text-xs mb-1">Сводная аналитика ИИ-Методиста</span>
-                          <p className="text-indigo-50 leading-relaxed text-xs">
+                        <div className="pt-3 border-t border-slate-200 dark:border-indigo-950">
+                          <span className="text-indigo-600 dark:text-indigo-300 block text-xs mb-1">Сводная аналитика ИИ-Методиста</span>
+                          <p className="text-slate-700 dark:text-indigo-100 leading-relaxed text-xs">
                             {profile.course.insights}
                           </p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 dark:border-indigo-950/60 mt-3">
+                          <button
+                            onClick={handleDeleteCourse}
+                            className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-200 border border-rose-200 dark:border-rose-500/20 rounded-xl text-[11px] font-extrabold transition flex items-center justify-center gap-1.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Удалить текущий курс
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1329,8 +1193,8 @@ export default function Career() {
 
                     {/* Sprint 1: Skills Radar Chart */}
                     {Object.keys(profile.skills_radar ?? {}).length > 0 && (
-                      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                        <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                           <Layers2 className="w-3.5 h-3.5" />
                           Карта навыков
                         </h4>
@@ -1340,8 +1204,8 @@ export default function Career() {
 
                     {/* Sprint 1: Due reviews widget */}
                     {dueReviews.length > 0 && (
-                      <div className="bg-indigo-950/30 border border-indigo-700/40 rounded-2xl p-4 space-y-3">
-                        <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <div className="bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-700/40 rounded-2xl p-4 space-y-3">
+                        <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                           <RotateCcw className="w-3.5 h-3.5" />
                           Повторение — {dueReviews.length} модул{dueReviews.length === 1 ? 'ь' : 'я'}
                         </h4>
@@ -1352,10 +1216,10 @@ export default function Career() {
                             <button
                               key={r.module_id}
                               onClick={() => setReviewModal({ open: true, module: mod })}
-                              className="w-full text-left p-2.5 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-800/40 rounded-xl text-xs font-semibold text-slate-200 flex items-center justify-between gap-2 transition"
+                              className="w-full text-left p-2.5 bg-white dark:bg-indigo-900/30 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 border border-indigo-100 dark:border-indigo-800/40 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between gap-2 transition"
                             >
                               <span className="truncate">{mod.title}</span>
-                              <span className="text-indigo-400 shrink-0 flex items-center gap-1">
+                              <span className="text-indigo-600 dark:text-indigo-450 shrink-0 flex items-center gap-1 font-bold">
                                 <RotateCcw className="w-3 h-3" /> Пройти
                               </span>
                             </button>
@@ -1376,15 +1240,15 @@ export default function Career() {
                       
                       if (completedCount >= 4 && interviewCount < milestonesAvailable) {
                         return (
-                          <div className="bg-gradient-to-r from-violet-600/20 via-indigo-600/15 to-violet-600/20 border border-violet-500/30 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-violet-650 rounded-full blur-3xl opacity-20" />
+                          <div className="bg-gradient-to-r from-violet-500/10 via-indigo-500/5 to-violet-500/10 dark:from-violet-600/20 dark:via-indigo-600/15 dark:to-violet-600/20 border border-violet-200 dark:border-violet-500/30 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-violet-600 rounded-full blur-3xl opacity-20" />
                             <div className="flex items-center gap-4 text-left">
-                              <div className="w-12 h-12 bg-violet-600/20 rounded-2xl flex items-center justify-center shrink-0 border border-violet-500/20">
-                                <Trophy className="w-6 h-6 text-violet-400" />
+                              <div className="w-12 h-12 bg-violet-100 dark:bg-violet-600/20 rounded-2xl flex items-center justify-center shrink-0 border border-violet-200 dark:border-violet-500/20">
+                                <Trophy className="w-6 h-6 text-violet-600 dark:text-violet-400" />
                               </div>
                               <div>
-                                <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest block">Каждые 4 модуля</span>
-                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">Доступно тренировочное ИИ-собеседование!</h4>
+                                <span className="text-[9px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest block font-sans">Каждые 4 модуля</span>
+                                <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">Доступно тренировочное ИИ-собеседование!</h4>
                                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                                   Вы успешно освоили {completedCount} модулей. Пройдите симуляцию реального технического интервью для вашей вакансии!
                                 </p>
@@ -1392,7 +1256,7 @@ export default function Career() {
                             </div>
                             <button
                               onClick={() => setShowMockInterview(true)}
-                              className="px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white text-xs font-black rounded-2xl transition shadow-lg shadow-violet-500/20 shrink-0 w-full sm:w-auto"
+                              className="px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white text-xs font-black rounded-2xl transition shadow-lg shadow-violet-500/10 dark:shadow-none shrink-0 w-full sm:w-auto"
                             >
                               Начать собеседование
                             </button>
@@ -1403,24 +1267,24 @@ export default function Career() {
                     })()}
 
                     {profile.course && profile.course.modules.length > 0 && profile.course.modules.every(m => m.completed) && (
-                      <div className="bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-950 rounded-3xl border border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-650 rounded-full blur-3xl opacity-25" />
-                        <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-950 border border-emerald-400/20">
+                      <div className="bg-gradient-to-tr from-indigo-50 via-white to-indigo-50 dark:from-indigo-950 dark:via-slate-900 dark:to-indigo-950 rounded-3xl border border-indigo-200 dark:border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600 rounded-full blur-3xl opacity-25" />
+                        <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-500/10 dark:shadow-none border border-emerald-400/20">
                           <Award className="w-8 h-8" />
                         </div>
                         <div className="space-y-2 max-w-lg mx-auto">
-                          <h3 className="text-xl md:text-2xl font-black text-slate-100 flex items-center justify-center gap-2">
+                          <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center justify-center gap-2">
                             Поздравляем с завершением! 🏆
                           </h3>
-                          <p className="text-xs md:text-sm text-slate-200 leading-relaxed font-semibold">
+                          <p className="text-xs md:text-sm text-slate-600 dark:text-slate-200 leading-relaxed font-semibold">
                             Вы полностью прошли все {profile.course.modules.length} модулей практики и теории! ИИ-Методист готов проанализировать вашу успеваемость и расширить вашу учебную программу продвинутыми, более сложными темами под ваши новые цели.
                           </p>
                         </div>
                         <button
                           onClick={handleStartExpandChat}
-                          className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-950 flex items-center gap-2 mx-auto transition"
+                          className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-500/15 dark:shadow-none flex items-center gap-2 mx-auto transition"
                         >
-                          <Sparkles className="w-4 h-4 text-indigo-150 animate-pulse" />
+                          <Sparkles className="w-4 h-4 text-indigo-100 animate-pulse" />
                           🚀 Расширить программу продвинутыми модулями
                         </button>
                       </div>
@@ -1454,7 +1318,7 @@ export default function Career() {
                             <div className={`p-6 rounded-2xl border transition-all ${
                               activeModuleId === mod.id 
                                 ? 'bg-white dark:bg-slate-900 border-indigo-400 shadow-md ring-1 ring-indigo-400/25' 
-                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-350 dark:hover:border-slate-750'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700'
                             } ${!isUnlocked && 'opacity-60'}`}>
                               
                               <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
@@ -1559,16 +1423,16 @@ export default function Career() {
 
                                      <div>
                                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🎯 Зачем это бизнесу</h4>
-                                      <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-semibold italic bg-indigo-50/50 dark:bg-slate-850 p-3 rounded-lg border border-indigo-100/10">
+                                      <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-semibold italic bg-indigo-50/50 dark:bg-slate-800 p-3 rounded-lg border border-indigo-100/10">
                                         {mod.why_needed}
                                       </p>
                                     </div>
 
                                     <div>
                                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">📖 Ультимативная теория темы</h4>
-                                      <div className="text-xs text-slate-650 dark:text-slate-300 leading-relaxed space-y-4 prose prose-xs dark:prose-invert">
+                                      <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed space-y-4 prose prose-xs dark:prose-invert">
                                         {mod.detailed_theory.split('|||').map((p) => p.trim()).filter(Boolean).map((para, pIdx) => (
-                                          <div key={pIdx} className="group relative pr-8 bg-slate-50/30 dark:bg-slate-950/10 p-2 rounded-xl border border-transparent hover:border-violet-500/10 hover:bg-violet-500/[0.02] transition-all">
+                                          <div key={pIdx} className="group relative pr-8 bg-slate-50/30 dark:bg-slate-900/10 p-2 rounded-xl border border-transparent hover:border-violet-500/10 hover:bg-violet-500/[0.02] transition-all">
                                             <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{para}</ReactMarkdown>
                                             <button
                                               onClick={() => setSocraticParagraph(para)}
@@ -1591,7 +1455,7 @@ export default function Career() {
                                             href={res.url} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            className="block p-3 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 transition"
+                                            className="block p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-800 transition"
                                           >
                                             <div className="flex items-center justify-between mb-1">
                                               <span className="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
@@ -1622,7 +1486,7 @@ export default function Career() {
                                             <ThumbsUp className="w-4 h-4" />
                                             Резюме ментора (балл: {mod.evaluation.score}/100)
                                           </div>
-                                          <p className="text-slate-600 dark:text-slate-350 leading-relaxed italic mb-2">"{mod.evaluation.verdict}"</p>
+                                          <p className="text-slate-600 dark:text-slate-300 leading-relaxed italic mb-2">"{mod.evaluation.verdict}"</p>
                                           
                                           {mod.evaluation.refactored_solution && (
                                             <details className="mt-2 text-[11px] text-indigo-600 dark:text-indigo-400 font-bold cursor-pointer">
@@ -1649,7 +1513,70 @@ export default function Career() {
               )}
             </div>
           ) : activeTab === 'analytics' ? (
-            profile && <LearningDashboard profile={profile} />
+            profile && (
+              <div className="space-y-8">
+                <LearningDashboard profile={profile} />
+
+                {/* Sprint 3: GitHub README Portfolio Exporter Card */}
+                <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mt-6 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-800 dark:bg-slate-300" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-850 dark:text-slate-200 shrink-0">
+                        <GitBranch className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          🐙 Экспорт портфолио в GitHub README
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Сгенерируйте профессиональный README для ваших проектов</p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={handleGenerateReadme}
+                      disabled={isReadmeLoading}
+                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-50 text-white dark:text-slate-900 rounded-xl text-xs font-extrabold flex items-center gap-2 transition disabled:opacity-50 shrink-0 self-start sm:self-center"
+                    >
+                      {isReadmeLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Генерация...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Сгенерировать README.md
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {githubReadme && (
+                    <div className="space-y-3.5 border-t border-slate-100 dark:border-slate-850 pt-5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-bold dark:text-slate-400 uppercase tracking-wide">Ваш README.md готов:</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(githubReadme);
+                            toast.success('Скопировано в буфер обмена!');
+                          }}
+                          className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-extrabold transition flex items-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Скопировать
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <pre className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[11px] leading-relaxed overflow-x-auto max-h-72 border border-slate-800 shadow-inner">
+                          <code>{githubReadme}</code>
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
           ) : (
             user && profile && (
               <JobTracker
@@ -1673,21 +1600,21 @@ export default function Career() {
       {/* VACANCY SELECTION & AI VACANCY CHAT MODAL */}
       <AnimatePresence>
         {showVacancySelector && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-900/80 backdrop-blur-md overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
-              className="bg-slate-900/90 text-white w-full max-w-6xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh] backdrop-blur-md"
+              className="bg-white dark:bg-slate-900 text-slate-850 dark:text-white w-full max-w-6xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh] backdrop-blur-md"
             >
               {/* Header */}
-              <div className="p-4 md:p-6 bg-slate-900 border-b border-slate-800 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
                     <Briefcase className="w-5 h-5 text-indigo-100" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-white text-base md:text-lg flex items-center gap-2">
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-base md:text-lg flex items-center gap-2">
                       Подборка вакансий: <span className="text-indigo-400">{pendingCourseParams?.profession}</span>
                     </h3>
                     <p className="text-xs text-slate-400">Мы нашли лучшие предложения по вашему региону ({pendingCourseParams?.location || 'Не указан'})</p>
@@ -1695,7 +1622,7 @@ export default function Career() {
                 </div>
                 <button
                   onClick={() => setShowVacancySelector(false)}
-                  className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-100 transition"
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1709,8 +1636,8 @@ export default function Career() {
               ) : (
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                   {/* Left Side: Vacancy selector list */}
-                  <div className="w-full lg:w-[40%] border-r border-slate-800 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-950/40">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Найдено вакансий: {foundVacancies.length}</h4>
+                  <div className="w-full lg:w-[35%] border-r border-slate-200 dark:border-slate-800 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
+                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Найдено вакансий: {foundVacancies.length}</h4>
                     <div className="space-y-4">
                       {foundVacancies.map((vac, vIdx) => {
                         const isSelected = selectedVacancy?.title === vac.title && selectedVacancy?.company === vac.company;
@@ -1728,16 +1655,16 @@ export default function Career() {
                             }}
                             className={`p-4 rounded-2xl border transition-all cursor-pointer select-none relative overflow-hidden flex flex-col gap-2 ${
                               isSelected
-                                ? 'bg-gradient-to-r from-indigo-950/60 to-indigo-900/40 border-indigo-500 shadow-md shadow-indigo-950'
-                                : 'bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
+                                ? 'bg-gradient-to-r from-indigo-50 to-indigo-100/50 dark:from-indigo-950/60 dark:to-indigo-900/40 border-indigo-500 dark:border-indigo-500 shadow-sm dark:shadow-md'
+                                : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/40'
                             }`}
                           >
                             <div className="flex justify-between items-start gap-2">
-                              <span className="font-extrabold text-sm text-slate-100">{vac.title}</span>
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 shrink-0 border border-slate-700">{vac.source}</span>
+                              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">{vac.title}</span>
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 border border-slate-200 dark:border-slate-700">{vac.source}</span>
                             </div>
-                            <span className="text-xs text-slate-400 font-semibold">{vac.company}</span>
-                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/40">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{vac.company}</span>
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
                               <span className="text-xs font-bold text-emerald-400">{formatSalary(vac.salary, pendingCourseParams?.location)}</span>
                               <span className="text-[10px] text-indigo-400 flex items-center gap-1 font-bold">Подробнее <ChevronRight className="w-3 h-3" /></span>
                             </div>
@@ -1748,18 +1675,18 @@ export default function Career() {
                   </div>
 
                   {/* Right Side: Selected Vacancy details + AI Chat Split Screen */}
-                  <div className="flex-grow flex flex-col lg:flex-row overflow-hidden bg-slate-900/20">
+                  <div className="flex-grow flex flex-col lg:flex-row overflow-hidden bg-slate-50/30 dark:bg-slate-900/20">
                     {selectedVacancy ? (
                       <>
                         {/* Split Left: Detailed description */}
-                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-800 overflow-y-auto flex flex-col justify-between">
+                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between">
                           <div className="space-y-6">
                             <div>
                               <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
                                 <Target className="w-4 h-4" /> Детализация вакансии
                               </div>
-                              <h2 className="text-xl font-black text-slate-100">{selectedVacancy.title}</h2>
-                              <p className="text-sm font-semibold text-indigo-300 mt-1">{selectedVacancy.company}</p>
+                              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">{selectedVacancy.title}</h2>
+                              <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-300 mt-1">{selectedVacancy.company}</p>
                               <p className="text-base font-bold text-emerald-400 mt-2">{formatSalary(selectedVacancy.salary, pendingCourseParams?.location)}</p>
                             </div>
 
@@ -1767,7 +1694,7 @@ export default function Career() {
                               {selectedVacancy.requirements && (
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Требования:</h4>
-                                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/20 p-3 rounded-xl border border-slate-805/65 font-medium">
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-100/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200 dark:border-slate-800/65 font-medium">
                                     {selectedVacancy.requirements}
                                   </p>
                                 </div>
@@ -1775,7 +1702,7 @@ export default function Career() {
                               {selectedVacancy.responsibility && (
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Обязанности:</h4>
-                                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/20 p-3 rounded-xl border border-slate-805/65 font-medium">
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-100/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200 dark:border-slate-800/65 font-medium">
                                     {selectedVacancy.responsibility}
                                   </p>
                                 </div>
@@ -1787,14 +1714,14 @@ export default function Career() {
                                 href={selectedVacancy.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 transition font-bold"
+                                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-100 transition font-bold"
                               >
                                 Посмотреть оригинал вакансии <ExternalLink className="w-3.5 h-3.5" />
                               </a>
                             )}
                           </div>
 
-                          <div className="pt-6 border-t border-slate-800/60 mt-6 shrink-0">
+                          <div className="pt-6 border-t border-slate-200 dark:border-slate-800/60 mt-6 shrink-0">
                             <button
                               onClick={() => {
                                 const lastGen = profile?.course?.last_generated_at;
@@ -1818,7 +1745,7 @@ export default function Career() {
                         </div>
 
                         {/* Split Right: AI Vacancy Coach Chat */}
-                        <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/30">
+                        <div className="flex-1 flex flex-col overflow-hidden bg-slate-100/[0.15] dark:bg-slate-950/30">
                           {/* Chat Messages */}
                           <div className="flex-grow overflow-y-auto p-6 space-y-4">
                             {vacancyChatMessages.map((msg, mIdx) => (
@@ -1829,8 +1756,8 @@ export default function Career() {
                                 <div
                                   className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
                                     msg.role === 'user'
-                                      ? 'bg-indigo-600 text-white rounded-tr-none'
-                                      : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-750/50'
+                                      ? 'bg-indigo-600 text-white rounded-br-none'
+                                      : 'bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-100 rounded-bl-none border border-slate-200 dark:border-slate-700/50'
                                   }`}
                                 >
                                   <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -1839,7 +1766,7 @@ export default function Career() {
                             ))}
                             {sendingVacancyChat && (
                               <div className="flex justify-start">
-                                <div className="bg-slate-800 text-slate-400 p-3 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs border border-slate-700/50">
+                                <div className="bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 p-3 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs border border-slate-200 dark:border-slate-700/50">
                                   <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
                                   <span>ИИ анализирует вакансию и печатает...</span>
                                 </div>
@@ -1848,14 +1775,14 @@ export default function Career() {
                           </div>
 
                           {/* Chat Input */}
-                          <div className="p-4 bg-slate-950 border-t border-slate-800 flex gap-2 items-center">
+                          <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex gap-2 items-center">
                             <input
                               type="text"
                               value={vacancyChatInput}
                               onChange={(e) => setVacancyChatInput(e.target.value)}
                               onKeyDown={(e) => e.key === 'Enter' && handleSendVacancyChatMessage()}
                               placeholder="Задай любой вопрос по этой вакансии..."
-                              className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              className="flex-1 px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-850 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <button
                               onClick={handleSendVacancyChatMessage}
@@ -1868,7 +1795,7 @@ export default function Career() {
                         </div>
                       </>
                     ) : (
-                      <div className="flex-grow flex flex-col items-center justify-center p-6 text-slate-400">
+                      <div className="flex-grow flex flex-col items-center justify-center p-6 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">
                         <Briefcase className="w-12 h-12 text-slate-600 mb-2" />
                         <p className="text-sm font-semibold">Выберите вакансию слева для детального анализа</p>
                       </div>
@@ -1919,7 +1846,7 @@ export default function Career() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-2xl text-xs font-extrabold transition"
+                  className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-extrabold transition"
                 >
                   Отмена
                 </button>
@@ -1972,7 +1899,7 @@ export default function Career() {
                 
                 <button 
                   onClick={() => setShowExpandChat(false)}
-                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-350 transition"
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-300 transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2015,7 +1942,7 @@ export default function Career() {
                 <button 
                   onClick={handleSendExpandChatMessage}
                   disabled={sendingExpandChat || !expandChatInput.trim()}
-                  className="p-3 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-xl transition shadow-md shadow-indigo-200 dark:shadow-none"
+                  className="p-3 bg-indigo-600 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-xl transition shadow-md shadow-indigo-200 dark:shadow-none"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -2156,7 +2083,7 @@ export default function Career() {
                 <div className="overflow-y-auto p-6 border-r border-slate-200 dark:border-slate-800 space-y-6">
                   <div>
                     <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">📋 Техническое задание (ТЗ)</h4>
-                    <p className="text-sm text-slate-700 dark:text-slate-350 leading-relaxed font-semibold">
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-semibold">
                       {selectedModule.practice_task.task_description}
                     </p>
                   </div>
@@ -2167,7 +2094,7 @@ export default function Career() {
                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🧪 Тестовые сценарии (тест-кейсы)</h4>
                       <div className="space-y-2 text-xs">
                         {selectedModule.practice_task.test_cases.map((tc, tcIdx) => (
-                          <div key={tcIdx} className="p-3 bg-slate-50 dark:bg-slate-850 rounded-lg border border-slate-250 dark:border-slate-800 font-mono">
+                          <div key={tcIdx} className="p-3 bg-slate-50 dark:bg-slate-850 rounded-lg border border-slate-200 dark:border-slate-800 font-mono">
                             <div><span className="text-slate-400">Вход:</span> {tc.input}</div>
                             <div><span className="text-slate-400">Ожидается:</span> {tc.expected}</div>
                           </div>
@@ -2195,7 +2122,7 @@ export default function Career() {
 
                   {/* Sprint 3: AI Code Diagnostics Panel */}
                   {showDiagnosticsPanel && (
-                    <div className="p-4 rounded-xl border border-indigo-150 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-slate-850/60 relative overflow-hidden space-y-4">
+                    <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-slate-850/60 relative overflow-hidden space-y-4">
                       <div className="flex justify-between items-center">
                         <h4 className="text-xs font-bold flex items-center gap-1.5 text-indigo-750 dark:text-indigo-300">
                           <Cpu className="w-4 h-4 text-indigo-500 animate-pulse" />
@@ -2218,11 +2145,11 @@ export default function Career() {
                         <div className="space-y-3.5 text-xs">
                           {/* Score and Complexity */}
                           <div className="grid grid-cols-2 gap-3">
-                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-250 dark:border-slate-800">
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
                               <span className="text-[10px] text-slate-400 block font-semibold mb-0.5">Оценка решения</span>
                               <span className="font-extrabold text-sm text-indigo-600 dark:text-indigo-400">{diagnosticsResult.score_estimate ?? 100} / 100</span>
                             </div>
-                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-250 dark:border-slate-800">
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
                               <span className="text-[10px] text-slate-400 block font-semibold mb-0.5">Сложность (Big O)</span>
                               <span className="font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">{diagnosticsResult.complexity || 'N/A'}</span>
                             </div>
@@ -2234,7 +2161,7 @@ export default function Career() {
                               <span className="font-bold text-[10px] text-slate-500 block mb-1.5 uppercase">⚠️ Замечания по коду:</span>
                               <ul className="space-y-1.5 pl-1">
                                 {diagnosticsResult.issues.map((issue: string, idx: number) => (
-                                  <li key={idx} className="text-[11px] leading-relaxed text-slate-650 dark:text-slate-350 flex items-start gap-1.5">
+                                  <li key={idx} className="text-[11px] leading-relaxed text-slate-650 dark:text-slate-300 flex items-start gap-1.5">
                                     <span className="text-amber-500 mt-0.5 select-none">•</span>
                                     <span>{issue}</span>
                                   </li>
@@ -2254,7 +2181,7 @@ export default function Career() {
                                     setShowDiagnosticsPanel(false);
                                     toast.success('ИИ-код успешно скопирован в редактор!');
                                   }}
-                                  className="px-2 py-1 bg-indigo-650 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-bold transition flex items-center gap-1 shadow-sm"
+                                  className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-bold transition flex items-center gap-1 shadow-sm"
                                 >
                                   <Check className="w-2.5 h-2.5" />
                                   Применить решение
@@ -2282,7 +2209,7 @@ export default function Career() {
                         </summary>
                         <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3 max-h-48 overflow-y-auto">
                           {runHistory.slice(1).map((run, rIdx) => (
-                            <div key={rIdx} className="space-y-1.5 border-b border-slate-150 dark:border-slate-850/60 pb-2.5 last:border-0 last:pb-0">
+                            <div key={rIdx} className="space-y-1.5 border-b border-slate-100 dark:border-slate-850/60 pb-2.5 last:border-0 last:pb-0">
                               <div className="flex items-center justify-between text-[10px]">
                                 <span className="font-extrabold text-slate-400 dark:text-slate-505">{run.time}</span>
                                 <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider ${
@@ -2441,7 +2368,7 @@ export default function Career() {
                           {/* Bad font fonts style overlaps */}
                           <div 
                             onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, fonts: 'Разнобой шрифтов (Arial + Times + Comic Sans)' })}
-                            className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 ${sandboxClickErrors['fonts'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-350'}`}
+                            className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 ${sandboxClickErrors['fonts'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-300'}`}
                           >
                             <h3 style={{ fontFamily: 'Times New Roman' }} className="text-lg font-bold text-slate-900">Заголовок макета</h3>
                             <p style={{ fontFamily: 'Comic Sans MS' }} className="text-xs text-slate-500">Канцеляризмы и очень нечитаемый шрифт описания.</p>
@@ -2450,7 +2377,7 @@ export default function Career() {
                           {/* Gray on gray contrast error */}
                           <div 
                             onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, contrast: 'Ужасная контрастность (светло-серый на белом)' })}
-                            className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 ${sandboxClickErrors['contrast'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-350'}`}
+                            className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 ${sandboxClickErrors['contrast'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-300'}`}
                           >
                             <span className="text-[10px] text-slate-200">Малозаметный вспомогательный текст без контраста.</span>
                           </div>
@@ -2459,7 +2386,7 @@ export default function Career() {
                           <div className="flex justify-between items-center gap-4">
                             <div 
                               onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, alignment: 'Нарушение выравнивания элементов по сетке' })}
-                              className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 flex-1 ${sandboxClickErrors['alignment'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-350'}`}
+                              className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 flex-1 ${sandboxClickErrors['alignment'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-300'}`}
                             >
                               <div className="ml-10 text-xs font-bold">Сдвинутый влево блок без причины</div>
                             </div>
@@ -2469,7 +2396,7 @@ export default function Career() {
                         {/* Identified errors chips */}
                         <div className="flex flex-wrap gap-2 pt-2">
                           {Object.entries(sandboxClickErrors).map(([key, val]) => (
-                            <span key={key} className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 font-bold rounded-lg border border-indigo-150 text-[10px] flex items-center gap-1">
+                            <span key={key} className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 font-bold rounded-lg border border-indigo-100 text-[10px] flex items-center gap-1">
                               {key.toUpperCase()}: {val}
                               <X onClick={() => {
                                 const newErrs = { ...sandboxClickErrors };
@@ -2566,7 +2493,7 @@ export default function Career() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={runLocalTests}
-                          className="px-5 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-350 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                          className="px-5 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
                         >
                           <Play className="w-3.5 h-3.5" />
                           Локальный прогон (0 токенов)

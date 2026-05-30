@@ -144,7 +144,7 @@ export default function SalaryProgressBar({
       </div>
 
       {/* Stats row */}
-      <div className="flex items-center justify-between pt-1 border-t border-slate-150 dark:border-slate-800/60">
+      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
         <p className="text-[10px] text-slate-500 font-semibold">
           Пройдено: <span className="text-slate-700 dark:text-slate-300 font-bold">{completedModules}/{totalModules} модулей</span>
         </p>

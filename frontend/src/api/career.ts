@@ -85,6 +85,7 @@ export interface CareerProfile {
   mock_interviews?: { date: string; vacancy: string; score: number; grade: string; verdict: string }[];
   // Sprint 3 additions
   vacancies?: VacancyRecord[];
+  last_course_deleted_at?: string;
 }
 
 export interface ReviewQuestion {

@@ -180,11 +180,11 @@ export default function Layout() {
           duration: 4000,
           position: 'top-right',
           style: {
-            background: isDarkActive ? '#1e293b' : '#ffffff',
-            border: isDarkActive ? '1px solid #334155' : '1px solid #e2e8f0',
+            background: 'var(--toast-bg)',
+            border: '1px solid var(--toast-border)',
             borderRadius: '16px',
-            color: isDarkActive ? '#f1f5f9' : '#0f172a',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            color: 'var(--toast-color)',
+            boxShadow: 'var(--toast-shadow)',
             padding: '12px'
           }
         });

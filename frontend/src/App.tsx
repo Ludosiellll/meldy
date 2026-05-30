@@ -64,7 +64,23 @@ export default function App() {
     <BrowserRouter>
       <PWAUpdater />
       <PortraitLock />
-      <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#1e293b', color: '#fff', borderRadius: '12px' } }} />
+      <Toaster 
+        position="top-right" 
+        toastOptions={{ 
+          duration: 4000, 
+          style: {
+            background: 'var(--toast-bg)',
+            color: 'var(--toast-color)',
+            border: '1px solid var(--toast-border)',
+            borderRadius: '16px',
+            boxShadow: 'var(--toast-shadow)',
+            padding: '12px 16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            fontFamily: "'Inter', sans-serif",
+          }
+        }} 
+      />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />

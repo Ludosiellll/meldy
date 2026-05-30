@@ -600,7 +600,7 @@ export default function KnowledgeMap() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={zoomOut}
-                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-750"
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-700"
                   title="Отдалить"
                 >
                   <Minus className="w-3.5 h-3.5" />
@@ -610,7 +610,7 @@ export default function KnowledgeMap() {
                 </span>
                 <button
                   onClick={zoomIn}
-                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-750"
+                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-700"
                   title="Приблизить"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -860,7 +860,7 @@ export default function KnowledgeMap() {
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-250 text-sm font-bold"
+                    className="absolute right-2.5 top-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-sm font-bold"
                   >
                     ×
                   </button>

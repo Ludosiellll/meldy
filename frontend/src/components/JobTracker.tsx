@@ -142,7 +142,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center">
-            <Briefcase className="w-5 h-5 text-indigo-650 dark:text-indigo-400" />
+            <Briefcase className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
             <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">Умный Трекер Вакансий</h3>
@@ -198,7 +198,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
 
               {/* Manual mode */}
               <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-650 dark:text-slate-350">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-650 dark:text-slate-300">
                   <Briefcase className="w-4 h-4" /> Вручную
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Если вы нашли вакансию на другом ресурсе</p>
@@ -220,7 +220,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
                 </div>
                 <button
                   onClick={handleAddManual}
-                  className="w-full py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition"
+                  className="w-full py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition"
                 >
                   Добавить
                 </button>
@@ -241,7 +241,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
               className={`px-3 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === col.key
                   ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-450 hover:text-slate-850'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-850'
               }`}
             >
               <span>{col.label}</span>
@@ -294,7 +294,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
                             </h5>
                             <button
                               onClick={() => handleDelete(v.id)}
-                              className="p-1 text-slate-450 hover:text-rose-500 rounded transition opacity-50 sm:opacity-0 group-hover:opacity-100"
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded transition opacity-50 sm:opacity-0 group-hover:opacity-100"
                               title="Удалить карточку"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -308,7 +308,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
 
                         {/* Match score bar */}
                         {v.match_score !== undefined && (
-                          <div className="space-y-1.5 p-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-lg">
+                          <div className="space-y-1.5 p-2 bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 rounded-lg">
                             <div className="flex justify-between items-center text-[9px] font-bold">
                               <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                 <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
@@ -329,7 +329,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
                             {/* Missing skills notifications */}
                             {missing.length > 0 && (
                               <div className="text-[8px] text-slate-500 dark:text-slate-400 leading-normal font-semibold">
-                                <span className="font-extrabold block text-slate-550 dark:text-slate-450">Чего не хватает:</span>
+                                <span className="font-extrabold block text-slate-500 dark:text-slate-400">Чего не хватает:</span>
                                 <span className="text-indigo-600/90 dark:text-indigo-400">{missing.slice(0, 3).join(', ')}</span>
                                 {missing.length > 3 && ` +${missing.length - 3}`}
                               </div>

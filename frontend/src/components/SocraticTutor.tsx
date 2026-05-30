@@ -69,7 +69,7 @@ export default function SocraticTutor({ paragraphText, profession, onClose }: So
       {/* Header */}
       <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/20">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-violet-650/10 dark:bg-violet-600/20 rounded-xl flex items-center justify-center border border-violet-500/20">
+          <div className="w-9 h-9 bg-violet-600/10 dark:bg-violet-600/20 rounded-xl flex items-center justify-center border border-violet-500/20">
             <HelpCircle className="w-4.5 h-4.5 text-violet-600 dark:text-violet-400" />
           </div>
           <div>
@@ -118,7 +118,7 @@ export default function SocraticTutor({ paragraphText, profession, onClose }: So
               🏛️
             </div>
             <div className="p-3 bg-white dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 rounded-2xl rounded-tl-none flex items-center gap-1.5 shadow-sm">
-              <Loader2 className="w-3 h-3 animate-spin text-violet-650 dark:text-violet-400" />
+              <Loader2 className="w-3 h-3 animate-spin text-violet-600 dark:text-violet-400" />
               <span className="text-[9px]">Сократ подбирает аналогию...</span>
             </div>
           </div>
@@ -129,12 +129,12 @@ export default function SocraticTutor({ paragraphText, profession, onClose }: So
       {/* Footer input */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-950/20">
         {turnsLeft <= 0 ? (
-          <p className="text-center text-[10px] text-slate-450 dark:text-slate-500 italic py-2">
+          <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 italic py-2">
             🏛️ «Мудрость начинается с удивления». Наш диалог по этому вопросу завершен. Пора продолжить изучение курса!
           </p>
         ) : (
           <div className="space-y-2">
-            <div className="flex justify-between items-center px-1 text-[9px] text-slate-450 dark:text-slate-500 font-semibold">
+            <div className="flex justify-between items-center px-1 text-[9px] text-slate-400 dark:text-slate-500 font-semibold">
               <span>Сократовский метод ведения мысли</span>
               <span>Осталось реплик: {turnsLeft}</span>
             </div>
@@ -146,12 +146,12 @@ export default function SocraticTutor({ paragraphText, profession, onClose }: So
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
                 placeholder="Задайте вопрос или изложите свое сомнение..."
-                className="flex-1 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-550 focus:outline-none focus:border-violet-500/40"
+                className="flex-1 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-violet-500/40"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
-                className="p-2 bg-violet-650 dark:bg-violet-600 hover:bg-violet-750 text-white rounded-xl transition flex items-center justify-center shrink-0 shadow-sm"
+                className="p-2 bg-violet-600 dark:bg-violet-600 hover:bg-violet-750 text-white rounded-xl transition flex items-center justify-center shrink-0 shadow-sm"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
