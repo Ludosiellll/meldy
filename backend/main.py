@@ -1074,3 +1074,5 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# Trigger rebuild v1.0.1 - Force HF Spaces fresh deploy
