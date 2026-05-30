@@ -327,16 +327,43 @@ export default function KnowledgeMap() {
           let strength = 0.5;
 
           if (nodeA.type === 'material' && nodeB.type === 'material') {
-            minDist = 480; // Звезды далеко друг от друга, чтобы их орбиты (планеты) не слипались
-            strength = 0.7;
+            minDist = 520; // Звезды далеко друг от друга, чтобы их орбиты не слипались
+            strength = 0.8;
           } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-            // Планеты сильно расталкиваются, чтобы равномерно распределиться по орбите и не перекрывать тексты
-            minDist = nodeA.radius + nodeB.radius + 65; 
-            strength = 0.6;
+            // Проверим, имеют ли они хотя бы одну общую лекцию
+            const shareMaterial = nodeA.materials?.some(ma => 
+              nodeB.materials?.some(mb => mb.id === ma.id)
+            );
+
+            if (shareMaterial) {
+              // Планеты одной звезды расталкиваются стандартно по орбите
+              minDist = nodeA.radius + nodeB.radius + 70; 
+              strength = 0.6;
+            } else {
+              // Планеты РАЗНЫХ звезд расталкиваются ОЧЕНЬ сильно, чтобы галактики не пересекались!
+              minDist = nodeA.radius + nodeB.radius + 180; 
+              strength = 0.85;
+            }
           } else {
-            // Звезда и планета (родная или чужая) - держим дистанцию чуть меньше желаемой орбиты (85)
-            minDist = nodeA.radius + nodeB.radius + 60;
-            strength = 0.55;
+            // Один - лекция, другой - понятие.
+            const materialNode = nodeA.type === 'material' ? nodeA : nodeB;
+            const conceptNode = nodeA.type === 'concept' ? nodeA : nodeB;
+            
+            // Проверим связь между ними
+            const isLinked = currentLinks.some(l => 
+              (l.source === materialNode.id && l.target === conceptNode.id) ||
+              (l.target === materialNode.id && l.source === conceptNode.id)
+            );
+
+            if (isLinked) {
+              // Родная звезда - держим мягкую дистанцию-буфер
+              minDist = materialNode.radius + conceptNode.radius + 60;
+              strength = 0.5;
+            } else {
+              // ЧУЖАЯ звезда - расталкиваем ОЧЕНЬ сильно, чтобы чужие планеты не залетали в систему!
+              minDist = materialNode.radius + conceptNode.radius + 200;
+              strength = 0.8;
+            }
           }
 
           if (dist < minDist) {
