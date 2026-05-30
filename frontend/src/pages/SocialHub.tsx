@@ -99,22 +99,34 @@ export default function SocialHub() {
         </div>
 
         {/* Табы */}
-        <div className="flex bg-slate-200 dark:bg-slate-900 p-1 rounded-xl overflow-x-auto custom-scrollbar w-full sm:w-auto shrink-0">
+        <div className="flex bg-slate-200/60 dark:bg-slate-950 p-1 rounded-2xl border border-slate-300/20 dark:border-slate-800/60 overflow-x-auto custom-scrollbar w-full sm:w-auto shrink-0">
           {[
             { key: 'feed', label: 'Маркетплейс' },
             { key: 'leaderboard', label: 'Лидерборд' },
             { key: 'search', label: '🔍 Найти' },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className={`flex-1 sm:flex-none text-center px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${
-                activeTab === tab.key ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                className={`relative flex-1 sm:flex-none text-center px-5 py-2 rounded-xl font-bold text-sm transition-colors duration-200 whitespace-nowrap select-none ${
+                  isActive
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="activeSocialTab"
+                    className="absolute inset-0 bg-white dark:bg-slate-850 rounded-xl shadow-md -z-10"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

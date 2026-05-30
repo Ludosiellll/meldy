@@ -222,28 +222,46 @@ export default function Analytics() {
           </div>
         </div>
 
-        <div className="flex bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/60 p-1 rounded-2xl w-full md:w-auto backdrop-blur-md shadow-sm">
+        <div className="flex bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/60 p-1 rounded-2xl w-full md:w-auto backdrop-blur-md shadow-sm select-none">
           <button
             onClick={() => setActiveTab('platform')}
-            className={`flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${
+            className={`relative flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
               activeTab === 'platform' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-600/10 dark:shadow-indigo-500/15 scale-102' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
+                ? 'text-white' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
-            <BarChart2 className="w-4 h-4 shrink-0" />
-            Аналитика обучения
+            {activeTab === 'platform' && (
+              <motion.span
+                layoutId="activeAnalyticsTab"
+                className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 shrink-0" />
+              <span>Аналитика обучения</span>
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('gradebook')}
-            className={`flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${
+            className={`relative flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
               activeTab === 'gradebook' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-600/10 dark:shadow-indigo-500/15 scale-102' 
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
+                ? 'text-white' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
-            <GraduationCap className="w-4 h-4 shrink-0" />
-            Дневник оценок
+            {activeTab === 'gradebook' && (
+              <motion.span
+                layoutId="activeAnalyticsTab"
+                className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 shrink-0" />
+              <span>Дневник оценок</span>
+            </span>
           </button>
         </div>
       </div>

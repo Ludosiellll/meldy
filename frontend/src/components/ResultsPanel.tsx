@@ -619,22 +619,40 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       </div>
 
       {/* Pill-вкладки */}
-      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={'flex shrink-0 snap-start items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm transition font-bold ' +
-              (tab === t.id
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50')}>
-            {t.icon}
-            {t.label}
-            {t.count !== undefined && (
-              <span className={'ml-1 text-xs px-1.5 py-0.5 rounded-md ' + (tab === t.id ? 'bg-indigo-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400')}>
-                {t.count}
+      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print border border-slate-250/20 dark:border-slate-800/60">
+        {tabs.map(t => {
+          const isActive = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`relative flex shrink-0 snap-start items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+                isActive
+                  ? 'text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              {isActive && (
+                <motion.span
+                  layoutId="activeResultsTab"
+                  className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-1.5">
+                {t.icon}
+                <span>{t.label}</span>
+                {t.count !== undefined && (
+                  <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-md transition-colors ${
+                    isActive ? 'bg-indigo-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-650 dark:text-slate-400'
+                  }`}>
+                    {t.count}
+                  </span>
+                )}
               </span>
-            )}
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px] printable-section">

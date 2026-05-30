@@ -4,6 +4,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { motion } from 'framer-motion';
 import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
 import { getMaterialById, updateMaterialSubject, updateMaterialVisibility, updateMaterialTitle } from '../api/materials';
@@ -171,34 +172,64 @@ export default function MaterialDetail() {
       <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 sm:grid-cols-2 ${hasPodcast && hasFlashcards ? 'md:grid-cols-4' : hasPodcast || hasFlashcards ? 'md:grid-cols-3' : ''}`}>
         <button
           onClick={() => setMode('full')}
-          className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
             mode === 'full'
-              ? 'bg-slate-900 dark:bg-slate-800 text-white shadow-md'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
+              ? 'text-white'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
-          <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" /> Полное обучение
+          {mode === 'full' && (
+            <motion.span
+              layoutId="activeDetailMode"
+              className="absolute inset-0 bg-slate-900 dark:bg-slate-850 rounded-xl shadow-md -z-10"
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span>Полное обучение</span>
+          </span>
         </button>
         <button
           onClick={() => setMode('express')}
-          className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
+          className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
             mode === 'express'
-              ? 'bg-rose-600 text-white shadow-md'
-              : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white/50 dark:hover:bg-slate-800/50'
+              ? 'text-white'
+              : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
           }`}
         >
-          <Zap className="w-5 h-5 sm:w-4 sm:h-4" /> За 5 минут
+          {mode === 'express' && (
+            <motion.span
+              layoutId="activeDetailMode"
+              className="absolute inset-0 bg-rose-600 rounded-xl shadow-md -z-10"
+              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-2">
+            <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span>За 5 минут</span>
+          </span>
         </button>
         {hasPodcast && (
           <button
             onClick={() => setMode('podcast')}
-            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition ${
+            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
               mode === 'podcast'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-slate-800/50'
+                ? 'text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
             }`}
           >
-            <Headphones className="w-5 h-5 sm:w-4 sm:h-4" /> AI-Подкаст
+            {mode === 'podcast' && (
+              <motion.span
+                layoutId="activeDetailMode"
+                className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Headphones className="w-5 h-5 sm:w-4 sm:h-4" />
+              <span>AI-Подкаст</span>
+            </span>
           </button>
         )}
         {hasFlashcards && (

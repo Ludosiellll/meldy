@@ -48,7 +48,12 @@ export function CustomSelect({
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className={`flex items-center justify-between w-full outline-none transition-all ${className} ${
-          isOpen ? 'ring-2 ring-indigo-500 border-indigo-500' : ''
+          isOpen ? (
+            className.includes('ring-rose-500') || className.includes('focus:ring-rose-500') ? 'ring-2 ring-rose-500 border-rose-500' :
+            className.includes('ring-emerald-500') || className.includes('focus:ring-emerald-500') ? 'ring-2 ring-emerald-500 border-emerald-500' :
+            className.includes('ring-amber-500') || className.includes('focus:ring-amber-500') ? 'ring-2 ring-amber-500 border-amber-500' :
+            'ring-2 ring-indigo-500 border-indigo-500'
+          ) : ''
         }`}
       >
         <div className="flex items-center gap-2 truncate">
@@ -67,11 +72,11 @@ export function CustomSelect({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.1, ease: 'easeOut' }}
+            className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl dark:shadow-slate-950/50 overflow-hidden"
           >
             <div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
               {options.length === 0 ? (
@@ -89,15 +94,31 @@ export function CustomSelect({
                       }}
                       className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
                         isSelected
-                          ? 'bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-semibold'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          ? className.includes('ring-rose-500') || className.includes('focus:ring-rose-500')
+                            ? 'bg-rose-50/50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 font-semibold'
+                            : className.includes('ring-emerald-500') || className.includes('focus:ring-emerald-500')
+                            ? 'bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 font-semibold'
+                            : className.includes('ring-amber-500') || className.includes('focus:ring-amber-500')
+                            ? 'bg-amber-50/50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-semibold'
+                            : 'bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-semibold'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         {option.icon && <span className="shrink-0 opacity-70">{option.icon}</span>}
                         <span className="truncate">{option.label}</span>
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />}
+                      {isSelected && (
+                        <Check className={`w-4 h-4 shrink-0 ${
+                          className.includes('ring-rose-500') || className.includes('focus:ring-rose-500')
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : className.includes('ring-emerald-500') || className.includes('focus:ring-emerald-500')
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : className.includes('ring-amber-500') || className.includes('focus:ring-amber-500')
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-indigo-600 dark:text-indigo-400'
+                        }`} />
+                      )}
                     </button>
                   );
                 })
