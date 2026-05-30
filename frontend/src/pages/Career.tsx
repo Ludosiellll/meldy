@@ -1655,7 +1655,7 @@ export default function Career() {
       {/* VACANCY SELECTION & AI VACANCY CHAT MODAL */}
       <AnimatePresence>
         {showVacancySelector && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-900/80 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-900/80 backdrop-blur-md overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1825,7 +1825,7 @@ export default function Career() {
                             )}
                           </div>
 
-                          <div className="pt-6 border-t border-slate-200 dark:border-slate-800/60 mt-6 shrink-0">
+                          <div className="pt-6 border-t border-slate-200 dark:border-slate-800/60 mt-6 pb-8 shrink-0">
                             <button
                               onClick={() => {
                                 const lastGen = profile?.course?.last_generated_at;
@@ -1915,7 +1915,7 @@ export default function Career() {
       {/* WARNING RATE-LIMIT CONFIRMATION MODAL */}
       <AnimatePresence>
         {showConfirmModal && pendingCourseParams && selectedVacancy && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
