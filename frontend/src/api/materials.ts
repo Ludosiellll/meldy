@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 export async function getMaterials(userId: string) {
   const { data, error } = await supabase
     .from('materials')
-    .select('id, title, subject, created_at, flashcards_json, quiz_json, original_text, summary_json')
+    .select('id, title, subject, created_at, flashcards_json, quiz_json, original_text, summary_json, missions_json')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;

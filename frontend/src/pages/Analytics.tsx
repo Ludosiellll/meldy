@@ -222,21 +222,27 @@ export default function Analytics() {
           </div>
         </div>
 
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-auto">
+        <div className="flex bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/60 p-1 rounded-2xl w-full md:w-auto backdrop-blur-md shadow-sm">
           <button
             onClick={() => setActiveTab('platform')}
-            className={`flex-1 md:px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === 'platform' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            className={`flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${
+              activeTab === 'platform' 
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-600/10 dark:shadow-indigo-500/15 scale-102' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
             }`}
           >
-            Платформа
+            <BarChart2 className="w-4 h-4 shrink-0" />
+            Аналитика обучения
           </button>
           <button
             onClick={() => setActiveTab('gradebook')}
-            className={`flex-1 md:px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === 'gradebook' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            className={`flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${
+              activeTab === 'gradebook' 
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-600/10 dark:shadow-indigo-500/15 scale-102' 
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/40'
             }`}
           >
+            <GraduationCap className="w-4 h-4 shrink-0" />
             Дневник оценок
           </button>
         </div>

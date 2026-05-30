@@ -42,9 +42,10 @@ const navGroups = [
   {
     title: '📊 Прогресс',
     items: [
-      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Аналитика & Оценки', className: 'tour-step-desktop-gradebook' },
-      { to: '/mistakes',      icon: BookMarked,      label: 'Дневник ошибок',       className: '' },
-      { to: '/play',          icon: Gamepad2,        label: 'Квесты',               className: '' },
+      { to: '/analytics?tab=platform',  icon: BarChart2,       label: 'Аналитика обучения',   className: '' },
+      { to: '/analytics?tab=gradebook', icon: GraduationCap,   label: 'Дневник оценок',       className: 'tour-step-desktop-gradebook' },
+      { to: '/mistakes',                icon: BookMarked,      label: 'Дневник ошибок',       className: '' },
+      { to: '/play',                    icon: Gamepad2,        label: 'Квесты',               className: '' },
     ]
   },
 ];

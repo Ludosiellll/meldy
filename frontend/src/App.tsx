@@ -25,6 +25,7 @@ import AuthCallback from './pages/AuthCallback';
 import SocialHub from './pages/SocialHub';
 import CoStudy from './pages/CoStudy';
 import Career from './pages/Career';
+import StudySession from './pages/StudySession';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
 import TeacherDashboard from './pages/TeacherDashboard';
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="assignment/:id" element={<AssignmentView />} />
           <Route path="co-study/:id" element={<CoStudy />} />
           <Route path="review" element={<Review />} />
+          <Route path="study-session" element={<StudySession />} />
           <Route path="planner" element={<Navigate to="/courses" replace />} />
           <Route path="courses" element={<Courses />} />
           <Route path="chat" element={<Chat />} />

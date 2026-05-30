@@ -1,4 +1,4 @@
-﻿import { Material, StudySession, Flashcard } from '../types';
+import { Material, StudySession, Flashcard } from '../types';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Brain, GraduationCap, Flame, ChevronRight, FileText, Zap, Calendar, Award, Gamepad2, Heart, Trophy, Sparkles, BarChart2, Clock, Bot, Layers, Users, MessageSquare, CheckCircle2, Backpack } from 'lucide-react';
@@ -222,6 +222,104 @@ export default function Dashboard() {
           <BarChart2 className="w-5 h-5 text-indigo-200 shrink-0 hidden sm:block" />
         </motion.button>
       </div>
+
+      {/* ── РЕЖИМ СЕССИИ: Умный наставник ── */}
+      {(() => {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const completedToday = sessions.some(s => s.date === todayStr && s.cards_reviewed > 0);
+        
+        if (materials.length === 0) {
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 shrink-0 border border-slate-200/40 dark:border-slate-700/40 text-xl">
+                  🔒
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
+                    Сессия обучения заблокирована
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl mt-0.5 leading-relaxed">
+                    Загрузи свой первый конспект или лекцию в библиотеку, и ИИ-наставник Forgey автоматически составит твой первый интерактивный план!
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/analyze')}
+                className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition shrink-0"
+              >
+                Загрузить материал 🚀
+              </button>
+            </motion.div>
+          );
+        }
+
+        if (completedToday) {
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent dark:from-emerald-950/20 dark:to-teal-950/20 border border-emerald-500/20 dark:border-emerald-900/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md text-xl">
+                  ✓
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-1.5">
+                    Дневной план выполнен! 🎉
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl mt-0.5 leading-relaxed">
+                    Ты сегодня отлично потрудился, стрик дней в безопасности. Возвращайся завтра или начни свободное изучение лекций и тренировки!
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/study-session')}
+                className="w-full sm:w-auto px-5 py-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition shrink-0"
+              >
+                Повторить сессию ⚡
+              </button>
+            </motion.div>
+          );
+        }
+
+        const cardsCount = dueCards.length > 0 ? Math.min(10, dueCards.length) : 5;
+        const activeMaterialName = materials[0]?.title || 'учебному материалу';
+
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl text-white relative overflow-hidden"
+          >
+            <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+            <div className="relative flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md text-xl animate-pulse">
+                🔮
+              </div>
+              <div>
+                <h4 className="font-extrabold text-white text-sm flex items-center gap-2">
+                  Твой личный наставник подготовил сессию обучения! ✨
+                </h4>
+                <p className="text-xs text-indigo-100 max-w-xl mt-0.5 leading-relaxed">
+                  Сегодня в плане: повторение {cardsCount} карточек + разбор лекции "{activeMaterialName}". Пройди сессию и получи <span className="font-extrabold text-amber-300 animate-pulse">+50 XP</span>!
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/study-session')}
+              className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-indigo-50 text-indigo-600 font-black text-xs rounded-xl shadow-lg hover:shadow-indigo-500/20 transition-all duration-300 shrink-0 relative z-10 scale-102 active:scale-98"
+            >
+              Начать учёбу 🚀
+            </button>
+          </motion.div>
+        );
+      })()}
 
       {/* ── СЕГОДНЯ: три главных карточки ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
