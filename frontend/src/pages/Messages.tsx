@@ -63,24 +63,34 @@ export default function Messages() {
     }
   }, [user?.id, urlId]);
 
+  // Subscribe to ALL incoming messages globally on Messages page
   useEffect(() => {
-    if (!user || !activeFriend) return;
-    const friendId = activeFriend.friend_id!;
-    getMessages(user.id, friendId).then(setMessages);
+    if (!user) return;
 
     const unsubscribe = subscribeToMessages(user.id, (msg) => {
-      if (
-        (msg.sender_id === user.id && msg.receiver_id === friendId) ||
-        (msg.sender_id === friendId && msg.receiver_id === user.id)
-      ) {
-        setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
-      } else {
-        // reload chats if we get a new message from someone else
-        getChats(user.id).then(setFriends);
-      }
+      // Reload chats list so new conversations show up immediately
+      getChats(user.id).then(setFriends);
+
+      // If the message belongs to the currently active friend thread, append it
+      setActiveFriend(current => {
+        if (current && (msg.sender_id === current.friend_id || msg.receiver_id === current.friend_id)) {
+          setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
+        }
+        return current;
+      });
     });
+
     return () => { unsubscribe(); };
-  }, [user?.id, activeFriend]);
+  }, [user?.id]);
+
+  // Load message history when active friend changes
+  useEffect(() => {
+    if (!user || !activeFriend) {
+      setMessages([]);
+      return;
+    }
+    getMessages(user.id, activeFriend.friend_id!).then(setMessages);
+  }, [user?.id, activeFriend?.friend_id]);
 
   useEffect(() => {
     if (!user || !searchQuery.trim()) {
