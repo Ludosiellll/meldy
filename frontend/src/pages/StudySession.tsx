@@ -108,6 +108,34 @@ export default function StudySession() {
         return;
       }
 
+      // Проверяем наличие незавершенной сохраненной сессии в localStorage
+      const saved = localStorage.getItem(`study_session_${user.id}`);
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          const matExists = mats.some(m => m.id === data.activeMaterial?.id);
+          if (matExists && data.phase !== 'completed') {
+            setPhase(data.phase);
+            setCardIdx(data.cardIdx);
+            setCardStats(data.cardStats);
+            setChatMessages(data.chatMessages);
+            setQuizIdx(data.quizIdx);
+            setQuizScore(data.quizScore);
+            setActiveMaterial(data.activeMaterial);
+            setSessionCards(data.sessionCards);
+            setTestQuestions(data.testQuestions);
+            setXpGained(data.xpGained);
+            setSelectedOption(data.selectedOption);
+            setIsCorrect(data.isCorrect);
+            setShowHint(data.showHint);
+            setLoading(false);
+            return; // Восстанавливаем состояние и прерываем стандартную инициализацию
+          }
+        } catch (e) {
+          console.error("Ошибка при восстановлении сессии:", e);
+        }
+      }
+
       // Выбираем активный материал
       const mat = mats[0];
       setActiveMaterial(mat);
@@ -157,6 +185,33 @@ export default function StudySession() {
     .catch(console.error)
     .finally(() => setLoading(false));
   }, [user?.id]);
+
+  // Автоматическое сохранение состояния сессии в localStorage при изменениях
+  useEffect(() => {
+    if (!user?.id || loading || phase === 'completed') return;
+    
+    const sessionData = {
+      phase,
+      cardIdx,
+      cardStats,
+      chatMessages,
+      quizIdx,
+      quizScore,
+      activeMaterial,
+      sessionCards,
+      testQuestions,
+      xpGained,
+      selectedOption,
+      isCorrect,
+      showHint
+    };
+    
+    localStorage.setItem(`study_session_${user.id}`, JSON.stringify(sessionData));
+  }, [
+    user?.id, phase, cardIdx, cardStats, chatMessages, quizIdx, 
+    quizScore, activeMaterial, sessionCards, testQuestions, 
+    xpGained, selectedOption, isCorrect, showHint, loading
+  ]);
 
   // Генерация миссий на лету (если не кэшировано)
   const ensureQuizLoaded = async (mat: any) => {
@@ -346,6 +401,7 @@ export default function StudySession() {
     playSuccessSound();
 
     if (user?.id) {
+      localStorage.removeItem(`study_session_${user.id}`);
       try {
         // Начисляем XP (+50 за всю сессию + по 10 за каждый верный ответ)
         const earnedXP = 50 + quizScore * 10;
@@ -412,7 +468,8 @@ export default function StudySession() {
       {phase !== 'completed' && (
         <button
           onClick={() => {
-            if (confirm('Вы уверены, что хотите выйти из сессии обучения? Прогресс шага будет утерян.')) {
+            if (confirm('Вы уверены, что хотите выйти из сессии обучения? Прогресс будет утерян.')) {
+              localStorage.removeItem(`study_session_${user?.id}`);
               navigate('/dashboard');
             }
           }}
@@ -892,6 +949,9 @@ export default function StudySession() {
               </button>
               <button
                 onClick={() => {
+                  if (user?.id) {
+                    localStorage.removeItem(`study_session_${user.id}`);
+                  }
                   setPhase('setup');
                   setCardIdx(0);
                   setCardRevealed(false);
