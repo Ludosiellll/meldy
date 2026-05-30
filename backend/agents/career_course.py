@@ -477,7 +477,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите алгоритм, который проверяет правильность скобочной последовательности. Функция solution(str) принимает строку, содержащую символы '(', ')', '{', '}', '[', ']' и возвращает true, если все скобки закрыты в правильном порядке, иначе false. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична C# Stack/List решениям).",
                     "origin_interview_questions": "Компания: Сбер. Вопросы на интервью: 1) В чем разница между ссылочными (class) и значимыми (struct) типами в C#? 2) Где выделяется память под объекты классов и под структуры? 3) Что такое сборщик мусора (GC) в .NET и как он работает?",
-                    "code_template": "function solution(str) {\n  let stack = [];\n  let mapping = {')': '(', '}': '{', ']': '['};\n  for (let char of str) {\n    if (char === '(' || char === '{' || char === '[') {\n      stack.push(char);\n    } else {\n      if (stack.length === 0 || stack.pop() !== mapping[char]) {\n        return false;\n      }\n    }\n  }\n  return stack.length === 0;\n}",
+                    "code_template": "function solution(str) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[\"()[]{}\"]", "expected": "true" },
                         { "input": "[\"(]\"]", "expected": "false" }
@@ -511,7 +511,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите функцию, которая группирует список товаров по категориям и находит самую высокую цену в каждой категории. Функция solution(products) принимает массив объектов товаров {name, category, price} и возвращает объект, где ключи — это категории, а значения — максимальная цена. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична C# методам GroupBy и Max).",
                     "origin_interview_questions": "Компания: Тинькофф. Вопросы на интервью: 1) Что такое отложенное выполнение (deferred execution) в LINQ? 2) В чем разница между IEnumerable, IQueryable и IList? 3) Какова сложность поиска элемента по ключу в Dictionary?",
-                    "code_template": "function solution(products) {\n  let result = {};\n  for (let p of products) {\n    if (!result[p.category] || p.price > result[p.category]) {\n      result[p.category] = p.price;\n    }\n  }\n  return result;\n}",
+                    "code_template": "function solution(products) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[ [{\"name\":\"A\",\"category\":\"Tech\",\"price\":100},{\"name\":\"B\",\"category\":\"Tech\",\"price\":150},{\"name\":\"C\",\"category\":\"Food\",\"price\":50}] ]", "expected": "{\"Tech\":150,\"Food\":50}" }
                     ],
@@ -549,7 +549,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите функцию, которая принимает список чисел и возвращает список только уникальных элементов в том же порядке. Функция solution(arr) должна удалять дубликаты. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична Python решениям с множествами set()).",
                     "origin_interview_questions": "Компания: Яндекс. Вопросы на интервью: 1) В чем разница между mutable и immutable типами в Python? 2) Как под капотом устроен словарь dict и какова сложность поиска? 3) Что такое GIL и как он влияет на многопоточность?",
-                    "code_template": "function solution(arr) {\n  let seen = new Set();\n  let result = [];\n  for (let val of arr) {\n    if (!seen.has(val)) {\n      seen.add(val);\n      result.push(val);\n    }\n  }\n  return result;\n}",
+                    "code_template": "function solution(arr) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[[1, 2, 2, 3, 1]]", "expected": "[1, 2, 3]" }
                     ],
@@ -582,7 +582,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите асинхронную функцию, которая выполняет два действия параллельно и возвращает их результаты массивом. Функция solution(p1, p2) принимает два промиса и ожидает их выполнения. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична asyncio.gather в Python).",
                     "origin_interview_questions": "Компания: Авито. Вопросы на интервью: 1) В чем разница между многопоточностью (threading) и асинхронностью (asyncio) в Python? 2) Что такое Pydantic и как он осуществляет валидацию типов?",
-                    "code_template": "async function solution(p1, p2) {\n  return await Promise.all([p1, p2]);\n}",
+                    "code_template": "async function solution(p1, p2) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[Promise.resolve(1), Promise.resolve(2)]", "expected": "[1, 2]" }
                     ],
@@ -620,7 +620,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите функцию solution(users), которая принимает массив объектов пользователей {id, name, age, active} и возвращает отсортированный по возрасту массив имен пользователей, у которых поле active равно true. Использовать методы .filter(), .map() и .sort().",
                     "origin_interview_questions": "Компания: Т-Банк. Вопросы на интервью: 1) В чем разница между var, let и const? 2) Что такое замыкание (closure) в JavaScript? 3) Как работает Event Loop?",
-                    "code_template": "function solution(users) {\n  return users\n    .filter(u => u.active)\n    .sort((a, b) => a.age - b.age)\n    .map(u => u.name);\n}",
+                    "code_template": "function solution(users) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[ [{\"name\":\"Иван\",\"age\":25,\"active\":true},{\"name\":\"Анна\",\"age\":20,\"active\":false},{\"name\":\"Олег\",\"age\":30,\"active\":true}] ]", "expected": "[\"Иван\",\"Олег\"]" }
                     ],
@@ -653,7 +653,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите функцию solution(arr), которая группирует последовательные одинаковые элементы массива в подмассивы. Например: [1, 1, 2, 3, 3] превращается в [[1, 1], [2], [3, 3]]. Это умение группировать данные часто нужно при рендеринге списков по категориям в React.",
                     "origin_interview_questions": "Компания: Самокат. Вопросы на интервью: 1) Что такое Virtual DOM в React и как он оптимизирует обновление интерфейса? 2) В чем разница между управляемыми и неуправляемыми компонентами? 3) Почему нельзя вызывать хуки внутри условий или циклов?",
-                    "code_template": "function solution(arr) {\n  let result = [];\n  let current = [];\n  for (let val of arr) {\n    if (current.length === 0 || current[0] === val) {\n      current.push(val);\n    } else {\n      result.push(current);\n      current = [val];\n    }\n  }\n  if (current.length > 0) {\n    result.push(current);\n  }\n  return result;\n}",
+                    "code_template": "function solution(arr) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[[1, 1, 2, 3, 3]]", "expected": "[[1,1],[2],[3,3]]" }
                     ],
@@ -691,7 +691,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите SQL-запрос, который выбирает имя (name), отдел (department) и зарплату (salary) сотрудников из таблицы employees, чья зарплата превышает 80000, отсортированных по убыванию зарплаты.",
                     "origin_interview_questions": "Компания: Альфа-Банк. Вопросы на интервью: 1) В чем разница между реляционными и нереляционными базами данных (SQL vs NoSQL)? 2) Что такое первичный (PRIMARY KEY) и внешний (FOREIGN KEY) ключи? 3) Какие нормальные формы вы знаете и зачем они нужны?",
-                    "code_template": "SELECT name, department, salary FROM employees WHERE salary > 80000 ORDER BY salary DESC;",
+                    "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
                     "test_cases": [],
                     "non_code_options": [],
                     "non_code_correct": "",
@@ -722,7 +722,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите SQL-запрос, который находит общую сумму продаж (sum of sales.amount) по каждому клиенту (customers.name). Объедините таблицы customers и sales с помощью INNER JOIN, сгруппируйте по имени клиента и выведите только тех, у кого общая сумма продаж превышает 5000.",
                     "origin_interview_questions": "Компания: МегаФон. Вопросы на интервью: 1) В чем разница между INNER JOIN и LEFT JOIN? Что произойдет если в правой таблице нет совпадений? 2) В чем отличие WHERE от HAVING?",
-                    "code_template": "SELECT c.name, SUM(s.amount) as total_sales\nFROM customers c\nINNER JOIN sales s ON c.id = s.customer_id\nGROUP BY c.name\nHAVING SUM(s.amount) > 5000;",
+                    "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
                     "test_cases": [],
                     "non_code_options": [],
                     "non_code_correct": "",
@@ -759,7 +759,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите функцию, которая находит самое длинное слово в предложении. Функция solution(sentence) принимает строку и возвращает длину самого длинного слова. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика работы со строками полностью переносится в другие языки программирования)." if is_technical else f"Напишите подробный план развития и внедрения вашего учебного проекта по теме: {profession}.",
                     "origin_interview_questions": "Стандартный вопрос на любом собеседовании: 'Расскажите о себе, своих главных проектах и технологическом стеке, который вы предпочитаете'.",
-                    "code_template": "function solution(sentence) {\n  let words = sentence.split(' ');\n  let maxLength = 0;\n  for (let word of words) {\n    if (word.length > maxLength) {\n      maxLength = word.length;\n    }\n  }\n  return maxLength;\n}" if is_technical else "",
+                    "code_template": "function solution(sentence) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}" if is_technical else "",
                     "test_cases": [
                         { "input": "[\"The quick brown fox jumps over the lazy dog\"]", "expected": "5" }
                     ] if is_technical else [],
@@ -792,7 +792,7 @@ class CareerCourseAgent(BaseAgent):
                 "practice_task": {
                     "task_description": "Напишите функцию solution(items), которая принимает массив объектов {name, priority} и возвращает массив, отсортированный по убыванию приоритета (priority). (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Логика сортировки объектов универсальна)." if is_technical else f"Напишите детальное описание схемы хранения данных и модели сущностей для вашего сквозного проекта в рамках {profession}.",
                     "origin_interview_questions": "Расскажите: 1) Как вы обеспечиваете качество и надежность вашей работы? 2) Какие основные архитектурные шаблоны проектирования вы применяли в своих прошлых проектах?",
-                    "code_template": "function solution(items) {\n  return items.sort((a, b) => b.priority - a.priority);\n}" if is_technical else "",
+                    "code_template": "function solution(items) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}" if is_technical else "",
                     "test_cases": [
                         { "input": "[ [{\"name\":\"task1\",\"priority\":3},{\"name\":\"task2\",\"priority\":5},{\"name\":\"task3\",\"priority\":1}] ]", "expected": "[{\"name\":\"task2\",\"priority\":5},{\"name\":\"task1\",\"priority\":3},{\"name\":\"task3\",\"priority\":1}]" }
                     ] if is_technical else [],

@@ -55,7 +55,7 @@ function patchModule(mod: CareerModule, profession: string): CareerModule {
         ...mod.practice_task,
         task_description: "Напишите функцию solution(name), которая принимает имя и возвращает строку 'Привет, ' + name + '!'. Например: solution('Мир') должен вернуть 'Привет, Мир!'.",
         origin_interview_questions: "Компания: Тинькофф. Вопросы на собеседовании: 1) В чем разница между ссылочными типами и типами значений в вашем стеке? 2) Как устроена память в куче и стеке?",
-        code_template: "function solution(name) {\n  // Напишите ваш код здесь\n  return 'Привет, ' + name + '!';\n}",
+        code_template: "function solution(name) {\n  // Напишите ваш код здесь\n  \n}",
         test_cases: [
           { "input": '["Студент"]', "expected": '"Привет, Студент!"' },
           { "input": '["Мир"]', "expected": '"Привет, Мир!"' }
