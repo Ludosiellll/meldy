@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2, Mic, Smartphone, Headphones, Play } from 'lucide-react';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2, Mic, Smartphone, Headphones, Play, Edit3, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
+import { updateMaterialTitle } from '../api/materials';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions' | 'podcast' | 'shorts';
 
@@ -298,8 +299,13 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 }) {
   const [tab, setTab] = useState<Tab>('summary');
   const [copied, setCopied] = useState(false);
-
   const [showExport, setShowExport] = useState(false);
+
+  // States for Title management and suggestion
+  const [currentTitle, setCurrentTitle] = useState(sourceFileName ? sourceFileName.replace(/\.[^/.]+$/, '') : 'Учебный материал');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editVal, setEditVal] = useState(currentTitle);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -310,6 +316,61 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Heuristic function to extract clean, nice AI suggested topic name from summary markdown
+  const getAiSuggestedTitle = () => {
+    const content = results.summarizer?.content || (results.summarizer as any)?.raw || '';
+    if (!content) return null;
+    const lines = content.split('\n').map((l: string) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      const clean = line.replace(/^[#*\s-]+/, '').replace(/[#*\s-]+$/, '').trim();
+      if (clean && clean.length > 3 && clean.length < 80) {
+        return clean;
+      }
+    }
+    return null;
+  };
+
+  const isGenericTitle = (title: string) => {
+    const lower = title.toLowerCase();
+    return (
+      /^(img_|screenshot_|whatsapp_|photo_|video_|audio_|file_|doc_|unnamed|scan_|temp_)/.test(lower) ||
+      /^\d+_\d+$/.test(title) ||
+      /^\d+$/.test(title) ||
+      lower.includes('whatsapp image') ||
+      lower.includes('whatsapp video') ||
+      lower.includes('снимок экрана') ||
+      lower.includes('без названия') ||
+      lower.includes('unknown')
+    );
+  };
+
+  const aiSuggestedTitle = getAiSuggestedTitle();
+  const showSuggestion = aiSuggestedTitle && isGenericTitle(currentTitle) && materialId;
+
+  const applySuggestedTitle = async () => {
+    if (!materialId || !aiSuggestedTitle) return;
+    try {
+      await updateMaterialTitle(materialId, aiSuggestedTitle);
+      setCurrentTitle(aiSuggestedTitle);
+      setEditVal(aiSuggestedTitle);
+      toast.success('Название успешно обновлено на рекомендуемое! ✨');
+    } catch (e) {
+      toast.error('Не удалось переименовать');
+    }
+  };
+
+  const saveManualTitle = async () => {
+    if (!materialId || !editVal.trim()) return;
+    try {
+      await updateMaterialTitle(materialId, editVal.trim());
+      setCurrentTitle(editVal.trim());
+      setIsEditing(false);
+      toast.success('Название успешно обновлено! ✍️');
+    } catch (e) {
+      toast.error('Не удалось сохранить название');
+    }
+  };
 
   const flashcardCount = results.flashcards?.flashcards?.length || 0;
   const quizCount = results.quiz?.quiz?.length || 0;
@@ -382,8 +443,88 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
   return (
     <div className="py-6">
+      {/* AI Suggestion Rename Card */}
+      <AnimatePresence>
+        {showSuggestion && !suggestionDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: -15, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -15, scale: 0.98 }}
+            className="mb-6 p-4 md:p-5 bg-indigo-50/90 dark:bg-indigo-950/40 backdrop-blur-md border border-indigo-200 dark:border-indigo-900/60 rounded-2xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden group select-none no-print"
+          >
+            {/* Ambient background blur glow */}
+            <div className="absolute -right-16 -bottom-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl group-hover:scale-110 transition-transform duration-500" />
+            
+            <div className="flex items-start gap-3.5 flex-1 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 text-indigo-600 dark:text-indigo-400">
+                <Sparkles className="w-5.5 h-5.5 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 mb-0.5">
+                  ИИ-Наставник Forgey заметил шаблонное название
+                </h4>
+                <p className="text-sm font-bold text-slate-850 dark:text-slate-200 leading-snug">
+                  Заменить нечитаемое <code className="text-xs px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-slate-700 dark:text-slate-350">{currentTitle}</code> на красивое название:
+                </p>
+                <p className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5 italic">
+                  «{aiSuggestedTitle}»
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+              <button
+                onClick={() => setSuggestionDismissed(true)}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 transition active:scale-[0.98]"
+              >
+                Пропустить
+              </button>
+              <button
+                onClick={applySuggestedTitle}
+                className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-xs font-black transition shadow-md shadow-indigo-500/10 active:scale-[0.96] flex items-center gap-1.5"
+              >
+                Переименовать ✨
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 no-print">
-        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Результаты</h2>
+        <div className="flex-1 min-w-0">
+          {isEditing ? (
+            <div className="flex items-center gap-2 max-w-lg">
+              <input
+                type="text"
+                value={editVal}
+                onChange={e => setEditVal(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1"
+                placeholder="Введите название..."
+              />
+              <button onClick={saveManualTitle} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold transition hover:bg-emerald-700 active:scale-[0.98]">
+                Сохранить
+              </button>
+              <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition hover:bg-slate-300 active:scale-[0.98]">
+                Отмена
+              </button>
+            </div>
+          ) : (
+            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2 group flex-wrap">
+              {currentTitle}
+              {materialId && (
+                <button
+                  onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
+                  className="p-1 text-slate-400 hover:text-indigo-500 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  title="Изменить название"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+              )}
+            </h2>
+          )}
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Анализ лекции успешно завершен</p>
+        </div>
+
         <div className="flex items-center gap-2">
           
           {/* Export Dropdown */}
