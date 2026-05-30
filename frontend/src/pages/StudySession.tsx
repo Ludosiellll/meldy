@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 import {
   Brain, BookOpen, GraduationCap, Flame, ChevronRight, Zap, Play, Trophy,
@@ -47,6 +48,11 @@ export default function StudySession() {
   const navigate = useNavigate();
   const { playFlipSound, playSuccessSound, playErrorSound, playXpSound } = useSound();
 
+  const formatMessageContent = (content: string) => {
+    // Автоматически форматирует английские ключевые слова в одинарных кавычках (например, 'GROUP BY') в маркдаун-бэктэки для красивого кода
+    return content.replace(/'([A-Z0-9_ ]+)'/g, '`$1`');
+  };
+
   // Состояния загрузки
   const [loading, setLoading] = useState(true);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -60,7 +66,6 @@ export default function StudySession() {
   const [cardIdx, setCardIdx] = useState(0);
   const [cardRevealed, setCardRevealed] = useState(false);
   const [cardStats, setCardStats] = useState({ correct: 0, wrong: 0 });
-  const [cardProcessing, setCardProcessing] = useState(false);
 
   // Шаг 2: Чтение + Чат
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -176,6 +181,9 @@ export default function StudySession() {
         const sliced = data.missions.slice(0, 3);
         setTestQuestions(sliced);
         updateMaterialMissions(mat.id, data.missions);
+        if (user?.id) {
+          await incrementAIUsage(user.id, 2);
+        }
         return true;
       }
     } catch (e) {
@@ -201,41 +209,34 @@ export default function StudySession() {
     }
   };
 
-  const handleCardAnswer = async (quality: number) => {
-    if (cardProcessing || !sessionCards[cardIdx]) return;
-    setCardProcessing(true);
+  const handleCardAnswer = (quality: number) => {
+    if (!sessionCards[cardIdx]) return;
     
     const card = sessionCards[cardIdx];
     
-    try {
-      // Записываем прогресс только для настоящих карточек из БД
-      if (card.id && !card.isMock) {
-        await updateCardProgress(card.id, quality);
-      }
-      
-      if (user?.id) {
-        await updateQuestProgress(user.id, 'review', 1);
-        await recordStudyActivity(user.id, 1, 0);
-      }
+    // 1. Сразу (синхронно) обновляем UI, чтобы отклик был 0мс
+    if (quality >= 3) {
+      setCardStats(p => ({ ...p, correct: p.correct + 1 }));
+    } else {
+      setCardStats(p => ({ ...p, wrong: p.wrong + 1 }));
+    }
 
-      if (quality >= 3) {
-        setCardStats(p => ({ ...p, correct: p.correct + 1 }));
-      } else {
-        setCardStats(p => ({ ...p, wrong: p.wrong + 1 }));
-      }
+    if (cardIdx + 1 >= sessionCards.length) {
+      playSuccessSound();
+      setPhase('read');
+    } else {
+      setCardIdx(p => p + 1);
+      setCardRevealed(false);
+    }
 
-      if (cardIdx + 1 >= sessionCards.length) {
-        playSuccessSound();
-        // Переходим к шагу 2
-        setPhase('read');
-      } else {
-        setCardIdx(p => p + 1);
-        setCardRevealed(false);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setCardProcessing(false);
+    // 2. Фоновые (асинхронные) запросы в Supabase, не блокирующие переключение карточек в UI
+    if (card.id && !card.isMock) {
+      updateCardProgress(card.id, quality).catch(err => console.error("Error updating card progress:", err));
+    }
+    
+    if (user?.id) {
+      updateQuestProgress(user.id, 'review', 1).catch(err => console.error("Error updating quest progress:", err));
+      recordStudyActivity(user.id, 1, 0).catch(err => console.error("Error recording study activity:", err));
     }
   };
 
@@ -403,7 +404,7 @@ export default function StudySession() {
     : (activeMaterial?.summary_json?.content || '');
 
   return (
-    <div className="p-3 md:p-6 max-w-4xl mx-auto min-h-[90vh] flex flex-col justify-center relative">
+    <div className="p-3 md:p-6 max-w-6xl mx-auto min-h-[90vh] flex flex-col justify-center relative w-full">
       <ConfettiCelebration trigger={showConfetti} type="quest" />
       <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
 
@@ -435,38 +436,38 @@ export default function StudySession() {
             <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-lg text-white text-2xl animate-pulse">
               🔮
             </div>
-            <div className="space-y-2">
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100">Персональная сессия обучения готовит!</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                Давай закрепим тему **«{activeMaterial?.title}»** по методу глубокого погружения.
+            <div className="space-y-3">
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Персональная сессия обучения готова!</h2>
+              <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 max-w-lg mx-auto leading-relaxed">
+                Давай закрепим тему <strong className="font-extrabold text-indigo-600 dark:text-indigo-400">«{activeMaterial?.title}»</strong> по методу глубокого погружения.
               </p>
             </div>
 
             {/* Карточка планов */}
-            <div className="max-w-md mx-auto text-left bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-5 space-y-4">
-              <h3 className="font-extrabold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">План урока сегодня:</h3>
-              <div className="space-y-3">
+            <div className="max-w-lg mx-auto text-left bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-6 space-y-5">
+              <h3 className="font-extrabold text-sm text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">План урока сегодня:</h3>
+              <div className="space-y-4">
                 {sessionCards.length > 0 && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-xs shrink-0">1</div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">1</div>
                     <div>
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Разминка с карточками ({sessionCards.length} шт)</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">Интервальное повторение по алгоритму SM-2</p>
+                      <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">Разминка с карточками ({sessionCards.length} шт)</p>
+                      <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">Интервальное повторение по алгоритму SM-2</p>
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-xs shrink-0">{sessionCards.length > 0 ? '2' : '1'}</div>
+                <div className="flex items-center gap-4">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">{sessionCards.length > 0 ? '2' : '1'}</div>
                   <div>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Изучение выжимки лекции с AI</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Краткий конспект и свободные вопросы наставнику</p>
+                    <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">Изучение выжимки лекции с AI</p>
+                    <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">Краткий конспект и свободные вопросы наставнику</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold text-xs shrink-0">{sessionCards.length > 0 ? '3' : '2'}</div>
+                <div className="flex items-center gap-4">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">{sessionCards.length > 0 ? '3' : '2'}</div>
                   <div>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Проверочный мини-квест</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">3 вопроса на усвоение с разбором ошибок</p>
+                    <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">Проверочный мини-квест</p>
+                    <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">3 вопроса на усвоение с разбором ошибок</p>
                   </div>
                 </div>
               </div>
@@ -493,8 +494,8 @@ export default function StudySession() {
             className="space-y-6 max-w-2xl mx-auto w-full"
           >
             {/* Шкала шагов */}
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-bold mb-1">
-              <span className="flex items-center gap-1"><Brain className="w-4 h-4 text-indigo-500 animate-pulse" /> Шаг 1 из 3 · Повторение карточек</span>
+            <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400 font-bold mb-2">
+              <span className="flex items-center gap-1.5"><Brain className="w-5 h-5 text-indigo-500 animate-pulse" /> Шаг 1 из 3 · Повторение карточек</span>
               <span>{cardIdx + 1} / {sessionCards.length}</span>
             </div>
             <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -504,9 +505,11 @@ export default function StudySession() {
             {/* Карточка */}
             <motion.div
               key={cardIdx}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="card min-h-60 p-6 md:p-8 flex flex-col items-center justify-center cursor-pointer relative active:scale-[0.99] transition-transform shadow-md"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -8 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="card min-h-[300px] md:min-h-[360px] p-8 md:p-12 flex flex-col items-center justify-center cursor-pointer relative active:scale-[0.99] transition-all shadow-lg hover:shadow-xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/80 backdrop-blur-md"
               onClick={handleRevealCard}
             >
               {sessionCards[cardIdx].isMock && (
@@ -514,8 +517,8 @@ export default function StudySession() {
                   Разминка
                 </span>
               )}
-              <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-4">Вопрос</span>
-              <p className="text-base md:text-lg font-bold text-slate-900 dark:text-slate-100 text-center leading-snug max-w-md mb-6">
+              <span className="text-xs sm:text-sm font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider mb-3">Вопрос</span>
+              <p className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 text-center leading-snug max-w-xl px-2 mb-6">
                 {sessionCards[cardIdx].question}
               </p>
 
@@ -524,10 +527,13 @@ export default function StudySession() {
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                    style={{ overflow: 'hidden' }}
                     className="w-full border-t border-slate-100 dark:border-slate-800/80 pt-6 mt-2"
                   >
-                    <span className="text-[10px] font-bold uppercase text-emerald-500 tracking-wider mb-2 block text-center">Ответ</span>
-                    <p className="text-slate-700 dark:text-slate-200 text-xs md:text-sm text-center leading-relaxed max-w-md mx-auto whitespace-pre-line">
+                    <span className="text-xs sm:text-sm font-black uppercase text-emerald-500 tracking-wider mb-3 block text-center">Ответ</span>
+                    <p className="text-slate-800 dark:text-slate-200 text-sm sm:text-base md:text-lg font-semibold text-center leading-relaxed max-w-xl mx-auto px-2 whitespace-pre-line">
                       {sessionCards[cardIdx].answer}
                     </p>
                   </motion.div>
@@ -535,39 +541,36 @@ export default function StudySession() {
               </AnimatePresence>
 
               {!cardRevealed && (
-                <p className="text-[10px] text-slate-400 dark:text-slate-600 mt-4 animate-pulse">Нажмите, чтобы открыть ответ</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-4 animate-pulse font-medium">Нажмите, чтобы открыть ответ</p>
               )}
             </motion.div>
 
             {/* Управление */}
-            <div className="pt-2">
+            <div className="pt-3">
               {!cardRevealed ? (
                 <button
                   onClick={handleRevealCard}
-                  className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-bold transition text-sm tracking-wide shadow-md"
+                  className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-bold transition text-sm md:text-base tracking-wide shadow-md flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-indigo-500/10 active:scale-[0.99]"
                 >
                   Показать ответ
                 </button>
               ) : (
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-3 gap-3">
                   <button
-                    disabled={cardProcessing}
                     onClick={() => handleCardAnswer(1)}
-                    className="h-14 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-400 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 shadow-sm"
+                    className="h-14 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
                   >
                     <span>Не знал 😕</span>
                   </button>
                   <button
-                    disabled={cardProcessing}
                     onClick={() => handleCardAnswer(3)}
-                    className="h-14 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-400 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 shadow-sm"
+                    className="h-14 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
                   >
                     <span>Затруднялся 🤔</span>
                   </button>
                   <button
-                    disabled={cardProcessing}
                     onClick={() => handleCardAnswer(5)}
-                    className="h-14 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 shadow-sm"
+                    className="h-14 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
                   >
                     <span>Знал! 😎</span>
                   </button>
@@ -588,8 +591,8 @@ export default function StudySession() {
           >
             {/* Заголовок сверху на всю ширину */}
             <div className="lg:col-span-12 space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-bold">
-                <span className="flex items-center gap-1"><BookOpen className="w-4 h-4 text-indigo-500" /> Шаг 2 из 3 · Разбор Лекции</span>
+              <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400 font-bold">
+                <span className="flex items-center gap-1.5"><BookOpen className="w-5 h-5 text-indigo-500" /> Шаг 2 из 3 · Разбор Лекции</span>
                 <span>Теория + Консультация</span>
               </div>
               <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -598,53 +601,60 @@ export default function StudySession() {
             </div>
 
             {/* Сам конспект лекции (Левая колонка) */}
-            <div className="lg:col-span-7 flex flex-col space-y-4">
-              <div className="card p-4 md:p-5 flex-1 flex flex-col max-h-[60vh] lg:max-h-[500px] overflow-hidden">
-                <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 mb-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <div className="lg:col-span-6 flex flex-col space-y-4">
+              <div className="card p-6 md:p-8 flex-1 flex flex-col max-h-[75vh] lg:max-h-[680px] overflow-hidden">
+                <h3 className="font-black text-lg md:text-xl text-slate-900 dark:text-slate-100 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
                   📖 Выжимка теории: {activeMaterial?.title}
                 </h3>
-                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-relaxed space-y-4 markdown-content">
+                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar text-sm md:text-base text-slate-700 dark:text-slate-300 leading-relaxed space-y-4 markdown-content">
                   {summaryText ? (
-                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{summaryText}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{summaryText}</ReactMarkdown>
                   ) : (
-                    <p className="text-slate-400 text-xs italic">Конспект не содержит краткого содержания. Спроси Форджи ниже!</p>
+                    <p className="text-slate-400 text-sm italic">Конспект не содержит краткого содержания. Спроси Форджи ниже!</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Чат с наставником Форджи (Правая колонка) */}
-            <div className="lg:col-span-5 flex flex-col space-y-4">
-              <div className="card p-4 flex flex-col h-[50vh] lg:h-[500px] overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl">
-                <div className="flex items-center gap-2 border-b border-slate-800 pb-3 mb-3 shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-base">🤖</div>
+            <div className="lg:col-span-6 flex flex-col space-y-4">
+              <div className="card p-6 flex flex-col h-[65vh] lg:h-[680px] overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3 mb-3 shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-white text-lg">🤖</div>
                   <div>
-                    <h4 className="text-xs font-black text-white leading-none">ИИ-Наставник Forgey</h4>
-                    <span className="text-[9px] text-emerald-400 font-bold flex items-center gap-1 mt-0.5"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" /> Онлайн в твоем уроке</span>
+                    <h4 className="text-sm font-black text-white leading-none">ИИ-Наставник Forgey</h4>
+                    <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1.5 mt-1">
+                      <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping shrink-0" />
+                      Онлайн в твоем уроке
+                    </span>
                   </div>
                 </div>
 
                 {/* Сообщения чата */}
-                <div className="flex-1 overflow-y-auto p-1 space-y-3 pr-2 custom-scrollbar text-xs leading-relaxed">
+                <div className="flex-1 overflow-y-auto p-1 space-y-3 pr-2 custom-scrollbar text-sm leading-relaxed">
                   {chatMessages.map((msg, index) => (
                     <div
                       key={index}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] px-3 py-2 rounded-xl ${
+                        className={`max-w-[85%] px-4 py-2.5 rounded-xl ${
                           msg.role === 'user'
                             ? 'bg-indigo-600 text-white rounded-tr-none'
                             : 'bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700/40'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <div className="whitespace-pre-wrap markdown-content text-sm text-left">
+                          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+                            {formatMessageContent(msg.content)}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ))}
                   {chatLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-slate-800/50 text-slate-400 px-3 py-2 rounded-xl rounded-tl-none border border-slate-700/40 flex items-center gap-2">
+                      <div className="bg-slate-800/50 text-slate-400 px-3.5 py-2 rounded-xl rounded-tl-none border border-slate-700/40 flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
                         <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
                         <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
@@ -665,7 +675,7 @@ export default function StudySession() {
                       key={pill}
                       disabled={chatLoading}
                       onClick={() => handleSendMessage(pill)}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[10px] text-indigo-300 font-bold whitespace-nowrap transition disabled:opacity-50 shrink-0"
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-xs text-indigo-300 font-bold whitespace-nowrap transition disabled:opacity-50 shrink-0 active:scale-[0.98]"
                     >
                       {pill}
                     </button>
@@ -675,7 +685,7 @@ export default function StudySession() {
                 {/* Ввод сообщения */}
                 <form
                   onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
-                  className="flex gap-2 pt-1 border-t border-slate-800 shrink-0"
+                  className="flex gap-2 pt-2 border-t border-slate-800 shrink-0"
                 >
                   <input
                     type="text"
@@ -683,14 +693,14 @@ export default function StudySession() {
                     onChange={e => setInputMessage(e.target.value)}
                     placeholder="Задай вопрос по лекции..."
                     disabled={chatLoading}
-                    className="flex-1 bg-slate-800 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition"
+                    className="flex-1 bg-slate-800 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none transition"
                   />
                   <button
                     type="submit"
                     disabled={chatLoading || !inputMessage.trim()}
-                    className="w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white flex items-center justify-center transition shrink-0"
+                    className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white flex items-center justify-center transition shrink-0 active:scale-[0.96]"
                   >
-                    <Send className="w-3.5 h-3.5" />
+                    <Send className="w-4.5 h-4.5" />
                   </button>
                 </form>
               </div>
@@ -738,7 +748,7 @@ export default function StudySession() {
                 </div>
 
                 <div className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 leading-snug markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{testQuestions[quizIdx].question}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{testQuestions[quizIdx].question}</ReactMarkdown>
                 </div>
 
                 {/* Варианты ответов */}
@@ -793,7 +803,11 @@ export default function StudySession() {
                         <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
                         <div>
                           <span className="font-extrabold block mb-0.5">💡 Подсказка Forgey:</span>
-                          <div className="mb-2">{testQuestions[quizIdx].hint}</div>
+                          <div className="mb-2 markdown-content text-xs md:text-sm">
+                            <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+                              {testQuestions[quizIdx].hint}
+                            </ReactMarkdown>
+                          </div>
                           <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 inline-block animate-pulse">
                             👉 Выберите другой вариант
                           </span>
@@ -847,24 +861,24 @@ export default function StudySession() {
               <Trophy className="w-10 h-10 animate-bounce" />
             </div>
 
-            <h2 className="text-2xl font-black text-indigo-800 dark:text-indigo-300 mb-2 flex items-center justify-center gap-2">
+            <h2 className="text-3xl font-black text-indigo-800 dark:text-indigo-300 mb-3 flex items-center justify-center gap-2.5">
               Дневная сессия завершена!
-              <Sparkles className="w-6 h-6 text-amber-500 animate-pulse" />
+              <Sparkles className="w-7 h-7 text-amber-500 animate-pulse" />
             </h2>
             
-            <p className="text-slate-600 dark:text-slate-300 text-xs md:text-sm max-w-md mx-auto mb-6">
-              Отличная работа! Ты успешно прошёл интервальное повторение, проработал теорию лекции «{activeMaterial?.title}» и ответил на проверочные вопросы. Твой стрик дней под защитой 🔥!
+            <p className="text-slate-600 dark:text-slate-300 text-sm md:text-base max-w-lg mx-auto mb-6 leading-relaxed">
+              Отличная работа! Ты успешно прошёл интервальное повторение, проработал теорию лекции <strong className="font-extrabold text-indigo-600 dark:text-indigo-400">«{activeMaterial?.title}»</strong> и ответил на проверочные вопросы. Твой стрик дней под защитой 🔥!
             </p>
 
             {/* Награды */}
             <div className="flex justify-center gap-4 flex-wrap mb-8">
-              <div className="bg-indigo-600 text-white font-extrabold px-5 py-3 rounded-2xl shadow-md flex items-center gap-2 border border-indigo-500/40">
-                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                <span className="text-xs tracking-wider">НАГРАДА: +{xpGained} XP</span>
+              <div className="bg-indigo-600 text-white font-extrabold px-6 py-3.5 rounded-2xl shadow-md flex items-center gap-2 border border-indigo-500/40">
+                <Sparkles className="w-4.5 h-4.5 text-amber-300 animate-pulse" />
+                <span className="text-sm tracking-wider">НАГРАДА: +{xpGained} XP</span>
               </div>
-              <div className="bg-orange-500 text-white font-extrabold px-5 py-3 rounded-2xl shadow-md flex items-center gap-2 border border-orange-400/40">
-                <Flame className="w-4 h-4 text-white animate-pulse" />
-                <span className="text-xs tracking-wider">СТРИК ПОДТВЕРЖДЕН 🔥</span>
+              <div className="bg-orange-500 text-white font-extrabold px-6 py-3.5 rounded-2xl shadow-md flex items-center gap-2 border border-orange-400/40">
+                <Flame className="w-4.5 h-4.5 text-white animate-pulse" />
+                <span className="text-sm tracking-wider">СТРИК ПОДТВЕРЖДЕН 🔥</span>
               </div>
             </div>
 
