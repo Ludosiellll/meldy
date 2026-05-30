@@ -9,7 +9,8 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
 import { getProfile, UserProfile } from '../api/social';
-import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, Notification } from '../api/chat';
+import { getUnreadCount, subscribeToNotifications, subscribeToMessages, getNotifications, markAllRead, Notification } from '../api/chat';
+import toast from 'react-hot-toast';
 import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
 import ForgeyAssistant from './ForgeyAssistant';
@@ -122,8 +123,52 @@ export default function Layout() {
 
     getUnreadCount(user.id).then(setUnreadCount);
 
-    const unsub = subscribeToNotifications(user.id, () => {
+    const unsub = subscribeToNotifications(user.id, (payload) => {
       getUnreadCount(user.id).then(setUnreadCount);
+      
+      const newNotif = payload?.new;
+      if (newNotif) {
+        // If it's a message and we are already on the messages page, let's not show a duplicate toast
+        if (newNotif.type === 'message' && location.pathname.startsWith('/messages')) return;
+        
+        toast((t) => (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {newNotif.type === 'message' ? '💬' : '🔔'}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-black text-slate-900 dark:text-slate-100">{newNotif.title}</p>
+              {newNotif.body && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{newNotif.body}</p>}
+            </div>
+            <button 
+              onClick={() => {
+                toast.dismiss(t.id);
+                if (newNotif.type === 'message') {
+                  navigate(newNotif.related_id ? `/messages/${newNotif.related_id}` : '/messages');
+                } else if (newNotif.type === 'friend_request') {
+                  navigate('/profile');
+                } else {
+                  handleOpenNotifications();
+                }
+              }}
+              className="px-2.5 py-1 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-bold shrink-0 transition"
+            >
+              Смотреть
+            </button>
+          </div>
+        ), {
+          duration: 4000,
+          position: 'top-right',
+          style: {
+            background: isDarkActive ? '#1e293b' : '#ffffff',
+            border: isDarkActive ? '1px solid #334155' : '1px solid #e2e8f0',
+            borderRadius: '16px',
+            color: isDarkActive ? '#f1f5f9' : '#0f172a',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            padding: '12px'
+          }
+        });
+      }
     });
 
     const fetchTokens = () => checkAILimit(user.id, 0).then(res => setUsedTokens(res.count));

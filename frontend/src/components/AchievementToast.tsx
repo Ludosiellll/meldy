@@ -48,7 +48,7 @@ export default function AchievementToast({ achievement, onClose }: Props) {
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: 80, scale: 0.9 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-4 bg-slate-900 border border-amber-400/30 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 max-w-xs"
+          className="fixed bottom-24 right-6 z-50 flex items-center gap-4 bg-slate-900 border border-amber-400/30 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 max-w-xs overflow-hidden"
         >
           {/* Иконка достижения */}
           <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg">

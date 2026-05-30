@@ -219,7 +219,7 @@ export default function Profile() {
               </label>
             )}
 
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-black tracking-widest shadow-lg border-2 border-white dark:border-slate-900 whitespace-nowrap">
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-black tracking-widest shadow-lg border-2 border-white dark:border-slate-900 whitespace-nowrap z-25">
               LVL {levelInfo.level}
             </div>
           </div>

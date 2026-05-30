@@ -219,11 +219,11 @@ export async function markAllRead(userId: string) {
   await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId).eq('is_read', false);
 }
 
-export function subscribeToNotifications(userId: string, onChange: () => void) {
+export function subscribeToNotifications(userId: string, onChange: (payload: any) => void) {
   const channel = supabase
     .channel(`notif_${userId}`)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-      onChange)
+      (payload) => onChange(payload))
     .subscribe();
   return () => supabase.removeChannel(channel);
 }

@@ -99,7 +99,7 @@ export default function SocialHub() {
         </div>
 
         {/* Табы */}
-        <div className="flex bg-slate-200 dark:bg-slate-900 p-1 rounded-xl overflow-x-auto custom-scrollbar">
+        <div className="flex bg-slate-200 dark:bg-slate-900 p-1 rounded-xl overflow-x-auto custom-scrollbar w-full sm:w-auto shrink-0">
           {[
             { key: 'feed', label: 'Маркетплейс' },
             { key: 'leaderboard', label: 'Лидерборд' },
@@ -108,7 +108,7 @@ export default function SocialHub() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${
+              className={`flex-1 sm:flex-none text-center px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${
                 activeTab === tab.key ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >

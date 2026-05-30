@@ -322,47 +322,55 @@ export default function Dashboard() {
       })()}
 
       {/* ── СЕГОДНЯ: три главных карточки ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Due cards — главный CTA */}
         <motion.button
           onClick={() => navigate('/review')}
-          whileHover={{ scale: 1.01 }}
-          className={`p-5 rounded-2xl text-left transition-all ${
+          whileHover={{ scale: 1.015 }}
+          className={`p-5 rounded-2xl text-left transition-all flex flex-col justify-between min-h-[145px] ${
             dueCards.length > 0
               ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white shadow-xl shadow-indigo-200 dark:shadow-indigo-900/40'
-              : 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40'
+              : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400'
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500'}`}>
+          <div className="flex items-center justify-between w-full">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500 text-white'}`}>
               <Brain className="w-5 h-5 text-white" />
             </div>
             {dueCards.length > 0 && <span className="text-3xl font-black text-white">{dueCards.length}</span>}
           </div>
-          <p className={`text-sm font-bold mb-0.5 ${dueCards.length > 0 ? 'text-white' : 'text-emerald-800 dark:text-emerald-300'}`}>
-            {dueCards.length > 0 ? 'Карточек на повторение' : 'Все карточки повторены!'}
-          </p>
-          <p className={`text-xs ${dueCards.length > 0 ? 'text-indigo-200' : 'text-emerald-600 dark:text-emerald-400'}`}>
-            {dueCards.length > 0 ? 'Нажми, чтобы начать →' : 'Отличная работа сегодня ✓'}
-          </p>
+          <div className="mt-4">
+            <p className={`text-sm font-black tracking-tight leading-none mb-1 ${dueCards.length > 0 ? 'text-white' : 'text-emerald-900 dark:text-emerald-300'}`}>
+              {dueCards.length > 0 ? 'Карточки на повторение' : 'Всё повторено!'}
+            </p>
+            <p className={`text-xs ${dueCards.length > 0 ? 'text-indigo-200' : 'text-emerald-600 dark:text-emerald-500'}`}>
+              {dueCards.length > 0 ? 'Нажми, чтобы начать →' : 'Отличная работа сегодня ✓'}
+            </p>
+          </div>
         </motion.button>
 
         {/* Стрик */}
         <motion.div
-          whileHover={{ scale: 1.01 }}
-          className={`p-5 rounded-2xl flex items-center gap-4 ${
+          whileHover={{ scale: 1.015 }}
+          onClick={() => navigate('/analytics')}
+          className={`p-5 rounded-2xl text-left transition-all flex flex-col justify-between min-h-[145px] cursor-pointer ${
             streak >= 3
-              ? 'bg-gradient-to-br from-orange-500 to-rose-600 shadow-xl shadow-orange-200 dark:shadow-orange-900/40'
+              ? 'bg-gradient-to-br from-orange-500 to-rose-600 text-white shadow-xl shadow-orange-200 dark:shadow-orange-900/40'
               : 'bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800'
           }`}
         >
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
-            <Flame className={`w-7 h-7 ${streak >= 3 ? 'text-white animate-pulse' : 'text-rose-500'}`} />
+          <div className="flex items-center justify-between w-full">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
+              <Flame className={`w-5 h-5 ${streak >= 3 ? 'text-white animate-pulse' : 'text-rose-500'}`} />
+            </div>
+            <span className={`text-3xl font-black ${streak >= 3 ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>{streak}</span>
           </div>
-          <div>
-            <p className={`text-4xl font-black leading-none ${streak >= 3 ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>{streak}</p>
-            <p className={`text-sm font-bold mt-1 ${streak >= 3 ? 'text-orange-100' : 'text-slate-500 dark:text-slate-400'}`}>
-              {streak >= 3 ? '🔥 дней подряд!' : 'дней подряд'}
+          <div className="mt-4">
+            <p className={`text-sm font-black tracking-tight leading-none mb-1 ${streak >= 3 ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
+              {streak >= 3 ? '🔥 дней подряд!' : 'Дней подряд'}
+            </p>
+            <p className={`text-xs ${streak >= 3 ? 'text-orange-100' : 'text-slate-400'}`}>
+              Твой ударный темп обучения
             </p>
           </div>
         </motion.div>
@@ -371,26 +379,32 @@ export default function Dashboard() {
         {materials.length > 0 ? (
           <motion.button
             onClick={() => navigate('/quick-prep')}
-            whileHover={{ scale: 1.01 }}
-            className="p-5 rounded-2xl text-left bg-gradient-to-br from-amber-400 to-orange-500 shadow-xl shadow-amber-200 dark:shadow-amber-900/40 transition-all"
+            whileHover={{ scale: 1.015 }}
+            className="p-5 rounded-2xl text-left transition-all flex flex-col justify-between min-h-[145px] bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-xl shadow-amber-200 dark:shadow-amber-900/40"
           >
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center mb-3">
-              <Clock className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-white" />
+              </div>
             </div>
-            <p className="text-sm font-bold text-white mb-0.5">Быстрый повтор</p>
-            <p className="text-xs text-amber-100">5 минут — и материал свеж →</p>
+            <div className="mt-4">
+              <p className="text-sm font-black tracking-tight leading-none mb-1 text-white">Быстрый повтор</p>
+              <p className="text-xs text-amber-100">5 минут — и материал свеж →</p>
+            </div>
           </motion.button>
         ) : (
           <motion.button
             onClick={() => navigate('/analyze')}
-            whileHover={{ scale: 1.01 }}
-            className="p-5 rounded-2xl text-left border-2 border-dashed border-indigo-300 dark:border-indigo-800 hover:border-indigo-500 dark:hover:border-indigo-600 transition-all group tour-step-mobile-upload"
+            whileHover={{ scale: 1.015 }}
+            className="p-5 rounded-2xl text-left border-2 border-dashed border-indigo-300 dark:border-indigo-800 hover:border-indigo-500 dark:hover:border-indigo-600 transition-all group flex flex-col justify-between min-h-[145px]"
           >
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center mb-3 group-hover:bg-indigo-100 transition">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center group-hover:bg-indigo-100 transition">
               <Zap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-0.5">Добавить первый материал</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Загрузи лекцию или конспект →</p>
+            <div className="mt-4">
+              <p className="text-sm font-black tracking-tight leading-none mb-1 text-slate-700 dark:text-slate-300">Добавить материал</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Загрузи лекцию или конспект →</p>
+            </div>
           </motion.button>
         )}
       </div>
@@ -509,33 +523,9 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="card p-5 border-l-4 border-l-purple-500">
-            <h2 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-purple-500" /> Еженедельные
-            </h2>
-            <div className="space-y-4">
-              {quests.filter(q => q.type === 'weekly').map(q => (
-                <div key={q.id} className="space-y-1.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-bold ${q.is_completed ? 'text-emerald-600 line-through dark:text-emerald-400/80' : 'text-slate-700 dark:text-slate-200'}`}>{q.title}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5 leading-snug">{q.description}</p>
-                    </div>
-                    <span className="text-[10px] font-black text-purple-500 shrink-0">+{q.xp_reward} XP</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className={`h-full transition-all duration-500 ${q.is_completed ? 'bg-emerald-500' : 'bg-purple-500'}`} style={{ width: `${Math.min(100, (q.current_count / q.target_count) * 100)}%` }} />
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 shrink-0">{q.current_count}/{q.target_count}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Правая колонка: материалы + график */}
+        {/* Правая колонка: материалы + еженедельные квесты */}
         <div className="lg:col-span-2 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="card p-5">
@@ -577,23 +567,48 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
-            <h2 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Активность за 2 недели</h2>
-            <div style={{ height: 200, minWidth: 500 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} stroke={isDark ? '#475569' : '#94a3b8'} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke={isDark ? '#475569' : '#94a3b8'} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', backgroundColor: isDark ? '#1e293b' : '#ffffff', color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 13 }}
-                    itemStyle={{ color: isDark ? '#f1f5f9' : '#0f172a' }}
-                    labelStyle={{ color: isDark ? '#94a3b8' : '#64748b' }}
-                    labelFormatter={(l: string) => l}
-                    formatter={(v: number) => [v, 'Карточек']}
-                  />
-                  <Bar dataKey="cards_reviewed" fill={isDark ? '#6366f1' : '#4F46E5'} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+
+          {/* Еженедельные задания (Expanded) */}
+          <div className="card p-5 border-l-4 border-l-purple-500 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-500 animate-pulse" />
+                <h2 className="font-extrabold text-slate-900 dark:text-slate-100 text-base">Еженедельные испытания</h2>
+              </div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg">Обновляются каждый понедельник</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {quests.filter(q => q.type === 'weekly').map(q => (
+                <div key={q.id} className="p-4 bg-slate-50/50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex flex-col justify-between space-y-4 hover:shadow-md hover:border-purple-500/20 transition group">
+                  <div className="space-y-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={`text-xs font-black leading-snug ${q.is_completed ? 'text-emerald-650 line-through dark:text-emerald-400/80' : 'text-slate-800 dark:text-slate-200'}`}>
+                        {q.title}
+                      </p>
+                      <span className="text-[10px] font-black text-purple-500 shrink-0">+{q.xp_reward} XP</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal mt-1">{q.description}</p>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">
+                      <span>Прогресс</span>
+                      <span>{q.current_count} / {q.target_count}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div className={`h-full transition-all duration-700 ${q.is_completed ? 'bg-emerald-500' : 'bg-purple-500'}`} style={{ width: `${Math.min(100, (q.current_count / q.target_count) * 100)}%` }} />
+                      </div>
+                    </div>
+                    {q.is_completed && (
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-1.5">
+                        ✓ Выполнено!
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
