@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
-import { getMaterialById, updateMaterialSubject, updateMaterialVisibility } from '../api/materials';
+import { getMaterialById, updateMaterialSubject, updateMaterialVisibility, updateMaterialTitle } from '../api/materials';
 
 export default function MaterialDetail() {
   const { id } = useParams();
@@ -16,6 +16,8 @@ export default function MaterialDetail() {
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
   const [mode, setMode] = useState<'full' | 'express' | 'podcast'>(  
     searchParams.get('mode') === 'express' 
       ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
@@ -28,6 +30,7 @@ export default function MaterialDetail() {
       .then(data => {
         setMaterial(data);
         setSubjectInput(data.subject || '');
+        setTitleInput(data.title || '');
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -38,6 +41,13 @@ export default function MaterialDetail() {
     await updateMaterialSubject(id, subjectInput);
     setMaterial((prev: Material) => ({ ...prev, subject: subjectInput }));
     setEditingSubject(false);
+  };
+
+  const saveTitle = async () => {
+    if (!id || !titleInput.trim()) return;
+    await updateMaterialTitle(id, titleInput.trim());
+    setMaterial((prev: Material) => ({ ...prev, title: titleInput.trim() }));
+    setEditingTitle(false);
   };
 
   const togglePublic = async () => {
@@ -75,8 +85,31 @@ export default function MaterialDetail() {
       </button>
 
       {/* Title & Subject */}
-      <div className="mb-2">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 break-words">{material.title}</h1>
+      <div className="mb-2 group relative flex items-start justify-between">
+        {editingTitle ? (
+          <div className="flex items-center gap-2 w-full pr-8">
+            <input
+              value={titleInput}
+              onChange={e => setTitleInput(e.target.value)}
+              className="flex-1 px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Название материала"
+              autoFocus
+            />
+            <button onClick={saveTitle} className="text-emerald-600 hover:text-emerald-700 shrink-0"><Check className="w-5 h-5" /></button>
+            <button onClick={() => { setEditingTitle(false); setTitleInput(material.title || ''); }} className="text-slate-400 hover:text-slate-600 shrink-0"><X className="w-5 h-5" /></button>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 pr-8">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 break-words">{material.title}</h1>
+            <button 
+              onClick={() => setEditingTitle(true)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity mt-1.5 text-slate-400 hover:text-indigo-600"
+              title="Переименовать материал"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -131,7 +164,7 @@ export default function MaterialDetail() {
       </div>
 
       <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
-        {format(new Date(material.created_at), 'dd.MM.yyyy', { locale: ru })}
+        {format(new Date(material.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
       </p>
 
       {/* Режимы обучения */}

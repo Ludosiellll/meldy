@@ -95,11 +95,32 @@ export default function KnowledgeMap() {
   }, [user?.id]);
 
   // Парсер терминов из конспекта
-  const extractTerms = (summaryJson: any) => {
-    const content = summaryJson?.content || (summaryJson as any)?.raw || '';
-    if (!content) return [];
+  const extractTerms = (rawSummary: any) => {
+    let summaryJson = rawSummary;
+    if (typeof rawSummary === 'string') {
+      try { summaryJson = JSON.parse(rawSummary); } catch (e) {}
+    }
 
     const terms: { term: string; definition: string }[] = [];
+
+    // Приоритет 1: Использование структурированных терминов от ИИ
+    if (summaryJson?.terms && Array.isArray(summaryJson.terms)) {
+      summaryJson.terms.forEach((t: any) => {
+        if (t.term && t.definition) {
+          let def = String(t.definition).trim();
+          if (def.length > 150) {
+             const dotIndex = def.indexOf('.');
+             if (dotIndex > 10) def = def.substring(0, dotIndex + 1);
+          }
+          terms.push({ term: String(t.term).trim(), definition: def });
+        }
+      });
+    }
+
+    if (terms.length > 0) return terms;
+
+    const content = summaryJson?.content || summaryJson?.raw || '';
+    if (!content) return [];
     
     // Попытка 1: Ищем специализированную секцию терминов (стандартный формат)
     const sections = content.split(/(?=^## )/gm);
@@ -120,7 +141,6 @@ export default function KnowledgeMap() {
     }
     
     // Попытка 2: Если терминов не найдено (или секции нет), ищем любые выделенные термины по всему тексту
-    // Паттерн: **Термин** — Определение (или **Термин:** Определение)
     if (terms.length === 0) {
       const globalRegex = /\*\*([^*]+)\*\*\s*(?:—|-|–|:)\s*([^\n]+)/g;
       let match;
@@ -128,9 +148,7 @@ export default function KnowledgeMap() {
         const term = match[1].trim();
         let definition = match[2].trim();
         
-        // Отсеиваем слишком длинные "термины" (это скорее заголовки абзацев)
         if (term.length > 0 && term.length <= 45 && definition.length > 5) {
-          // Отрезаем определение по первой точке, если оно слишком длинное, чтобы на карте не было стены текста
           if (definition.length > 150) {
              const dotIndex = definition.indexOf('.');
              if (dotIndex > 10) definition = definition.substring(0, dotIndex + 1);

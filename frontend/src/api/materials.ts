@@ -30,6 +30,11 @@ export async function updateMaterialSubject(id: string, subject: string) {
   if (error) console.error('updateMaterialSubject error:', error);
 }
 
+export async function updateMaterialTitle(id: string, title: string) {
+  const { error } = await supabase.from('materials').update({ title }).eq('id', id);
+  if (error) console.error('updateMaterialTitle error:', error);
+}
+
 export async function updateMaterialVisibility(id: string, is_public: boolean) {
   const { error } = await supabase.from('materials').update({ is_public }).eq('id', id);
   if (error) console.error('updateMaterialVisibility error:', error);

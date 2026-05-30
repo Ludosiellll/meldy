@@ -316,7 +316,7 @@ export default function Library() {
                 <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-50 dark:border-slate-800/60">
                   <div className="flex flex-col">
                     <p className="text-xs text-slate-400 dark:text-slate-500">
-                      {format(new Date(m.created_at), 'dd.MM.yyyy', { locale: ru })}
+                      {format(new Date(m.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
                     </p>
                     {(m as any).assigned_deadline && (
                       <p className="text-[10px] font-bold text-rose-500 mt-0.5">

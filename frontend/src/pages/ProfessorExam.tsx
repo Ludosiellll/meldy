@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { format } from 'date-fns';
 import { Award, BookOpen, Mic, MicOff, Send, MessageSquare, AlertCircle, CheckCircle2, HelpCircle, ArrowRight, RefreshCw, X, Volume2, Sparkles, Play, Pause, Square, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -245,7 +246,16 @@ export default function ProfessorExam() {
 
   // Начать экзамен / Запросить вопрос
   const startExamOrNextQuestion = async (clearHistory = false) => {
-    if (!selectedMaterial) return;
+    if (!user) {
+      await alert({ title: 'Сессия истекла', message: 'Ваша сессия истекла. Пожалуйста, обновите страницу или войдите заново.', type: 'danger' });
+      return;
+    }
+    
+    if (!selectedMaterial) {
+      await alert({ title: 'Ошибка', message: 'Материал не выбран или не загружен. Попробуйте обновить страницу.', type: 'danger' });
+      return;
+    }
+    
     setPhase('loading');
     setAnswerText('');
     
@@ -320,7 +330,18 @@ export default function ProfessorExam() {
 
   // Отправить ответ на оценку
   const submitAnswer = async () => {
-    if (!answerText.trim() || !selectedMaterial) return;
+    if (!answerText.trim()) return;
+    
+    if (!user) {
+      await alert({ title: 'Сессия истекла', message: 'Ваша сессия истекла. Пожалуйста, обновите страницу или войдите заново.', type: 'danger' });
+      return;
+    }
+
+    if (!selectedMaterial) {
+      await alert({ title: 'Ошибка', message: 'Материал не загружен. Возможно, он был удален или сессия устарела. Попробуйте обновить страницу.', type: 'danger' });
+      return;
+    }
+
     setPhase('loading');
 
     const summary = typeof selectedMaterial.summary_json === 'string'
@@ -533,11 +554,14 @@ export default function ProfessorExam() {
                 <div className="text-left relative">
                   <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Выберите лекцию из библиотеки:</label>
                   <div className="relative">
-                    <CustomSelect
+                      <CustomSelect
                       value={selectedMaterialId}
                       onChange={val => setSelectedMaterialId(val)}
                       placeholder="Выберите материал для сдачи"
-                      options={materials.map(m => ({ value: m.id, label: m.title }))}
+                      options={materials.map(m => ({ 
+                        value: m.id, 
+                        label: `${m.title} (${format(new Date(m.created_at), 'dd.MM.yyyy HH:mm')})` 
+                      }))}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-rose-500 shadow-sm"
                     />
                   </div>
