@@ -181,8 +181,17 @@ export default function KnowledgeMap() {
     const subjectColorMap: Record<string, string> = {};
     let colorIdx = 0;
 
-    materials.forEach((mat, idx) => {
-      const angle = (idx / materials.length) * Math.PI * 2;
+    // Дедупликация материалов (лекций) с одинаковыми названиями
+    // Предотвращает ситуацию, когда загруженные дубликаты стягивают концепты в центр между собой
+    const uniqueMaterials = materials.reduce((acc: any[], current) => {
+      if (!acc.some(item => item.title.trim().toLowerCase() === current.title.trim().toLowerCase())) {
+        acc.push(current);
+      }
+      return acc;
+    }, []);
+
+    uniqueMaterials.forEach((mat, idx) => {
+      const angle = (idx / uniqueMaterials.length) * Math.PI * 2;
       const radiusDist = 450; // Звезды изначально далеко
       
       const subject = mat.subject || 'Общее';
@@ -448,6 +457,7 @@ export default function KnowledgeMap() {
     } else {
       isPanning.current = true;
       panStartPos.current = { x: clientX - panX, y: clientY - panY };
+      setSelectedNode(null);
     }
   };
 
