@@ -170,7 +170,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
           <div className="my-3">
             <p className="text-lg font-black text-slate-800 dark:text-slate-100 capitalize">{employmentForecast}</p>
           </div>
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
             <span>Профессия:</span>
             <span className="text-slate-600 dark:text-slate-300 truncate max-w-[120px]">{profile.course?.profession ?? 'IT специалист'}</span>
           </div>
@@ -205,7 +205,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
             <span className="text-3xl font-black text-orange-500 dark:text-orange-400">{streakDays}</span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase">дней подряд</span>
           </div>
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold">
             <span>Рекорд:</span>
             <span className="text-slate-600 dark:text-slate-300 font-black">{Math.max(streakDays, 7)} дн.</span>
           </div>
@@ -241,9 +241,9 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
                   <XAxis dataKey="index" stroke="#94a3b8" fontSize={9} fontWeight="bold" />
                   <YAxis stroke="#94a3b8" fontSize={9} fontWeight="bold" domain={[0, 100]} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                    contentStyle={{ backgroundColor: 'var(--tooltip-bg, #0f172a)', border: '1px solid var(--tooltip-border, #1e293b)', borderRadius: '12px', color: 'var(--tooltip-text, #fff)' }}
                     labelStyle={{ color: '#94a3b8', fontSize: '9px', fontWeight: 'bold' }}
-                    itemStyle={{ color: '#fff', fontSize: '10px', fontWeight: 'extrabold' }}
+                    itemStyle={{ color: 'var(--tooltip-text, #fff)', fontSize: '10px', fontWeight: '800' }}
                     formatter={(value: any, name: any, props: any) => [
                       `${value}% (${props.payload.title})`, 'Балл ИИ'
                     ]}
@@ -263,12 +263,12 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
           </div>
 
           {/* Grid render */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-2.5 my-6 max-w-[220px] sm:max-w-[240px] mx-auto">
+          <div className="grid grid-cols-6 gap-1.5 sm:gap-2 my-6 w-full max-w-[280px] mx-auto">
             {heatmapDays.map((day, idx) => (
               <div
                 key={idx}
                 title={`${day.dayLabel}: +${day.xp} XP`}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-[9px] font-black cursor-pointer transition-all hover:scale-105 hover:brightness-105 ${getHeatmapColor(day.level)}`}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[8px] font-black cursor-pointer transition-all hover:scale-105 hover:brightness-105 ${getHeatmapColor(day.level)}`}
               >
                 {day.xp > 0 ? day.xp : ''}
               </div>
@@ -276,7 +276,7 @@ export default function LearningDashboard({ profile }: LearningDashboardProps) {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-between text-[8px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider border-t border-slate-100 dark:border-slate-850 pt-3">
+          <div className="flex items-center justify-between text-[8px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider border-t border-slate-100 dark:border-slate-800 pt-3">
             <span>Меньше</span>
             <div className="flex gap-1">
               <div className="w-2.5 h-2.5 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-900" />

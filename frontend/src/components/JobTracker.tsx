@@ -173,7 +173,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Parse via HH link */}
               <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-605 dark:text-indigo-400">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
                   <Link className="w-4 h-4" /> Ссылка на HeadHunter (HH.ru)
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Автоматически выгрузим название компании, должность, навыки и требования</p>
@@ -198,7 +198,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
 
               {/* Manual mode */}
               <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-650 dark:text-slate-300">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
                   <Briefcase className="w-4 h-4" /> Вручную
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Если вы нашли вакансию на другом ресурсе</p>
@@ -241,7 +241,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
               className={`px-3 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === col.key
                   ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-850'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
               }`}
             >
               <span>{col.label}</span>

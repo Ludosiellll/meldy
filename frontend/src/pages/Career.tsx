@@ -40,6 +40,7 @@ import SocraticTutor from '../components/SocraticTutor';
 import LearningDashboard from '../components/LearningDashboard';
 import JobTracker from '../components/JobTracker';
 import DiagnosticTestModal from '../components/DiagnosticTestModal';
+import VacancyMobileTabs from '../components/VacancyMobileTabs';
 import { supabase } from '../lib/supabase';
 
 export default function Career() {
@@ -1281,7 +1282,7 @@ export default function Career() {
                               className="w-full text-left p-2.5 bg-white dark:bg-indigo-900/30 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 border border-indigo-100 dark:border-indigo-800/40 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between gap-2 transition"
                             >
                               <span className="truncate">{mod.title}</span>
-                              <span className="text-indigo-600 dark:text-indigo-450 shrink-0 flex items-center gap-1 font-bold">
+                              <span className="text-indigo-600 dark:text-indigo-400 shrink-0 flex items-center gap-1 font-bold">
                                 <RotateCcw className="w-3 h-3" /> Пройти
                               </span>
                             </button>
@@ -1372,7 +1373,7 @@ export default function Career() {
                                 ? 'bg-emerald-500 border-emerald-500 text-white' 
                                 : isUnlocked 
                                   ? 'bg-white dark:bg-slate-900 border-indigo-500 text-indigo-500 animate-pulse' 
-                                  : 'bg-slate-100 dark:bg-slate-850 border-slate-300 dark:border-slate-800 text-slate-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-800 text-slate-400'
                             }`}>
                               {isCompleted ? <Check className="w-3.5 h-3.5" /> : <span className="text-xs font-bold">{idx + 1}</span>}
                             </div>
@@ -1543,7 +1544,7 @@ export default function Career() {
                                       </button>
 
                                       {isCompleted && mod.evaluation && (
-                                        <div className="p-4 bg-emerald-50 dark:bg-slate-850 rounded-xl border border-emerald-100 dark:border-slate-800 text-xs w-full">
+                                        <div className="p-4 bg-emerald-50 dark:bg-slate-800 rounded-xl border border-emerald-100 dark:border-slate-800 text-xs w-full">
                                           <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400 font-bold mb-1">
                                             <ThumbsUp className="w-4 h-4" />
                                             Резюме ментора (балл: {mod.evaluation.score}/100)
@@ -1670,7 +1671,7 @@ export default function Career() {
               className="bg-white dark:bg-slate-900 text-slate-850 dark:text-white w-full max-w-6xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh] backdrop-blur-md"
             >
               {/* Header */}
-              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
                     <Briefcase className="w-5 h-5 text-indigo-100" />
@@ -1746,8 +1747,25 @@ export default function Career() {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                  {/* Mobile tab switcher for vacancy modal */}
+                  <VacancyMobileTabs
+                    foundVacancies={foundVacancies}
+                    selectedVacancy={selectedVacancy}
+                    vacancyChatMessages={vacancyChatMessages}
+                    vacancyChatInput={vacancyChatInput}
+                    setVacancyChatInput={setVacancyChatInput}
+                    sendingVacancyChat={sendingVacancyChat}
+                    handleSendVacancyChatMessage={handleSendVacancyChatMessage}
+                    onSelectVacancy={(vac) => {
+                      setSelectedVacancy(vac);
+                      setVacancyChatMessages([{ role: 'assistant', content: `Я вижу, что ты выбрал отличную вакансию: **"${vac.title}"** в компании **"${vac.company}"**.\n\nДавай обсудим её!` }]);
+                    }}
+                    onLaunchCourse={() => setShowConfirmModal(true)}
+                    pendingLocation={pendingCourseParams?.location}
+                    formatSalary={formatSalary}
+                  />
                   {/* Left Side: Vacancy selector list */}
-                  <div className="w-full lg:w-[35%] border-r border-slate-200 dark:border-slate-800 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
+                  <div className="hidden lg:flex w-full lg:w-[35%] border-r border-slate-200 dark:border-slate-800 p-6 flex-col gap-4 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Найдено вакансий: {foundVacancies.length}</h4>
                     <div className="space-y-4">
                       {foundVacancies.map((vac, vIdx) => {
@@ -1785,8 +1803,8 @@ export default function Career() {
                     </div>
                   </div>
 
-                  {/* Right Side: Selected Vacancy details + AI Chat Split Screen */}
-                  <div className="flex-grow flex flex-col lg:flex-row overflow-hidden bg-slate-50/30 dark:bg-slate-900/20">
+                  {/* Right Side: Selected Vacancy details + AI Chat Split Screen — desktop only */}
+                  <div className="hidden lg:flex flex-grow flex-col lg:flex-row overflow-hidden bg-slate-50/30 dark:bg-slate-900/20">
                     {selectedVacancy ? (
                       <>
                         {/* Split Left: Detailed description */}
@@ -1868,7 +1886,7 @@ export default function Career() {
                                   className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
                                     msg.role === 'user'
                                       ? 'bg-indigo-600 text-white rounded-br-none'
-                                      : 'bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-100 rounded-bl-none border border-slate-200 dark:border-slate-700/50'
+                                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-bl-none border border-slate-200 dark:border-slate-700/50'
                                   }`}
                                 >
                                   <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -1927,29 +1945,29 @@ export default function Career() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-5"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-5"
             >
-              <div className="w-14 h-14 bg-indigo-950/60 rounded-full flex items-center justify-center text-indigo-400 mx-auto border border-indigo-900/60">
-                <Sparkles className="w-7 h-7 text-indigo-400" />
+              <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-950/60 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 mx-auto border border-indigo-200 dark:border-indigo-900/60">
+                <Sparkles className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-extrabold text-slate-100">Создание ультимативного курса</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Создание ультимативного курса</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   ИИ StudyForge создаст масштабную программу обучения из <strong>10-14 глубоких модулей</strong>, полностью ориентированных на требования вакансии <strong>"{selectedVacancy.title}"</strong> в <strong>"{selectedVacancy.company}"</strong>.
                 </p>
               </div>
 
-              <div className="bg-indigo-950/40 p-4 rounded-2xl border border-indigo-900/40 text-left space-y-3">
-                <div className="flex gap-2.5 items-start text-xs text-slate-300">
-                  <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="bg-indigo-50 dark:bg-indigo-950/40 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 text-left space-y-3">
+                <div className="flex gap-2.5 items-start text-xs text-slate-700 dark:text-slate-300">
+                  <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-extrabold text-slate-200">Расход ресурсов:</span> Это сложная операция, использующая самые умные ИИ-агенты, и задействует <strong>50 единиц энергии/токенов</strong>.
+                    <span className="font-extrabold text-slate-800 dark:text-slate-200">Расход ресурсов:</span> Это сложная операция, использующая самые умные ИИ-агенты, и задействует <strong>50 единиц энергии/токенов</strong>.
                   </div>
                 </div>
-                <div className="flex gap-2.5 items-start text-xs text-slate-300">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex gap-2.5 items-start text-xs text-slate-600 dark:text-slate-300">
+                  <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-extrabold text-slate-200">Rate Limit:</span> В целях предотвращения спама вы сможете генерировать следующий курс только <strong>раз в 24 часа (1 раз в день)</strong>.
+                    <span className="font-extrabold text-slate-700 dark:text-slate-200">Rate Limit:</span> В целях предотвращения спама вы сможете генерировать следующий курс только <strong>раз в 24 часа (1 раз в день)</strong>.
                   </div>
                 </div>
               </div>
@@ -1957,7 +1975,7 @@ export default function Career() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-extrabold transition"
+                  className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-extrabold transition"
                 >
                   Отмена
                 </button>
@@ -1997,7 +2015,7 @@ export default function Career() {
               className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[80vh]"
             >
               {/* Header */}
-              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white">
                     <Sparkles className="w-5 h-5" />
@@ -2023,7 +2041,7 @@ export default function Career() {
                     <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
                       msg.role === 'user' 
                         ? 'bg-indigo-600 text-white rounded-tr-none shadow-md shadow-indigo-100 dark:shadow-none' 
-                        : 'bg-white dark:bg-slate-850 text-slate-850 dark:text-slate-100 rounded-tl-none shadow-sm border border-slate-200/40 dark:border-slate-800'
+                        : 'bg-white dark:bg-slate-800 text-slate-850 dark:text-slate-100 rounded-tl-none shadow-sm border border-slate-200/40 dark:border-slate-800'
                     }`}>
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
@@ -2031,7 +2049,7 @@ export default function Career() {
                 ))}
                 {sendingExpandChat && (
                   <div className="flex justify-start">
-                    <div className="bg-white dark:bg-slate-850 text-slate-400 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs shadow-sm border border-slate-200/40 dark:border-slate-800">
+                    <div className="bg-white dark:bg-slate-800 text-slate-400 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs shadow-sm border border-slate-200/40 dark:border-slate-800">
                       <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
                       <span>Форджи обдумывает траекторию и печатает...</span>
                     </div>
@@ -2047,7 +2065,7 @@ export default function Career() {
                   onChange={(e) => setExpandChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendExpandChatMessage()}
                   placeholder="Опиши новые продвинутые цели обучения..."
-                  className="flex-grow px-4 py-3 bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="flex-grow px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
                 
                 <button 
@@ -2074,7 +2092,7 @@ export default function Career() {
               className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[80vh]"
             >
               {/* Header */}
-              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 flex items-center justify-center text-white">
                     <Cpu className="w-5 h-5" />
@@ -2099,7 +2117,7 @@ export default function Career() {
                     <div className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-indigo-600 text-white rounded-br-none shadow-md'
-                        : 'bg-slate-100 dark:bg-slate-850 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/40 dark:border-slate-800'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/40 dark:border-slate-800'
                     }`}>
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
@@ -2107,7 +2125,7 @@ export default function Career() {
                 ))}
                 {sendingChat && (
                   <div className="flex justify-start">
-                    <div className="bg-slate-100 dark:bg-slate-850 p-4 rounded-2xl rounded-bl-none text-slate-500 dark:text-slate-400 flex items-center gap-2 text-xs border border-slate-200/40 dark:border-slate-800">
+                    <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl rounded-bl-none text-slate-500 dark:text-slate-400 flex items-center gap-2 text-xs border border-slate-200/40 dark:border-slate-800">
                       <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
                       Коуч обдумывает ответ...
                     </div>
@@ -2117,18 +2135,18 @@ export default function Career() {
               </div>
 
               {/* Suggestions chips */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 shrink-0 flex flex-wrap gap-2">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-800 shrink-0 flex flex-wrap gap-2">
                 {chatMessages.length === 1 && (
                   <>
-                    <button onClick={() => handleSendCoachMessage('Хочу создавать сайты и интерфейсы (Frontend)')} className="px-3 py-1.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">🎨 Frontend-разработка</button>
-                    <button onClick={() => handleSendCoachMessage('Интересны базы данных и проектирование серверной части (Backend)')} className="px-3 py-1.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">🔌 Backend (Python/JS)</button>
-                    <button onClick={() => handleSendCoachMessage('Люблю цифры, графики и работу со статистикой')} className="px-3 py-1.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">📊 Аналитика данных / SQL</button>
+                    <button onClick={() => handleSendCoachMessage('Хочу создавать сайты и интерфейсы (Frontend)')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">🎨 Frontend-разработка</button>
+                    <button onClick={() => handleSendCoachMessage('Интересны базы данных и проектирование серверной части (Backend)')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">🔌 Backend (Python/JS)</button>
+                    <button onClick={() => handleSendCoachMessage('Люблю цифры, графики и работу со статистикой')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">📊 Аналитика данных / SQL</button>
                   </>
                 )}
                 {chatMessages.length === 3 && (
                   <>
-                    <button onClick={() => handleSendCoachMessage('Могу учиться 1-2 часа в день в спокойном темпе')} className="px-3 py-1.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">⏳ Спокойный темп (1-2ч)</button>
-                    <button onClick={() => handleSendCoachMessage('Готов учиться интенсивно по 4 часа в день')} className="px-3 py-1.5 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">🔥 Интенсивно (4ч+)</button>
+                    <button onClick={() => handleSendCoachMessage('Могу учиться 1-2 часа в день в спокойном темпе')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">⏳ Спокойный темп (1-2ч)</button>
+                    <button onClick={() => handleSendCoachMessage('Готов учиться интенсивно по 4 часа в день')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold rounded-lg hover:border-indigo-400 text-slate-700 dark:text-slate-300 transition">🔥 Интенсивно (4ч+)</button>
                   </>
                 )}
               </div>
@@ -2141,7 +2159,7 @@ export default function Career() {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendCoachMessage()}
                   placeholder="Ответьте коучу или задайте свой вопрос..."
-                  className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
                 <button
                   onClick={() => handleSendCoachMessage()}
@@ -2167,7 +2185,7 @@ export default function Career() {
               className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh]"
             >
               {/* Sandbox Top Header */}
-              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
                     <Code2 className="w-5 h-5" />
@@ -2189,9 +2207,9 @@ export default function Career() {
               </div>
 
               {/* Sandbox main grid split screen */}
-              <div className="flex-1 overflow-hidden grid lg:grid-cols-2">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2">
                 {/* Left screen: technical task parameters */}
-                <div className="overflow-y-auto p-6 border-r border-slate-200 dark:border-slate-800 space-y-6">
+                <div className="overflow-y-auto p-4 md:p-6 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 space-y-6">
                   <div>
                     <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">📋 Техническое задание (ТЗ)</h4>
                     <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-semibold">
@@ -2205,7 +2223,7 @@ export default function Career() {
                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🧪 Тестовые сценарии (тест-кейсы)</h4>
                       <div className="space-y-2 text-xs">
                         {selectedModule.practice_task.test_cases.map((tc, tcIdx) => (
-                          <div key={tcIdx} className="p-3 bg-slate-50 dark:bg-slate-850 rounded-lg border border-slate-200 dark:border-slate-800 font-mono">
+                          <div key={tcIdx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800 font-mono">
                             <div><span className="text-slate-400">Вход:</span> {tc.input}</div>
                             <div><span className="text-slate-400">Ожидается:</span> {tc.expected}</div>
                           </div>
@@ -2216,7 +2234,7 @@ export default function Career() {
 
                   {/* Local validation output */}
                   {localTested && (
-                    <div className={`p-4 rounded-xl border ${localTestedPassed ? 'bg-emerald-50 dark:bg-slate-850 border-emerald-200' : 'bg-rose-50 dark:bg-slate-850 border-rose-250'}`}>
+                    <div className={`p-4 rounded-xl border ${localTestedPassed ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/30'}`}>
                       <h4 className="text-xs font-bold flex items-center gap-1.5 mb-2 text-slate-800 dark:text-slate-200">
                         {localTestedPassed ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertCircle className="w-4 h-4 text-rose-500" />}
                         Результат локального прогона
@@ -2233,9 +2251,9 @@ export default function Career() {
 
                   {/* Sprint 3: AI Code Diagnostics Panel */}
                   {showDiagnosticsPanel && (
-                    <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-slate-850/60 relative overflow-hidden space-y-4">
+                    <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-slate-900/60 relative overflow-hidden space-y-4">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-bold flex items-center gap-1.5 text-indigo-750 dark:text-indigo-300">
+                        <h4 className="text-xs font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
                           <Cpu className="w-4 h-4 text-indigo-500 animate-pulse" />
                           ИИ-Анализ и оптимизация
                         </h4>
@@ -2272,7 +2290,7 @@ export default function Career() {
                               <span className="font-bold text-[10px] text-slate-500 block mb-1.5 uppercase">⚠️ Замечания по коду:</span>
                               <ul className="space-y-1.5 pl-1">
                                 {diagnosticsResult.issues.map((issue: string, idx: number) => (
-                                  <li key={idx} className="text-[11px] leading-relaxed text-slate-650 dark:text-slate-300 flex items-start gap-1.5">
+                                  <li key={idx} className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 flex items-start gap-1.5">
                                     <span className="text-amber-500 mt-0.5 select-none">•</span>
                                     <span>{issue}</span>
                                   </li>
@@ -2314,15 +2332,15 @@ export default function Career() {
                   {runHistory.length > 1 && (
                     <div className="mt-4 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900/30 shadow-sm">
                       <details className="group">
-                        <summary className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850/50 cursor-pointer flex items-center justify-between transition select-none">
+                        <summary className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer flex items-center justify-between transition select-none">
                           <span className="flex items-center gap-2">📜 История последних запусков ({runHistory.length - 1})</span>
                           <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                         </summary>
                         <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3 max-h-48 overflow-y-auto">
                           {runHistory.slice(1).map((run, rIdx) => (
-                            <div key={rIdx} className="space-y-1.5 border-b border-slate-100 dark:border-slate-850/60 pb-2.5 last:border-0 last:pb-0">
+                            <div key={rIdx} className="space-y-1.5 border-b border-slate-100 dark:border-slate-800/60 pb-2.5 last:border-0 last:pb-0">
                               <div className="flex items-center justify-between text-[10px]">
-                                <span className="font-extrabold text-slate-400 dark:text-slate-505">{run.time}</span>
+                                <span className="font-extrabold text-slate-400 dark:text-slate-500">{run.time}</span>
                                 <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider ${
                                   run.passed 
                                     ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' 
@@ -2347,7 +2365,7 @@ export default function Career() {
                 </div>
 
                 {/* Right screen: Live Workspace (interactive depending on sandbox type) */}
-                <div className="overflow-y-auto p-6 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between">
+                <div className="overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between">
                   
                   {/* WORKSPACE SWITCHER */}
                   <div className="flex-1">
@@ -2370,7 +2388,7 @@ export default function Career() {
                     {/* SQL simulator workspace */}
                     {selectedModule.practice_type === 'sql' && (
                       <div className="space-y-4">
-                        <div className="p-3 bg-slate-100 dark:bg-slate-850 rounded-xl text-xs text-slate-600 dark:text-slate-300 border">
+                        <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                           <span className="font-bold block mb-1">Схема базы данных:</span>
                           <span className="font-mono">vacancies (id INTEGER, title TEXT, salary INTEGER, level TEXT, company TEXT)</span>
                         </div>
@@ -2475,7 +2493,7 @@ export default function Career() {
                       <div className="space-y-4">
                         <span className="text-xs font-bold text-slate-500 block">Кликните на элементы с ошибками верстки/контраста на макете ниже:</span>
                         
-                        <div className="bg-white p-6 rounded-2xl border-2 border-rose-350/20 space-y-6 shadow-sm max-w-sm mx-auto relative overflow-hidden select-none">
+                        <div className="bg-white p-6 rounded-2xl border-2 border-rose-200/30 space-y-6 shadow-sm max-w-sm mx-auto relative overflow-hidden select-none">
                           {/* Bad font fonts style overlaps */}
                           <div 
                             onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, fonts: 'Разнобой шрифтов (Arial + Times + Comic Sans)' })}
@@ -2523,7 +2541,7 @@ export default function Career() {
                     {/* COPYWRITING text editor tone checker */}
                     {selectedModule.practice_type === 'copywriting' && (
                       <div className="space-y-4">
-                        <div className="p-4 bg-amber-50 dark:bg-slate-850 rounded-xl text-xs text-amber-800 dark:text-amber-400 leading-relaxed border border-amber-200/40">
+                        <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-xl text-xs text-amber-800 dark:text-amber-400 leading-relaxed border border-amber-200/40 dark:border-amber-900/30">
                           <span className="font-bold block mb-1">Оригинальный черновик (вода и канцеляризмы):</span>
                           "Наша инновационная компания StudyForge осуществляет внедрение передовых синергетических обучающих ИИ-решений с уникальной методикой для достижения тотального лидерства на современном EdTech-рынке..."
                         </div>
@@ -2554,7 +2572,7 @@ export default function Career() {
                               <div className={`p-3 rounded-xl max-w-[85%] text-xs leading-relaxed ${
                                 msg.role === 'user'
                                   ? 'bg-indigo-600 text-white rounded-br-none'
-                                  : 'bg-slate-100 dark:bg-slate-850 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/40 dark:border-slate-800'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/40 dark:border-slate-700'
                               }`}>
                                 {msg.content}
                               </div>
@@ -2562,7 +2580,7 @@ export default function Career() {
                           ))}
                           {sendingRoleplay && (
                             <div className="flex justify-start">
-                              <div className="bg-slate-100 dark:bg-slate-850 p-3 rounded-xl rounded-bl-none text-slate-500 text-[10px] flex items-center gap-1.5">
+                              <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl rounded-bl-none text-slate-500 text-[10px] flex items-center gap-1.5">
                                 <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
                                 Оппонент пишет...
                               </div>
