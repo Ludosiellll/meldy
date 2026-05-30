@@ -1225,10 +1225,10 @@ export default function Career() {
                           </div>
                         </div>
                         <div className="pt-3 border-t border-slate-200 dark:border-indigo-950">
-                          <span className="text-indigo-600 dark:text-indigo-300 block text-xs mb-1">Сводная аналитика ИИ-Методиста</span>
-                          <p className="text-slate-700 dark:text-indigo-100 leading-relaxed text-xs">
-                            {profile.course.insights}
-                          </p>
+                          <span className="text-indigo-600 dark:text-indigo-300 block text-xs mb-2">Сводная аналитика ИИ-Методиста</span>
+                          <div className="text-slate-700 dark:text-indigo-100 leading-relaxed text-xs prose prose-xs dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-slate-900 dark:prose-strong:text-white">
+                            <ReactMarkdown>{profile.course.insights}</ReactMarkdown>
+                          </div>
                         </div>
 
                         <div className="pt-4 border-t border-slate-200 dark:border-indigo-950/60 mt-3">
@@ -1765,7 +1765,7 @@ export default function Career() {
                     formatSalary={formatSalary}
                   />
                   {/* Left Side: Vacancy selector list */}
-                  <div className="hidden lg:flex w-full lg:w-[35%] border-r border-slate-200 dark:border-slate-800 p-6 flex-col gap-4 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
+                  <div className="hidden lg:flex w-full lg:w-[38%] border-r border-slate-200 dark:border-slate-800 p-4 flex-col gap-3 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Найдено вакансий: {foundVacancies.length}</h4>
                     <div className="space-y-4">
                       {foundVacancies.map((vac, vIdx) => {
@@ -1788,14 +1788,14 @@ export default function Career() {
                                 : 'bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/40'
                             }`}
                           >
-                            <div className="flex justify-between items-start gap-2">
-                              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">{vac.title}</span>
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 border border-slate-200 dark:border-slate-700">{vac.source}</span>
+                            <div className="flex justify-between items-start gap-2 min-w-0">
+                              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100 line-clamp-2 min-w-0">{vac.title}</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700 max-w-[56px] truncate">{vac.source}</span>
                             </div>
-                            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{vac.company}</span>
-                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
-                              <span className="text-xs font-bold text-emerald-400">{formatSalary(vac.salary, pendingCourseParams?.location)}</span>
-                              <span className="text-[10px] text-indigo-400 flex items-center gap-1 font-bold">Подробнее <ChevronRight className="w-3 h-3" /></span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{vac.company}</span>
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/40 gap-2">
+                              <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400 whitespace-nowrap">{formatSalary(vac.salary, pendingCourseParams?.location)}</span>
+                              <span className="text-[10px] text-indigo-400 flex items-center gap-0.5 font-bold shrink-0">Детали <ChevronRight className="w-3 h-3" /></span>
                             </div>
                           </div>
                         );
@@ -1808,7 +1808,7 @@ export default function Career() {
                     {selectedVacancy ? (
                       <>
                         {/* Split Left: Detailed description */}
-                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between">
+                        <div className="w-full lg:w-[52%] p-5 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between">
                           <div className="space-y-6">
                             <div>
                               <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
@@ -1823,17 +1823,17 @@ export default function Career() {
                               {selectedVacancy.requirements && (
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Требования:</h4>
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-100/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200 dark:border-slate-800/65 font-medium">
-                                    {selectedVacancy.requirements}
-                                  </p>
+                                  <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-100/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200 dark:border-slate-800/60 prose prose-xs dark:prose-invert max-w-none prose-p:my-0.5 prose-ul:my-1 prose-li:my-0.5 prose-strong:font-bold">
+                                    <ReactMarkdown>{selectedVacancy.requirements}</ReactMarkdown>
+                                  </div>
                                 </div>
                               )}
                               {selectedVacancy.responsibility && (
                                 <div>
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Обязанности:</h4>
-                                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-100/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200 dark:border-slate-800/65 font-medium">
-                                    {selectedVacancy.responsibility}
-                                  </p>
+                                  <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-100/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200 dark:border-slate-800/60 prose prose-xs dark:prose-invert max-w-none prose-p:my-0.5 prose-ul:my-1 prose-li:my-0.5">
+                                    <ReactMarkdown>{selectedVacancy.responsibility}</ReactMarkdown>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -1843,7 +1843,7 @@ export default function Career() {
                                 href={selectedVacancy.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-100 transition font-bold"
+                                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 transition font-bold"
                               >
                                 Посмотреть оригинал вакансии <ExternalLink className="w-3.5 h-3.5" />
                               </a>
