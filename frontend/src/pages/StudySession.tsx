@@ -659,7 +659,7 @@ export default function StudySession() {
 
             {/* Сам конспект лекции (Левая колонка) */}
             <div className="lg:col-span-6 flex flex-col space-y-4">
-              <div className="card p-6 md:p-8 flex-1 flex flex-col max-h-[75vh] lg:max-h-[680px] overflow-hidden">
+              <div className="card p-6 md:p-8 flex-1 flex flex-col max-h-[60vh] lg:max-h-[530px] overflow-hidden">
                 <h3 className="font-black text-lg md:text-xl text-slate-900 dark:text-slate-100 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
                   📖 Выжимка теории: {activeMaterial?.title}
                 </h3>
@@ -675,7 +675,7 @@ export default function StudySession() {
 
             {/* Чат с наставником Форджи (Правая колонка) */}
             <div className="lg:col-span-6 flex flex-col space-y-4">
-              <div className="card p-6 flex flex-col h-[65vh] lg:h-[680px] overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl">
+              <div className="card p-6 flex flex-col h-[50vh] lg:h-[470px] overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl">
                 <div className="flex items-center gap-3 border-b border-slate-800 pb-3 mb-3 shrink-0">
                   <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-white text-lg">🤖</div>
                   <div>
@@ -780,7 +780,7 @@ export default function StudySession() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-6 max-w-2xl mx-auto w-full"
+            className="space-y-6 max-w-4xl mx-auto w-full px-2 md:px-4"
           >
             {/* Шкала викторины */}
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-bold mb-1">
@@ -804,7 +804,7 @@ export default function StudySession() {
                   </span>
                 </div>
 
-                <div className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 leading-snug markdown-content">
+                <div className="text-base sm:text-lg md:text-xl font-extrabold text-slate-900 dark:text-slate-50 leading-snug markdown-content">
                   <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{testQuestions[quizIdx].question}</ReactMarkdown>
                 </div>
 
@@ -833,7 +833,7 @@ export default function StudySession() {
                         key={opt}
                         onClick={() => handleOptionClick(opt)}
                         disabled={isCorrect === true}
-                        className={`w-full p-3.5 rounded-xl border text-left text-xs sm:text-sm font-medium transition-all duration-200 flex justify-between items-center ${btnStyle}`}
+                        className={`w-full px-5 py-4 rounded-xl border text-left text-sm sm:text-base font-black transition-all duration-200 flex justify-between items-center ${btnStyle}`}
                       >
                         <span>{opt}</span>
                         {selectedOption && isThisSelected && (

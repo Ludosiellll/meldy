@@ -55,6 +55,7 @@
 .markdown-content ul { @apply list-disc pl-6 mb-2 text-slate-700 dark:text-slate-300; }
 .markdown-content ol { @apply list-decimal pl-6 mb-2 text-slate-700 dark:text-slate-300; }
 .markdown-content li { @apply mb-1; }
+.markdown-content li p { @apply my-0.5 inline; }
 .markdown-content strong { @apply font-bold text-slate-900 dark:text-slate-100; }
 .markdown-content code { @apply bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-1.5 py-0.5 rounded text-sm font-mono; }
 .markdown-content.white-text p, .markdown-content.white-text ul, .markdown-content.white-text ol { color: white; }
@@ -64,7 +65,13 @@
 .markdown-content.white-text hr { border-top-color: rgba(255,255,255,0.2); }
 
 /* Markdown Tables Styling */
-.markdown-content table { @apply w-full border-collapse my-3 text-xs sm:text-sm overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/80; }
+.markdown-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  @apply border-collapse my-3 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-800/80;
+}
 .markdown-content th { @apply border border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-800/60 px-3.5 py-2.5 font-black text-slate-800 dark:text-slate-200 text-left; }
 .markdown-content td { @apply border border-slate-200 dark:border-slate-800/80 px-3.5 py-2.5 text-slate-600 dark:text-slate-300 bg-white/40 dark:bg-slate-900/40; }
 .markdown-content tr:nth-child(even) td { @apply bg-slate-50/50 dark:bg-slate-800/30; }
