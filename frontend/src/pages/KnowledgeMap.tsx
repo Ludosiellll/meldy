@@ -318,13 +318,13 @@ export default function KnowledgeMap() {
           let strength = 0.5;
 
           if (nodeA.type === 'material' && nodeB.type === 'material') {
-            minDist = 280; // Сближаем лекции, чтобы они не разлетались по всему экрану
-            strength = 0.6;
+            minDist = 450; // Звезды далеко друг от друга, чтобы их орбиты (планеты) не слипались
+            strength = 0.8;
           } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-            minDist = nodeA.radius + nodeB.radius + 15; // Планеты плотно упакованы на орбите
-            strength = 0.3;
+            minDist = nodeA.radius + nodeB.radius + 35; // Планеты расталкиваются, чтобы равномерно распределиться по орбите
+            strength = 0.6;
           } else {
-            minDist = nodeA.radius + nodeB.radius + 50; // Чуть плотнее орбиты
+            minDist = nodeA.radius + nodeB.radius + 60; // Звезда отталкивает чужие планеты
             strength = 0.5;
           }
 
@@ -354,8 +354,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.radius + target.radius + 20; // Дистанция орбиты еще плотнее
-          const force = (dist - desiredDist) * 0.1; // Мощное притяжение
+          const desiredDist = source.radius + target.radius + 50; // Широкая орбита, как на 1-м скриншоте
+          const force = (dist - desiredDist) * 0.15; // Мощно держим на орбите
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -743,7 +743,7 @@ export default function KnowledgeMap() {
                     else if (selectedNode && !isHighlightNode) searchOpacity = 0.15;
 
                     const isLabelBelow = isMaterial || (node.label.charCodeAt(0) % 2 === 0);
-                    const labelY = isLabelBelow ? (node.radius + 18) : (-node.radius - 10);
+                    const labelY = isLabelBelow ? (node.radius + 22) : (-node.radius - 14);
 
                     // Выбираем glow-фильтр в зависимости от статуса и типа
                     let filterUrl = '';
