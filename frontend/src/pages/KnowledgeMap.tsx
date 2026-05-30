@@ -191,11 +191,8 @@ export default function KnowledgeMap() {
     }, []);
 
     const numMats = uniqueMaterials.length;
-    // Грид-размещение лекций: гарантирует равномерное заполнение всего холста
-    const numCols = Math.ceil(Math.sqrt(numMats * 1.6));
-    const numRows = Math.ceil(numMats / numCols);
-    const cellW = width / numCols;
-    const cellH = height / numRows;
+    // Случайное разбрасывание лекций по всему холсту — органичный хаос
+    // Проход разделения потом гарантирует, что ничего не перекрывается
 
     uniqueMaterials.forEach((mat, idx) => {
       const subject = mat.subject || 'Общее';
@@ -204,13 +201,9 @@ export default function KnowledgeMap() {
         colorIdx++;
       }
 
-      // Размещаем лекции в центре каждой ячейки грида с легким цасем для естественности
-      const col = idx % numCols;
-      const row = Math.floor(idx / numCols);
-      const jitterX = (Math.random() - 0.5) * cellW * 0.2;
-      const jitterY = (Math.random() - 0.5) * cellH * 0.2;
-      const initX = cellW * (col + 0.5) + jitterX;
-      const initY = cellH * (row + 0.5) + jitterY;
+      // Размещаем лекции случайно по всему холсту (без краёв для понятий)
+      const initX = 150 + Math.random() * (width - 300);
+      const initY = 150 + Math.random() * (height - 300);
 
       tempNodes.push({
         id: mat.id,
@@ -277,19 +270,15 @@ export default function KnowledgeMap() {
       const value = conceptMap[key];
       const linksCount = value.materials.length;
 
-      // Размещаем понятия на равномерных углах по орбите вокруг своей первой лекции
+      // Размещаем понятия на случайных углах вокруг своей лекции — органичный хаос
       let startX = width / 2;
       let startY = height / 2;
       if (value.materials.length > 0) {
         const firstMat = tempNodes.find(n => n.id === value.materials[0].id);
         if (firstMat) {
-          const firstMatId = value.materials[0].id;
-          const group = conceptsByFirstMat[firstMatId] || [key];
-          const conceptIdx = group.indexOf(key);
-          const groupSize = group.length;
-          // Равномерные углы, начиная сверху (-π/2) для красивого круга
-          const termAngle = (conceptIdx / Math.max(1, groupSize)) * Math.PI * 2 - Math.PI / 2;
-          const orbitR = firstMat.radius + 90; // Орбита достаточно широкая, чтобы не налезать на лекцию
+          // Случайный угол — так выглядит природнее и хаотичнее
+          const termAngle = Math.random() * Math.PI * 2;
+          const orbitR = firstMat.radius + 80 + Math.random() * 20;
           startX = firstMat.x + Math.cos(termAngle) * orbitR;
           startY = firstMat.y + Math.sin(termAngle) * orbitR;
         }
