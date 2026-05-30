@@ -2,9 +2,9 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
-  Calendar, MessageSquare, LogOut, Award, Gamepad2,
-  BookMarked, Heart, BarChart2, Clock, ChevronRight, Network,
-  Globe, Briefcase, MessageCircle, User, Bell, Menu, X, Layers, Users, CreditCard
+  Clock, MessageSquare, LogOut, Award, Gamepad2,
+  BookMarked, BarChart2, ChevronRight, Network,
+  Globe, User, Bell, Menu, X, Users, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
@@ -22,64 +22,45 @@ import { Download } from 'lucide-react';
 
 const navGroups = [
   {
-    title: 'Основное',
+    title: '📚 Учёба',
     items: [
-      { to: '/dashboard',   icon: LayoutDashboard, label: 'Дашборд' },
-      { to: '/chat',        icon: MessageSquare,   label: 'Чат-наставник',  className: 'tour-step-desktop-chat' },
-      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Успеваемость', className: 'tour-step-desktop-gradebook' },
+      { to: '/dashboard',     icon: LayoutDashboard, label: 'Дашборд',              className: '' },
+      { to: '/analyze',       icon: Zap,             label: 'Добавить материал',    className: 'tour-step-desktop-upload' },
+      { to: '/library',       icon: BookOpen,        label: 'Библиотека',           className: 'tour-step-desktop-library' },
+      { to: '/knowledge-map', icon: Network,         label: 'Карта знаний',         className: '' },
     ]
   },
   {
-    title: 'Обучение и Практика',
+    title: '🎯 Практика',
     items: [
-      { to: '/analyze',     icon: Zap,             label: 'Добавить материал', className: 'tour-step-desktop-upload' },
-      { to: '/library',     icon: BookOpen,        label: 'Библиотека', className: 'tour-step-desktop-library' },
-      { to: '/courses',     icon: Layers,          label: 'Мои курсы' },
-      { to: '/review',      icon: Brain,           label: 'Смарт-карточки' },
-      { to: '/exam',        icon: Award,           label: 'Устный экзамен', className: 'tour-step-desktop-exam' },
-      { to: '/quick-prep',  icon: Clock,           label: 'Повтор за 5 минут' },
+      { to: '/chat',          icon: MessageSquare,   label: 'Чат-наставник',        className: 'tour-step-desktop-chat' },
+      { to: '/review',        icon: Brain,           label: 'Смарт-карточки',       className: '' },
+      { to: '/exam',          icon: Award,           label: 'Устный экзамен',       className: 'tour-step-desktop-exam' },
+      { to: '/quick-prep',    icon: Clock,           label: 'Быстрый повтор',       className: '' },
     ]
   },
   {
-    title: 'Аналитика и Геймификация',
+    title: '📊 Прогресс',
     items: [
-      { to: '/analytics',   icon: BarChart2,       label: 'Прогресс' },
-      { to: '/mistakes',    icon: BookMarked,      label: 'Дневник ошибок' },
-      { to: '/knowledge-map', icon: Network,       label: 'Карта знаний' },
-      { to: '/play',        icon: Gamepad2,        label: 'Сюжетные миссии' },
-      { to: '/career',      icon: Briefcase,       label: 'Карьерный трек' },
+      { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Аналитика & Оценки', className: 'tour-step-desktop-gradebook' },
+      { to: '/mistakes',      icon: BookMarked,      label: 'Дневник ошибок',       className: '' },
+      { to: '/play',          icon: Gamepad2,        label: 'Квесты',               className: '' },
     ]
   },
-  {
-    title: 'Комьюнити',
-    items: [
-      { to: '/network',     icon: Globe,           label: 'Study Network' },
-      { to: '/messages',    icon: Users,           label: 'Друзья' },
-      { to: '/teacher',     icon: Users,           label: 'Мой класс' },
-    ]
-  },
-  {
-    title: 'Аккаунт',
-    items: [
-      { to: '/profile',     icon: User,            label: 'Мой профиль' },
-      { to: '/mood',        icon: Heart,           label: 'Эмоциональный фон' },
-      { to: '/pricing',     icon: CreditCard,      label: 'Тарифы PRO' },
-    ]
-  }
 ];
 
 const teacherNavGroups = [
   {
-    title: 'Управление классами',
+    title: '📚 Управление',
     items: [
-      { to: '/teacher',     icon: Network,         label: 'Мои группы' },
-      { to: '/library',     icon: BookOpen,        label: 'Библиотека' },
-      { to: '/analyze',     icon: Zap,             label: 'Добавить материал' },
-      { to: '/messages',    icon: Users,           label: 'Друзья' },
-      { to: '/profile',     icon: User,            label: 'Мой профиль' },
+      { to: '/teacher',   icon: Network,   label: 'Мои группы' },
+      { to: '/library',   icon: BookOpen,  label: 'Библиотека' },
+      { to: '/analyze',   icon: Zap,       label: 'Добавить материал' },
     ]
   }
 ];
+
+
 
 const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
@@ -339,7 +320,7 @@ export default function Layout() {
         <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
           {currentNavGroups.map((group: any, idx: number) => (
             <div key={idx}>
-              <h3 className="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+              <h3 className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 {group.title}
               </h3>
               <div className="space-y-0.5">
@@ -369,6 +350,34 @@ export default function Layout() {
             </div>
           ))}
         </nav>
+
+        {/* Разделитель + быстрые иконки: Сообщество и Профиль */}
+        <div className="px-4 pb-3 border-t border-slate-800 pt-3 flex items-center gap-2">
+          <NavLink
+            to="/messages"
+            title="Сообщество и друзья"
+            className={({ isActive }) =>
+              `flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition ${
+                isActive ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300'
+              }`
+            }
+          >
+            <Users className="w-4 h-4" />
+            <span>Сообщество</span>
+          </NavLink>
+          <NavLink
+            to="/profile"
+            title="Мой профиль"
+            className={({ isActive }) =>
+              `flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition ${
+                isActive ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300'
+              }`
+            }
+          >
+            <User className="w-4 h-4" />
+            <span>Профиль</span>
+          </NavLink>
+        </div>
 
         {/* User section */}
         <div className="p-4 border-t border-slate-800">
