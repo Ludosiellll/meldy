@@ -702,6 +702,11 @@ class CareerCourseGenerateRequest(BaseModel):
     extra_context: Optional[str] = ""
     vacancy_context: Optional[str] = ""
 
+class CareerCourseExpandRequest(BaseModel):
+    current_course: dict
+    additional_focus: str
+    extra_context: Optional[str] = ""
+
 
 class CareerVacanciesRequest(BaseModel):
     profession: str
@@ -1122,6 +1127,25 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
     except Exception as e:
         print(f"Error generating course: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка генерации курса: {str(e)}")
+
+
+@app.post("/api/career/expand")
+@limiter.limit("5/minute")
+async def career_expand(request: Request, req: CareerCourseExpandRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
+        
+    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
+    try:
+        new_modules = await agent.expand_course(
+            req.current_course,
+            req.additional_focus,
+            req.extra_context
+        )
+        return {"new_modules": new_modules}
+    except Exception as e:
+        print(f"Error expanding course: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка расширения курса: {str(e)}")
 
 
 @app.post("/api/career/evaluate_task")

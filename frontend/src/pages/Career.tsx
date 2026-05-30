@@ -15,7 +15,7 @@ import {
   getCareerProfile, generateCareerProfile, saveCareerProfile, 
   generateCareerCourse, sendCareerChat, evaluateCareerTask, 
   getCareerVacancies, sendVacancyChat, VacancyItem,
-  CareerProfile, CareerCourse, CareerModule 
+  expandCareerCourse, CareerProfile, CareerCourse, CareerModule 
 } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
@@ -56,6 +56,13 @@ export default function Career() {
     extraContext: string;
   } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // States for advanced course expansion dialogue
+  const [showExpandChat, setShowExpandChat] = useState(false);
+  const [expandChatMessages, setExpandChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [expandChatInput, setExpandChatInput] = useState('');
+  const [sendingExpandChat, setSendingExpandChat] = useState(false);
+  const [isExpanding, setIsExpanding] = useState(false);
 
   // Helper for dynamic formatting of salaries
   const formatSalary = (salary: string, location?: string) => {
@@ -240,6 +247,89 @@ export default function Career() {
       toast.error('Ошибка связи с ИИ-консультантом.');
     } finally {
       setSendingVacancyChat(false);
+    }
+  };
+
+  const handleStartExpandChat = () => {
+    if (!profile?.course) return;
+    setShowExpandChat(true);
+    setExpandChatMessages([
+      {
+        role: 'assistant',
+        content: `Поздравляю тебя с успешным и полным прохождением базового курса по направлению **"${profile.course.profession}"**! 🎉 Ты проделал колоссальную работу!\n\nЯ готов спроектировать для тебя продвинутые, сверхсложные модули повышенной сложности, чтобы продолжить твое профессиональное развитие. Расскажи, какую новую техническую высоту или специализацию ты хочешь взять теперь? (Например: углубиться в архитектуру высоконагруженных систем, освоить Docker и CI/CD, уйти в Fullstack или затронуть продвинутый SQL/NoSQL?)`
+      }
+    ]);
+  };
+
+  const handleSendExpandChatMessage = async () => {
+    if (!expandChatInput.trim() || !profile?.course || !user || sendingExpandChat) return;
+    
+    const newMsg = [...expandChatMessages, { role: 'user', content: expandChatInput }];
+    setExpandChatMessages(newMsg);
+    const userInput = expandChatInput;
+    setExpandChatInput('');
+    setSendingExpandChat(true);
+    
+    try {
+      const systemPromptContext = `Студент только что завершил курс "${profile.course.profession}" из ${profile.course.modules.length} модулей. Теперь он хочет расширить обучение. Поговори с ним о его продвинутых целях. Когда вы полностью согласуете дополнительные темы, напиши в самом конце сообщения: [EXPAND_COURSE_ACTION:НазваниеНаправления|ДополнительныйКонтекст]`;
+      
+      const res = await fetch('/api/career/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `${userInput}\n\n[CONTEXT: ${systemPromptContext}]`,
+          history: newMsg.slice(-8)
+        })
+      });
+      
+      if (!res.ok) throw new Error("Ошибка чата");
+      const data = await res.json();
+      const reply = data.reply;
+      
+      const triggerRegex = /\[EXPAND_COURSE_ACTION:(.+?)(?:\|(.+?))?\]/;
+      const match = reply.match(triggerRegex);
+      
+      if (match) {
+        const additionalFocus = match[1].trim();
+        const extraContext = match[2] ? match[2].trim() : '';
+        const cleanReply = reply.replace(triggerRegex, '').trim();
+        setExpandChatMessages(prev => [...prev, { role: 'assistant', content: cleanReply }]);
+        
+        toast.success(`Согласованы продвинутые темы: ${additionalFocus}!`);
+        // Start advanced generation load
+        setShowExpandChat(false);
+        await handleExpandCourseSyllabus(additionalFocus, extraContext);
+      } else {
+        setExpandChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка отправки сообщения.');
+    } finally {
+      setSendingExpandChat(false);
+    }
+  };
+
+  const handleExpandCourseSyllabus = async (additionalFocus: string, extraContext: string) => {
+    if (!user || !profile?.course) return;
+    
+    setIsExpanding(true);
+    toast.loading('Проектируем продвинутые модули, адаптируем практику под новые цели...', { id: 'expand_course_load' });
+    
+    try {
+      const newModules = await expandCareerCourse(user.id, profile.course, additionalFocus, extraContext);
+      if (newModules && newModules.length > 0) {
+        toast.success('Программа обучения успешно расширена!', { id: 'expand_course_load' });
+        confetti({ particleCount: 150, spread: 80 });
+        loadProfile();
+      } else {
+        toast.error('Не удалось расширить учебную программу.', { id: 'expand_course_load' });
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка расширения курса.', { id: 'expand_course_load' });
+    } finally {
+      setIsExpanding(false);
     }
   };
 
@@ -875,6 +965,29 @@ export default function Career() {
 
                   {/* Modules Timeline */}
                   <div className="lg:col-span-2 space-y-6">
+                    {profile.course && profile.course.modules.length > 0 && profile.course.modules.every(m => m.completed) && (
+                      <div className="bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-950 rounded-3xl border border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-650 rounded-full blur-3xl opacity-25" />
+                        <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-950 border border-emerald-400/20">
+                          <Award className="w-8 h-8" />
+                        </div>
+                        <div className="space-y-2 max-w-lg mx-auto">
+                          <h3 className="text-xl md:text-2xl font-black text-slate-100 flex items-center justify-center gap-2">
+                            Поздравляем с завершением! 🏆
+                          </h3>
+                          <p className="text-xs md:text-sm text-slate-200 leading-relaxed font-semibold">
+                            Вы полностью прошли все {profile.course.modules.length} модулей практики и теории! ИИ-Методист готов проанализировать вашу успеваемость и расширить вашу учебную программу продвинутыми, более сложными темами под ваши новые цели.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleStartExpandChat}
+                          className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-950 flex items-center gap-2 mx-auto transition"
+                        >
+                          <Sparkles className="w-4 h-4 text-indigo-150 animate-pulse" />
+                          🚀 Расширить программу продвинутыми модулями
+                        </button>
+                      </div>
+                    )}
                     <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                       Учебная программа (Интерактивный Таймлайн)
@@ -1176,9 +1289,9 @@ export default function Career() {
                                 if (lastGen) {
                                   const diffMs = new Date().getTime() - new Date(lastGen).getTime();
                                   const diffHours = diffMs / (1000 * 60 * 60);
-                                  if (diffHours < 2) {
-                                    const remainingMin = Math.round((2 - diffHours) * 60);
-                                    toast.error(`Лимит генерации активен. Пожалуйста, подождите ещё ${remainingMin} мин.`);
+                                  if (diffHours < 24) {
+                                    const remainingHours = Math.ceil(24 - diffHours);
+                                    toast.error(`Лимит генерации активен. Пожалуйста, подождите ещё ${remainingHours} ч.`);
                                     return;
                                   }
                                 }
@@ -1286,7 +1399,7 @@ export default function Career() {
                 <div className="flex gap-2.5 items-start text-xs text-slate-300">
                   <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-extrabold text-slate-200">Rate Limit:</span> В целях предотвращения спама вы сможете генерировать следующий курс только <strong>раз в 2 часа</strong>.
+                    <span className="font-extrabold text-slate-200">Rate Limit:</span> В целях предотвращения спама вы сможете генерировать следующий курс только <strong>раз в 24 часа (1 раз в день)</strong>.
                   </div>
                 </div>
               </div>
@@ -1316,6 +1429,83 @@ export default function Career() {
                   className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-extrabold shadow-lg shadow-indigo-950 transition"
                 >
                   Да, запустить!
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ADVANCED SYLLABUS EXPANSION DIALOGUE MODAL */}
+      <AnimatePresence>
+        {showExpandChat && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[80vh]"
+            >
+              {/* Header */}
+              <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 dark:text-slate-100">Расширение программы обучения</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Проектирование advanced-модулей</p>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setShowExpandChat(false)}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-350 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-slate-50 dark:bg-slate-950">
+                {expandChatMessages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
+                      msg.role === 'user' 
+                        ? 'bg-indigo-600 text-white rounded-tr-none shadow-md shadow-indigo-100 dark:shadow-none' 
+                        : 'bg-white dark:bg-slate-850 text-slate-850 dark:text-slate-100 rounded-tl-none shadow-sm border border-slate-200/40 dark:border-slate-800'
+                    }`}>
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  </div>
+                ))}
+                {sendingExpandChat && (
+                  <div className="flex justify-start">
+                    <div className="bg-white dark:bg-slate-850 text-slate-400 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs shadow-sm border border-slate-200/40 dark:border-slate-800">
+                      <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                      <span>Форджи обдумывает траекторию и печатает...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input */}
+              <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex gap-2 items-center">
+                <input 
+                  type="text" 
+                  value={expandChatInput}
+                  onChange={(e) => setExpandChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendExpandChatMessage()}
+                  placeholder="Опиши новые продвинутые цели обучения..."
+                  className="flex-grow px-4 py-3 bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                
+                <button 
+                  onClick={handleSendExpandChatMessage}
+                  disabled={sendingExpandChat || !expandChatInput.trim()}
+                  className="p-3 bg-indigo-650 hover:bg-indigo-600 disabled:opacity-40 text-white rounded-xl transition shadow-md shadow-indigo-200 dark:shadow-none"
+                >
+                  <Send className="w-4 h-4" />
                 </button>
               </div>
             </motion.div>

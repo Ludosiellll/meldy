@@ -171,6 +171,47 @@ export async function generateCareerCourse(
   }
 }
 
+// Расширить курс продвинутыми модулями
+export async function expandCareerCourse(
+  userId: string,
+  currentCourse: CareerCourse,
+  additionalFocus: string,
+  extraContext?: string
+): Promise<CareerModule[] | null> {
+  try {
+    const res = await fetch('/api/career/expand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        current_course: currentCourse,
+        additional_focus: additionalFocus,
+        extra_context: extraContext || ""
+      })
+    });
+    
+    if (!res.ok) {
+      throw new Error('Ошибка расширения курса');
+    }
+    
+    const data = await res.json();
+    const newModules: CareerModule[] = data.new_modules || [];
+    
+    if (newModules.length > 0) {
+      const currentProfile = await getCareerProfile(userId);
+      if (currentProfile && currentProfile.course) {
+        currentProfile.course.modules = [...currentProfile.course.modules, ...newModules];
+        currentProfile.course.last_generated_at = new Date().toISOString();
+        await saveCareerProfile(userId, currentProfile);
+      }
+    }
+    
+    return newModules;
+  } catch (error) {
+    console.error('expandCareerCourse error:', error);
+    return null;
+  }
+}
+
 // Отправить сообщение ИИ карьерному коучу
 export async function sendCareerChat(
   message: string,
