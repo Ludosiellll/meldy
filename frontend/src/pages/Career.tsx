@@ -1076,6 +1076,15 @@ export default function Career() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-[90vh] flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
+        <p className="text-sm text-slate-400 font-semibold animate-pulse">Синхронизируем ваш карьерный вектор...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-[90vh]">
       
