@@ -158,6 +158,7 @@ export default function Career() {
   // Verification & AI Expert review states
   const [localTested, setLocalTested] = useState(false);
   const [localTestedPassed, setLocalTestedPassed] = useState(false);
+  const [lastEvalResult, setLastEvalResult] = useState<any | null>(null);
   const [localTestLogs, setLocalTestLogs] = useState<string[]>([]);
   const [isEvaluating, setIsEvaluating] = useState(false);
 
@@ -694,15 +695,29 @@ export default function Career() {
       setLocalTestLogs(logs);
       setLocalTestedPassed(passed);
     } else if (selectedModule.practice_type === 'web') {
-      // Local check for HTML and tags
-      const code = sandboxCode.toLowerCase();
-      const logs = [];
+      const code = sandboxCode;
+      const codeLower = code.toLowerCase();
+      const logs: string[] = [];
       let passed = true;
 
-      if (!code.includes('<style>') || !code.includes('</style>')) {
-        logs.push('⚠️ Стили не обнаружены. Пожалуйста, напишите CSS внутри тега <style>');
+      // Check for <style> tag with actual CSS
+      const styleMatch = code.match(/<style[^>]*>([\/\s\S]*?)<\/style>/i);
+      const cssContent = styleMatch ? styleMatch[1].trim() : '';
+      const hasRealCSS = cssContent.includes(':') && cssContent.includes('{');
+
+      if (!styleMatch || !hasRealCSS) {
+        logs.push('⚠️ CSS не обнаружен или пустой. Напишите CSS внутри тега <style> с реальными правилами.');
         passed = false;
       }
+
+      // Check for meaningful HTML (not just the starter comment)
+      const htmlWithoutComment = code.replace(/<!--.*?-->/gs, '').trim();
+      const tagCount = (htmlWithoutComment.match(/<[a-z][^>]*>/gi) || []).length;
+      if (tagCount < 2) {
+        logs.push('⚠️ HTML структура пуста. Добавьте HTML-элементы (например, div, p, h1 и т.д.).');
+        passed = false;
+      }
+
       if (passed) {
         logs.push('✅ DOM структура корректна. CSS стили внедрены.');
         logs.push('👁️ Visual Previewer успешно отрендерил интерфейс.');
@@ -895,6 +910,9 @@ export default function Career() {
         xpGained,
         selectedModule.practice_type
       );
+
+      // Store evaluation inline for the sandbox view
+      setLastEvalResult(evaluation);
 
       const saved = !!updatedProfile;
       if (saved) {
@@ -2232,7 +2250,49 @@ export default function Career() {
                     </div>
                   )}
 
-                  {/* Local validation output */}
+                  {/* Inline evaluation result after expert review */}
+                  {lastEvalResult && (
+                    <div className={`p-4 rounded-xl border space-y-3 ${
+                      lastEvalResult.score >= 70
+                        ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30'
+                        : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/30'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                          {lastEvalResult.score >= 70
+                            ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            : <AlertCircle className="w-4 h-4 text-rose-500" />}
+                          Резюме эксперта: {lastEvalResult.score}/100
+                        </h4>
+                        <button onClick={() => setLastEvalResult(null)} className="text-slate-400 hover:text-slate-600 transition">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {lastEvalResult.verdict && (
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">{lastEvalResult.verdict}</p>
+                      )}
+                      {lastEvalResult.strengths?.length > 0 && (
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide block mb-1">✅ Сильные стороны:</span>
+                          <ul className="space-y-0.5">{lastEvalResult.strengths.map((s: string, i: number) => (
+                            <li key={i} className="text-[11px] text-slate-600 dark:text-slate-300 flex items-start gap-1">
+                              <span className="text-emerald-500 mt-0.5">•</span>{s}
+                            </li>
+                          ))}</ul>
+                        </div>
+                      )}
+                      {lastEvalResult.weaknesses?.length > 0 && (
+                        <div>
+                          <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide block mb-1">❌ Что улучшить:</span>
+                          <ul className="space-y-0.5">{lastEvalResult.weaknesses.map((w: string, i: number) => (
+                            <li key={i} className="text-[11px] text-slate-600 dark:text-slate-300 flex items-start gap-1">
+                              <span className="text-rose-500 mt-0.5">•</span>{w}
+                            </li>
+                          ))}</ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {localTested && (
                     <div className={`p-4 rounded-xl border ${localTestedPassed ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/30'}`}>
                       <h4 className="text-xs font-bold flex items-center gap-1.5 mb-2 text-slate-800 dark:text-slate-200">
@@ -2617,53 +2677,39 @@ export default function Career() {
                   </div>
 
                   {/* Sandbox Bottom Controls */}
-                  <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0 bg-slate-50 dark:bg-slate-950">
+                  <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 shrink-0 bg-slate-50 dark:bg-slate-950">
                     {selectedModule.practice_type !== 'roleplay' && (
-                      <div className="flex items-center gap-2">
+                      <>
                         <button
                           onClick={runLocalTests}
-                          className="px-5 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                          className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-2 transition whitespace-nowrap"
                         >
                           <Play className="w-3.5 h-3.5" />
                           Локальный прогон (0 токенов)
                         </button>
-
                         {(selectedModule.practice_type === 'algo' || selectedModule.practice_type === 'sql' || selectedModule.practice_type === 'web') && (
                           <button
                             onClick={handleRunDiagnostics}
                             disabled={isDiagnosticsLoading}
-                            className="px-5 py-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-2 transition disabled:opacity-50"
+                            className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-2 transition disabled:opacity-50 whitespace-nowrap"
                           >
-                            {isDiagnosticsLoading ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Cpu className="w-3.5 h-3.5" />
-                            )}
+                            {isDiagnosticsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cpu className="w-3.5 h-3.5" />}
                             🤖 ИИ-Анализ
                           </button>
                         )}
-                      </div>
+                      </>
                     )}
-
-                    <div className="flex items-center gap-2 ml-auto">
-                      <button
-                        onClick={handleAISubmit}
-                        disabled={(!localTestedPassed && selectedModule.practice_type !== 'roleplay') || isEvaluating}
-                        className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 transition shadow-md shadow-indigo-200 dark:shadow-none disabled:opacity-40"
-                      >
-                        {isEvaluating ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Эксперт пишет ревью...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4" />
-                            Получить ревью эксперта (5⚡)
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleAISubmit}
+                      disabled={(!localTestedPassed && selectedModule.practice_type !== 'roleplay') || isEvaluating}
+                      className="ml-auto px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 transition shadow-md shadow-indigo-200 dark:shadow-none disabled:opacity-40 whitespace-nowrap"
+                    >
+                      {isEvaluating ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" />Эксперт пишет ревью...</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4" />Ревью эксперта (5⚡)</>
+                      )}
+                    </button>
                   </div>
 
                 </div>
@@ -2721,6 +2767,7 @@ export default function Career() {
         <SocraticTutor
           paragraphText={socraticParagraph}
           profession={profile.course.profession}
+          isBeginnerLevel={!profile.course.level || ['Начинающий', 'Новичок', 'Junior', 'Стажёр'].includes(profile.course.level)}
           onClose={() => setSocraticParagraph(null)}
         />
       )}

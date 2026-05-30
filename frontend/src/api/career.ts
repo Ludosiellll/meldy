@@ -640,7 +640,9 @@ export async function sendSocraticChat(
   paragraphText: string,
   profession: string,
   message: string,
-  chatHistory: { role: string; content: string }[]
+  chatHistory: { role: string; content: string }[],
+  mode: 'explain' | 'socratic' = 'socratic',
+  isBeginnerLevel: boolean = false
 ): Promise<string> {
   const res = await fetch('/api/career/socratic_chat', {
     method: 'POST',
@@ -650,6 +652,8 @@ export async function sendSocraticChat(
       profession,
       message,
       chat_history: chatHistory,
+      mode,
+      is_beginner: isBeginnerLevel,
     }),
   });
   if (!res.ok) throw new Error('Ошибка сократовского чата');

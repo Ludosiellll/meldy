@@ -61,12 +61,22 @@ export default function ForgeyAssistant() {
     return localStorage.getItem('forgey_assistant_hidden') !== 'true';
   });
 
+  const [isSocraticOpen, setIsSocraticOpen] = useState(false);
+
   useEffect(() => {
     const handleToggle = () => {
       setIsVisible(localStorage.getItem('forgey_assistant_hidden') !== 'true');
     };
+    const handleSocraticOpen = () => { setIsSocraticOpen(true); setIsOpen(false); };
+    const handleSocraticClose = () => setIsSocraticOpen(false);
     window.addEventListener('forgey_assistant_toggle', handleToggle);
-    return () => window.removeEventListener('forgey_assistant_toggle', handleToggle);
+    window.addEventListener('socratic_chat_open', handleSocraticOpen);
+    window.addEventListener('socratic_chat_close', handleSocraticClose);
+    return () => {
+      window.removeEventListener('forgey_assistant_toggle', handleToggle);
+      window.removeEventListener('socratic_chat_open', handleSocraticOpen);
+      window.removeEventListener('socratic_chat_close', handleSocraticClose);
+    };
   }, []);
 
   useEffect(() => {
@@ -130,8 +140,8 @@ export default function ForgeyAssistant() {
     </div>
   );
 
-  // На странице чата/сообщений — скрываем плавающую кнопку на мобилке
-  if (isChatPage || isMessagesPage) return null;
+  // На странице чата/сообщений или когда Socratic открыт — скрываем
+  if (isChatPage || isMessagesPage || isSocraticOpen) return null;
 
   return (
     <>
