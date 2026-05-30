@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { getUserXP, calcLevel } from '../api/quests';
 import { getProfile, UserProfile } from '../api/social';
-import { getUnreadCount, subscribeToNotifications, subscribeToMessages, getNotifications, markAllRead, Notification, getUnreadDMsGrouped } from '../api/chat';
+import { getUnreadCount, subscribeToNotifications, subscribeToMessages, getNotifications, markAllRead, Notification, getUnreadDMsGrouped, deleteNotification } from '../api/chat';
 import toast from 'react-hot-toast';
 import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
@@ -211,6 +211,8 @@ export default function Layout() {
       if (unreadCount > 0) {
         await markAllRead(user.id);
         setUnreadCount(0);
+        // Сразу обновим локальное состояние, чтобы у всех загруженных уведомлений проставить is_read = true
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       }
     }
   };
@@ -236,29 +238,74 @@ export default function Layout() {
   const currentNavGroups = isTeacher ? teacherNavGroups : navGroups;
 
   const notificationDropdown = showNotifications && (
-    <div className="fixed inset-x-4 top-16 md:bottom-20 md:top-auto md:left-6 md:right-auto md:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[70] overflow-hidden flex flex-col max-h-[60vh]">
-      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800/50">
-        <h3 className="font-bold text-slate-800 dark:text-slate-100">Уведомления</h3>
-        {notifications.length > 0 && (
-          <button className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-700 dark:hover:text-indigo-300">Отметить все</button>
-        )}
+    <>
+      <div 
+        className="fixed inset-0 z-50 cursor-default" 
+        onClick={() => setShowNotifications(false)}
+      />
+      <div className="fixed inset-x-4 top-16 md:bottom-20 md:top-auto md:left-6 md:right-auto md:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[70] overflow-hidden flex flex-col max-h-[60vh]">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800/50">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100">Уведомления</h3>
+          {notifications.some(n => !n.is_read) && (
+            <button 
+              onClick={async () => {
+                if (user) {
+                  await markAllRead(user.id);
+                  setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+                  setUnreadCount(0);
+                  toast.success('Все уведомления отмечены как прочитанные');
+                }
+              }}
+              className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-700 dark:hover:text-indigo-300"
+            >
+              Отметить все
+            </button>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+          {notifications.length === 0 ? (
+            <div className="p-6 text-center text-slate-500 dark:text-slate-400 text-sm">Нет новых уведомлений</div>
+          ) : (
+            notifications.map(n => (
+              <div 
+                key={n.id} 
+                onClick={() => {
+                  if (n.type === 'message') {
+                    navigate(n.related_id ? `/messages/${n.related_id}` : '/messages');
+                  } else if (n.type === 'friend_request') {
+                    navigate('/profile');
+                  }
+                  setShowNotifications(false);
+                }}
+                className="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition relative group cursor-pointer pr-10"
+              >
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const ok = await deleteNotification(n.id);
+                    if (ok) {
+                      setNotifications(prev => prev.filter(item => item.id !== n.id));
+                      toast.success('Уведомление удалено');
+                    } else {
+                      toast.error('Не удалось удалить уведомление');
+                    }
+                  }}
+                  className="absolute right-2 top-2.5 p-1 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10"
+                  title="Удалить уведомление"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                <p className="text-sm text-slate-800 dark:text-slate-100 font-medium mb-1 line-clamp-2 break-words pr-2">{n.title}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 break-words">{n.body}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">
+                  {new Date(n.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-        {notifications.length === 0 ? (
-          <div className="p-6 text-center text-slate-500 dark:text-slate-400 text-sm">Нет новых уведомлений</div>
-        ) : (
-          notifications.map(n => (
-            <div key={n.id} className="p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">
-              <p className="text-sm text-slate-800 dark:text-slate-100 font-medium mb-1 line-clamp-2 break-words">{n.title}</p>
-              <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 break-words">{n.body}</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">
-                {new Date(n.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-              </p>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+    </>
   );
 
   return (

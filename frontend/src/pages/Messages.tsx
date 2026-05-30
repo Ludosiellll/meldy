@@ -462,7 +462,7 @@ export default function Messages() {
                       toast.success('Заявка в друзья отправлена!');
                       loadData();
                     }}
-                    className="flex items-center justify-center w-8 h-8 md:w-auto md:px-3 md:py-1.5 text-sm font-bold text-slate-500 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/40 rounded-lg transition"
+                    className="flex items-center justify-center w-8 h-8 md:w-auto md:px-3 md:py-1.5 text-sm font-bold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-lg transition border border-slate-200 dark:border-slate-700/60"
                     title="Добавить в друзья"
                   >
                     <UserPlus className="w-4 h-4" />

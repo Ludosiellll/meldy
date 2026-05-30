@@ -224,6 +224,14 @@ export async function markAllRead(userId: string) {
   await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId).eq('is_read', false);
 }
 
+export async function deleteNotification(notificationId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('id', notificationId);
+  return !error;
+}
+
 export async function getUnreadDMsGrouped(userId: string): Promise<Record<string, number>> {
   const { data } = await supabase
     .from('notifications')
