@@ -242,17 +242,27 @@ export default function KnowledgeMap() {
 
     const conceptKeys = Object.keys(conceptMap);
     conceptKeys.forEach((key, idx) => {
-      const angle = (idx / conceptKeys.length) * Math.PI * 2;
-      const dist = 100 + Math.random() * 50;
       const value = conceptMap[key];
       const linksCount = value.materials.length;
+
+      // Инициализируем планету рядом с ее первой лекцией (звездой)
+      // Это предотвращает слипание всех 45+ планет в мертвый шар в центре экрана
+      let startX = width / 2;
+      let startY = height / 2;
+      if (value.materials.length > 0) {
+        const firstMat = tempNodes.find(n => n.id === value.materials[0].id);
+        if (firstMat) {
+          startX = firstMat.x + (Math.random() - 0.5) * 150;
+          startY = firstMat.y + (Math.random() - 0.5) * 150;
+        }
+      }
 
       tempNodes.push({
         id: key,
         label: value.term,
         type: 'concept',
-        x: width / 2 + Math.cos(angle) * dist,
-        y: height / 2 + Math.sin(angle) * dist,
+        x: startX,
+        y: startY,
         vx: 0,
         vy: 0,
         radius: 10 + linksCount * 2.5, // Динамический размер планеты
