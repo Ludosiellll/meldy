@@ -165,8 +165,8 @@ export default function KnowledgeMap() {
   useEffect(() => {
     if (loading || materials.length === 0) return;
 
-    const width = 800;
-    const height = 550;
+    const width = 1600;
+    const height = 1000;
 
     const tempNodes: GraphNode[] = [];
     const tempLinks: GraphLink[] = [];
@@ -181,10 +181,9 @@ export default function KnowledgeMap() {
     const subjectColorMap: Record<string, string> = {};
     let colorIdx = 0;
 
-    // Сначала создаем узлы материалов (лекций)
     materials.forEach((mat, idx) => {
       const angle = (idx / materials.length) * Math.PI * 2;
-      const radiusDist = 220;
+      const radiusDist = 450; // Звезды изначально далеко
       
       const subject = mat.subject || 'Общее';
       if (!subjectColorMap[subject]) {
@@ -196,11 +195,11 @@ export default function KnowledgeMap() {
         id: mat.id,
         label: mat.title,
         type: 'material',
-        x: width / 2 + Math.cos(angle) * radiusDist + (Math.random() - 0.5) * 10,
-        y: height / 2 + Math.sin(angle) * radiusDist + (Math.random() - 0.5) * 10,
+        x: width / 2 + Math.cos(angle) * radiusDist + (Math.random() - 0.5) * 50,
+        y: height / 2 + Math.sin(angle) * radiusDist + (Math.random() - 0.5) * 50,
         vx: 0,
         vy: 0,
-        radius: 28, // Большой радиус лекций в стиле Obsidian
+        radius: 36, // Звезда больше
         status: 'neutral',
         color: subjectColorMap[subject],
         details: mat
@@ -222,7 +221,10 @@ export default function KnowledgeMap() {
         }
 
         if (conceptMap[key]) {
-          conceptMap[key].materials.push({ id: mat.id, title: mat.title });
+          // Prevent duplicates
+          if (!conceptMap[key].materials.find(m => m.id === mat.id)) {
+            conceptMap[key].materials.push({ id: mat.id, title: mat.title });
+          }
           if (status === 'weak') conceptMap[key].status = 'weak';
           else if (status === 'strong' && conceptMap[key].status !== 'weak') {
             conceptMap[key].status = 'strong';
@@ -238,12 +240,12 @@ export default function KnowledgeMap() {
       });
     });
 
-    // Добавляем узлы концептов
     const conceptKeys = Object.keys(conceptMap);
     conceptKeys.forEach((key, idx) => {
       const angle = (idx / conceptKeys.length) * Math.PI * 2;
-      const dist = 90 + Math.random() * 60;
+      const dist = 100 + Math.random() * 50;
       const value = conceptMap[key];
+      const linksCount = value.materials.length;
 
       tempNodes.push({
         id: key,
@@ -253,7 +255,7 @@ export default function KnowledgeMap() {
         y: height / 2 + Math.sin(angle) * dist,
         vx: 0,
         vy: 0,
-        radius: 14, // Заметные концепты
+        radius: 10 + linksCount * 2.5, // Динамический размер планеты
         status: value.status,
         color: value.status === 'weak' ? '#ef4444' : value.status === 'strong' ? '#22c55e' : '#818cf8',
         definition: value.definition,
@@ -274,18 +276,18 @@ export default function KnowledgeMap() {
     setLinks(tempLinks);
   }, [loading, materials, mistakes]);
 
-  // 3. Симуляция физики
+  // 3. Симуляция физики (Галактическая модель)
   useEffect(() => {
     if (nodes.length === 0) return;
 
-    const width = 800;
-    const height = 550;
+    const width = 1600;
+    const height = 1000;
 
     const tick = () => {
       const currentNodes = [...nodesRef.current];
       const currentLinks = linksRef.current;
 
-      // 1. Сила отталкивания
+      // 1. Силы отталкивания
       for (let i = 0; i < currentNodes.length; i++) {
         const nodeA = currentNodes[i];
         for (let j = i + 1; j < currentNodes.length; j++) {
@@ -295,12 +297,22 @@ export default function KnowledgeMap() {
           const distSq = dx * dx + dy * dy + 0.1;
           const dist = Math.sqrt(distSq);
           
-          const minDist = nodeA.type === 'material' && nodeB.type === 'material' 
-            ? 320 
-            : (nodeA.type === 'material' || nodeB.type === 'material' ? 220 : 180);
+          let minDist = 120;
+          let strength = 0.5;
+
+          if (nodeA.type === 'material' && nodeB.type === 'material') {
+            minDist = 550; // Звезды далеко друг от друга
+            strength = 0.8;
+          } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
+            minDist = nodeA.radius + nodeB.radius + 15; // Планеты плотно упакованы на орбите
+            strength = 0.3;
+          } else {
+            minDist = nodeA.radius + nodeB.radius + 60; // Между звездой и чужой планетой
+            strength = 0.5;
+          }
 
           if (dist < minDist) {
-            const force = (minDist - dist) * 0.45;
+            const force = (minDist - dist) * strength;
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
             
@@ -316,7 +328,7 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 2. Сила притяжения связей
+      // 2. Сила притяжения связей (Орбиты)
       for (const link of currentLinks) {
         const source = currentNodes.find(n => n.id === link.source);
         const target = currentNodes.find(n => n.id === link.target);
@@ -325,8 +337,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.type === 'material' && target.type === 'material' ? 300 : 180;
-          const force = (dist - desiredDist) * 0.025;
+          const desiredDist = source.radius + target.radius + 30; // Дистанция орбиты
+          const force = (dist - desiredDist) * 0.08; // Мощное притяжение
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -341,7 +353,7 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 3. Гравитация к центру
+      // 3. Слабая гравитация к центру
       const centerX = width / 2;
       const centerY = height / 2;
       
@@ -352,17 +364,19 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          node.vx += (centerX - node.x) * 0.0012;
-          node.vy += (centerY - node.y) * 0.0012;
+          // Звезды тянет в центр сильнее, чтобы галактика не распадалась
+          const gravity = node.type === 'material' ? 0.0006 : 0.0001; 
+          node.vx += (centerX - node.x) * gravity;
+          node.vy += (centerY - node.y) * gravity;
 
-          node.vx *= 0.8;
-          node.vy *= 0.8;
+          node.vx *= 0.65; // Трение
+          node.vy *= 0.65;
 
           node.x += node.vx;
           node.y += node.vy;
 
-          node.x = Math.max(40, Math.min(width - 40, node.x));
-          node.y = Math.max(40, Math.min(height - 40, node.y));
+          node.x = Math.max(-1000, Math.min(width + 1000, node.x));
+          node.y = Math.max(-1000, Math.min(height + 1000, node.y));
         }
       });
 
@@ -613,7 +627,7 @@ export default function KnowledgeMap() {
               
               <svg
                 ref={svgRef}
-                viewBox="0 0 800 550"
+                viewBox="0 0 1600 1000"
                 preserveAspectRatio="xMidYMid meet"
                 className="w-full h-[60vh] md:h-[550px] cursor-grab active:cursor-grabbing touch-none"
                 onMouseDown={(e) => handleMouseDown(e)}
@@ -693,11 +707,21 @@ export default function KnowledgeMap() {
                   {/* Рендеринг узлов (круги) */}
                   {nodes.map((node) => {
                     const isSelected = selectedNode?.id === node.id;
+                    const isLinkedToSelected = selectedNode && links.some(l => 
+                       (l.source === selectedNode.id && l.target === node.id) || 
+                       (l.target === selectedNode.id && l.source === node.id)
+                    );
+                    const isHighlightNode = !selectedNode || isSelected || isLinkedToSelected;
+
                     const isMaterial = node.type === 'material';
                     
                     const activeSearch = searchQuery.trim().toLowerCase();
                     const isSearchResult = activeSearch && node.label.toLowerCase().includes(activeSearch);
-                    const searchOpacity = !activeSearch || isSearchResult ? 1 : 0.15;
+                    
+                    // Учитываем поиск и выделение
+                    let searchOpacity = 1;
+                    if (activeSearch && !isSearchResult) searchOpacity = 0.15;
+                    else if (selectedNode && !isHighlightNode) searchOpacity = 0.15;
 
                     const isLabelBelow = isMaterial || (node.label.charCodeAt(0) % 2 === 0);
                     const labelY = isLabelBelow ? (node.radius + 18) : (-node.radius - 10);
@@ -716,7 +740,7 @@ export default function KnowledgeMap() {
                       <g
                         key={node.id}
                         transform={`translate(${node.x}, ${node.y})`}
-                        className="cursor-pointer group"
+                        className="cursor-pointer group transition-opacity duration-300"
                         onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, node); }}
                         onMouseUp={(e) => { e.stopPropagation(); handleMouseUp(e, node); }}
                         onTouchStart={(e) => { e.stopPropagation(); handleTouchStart(e, node); }}
