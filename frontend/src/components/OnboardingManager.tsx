@@ -277,7 +277,16 @@ export default function OnboardingManager() {
   useEffect(() => {
     if (!user) return;
     const timer = setTimeout(checkTours, 1200);
-    return () => clearTimeout(timer);
+    
+    const handleProfileUpdate = () => {
+      checkTours();
+    };
+    window.addEventListener('profile_updated', handleProfileUpdate);
+    
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('profile_updated', handleProfileUpdate);
+    };
   }, [user?.id, location.pathname]);
 
   const checkTours = async () => {
@@ -294,6 +303,7 @@ export default function OnboardingManager() {
       // Verify the second target exists in DOM before starting
       const secondTarget = tourSteps[1]?.target as string;
       if (secondTarget === 'body' || document.querySelector(secondTarget)) {
+        setRun(false);
         setSteps(tourSteps);
         markOnboardingTourSeen(user.id, 'dashboard_tour');
         setTimeout(() => setRun(true), 100);
