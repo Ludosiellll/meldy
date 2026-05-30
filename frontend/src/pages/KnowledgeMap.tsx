@@ -318,13 +318,13 @@ export default function KnowledgeMap() {
           let strength = 0.5;
 
           if (nodeA.type === 'material' && nodeB.type === 'material') {
-            minDist = 550; // Звезды далеко друг от друга
-            strength = 0.8;
+            minDist = 280; // Сближаем лекции, чтобы они не разлетались по всему экрану
+            strength = 0.6;
           } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
             minDist = nodeA.radius + nodeB.radius + 15; // Планеты плотно упакованы на орбите
             strength = 0.3;
           } else {
-            minDist = nodeA.radius + nodeB.radius + 60; // Между звездой и чужой планетой
+            minDist = nodeA.radius + nodeB.radius + 50; // Чуть плотнее орбиты
             strength = 0.5;
           }
 
@@ -354,8 +354,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          const desiredDist = source.radius + target.radius + 30; // Дистанция орбиты
-          const force = (dist - desiredDist) * 0.08; // Мощное притяжение
+          const desiredDist = source.radius + target.radius + 20; // Дистанция орбиты еще плотнее
+          const force = (dist - desiredDist) * 0.1; // Мощное притяжение
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
 
@@ -370,7 +370,10 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 3. Мягкие границы вместо жесткой гравитации в центр
+      // 3. Формирование органичного кластера в центре
+      const centerX = width / 2;
+      const centerY = height / 2;
+
       currentNodes.forEach(node => {
         if (node.fx !== undefined && node.fx !== null && node.fy !== undefined && node.fy !== null) {
           node.x = node.fx;
@@ -378,23 +381,10 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          // Мягкие отталкивающие границы коробки
-          const paddingX = 300;
-          const paddingY = 200;
-          const pushForce = 0.05;
-
-          if (node.type === 'material') {
-            if (node.x < paddingX) node.vx += pushForce;
-            if (node.x > width - paddingX) node.vx -= pushForce;
-            if (node.y < paddingY) node.vy += pushForce;
-            if (node.y > height - paddingY) node.vy -= pushForce;
-          } else {
-            // Для планет (концептов) сверх-слабая гравитация к центру, на случай если они улетят
-            const centerX = width / 2;
-            const centerY = height / 2;
-            node.vx += (centerX - node.x) * 0.0001;
-            node.vy += (centerY - node.y) * 0.0001;
-          }
+          // Мягко стягиваем все к центру, чтобы сформировать единый "остров" знаний
+          const gravity = node.type === 'material' ? 0.0008 : 0.0002;
+          node.vx += (centerX - node.x) * gravity;
+          node.vy += (centerY - node.y) * gravity;
 
           node.vx *= 0.65; // Трение
           node.vy *= 0.65;
@@ -402,8 +392,9 @@ export default function KnowledgeMap() {
           node.x += node.vx;
           node.y += node.vy;
 
-          node.x = Math.max(-500, Math.min(width + 500, node.x));
-          node.y = Math.max(-500, Math.min(height + 500, node.y));
+          // Жесткие границы, чтобы ничего не улетало за пределы
+          node.x = Math.max(-100, Math.min(width + 100, node.x));
+          node.y = Math.max(-100, Math.min(height + 100, node.y));
         }
       });
 
