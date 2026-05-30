@@ -609,11 +609,16 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         </div>
         <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
           <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-            <Cpu className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+            <Layers className="w-4 h-4 text-amber-500 dark:text-amber-400" />
           </div>
           <div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Агенты</p>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">3 параллельно</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Практика</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              {flashcardCount + quizCount} упражнений
+            </p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+              {quizCount} тестов / {flashcardCount} карточек
+            </p>
           </div>
         </div>
       </div>

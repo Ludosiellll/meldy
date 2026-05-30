@@ -230,27 +230,6 @@ export default function Analyze() {
               sourceFileName={state.sourceFileName} 
               materialId={state.savedMaterialId} 
             />
-            
-            {state.savedMaterialId && state.results.podcast && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-700">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0 border border-rose-500/30">
-                    <Mic className="w-6 h-6 text-rose-500" />
-                  </div>
-                  <div className="text-center sm:text-left">
-                    <h3 className="font-bold text-lg mb-1 flex items-center justify-center sm:justify-start gap-2">AI-Подкаст сгенерирован! <Zap className="w-4 h-4 text-rose-400" /></h3>
-                    <p className="text-slate-400 text-sm">Слушайте разбор этой темы в аудиоформате.</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate(`/library/${state.savedMaterialId}?mode=express&tab=podcast`)}
-                  className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-sm transition w-full sm:w-auto shrink-0 shadow-lg shadow-rose-900/50"
-                >
-                  Слушать подкаст
-                </button>
-              </motion.div>
-            )}
-
             <div className="mt-6 text-center">
               <button
                 onClick={() => navigate('/library')}

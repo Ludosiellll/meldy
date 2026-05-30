@@ -82,59 +82,116 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
     const fsExit = () => { setFsOpen(false); setFsIdx(0); setFsAnswers({}); setFsSubmitted(false); };
 
     return (
-      <div className="fixed inset-0 z-50 bg-slate-900 overflow-y-auto">
+      <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/40 text-slate-100 overflow-y-auto flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-4 border-b border-slate-700">
-          <span className="text-white font-semibold text-lg">StudyForge — Тест для аудитории</span>
-          <button onClick={fsExit} className="flex items-center gap-1.5 text-white/70 hover:text-white transition text-sm">
-            <Minimize2 className="w-4 h-4" />Выйти
+        <div className="flex items-center justify-between px-8 py-5 bg-slate-900/40 backdrop-blur-md border-b border-slate-800/80">
+          <span className="text-indigo-400 font-extrabold text-base tracking-widest uppercase flex items-center gap-2">
+            StudyForge
+            <span className="text-slate-400 text-xs font-medium uppercase tracking-normal">| Режим презентации</span>
+          </span>
+          <button
+            onClick={fsExit}
+            className="flex items-center gap-1.5 px-4 py-2 bg-slate-800/50 hover:bg-rose-600 hover:text-white text-slate-300 transition duration-200 rounded-xl text-xs font-black border border-slate-700/50 cursor-pointer shadow-sm"
+          >
+            <Minimize2 className="w-3.5 h-3.5" />
+            <span>Выйти</span>
           </button>
         </div>
 
         {!fsSubmitted ? (
-          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] px-8 py-12">
-            <p className="text-slate-400 text-2xl mb-6">Вопрос {fsIdx + 1} / {fsTotal}</p>
-            <p className="text-white text-3xl font-bold text-center max-w-3xl mx-auto mb-12">{fsQ.question}</p>
-            <div className="grid grid-cols-2 gap-4 max-w-3xl w-full">
+          <div className="flex flex-col items-center justify-center flex-1 px-8 py-12">
+            <div className="w-full max-w-4xl text-center mb-10 bg-slate-900/40 p-8 sm:p-10 rounded-3xl border border-slate-800/60 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+              <p className="text-indigo-400 text-xs font-black uppercase tracking-widest mb-3">Вопрос {fsIdx + 1} из {fsTotal}</p>
+              <h2 className="text-white text-2xl sm:text-3xl font-extrabold leading-snug">{fsQ.question}</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl w-full mx-auto">
               {fsQ.options?.map((opt: string, j: number) => {
                 const selected = fsAnswers[fsIdx] === opt;
                 return (
-                  <div key={j} onClick={() => fsSelect(opt)}
-                    className={'rounded-2xl p-6 text-xl cursor-pointer transition border ' +
-                      (selected ? 'bg-brand-600 border-brand-500 text-white' : 'bg-slate-800 border-slate-700 text-white hover:bg-slate-700 hover:border-brand-500')}>
-                    {opt}
+                  <div
+                    key={j}
+                    onClick={() => fsSelect(opt)}
+                    className={`rounded-2xl p-5 sm:p-6 text-base sm:text-lg font-bold cursor-pointer transition-all duration-200 border flex items-center justify-between select-none ${
+                      selected
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/10'
+                        : 'bg-slate-900/50 border-slate-850 text-slate-300 hover:bg-slate-800/60 hover:text-white hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="pr-4 leading-normal">{opt.replace(/^[A-D]\)\s*/, '')}</span>
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                      selected
+                        ? 'bg-white text-indigo-600 shadow'
+                        : 'bg-slate-800 border border-slate-700 text-slate-400'
+                    }`}>
+                      {['A', 'B', 'C', 'D'][j]}
+                    </span>
                   </div>
                 );
               })}
             </div>
+
             {fsAnswers[fsIdx] && (
-              <motion.button initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
                 onClick={fsNext}
-                className="mt-10 px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-lg font-medium transition">
-                {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест'}
+                className="mt-10 px-8 py-4 bg-indigo-600 hover:bg-indigo-550 text-white rounded-2xl text-base font-black transition shadow-lg shadow-indigo-600/20 duration-150 active:scale-[0.98] cursor-pointer"
+              >
+                {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест 🎯'}
               </motion.button>
             )}
           </div>
         ) : (
-          <div className="flex flex-col items-center px-8 py-12">
-            <p className="text-4xl font-bold text-white mb-2">Правильных ответов: {fsCorrect} из {fsTotal}</p>
-            <p className="text-slate-400 text-lg mb-10">{Math.round((fsCorrect / fsTotal) * 100)}%</p>
-            <div className="max-w-3xl w-full space-y-4">
+          <div className="flex flex-col items-center justify-center flex-1 px-8 py-12">
+            <div className="w-full max-w-2xl text-center bg-slate-900/40 p-8 sm:p-10 rounded-3xl border border-slate-800/60 shadow-xl mb-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+              <p className="text-5xl font-black text-white mb-2 tabular-nums">{fsCorrect} из {fsTotal}</p>
+              <p className="text-indigo-400 font-extrabold text-xs uppercase tracking-wider mb-4">Верных ответов</p>
+              
+              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mb-6 p-[2px]">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
+                  style={{ width: `${Math.round((fsCorrect / fsTotal) * 100)}%` }}
+                />
+              </div>
+              <p className="text-slate-400 text-sm font-medium">Тест успешно завершен аудиторией! {Math.round((fsCorrect / fsTotal) * 100)}% правильных ответов.</p>
+            </div>
+
+            <div className="max-w-2xl w-full mx-auto space-y-4 pr-1">
               {quiz.map((q: QuizQuestion, i: number) => {
                 const isCorrect = fsAnswers[i]?.startsWith(q.correct);
                 return (
-                  <div key={i} className={'rounded-xl p-5 border ' + (isCorrect ? 'bg-emerald-900/30 border-emerald-700' : 'bg-rose-900/20 border-rose-800')}>
-                    <p className="text-white font-medium mb-2">{i + 1}. {q.question}</p>
-                    <p className={isCorrect ? 'text-emerald-400 text-sm' : 'text-rose-400 text-sm'}>
-                      {isCorrect ? '✓ Верно' : `✗ Правильный ответ: ${q.correct}) ${q.options?.find((o: string) => o.startsWith(q.correct))?.replace(/^[A-D]\)\s*/, '') || q.correct}`}
-                    </p>
+                  <div key={i} className={`rounded-2xl p-5 border flex items-start gap-4 transition-all ${
+                    isCorrect 
+                      ? 'bg-emerald-950/20 border-emerald-900/60 text-slate-200' 
+                      : 'bg-rose-950/15 border-rose-900/60 text-slate-200'
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                      isCorrect ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                    }`}>
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-white mb-1.5 leading-snug break-words">{q.question}</p>
+                      <p className={`text-sm font-bold flex items-center gap-1.5 ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isCorrect
+                          ? '✓ Верно'
+                          : `✗ Правильный ответ: ${q.correct}) ${q.options?.find((o: string) => o.startsWith(q.correct))?.replace(/^[A-D]\)\s*/, '') || q.correct}`
+                        }
+                      </p>
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <button onClick={fsExit}
-              className="mt-8 px-6 py-2.5 bg-white text-slate-900 rounded-lg font-medium hover:bg-slate-100 transition">
-              Закрыть
+
+            <button
+              onClick={fsExit}
+              className="mt-8 px-8 py-3.5 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black text-sm active:scale-[0.98] transition shadow-md cursor-pointer"
+            >
+              Закрыть презентацию
             </button>
           </div>
         )}
@@ -144,12 +201,21 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
 
   return (
     <div className="relative">
-      {!submitted && (
-        <button onClick={() => setFsOpen(true)}
-          className="absolute top-0 right-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 dark:text-indigo-400 border border-brand-200 dark:border-indigo-900/30 hover:bg-brand-50 dark:hover:bg-indigo-950/20 transition">
-          <Maximize2 className="w-3.5 h-3.5" />Показать аудитории
-        </button>
-      )}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-150 dark:border-slate-800/80">
+        <div>
+          <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">Проверочное тестирование</h3>
+          <p className="text-xs text-slate-400 dark:text-slate-550">Ответьте на {total} вопросов для проверки знаний по материалу</p>
+        </div>
+        {!submitted && (
+          <button
+            onClick={() => setFsOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-100/70 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 border border-indigo-250 dark:border-indigo-850/40 shadow-sm transition active:scale-[0.98] duration-150 cursor-pointer shrink-0"
+          >
+            <Maximize2 className="w-4 h-4" />
+            <span>Режим презентации для аудитории</span>
+          </button>
+        )}
+      </div>
 
       {submitted && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
