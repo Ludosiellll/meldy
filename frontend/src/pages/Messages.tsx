@@ -153,14 +153,14 @@ export default function Messages() {
   };
 
   if (loading) {
-    return <div className="flex h-[85vh] items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-500 animate-spin" /></div>;
+    return <div className="flex h-[calc(100vh-48px)] items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-500 animate-spin" /></div>;
   }
 
   const incomingRequests = friendships.filter(f => f.addressee_id === user?.id && f.status === 'pending');
   const acceptedFriends = friendships.filter(f => f.status === 'accepted');
 
   return (
-    <div className="flex h-[calc(100vh-80px)] md:h-[85vh] bg-white dark:bg-slate-900 md:rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden md:m-6 m-0 relative">
+    <div className="flex h-[calc(100vh-80px)] md:h-[calc(100vh-48px)] bg-white dark:bg-slate-900 md:rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden md:m-6 m-0 relative">
 
       {/* Левая панель */}
       <div className={`w-full md:w-80 border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 shrink-0 ${activeFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
