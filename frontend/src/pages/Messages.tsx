@@ -177,7 +177,7 @@ export default function Messages() {
     const msg = await sendMessage(user.id, activeFriend.friend_id!, inviteText);
     if (msg) {
       setMessages(prev => [...prev, msg]);
-      toast.success('Материал отправлен!');
+      toast.success('Материал отправлен!', { duration: 3000 });
     } else {
       toast.error('Не удалось отправить материал.');
     }
@@ -435,15 +435,21 @@ export default function Messages() {
               <button onClick={() => setActiveFriend(null)} className="md:hidden p-2 -ml-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">
                 <ChevronLeft className="w-6 h-6" />
               </button>
-              {activeFriend.friend_avatar ? (
-                <img src={activeFriend.friend_avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover shrink-0" />
-              ) : (
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                  <UserCircle2 className="w-5 h-5 text-slate-400" />
+              <div 
+                onClick={() => navigate(`/profile/${activeFriend.friend_id}`)}
+                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition min-w-0 flex-1"
+                title="Открыть профиль"
+              >
+                {activeFriend.friend_avatar ? (
+                  <img src={activeFriend.friend_avatar} alt="avatar" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                    <UserCircle2 className="w-5 h-5 text-slate-400" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-bold text-slate-800 dark:text-slate-200 truncate">{activeFriend.friend_name}</div>
                 </div>
-              )}
-              <div className="flex-1">
-                <div className="font-bold text-slate-800 dark:text-slate-200">{activeFriend.friend_name}</div>
               </div>
               {/* Кнопки */}
               <div className="flex items-center gap-2 relative">

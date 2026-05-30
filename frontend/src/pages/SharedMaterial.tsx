@@ -55,6 +55,21 @@ export default function SharedMaterial() {
 
   const cheatsheet = material.summary_json?.cheatsheet;
 
+  const extractCleanContent = (data: any): string => {
+    if (!data) return '';
+    let raw = data.content || data.raw || '';
+    if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.content) raw = parsed.content;
+      } catch (e) {
+        const match = raw.match(/"content"\s*:\s*"([\s\S]*?)(?:"\s*[,}])/);
+        if (match) raw = match[1];
+      }
+    }
+    return raw;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sm:p-6 flex items-center justify-between sticky top-0 z-50">
@@ -94,7 +109,9 @@ export default function SharedMaterial() {
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
              <div className="prose dark:prose-invert max-w-none text-sm sm:text-base text-slate-700 dark:text-slate-300">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{material.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {extractCleanContent(material.summary_json) || material.original_text || ''}
+              </ReactMarkdown>
             </div>
           </div>
         )}
