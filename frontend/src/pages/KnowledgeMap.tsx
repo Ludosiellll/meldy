@@ -191,21 +191,19 @@ export default function KnowledgeMap() {
     }, []);
 
     uniqueMaterials.forEach((mat, idx) => {
-      const angle = (idx / uniqueMaterials.length) * Math.PI * 2;
-      const radiusDist = 450; // Звезды изначально далеко
-      
       const subject = mat.subject || 'Общее';
       if (!subjectColorMap[subject]) {
         subjectColorMap[subject] = SUBJECT_COLORS[colorIdx % SUBJECT_COLORS.length];
         colorIdx++;
       }
 
+      // Органичное случайное распределение по всей карте вместо жесткого круга
       tempNodes.push({
         id: mat.id,
         label: mat.title,
         type: 'material',
-        x: width / 2 + Math.cos(angle) * radiusDist + (Math.random() - 0.5) * 50,
-        y: height / 2 + Math.sin(angle) * radiusDist + (Math.random() - 0.5) * 50,
+        x: 300 + Math.random() * (width - 600),
+        y: 200 + Math.random() * (height - 400),
         vx: 0,
         vy: 0,
         radius: 36, // Звезда больше
@@ -372,10 +370,7 @@ export default function KnowledgeMap() {
         }
       }
 
-      // 3. Слабая гравитация к центру
-      const centerX = width / 2;
-      const centerY = height / 2;
-      
+      // 3. Мягкие границы вместо жесткой гравитации в центр
       currentNodes.forEach(node => {
         if (node.fx !== undefined && node.fx !== null && node.fy !== undefined && node.fy !== null) {
           node.x = node.fx;
@@ -383,10 +378,23 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          // Звезды тянет в центр сильнее, чтобы галактика не распадалась
-          const gravity = node.type === 'material' ? 0.0006 : 0.0001; 
-          node.vx += (centerX - node.x) * gravity;
-          node.vy += (centerY - node.y) * gravity;
+          // Мягкие отталкивающие границы коробки
+          const paddingX = 300;
+          const paddingY = 200;
+          const pushForce = 0.05;
+
+          if (node.type === 'material') {
+            if (node.x < paddingX) node.vx += pushForce;
+            if (node.x > width - paddingX) node.vx -= pushForce;
+            if (node.y < paddingY) node.vy += pushForce;
+            if (node.y > height - paddingY) node.vy -= pushForce;
+          } else {
+            // Для планет (концептов) сверх-слабая гравитация к центру, на случай если они улетят
+            const centerX = width / 2;
+            const centerY = height / 2;
+            node.vx += (centerX - node.x) * 0.0001;
+            node.vy += (centerY - node.y) * 0.0001;
+          }
 
           node.vx *= 0.65; // Трение
           node.vy *= 0.65;
@@ -394,8 +402,8 @@ export default function KnowledgeMap() {
           node.x += node.vx;
           node.y += node.vy;
 
-          node.x = Math.max(-1000, Math.min(width + 1000, node.x));
-          node.y = Math.max(-1000, Math.min(height + 1000, node.y));
+          node.x = Math.max(-500, Math.min(width + 500, node.x));
+          node.y = Math.max(-500, Math.min(height + 500, node.y));
         }
       });
 
