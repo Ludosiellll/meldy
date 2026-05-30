@@ -248,7 +248,7 @@ export default function Layout() {
             <div className="h-8 bg-slate-700/50 rounded-xl w-full mt-auto"></div>
           </div>
         ) : (
-          <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 tour-step-xp">
+          <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 tour-step-xp tour-step-desktop-xp">
             <div className="flex items-center justify-between mb-2">
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
