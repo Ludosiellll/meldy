@@ -716,49 +716,87 @@ async def fetch_hh_vacancies(profession: str) -> str:
         "only_with_salary": "true"
     }
     
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=8.0)
-            if response.status_code != 200:
-                print(f"HH API warning: {response.status_code}, text: {response.text}")
-                return "Вакансий по данному направлению в данный момент не найдено."
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers, params=params, timeout=8.0)
+        if response.status_code != 200:
+            raise Exception(f"HH API returned status {response.status_code}")
+        
+        data = response.json()
+        items = data.get("items", [])
+        if not items:
+            raise Exception("No vacancies found on HH")
             
-            data = response.json()
-            items = data.get("items", [])
-            if not items:
-                return "Нет доступных вакансий по указанному ключевому слову."
-                
-            summary = []
-            clean_html = re.compile('<.*?>')
+        summary = []
+        clean_html = re.compile('<.*?>')
+        
+        for item in items[:8]:
+            title = item.get("name", "Вакансия")
+            salary_info = item.get("salary") or {}
+            salary_from = salary_info.get("from")
+            salary_to = salary_info.get("to")
+            salary_currency = salary_info.get("currency", "RUR")
             
-            for item in items[:8]:
-                title = item.get("name", "Вакансия")
-                salary_info = item.get("salary") or {}
-                salary_from = salary_info.get("from")
-                salary_to = salary_info.get("to")
-                salary_currency = salary_info.get("currency", "RUR")
-                
-                sal_str = ""
-                if salary_from and salary_to:
-                    sal_str = f"Зарплата: {salary_from} - {salary_to} {salary_currency}"
-                elif salary_from:
-                    sal_str = f"Зарплата: от {salary_from} {salary_currency}"
-                elif salary_to:
-                    sal_str = f"Зарплата: до {salary_to} {salary_currency}"
-                
-                snippet = item.get("snippet") or {}
-                req = snippet.get("requirement") or ""
-                resp = snippet.get("responsibility") or ""
-                
-                req = re.sub(clean_html, '', req)
-                resp = re.sub(clean_html, '', resp)
-                
-                summary.append(f"- {title} ({sal_str})\n  Требования: {req}\n  Обязанности: {resp}")
-                
-            return "\n\n".join(summary)
-    except Exception as e:
-        print(f"fetch_hh_vacancies error: {e}")
-        return "Не удалось связаться с базой вакансий HeadHunter. Используются общие отраслевые требования."
+            sal_str = ""
+            if salary_from and salary_to:
+                sal_str = f"Зарплата: {salary_from} - {salary_to} {salary_currency}"
+            elif salary_from:
+                sal_str = f"Зарплата: от {salary_from} {salary_currency}"
+            elif salary_to:
+                sal_str = f"Зарплата: до {salary_to} {salary_currency}"
+            
+            snippet = item.get("snippet") or {}
+            req = snippet.get("requirement") or ""
+            resp = snippet.get("responsibility") or ""
+            
+            req = re.sub(clean_html, '', req)
+            resp = re.sub(clean_html, '', resp)
+            
+            summary.append(f"- {title} ({sal_str})\n  Требования: {req}\n  Обязанности: {resp}")
+            
+        return "\n\n".join(summary)
+
+
+async def fetch_trudvsem_vacancies(profession: str) -> str:
+    """
+    Скачивает вакансии из государственного API 'Работа в России' (api.trudvsem.ru).
+    Используется как резервный источник.
+    """
+    import httpx
+    import re
+    
+    url = "https://opendata.trudvsem.ru/api/v1/vacancies/any/search"
+    params = {
+        "text": profession,
+        "limit": 10
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params, timeout=8.0)
+        if response.status_code != 200:
+            raise Exception(f"TrudVsem API returned status {response.status_code}")
+        
+        data = response.json()
+        results = data.get("results", {})
+        vacancies = results.get("vacancies", [])
+        if not vacancies:
+            raise Exception("No vacancies found on TrudVsem")
+            
+        summary = []
+        clean_html = re.compile('<.*?>')
+        
+        for item in vacancies[:8]:
+            v = item.get("vacancy", {})
+            title = v.get("job-name", "Вакансия")
+            salary = v.get("salary", "не указана")
+            req = v.get("requirement", {}).get("education", "") or v.get("requirement", {}).get("qualification", "") or ""
+            duty = v.get("duty", "")
+            
+            req = re.sub(clean_html, '', req)
+            duty = re.sub(clean_html, '', duty)
+            
+            summary.append(f"- {title} (Зарплата: {salary})\n  Требования: {req}\n  Обязанности: {duty}")
+            
+        return "\n\n".join(summary)
 
 
 @app.post("/api/career/chat")
@@ -803,7 +841,24 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
         
-    vacancy_text = await fetch_hh_vacancies(req.profession)
+    # Сначала пытаемся получить вакансии из HH API
+    try:
+        print(f"Trying to fetch vacancies from HH for {req.profession}...")
+        vacancy_text = await fetch_hh_vacancies(req.profession)
+    except Exception as e_hh:
+        print(f"HH API failed: {e_hh}. Trying fallback 'Работа в России' API...")
+        # Если HH не сработал, пробуем резервный ТрудоВсем
+        try:
+            vacancy_text = await fetch_trudvsem_vacancies(req.profession)
+            print("Successfully fetched vacancies from 'Работа в России' fallback API.")
+        except Exception as e_trud:
+            print(f"TrudVsem fallback API also failed: {e_trud}")
+            # Обе системы лежат — честно говорим пользователю подождать, как просил клиент
+            raise HTTPException(
+                status_code=503, 
+                detail="Серверы вакансий (HeadHunter и Работа в России) временно перегружены или недоступны. Пожалуйста, подождите 1-2 минуты и повторите попытку."
+            )
+            
     agent = CareerCourseAgent(api_key=GROQ_API_KEY)
     
     try:
