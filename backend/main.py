@@ -700,6 +700,21 @@ class CareerCourseGenerateRequest(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = ""
     extra_context: Optional[str] = ""
+    vacancy_context: Optional[str] = ""
+
+
+class CareerVacanciesRequest(BaseModel):
+    profession: str
+    location: Optional[str] = ""
+
+
+class CareerVacancyChatRequest(BaseModel):
+    message: str
+    history: List[dict] = []
+    vacancy_title: str
+    vacancy_company: str
+    vacancy_requirements: str
+    vacancy_responsibility: str
 
 
 class CareerChatRequest(BaseModel):
@@ -735,11 +750,26 @@ async def fetch_hh_vacancies(profession: str, location: str = "") -> str:
     # Геотаргетинг: добавляем локацию прямо в поисковый запрос (самый надежный способ фильтрации)
     query_text = f"{profession} {location}".strip()
     
+    # Маппинг регионов на HH area ID
+    area_id = None
+    if location:
+        loc_lower = location.lower()
+        if "беларусь" in loc_lower or "belarus" in loc_lower or "минск" in loc_lower:
+            area_id = 16
+        elif "казахстан" in loc_lower or "kazakhstan" in loc_lower or "алматы" in loc_lower or "астана" in loc_lower:
+            area_id = 40
+        elif "узбекистан" in loc_lower or "uzbekistan" in loc_lower or "ташкент" in loc_lower:
+            area_id = 97
+        elif "россия" in loc_lower or "russia" in loc_lower or "москва" in loc_lower or "спб" in loc_lower or "петербург" in loc_lower:
+            area_id = 113
+            
     params = {
         "text": query_text,
         "per_page": 12,
         "only_with_salary": "true"
     }
+    if area_id:
+        params["area"] = area_id
     
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers, params=params, timeout=8.0)
@@ -826,6 +856,184 @@ async def fetch_trudvsem_vacancies(profession: str, location: str = "") -> str:
         return "\n\n".join(summary)
 
 
+async def fetch_structured_vacancies(profession: str, location: str = "") -> list:
+    import httpx
+    import re
+    
+    # 1. Try HH first
+    try:
+        url = "https://api.hh.ru/vacancies"
+        headers = {
+            "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
+        }
+        query_text = f"{profession} {location}".strip()
+        
+        # Маппинг регионов на HH area ID
+        area_id = None
+        if location:
+            loc_lower = location.lower()
+            if "беларусь" in loc_lower or "belarus" in loc_lower or "минск" in loc_lower:
+                area_id = 16
+            elif "казахстан" in loc_lower or "kazakhstan" in loc_lower or "алматы" in loc_lower or "астана" in loc_lower:
+                area_id = 40
+            elif "узбекистан" in loc_lower or "uzbekistan" in loc_lower or "ташкент" in loc_lower:
+                area_id = 97
+            elif "россия" in loc_lower or "russia" in loc_lower or "москва" in loc_lower or "спб" in loc_lower or "петербург" in loc_lower:
+                area_id = 113
+                
+        params = {
+            "text": query_text,
+            "per_page": 12,
+            "only_with_salary": "true"
+        }
+        if area_id:
+            params["area"] = area_id
+            
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, params=params, timeout=8.0)
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get("items", [])
+                if items:
+                    result = []
+                    clean_html = re.compile('<.*?>')
+                    for item in items[:5]:
+                        title = item.get("name", "Вакансия")
+                        company = item.get("employer", {}).get("name", "Не указана")
+                        salary_info = item.get("salary") or {}
+                        salary_from = salary_info.get("from")
+                        salary_to = salary_info.get("to")
+                        salary_currency = salary_info.get("currency", "RUR")
+                        
+                        sal_str = ""
+                        if salary_from and salary_to:
+                            sal_str = f"{salary_from} - {salary_to} {salary_currency}"
+                        elif salary_from:
+                            sal_str = f"от {salary_from} {salary_currency}"
+                        elif salary_to:
+                            sal_str = f"до {salary_to} {salary_currency}"
+                        else:
+                            sal_str = "не указана"
+                            
+                        snippet = item.get("snippet") or {}
+                        req_text = snippet.get("requirement") or ""
+                        resp_text = snippet.get("responsibility") or ""
+                        
+                        req_text = re.sub(clean_html, '', req_text)
+                        resp_text = re.sub(clean_html, '', resp_text)
+                        
+                        alt_url = item.get("alternate_url", "")
+                        
+                        result.append({
+                            "title": title,
+                            "company": company,
+                            "salary": sal_str,
+                            "requirements": req_text,
+                            "responsibility": resp_text,
+                            "url": alt_url,
+                            "source": "HeadHunter"
+                        })
+                    return result
+    except Exception as e:
+        print(f"Structured HH failed: {e}")
+
+    # 2. Try TrudVsem fallback
+    try:
+        url = "https://opendata.trudvsem.ru/api/v1/vacancies"
+        query_text = f"{profession} {location}".strip()
+        params = {
+            "text": query_text,
+            "limit": 10
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params, timeout=8.0)
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get("results", {})
+                vacancies = results.get("vacancies", [])
+                if vacancies:
+                    result = []
+                    clean_html = re.compile('<.*?>')
+                    for item in vacancies[:5]:
+                        v = item.get("vacancy", {})
+                        title = v.get("job-name", "Вакансия")
+                        company = v.get("company", {}).get("name", "Не указана")
+                        salary = v.get("salary", "не указана")
+                        
+                        req_text = v.get("requirement", {}).get("education", "") or v.get("requirement", {}).get("qualification", "") or ""
+                        resp_text = v.get("duty", "")
+                        
+                        req_text = re.sub(clean_html, '', req_text)
+                        resp_text = re.sub(clean_html, '', resp_text)
+                        
+                        alt_url = v.get("vac_url", "")
+                        
+                        result.append({
+                            "title": title,
+                            "company": company,
+                            "salary": f"{salary} RUR" if isinstance(salary, (int, float)) or (isinstance(salary, str) and salary.isdigit()) else str(salary),
+                            "requirements": req_text,
+                            "responsibility": resp_text,
+                            "url": alt_url,
+                            "source": "Работа в России"
+                        })
+                    return result
+    except Exception as e:
+        print(f"Structured TrudVsem failed: {e}")
+        
+    return []
+
+
+@app.post("/api/career/vacancies")
+@limiter.limit("10/minute")
+async def get_career_vacancies(request: Request, req: CareerVacanciesRequest):
+    vacancies = await fetch_structured_vacancies(req.profession, req.location)
+    if not vacancies:
+        # Return fallback mock vacancies
+        vacancies = [
+            {
+                "title": f"Junior {req.profession}",
+                "company": "Учебный трек StudyForge",
+                "salary": "от 120 000 руб.",
+                "requirements": f"Базовые навыки по направлению {req.profession}, инициативность, умение работать в команде.",
+                "responsibility": "Разработка учебных проектов, участие в командных созвонах, прохождение практики.",
+                "url": "https://hh.ru",
+                "source": "Рыночный стандарт"
+            }
+        ]
+    return vacancies
+
+
+@app.post("/api/career/vacancy_chat")
+@limiter.limit("15/minute")
+async def career_vacancy_chat(request: Request, req: CareerVacancyChatRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    system_prompt = f"""Ты — Форджи, элитный карьерный коуч и технический консультант StudyForge.
+Сейчас ты консультируешь студента по конкретной выбранной им вакансии, которую он хочет получить в качестве своей карьерной цели.
+
+ИНФОРМАЦИЯ О ВАКАНСИИ:
+- Должность: {req.vacancy_title}
+- Компания: {req.vacancy_company}
+- Требования к кандидату: {req.vacancy_requirements}
+- Обязанности: {req.vacancy_responsibility}
+
+Правила консультации:
+1. Будь искренне поддерживающим, экспертным и вовлеченным ментором. Отвечай подробно и конструктивно, давай практические советы по подготовке.
+2. Проанализируй требования вакансии: объясни студенту, какие технологии из списка критически важны, какие вопросы ему могут задать на собеседовании по этой вакансии, какие темы нужно знать «на зубок».
+3. Дай совет, как лучше составить резюме именно под эту вакансию, какие проекты в портфолио показать.
+4. Отвечай ёмко, структурировано (используй списки и абзацы для легкого чтения)."""
+
+    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.history[-10:] if isinstance(msg, dict)])
+    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС СТУДЕНТА ПО ВАКАНСИИ: {req.message}"
+    
+    reply = await agent.run(system_prompt, full_user_query)
+    return {"reply": reply}
+
+
 @app.post("/api/career/chat")
 @limiter.limit("20/minute")
 async def career_chat(request: Request, req: CareerChatRequest):
@@ -873,23 +1081,28 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
         
-    # Сначала пытаемся получить вакансии из HH API
-    try:
-        print(f"Trying to fetch vacancies from HH for {req.profession} in {req.location}...")
-        vacancy_text = await fetch_hh_vacancies(req.profession, req.location)
-    except Exception as e_hh:
-        print(f"HH API failed: {e_hh}. Trying fallback 'Работа в России' API...")
-        # Если HH не сработал, пробуем резервный ТрудоВсем
+    vacancy_text = ""
+    if req.vacancy_context:
+        print("Using selected vacancy context provided by frontend...")
+        vacancy_text = req.vacancy_context
+    else:
+        # Сначала пытаемся получить вакансии из HH API
         try:
-            vacancy_text = await fetch_trudvsem_vacancies(req.profession, req.location)
-            print("Successfully fetched vacancies from 'Работа в России' fallback API.")
-        except Exception as e_trud:
-            print(f"TrudVsem fallback API also failed: {e_trud}")
-            # Обе системы лежат — честно говорим пользователю подождать, как просил клиент
-            raise HTTPException(
-                status_code=503, 
-                detail="Серверы вакансий (HeadHunter и Работа в России) временно перегружены или недоступны. Пожалуйста, подождите 1-2 минуты и повторите попытку."
-            )
+            print(f"Trying to fetch vacancies from HH for {req.profession} in {req.location}...")
+            vacancy_text = await fetch_hh_vacancies(req.profession, req.location)
+        except Exception as e_hh:
+            print(f"HH API failed: {e_hh}. Trying fallback 'Работа в России' API...")
+            # Если HH не сработал, пробуем резервный ТрудоВсем
+            try:
+                vacancy_text = await fetch_trudvsem_vacancies(req.profession, req.location)
+                print("Successfully fetched vacancies from 'Работа в России' fallback API.")
+            except Exception as e_trud:
+                print(f"TrudVsem fallback API also failed: {e_trud}")
+                # Обе системы лежат — честно говорим пользователю подождать, как просил клиент
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Серверы вакансий (HeadHunter и Работа в России) временно перегружены или недоступны. Пожалуйста, подождите 1-2 минуты и повторите попытку."
+                )
             
     agent = CareerCourseAgent(api_key=GROQ_API_KEY)
     

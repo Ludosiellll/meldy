@@ -14,6 +14,7 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { 
   getCareerProfile, generateCareerProfile, saveCareerProfile, 
   generateCareerCourse, sendCareerChat, evaluateCareerTask, 
+  getCareerVacancies, sendVacancyChat, VacancyItem,
   CareerProfile, CareerCourse, CareerModule 
 } from '../api/career';
 import { getMaterials } from '../api/materials';
@@ -36,6 +37,53 @@ export default function Career() {
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'course'>('profile');
+
+  // New states for Vacancy Selection Dashboard & AI Vacancy Chat
+  const [showVacancySelector, setShowVacancySelector] = useState(false);
+  const [foundVacancies, setFoundVacancies] = useState<VacancyItem[]>([]);
+  const [loadingVacancies, setLoadingVacancies] = useState(false);
+  const [selectedVacancy, setSelectedVacancy] = useState<VacancyItem | null>(null);
+  const [vacancyChatMessages, setVacancyChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [vacancyChatInput, setVacancyChatInput] = useState('');
+  const [sendingVacancyChat, setSendingVacancyChat] = useState(false);
+  const [pendingCourseParams, setPendingCourseParams] = useState<{
+    profession: string;
+    level: string;
+    salary: string;
+    location: string;
+    age?: number;
+    gender: string;
+    extraContext: string;
+  } | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Helper for dynamic formatting of salaries
+  const formatSalary = (salary: string, location?: string) => {
+    if (!salary) return 'не указана';
+    let formatted = salary;
+    formatted = formatted.replace(/\b(RUR|RUB)\b/gi, '₽');
+    formatted = formatted.replace(/\b(BYN|BYR)\b/gi, ' BYN');
+    formatted = formatted.replace(/\b(KZT)\b/gi, ' ₸');
+    formatted = formatted.replace(/\b(USD)\b/gi, ' $');
+    formatted = formatted.replace(/\b(EUR)\b/gi, ' €');
+    
+    // Handle number-only strings
+    if (/^\d+$/.test(formatted.trim())) {
+      const loc = (location || '').toLowerCase();
+      if (loc.includes('беларусь') || loc.includes('belarus') || loc.includes('минск')) {
+        return `${formatted} BYN`;
+      }
+      if (loc.includes('казахстан') || loc.includes('kazakhstan') || loc.includes('алматы') || loc.includes('астана')) {
+        return `${formatted} ₸`;
+      }
+      if (loc.includes('сша') || loc.includes('usa') || loc.includes('usd')) {
+        return `$${formatted}`;
+      }
+      return `${formatted} ₽`;
+    }
+    
+    return formatted;
+  };
 
   // Coaching Chat State
   const [showCoachChat, setShowCoachChat] = useState(false);
@@ -137,8 +185,11 @@ export default function Career() {
         setChatMessages(prev => [...prev, { role: 'assistant', content: cleanReply }]);
         
         // Trigger automated roadmap creation
-        toast.success(`Согласованы параметры: ${profession}, уровень ${level}, зарплата ${salary}₽!`);
-        await triggerCourseSyllabus(profession, level, salary, location, age, gender, extraContext);
+        toast.success(`Согласованы параметры: ${profession}, уровень ${level}, ожидаемая ЗП ${formatSalary(salary, location)}!`);
+        setPendingCourseParams({ profession, level, salary, location, age, gender, extraContext });
+        setShowVacancySelector(true);
+        setShowCoachChat(false);
+        fetchAndSetVacancies(profession, location);
       } else {
         setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       }
@@ -150,6 +201,48 @@ export default function Career() {
     }
   };
 
+  const fetchAndSetVacancies = async (profession: string, location: string) => {
+    setLoadingVacancies(true);
+    try {
+      const v = await getCareerVacancies(profession, location);
+      setFoundVacancies(v);
+      if (v.length > 0) {
+        setSelectedVacancy(v[0]);
+        // Initialize AI chat context for vacancy
+        setVacancyChatMessages([
+          {
+            role: 'assistant',
+            content: `Привет! Я твой карьерный ИИ-консультант StudyForge. Я вижу, что ты выбрал отличную вакансию: **"${v[0].title}"** в компании **"${v[0].company}"**.\n\nЯ полностью проанализировал требования работодателя. Спроси меня о чём угодно: о каверзных вопросах на собеседовании, о том, какие технологии из списка самые критичные, или о том, как лучше презентовать твой опыт под эту позицию!`
+          }
+        ]);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Не удалось загрузить вакансии.');
+    } finally {
+      setLoadingVacancies(false);
+    }
+  };
+
+  const handleSendVacancyChatMessage = async () => {
+    if (!vacancyChatInput.trim() || !selectedVacancy || sendingVacancyChat) return;
+    
+    const newMsg = [...vacancyChatMessages, { role: 'user', content: vacancyChatInput }];
+    setVacancyChatMessages(newMsg);
+    setVacancyChatInput('');
+    setSendingVacancyChat(true);
+    
+    try {
+      const reply = await sendVacancyChat(vacancyChatInput, newMsg.slice(-8), selectedVacancy);
+      setVacancyChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка связи с ИИ-консультантом.');
+    } finally {
+      setSendingVacancyChat(false);
+    }
+  };
+
   const triggerCourseSyllabus = async (
     profession: string, 
     level: string, 
@@ -157,12 +250,14 @@ export default function Career() {
     location?: string,
     age?: number,
     gender?: string,
-    extraContext?: string
+    extraContext?: string,
+    vacancyContext?: string
   ) => {
     if (!user) return;
     
     setIsGenerating(true);
     setShowCoachChat(false);
+    setShowVacancySelector(false);
     
     try {
       // Gather context from materials
@@ -191,7 +286,8 @@ export default function Career() {
         location,
         age,
         gender,
-        extraContext
+        extraContext,
+        vacancyContext
       );
       
       if (newCourse) {
@@ -548,7 +644,6 @@ export default function Career() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-[90vh]">
-      <Toaster position="top-center" />
       
       {/* Title block */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -765,7 +860,7 @@ export default function Career() {
                           </div>
                           <div>
                             <span className="text-indigo-200 block text-xs">Ожидаемая ЗП</span>
-                            <span className="font-bold text-emerald-400">{profile.course.salary}₽</span>
+                            <span className="font-bold text-emerald-400">{formatSalary(profile.course.salary, profile.course.location)}</span>
                           </div>
                         </div>
                         <div className="pt-3 border-t border-indigo-950">
@@ -868,7 +963,7 @@ export default function Career() {
                                   >
                                     <div>
                                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🎯 Зачем это бизнесу</h4>
-                                      <p className="text-xs text-slate-700 dark:text-slate-350 leading-relaxed font-semibold italic bg-indigo-50/50 dark:bg-slate-850 p-3 rounded-lg border border-indigo-100/10">
+                                      <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-semibold italic bg-indigo-50/50 dark:bg-slate-850 p-3 rounded-lg border border-indigo-100/10">
                                         {mod.why_needed}
                                       </p>
                                     </div>
@@ -949,6 +1044,284 @@ export default function Career() {
           )}
         </>
       )}
+
+      {/* VACANCY SELECTION & AI VACANCY CHAT MODAL */}
+      <AnimatePresence>
+        {showVacancySelector && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              className="bg-slate-900/90 text-white w-full max-w-6xl rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh] backdrop-blur-md"
+            >
+              {/* Header */}
+              <div className="p-4 md:p-6 bg-slate-900 border-b border-slate-800 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+                    <Briefcase className="w-5 h-5 text-indigo-100" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-white text-base md:text-lg flex items-center gap-2">
+                      Подборка вакансий: <span className="text-indigo-400">{pendingCourseParams?.profession}</span>
+                    </h3>
+                    <p className="text-xs text-slate-400">Мы нашли лучшие предложения по вашему региону ({pendingCourseParams?.location || 'Не указан'})</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVacancySelector(false)}
+                  className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-100 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {loadingVacancies ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+                  <p className="text-sm text-slate-400 font-semibold animate-pulse">Анализируем вакансии и подключаем ИИ-консультанта...</p>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                  {/* Left Side: Vacancy selector list */}
+                  <div className="w-full lg:w-[40%] border-r border-slate-800 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-950/40">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Найдено вакансий: {foundVacancies.length}</h4>
+                    <div className="space-y-4">
+                      {foundVacancies.map((vac, vIdx) => {
+                        const isSelected = selectedVacancy?.title === vac.title && selectedVacancy?.company === vac.company;
+                        return (
+                          <div
+                            key={vIdx}
+                            onClick={() => {
+                              setSelectedVacancy(vac);
+                              setVacancyChatMessages([
+                                {
+                                  role: 'assistant',
+                                  content: `Я вижу, что ты выбрал отличную вакансию: **"${vac.title}"** в компании **"${vac.company}"**.\n\nДавай обсудим её! Спроси меня, какие технологии из списка критичны, какие вопросы тебе зададут на собеседовании или как лучше представить твоё резюме!`
+                                }
+                              ]);
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer select-none relative overflow-hidden flex flex-col gap-2 ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-indigo-950/60 to-indigo-900/40 border-indigo-500 shadow-md shadow-indigo-950'
+                                : 'bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="font-extrabold text-sm text-slate-100">{vac.title}</span>
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 shrink-0 border border-slate-700">{vac.source}</span>
+                            </div>
+                            <span className="text-xs text-slate-400 font-semibold">{vac.company}</span>
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/40">
+                              <span className="text-xs font-bold text-emerald-400">{formatSalary(vac.salary, pendingCourseParams?.location)}</span>
+                              <span className="text-[10px] text-indigo-400 flex items-center gap-1 font-bold">Подробнее <ChevronRight className="w-3 h-3" /></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Right Side: Selected Vacancy details + AI Chat Split Screen */}
+                  <div className="flex-grow flex flex-col lg:flex-row overflow-hidden bg-slate-900/20">
+                    {selectedVacancy ? (
+                      <>
+                        {/* Split Left: Detailed description */}
+                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-800 overflow-y-auto flex flex-col justify-between">
+                          <div className="space-y-6">
+                            <div>
+                              <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
+                                <Target className="w-4 h-4" /> Детализация вакансии
+                              </div>
+                              <h2 className="text-xl font-black text-slate-100">{selectedVacancy.title}</h2>
+                              <p className="text-sm font-semibold text-indigo-300 mt-1">{selectedVacancy.company}</p>
+                              <p className="text-base font-bold text-emerald-400 mt-2">{formatSalary(selectedVacancy.salary, pendingCourseParams?.location)}</p>
+                            </div>
+
+                            <div className="space-y-4">
+                              {selectedVacancy.requirements && (
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Требования:</h4>
+                                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/20 p-3 rounded-xl border border-slate-805/65 font-medium">
+                                    {selectedVacancy.requirements}
+                                  </p>
+                                </div>
+                              )}
+                              {selectedVacancy.responsibility && (
+                                <div>
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Обязанности:</h4>
+                                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/20 p-3 rounded-xl border border-slate-805/65 font-medium">
+                                    {selectedVacancy.responsibility}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            {selectedVacancy.url && (
+                              <a
+                                href={selectedVacancy.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-100 transition font-bold"
+                              >
+                                Посмотреть оригинал вакансии <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+
+                          <div className="pt-6 border-t border-slate-800/60 mt-6 shrink-0">
+                            <button
+                              onClick={() => {
+                                const lastGen = profile?.course?.last_generated_at;
+                                if (lastGen) {
+                                  const diffMs = new Date().getTime() - new Date(lastGen).getTime();
+                                  const diffHours = diffMs / (1000 * 60 * 60);
+                                  if (diffHours < 2) {
+                                    const remainingMin = Math.round((2 - diffHours) * 60);
+                                    toast.error(`Лимит генерации активен. Пожалуйста, подождите ещё ${remainingMin} мин.`);
+                                    return;
+                                  }
+                                }
+                                setShowConfirmModal(true);
+                              }}
+                              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-950 transition"
+                            >
+                              <Zap className="w-5 h-5 text-indigo-100 animate-pulse" />
+                              🎯 Запустить индивидуальный курс под эту вакансию
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Split Right: AI Vacancy Coach Chat */}
+                        <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/30">
+                          {/* Chat Messages */}
+                          <div className="flex-grow overflow-y-auto p-6 space-y-4">
+                            {vacancyChatMessages.map((msg, mIdx) => (
+                              <div
+                                key={mIdx}
+                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                              >
+                                <div
+                                  className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
+                                    msg.role === 'user'
+                                      ? 'bg-indigo-600 text-white rounded-tr-none'
+                                      : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-750/50'
+                                  }`}
+                                >
+                                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
+                              </div>
+                            ))}
+                            {sendingVacancyChat && (
+                              <div className="flex justify-start">
+                                <div className="bg-slate-800 text-slate-400 p-3 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs border border-slate-700/50">
+                                  <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
+                                  <span>ИИ анализирует вакансию и печатает...</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Chat Input */}
+                          <div className="p-4 bg-slate-950 border-t border-slate-800 flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={vacancyChatInput}
+                              onChange={(e) => setVacancyChatInput(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSendVacancyChatMessage()}
+                              placeholder="Задай любой вопрос по этой вакансии..."
+                              className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                            <button
+                              onClick={handleSendVacancyChatMessage}
+                              disabled={sendingVacancyChat || !vacancyChatInput.trim()}
+                              className="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl transition"
+                            >
+                              <Send className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-grow flex flex-col items-center justify-center p-6 text-slate-400">
+                        <Briefcase className="w-12 h-12 text-slate-600 mb-2" />
+                        <p className="text-sm font-semibold">Выберите вакансию слева для детального анализа</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* WARNING RATE-LIMIT CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {showConfirmModal && pendingCourseParams && selectedVacancy && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-md w-full shadow-2xl text-center space-y-5"
+            >
+              <div className="w-14 h-14 bg-indigo-950/60 rounded-full flex items-center justify-center text-indigo-400 mx-auto border border-indigo-900/60">
+                <Sparkles className="w-7 h-7 text-indigo-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-extrabold text-slate-100">Создание ультимативного курса</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  ИИ StudyForge создаст масштабную программу обучения из <strong>10-14 глубоких модулей</strong>, полностью ориентированных на требования вакансии <strong>"{selectedVacancy.title}"</strong> в <strong>"{selectedVacancy.company}"</strong>.
+                </p>
+              </div>
+
+              <div className="bg-indigo-950/40 p-4 rounded-2xl border border-indigo-900/40 text-left space-y-3">
+                <div className="flex gap-2.5 items-start text-xs text-slate-300">
+                  <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold text-slate-200">Расход ресурсов:</span> Это сложная операция, использующая самые умные ИИ-агенты, и задействует <strong>50 единиц энергии/токенов</strong>.
+                  </div>
+                </div>
+                <div className="flex gap-2.5 items-start text-xs text-slate-300">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold text-slate-200">Rate Limit:</span> В целях предотвращения спама вы сможете генерировать следующий курс только <strong>раз в 2 часа</strong>.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 py-3.5 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-2xl text-xs font-extrabold transition"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowConfirmModal(false);
+                    const vacContextStr = `Должность: ${selectedVacancy.title}\nКомпания: ${selectedVacancy.company}\nЗарплата: ${selectedVacancy.salary}\nТребования: ${selectedVacancy.requirements}\nОбязанности: ${selectedVacancy.responsibility}`;
+                    await triggerCourseSyllabus(
+                      pendingCourseParams.profession,
+                      pendingCourseParams.level,
+                      pendingCourseParams.salary,
+                      pendingCourseParams.location,
+                      pendingCourseParams.age,
+                      pendingCourseParams.gender,
+                      pendingCourseParams.extraContext,
+                      vacContextStr
+                    );
+                  }}
+                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-extrabold shadow-lg shadow-indigo-950 transition"
+                >
+                  Да, запустить!
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* COACH CHAT DIALOGUE MODAL */}
       <AnimatePresence>
@@ -1130,7 +1503,7 @@ export default function Career() {
                       <div className="space-y-3 h-full flex flex-col">
                         <div className="flex justify-between items-center text-xs text-slate-500">
                           <span>Редактор JavaScript/TypeScript</span>
-                          <span>Compiler 0 tokens active</span>
+                          <span>Локальный компилятор (0 токенов)</span>
                         </div>
                         <textarea
                           value={sandboxCode}

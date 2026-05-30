@@ -6,6 +6,8 @@ export interface CareerCourse {
   level: string;
   insights: string;
   modules: CareerModule[];
+  location?: string;
+  last_generated_at?: string;
 }
 
 export interface CareerModule {
@@ -117,7 +119,8 @@ export async function generateCareerCourse(
   location?: string,
   age?: number,
   gender?: string,
-  extraContext?: string
+  extraContext?: string,
+  vacancyContext?: string
 ): Promise<CareerCourse | null> {
   try {
     const res = await fetch('/api/career/course', {
@@ -131,7 +134,8 @@ export async function generateCareerCourse(
         location: location || "",
         age: age || null,
         gender: gender || "",
-        extra_context: extraContext || ""
+        extra_context: extraContext || "",
+        vacancy_context: vacancyContext || ""
       })
     });
     
@@ -142,6 +146,8 @@ export async function generateCareerCourse(
     const courseData: CareerCourse = await res.json();
     
     // Подгружаем текущий профиль, внедряем курс и сохраняем
+    courseData.last_generated_at = new Date().toISOString();
+    
     const currentProfile = await getCareerProfile(userId);
     if (currentProfile) {
       currentProfile.course = courseData;
@@ -217,4 +223,60 @@ export async function evaluateCareerTask(
   }
   
   return await res.json();
+}
+
+export interface VacancyItem {
+  title: string;
+  company: string;
+  salary: string;
+  requirements: string;
+  responsibility: string;
+  url?: string;
+  source: string;
+}
+
+export async function getCareerVacancies(
+  profession: string,
+  location?: string
+): Promise<VacancyItem[]> {
+  const res = await fetch('/api/career/vacancies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      profession,
+      location: location || ""
+    })
+  });
+  
+  if (!res.ok) {
+    throw new Error('Ошибка получения вакансий');
+  }
+  
+  return await res.json();
+}
+
+export async function sendVacancyChat(
+  message: string,
+  history: { role: string; content: string }[],
+  vacancy: VacancyItem
+): Promise<string> {
+  const res = await fetch('/api/career/vacancy_chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      history,
+      vacancy_title: vacancy.title,
+      vacancy_company: vacancy.company,
+      vacancy_requirements: vacancy.requirements,
+      vacancy_responsibility: vacancy.responsibility
+    })
+  });
+  
+  if (!res.ok) {
+    throw new Error('Ошибка отправки сообщения');
+  }
+  
+  const data = await res.json();
+  return data.reply;
 }
