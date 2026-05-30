@@ -32,8 +32,10 @@ export default function SkillsRadarChart({ data, size = 220, className = '' }: S
   const n = axes.length;
   const cx = size / 2;
   const cy = size / 2;
-  const maxR = size / 2 - 28; // leave margin for labels
+  const maxR = size / 2 - 30; // balanced radius with padded viewBox
   const levels = 4;
+  const padX = 70; // large horizontal padding to accommodate long labels (e.g. Code Quality)
+  const padY = 30; // vertical padding for labels
 
   // Compute angle for each axis
   const angle = (i: number) => (2 * Math.PI * i) / n;
@@ -56,8 +58,13 @@ export default function SkillsRadarChart({ data, size = 220, className = '' }: S
   }).join(' ');
 
   return (
-    <div className={`flex flex-col items-center gap-3 ${className}`}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div className={`flex flex-col items-center gap-3 px-4 ${className}`}>
+      <svg
+        width={size} height={size}
+        viewBox={`-${padX} -${padY} ${size + 2 * padX} ${size + 2 * padY}`}
+        overflow="visible"
+        style={{ overflow: 'visible' }}
+      >
         {/* Grid levels */}
         {Array.from({ length: levels }, (_, lv) => (
           <polygon
@@ -117,21 +124,27 @@ export default function SkillsRadarChart({ data, size = 220, className = '' }: S
 
         {/* Axis labels */}
         {axes.map((axis, i) => {
-          const labelR = maxR + 16;
+          const labelR = maxR + 14;
           const pt = polarToCartesian(cx, cy, labelR, angle(i));
           const textAnchor =
-            pt.x < cx - 5 ? 'end' : pt.x > cx + 5 ? 'start' : 'middle';
+            pt.x < cx - 8 ? 'end' : pt.x > cx + 8 ? 'start' : 'middle';
+          // Split long labels into 2 lines
+          const words = axis.split(/\s+/);
+          const line1 = words.slice(0, Math.ceil(words.length / 2)).join(' ');
+          const line2 = words.length > 1 ? words.slice(Math.ceil(words.length / 2)).join(' ') : null;
           return (
             <text
               key={i}
-              x={pt.x} y={pt.y + 4}
+              x={pt.x}
+              y={line2 ? pt.y : pt.y + 4}
               textAnchor={textAnchor}
               fontSize={9}
               fill={COLORS.label}
               fontWeight="600"
               fontFamily="Inter, system-ui, sans-serif"
             >
-              {axis}
+              <tspan x={pt.x} dy="0">{line1}</tspan>
+              {line2 && <tspan x={pt.x} dy="11">{line2}</tspan>}
             </text>
           );
         })}
