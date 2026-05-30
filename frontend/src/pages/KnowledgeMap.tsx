@@ -198,12 +198,11 @@ export default function KnowledgeMap() {
         colorIdx++;
       }
 
-      // Распределяем лекции равномерно по широкому эллипсу, чтобы избежать слипания в линию
-      const angle = (idx / Math.max(1, numMats)) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
-      const radiusX = 420 + (Math.random() - 0.5) * 80;
-      const radiusY = 280 + (Math.random() - 0.5) * 60;
-      const initX = width / 2 + Math.cos(angle) * radiusX;
-      const initY = height / 2 + Math.sin(angle) * radiusY;
+      // Начальный посев лекций близко к центру для органичного расширения во все стороны и заполнения центра
+      const angle = (idx / Math.max(1, numMats)) * Math.PI * 2;
+      const dist = 80 + Math.random() * 60;
+      const initX = width / 2 + Math.cos(angle) * dist;
+      const initY = height / 2 + Math.sin(angle) * dist;
 
       tempNodes.push({
         id: mat.id,
@@ -267,7 +266,7 @@ export default function KnowledgeMap() {
         const firstMat = tempNodes.find(n => n.id === value.materials[0].id);
         if (firstMat) {
           const termAngle = Math.random() * Math.PI * 2;
-          const termDist = 90 + Math.random() * 30;
+          const termDist = 120 + Math.random() * 20;
           startX = firstMat.x + Math.cos(termAngle) * termDist;
           startY = firstMat.y + Math.sin(termAngle) * termDist;
         }
@@ -327,42 +326,42 @@ export default function KnowledgeMap() {
           let strength = 0.5;
 
           if (nodeA.type === 'material' && nodeB.type === 'material') {
-            minDist = 520; // Звезды далеко друг от друга, чтобы их орбиты не слипались
-            strength = 0.8;
+            // Лекция от лекции
+            minDist = 380; 
+            strength = 0.75;
           } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-            // Проверим, имеют ли они хотя бы одну общую лекцию
+            // Понятие от понятия
             const shareMaterial = nodeA.materials?.some(ma => 
               nodeB.materials?.some(mb => mb.id === ma.id)
             );
 
             if (shareMaterial) {
-              // Планеты одной звезды расталкиваются стандартно по орбите
-              minDist = nodeA.radius + nodeB.radius + 70; 
+              // Понятия одной лекции расталкиваются на орбите
+              minDist = nodeA.radius + nodeB.radius + 75; 
               strength = 0.6;
             } else {
-              // Планеты РАЗНЫХ звезд расталкиваются ОЧЕНЬ сильно, чтобы галактики не пересекались!
-              minDist = nodeA.radius + nodeB.radius + 180; 
-              strength = 0.85;
+              // Понятия разных лекций расталкиваются очень сильно
+              minDist = nodeA.radius + nodeB.radius + 140; 
+              strength = 0.8;
             }
           } else {
-            // Один - лекция, другой - понятие.
+            // Понятие от лекции (включая свои же)
             const materialNode = nodeA.type === 'material' ? nodeA : nodeB;
             const conceptNode = nodeA.type === 'concept' ? nodeA : nodeB;
             
-            // Проверим связь между ними
             const isLinked = currentLinks.some(l => 
               (l.source === materialNode.id && l.target === conceptNode.id) ||
               (l.target === materialNode.id && l.source === conceptNode.id)
             );
 
             if (isLinked) {
-              // Родная звезда - держим мягкую дистанцию-буфер
-              minDist = materialNode.radius + conceptNode.radius + 60;
-              strength = 0.5;
+              // Своя лекция - держим узел на орбите, не давая наезжать на центр лекции
+              minDist = materialNode.radius + conceptNode.radius + 80;
+              strength = 0.6;
             } else {
-              // ЧУЖАЯ звезда - расталкиваем ОЧЕНЬ сильно, чтобы чужие планеты не залетали в систему!
-              minDist = materialNode.radius + conceptNode.radius + 200;
-              strength = 0.8;
+              // Чужая лекция - сильное отталкивание
+              minDist = materialNode.radius + conceptNode.radius + 160;
+              strength = 0.85;
             }
           }
 
@@ -392,8 +391,8 @@ export default function KnowledgeMap() {
           const dy = target.y - source.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
           
-          // Орбита достаточно широкая, чтобы тексты не перекрывали саму звезду
-          const desiredDist = source.radius + target.radius + 90; 
+          // Желаемое расстояние орбиты
+          const desiredDist = source.radius + target.radius + 95; 
           const force = (dist - desiredDist) * 0.15; // Мощно удерживаем на орбите
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
@@ -420,17 +419,14 @@ export default function KnowledgeMap() {
           node.vx = 0;
           node.vy = 0;
         } else {
-          // Мягко стягиваем к центру только звезды (лекции), чтобы острова не разлетались.
-          // Концепты (планеты) следуют исключительно за своими лекциями (звездами) благодаря связям,
-          // это исключает их стягивание в одну общую кучу или линию.
-          if (node.type === 'material') {
-            const gravity = 0.001;
-            node.vx += (centerX - node.x) * gravity;
-            node.vy += (centerY - node.y) * gravity;
-          }
+          // Мягко стягиваем все к центру, чтобы граф заполнял центр и не разлетался.
+          // Лекции стягиваются чуть сильнее, чтобы оставаться каркасом графа.
+          const gravity = node.type === 'material' ? 0.0018 : 0.0006;
+          node.vx += (centerX - node.x) * gravity;
+          node.vy += (centerY - node.y) * gravity;
 
-          node.vx *= 0.85; // Трение значительно ниже (0.85 вместо 0.65), чтобы узлы могли плавно скользить в оптимальные позиции
-          node.vy *= 0.85;
+          node.vx *= 0.8; // Трение сбалансировано на 0.8 для плавного затухания и гашения колебаний
+          node.vy *= 0.8;
 
           node.x += node.vx;
           node.y += node.vy;
