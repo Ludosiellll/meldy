@@ -201,7 +201,7 @@ function Hero() {
           className="flex items-center gap-4 flex-wrap pt-2"
         >
           <button onClick={() => navigate('/register')}
-            className="group relative flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-650 dark:hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-900/10 hover:shadow-indigo-300 dark:hover:shadow-indigo-850/20 hover:-translate-y-1 active:translate-y-0 duration-300 overflow-hidden">
+            className="group relative flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-900/10 hover:shadow-indigo-300 dark:hover:shadow-indigo-900/20 hover:-translate-y-1 active:translate-y-0 duration-300 overflow-hidden">
             <span className="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-black" />
             <span className="relative">Начать бесплатно</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform relative" />
@@ -1094,7 +1094,7 @@ function ProductSimulation() {
                         <div 
                           className={`rounded-2xl p-4 text-white shadow-lg transition-all duration-500 relative overflow-hidden flex flex-col ${
                             step >= 10 
-                              ? 'bg-indigo-700 dark:bg-indigo-800 scale-[0.98] ring-4 ring-indigo-500/25 dark:ring-indigo-500/40 border-indigo-400 dark:border-indigo-650' 
+                              ? 'bg-indigo-700 dark:bg-indigo-800 scale-[0.98] ring-4 ring-indigo-500/25 dark:ring-indigo-500/40 border-indigo-400 dark:border-indigo-600' 
                               : 'bg-gradient-to-br from-indigo-600 to-indigo-800 dark:from-indigo-700 dark:to-indigo-900 border border-indigo-500/20 dark:border-indigo-800/40'
                           }`}
                         >

@@ -28,7 +28,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
     rose: 'text-rose-600 dark:text-rose-400' 
   };
   return (
-    <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
       <div className={`w-10 h-10 ${bgMap[color]} border rounded-xl flex items-center justify-center shrink-0`}>
         <Icon className={`w-5 h-5 ${textMap[color]}`} />
       </div>
@@ -206,13 +206,13 @@ export default function Dashboard() {
       <motion.div
         onClick={() => navigate('/analytics')}
         whileHover={{ y: -2 }}
-        className="w-full bg-gradient-to-r from-indigo-600 via-indigo-650 to-purple-600 text-white rounded-3xl p-5 md:p-6 shadow-xl shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 transition-all duration-300 cursor-pointer relative overflow-hidden group tour-step-desktop-xp tour-step-mobile-xp"
+        className="w-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white rounded-3xl p-5 md:p-6 shadow-xl shadow-indigo-100 dark:shadow-none hover:shadow-indigo-200 transition-all duration-300 cursor-pointer relative overflow-hidden group tour-step-desktop-xp tour-step-mobile-xp"
       >
         <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full -translate-y-1/3 translate-x-1/4 pointer-events-none group-hover:scale-105 transition-transform duration-500" />
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-2xl md:text-3xl shadow-inner border border-white/20 shrink-0">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl md:text-3xl shadow-inner border border-white/20 shrink-0">
               🏆
             </div>
             <div>
@@ -258,7 +258,7 @@ export default function Dashboard() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-5 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
+              className="p-5 bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
             >
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 shrink-0 border border-slate-200/40 dark:border-slate-700/40 text-xl">
@@ -354,12 +354,12 @@ export default function Dashboard() {
           whileHover={{ scale: 1.015, y: -2 }}
           className={`p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 shadow-lg ${
             dueCards.length > 0
-              ? 'bg-gradient-to-br from-indigo-650 via-indigo-600 to-purple-650 text-white shadow-xl shadow-indigo-200 dark:shadow-none'
-              : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-150 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400'
+              ? 'bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 text-white shadow-xl shadow-indigo-200 dark:shadow-none border border-indigo-500/30 dark:border-indigo-500/20'
+              : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-400'
           }`}
         >
           <div className="flex items-center justify-between w-full">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center backdrop-blur-md ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500 text-white'}`}>
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${dueCards.length > 0 ? 'bg-white/20' : 'bg-emerald-500 text-white'}`}>
               <Brain className="w-6 h-6 text-white" />
             </div>
             <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${dueCards.length > 0 ? 'bg-white/10 text-indigo-100' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
@@ -382,12 +382,12 @@ export default function Dashboard() {
           onClick={() => navigate('/analytics')}
           className={`p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 cursor-pointer shadow-lg ${
             streak >= 3
-              ? 'bg-gradient-to-br from-orange-500 via-orange-550 to-rose-600 text-white shadow-xl shadow-orange-200 dark:shadow-none'
+              ? 'bg-gradient-to-br from-orange-500 via-red-500 to-rose-600 text-white shadow-xl shadow-orange-200 dark:shadow-none border border-orange-500/30 dark:border-orange-500/20'
               : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
           }`}
         >
           <div className="flex items-center justify-between w-full">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center backdrop-blur-md ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ${streak >= 3 ? 'bg-white/20' : 'bg-rose-50 dark:bg-rose-950/30'}`}>
               <Flame className={`w-6 h-6 ${streak >= 3 ? 'text-white animate-pulse' : 'text-rose-500'}`} />
             </div>
             <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${streak >= 3 ? 'bg-white/10 text-orange-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
@@ -409,7 +409,7 @@ export default function Dashboard() {
           <motion.button
             onClick={() => navigate('/quick-prep')}
             whileHover={{ scale: 1.015, y: -2 }}
-            className="p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white shadow-xl shadow-amber-200 dark:shadow-none"
+            className="p-5 rounded-3xl text-left transition-all duration-300 flex flex-col justify-between h-44 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white shadow-xl shadow-amber-200 dark:shadow-none border border-amber-500/30 dark:border-amber-500/20"
           >
             <div className="flex items-center justify-between w-full">
               <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
@@ -623,7 +623,7 @@ export default function Dashboard() {
                 <div key={q.id} className="p-4 bg-slate-50/50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex flex-col justify-between space-y-4 hover:shadow-md hover:border-purple-500/20 transition group">
                   <div className="space-y-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-xs font-black leading-snug ${q.is_completed ? 'text-emerald-650 line-through dark:text-emerald-400/80' : 'text-slate-800 dark:text-slate-200'}`}>
+                      <p className={`text-xs font-black leading-snug ${q.is_completed ? 'text-emerald-600 line-through dark:text-emerald-400/80' : 'text-slate-800 dark:text-slate-200'}`}>
                         {q.title}
                       </p>
                       <span className="text-[10px] font-black text-purple-500 shrink-0">+{q.xp_reward} XP</span>

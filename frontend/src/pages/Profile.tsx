@@ -429,7 +429,7 @@ export default function Profile() {
                 className={`w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition ${
                   pushLoading ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' :
                   pushEnabled ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 cursor-default border border-indigo-100 dark:border-indigo-950' :
-                  'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-650 dark:hover:bg-indigo-600 text-white shadow-sm'
+                  'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-600 text-white shadow-sm'
                 }`}
               >
                 {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}

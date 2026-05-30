@@ -488,43 +488,43 @@ export default function StudySession() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="card p-5 md:p-8 text-center relative z-20 space-y-6"
+            className="card p-6 md:p-10 text-center relative z-20 space-y-8 max-w-2xl mx-auto shadow-xl"
           >
-            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-lg text-white text-2xl animate-pulse">
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-lg text-white text-3xl animate-pulse">
               🔮
             </div>
-            <div className="space-y-3">
-              <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Персональная сессия обучения готова!</h2>
-              <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 max-w-lg mx-auto leading-relaxed">
-                Давай закрепим тему <strong className="font-extrabold text-indigo-600 dark:text-indigo-400">«{activeMaterial?.title}»</strong> по методу глубокого погружения.
+            <div className="space-y-4">
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">Персональная сессия готовит тебя к победам!</h2>
+              <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 max-w-lg mx-auto leading-relaxed">
+                Давай закрепим тему <strong className="font-black text-indigo-600 dark:text-indigo-400">«{activeMaterial?.title}»</strong> по методу глубокого погружения.
               </p>
             </div>
 
             {/* Карточка планов */}
-            <div className="max-w-lg mx-auto text-left bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-6 space-y-5">
-              <h3 className="font-extrabold text-sm text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">План урока сегодня:</h3>
-              <div className="space-y-4">
+            <div className="max-w-xl mx-auto text-left bg-slate-50 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-7 space-y-6 shadow-inner">
+              <h3 className="font-black text-sm md:text-base text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">План урока сегодня:</h3>
+              <div className="space-y-5">
                 {sessionCards.length > 0 && (
                   <div className="flex items-center gap-4">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">1</div>
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm md:text-base shrink-0">1</div>
                     <div>
-                      <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">Разминка с карточками ({sessionCards.length} шт)</p>
-                      <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">Интервальное повторение по алгоритму SM-2</p>
+                      <p className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100">Разминка с карточками ({sessionCards.length} шт)</p>
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">Интервальное повторение по алгоритму SM-2</p>
                     </div>
                   </div>
                 )}
                 <div className="flex items-center gap-4">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">{sessionCards.length > 0 ? '2' : '1'}</div>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm md:text-base shrink-0">{sessionCards.length > 0 ? '2' : '1'}</div>
                   <div>
-                    <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">Изучение выжимки лекции с AI</p>
-                    <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">Краткий конспект и свободные вопросы наставнику</p>
+                    <p className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100">Изучение выжимки лекции с AI</p>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">Краткий конспект и свободные вопросы наставнику</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">{sessionCards.length > 0 ? '3' : '2'}</div>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm md:text-base shrink-0">{sessionCards.length > 0 ? '3' : '2'}</div>
                   <div>
-                    <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-200">Проверочный мини-квест</p>
-                    <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">3 вопроса на усвоение с разбором ошибок</p>
+                    <p className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100">Проверочный мини-квест</p>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">3 вопроса на усвоение с разбором ошибок</p>
                   </div>
                 </div>
               </div>
@@ -533,7 +533,7 @@ export default function StudySession() {
             <div className="max-w-md mx-auto pt-2">
               <button
                 onClick={handleStart}
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg shadow-indigo-500/20 tracking-wider flex items-center justify-center gap-2 transition"
+                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-extrabold hover:shadow-lg shadow-indigo-500/20 tracking-wider flex items-center justify-center gap-2 transition active:scale-[0.99] text-base"
               >
                 Поехали! 🚀
               </button>

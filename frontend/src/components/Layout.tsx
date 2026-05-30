@@ -151,7 +151,7 @@ export default function Layout() {
                   handleOpenNotifications();
                 }
               }}
-              className="px-2.5 py-1 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-bold shrink-0 transition"
+              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shrink-0 transition"
             >
               Смотреть
             </button>

@@ -621,7 +621,7 @@ export default function Courses() {
                         
                         <button
                           onClick={(e) => handleDeleteCourse(e, course.id)}
-                          className="p-1.5 text-slate-300 dark:text-slate-650 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all"
+                          className="p-1.5 text-slate-300 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all"
                           title="Удалить курс"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -759,7 +759,7 @@ export default function Courses() {
 
                 {materials.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">
-                    <BookOpen className="w-12 h-12 text-slate-300 dark:text-slate-650 mx-auto mb-3" />
+                    <BookOpen className="w-12 h-12 text-slate-300 dark:text-slate-500 mx-auto mb-3" />
                     <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Ваша библиотека пуста</p>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Сначала загрузите материалы для анализа</p>
                     <button 
@@ -907,7 +907,7 @@ export default function Courses() {
                       </button>
                       <button
                         onClick={() => handleDeleteSection(section.id)}
-                        className="p-1 text-slate-300 dark:text-slate-650 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded"
+                        className="p-1 text-slate-300 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded"
                         title="Удалить раздел"
                       >
                         <Trash className="w-3.5 h-3.5" />

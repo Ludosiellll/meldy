@@ -678,13 +678,13 @@ export default function TeacherDashboard() {
                   <div className="flex flex-wrap items-center gap-4 mt-2 text-slate-500 dark:text-slate-400 text-sm">
                     {role === 'student' && (
                       <div className="flex items-center gap-1">
-                        <Users className="w-4 h-4 text-slate-400 dark:text-slate-650" />
+                        <Users className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                         <span>Преподаватель: <span className="font-semibold text-slate-700 dark:text-slate-300">{teacherName}</span></span>
                       </div>
                     )}
                     
                     <div className="flex items-center gap-2">
-                      <Key className="w-4 h-4 text-slate-400 dark:text-slate-650" />
+                      <Key className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                       <span>Код приглашения:</span>
                       <span className="font-mono bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 px-2 py-0.5 rounded font-bold text-base select-all">
                         {selectedGroup.invite_code}
