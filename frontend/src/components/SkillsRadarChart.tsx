@@ -60,10 +60,9 @@ export default function SkillsRadarChart({ data, size = 220, className = '' }: S
   return (
     <div className={`flex flex-col items-center gap-3 px-4 ${className}`}>
       <svg
-        width={size} height={size}
+        style={{ width: '100%', height: 'auto', maxWidth: `${size + 2 * padX}px`, overflow: 'visible' }}
         viewBox={`-${padX} -${padY} ${size + 2 * padX} ${size + 2 * padY}`}
         overflow="visible"
-        style={{ overflow: 'visible' }}
       >
         {/* Grid levels */}
         {Array.from({ length: levels }, (_, lv) => (
