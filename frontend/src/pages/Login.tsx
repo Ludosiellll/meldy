@@ -198,7 +198,7 @@ export default function Login() {
           initial={{ opacity: 0, scale: 0.9, rotateY: -15 }}
           animate={{ opacity: 1, scale: 1, rotateY: 0 }}
           transition={{ duration: 0.8, type: "spring" }}
-          className="relative w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl"
+          className="relative w-full max-w-lg bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl"
           style={{ transformStyle: "preserve-3d", perspective: 1000 }}
         >
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-full text-white text-xs font-bold mb-6">
@@ -207,7 +207,7 @@ export default function Login() {
           
           <h2 className="text-3xl font-black text-white leading-tight mb-4 tracking-tight">
             Готовьтесь к экзаменам <br/>
-            и прокачивайте hard-скиллы
+            и прокачивайте <span className="whitespace-nowrap">hard-скиллы</span>
           </h2>
           
           <p className="text-indigo-100 leading-relaxed text-sm mb-8">
