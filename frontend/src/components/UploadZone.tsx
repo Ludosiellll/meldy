@@ -95,22 +95,22 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
 
       {/* Tabs */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-         <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl max-w-md mx-auto">
+         <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl max-w-lg mx-auto">
             <button
               onClick={() => { setTab('docs'); setFile(null); }}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition ${tab === 'docs' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition whitespace-nowrap ${tab === 'docs' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               📄 Документы
             </button>
             <button
               onClick={() => { setTab('media'); setFile(null); }}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition ${tab === 'media' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition whitespace-nowrap ${tab === 'media' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               ▶️ Видео / Аудио
             </button>
             <button
               onClick={() => { setTab('url'); setFile(null); }}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition ${tab === 'url' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition whitespace-nowrap ${tab === 'url' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               🔗 Ссылка
             </button>
