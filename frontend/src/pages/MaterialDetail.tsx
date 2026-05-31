@@ -73,6 +73,20 @@ export default function MaterialDetail() {
 
   const hasFlashcards = material.flashcards_json?.flashcards?.length > 0;
   const hasPodcast = material.summary_json?.podcast?.length > 0;
+  const hasCheatsheet = material.summary_json?.cheatsheet && material.summary_json.cheatsheet.trim() !== '';
+
+  let colCount = 1; // "Полное обучение"
+  if (hasCheatsheet) colCount++;
+  if (hasPodcast) colCount++;
+  if (hasFlashcards) colCount++;
+
+  const gridColsClass = colCount === 4 
+    ? 'md:grid-cols-4 sm:grid-cols-2' 
+    : colCount === 3 
+      ? 'md:grid-cols-3 sm:grid-cols-2' 
+      : colCount === 2 
+        ? 'sm:grid-cols-2' 
+        : 'grid-cols-1';
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -169,7 +183,7 @@ export default function MaterialDetail() {
       </p>
 
       {/* Режимы обучения */}
-      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 sm:grid-cols-2 ${hasPodcast && hasFlashcards ? 'md:grid-cols-4' : hasPodcast || hasFlashcards ? 'md:grid-cols-3' : ''}`}>
+      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 ${gridColsClass}`}>
         <button
           onClick={() => setMode('full')}
           className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
@@ -190,26 +204,28 @@ export default function MaterialDetail() {
             <span>Полное обучение</span>
           </span>
         </button>
-        <button
-          onClick={() => setMode('express')}
-          className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
-            mode === 'express'
-              ? 'text-white'
-              : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
-          }`}
-        >
-          {mode === 'express' && (
-            <motion.span
-              layoutId="activeDetailMode"
-              className="absolute inset-0 bg-rose-600 rounded-xl shadow-md -z-10"
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-            />
-          )}
-          <span className="relative z-10 flex items-center gap-2">
-            <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
-            <span>За 5 минут</span>
-          </span>
-        </button>
+        {hasCheatsheet && (
+          <button
+            onClick={() => setMode('express')}
+            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+              mode === 'express'
+                ? 'text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
+            }`}
+          >
+            {mode === 'express' && (
+              <motion.span
+                layoutId="activeDetailMode"
+                className="absolute inset-0 bg-rose-600 rounded-xl shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
+              <span>За 5 минут</span>
+            </span>
+          </button>
+        )}
         {hasPodcast && (
           <button
             onClick={() => setMode('podcast')}
@@ -235,7 +251,7 @@ export default function MaterialDetail() {
         {hasFlashcards && (
           <button
             onClick={() => navigate(`/shorts/${id}`)}
-            className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-fuchsia-500/20 transition-transform hover:-translate-y-0.5 sm:col-span-full md:col-auto"
+            className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-fuchsia-500/20 transition-transform hover:-translate-y-0.5"
           >
             Учебный TikTok 📱
           </button>
@@ -250,7 +266,7 @@ export default function MaterialDetail() {
             flashcards: material.flashcards_json,
             quiz: material.quiz_json,
           }}
-          onReset={() => navigate('/library')}
+          onReset={() => navigate('/analyze')}
           textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
           materialId={material.id}
         />

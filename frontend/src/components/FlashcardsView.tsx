@@ -144,15 +144,17 @@ export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
   // Normal mode
   return (
     <div>
-      <div className="flex gap-2 mb-4">
-        <button onClick={revealAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
-          <Eye className="w-3.5 h-3.5" />Показать все
-        </button>
-        <button onClick={hideAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
-          <EyeOff className="w-3.5 h-3.5" />Скрыть все
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 w-full">
+        <div className="flex gap-2">
+          <button onClick={revealAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
+            <Eye className="w-3.5 h-3.5" />Показать все
+          </button>
+          <button onClick={hideAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
+            <EyeOff className="w-3.5 h-3.5" />Скрыть все
+          </button>
+        </div>
         <button onClick={startStudy}
-          className="flex items-center gap-1.5 px-4.5 py-1.5 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm ml-auto">
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm shrink-0">
           <GraduationCap className="w-4 h-4" />Начать обучение
         </button>
       </div>

@@ -82,7 +82,7 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
     const fsExit = () => { setFsOpen(false); setFsIdx(0); setFsAnswers({}); setFsSubmitted(false); };
 
     return (
-      <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/40 text-slate-100 overflow-y-auto flex flex-col">
+      <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-5 bg-slate-900/40 backdrop-blur-md border-b border-slate-800/80">
           <span className="text-indigo-400 font-extrabold text-base tracking-widest uppercase flex items-center gap-2">
