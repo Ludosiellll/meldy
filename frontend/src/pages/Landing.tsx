@@ -178,8 +178,10 @@ function Hero() {
           }}
           className="text-4xl md:text-6xl font-black tracking-tight leading-[1.1] text-slate-900 dark:text-white transition-colors duration-300"
         >
-          Осваивайте лекции <br className="hidden md:block" />
-          <span className="text-indigo-600 dark:text-indigo-400">в 4 раза быстрее</span>
+          Кузница ваших знаний <br className="hidden md:block" />
+          <span className="bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent dark:from-indigo-400 dark:to-violet-300">
+            и карьерного роста
+          </span>
         </motion.h1>
 
         <motion.p 
@@ -189,7 +191,7 @@ function Hero() {
           }}
           className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl transition-colors duration-300"
         >
-          Автоматизируйте рутину конспектирования. StudyForge анализирует материалы, создаёт интерактивные конспекты, карточки для интервального повторения по методу Лейтнера и проводит устные экзамены.
+          StudyForge — это передовая образовательная экосистема. Превращайте лекции в интерактивные конспекты, тренируйтесь в SQL и код-песочницах, стройте масштабные силлабусы под требования рынка и отслеживайте свои навыки на карте развития.
         </motion.p>
 
         {/* Кнопки действий */}
@@ -265,7 +267,7 @@ function Hero() {
               className="absolute inset-4 bg-indigo-600/15 rounded-3xl blur-2xl transition-all duration-300"
               style={{ transform: "translateZ(-60px)" }}
             />
-            
+
             {/* Базовый слой: Панель Дашборда */}
             <div 
               className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(79,70,229,0.1)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.45)] p-6 flex flex-col gap-4 select-none transition-colors duration-300"
@@ -284,37 +286,52 @@ function Hero() {
 
               {/* Тело дашборда */}
               <div className="grid grid-cols-12 gap-4 flex-1 mt-2">
-                {/* Левое меню */}
-                <div className="col-span-3 space-y-3 pr-2">
-                  <div className="h-6 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg w-full transition-colors" />
-                  <div className="h-5 bg-slate-50 dark:bg-slate-800 rounded-lg w-5/6 transition-colors" />
-                  <div className="h-5 bg-slate-50 dark:bg-slate-800 rounded-lg w-4/5 transition-colors" />
-                  <div className="h-5 bg-slate-50 dark:bg-slate-800 rounded-lg w-3/4 transition-colors" />
+                {/* Левое меню файловой структуры */}
+                <div className="col-span-4 space-y-2.5 pr-2 border-r border-slate-100 dark:border-slate-800/80">
+                  <div className="text-[10px] font-extrabold text-indigo-650 dark:text-indigo-400/80 uppercase tracking-wider">Файлы</div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-350 font-semibold truncate hover:text-indigo-600 transition-colors">
+                    <Folder className="w-3.5 h-3.5 text-slate-400" /> src
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-bold pl-3 truncate">
+                    <Terminal className="w-3.5 h-3.5" /> query.sql
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 pl-3 truncate">
+                    <FileText className="w-3.5 h-3.5" /> index.ts
+                  </div>
                 </div>
                 
                 {/* Рабочая зона */}
-                <div className="col-span-9 space-y-4">
-                  <div className="h-10 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center px-4 justify-between transition-colors">
-                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500">Мой прогресс</span>
-                    <span className="text-xs text-indigo-600 dark:text-indigo-400 font-extrabold bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-md transition-colors">+120 XP</span>
+                <div className="col-span-8 flex flex-col gap-3">
+                  {/* Заголовок песочницы */}
+                  <div className="h-9 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center px-3 justify-between transition-colors">
+                    <div className="flex items-center gap-1.5">
+                      <Terminal className="w-3.5 h-3.5 text-indigo-650 dark:text-indigo-400" />
+                      <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider">SQL Sandbox</span>
+                    </div>
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-900/30 transition-colors">
+                      Успешно: 100/100
+                    </span>
                   </div>
-                  {/* Анимированный график */}
-                  <div className="h-28 bg-white dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-xl p-3 flex items-end justify-between gap-1.5 shadow-inner transition-colors">
-                    {[30, 45, 20, 60, 80, 50, 95, 40, 70, 85].map((h, i) => (
-                      <motion.div 
-                        key={i} 
-                        initial={{ height: 0 }}
-                        animate={{ height: `${h}%` }}
-                        transition={{ duration: 1, delay: 0.5 + i * 0.05, type: "spring" }}
-                        className="bg-indigo-200 dark:bg-indigo-900/60 hover:bg-indigo-400 dark:hover:bg-indigo-500 transition-colors w-full rounded-t-sm" 
-                      />
-                    ))}
+
+                  {/* Редактор кода */}
+                  <div className="h-28 bg-slate-950 text-indigo-200/90 font-mono text-[9px] p-3 rounded-xl border border-slate-800 shadow-inner flex flex-col justify-between overflow-hidden relative group">
+                    <div className="space-y-1 select-text text-left">
+                      <p className="text-slate-500">// Запрос к базе карьерного трека</p>
+                      <p><span className="text-pink-500">SELECT</span> progress, rank <span className="text-pink-500">FROM</span> career</p>
+                      <p><span className="text-pink-500">WHERE</span> course = <span className="text-emerald-400">'Golang & SQL'</span>;</p>
+                    </div>
+                    <div className="border-t border-slate-800/80 pt-2 mt-2 flex items-center justify-between text-slate-400 text-[8px]">
+                      <span>Результат: 2 строки</span>
+                      <span className="text-indigo-400 font-extrabold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" /> ИИ Проверил
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Парящий слой 1: 📝 Конспект (Слева сверху) */}
+            {/* Парящий слой 1: 📋 Силлабус курса (Слева сверху) */}
             <motion.div 
               initial={{ opacity: 0, y: -20, x: -20 }}
               animate={{ opacity: 1, y: [0, -10, 0], x: 0 }}
@@ -323,22 +340,34 @@ function Hero() {
                 y: { duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 },
                 x: { delay: 1, duration: 0.5, type: "spring" }
               }}
-              className="hidden md:flex absolute top-[-10%] left-[-10%] w-[55%] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-4 flex-col gap-2 transition-colors duration-300"
+              className="hidden md:flex absolute top-[-10%] left-[-10%] w-[55%] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-2xl p-4 flex-col gap-2 transition-colors duration-300"
               style={{ transform: "translateZ(80px)" }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">📝 Конспект</span>
+                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                  <Briefcase className="w-4 h-4 text-indigo-500" />
+                  <span>Силлабус карьеры</span>
+                </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
               </div>
-              <p className="text-[11px] font-bold text-slate-800 dark:text-slate-100 line-clamp-1">Тема: Дифференциальные уравнения</p>
+              <p className="text-[11px] font-bold text-slate-800 dark:text-slate-100 text-left line-clamp-1">Направление: Golang & SQL Разработчик</p>
               <div className="space-y-1.5 mt-1">
-                <div className="h-1.5 bg-slate-200/80 dark:bg-slate-700/60 rounded-full w-full transition-colors" />
-                <div className="h-1.5 bg-slate-200/80 dark:bg-slate-700/60 rounded-full w-5/6 transition-colors" />
-                <div className="h-1.5 bg-slate-200/80 dark:bg-slate-700/60 rounded-full w-2/3 transition-colors" />
+                <div className="flex justify-between text-[9px] text-slate-400 font-semibold">
+                  <span>35 глав сгенерировано</span>
+                  <span>85% выполнено</span>
+                </div>
+                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full w-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: "85%" }}
+                    transition={{ duration: 1.5, delay: 1.2 }}
+                    className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full" 
+                  />
+                </div>
               </div>
             </motion.div>
 
-            {/* Парящий слой 2: 🃏 Карточки (Справа снизу) */}
+            {/* Парящий слой 2: 📊 Карта hard-скиллов (Справа снизу) */}
             <motion.div 
               initial={{ opacity: 0, y: 20, x: 20 }}
               animate={{ opacity: 1, y: [0, 10, 0], x: 0 }}
@@ -347,24 +376,38 @@ function Hero() {
                 y: { duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1.5 },
                 x: { delay: 1.2, duration: 0.5, type: "spring" }
               }}
-              className="hidden md:flex absolute bottom-[12%] right-[-12%] w-[50%] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl p-4 flex-col gap-3 transition-colors duration-300"
+              className="hidden md:flex absolute bottom-[12%] right-[-12%] w-[50%] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-2xl p-4 flex-col gap-3 transition-colors duration-300"
               style={{ transform: "translateZ(120px)" }}
             >
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                <Brain className="w-4 h-4" />
-                <span>Интервальное повторение</span>
+              <div className="flex items-center gap-1.5 text-xs font-black text-emerald-600 dark:text-emerald-400">
+                <Network className="w-4 h-4" />
+                <span>Карта hard-скиллов</span>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-center shadow-inner transition-colors">
-                <p className="text-[10px] font-medium text-slate-500 mb-1">Термин</p>
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Интеграл Фурье</p>
-              </div>
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-[9px] font-bold px-2 py-1 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/40 rounded-md shadow-sm transition-colors">Помню плохо</span>
-                <span className="text-[9px] font-bold px-2 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40 rounded-md shadow-sm transition-colors">Отлично помню</span>
+              <div className="bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 flex flex-col gap-2 shadow-inner transition-colors">
+                {[
+                  { name: "SQL & DB", val: "92%", color: "bg-emerald-500" },
+                  { name: "Go & React", val: "88%", color: "bg-indigo-500" },
+                  { name: "Algorithms", val: "85%", color: "bg-sky-500" }
+                ].map((s, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex justify-between text-[9px] font-bold text-slate-600 dark:text-slate-350">
+                      <span>{s.name}</span>
+                      <span>{s.val}</span>
+                    </div>
+                    <div className="h-1 bg-slate-200 dark:bg-slate-800 rounded-full w-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: s.val }}
+                        transition={{ duration: 1.2, delay: 1.5 + idx * 0.1 }}
+                        className={`h-full ${s.color} rounded-full`}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
 
-            {/* Парящий слой 3: ❓ Устный экзамен (Слева снизу) */}
+            {/* Парящий слой 3: 🎙️ ИИ-Собеседование (Слева снизу) */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1, y: [0, -8, 0] }}
@@ -373,14 +416,17 @@ function Hero() {
                 scale: { delay: 1.4, duration: 0.5, type: "spring" },
                 y: { duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 2 }
               }}
-              className="hidden md:flex absolute bottom-[-15%] left-[-5%] w-[60%] bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-2xl shadow-[0_20px_40px_rgba(79,70,229,0.4)] p-4 flex-col gap-2 border border-indigo-400/30"
+              className="hidden md:flex absolute bottom-[-15%] left-[-5%] w-[62%] bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-2xl shadow-[0_20px_40px_rgba(79,70,229,0.4)] p-4 flex-col gap-2 border border-indigo-400/30 text-left"
               style={{ transform: "translateZ(150px)" }}
             >
               <div className="flex items-center justify-between text-[10px] font-bold text-indigo-100">
-                <span className="flex items-center gap-1"><Award className="w-3.5 h-3.5 text-amber-300" /> Собеседование у ИИ</span>
-                <span className="bg-white/20 px-2 py-0.5 rounded shadow-sm">95/100</span>
+                <span className="flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-amber-300" />
+                  <span>ИИ-Собеседование</span>
+                </span>
+                <span className="bg-white/20 px-2 py-0.5 rounded shadow-sm">95/100 (Middle)</span>
               </div>
-              <p className="text-xs font-bold leading-relaxed">«Ответ верный. Объясните физический смысл градиента функции...»</p>
+              <p className="text-[10px] font-bold leading-relaxed">«Отличный ответ! Вы правильно применили индексы для оптимизации JOIN-запроса»</p>
               <div className="h-1.5 bg-black/20 rounded-full w-full mt-1 overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }}
@@ -399,10 +445,10 @@ function Hero() {
 
 function Stats() {
   const items = [
-    { value: '15 секунд', label: 'глубокий анализ лекции' },
-    { value: '6 агентов', label: 'работают параллельно' },
-    { value: 'Квесты & XP', label: 'встроенная геймификация' },
-    { value: 'Co-Study', label: 'защита от выгорания' },
+    { value: '15 секунд', label: 'анализ лекций и конспектов' },
+    { value: '35+ тем', label: 'в каждом ИИ-силлабусе' },
+    { value: 'Песочницы', label: 'практического кода и SQL' },
+    { value: 'Радар-карта', label: 'динамического роста навыков' },
   ];
   return (
     <section className="py-16 px-6 border-y border-slate-200/60 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/50 backdrop-blur transition-colors duration-300">
@@ -1532,6 +1578,24 @@ function Features() {
       title: 'Кабинет преподавателя',
       desc: 'Создавайте классы, мониторьте статистику студентов и анализируйте общую успеваемость потока в ВУЗе.',
     },
+    {
+      icon: Briefcase,
+      color: 'indigo',
+      title: 'Персональный ИИ-Курс',
+      desc: 'Генерация масштабного силлабуса на 35 тем на основе парсинга актуальных вакансий рынка. Обучение под реальные требования.',
+    },
+    {
+      icon: Terminal,
+      color: 'rose',
+      title: 'Интерактивная практика',
+      desc: 'Интеграция с песочницами кода и SQLite-симуляторами с мгновенной автопроверкой и разбором решений от ИИ-эксперта.',
+    },
+    {
+      icon: Award,
+      color: 'emerald',
+      title: 'ИИ-Трекер карьеры',
+      desc: 'Визуализация роста hard-скиллов на интерактивной карте навыков (Radar Chart) и тренировка mock-интервью с коучем.',
+    },
   ];
 
   const colorMap: Record<string, string> = {
@@ -1539,7 +1603,7 @@ function Features() {
     emerald: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400',
     blue: 'bg-blue-50 dark:bg-blue-950/40 border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400',
     amber: 'bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400',
-    rose: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-455',
+    rose: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-400',
     sky: 'bg-sky-50 dark:bg-sky-950/40 border-sky-100 dark:border-sky-900/30 text-sky-600 dark:text-sky-400',
   };
 

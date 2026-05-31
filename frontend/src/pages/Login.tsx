@@ -71,7 +71,7 @@ export default function Login() {
         >
           <div className="mb-8">
             <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-2">С возвращением!</h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">Войдите, чтобы продолжить обучение</p>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Войдите, чтобы продолжить изучение тем и прокачку hard-скиллов в интерактивной песочнице.</p>
           </div>
 
           {error && (
@@ -207,18 +207,18 @@ export default function Login() {
           
           <h2 className="text-3xl font-black text-white leading-tight mb-4 tracking-tight">
             Готовьтесь к экзаменам <br/>
-            с максимальной отдачей
+            и прокачивайте hard-скиллы
           </h2>
           
           <p className="text-indigo-100 leading-relaxed text-sm mb-8">
-            StudyForge преобразует ваши лекции в умные конспекты, карточки Лейтнера и тесты за 15 секунд.
+            StudyForge преобразует лекции в умные конспекты, генерирует масштабные силлабусы под рынок вакансий и проводит практические код-экзамены с ИИ.
           </p>
 
           <div className="space-y-3">
             {[
-              { label: "Точность алгоритма", value: "99.8%" },
-              { label: "Экономия времени", value: "до 80%" },
-              { label: "Запоминание", value: "x4 раза выше" }
+              { label: "Готовые ИИ-силлабусы", value: "до 35 тем" },
+              { label: "Практика в SQL песочнице", value: "100% интерактив" },
+              { label: "Рост навыков на карте", value: "в реальном времени" }
             ].map((stat, i) => (
               <div key={i} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-3">
                 <span className="text-indigo-100 text-sm font-medium">{stat.label}</span>
