@@ -949,8 +949,27 @@ export default function Career() {
 
         if (task.test_cases && task.test_cases.length > 0) {
           task.test_cases.forEach((tc: any, idx: number) => {
-            const inputParsed = JSON.parse(tc.input);
-            const expectedParsed = JSON.parse(tc.expected);
+            let inputParsed;
+            try {
+              inputParsed = JSON.parse(tc.input);
+            } catch {
+              try {
+                inputParsed = new Function(`return (${tc.input})`)();
+              } catch {
+                inputParsed = tc.input;
+              }
+            }
+
+            let expectedParsed;
+            try {
+              expectedParsed = JSON.parse(tc.expected);
+            } catch {
+              try {
+                expectedParsed = new Function(`return (${tc.expected})`)();
+              } catch {
+                expectedParsed = tc.expected;
+              }
+            }
             
             let result;
             if (Array.isArray(inputParsed)) {
