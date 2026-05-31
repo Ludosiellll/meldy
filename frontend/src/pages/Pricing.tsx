@@ -249,7 +249,7 @@ export default function Pricing() {
                           <Copy className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-slate-400 text-xs mt-2 text-center">Получатель: Денис М.</p>
+                      <p className="text-slate-400 text-xs mt-2 text-center">Получатель: Денис Л.</p>
                     </div>
 
                     {/* Оплати */}
