@@ -314,7 +314,8 @@ export async function generateNextSyllabusModule(
     });
     
     if (!res.ok) {
-      throw new Error('Ошибка генерации следующего модуля по силлабусу');
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Ошибка генерации следующего модуля по силлабусу');
     }
     
     const data = await res.json();
@@ -334,7 +335,7 @@ export async function generateNextSyllabusModule(
     };
   } catch (error) {
     console.error('generateNextSyllabusModule error:', error);
-    return null;
+    throw error;
   }
 }
 

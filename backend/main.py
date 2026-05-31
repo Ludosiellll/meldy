@@ -1292,6 +1292,19 @@ async def career_next_module(request: Request, req: CareerNextModuleRequest):
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
         
     course = req.current_course
+    
+    # Внедряем ограничение генерации: максимум 2 темы в день (после первых двух бесплатных)
+    import time
+    now = time.time()
+    one_day_ago = now - 24 * 60 * 60
+    recent_timestamps = [t for t in course.get("generation_timestamps", []) if t > one_day_ago]
+    
+    if len(recent_timestamps) >= 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Вы исчерпали лимит генерации новых тем на сегодня (максимум 2 новые темы в день). Отдохните и возвращайтесь завтра!"
+        )
+        
     syllabus = course.get("syllabus", {})
     chapters = syllabus.get("chapters", [])
     
@@ -1339,6 +1352,10 @@ async def career_next_module(request: Request, req: CareerNextModuleRequest):
         
         # Обновляем силлабус внутри курса
         course["syllabus"] = syllabus
+        
+        # Записываем время успешной генерации
+        recent_timestamps.append(now)
+        course["generation_timestamps"] = recent_timestamps
         
         return {"completed": False, "course": course}
         
