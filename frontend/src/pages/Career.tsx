@@ -756,8 +756,14 @@ export default function Career() {
       if (query.includes('select') && query.includes('from')) {
         passed = true;
         logs.push('✅ Синтаксис SQL верный.');
-        logs.push('🔍 Найдено подходящих записей: 5 (Middle/Senior vacancies)');
-        // render a mock table results
+        const isUsersTask = selectedModule.practice_task.task_description.toLowerCase().includes('users') || 
+                            selectedModule.practice_task.task_description.toLowerCase().includes('пользовател') || 
+                            query.includes('users');
+        if (isUsersTask) {
+          logs.push('🔍 Найдено подходящих записей: 5 (Active users in 2023)');
+        } else {
+          logs.push('🔍 Найдено подходящих записей: 5 (Middle/Senior vacancies)');
+        }
       } else {
         logs.push('❌ Неверный синтаксис SQL. Убедитесь, что используете SELECT ... FROM ...');
       }
@@ -2403,7 +2409,7 @@ export default function Career() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh]"
+              className="bg-white dark:bg-slate-900 w-full max-w-[96vw] w-[96vw] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh]"
             >
               {/* Sandbox Top Header */}
               <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
@@ -2649,57 +2655,113 @@ export default function Career() {
                     )}
 
                     {/* SQL simulator workspace */}
-                    {selectedModule.practice_type === 'sql' && (
-                      <div className="space-y-4">
-                        <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                          <span className="font-bold block mb-1">Схема базы данных:</span>
-                          <span className="font-mono">vacancies (id INTEGER, title TEXT, salary INTEGER, level TEXT, company TEXT)</span>
-                        </div>
-                        <textarea
-                          value={sandboxCode}
-                          onChange={(e) => setSandboxCode(e.target.value)}
-                          className="w-full p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-sm leading-relaxed focus:outline-none h-[180px] border border-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-inner"
-                        />
-                        
-                        {localTestedPassed && (
-                          <div className="space-y-2">
-                            <span className="text-xs font-bold text-slate-500">Таблица результатов запроса:</span>
-                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px]">
-                              <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase text-[10px]">
-                                  <tr>
-                                    <th className="p-2 border-b">id</th>
-                                    <th className="p-2 border-b">title</th>
-                                    <th className="p-2 border-b">salary</th>
-                                    <th className="p-2 border-b">company</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y dark:divide-slate-850">
-                                  <tr>
-                                    <td className="p-2 font-mono">1</td>
-                                    <td className="p-2 font-semibold">Senior React Developer</td>
-                                    <td className="p-2 text-emerald-500">180,000₽</td>
-                                    <td className="p-2">Yandex</td>
-                                  </tr>
-                                  <tr>
-                                    <td className="p-2 font-mono">3</td>
-                                    <td className="p-2 font-semibold">Lead Architect</td>
-                                    <td className="p-2 text-emerald-500">250,000₽</td>
-                                    <td className="p-2">T-Bank</td>
-                                  </tr>
-                                  <tr>
-                                    <td className="p-2 font-mono">4</td>
-                                    <td className="p-2 font-semibold">SQL Analyst</td>
-                                    <td className="p-2 text-emerald-500">120,000₽</td>
-                                    <td className="p-2">Ozon</td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
+                    {selectedModule.practice_type === 'sql' && (() => {
+                      const isUsersTask = selectedModule.practice_task.task_description.toLowerCase().includes('users') || 
+                                          selectedModule.practice_task.task_description.toLowerCase().includes('пользовател') || 
+                                          sandboxCode.toLowerCase().includes('users');
+                      return (
+                        <div className="space-y-4">
+                          <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <span className="font-bold block mb-1">Схема базы данных:</span>
+                            {isUsersTask ? (
+                              <span className="font-mono">users (id INTEGER, username TEXT, registration_date TEXT, status TEXT)</span>
+                            ) : (
+                              <span className="font-mono">vacancies (id INTEGER, title TEXT, salary INTEGER, level TEXT, company TEXT)</span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <textarea
+                            value={sandboxCode}
+                            onChange={(e) => setSandboxCode(e.target.value)}
+                            className="w-full p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-sm leading-relaxed focus:outline-none h-[180px] border border-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-inner"
+                          />
+                          
+                          {localTestedPassed && (
+                            <div className="space-y-2">
+                              <span className="text-xs font-bold text-slate-500">Таблица результатов запроса:</span>
+                              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px]">
+                                <table className="w-full text-left">
+                                  {isUsersTask ? (
+                                    <>
+                                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase text-[10px]">
+                                        <tr>
+                                          <th className="p-2 border-b">id</th>
+                                          <th className="p-2 border-b">username</th>
+                                          <th className="p-2 border-b">registration_date</th>
+                                          <th className="p-2 border-b">status</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y dark:divide-slate-850">
+                                        <tr>
+                                          <td className="p-2 font-mono">1</td>
+                                          <td className="p-2 font-semibold text-indigo-600 dark:text-indigo-400">alex_dev</td>
+                                          <td className="p-2 text-slate-500">2023-04-12</td>
+                                          <td className="p-2 text-emerald-500 font-bold">active</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-2 font-mono">2</td>
+                                          <td className="p-2 font-semibold text-indigo-600 dark:text-indigo-400">maria_qa</td>
+                                          <td className="p-2 text-slate-500">2023-09-25</td>
+                                          <td className="p-2 text-emerald-500 font-bold">active</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-2 font-mono">3</td>
+                                          <td className="p-2 font-semibold text-indigo-600 dark:text-indigo-400">denis_lead</td>
+                                          <td className="p-2 text-slate-500">2023-01-05</td>
+                                          <td className="p-2 text-emerald-500 font-bold">active</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-2 font-mono">4</td>
+                                          <td className="p-2 font-semibold text-indigo-600 dark:text-indigo-400">john_doe</td>
+                                          <td className="p-2 text-slate-500">2023-11-30</td>
+                                          <td className="p-2 text-emerald-500 font-bold">active</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-2 font-mono">5</td>
+                                          <td className="p-2 font-semibold text-indigo-600 dark:text-indigo-400">elena_pm</td>
+                                          <td className="p-2 text-slate-500">2023-06-18</td>
+                                          <td className="p-2 text-emerald-500 font-bold">active</td>
+                                        </tr>
+                                      </tbody>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase text-[10px]">
+                                        <tr>
+                                          <th className="p-2 border-b">id</th>
+                                          <th className="p-2 border-b">title</th>
+                                          <th className="p-2 border-b">salary</th>
+                                          <th className="p-2 border-b">company</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y dark:divide-slate-850">
+                                        <tr>
+                                          <td className="p-2 font-mono">1</td>
+                                          <td className="p-2 font-semibold">Senior React Developer</td>
+                                          <td className="p-2 text-emerald-500 font-bold">180,000₽</td>
+                                          <td className="p-2">Yandex</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-2 font-mono">3</td>
+                                          <td className="p-2 font-semibold">Lead Architect</td>
+                                          <td className="p-2 text-emerald-500 font-bold">250,000₽</td>
+                                          <td className="p-2">T-Bank</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-2 font-mono">4</td>
+                                          <td className="p-2 font-semibold">SQL Analyst</td>
+                                          <td className="p-2 text-emerald-500 font-bold">120,000₽</td>
+                                          <td className="p-2">Ozon</td>
+                                        </tr>
+                                      </tbody>
+                                    </>
+                                  )}
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* WEB Responsive Layout visual iframe preview */}
                     {selectedModule.practice_type === 'web' && (
