@@ -108,48 +108,59 @@ export default function SettingsPanel({ settings, onChange }: Props) {
         </div>
       </div>
 
-      <div>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Детализация конспекта</label>
-        <SegmentedControl
-          options={Object.entries(detailLabels).map(([k, v]) => ({ key: k, label: v }))}
-          value={settings.summaryDetail}
-          onChange={v => set({ summaryDetail: v as any })}
-        />
-      </div>
+      {/* Детализация конспекта */}
+      {settings.enabledAgents?.includes('summarizer') && (
+        <div>
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Детализация конспекта</label>
+          <SegmentedControl
+            options={Object.entries(detailLabels).map(([k, v]) => ({ key: k, label: v }))}
+            value={settings.summaryDetail}
+            onChange={v => set({ summaryDetail: v as any })}
+          />
+        </div>
+      )}
 
-      <div>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Количество карточек: {settings.flashcardCount}</label>
-        <input type="range" min={3} max={12} value={settings.flashcardCount}
-          onChange={e => set({ flashcardCount: +e.target.value })}
-          className="w-full accent-brand-600" />
-        <div className="flex justify-between text-xs text-slate-400 mt-1"><span>3</span><span>12</span></div>
-      </div>
+      {/* Количество карточек */}
+      {settings.enabledAgents?.includes('flashcards') && (
+        <div>
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Количество карточек: {settings.flashcardCount}</label>
+          <input type="range" min={3} max={12} value={settings.flashcardCount}
+            onChange={e => set({ flashcardCount: +e.target.value })}
+            className="w-full accent-brand-600" />
+          <div className="flex justify-between text-xs text-slate-400 mt-1"><span>3</span><span>12</span></div>
+        </div>
+      )}
 
-      <div>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Количество вопросов: {settings.quizCount}</label>
-        <input type="range" min={3} max={10} value={settings.quizCount}
-          onChange={e => set({ quizCount: +e.target.value })}
-          className="w-full accent-brand-600" />
-        <div className="flex justify-between text-xs text-slate-400 mt-1"><span>3</span><span>10</span></div>
-      </div>
+      {/* Параметры проверочного теста */}
+      {settings.enabledAgents?.includes('quiz') && (
+        <>
+          <div>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Количество вопросов: {settings.quizCount}</label>
+            <input type="range" min={3} max={10} value={settings.quizCount}
+              onChange={e => set({ quizCount: +e.target.value })}
+              className="w-full accent-brand-600" />
+            <div className="flex justify-between text-xs text-slate-400 mt-1"><span>3</span><span>10</span></div>
+          </div>
 
-      <div>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Сложность теста</label>
-        <SegmentedControl
-          options={Object.entries(diffLabels).map(([k, v]) => ({ key: k, label: v }))}
-          value={settings.quizDifficulty}
-          onChange={v => set({ quizDifficulty: v as any })}
-        />
-      </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Сложность теста</label>
+            <SegmentedControl
+              options={Object.entries(diffLabels).map(([k, v]) => ({ key: k, label: v }))}
+              value={settings.quizDifficulty}
+              onChange={v => set({ quizDifficulty: v as any })}
+            />
+          </div>
 
-      <div>
-        <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Тип вопросов</label>
-        <SegmentedControl
-          options={Object.entries(typeLabels).map(([k, v]) => ({ key: k, label: v }))}
-          value={settings.quizType}
-          onChange={v => set({ quizType: v as any })}
-        />
-      </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Тип вопросов</label>
+            <SegmentedControl
+              options={Object.entries(typeLabels).map(([k, v]) => ({ key: k, label: v }))}
+              value={settings.quizType}
+              onChange={v => set({ quizType: v as any })}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
