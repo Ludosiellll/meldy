@@ -465,7 +465,11 @@ export default function Career() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: `${userInput}\n\n[CONTEXT: ${systemPromptContext}]`,
-          history: newMsg.slice(-8)
+          history: newMsg.slice(-8),
+          is_expansion: true,
+          profession: profile.course.profession,
+          level: profile.course.level,
+          salary: profile.course.salary
         })
       });
       
