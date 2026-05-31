@@ -152,8 +152,8 @@ export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
           <EyeOff className="w-3.5 h-3.5" />Скрыть все
         </button>
         <button onClick={startStudy}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 dark:text-indigo-400 bg-brand-50 dark:bg-indigo-950/20 hover:bg-brand-100 dark:hover:bg-indigo-950/40 transition border border-brand-200 dark:border-indigo-900/30">
-          <GraduationCap className="w-3.5 h-3.5" />Начать обучение
+          className="flex items-center gap-1.5 px-4.5 py-1.5 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm ml-auto">
+          <GraduationCap className="w-4 h-4" />Начать обучение
         </button>
       </div>
 

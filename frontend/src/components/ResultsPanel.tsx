@@ -681,11 +681,6 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         {tab === 'flashcards' && (
           <div className="flex flex-col gap-4">
             <FlashcardsView data={results.flashcards} />
-            <div className="mt-2 text-center no-print">
-              <Link to="/review" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center gap-2 rounded-lg text-sm font-medium transition shadow-sm">
-                🧠 Начать повторение карточек
-              </Link>
-            </div>
           </div>
         )}
         {tab === 'quiz' && <QuizView data={results.quiz} />}
