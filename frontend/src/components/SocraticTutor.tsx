@@ -127,7 +127,7 @@ export default function SocraticTutor({
       </div>
 
       {/* Paragraph context */}
-      <div className="px-4 py-3 bg-violet-50/60 dark:bg-violet-950/20 border-b border-violet-100 dark:border-violet-900/30 text-[10px] text-slate-500 dark:text-slate-400 italic leading-relaxed line-clamp-2 shrink-0">
+      <div className="px-4 py-3 bg-violet-50/60 dark:bg-violet-950/20 border-b border-violet-100 dark:border-violet-900/30 text-[10px] text-slate-500 dark:text-slate-400 italic leading-relaxed max-h-20 overflow-y-auto shrink-0">
         <span className="font-bold text-violet-700 dark:text-violet-300 not-italic">📖 Разбираемый фрагмент: </span>
         "{paragraphText}"
       </div>

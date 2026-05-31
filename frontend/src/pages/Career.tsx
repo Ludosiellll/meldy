@@ -1738,7 +1738,7 @@ export default function Career() {
                                         {mod.resources.map((res, rIdx) => (
                                           <a 
                                             key={rIdx}
-                                            href={res.url} 
+                                            href={res.url ? res.url.replace('metanit.com/sql/postgres/', 'metanit.com/sql/postgresql/') : ''} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             className="block p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-800 transition"

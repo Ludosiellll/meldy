@@ -130,7 +130,7 @@ Tвой стиль преподавания и тон: {expert['tone']}
      - По TypeScript: https://metanit.com/web/typescript/
      - По JavaScript: https://metanit.com/web/javascript/
      - По Python: https://metanit.com/python/tutorial/
-     - По SQL/PostgreSQL: https://metanit.com/sql/postgres/
+     - По SQL/PostgreSQL: https://metanit.com/sql/postgresql/
      - По React: https://metanit.com/web/react/
   3. Для LeetCode задач используй только реальные известные URL, например: https://leetcode.com/problems/two-sum/, https://leetcode.com/problems/valid-parentheses/
 - Если ты хочешь сослаться на тему, для которой не знаешь точной ссылки на Хабре, давай ссылку на главный тематический Хаб (например, https://habr.com/ru/hub/net/, https://habr.com/ru/hub/programming/ или https://habr.com/ru/hub/webdev/). Никаких выдуманных ID статей!
@@ -306,7 +306,7 @@ def build_course_expansion_prompt(
        - По TypeScript: https://metanit.com/web/typescript/
        - По JavaScript: https://metanit.com/web/javascript/
        - По Python: https://metanit.com/python/tutorial/
-       - По SQL/PostgreSQL: https://metanit.com/sql/postgres/
+       - По SQL/PostgreSQL: https://metanit.com/sql/postgresql/
        - По React: https://metanit.com/web/react/
      - Если ты хочешь сослаться на тему, для которой не знаешь точной ссылки на Хабре, давай ссылку на главный тематический Хаб (например, https://habr.com/ru/hub/net/, https://habr.com/ru/hub/programming/ или https://habr.com/ru/hub/webdev/). Никаких выдуманных ID статей!
 4. Трёхуровневую практику: practice_task (Independent) + practice_guided + practice_expert.
@@ -512,7 +512,7 @@ ID этого модуля должен быть: "mod_{num_existing + 1}"
        - По TypeScript: https://metanit.com/web/typescript/
        - По JavaScript: https://metanit.com/web/javascript/
        - По Python: https://metanit.com/python/tutorial/
-       - По SQL/PostgreSQL: https://metanit.com/sql/postgres/
+       - По SQL/PostgreSQL: https://metanit.com/sql/postgresql/
        - По React: https://metanit.com/web/react/
      - Если ты хочешь сослаться на тему, для которой не знаешь точной ссылки на Хабре, давай ссылку на главный тематический Хаб (например, https://habr.com/ru/hub/net/, https://habr.com/ru/hub/programming/ или https://habr.com/ru/hub/webdev/). Никаких выдуманных ID статей!
 7. "practice_type": "algo | sql | web | business | design | copywriting | roleplay"
