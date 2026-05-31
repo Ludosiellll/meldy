@@ -200,7 +200,6 @@ async def scrape_url(url: str) -> str:
     2. Fallback to local httpx + BeautifulSoup for static HTML.
     """
     import httpx
-    from bs4 import BeautifulSoup
 
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -227,31 +226,44 @@ async def scrape_url(url: str) -> str:
                 raise ValueError(f"HTTP error {response.status_code}")
             
             html = response.text
-            soup = BeautifulSoup(html, "html.parser")
-            
-            # Clean up the HTML
-            for element in soup(["script", "style", "nav", "footer", "form", "iframe", "header", "aside"]):
-                element.decompose()
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(html, "html.parser")
                 
-            body = soup.body if soup.body else soup
-            
-            text_lines = []
-            # Gather headers, paragraphs and list items to keep formatting structure
-            for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]):
-                el_text = element.get_text(strip=True)
-                if not el_text:
-                    continue
-                if element.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
-                    text_lines.append(f"\n\n# {el_text}\n")
-                elif element.name == "p":
-                    text_lines.append(f"\n{el_text}\n")
-                elif element.name == "li":
-                    text_lines.append(f"\n* {el_text}")
-            
-            text = "".join(text_lines).strip()
-            
-            if not text:
-                text = body.get_text(separator="\n", strip=True)
+                # Clean up the HTML
+                for element in soup(["script", "style", "nav", "footer", "form", "iframe", "header", "aside"]):
+                    element.decompose()
+                    
+                body = soup.body if soup.body else soup
+                
+                text_lines = []
+                # Gather headers, paragraphs and list items to keep formatting structure
+                for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]):
+                    el_text = element.get_text(strip=True)
+                    if not el_text:
+                        continue
+                    if element.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                        text_lines.append(f"\n\n# {el_text}\n")
+                    elif element.name == "p":
+                        text_lines.append(f"\n{el_text}\n")
+                    elif element.name == "li":
+                        text_lines.append(f"\n* {el_text}")
+                
+                text = "".join(text_lines).strip()
+                
+                if not text:
+                    text = body.get_text(separator="\n", strip=True)
+            except ImportError:
+                # RegEx based lightweight fallback if beautifulsoup4 is not yet installed in runtime
+                import re
+                # Remove scripts and styles
+                html_clean = re.sub(r'<(script|style|nav|footer|header|form|iframe|aside)[^>]*>([\s\S]*?)<\/\1>', ' ', html, flags=re.IGNORECASE)
+                # Strip other tags
+                text = re.sub(r'<[^>]+>', ' ', html_clean)
+                # Decode basic HTML entities
+                text = text.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+                # Clean up duplicate newlines/whitespaces
+                text = re.sub(r'\s+', ' ', text).strip()
                 
             if not text.strip():
                 raise ValueError("Извлеченный текст пуст")

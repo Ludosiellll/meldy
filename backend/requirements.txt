@@ -16,3 +16,4 @@ pywebpush>=1.14.0
 apscheduler>=3.10.4
 edge-tts>=0.14.3
 supabase>=2.5.0
+beautifulsoup4>=4.12.0
