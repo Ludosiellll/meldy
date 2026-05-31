@@ -333,6 +333,8 @@ def build_academic_scan_prompt() -> str:
 Пиши на русском языке, без markdown."""
 
 class BaseAgent:
+    _run_cache = {} # Class-level cache to share across instances (LiteLLM-style Caching)
+
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.groq_api_key = api_key
         self.model = model
@@ -358,6 +360,12 @@ class BaseAgent:
         truncated = user_text[:max_chars]
         if len(user_text) > max_chars:
             truncated += f"\n\n[Текст сокращен с {len(user_text)} до {max_chars} символов]"
+
+        # Проверяем кэш перед отправкой запроса (LiteLLM-style Caching)
+        cache_key = (system_prompt, truncated)
+        if cache_key in BaseAgent._run_cache:
+            print(f"DEBUG: [Cache Hit] Возвращаем кэшированный ответ для ИИ-агента.")
+            return BaseAgent._run_cache[cache_key]
 
         gemini_errors = []
         json_mode = "JSON" in system_prompt or "json" in system_prompt
@@ -403,6 +411,7 @@ class BaseAgent:
                             continue
                             
                     if response_text:
+                        BaseAgent._run_cache[cache_key] = response_text
                         return response_text
                         
                     gemini_errors.append(f"Key {key[:6]}... error: {last_err[:100] if last_err else 'No text'}")
@@ -426,7 +435,9 @@ class BaseAgent:
                     kwargs["response_format"] = {"type": "json_object"}
                     
                 response = await self.groq_client.chat.completions.create(**kwargs)
-                return response.choices[0].message.content or ""
+                response_text = response.choices[0].message.content or ""
+                BaseAgent._run_cache[cache_key] = response_text
+                return response_text
             except Exception as e:
                 groq_err = str(e)
                 if "429" in groq_err:
@@ -437,6 +448,13 @@ class BaseAgent:
         raise HTTPException(status_code=500, detail="Ошибка: API ключи не настроены.")
 
     async def run_with_images(self, system_prompt: str, user_text: str, images_base64: list[str], mime_type: str = "image/jpeg") -> str:
+        # Проверяем кэш перед отправкой запроса (LiteLLM-style Caching)
+        img_hash = hash(images_base64[0]) if images_base64 else 0
+        cache_key = (system_prompt, user_text, img_hash)
+        if cache_key in BaseAgent._run_cache:
+            print(f"DEBUG: [Cache Hit] Возвращаем кэшированный ответ для ИИ-агента (Vision).")
+            return BaseAgent._run_cache[cache_key]
+
         gemini_errors = []
         json_mode = "JSON" in system_prompt or "json" in system_prompt
 
@@ -481,6 +499,7 @@ class BaseAgent:
                             continue
                             
                     if response_text:
+                        BaseAgent._run_cache[cache_key] = response_text
                         return response_text
                         
                     gemini_errors.append(f"Key {key[:6]}... error: {last_err[:100] if last_err else 'No text'}")
@@ -507,7 +526,9 @@ class BaseAgent:
                     kwargs["response_format"] = {"type": "json_object"}
                     
                 response = await self.groq_client.chat.completions.create(**kwargs)
-                return response.choices[0].message.content or ""
+                response_text = response.choices[0].message.content or ""
+                BaseAgent._run_cache[cache_key] = response_text
+                return response_text
             except Exception as e:
                 groq_err = str(e)
                 if "429" in groq_err:

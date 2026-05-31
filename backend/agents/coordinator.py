@@ -54,10 +54,20 @@ class CoordinatorAgent:
                 "label": agent_labels[name],
             }
             
-        # Запускаем агентов ПО ОЧЕРЕДИ, чтобы не превысить лимиты API (429 Too Many Requests)
+        # Запускаем агентов полупараллельно с микро-паузами (Staggered Queue) во избежание 429 лимитов
+        async def run_agent_staggered(name: str, prompt: str, delay_seconds: float) -> tuple:
+            if delay_seconds > 0:
+                await asyncio.sleep(delay_seconds)
+            return await run_agent(name, prompt)
+
+        tasks = []
+        for i, name in enumerate(agent_names):
+            # Сдвиг запуска 0.8 секунд для сглаживания пиковой нагрузки на API
+            tasks.append(run_agent_staggered(name, prompts[name], i * 0.8))
+
         done_count = 0
-        for name in agent_names:
-            result = await run_agent(name, prompts[name])
+        for future in asyncio.as_completed(tasks):
+            result = await future
             agent_name, agent_result = result
             results[agent_name] = agent_result
             done_count += 1

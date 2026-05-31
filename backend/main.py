@@ -18,7 +18,7 @@ from slowapi.errors import RateLimitExceeded
 
 from parser import extract_text
 from agents.coordinator import CoordinatorAgent
-from utils import parse_llm_json
+from utils import parse_llm_json, extract_relevant_paragraphs
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -309,13 +309,16 @@ from agents.base import BaseAgent
 async def chat(request: Request, req: ChatRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
+    # Извлекаем топ-8 наиболее релевантных абзацев из учебного материала по тексту вопроса (RAG)
+    relevant_context = extract_relevant_paragraphs(req.context, req.message, top_k=8)
+
     system_prompt = f"""Ты — умный AI-ассистент студента. 
 Ты помогаешь разобраться в учебном материале, предоставленном ниже.
 Отвечай на вопросы развёрнуто и понятно. 
 Если вопрос вообще не касается темы материала, всё равно попытайся помочь, но упомяни, что в материале этого нет.
 
 МАТЕРИАЛ ДЛЯ СПРАВКИ:
-{req.context[:25000]}"""
+{relevant_context}"""
 
     history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-10:]])
     full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС: {req.message}"
