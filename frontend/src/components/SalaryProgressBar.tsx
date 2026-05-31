@@ -39,8 +39,8 @@ export default function SalaryProgressBar({
   // Milestones along the bar
   const milestones = [
     { pct: 25, label: 'Стажировка' },
-    { pct: 50, label: 'Джун-позиции' },
-    { pct: 75, label: 'Мидл-рассмотрение' },
+    { pct: 50, label: 'Джун' },
+    { pct: 75, label: 'Мидл' },
     { pct: 100, label: 'Цель' },
   ];
 
