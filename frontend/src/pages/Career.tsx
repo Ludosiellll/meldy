@@ -260,7 +260,43 @@ export default function Career() {
   const loadProfile = () => {
     if (!user) return;
     getCareerProfile(user.id)
-      .then(p => {
+      .then(async (p) => {
+        if (p) {
+          let updated = false;
+          let radar = p.skills_radar;
+          if (!radar || Object.keys(radar).length === 0) {
+            radar = {
+              'Algorithms': 35,
+              'SQL/Data': 30,
+              'Web Dev': 25,
+              'Soft Skills': 45,
+              'Architecture': 20,
+              'Business Logic': 30
+            };
+            p.skills_radar = radar;
+            updated = true;
+          } else {
+            const values = Object.values(radar) as number[];
+            const maxVal = values.length > 0 ? Math.max(...values) : 0;
+            if (maxVal < 20) {
+              const boosted: Record<string, number> = {};
+              for (const key of Object.keys(radar)) {
+                boosted[key] = Math.min(100, (radar[key] ?? 0) + 30);
+              }
+              const standardAxes = ['Algorithms', 'SQL/Data', 'Web Dev', 'Soft Skills', 'Architecture', 'Business Logic'];
+              for (const axis of standardAxes) {
+                if (boosted[axis] === undefined) {
+                  boosted[axis] = 25;
+                }
+              }
+              p.skills_radar = boosted;
+              updated = true;
+            }
+          }
+          if (updated) {
+            await saveCareerProfile(user.id, p);
+          }
+        }
         setProfile(p);
         if (p?.course) {
           setActiveTab('course');
@@ -268,7 +304,6 @@ export default function Career() {
         setLoading(false);
       })
       .catch(async (e) => {
-
         console.error(e);
         toast.error('Не удалось загрузить профиль.');
         setLoading(false);

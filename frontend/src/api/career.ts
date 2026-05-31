@@ -573,9 +573,9 @@ export async function saveXPToProfile(userId: string, profile: CareerProfile, ad
   };
   if (practiceType && RADAR_MAP[practiceType]) {
     for (const axis of RADAR_MAP[practiceType]) {
-      radar[axis] = Math.min(100, (radar[axis] ?? 0) + 5);
+      radar[axis] = Math.min(100, (radar[axis] ?? 0) + 10);
     }
-    radar['Soft Skills'] = Math.min(100, (radar['Soft Skills'] ?? 0) + 2);
+    radar['Soft Skills'] = Math.min(100, (radar['Soft Skills'] ?? 0) + 6);
   }
 
   // Update streak
