@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { FlashcardsInfo, Flashcard } from '../types/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, GraduationCap, ArrowLeft, Check, X, Copy } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
   const cards = data?.flashcards;
@@ -15,12 +19,14 @@ export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
   const [copiedIdx, setCopiedIdx] = useState(-1);
 
   const toggle = (i: number) => setRevealed({ ...revealed, [i]: !revealed[i] });
+  
   const revealAll = () => {
     if (!cards || !Array.isArray(cards)) return;
     const r: Record<number, boolean> = {};
     cards.forEach((_: Flashcard, i: number) => { r[i] = true; });
     setRevealed(r);
   };
+  
   const hideAll = () => setRevealed({});
 
   const startStudy = () => {
@@ -81,38 +87,46 @@ export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
       );
     }
 
-    const card = cards[studyIdx];
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={exitStudy}
-            className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition">
-            <ArrowLeft className="w-4 h-4" />К списку
-          </button>
-          <span className="text-sm text-slate-400 dark:text-slate-505">{studyIdx + 1} / {cards.length}</span>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400 mb-2">
+          <span>Карточка {studyIdx + 1} из {cards.length}</span>
+          <button onClick={exitStudy} className="hover:text-slate-800 dark:hover:text-slate-200 transition">Выйти</button>
         </div>
 
-        <div className="card p-8 min-h-[260px] flex flex-col justify-center">
-          <p className="text-lg font-semibold text-slate-900 dark:text-slate-100 text-center mb-6">{card.question}</p>
+        <motion.div key={studyIdx} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="card p-8 min-h-[300px] flex flex-col justify-center items-center text-center">
+          <p className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-8">{cards[studyIdx].question}</p>
+          
           <AnimatePresence mode="wait">
-            {studyRevealed ? (
-              <motion.p key="answer" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="text-slate-700 dark:text-slate-300 text-center border-t border-slate-100 dark:border-slate-800 pt-4">
-                {card.answer}
-              </motion.p>
-            ) : (
-              <motion.button key="reveal" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            {!studyRevealed ? (
+              <motion.button 
+                key="reveal" 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
                 onClick={() => setStudyRevealed(true)}
-                className="mx-auto px-5 py-2 text-sm text-brand-600 dark:text-indigo-400 border border-brand-200 dark:border-indigo-900/40 rounded-lg hover:bg-brand-50 dark:hover:bg-indigo-950/30 transition">
+                className="mx-auto px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-medium transition"
+              >
                 Показать ответ
               </motion.button>
+            ) : (
+              <motion.div 
+                key="answer" 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0 }}
+                className="w-full mt-4 pt-6 border-t border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-left markdown-content"
+              >
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {cards[studyIdx].answer}
+                </ReactMarkdown>
+              </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
 
         {studyRevealed && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="flex gap-3 mt-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
             <button onClick={() => markCard(true)}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-100 dark:hover:bg-emerald-950/40 transition">
               <Check className="w-5 h-5" />Знаю
@@ -149,16 +163,37 @@ export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
             className="card p-4 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition group"
             onClick={() => toggle(i)}>
             <div className="flex items-start justify-between gap-2">
-              <p className="font-medium text-slate-900 dark:text-slate-100 mb-2">Q{i+1}: {c.question}</p>
-              <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(`Q: ${c.question}\nA: ${c.answer}`); setCopiedIdx(i); setTimeout(() => setCopiedIdx(-1), 1500); }}
-                className="shrink-0 opacity-0 group-hover:opacity-100 transition p-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400">
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Q{i+1}: {c.question}</p>
+                <AnimatePresence>
+                  {revealed[i] && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }} 
+                      animate={{ height: 'auto', opacity: 1 }} 
+                      exit={{ height: 0, opacity: 0 }}
+                      className="text-slate-700 dark:text-slate-300 text-sm border-t border-slate-100 dark:border-slate-850 pt-3 mt-2 markdown-content text-left"
+                    >
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {c.answer}
+                      </ReactMarkdown>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  navigator.clipboard.writeText(`Q: ${c.question}\nA: ${c.answer}`); 
+                  setCopiedIdx(i); 
+                  setTimeout(() => setCopiedIdx(-1), 1500); 
+                }} 
+                className="shrink-0 opacity-0 group-hover:opacity-100 transition p-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400"
+              >
                 {copiedIdx === i ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
             </div>
-            {revealed[i] ? (
-              <p className="text-slate-700 dark:text-slate-300 text-sm border-t border-slate-100 dark:border-slate-800/80 pt-2">{c.answer}</p>
-            ) : (
-              <p className="text-slate-400 dark:text-slate-500 text-sm border-t border-slate-100 dark:border-slate-800/80 pt-2 italic">Нажмите, чтобы увидеть ответ</p>
+            {!revealed[i] && (
+              <p className="text-slate-400 dark:text-slate-500 text-[13px] border-t border-slate-100 dark:border-slate-800/80 pt-2 italic">Нажмите, чтобы увидеть ответ</p>
             )}
           </motion.div>
         ))}
