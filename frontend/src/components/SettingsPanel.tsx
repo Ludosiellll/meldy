@@ -1,4 +1,5 @@
 import { AnalysisSettings } from '../types';
+import { FileText, Layers, HelpCircle, Zap, Headphones, Gamepad2, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   settings: AnalysisSettings;
@@ -28,35 +29,80 @@ export default function SettingsPanel({ settings, onChange }: Props) {
   return (
     <div className="space-y-5">
       <div>
-        <label className="text-sm font-black text-slate-900 dark:text-slate-100 mb-2.5 block">Модули для генерации</label>
-        <div className="grid grid-cols-2 gap-2 mb-2 bg-slate-100/50 dark:bg-slate-900/30 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+        <label className="text-base font-black text-slate-900 dark:text-slate-100 mb-3.5 block">Модули для генерации</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 mb-6">
           {[
-            { id: 'summarizer', label: '📝 Конспект' },
-            { id: 'flashcards', label: '🃏 Карточки' },
-            { id: 'quiz', label: '❓ Тест' },
-            { id: 'cheatsheet', label: '⚡ Шпаргалка' },
-            { id: 'podcast', label: '🎙️ Подкаст' },
-            { id: 'missions', label: '🎮 Миссии' }
+            { id: 'summarizer', label: 'Конспект', desc: 'Структурированные тезисы, темы и словарь терминов', icon: FileText, color: 'indigo' },
+            { id: 'flashcards', label: 'Карточки', desc: 'Флеш-карточки для быстрого интервального повторения', icon: Layers, color: 'amber' },
+            { id: 'quiz', label: 'Тест', desc: 'Интерактивный тест с подробным разбором ошибок', icon: HelpCircle, color: 'emerald' },
+            { id: 'cheatsheet', label: 'Шпаргалка', desc: 'Самая главная выжимка лекции для быстрой проверки', icon: Zap, color: 'orange' },
+            { id: 'podcast', label: 'Подкаст', desc: 'Увлекательный аудио-подкаст между двумя ведущими', icon: Headphones, color: 'purple' },
+            { id: 'missions', label: 'Миссии', desc: 'Сюжетный текстовый квест-игра на основе лекции', icon: Gamepad2, color: 'rose' }
           ].map(agent => {
             const isChecked = (settings.enabledAgents || []).includes(agent.id);
+            const Icon = agent.icon;
+            
+            // Theme mapping for high fidelity colors
+            const themeClasses = {
+              indigo: isChecked 
+                ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/15' 
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
+              amber: isChecked 
+                ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/15' 
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
+              emerald: isChecked 
+                ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/15' 
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
+              orange: isChecked 
+                ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/15' 
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
+              purple: isChecked 
+                ? 'border-purple-500 bg-purple-50/20 dark:bg-purple-950/15' 
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
+              rose: isChecked 
+                ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/15' 
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
+            }[agent.color as 'indigo' | 'amber' | 'emerald' | 'orange' | 'purple' | 'rose'];
+
+            const iconColors = {
+              indigo: 'text-indigo-600 dark:text-indigo-400 bg-indigo-100/70 dark:bg-indigo-950/40',
+              amber: 'text-amber-600 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/40',
+              emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100/70 dark:bg-emerald-950/40',
+              orange: 'text-orange-600 dark:text-orange-400 bg-orange-100/70 dark:bg-orange-950/40',
+              purple: 'text-purple-600 dark:text-purple-400 bg-purple-100/70 dark:bg-purple-950/40',
+              rose: 'text-rose-600 dark:text-rose-400 bg-rose-100/70 dark:bg-rose-950/40',
+            }[agent.color as 'indigo' | 'amber' | 'emerald' | 'orange' | 'purple' | 'rose'];
+
             return (
-              <label key={agent.id} className="flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-slate-200/50 dark:hover:bg-slate-850/60 rounded-lg cursor-pointer transition select-none">
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => {
-                    const current = settings.enabledAgents || [];
-                    const next = isChecked 
-                      ? current.filter(id => id !== agent.id)
-                      : [...current, agent.id];
-                    if (next.length > 0) {
-                      set({ enabledAgents: next });
-                    }
-                  }}
-                  className="rounded border-slate-300 dark:border-slate-700 text-brand-650 focus:ring-brand-500 w-4 h-4 cursor-pointer"
-                />
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{agent.label}</span>
-              </label>
+              <div
+                key={agent.id}
+                onClick={() => {
+                  const current = settings.enabledAgents || [];
+                  const next = isChecked 
+                    ? current.filter(id => id !== agent.id)
+                    : [...current, agent.id];
+                  if (next.length > 0) {
+                    set({ enabledAgents: next });
+                  }
+                }}
+                className={`relative flex flex-col items-start p-4 rounded-xl border cursor-pointer select-none transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] group shadow-sm hover:shadow-md ${themeClasses} ${!isChecked ? 'opacity-60 hover:opacity-100' : ''}`}
+              >
+                {/* Header info */}
+                <div className="flex items-center justify-between w-full mb-2">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition shrink-0 ${iconColors}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  
+                  {/* Custom checkbox badge */}
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all duration-300 ${isChecked ? 'bg-indigo-650 dark:bg-indigo-500 border-indigo-650 dark:border-indigo-500 scale-100 shadow-sm shadow-indigo-500/10' : 'border-slate-300 dark:border-slate-700 bg-transparent scale-90'}`}>
+                    {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                  </div>
+                </div>
+
+                {/* Text Content */}
+                <span className="text-sm font-bold text-slate-850 dark:text-slate-100 mb-0.5">{agent.label}</span>
+                <span className="text-[11px] font-medium leading-normal text-slate-450 dark:text-slate-500">{agent.desc}</span>
+              </div>
             );
           })}
         </div>
