@@ -99,7 +99,6 @@ async def health():
         groq_configured=bool(GROQ_API_KEY),
     )
 
-
 async def event_stream(
     file: UploadFile,
     summary_detail: str = "medium",
@@ -107,6 +106,7 @@ async def event_stream(
     quiz_count: int = 5,
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
+    enabled_agents: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress."""
     try:
@@ -119,6 +119,13 @@ async def event_stream(
 
         yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
 
+        parsed_agents = None
+        if enabled_agents:
+            try:
+                parsed_agents = json.loads(enabled_agents)
+            except Exception:
+                pass
+
         coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
 
         async for event in coordinator.process(
@@ -128,6 +135,7 @@ async def event_stream(
             quiz_count=quiz_count,
             quiz_difficulty=quiz_difficulty,
             quiz_type=quiz_type,
+            enabled_agents=parsed_agents,
         ):
             yield f"data: {json.dumps(event)}\n\n"
 
@@ -135,7 +143,6 @@ async def event_stream(
 
     except Exception as e:
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-
 
 @app.post("/api/analyze")
 @limiter.limit("5/minute")
@@ -147,6 +154,7 @@ async def analyze(
     quiz_count: int = Form(5),
     quiz_difficulty: str = Form("mixed"),
     quiz_type: str = Form("multiple"),
+    enabled_agents: Optional[str] = Form(None),
 ):
     if not GROQ_API_KEY:
         raise HTTPException(
@@ -163,7 +171,8 @@ async def analyze(
         )
 
     return StreamingResponse(
-        event_stream(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        event_stream(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents),
+
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -187,6 +196,7 @@ async def event_stream_media(
     quiz_count: int = 5,
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
+    enabled_agents: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     try:
         text = ""
@@ -208,6 +218,13 @@ async def event_stream_media(
             
         yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
 
+        parsed_agents = None
+        if enabled_agents:
+            try:
+                parsed_agents = json.loads(enabled_agents)
+            except Exception:
+                pass
+
         coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
 
         async for event in coordinator.process(
@@ -217,6 +234,7 @@ async def event_stream_media(
             quiz_count=quiz_count,
             quiz_difficulty=quiz_difficulty,
             quiz_type=quiz_type,
+            enabled_agents=parsed_agents,
         ):
             yield f"data: {json.dumps(event)}\n\n"
 
@@ -236,6 +254,7 @@ async def analyze_media(
     quiz_count: int = Form(5),
     quiz_difficulty: str = Form("mixed"),
     quiz_type: str = Form("multiple"),
+    enabled_agents: Optional[str] = Form(None),
 ):
     if not GROQ_API_KEY:
         raise HTTPException(
@@ -259,7 +278,7 @@ async def analyze_media(
          )
 
     return StreamingResponse(
-        event_stream_media(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type),
+        event_stream_media(file, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

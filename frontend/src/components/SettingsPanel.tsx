@@ -28,6 +28,41 @@ export default function SettingsPanel({ settings, onChange }: Props) {
   return (
     <div className="space-y-5">
       <div>
+        <label className="text-sm font-black text-slate-900 dark:text-slate-100 mb-2.5 block">Модули для генерации</label>
+        <div className="grid grid-cols-2 gap-2 mb-2 bg-slate-100/50 dark:bg-slate-900/30 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+          {[
+            { id: 'summarizer', label: '📝 Конспект' },
+            { id: 'flashcards', label: '🃏 Карточки' },
+            { id: 'quiz', label: '❓ Тест' },
+            { id: 'cheatsheet', label: '⚡ Шпаргалка' },
+            { id: 'podcast', label: '🎙️ Подкаст' },
+            { id: 'missions', label: '🎮 Миссии' }
+          ].map(agent => {
+            const isChecked = (settings.enabledAgents || []).includes(agent.id);
+            return (
+              <label key={agent.id} className="flex items-center gap-2.5 px-2.5 py-1.5 hover:bg-slate-200/50 dark:hover:bg-slate-850/60 rounded-lg cursor-pointer transition select-none">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => {
+                    const current = settings.enabledAgents || [];
+                    const next = isChecked 
+                      ? current.filter(id => id !== agent.id)
+                      : [...current, agent.id];
+                    if (next.length > 0) {
+                      set({ enabledAgents: next });
+                    }
+                  }}
+                  className="rounded border-slate-300 dark:border-slate-700 text-brand-650 focus:ring-brand-500 w-4 h-4 cursor-pointer"
+                />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{agent.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
         <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Детализация конспекта</label>
         <SegmentedControl
           options={Object.entries(detailLabels).map(([k, v]) => ({ key: k, label: v }))}

@@ -11,6 +11,7 @@ export interface AnalysisSettings {
   quizCount: number;
   quizDifficulty: 'easy' | 'medium' | 'hard' | 'mixed';
   quizType: 'multiple' | 'truefalse';
+  enabledAgents: string[];
 }
 
 export interface Flashcard {
@@ -110,6 +111,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   quizCount: 5,
   quizDifficulty: 'mixed',
   quizType: 'multiple',
+  enabledAgents: ['summarizer', 'flashcards', 'quiz', 'cheatsheet', 'podcast', 'missions'],
 };
 
 // Database specific types

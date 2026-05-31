@@ -307,6 +307,24 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const [editVal, setEditVal] = useState(currentTitle);
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
 
+  const flashcardCount = results.flashcards?.flashcards?.length || 0;
+  const quizCount = results.quiz?.quiz?.length || 0;
+
+  const rawTabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
+    { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
+    { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
+    { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
+    { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" /> },
+  ];
+
+  const tabs = rawTabs.filter(t => {
+    if (t.id === 'summary') return !!(results.summarizer?.content || (results.summarizer as any)?.raw);
+    if (t.id === 'flashcards') return flashcardCount > 0;
+    if (t.id === 'quiz') return quizCount > 0;
+    if (t.id === 'missions') return !!(results.missions?.missions?.length || (results.missions as any)?.length);
+    return true;
+  });
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (!(e.target as Element).closest('.export-menu-container')) {
@@ -316,6 +334,12 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find(t => t.id === tab)) {
+      setTab(tabs[0].id);
+    }
+  }, [results, tabs]);
 
   // Heuristic function to extract clean, nice AI suggested topic name from summary markdown
   const getAiSuggestedTitle = () => {
@@ -372,15 +396,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     }
   };
 
-  const flashcardCount = results.flashcards?.flashcards?.length || 0;
-  const quizCount = results.quiz?.quiz?.length || 0;
 
-  const tabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
-    { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
-    { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
-    { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
-    { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" /> },
-  ];
 
   const getContent = () => {
     if (tab === 'summary') return results.summarizer?.content || (results.summarizer as any)?.raw || '';

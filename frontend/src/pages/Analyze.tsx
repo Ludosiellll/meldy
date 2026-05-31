@@ -61,7 +61,8 @@ export default function Analyze() {
 
     analysisStartRef.current = Date.now();
     sourceFileNameRef.current = file ? file.name : 'Unknown';
-    setState({ phase: 'extracting', agents: initAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
+    const activeAgents = initAgents.filter(a => (state.settings.enabledAgents || []).includes(a.id));
+    setState({ phase: 'extracting', agents: activeAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
     
     const fd = new FormData();
     if (file) fd.append('file', file);
@@ -71,6 +72,7 @@ export default function Analyze() {
     fd.append('quiz_count', String(state.settings.quizCount));
     fd.append('quiz_difficulty', state.settings.quizDifficulty);
     fd.append('quiz_type', state.settings.quizType);
+    fd.append('enabled_agents', JSON.stringify(state.settings.enabledAgents || []));
     
     // Определяем эндпоинт в зависимости от типа
     const isMedia = file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/'));

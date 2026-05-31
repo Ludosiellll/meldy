@@ -18,6 +18,7 @@ class CoordinatorAgent:
         quiz_count: int = 5,
         quiz_difficulty: str = "mixed",
         quiz_type: str = "multiple",
+        enabled_agents: Optional[list[str]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         results: Dict[str, Any] = {}
 
@@ -37,7 +38,15 @@ class CoordinatorAgent:
             except Exception as e:
                 return (name, {"error": str(e)})
 
-        agent_names = ["summarizer", "flashcards", "quiz", "cheatsheet", "podcast", "missions"]
+        all_agents = ["summarizer", "flashcards", "quiz", "cheatsheet", "podcast", "missions"]
+        if enabled_agents:
+            agent_names = [a for a in all_agents if a in enabled_agents]
+        else:
+            agent_names = all_agents
+
+        if not agent_names:
+            agent_names = ["summarizer"]
+
         agent_labels = {
             "summarizer": "📝 Конспект",
             "flashcards": "🃏 Карточки",
@@ -79,14 +88,23 @@ class CoordinatorAgent:
                 "total": len(agent_names),
             }
 
+        fallbacks = {
+            "summarizer": {"subject": "Конспект", "content": "", "terms": []},
+            "flashcards": {"flashcards": []},
+            "quiz": {"quiz": []},
+            "cheatsheet": {"content": ""},
+            "podcast": {"podcast": []},
+            "missions": {"missions": []},
+        }
+
         yield {
             "type": "results",
-            "summarizer": results.get("summarizer", {"error": "Нет результата"}),
-            "flashcards": results.get("flashcards", {"error": "Нет результата"}),
-            "quiz": results.get("quiz", {"error": "Нет результата"}),
-            "cheatsheet": results.get("cheatsheet", {"error": "Нет результата"}),
-            "podcast": results.get("podcast", {"error": "Нет результата"}),
-            "missions": results.get("missions", {"error": "Нет результата"}),
+            "summarizer": results.get("summarizer") or fallbacks["summarizer"],
+            "flashcards": results.get("flashcards") or fallbacks["flashcards"],
+            "quiz": results.get("quiz") or fallbacks["quiz"],
+            "cheatsheet": results.get("cheatsheet") or fallbacks["cheatsheet"],
+            "podcast": results.get("podcast") or fallbacks["podcast"],
+            "missions": results.get("missions") or fallbacks["missions"],
         }
 
     def _parse_result(self, name: str, raw: str) -> Any:
