@@ -78,6 +78,7 @@ export interface CareerModule {
     test_cases?: { input: string; expected: string }[];
   }[];
   completed_tasks?: number[];
+  task_solutions?: Record<number, string>;
 }
 
 export interface VacancyRecord {

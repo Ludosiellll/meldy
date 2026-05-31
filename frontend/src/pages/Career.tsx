@@ -923,19 +923,38 @@ export default function Career() {
       ? mod.tasks[taskIndex]
       : mod.practice_task;
       
+    // Load previously saved solution for this task if it exists
+    const savedSolution = mod.task_solutions?.[(activeTask as any).id ?? 0];
+      
     // Initialize defaults based on practice type
     if (mod.practice_type === 'algo') {
-      setSandboxCode(activeTask.code_template || `function solution() {\n  // напиши свой код здесь\n}`);
+      setSandboxCode(savedSolution !== undefined ? savedSolution : (activeTask.code_template || `function solution() {\n  // напиши свой код здесь\n}`));
     } else if (mod.practice_type === 'sql') {
-      setSandboxCode(activeTask.code_template || `SELECT -- Напишите ваш SQL-запрос здесь\n;`);
+      setSandboxCode(savedSolution !== undefined ? savedSolution : (activeTask.code_template || `SELECT -- Напишите ваш SQL-запрос здесь\n;`));
     } else if (mod.practice_type === 'web') {
-      setSandboxCode(activeTask.code_template || `<!-- Напиши HTML & CSS здесь -->\n<div class="card">\n  <h2>Привет, StudyForge!</h2>\n  <p>Сделай центрирование по флексу и добавь градиентный фон.</p>\n</div>\n\n<style>\n  .card {\n    padding: 2rem;\n    text-align: center;\n  }\n</style>`);
+      setSandboxCode(savedSolution !== undefined ? savedSolution : (activeTask.code_template || `<!-- Напиши HTML & CSS здесь -->\n<div class="card">\n  <h2>Привет, StudyForge!</h2>\n  <p>Сделай центрирование по флексу и добавь градиентный фон.</p>\n</div>\n\n<style>\n  .card {\n    padding: 2rem;\n    text-align: center;\n  }\n</style>`));
     } else if (mod.practice_type === 'business') {
-      setSandboxInputs({});
+      if (savedSolution !== undefined) {
+        try {
+          setSandboxInputs(JSON.parse(savedSolution));
+        } catch {
+          setSandboxInputs({});
+        }
+      } else {
+        setSandboxInputs({});
+      }
     } else if (mod.practice_type === 'design') {
-      setSandboxClickErrors({});
+      if (savedSolution !== undefined) {
+        try {
+          setSandboxClickErrors(JSON.parse(savedSolution));
+        } catch {
+          setSandboxClickErrors({});
+        }
+      } else {
+        setSandboxClickErrors({});
+      }
     } else if (mod.practice_type === 'copywriting') {
-      setSandboxText(activeTask.task_description ? activeTask.task_description.slice(0, 100) + '...' : '');
+      setSandboxText(savedSolution !== undefined ? savedSolution : (activeTask.task_description ? activeTask.task_description.slice(0, 100) + '...' : ''));
     } else if (mod.practice_type === 'roleplay') {
       setRoleplayTurnsLeft(4);
       setRoleplayMessages([
@@ -957,6 +976,50 @@ export default function Career() {
       : 0;
     
     selectTask(initialTaskIdx, mod);
+  };
+
+  const updateSandboxCode = (val: string) => {
+    setSandboxCode(val);
+    if (selectedModule) {
+      const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+        ? selectedModule.tasks[activeTaskIndex]
+        : selectedModule.practice_task;
+      if (!selectedModule.task_solutions) selectedModule.task_solutions = {};
+      selectedModule.task_solutions[(activeTask as any).id ?? 0] = val;
+    }
+  };
+
+  const updateSandboxText = (val: string) => {
+    setSandboxText(val);
+    if (selectedModule) {
+      const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+        ? selectedModule.tasks[activeTaskIndex]
+        : selectedModule.practice_task;
+      if (!selectedModule.task_solutions) selectedModule.task_solutions = {};
+      selectedModule.task_solutions[(activeTask as any).id ?? 0] = val;
+    }
+  };
+
+  const updateSandboxInputs = (newInputs: Record<string, string>) => {
+    setSandboxInputs(newInputs);
+    if (selectedModule) {
+      const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+        ? selectedModule.tasks[activeTaskIndex]
+        : selectedModule.practice_task;
+      if (!selectedModule.task_solutions) selectedModule.task_solutions = {};
+      selectedModule.task_solutions[(activeTask as any).id ?? 0] = JSON.stringify(newInputs);
+    }
+  };
+
+  const updateSandboxClickErrors = (newErrors: Record<string, string>) => {
+    setSandboxClickErrors(newErrors);
+    if (selectedModule) {
+      const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+        ? selectedModule.tasks[activeTaskIndex]
+        : selectedModule.practice_task;
+      if (!selectedModule.task_solutions) selectedModule.task_solutions = {};
+      selectedModule.task_solutions[(activeTask as any).id ?? 0] = JSON.stringify(newErrors);
+    }
   };
 
   const runLocalTests = () => {
@@ -3218,7 +3281,7 @@ export default function Career() {
                         </div>
                         <textarea
                           value={sandboxCode}
-                          onChange={(e) => setSandboxCode(e.target.value)}
+                          onChange={(e) => updateSandboxCode(e.target.value)}
                           className="flex-grow w-full p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-sm leading-relaxed focus:outline-none h-[300px] border border-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-inner"
                         />
                       </div>
@@ -3241,7 +3304,7 @@ export default function Career() {
                           </div>
                           <textarea
                             value={sandboxCode}
-                            onChange={(e) => setSandboxCode(e.target.value)}
+                            onChange={(e) => updateSandboxCode(e.target.value)}
                             className="w-full p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-sm leading-relaxed focus:outline-none h-[180px] border border-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-inner"
                           />
                           
@@ -3338,7 +3401,7 @@ export default function Career() {
                       <div className="space-y-4 h-full flex flex-col">
                         <textarea
                           value={sandboxCode}
-                          onChange={(e) => setSandboxCode(e.target.value)}
+                          onChange={(e) => updateSandboxCode(e.target.value)}
                           className="w-full p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-sm leading-relaxed focus:outline-none h-[180px] border border-slate-800"
                         />
                         <div className="flex-1 min-h-[200px] border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white">
@@ -3363,7 +3426,7 @@ export default function Career() {
                               type="number"
                               placeholder="Рассчитайте RICE Score"
                               value={sandboxInputs['rice_a'] || ''}
-                              onChange={(e) => setSandboxInputs({ ...sandboxInputs, rice_a: e.target.value })}
+                              onChange={(e) => updateSandboxInputs({ ...sandboxInputs, rice_a: e.target.value })}
                               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-lg text-xs"
                             />
                           </div>
@@ -3375,7 +3438,7 @@ export default function Career() {
                               type="number"
                               placeholder="Рассчитайте RICE Score"
                               value={sandboxInputs['rice_b'] || ''}
-                              onChange={(e) => setSandboxInputs({ ...sandboxInputs, rice_b: e.target.value })}
+                              onChange={(e) => updateSandboxInputs({ ...sandboxInputs, rice_b: e.target.value })}
                               className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-lg text-xs"
                             />
                           </div>
@@ -3391,7 +3454,7 @@ export default function Career() {
                         <div className="bg-white p-6 rounded-2xl border-2 border-rose-200/30 space-y-6 shadow-sm max-w-sm mx-auto relative overflow-hidden select-none">
                           {/* Bad font fonts style overlaps */}
                           <div 
-                            onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, fonts: 'Разнобой шрифтов (Arial + Times + Comic Sans)' })}
+                            onClick={() => updateSandboxClickErrors({ ...sandboxClickErrors, fonts: 'Разнобой шрифтов (Arial + Times + Comic Sans)' })}
                             className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 ${sandboxClickErrors['fonts'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-300'}`}
                           >
                             <h3 style={{ fontFamily: 'Times New Roman' }} className="text-lg font-bold text-slate-900">Заголовок макета</h3>
@@ -3400,7 +3463,7 @@ export default function Career() {
 
                           {/* Gray on gray contrast error */}
                           <div 
-                            onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, contrast: 'Ужасная контрастность (светло-серый на белом)' })}
+                            onClick={() => updateSandboxClickErrors({ ...sandboxClickErrors, contrast: 'Ужасная контрастность (светло-серый на белом)' })}
                             className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 ${sandboxClickErrors['contrast'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-300'}`}
                           >
                             <span className="text-[10px] text-slate-200">Малозаметный вспомогательный текст без контраста.</span>
@@ -3409,7 +3472,7 @@ export default function Career() {
                           {/* Shifted alignment layout */}
                           <div className="flex justify-between items-center gap-4">
                             <div 
-                              onClick={() => setSandboxClickErrors({ ...sandboxClickErrors, alignment: 'Нарушение выравнивания элементов по сетке' })}
+                              onClick={() => updateSandboxClickErrors({ ...sandboxClickErrors, alignment: 'Нарушение выравнивания элементов по сетке' })}
                               className={`p-2 cursor-pointer border rounded-lg hover:bg-rose-50 flex-1 ${sandboxClickErrors['alignment'] ? 'border-indigo-500 bg-indigo-50/20' : 'border-dashed border-slate-300'}`}
                             >
                               <div className="ml-10 text-xs font-bold">Сдвинутый влево блок без причины</div>
@@ -3425,7 +3488,7 @@ export default function Career() {
                               <X onClick={() => {
                                 const newErrs = { ...sandboxClickErrors };
                                 delete newErrs[key];
-                                setSandboxClickErrors(newErrs);
+                                updateSandboxClickErrors(newErrs);
                               }} className="w-3 h-3 cursor-pointer text-indigo-500 hover:text-indigo-700" />
                             </span>
                           ))}
@@ -3442,7 +3505,7 @@ export default function Career() {
                         </div>
                         <textarea
                           value={sandboxText}
-                          onChange={(e) => setSandboxText(e.target.value)}
+                          onChange={(e) => updateSandboxText(e.target.value)}
                           className="w-full p-4 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-2xl text-sm leading-relaxed focus:outline-none h-[180px] border focus:ring-1 focus:ring-indigo-500 shadow-sm"
                           placeholder="Перепишите текст в емкий, честный инфостиль..."
                         />
