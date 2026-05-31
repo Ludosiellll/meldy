@@ -1342,7 +1342,7 @@ async def career_next_module(request: Request, req: CareerNextModuleRequest):
             raise HTTPException(status_code=500, detail="ИИ вернул невалидную структуру модуля")
             
         # Обновляем силлабус в курсе
-        target_topic["is_completed"] = True
+        target_topic["is_completed"] = False
         target_topic["module_id"] = new_module["id"]
         
         # Добавляем новый модуль в список модулей курса

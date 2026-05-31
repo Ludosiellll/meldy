@@ -710,51 +710,216 @@ class CareerCourseAgent(BaseAgent):
                 "description": "Изучение коллекций .NET, технологии декларативных запросов LINQ и создание простейшего REST API на ASP.NET Core.",
                 "why_needed": "LINQ и ASP.NET Core являются базовым стандартом современной промышленной .NET-разработки.",
                 "detailed_theory": "Технология LINQ (Language Integrated Query) позволяет писать запросы к коллекциям данных в декларативном стиле, похожем на SQL. ||| Под капотом LINQ использует ленивые вычисления через IEnumerable. ||| Веб-сервисы ASP.NET Core обрабатывают HTTP-запросы в асинхронном режиме с использованием async/await для предотвращения блокировки пула потоков.",
-                "resources": [
-                    {"title": "Руководство по LINQ в C# на Metanit", "url": "https://metanit.com/sharp/tutorial/15.1.php", "description": "Понятные примеры использования Where, Select, GroupBy, Join."}
-                ],
-                "practice_type": "algo",
-                "practice_task": {
-                    "task_description": "Напишите функцию, которая группирует список товаров по категориям и находит самую высокую цену в каждой категории. Функция solution(products) принимает массив объектов товаров {name, category, price} и возвращает объект, где ключи — это категории, а значения — максимальная цена. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична C# методам GroupBy и Max).",
-                    "origin_interview_questions": "Компания: Тинькофф. Вопросы на интервью: 1) Что такое отложенное выполнение (deferred execution) в LINQ? 2) В чем разница между IEnumerable, IQueryable и IList? 3) Какова сложность поиска элемента по ключу в Dictionary?",
-                    "code_template": "function solution(products) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
-                    "test_cases": [
-                        { "input": "[ [{\"name\":\"A\",\"category\":\"Tech\",\"price\":100},{\"name\":\"B\",\"category\":\"Tech\",\"price\":150},{\"name\":\"C\",\"category\":\"Food\",\"price\":50}] ]", "expected": "{\"Tech\":150,\"Food\":50}" }
-                    ],
-                    "non_code_options": [],
-                    "non_code_correct": "",
-                    "explanation": "Эта задача эмулирует использование методов GroupBy и Max из пространства имен System.Linq."
-                },
-                "practice_guided": {
-                    "hints": ["Создайте пустой объект-словарь.", "Сравнивайте текущую цену с сохраненной в словаре по категории."],
-                    "simplified_template": "function solution(products) {\n  let result = {};\n  // ваш код здесь\n  return result;\n}"
-                },
-                "practice_expert": {
-                    "constraint": "Решите задачу в один проход без использования встроенных вспомогательных методов и с линейной сложностью O(N).",
-                    "bonus_description": "Показывает глубокое понимание однопроходных алгоритмов и структур данных."
-                },
-                "project_thread_step": "Разработайте слой данных (Domain Models) для корзины и товаров и напишите асинхронный контроллер в вашем E-Commerce проекте."
-            })
-
-        elif is_python:
-            project_name = "FastAPI Backend Application"
-            project_description = "Создание высокопроизводительного REST API с использованием FastAPI, SQLAlchemy и PostgreSQL."
-            insights = f"Стек Python-разработки активно применяется в веб-разработке и Data Science. FastAPI стал стандартом для создания современных API благодаря поддержке асинхронности и автоматической валидации Pydantic. Зарплатный уровень {salary} абсолютно реален при освоении этих навыков."
+                       elif is_sql:
+            project_name = "Enterprise Analytics Database"
+            project_description = "Проектирование и оптимизация реляционной базы данных для корпоративной аналитической системы продаж."
+            insights = f"Специалисты по работе с данными (SQL, Аналитики, Data Engineers) востребованы во всех сферах бизнеса. Умение писать оптимизированные SQL-запросы, понимать планы выполнения и строить схемы данных ценится работодателями. Цель по зарплате {salary} достижима при освоении этих навыков."
             
             # Module 1
             modules.append({
                 "id": "mod_1",
-                "title": "Основы синтаксиса, списки и словари в Python",
-                "description": "Изучение базовых типов данных Python, синтаксиса функций, генераторов списков (list comprehensions) и эффективного использования словарей.",
-                "why_needed": "Python-разработчик обязан в совершенстве владеть встроенными структурами данных для эффективной обработки бизнес-логики.",
-                "detailed_theory": "Python — это интерпретируемый язык с динамической типизацией. Он поощряет написание читаемого и лаконичного кода (Zen of Python). ||| Списки и словари — это фундаментальные структуры данных. Словари в Python реализованы на базе хэш-таблиц, что обеспечивает мгновенный поиск элементов за амортизированное O(1).",
+                "title": "Проектирование баз данных и базовые SQL запросы",
+                "description": "Изучение реляционной модели данных, нормальных форм, написание простых запросов SELECT с фильтрацией WHERE, сортировкой ORDER BY и ограничением количества записей LIMIT.",
+                "why_needed": "Любая работа с данными начинается с понимания структуры таблиц и умения извлекать из них базовую информацию.",
+                "detailed_theory": "Реляционная база данных организует информацию в виде связанных таблиц с предопределенной структурой. ||| Нормализация данных (до 3-й нормальной формы) позволяет устранить дублирование информации и гарантировать целостность данных. ||| Базовый синтаксис SQL SELECT позволяет считывать конкретные столбцы, отсеивать ненужные строки с помощью WHERE и сортировать результаты.",
                 "resources": [
-                    {"title": "Руководство по Python на Metanit", "url": "https://metanit.com/python/tutorial/", "description": "Понятные русскоязычные уроки для быстрого освоения синтаксиса."}
+                    {"title": "Интерактивный учебник по SQL на SQL-Academy", "url": "https://sql-academy.org/", "description": "Отличная русскоязычная платформа для практического освоения SQL."}
                 ],
-                "practice_type": "algo",
+                "practice_type": "sql",
                 "practice_task": {
-                    "task_description": "Напишите функцию, которая принимает список чисел и возвращает список только уникальных элементов в том же порядке. Функция solution(arr) должна удалять дубликаты. (Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична Python решениям с множествами set()).",
-                    "origin_interview_questions": "Компания: Яндекс. Вопросы на интервью: 1) В чем разница между mutable и immutable типами в Python? 2) Как под капотом устроен словарь dict и какова сложность поиска? 3) Что такое GIL и как он влияет на многопоточность?",
+                    "task_description": "Напишите SQL-запрос, который выбирает имя (name), отдел (department) и зарплату (salary) сотрудников из таблицы employees, чья зарплата превышает 80000, отсортированных по убыванию зарплаты.",
+                    "origin_interview_questions": "Компания: Альфа-Банк. Вопросы на интервью: 1) В чем разница между реляционными и нереляционными базами данных (SQL vs NoSQL)? 2) Что такое первичный (PRIMARY KEY) и внешний (FOREIGN KEY) ключи? 3) Какие нормальные формы вы знаете и зачем они нужны?",
+                    "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                    "test_cases": [],
+                    "non_code_options": [],
+                    "non_code_correct": "",
+                    "explanation": "Базовый SQL запрос извлекает необходимые поля, фильтрует по числовому условию и сортирует в обратном порядке."
+                },
+                "practice_guided": {
+                    "hints": ["Используйте оператор SELECT для выбора name, department, salary.", "Укажите таблицу FROM employees.", "Добавьте WHERE salary > 80000 и ORDER BY salary DESC."],
+                    "simplified_template": "SELECT name, department, salary FROM employees WHERE ...;"
+                },
+                "practice_expert": {
+                    "constraint": "Верните только первых 5 сотрудников с наибольшей зарплатой (используйте LIMIT).",
+                    "bonus_description": "Демонстрирует навыки оптимизации трафика данных и пагинации выборок."
+                },
+                "project_thread_step": "Нарисуйте ER-диаграмму базы данных интернет-магазина, выделив сущности Users, Orders и Products.",
+                "tasks": [
+                    {
+                        "id": 1,
+                        "title": "Выборка всех данных (SELECT *)",
+                        "task_description": "Напишите SQL-запрос, который выбирает всех сотрудников из таблицы employees.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 2,
+                        "title": "Выборка конкретных колонок (SELECT name, salary)",
+                        "task_description": "Напишите SQL-запрос, который выбирает только имя (name) и зарплату (salary) из таблицы employees.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 3,
+                        "title": "Простая фильтрация (WHERE equals)",
+                        "task_description": "Напишите SQL-запрос, который выбирает всех сотрудников из отдела 'IT' (колонка department).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 4,
+                        "title": "Фильтрация по значению (WHERE range)",
+                        "task_description": "Напишите SQL-запрос, который выбирает всех сотрудников, у которых зарплата (salary) больше 80000.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 5,
+                        "title": "Логические операторы (AND)",
+                        "task_description": "Напишите SQL-запрос, который выбирает сотрудников из отдела 'IT' с зарплатой больше 90000.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 6,
+                        "title": "Поиск по паттерну (LIKE)",
+                        "task_description": "Напишите SQL-запрос, который выбирает всех сотрудников, чье имя (name) начинается на букву 'А' (как на русском 'А', так и на английском 'A').",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 7,
+                        "title": "Сортировка результатов (ORDER BY)",
+                        "task_description": "Напишите SQL-запрос, который выбирает всех сотрудников и сортирует их по зарплате (salary) в порядке убывания (DESC).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 8,
+                        "title": "Лимитирование выборки (LIMIT)",
+                        "task_description": "Напишите SQL-запрос, который возвращает 3-х сотрудников с самой высокой зарплатой (используйте ORDER BY и LIMIT).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 9,
+                        "title": "Агрегация количества (COUNT)",
+                        "task_description": "Напишите SQL-запрос, который возвращает общее количество сотрудников в таблице employees.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 10,
+                        "title": "Финальный комплексный запрос",
+                        "task_description": "Напишите SQL-запрос, который выбирает имя (name) и зарплату (salary) 5 сотрудников из отдела 'IT' с зарплатой выше 70000, отсортированных по имени (name) в алфавитном порядке (ASC).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    }
+                ]
+            })
+            
+            # Module 2
+            modules.append({
+                "id": "mod_2",
+                "title": "Объединение таблиц (JOIN) и агрегация данных",
+                "description": "Овладение операторами связывания таблиц INNER JOIN, LEFT JOIN, а также группировкой данных с GROUP BY и фильтрацией групп с HAVING.",
+                "why_needed": "В реальных базах данных информация разнесена по множеству таблиц. Аналитик обязан уметь объединять их в единые сводные отчеты.",
+                "detailed_theory": "Операторы JOIN связывают строки из двух или более таблиц на основе совпадающих значений в ключевых столбцах. ||| Агрегатные функции (SUM, AVG, COUNT, MAX, MIN) позволяют производить математические вычисления над группами строк. ||| Группировка GROUP BY разделяет результат запроса на группы, а ключевое слово HAVING фильтрует эти группы.",
+                "resources": [
+                    {"title": "Объединение таблиц в SQL (JOIN) на Хабре", "url": "https://habr.com/ru/articles/450516/", "description": "Визуальное объяснение всех типов JOIN с понятными диаграммами Венна."}
+                ],
+                "practice_type": "sql",
+                "practice_task": {
+                    "task_description": "Напишите SQL-запрос, который находит общую сумму продаж (sum of sales.amount) по каждому клиенту (customers.name). Объедините таблицы customers и sales с помощью INNER JOIN, сгруппируйте по имени клиента и выведите только тех, у кого общая сумма продаж превышает 5000.",
+                    "origin_interview_questions": "Компания: МегаФон. Вопросы на интервью: 1) В чем разница между INNER JOIN и LEFT JOIN? Что произойдет если в правой таблице нет совпадений? 2) В чем отличие WHERE от HAVING?",
+                    "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                    "test_cases": [],
+                    "non_code_options": [],
+                    "non_code_correct": "",
+                    "explanation": "Этот запрос объединяет таблицы клиентов и продаж, группирует по имени и фильтрует итоговые суммы с помощью HAVING."
+                },
+                "practice_guided": {
+                    "hints": ["Используйте INNER JOIN для объединения таблиц по первичному и внешнему ключам.", "Примените GROUP BY c.name для группировки.", "Используйте HAVING SUM(s.amount) > 5000 для фильтрации групп."],
+                    "simplified_template": "SELECT c.name, SUM(s.amount)\nFROM customers c\nINNER JOIN sales s ON ...\nGROUP BY ...\nHAVING ...;"
+                },
+                "practice_expert": {
+                    "constraint": "Добавьте в выборку количество совершенных покупок клиентом (COUNT(s.id)) и отсортируйте результат по убыванию общей суммы.",
+                    "bonus_description": "Демонстрирует навыки построения сложных аналитических KPI-отчетов для бизнеса."
+                },
+                "project_thread_step": "Напишите SQL скрипты миграций для создания таблиц и наполнения их демонстрационными данными.",
+                "tasks": [
+                    {
+                        "id": 1,
+                        "title": "Простая агрегация суммы (SUM)",
+                        "task_description": "Напишите SQL-запрос, который находит общую сумму всех продаж (amount) из таблицы sales.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 2,
+                        "title": "Группировка результатов (GROUP BY)",
+                        "task_description": "Напишите SQL-запрос, который находит общую сумму продаж по каждому отделу (department) из таблицы sales, используя GROUP BY.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 3,
+                        "title": "Фильтрация агрегатов (HAVING)",
+                        "task_description": "Напишите SQL-запрос, который выводит только те отделы из таблицы sales, у которых общая сумма продаж превышает 100000.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 4,
+                        "title": "Объединение таблиц (INNER JOIN)",
+                        "task_description": "Напишите SQL-запрос, который объединяет таблицы employees и departments по полю department_id и выводит имя сотрудника (employees.name) и название его отдела (departments.title).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 5,
+                        "title": "Левое объединение (LEFT JOIN)",
+                        "task_description": "Напишите SQL-запрос, который выводит всех сотрудников и их отделы, включая тех сотрудников, у которых нет назначенного отдела (LEFT JOIN).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 6,
+                        "title": "Агрегация с объединением таблиц",
+                        "task_description": "Напишите SQL-запрос, который находит среднюю зарплату (AVG) сотрудников для каждого названия отдела (departments.title).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 7,
+                        "title": "Подзапросы в WHERE (Subquery)",
+                        "task_description": "Напишите SQL-запрос, который выбирает всех сотрудников из таблицы employees, чья зарплата выше средней зарплаты по всей компании (SELECT AVG(salary)...).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 8,
+                        "title": "Многотабличные объединения (Multiple JOINs)",
+                        "task_description": "Напишите SQL-запрос, который объединяет три таблицы: orders (заказы), customers (клиенты) и sales (продажи). Выведите имя клиента (customers.name), номер заказа (orders.order_number) и сумму продажи (sales.amount).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 9,
+                        "title": "Сложная фильтрация групп (WHERE + HAVING)",
+                        "task_description": "Напишите SQL-запрос, который находит общую сумму продаж по каждому клиенту из категории 'Fintech' (категория в продасах), у которых сумма продаж превышает 15000.",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    },
+                    {
+                        "id": 10,
+                        "title": "Оконные функции и аналитика (OVER)",
+                        "task_description": "Напишите SQL-запрос, который выводит имя сотрудника (name), его отдел (department), его зарплату (salary), а также среднюю зарплату по его отделу (используйте аналитическую функцию AVG(salary) OVER(PARTITION BY department)).",
+                        "code_template": "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+                        "test_cases": [{"input": "[]", "expected": "[]"}]
+                    }
+                ]
+            })gin_interview_questions": "Компания: Яндекс. Вопросы на интервью: 1) В чем разница между mutable и immutable типами в Python? 2) Как под капотом устроен словарь dict и какова сложность поиска? 3) Что такое GIL и как он влияет на многопоточность?",
                     "code_template": "function solution(arr) {\n  // Напишите ваше решение на JavaScript здесь\n  \n}",
                     "test_cases": [
                         { "input": "[[1, 2, 2, 3, 1]]", "expected": "[1, 2, 3]" }

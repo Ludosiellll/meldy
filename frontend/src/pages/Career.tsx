@@ -180,6 +180,7 @@ export default function Career() {
   // Active module and practice zone state
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const [selectedModule, setSelectedModule] = useState<CareerModule | null>(null);
+  const [activeTaskIndex, setActiveTaskIndex] = useState(0);
   const [practiceOpen, setPracticeOpen] = useState(false);
   
   // Universal sandbox states
@@ -708,19 +709,26 @@ export default function Career() {
     setLocalTestLogs([]);
     setIsEvaluating(false);
     
+    const initialTaskIdx = mod.completed_tasks ? Math.min(mod.completed_tasks.length, (mod.tasks?.length ?? 1) - 1) : 0;
+    setActiveTaskIndex(initialTaskIdx);
+    
+    const activeTask = mod.tasks && mod.tasks[initialTaskIdx]
+      ? mod.tasks[initialTaskIdx]
+      : mod.practice_task;
+      
     // Initialize defaults based on practice type
     if (mod.practice_type === 'algo') {
-      setSandboxCode(mod.practice_task.code_template || `function solution() {\n  // напиши свой код здесь\n}`);
+      setSandboxCode(activeTask.code_template || `function solution() {\n  // напиши свой код здесь\n}`);
     } else if (mod.practice_type === 'sql') {
-      setSandboxCode(`SELECT * FROM vacancies WHERE salary > 100000;`);
+      setSandboxCode(activeTask.code_template || `SELECT -- Напишите ваш SQL-запрос здесь\n;`);
     } else if (mod.practice_type === 'web') {
-      setSandboxCode(mod.practice_task.code_template || `<!-- Напиши HTML & CSS здесь -->\n<div class="card">\n  <h2>Привет, StudyForge!</h2>\n  <p>Сделай центрирование по флексу и добавь градиентный фон.</p>\n</div>\n\n<style>\n  .card {\n    padding: 2rem;\n    text-align: center;\n  }\n</style>`);
+      setSandboxCode(activeTask.code_template || `<!-- Напиши HTML & CSS здесь -->\n<div class="card">\n  <h2>Привет, StudyForge!</h2>\n  <p>Сделай центрирование по флексу и добавь градиентный фон.</p>\n</div>\n\n<style>\n  .card {\n    padding: 2rem;\n    text-align: center;\n  }\n</style>`);
     } else if (mod.practice_type === 'business') {
       setSandboxInputs({});
     } else if (mod.practice_type === 'design') {
       setSandboxClickErrors({});
     } else if (mod.practice_type === 'copywriting') {
-      setSandboxText(mod.practice_task.task_description.slice(0, 100) + '...');
+      setSandboxText(activeTask.task_description.slice(0, 100) + '...');
     } else if (mod.practice_type === 'roleplay') {
       setRoleplayTurnsLeft(4);
       setRoleplayMessages([
@@ -737,7 +745,9 @@ export default function Career() {
     setLocalTested(true);
     setLocalTestLogs([]);
 
-    const task = selectedModule.practice_task;
+    const task = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+      ? selectedModule.tasks[activeTaskIndex]
+      : selectedModule.practice_task;
     
     if (selectedModule.practice_type === 'algo') {
       try {
@@ -746,7 +756,7 @@ export default function Career() {
         let passed = true;
 
         if (task.test_cases && task.test_cases.length > 0) {
-          task.test_cases.forEach((tc, idx) => {
+          task.test_cases.forEach((tc: any, idx: number) => {
             const inputParsed = JSON.parse(tc.input);
             const expectedParsed = JSON.parse(tc.expected);
             
@@ -975,10 +985,14 @@ export default function Career() {
     }
 
     try {
+      const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+        ? selectedModule.tasks[activeTaskIndex]
+        : selectedModule.practice_task;
+
       const evaluation = await evaluateCareerTask(
         profile.course?.profession || 'IT Специалист',
-        selectedModule.title,
-        selectedModule.practice_task.task_description,
+        selectedModule.title + (selectedModule.tasks ? ` - Задача ${activeTaskIndex + 1}` : ''),
+        activeTask.task_description,
         selectedModule.practice_type,
         solutionData
       );
@@ -987,21 +1001,47 @@ export default function Career() {
       const isMastered = score >= 70;
       const isPerfect = score >= 90;
 
+      // Handle multi-task module completion
+      let isModuleFullyCompleted = isMastered;
+      let newCompletedTasks = [...(selectedModule.completed_tasks || [])];
+      
+      if (selectedModule.tasks && selectedModule.tasks.length > 0) {
+        const taskId = selectedModule.tasks[activeTaskIndex].id;
+        if (!newCompletedTasks.includes(taskId)) {
+          newCompletedTasks.push(taskId);
+        }
+        isModuleFullyCompleted = newCompletedTasks.length === selectedModule.tasks.length;
+      }
+
       // Update local profile with completion + mastery score
       const updatedModules = profile.course?.modules.map(m => {
         if (m.id === selectedModule.id) {
           return {
             ...m,
-            completed: isMastered,
+            completed: isModuleFullyCompleted,
             mastery_score: score,
             attempts: (m.attempts ?? 0) + 1,
             score: score,
             evaluation: evaluation,
-            student_solution: solutionData
+            student_solution: solutionData,
+            completed_tasks: newCompletedTasks
           };
         }
         return m;
       }) || [];
+
+      const updatedSyllabus = profile.course?.syllabus ? {
+        ...profile.course.syllabus,
+        chapters: profile.course.syllabus.chapters.map((ch: any) => ({
+          ...ch,
+          topics: ch.topics ? ch.topics.map((t: any) => {
+            if (t.module_id === selectedModule.id) {
+              return { ...t, is_completed: isModuleFullyCompleted };
+            }
+            return t;
+          }) : []
+        }))
+      } : undefined;
 
       // Calculate XP reward
       let xpGained: number = XP_REWARDS.task_completed;
@@ -1028,7 +1068,11 @@ export default function Career() {
         user.id,
         {
           ...profile,
-          course: { ...profile.course!, modules: updatedModules }
+          course: { 
+            ...profile.course!, 
+            modules: updatedModules,
+            syllabus: updatedSyllabus || profile.course!.syllabus
+          }
         },
         xpGained,
         selectedModule.practice_type
@@ -2635,27 +2679,76 @@ export default function Career() {
               <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2">
                 {/* Left screen: technical task parameters */}
                 <div className="overflow-y-auto p-4 md:p-6 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 space-y-6">
+                  {selectedModule.tasks && selectedModule.tasks.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-nowrap pb-3 border-b border-slate-100 dark:border-slate-800/80 mb-4 overflow-x-auto whitespace-nowrap scrollbar-thin">
+                      {selectedModule.tasks.map((t: any, idx: number) => {
+                        const isCompleted = selectedModule.completed_tasks?.includes(t.id);
+                        const isActive = idx === activeTaskIndex;
+                        const isUnlocked = idx <= (selectedModule.completed_tasks?.length ?? 0);
+                        
+                        return (
+                          <button
+                            key={t.id}
+                            disabled={!isUnlocked}
+                            onClick={() => {
+                              setActiveTaskIndex(idx);
+                              setLastEvalResult(null);
+                              setLocalTested(false);
+                              setLocalTestedPassed(false);
+                              setLocalTestLogs([]);
+                              setSandboxCode(t.code_template || '');
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold border transition-all flex items-center gap-1 shrink-0 ${
+                              isActive 
+                                ? 'bg-indigo-600 border-indigo-650 text-white shadow-sm'
+                                : (isCompleted 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                    : (isUnlocked 
+                                        ? 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-100'
+                                        : 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-900/40 border-transparent text-slate-400'
+                                      )
+                                  )
+                            }`}
+                          >
+                            <span>Задача {idx + 1}</span>
+                            {isCompleted && <span>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">📋 Техническое задание (ТЗ)</h4>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-semibold">
-                      {selectedModule.practice_task.task_description}
+                    <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">
+                      📋 Техническое задание (ТЗ) {selectedModule.tasks ? `(${activeTaskIndex + 1} из ${selectedModule.tasks.length})` : ''}
+                    </h4>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-semibold text-left">
+                      {selectedModule.tasks && selectedModule.tasks[activeTaskIndex] 
+                        ? selectedModule.tasks[activeTaskIndex].task_description 
+                        : selectedModule.practice_task.task_description}
                     </p>
                   </div>
 
                   {/* Render test cases summary if any */}
-                  {selectedModule.practice_task.test_cases && selectedModule.practice_task.test_cases.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🧪 Тестовые сценарии (тест-кейсы)</h4>
-                      <div className="space-y-2 text-xs">
-                        {selectedModule.practice_task.test_cases.map((tc, tcIdx) => (
-                          <div key={tcIdx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800 font-mono">
-                            <div><span className="text-slate-400">Вход:</span> {tc.input}</div>
-                            <div><span className="text-slate-400">Ожидается:</span> {tc.expected}</div>
-                          </div>
-                        ))}
+                  {(() => {
+                    const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+                      ? selectedModule.tasks[activeTaskIndex]
+                      : selectedModule.practice_task;
+                    
+                    return activeTask.test_cases && activeTask.test_cases.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🧪 Тестовые сценарии (тест-кейсы)</h4>
+                        <div className="space-y-2 text-xs">
+                          {activeTask.test_cases.map((tc: any, tcIdx: number) => (
+                            <div key={tcIdx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800 font-mono text-left">
+                              <div><span className="text-slate-400">Вход:</span> {tc.input}</div>
+                              <div><span className="text-slate-400">Ожидается:</span> {tc.expected}</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Inline evaluation result after expert review */}
                   {lastEvalResult && (
@@ -2692,11 +2785,32 @@ export default function Career() {
                         <div>
                           <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wide block mb-1">❌ Что улучшить:</span>
                           <ul className="space-y-0.5">{lastEvalResult.weaknesses.map((w: string, i: number) => (
-                            <li key={i} className="text-[11px] text-slate-600 dark:text-slate-300 flex items-start gap-1">
+                            <li key={i} className="text-[11px] text-slate-600 dark:text-slate-300 flex items-start gap-1 text-left">
                               <span className="text-rose-500 mt-0.5">•</span>{w}
                             </li>
                           ))}</ul>
                         </div>
+                      )}
+
+                      {lastEvalResult.score >= 70 && selectedModule.tasks && activeTaskIndex < selectedModule.tasks.length - 1 && (
+                        <button
+                          onClick={() => {
+                            const nextIdx = activeTaskIndex + 1;
+                            setActiveTaskIndex(nextIdx);
+                            setLastEvalResult(null);
+                            setLocalTested(false);
+                            setLocalTestedPassed(false);
+                            setLocalTestLogs([]);
+                            const nextTask = selectedModule.tasks![nextIdx];
+                            if (selectedModule.practice_type === 'algo' || selectedModule.practice_type === 'sql') {
+                              setSandboxCode(nextTask.code_template || '');
+                            }
+                          }}
+                          className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all hover:-translate-y-0.5"
+                        >
+                          <span>Перейти к следующей задаче ({activeTaskIndex + 2} из {selectedModule.tasks.length})</span>
+                          <ArrowRight className="w-3.5 h-3.5 animate-pulse" />
+                        </button>
                       )}
                     </div>
                   )}

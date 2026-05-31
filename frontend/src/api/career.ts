@@ -69,6 +69,15 @@ export interface CareerModule {
   student_solution?: string;
   // Spaced Repetition
   review_due_at?: string;
+  // Multi-task module support
+  tasks?: {
+    id: number;
+    title: string;
+    task_description: string;
+    code_template?: string;
+    test_cases?: { input: string; expected: string }[];
+  }[];
+  completed_tasks?: number[];
 }
 
 export interface VacancyRecord {
