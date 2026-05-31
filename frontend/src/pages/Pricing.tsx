@@ -241,9 +241,9 @@ export default function Pricing() {
                         </div>
                       </div>
                       <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-700">
-                        <span className="text-white font-mono text-lg tracking-wider">1234 5678 9012 3456</span>
+                        <span className="text-white font-mono text-lg tracking-wider">9112 3880 7883 8625</span>
                         <button 
-                          onClick={() => copyToClipboard('1234 5678 9012 3456', 'Номер карты')}
+                          onClick={() => copyToClipboard('9112 3880 7883 8625', 'Номер карты')}
                           className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition"
                         >
                           <Copy className="w-4 h-4" />
