@@ -193,3 +193,72 @@ def extract_relevant_paragraphs(text: str, query: str, top_k: int = 8, chunk_cha
     return "\n\n".join(selected_chunks)
 
 
+async def scrape_url(url: str) -> str:
+    """
+    Scrapes a web page using a hybrid workflow:
+    1. Remote Jina Reader API (r.jina.ai/{url}) for JS-heavy/dynamic pages.
+    2. Fallback to local httpx + BeautifulSoup for static HTML.
+    """
+    import httpx
+    from bs4 import BeautifulSoup
+
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
+    jina_url = f"https://r.jina.ai/{url}"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.get(jina_url, timeout=12.0)
+            if response.status_code == 200 and response.text.strip():
+                text = response.text
+                if "Failed to fetch" not in text and "Error fetching" not in text:
+                    return text
+    except Exception as e:
+        print(f"Jina API extraction failed: {e}")
+
+    # Local fallback
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        async with httpx.AsyncClient(follow_redirects=True, headers=headers) as client:
+            response = await client.get(url, timeout=10.0)
+            if response.status_code != 200:
+                raise ValueError(f"HTTP error {response.status_code}")
+            
+            html = response.text
+            soup = BeautifulSoup(html, "html.parser")
+            
+            # Clean up the HTML
+            for element in soup(["script", "style", "nav", "footer", "form", "iframe", "header", "aside"]):
+                element.decompose()
+                
+            body = soup.body if soup.body else soup
+            
+            text_lines = []
+            # Gather headers, paragraphs and list items to keep formatting structure
+            for element in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"]):
+                el_text = element.get_text(strip=True)
+                if not el_text:
+                    continue
+                if element.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                    text_lines.append(f"\n\n# {el_text}\n")
+                elif element.name == "p":
+                    text_lines.append(f"\n{el_text}\n")
+                elif element.name == "li":
+                    text_lines.append(f"\n* {el_text}")
+            
+            text = "".join(text_lines).strip()
+            
+            if not text:
+                text = body.get_text(separator="\n", strip=True)
+                
+            if not text.strip():
+                raise ValueError("Извлеченный текст пуст")
+                
+            return text
+    except Exception as e:
+        raise ValueError(f"Не удалось прочитать веб-страницу: {e}")
+
+
+

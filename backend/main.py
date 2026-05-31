@@ -18,7 +18,7 @@ from slowapi.errors import RateLimitExceeded
 
 from parser import extract_text
 from agents.coordinator import CoordinatorAgent
-from utils import parse_llm_json, extract_relevant_paragraphs
+from utils import parse_llm_json, extract_relevant_paragraphs, scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -286,6 +286,89 @@ async def analyze_media(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+async def event_stream_url(
+    url: str,
+    summary_detail: str = "medium",
+    flashcard_count: int = 6,
+    quiz_count: int = 5,
+    quiz_difficulty: str = "mixed",
+    quiz_type: str = "multiple",
+    enabled_agents: Optional[str] = None,
+) -> AsyncGenerator[str, None]:
+    try:
+        yield f"data: {json.dumps({'type': 'status', 'message': 'Подключение к веб-странице и извлечение контента...'})}\n\n"
+        
+        # Scrape the URL
+        text = await scrape_url(url)
+        
+        if not text or not text.strip():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось получить текст из веб-страницы.'})}\n\n"
+            return
+            
+        yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
+
+        parsed_agents = None
+        if enabled_agents:
+            try:
+                parsed_agents = json.loads(enabled_agents)
+            except Exception:
+                pass
+
+        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
+
+        async for event in coordinator.process(
+            text,
+            summary_detail=summary_detail,
+            flashcard_count=flashcard_count,
+            quiz_count=quiz_count,
+            quiz_difficulty=quiz_difficulty,
+            quiz_type=quiz_type,
+            enabled_agents=parsed_agents,
+        ):
+            yield f"data: {json.dumps(event)}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+
+@app.post("/api/analyze/url")
+@limiter.limit("5/minute")
+async def analyze_url(
+    request: Request,
+    url: str = Form(...),
+    summary_detail: str = Form("medium"),
+    flashcard_count: int = Form(6),
+    quiz_count: int = Form(5),
+    quiz_difficulty: str = Form("mixed"),
+    quiz_type: str = Form("multiple"),
+    enabled_agents: Optional[str] = Form(None),
+):
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY не настроен на сервере",
+        )
+
+    if not url or not url.strip():
+         raise HTTPException(
+                status_code=400,
+                detail="Укажите корректный URL-адрес.",
+         )
+
+    return StreamingResponse(
+        event_stream_url(url, summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 
 class ChatRequest(BaseModel):

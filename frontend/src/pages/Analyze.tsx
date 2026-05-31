@@ -50,7 +50,7 @@ export default function Analyze() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   };
 
-  const handleUpload = async (file: File | null) => {
+  const handleUpload = async (file: File | null, url?: string) => {
     // ПРОВЕРКА ЛИМИТОВ ИИ перед сменой интерфейса
     if (user?.id) {
       const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
@@ -60,12 +60,13 @@ export default function Analyze() {
     }
 
     analysisStartRef.current = Date.now();
-    sourceFileNameRef.current = file ? file.name : 'Unknown';
+    sourceFileNameRef.current = file ? file.name : (url ? url : 'Unknown');
     const activeAgents = initAgents.filter(a => (state.settings.enabledAgents || []).includes(a.id));
     setState({ phase: 'extracting', agents: activeAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
     
     const fd = new FormData();
     if (file) fd.append('file', file);
+    if (url) fd.append('url', url);
     
     fd.append('summary_detail', state.settings.summaryDetail);
     fd.append('flashcard_count', String(state.settings.flashcardCount));
@@ -76,7 +77,7 @@ export default function Analyze() {
     
     // Определяем эндпоинт в зависимости от типа
     const isMedia = file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/'));
-    const endpoint = isMedia ? '/api/analyze/media' : '/api/analyze';
+    const endpoint = url ? '/api/analyze/url' : (isMedia ? '/api/analyze/media' : '/api/analyze');
 
     try {
       const abortController = new AbortController();
