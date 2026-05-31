@@ -1349,15 +1349,35 @@ export default function Career() {
                     </div>
 
                     {/* Sprint 1: Salary Progress Bar */}
-                    <SalaryProgressBar
-                      currentXP={profile.xp ?? 0}
-                      targetSalary={profile.course.salary}
-                      completedModules={profile.course.modules.filter(m => m.completed && (m.mastery_score ?? m.score ?? 0) >= 70).length}
-                      totalModules={profile.course.modules.length}
-                      levelName={profile.level_name}
-                      streakDays={profile.streak_days}
-                      location={profile.course.location}
-                    />
+                    {(() => {
+                      let totalTopics = 0;
+                      let completedTopics = 0;
+                      if (profile.course.syllabus?.chapters) {
+                        for (const c of profile.course.syllabus.chapters) {
+                          if (c.topics) {
+                            for (const t of c.topics) {
+                              totalTopics++;
+                              if (t.is_completed) {
+                                completedTopics++;
+                              }
+                            }
+                          }
+                        }
+                      }
+                      return (
+                        <SalaryProgressBar
+                          currentXP={profile.xp ?? 0}
+                          targetSalary={profile.course.salary}
+                          completedModules={profile.course.modules.filter(m => m.completed && (m.mastery_score ?? m.score ?? 0) >= 70).length}
+                          totalModules={profile.course.modules.length}
+                          completedTopics={completedTopics}
+                          totalTopics={totalTopics}
+                          levelName={profile.level_name}
+                          streakDays={profile.streak_days}
+                          location={profile.course.location}
+                        />
+                      );
+                    })()}
 
                     {/* Sprint 1: Skills Radar Chart */}
                     {Object.keys(profile.skills_radar ?? {}).length > 0 && (

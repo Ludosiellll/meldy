@@ -8,38 +8,12 @@ interface SalaryProgressBarProps {
   targetSalary: string; // e.g. "150 000 ₽"
   completedModules: number;
   totalModules: number;
+  completedTopics?: number;
+  totalTopics?: number;
   levelName?: string;
   streakDays?: number;
   className?: string;
   location?: string;
-}
-
-function parseSalaryNumber(salary: string): number {
-  const digits = salary.replace(/\D/g, '');
-  return parseInt(digits, 10) || 0;
-}
-
-function formatSalaryShort(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}М`;
-  if (num >= 1_000) return `${Math.round(num / 1_000)}К`;
-  return `${num}`;
-}
-
-function getCurrencySymbol(salary: string, location?: string): string {
-  const sal = salary.toUpperCase();
-  if (sal.includes('₽') || sal.includes('RUR') || sal.includes('RUB')) return '₽';
-  if (sal.includes('BYN') || sal.includes('BYR') || sal.includes('BR')) return ' BYN';
-  if (sal.includes('₸') || sal.includes('KZT')) return ' ₸';
-  if (sal.includes('$') || sal.includes('USD')) return '$';
-  if (sal.includes('€') || sal.includes('EUR')) return '€';
-  
-  if (location) {
-    const loc = location.toLowerCase();
-    if (loc.includes('беларусь') || loc.includes('belarus') || loc.includes('минск')) return ' BYN';
-    if (loc.includes('казахстан') || loc.includes('kazakhstan') || loc.includes('алматы') || loc.includes('астана')) return ' ₸';
-    if (loc.includes('сша') || loc.includes('usa') || loc.includes('usd')) return '$';
-  }
-  return '₽';
 }
 
 export default function SalaryProgressBar({
@@ -47,18 +21,17 @@ export default function SalaryProgressBar({
   targetSalary,
   completedModules,
   totalModules,
+  completedTopics = 0,
+  totalTopics = 0,
   levelName,
   streakDays = 0,
   className = '',
   location,
 }: SalaryProgressBarProps) {
-  const targetNum = parseSalaryNumber(targetSalary);
-  const currencySymbol = getCurrencySymbol(targetSalary, location);
-  const progressRatio = totalModules > 0 ? completedModules / totalModules : 0;
+  const progressRatio = totalTopics > 0 
+    ? completedTopics / totalTopics 
+    : (totalModules > 0 ? completedModules / totalModules : 0);
 
-  // Estimated current market value: starts at ~30% of target, grows to 100%
-  const BASE_RATIO = 0.30;
-  const estimatedNum = Math.round(targetNum * (BASE_RATIO + (1 - BASE_RATIO) * progressRatio));
   const pct = Math.min(100, Math.round(progressRatio * 100));
 
   const { name: xpLevel, progress: xpProgress, nextThreshold } = getLevelFromXP(currentXP);
@@ -70,18 +43,6 @@ export default function SalaryProgressBar({
     { pct: 75, label: 'Мидл-рассмотрение' },
     { pct: 100, label: 'Цель' },
   ];
-
-  const formatEstimated = () => {
-    if (currencySymbol === '$') return `$${formatSalaryShort(estimatedNum)}`;
-    if (currencySymbol === '€') return `€${formatSalaryShort(estimatedNum)}`;
-    return `${formatSalaryShort(estimatedNum)}${currencySymbol}`;
-  };
-
-  const formatTarget = () => {
-    if (currencySymbol === '$') return `$${formatSalaryShort(targetNum)}`;
-    if (currencySymbol === '€') return `€${formatSalaryShort(targetNum)}`;
-    return `${formatSalaryShort(targetNum)}${currencySymbol}`;
-  };
 
   return (
     <div className={`bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm ${className}`}>
@@ -104,23 +65,18 @@ export default function SalaryProgressBar({
         )}
       </div>
 
-      {/* Salary estimation */}
+      {/* Learning Progress display */}
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-[10px] text-slate-500 font-semibold">Текущий уровень ≈</p>
-          <motion.p
-            key={estimatedNum}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-lg font-black text-slate-800 dark:text-slate-100"
-          >
-            {formatEstimated()}
-          </motion.p>
+          <p className="text-[10px] text-slate-500 font-semibold">Текущий прогресс</p>
+          <p className="text-lg font-black text-slate-800 dark:text-slate-100">
+            {pct}%
+          </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-slate-500 font-semibold">Цель</p>
-          <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-            {formatTarget()}
+          <p className="text-[10px] text-slate-500 font-semibold">Всего тем</p>
+          <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">
+            {totalTopics > 0 ? `${completedTopics} / ${totalTopics}` : `${completedModules} / ${totalModules}`}
           </p>
         </div>
       </div>
