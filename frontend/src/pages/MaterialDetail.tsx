@@ -183,80 +183,82 @@ export default function MaterialDetail() {
       </p>
 
       {/* Режимы обучения */}
-      <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 ${gridColsClass}`}>
-        <button
-          onClick={() => setMode('full')}
-          className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
-            mode === 'full'
-              ? 'text-white'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          {mode === 'full' && (
-            <motion.span
-              layoutId="activeDetailMode"
-              className="absolute inset-0 bg-slate-900 dark:bg-slate-850 rounded-xl shadow-md -z-10"
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-            />
+      {colCount > 1 && (
+        <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 ${gridColsClass}`}>
+          <button
+            onClick={() => setMode('full')}
+            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+              mode === 'full'
+                ? 'text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            {mode === 'full' && (
+              <motion.span
+                layoutId="activeDetailMode"
+                className="absolute inset-0 bg-slate-900 dark:bg-slate-850 rounded-xl shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" />
+              <span>Полное обучение</span>
+            </span>
+          </button>
+          {hasCheatsheet && (
+            <button
+              onClick={() => setMode('express')}
+              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+                mode === 'express'
+                  ? 'text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
+              }`}
+            >
+              {mode === 'express' && (
+                <motion.span
+                  layoutId="activeDetailMode"
+                  className="absolute inset-0 bg-rose-600 rounded-xl shadow-md -z-10"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-2">
+                <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
+                <span>За 5 минут</span>
+              </span>
+            </button>
           )}
-          <span className="relative z-10 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" />
-            <span>Полное обучение</span>
-          </span>
-        </button>
-        {hasCheatsheet && (
-          <button
-            onClick={() => setMode('express')}
-            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
-              mode === 'express'
-                ? 'text-white'
-                : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
-            }`}
-          >
-            {mode === 'express' && (
-              <motion.span
-                layoutId="activeDetailMode"
-                className="absolute inset-0 bg-rose-600 rounded-xl shadow-md -z-10"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
-              <span>За 5 минут</span>
-            </span>
-          </button>
-        )}
-        {hasPodcast && (
-          <button
-            onClick={() => setMode('podcast')}
-            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
-              mode === 'podcast'
-                ? 'text-white'
-                : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-            }`}
-          >
-            {mode === 'podcast' && (
-              <motion.span
-                layoutId="activeDetailMode"
-                className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Headphones className="w-5 h-5 sm:w-4 sm:h-4" />
-              <span>AI-Подкаст</span>
-            </span>
-          </button>
-        )}
-        {hasFlashcards && (
-          <button
-            onClick={() => navigate(`/shorts/${id}`)}
-            className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-fuchsia-500/20 transition-transform hover:-translate-y-0.5"
-          >
-            Учебный TikTok 📱
-          </button>
-        )}
-      </div>
+          {hasPodcast && (
+            <button
+              onClick={() => setMode('podcast')}
+              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+                mode === 'podcast'
+                  ? 'text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              {mode === 'podcast' && (
+                <motion.span
+                  layoutId="activeDetailMode"
+                  className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-2">
+                <Headphones className="w-5 h-5 sm:w-4 sm:h-4" />
+                <span>AI-Подкаст</span>
+              </span>
+            </button>
+          )}
+          {hasFlashcards && (
+            <button
+              onClick={() => navigate(`/shorts/${id}`)}
+              className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-fuchsia-500/20 transition-transform hover:-translate-y-0.5"
+            >
+              Учебный TikTok 📱
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Контент в зависимости от выбранного режима */}
       {mode === 'full' ? (
