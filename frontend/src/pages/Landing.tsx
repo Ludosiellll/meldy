@@ -217,18 +217,6 @@ function Hero() {
             Смотреть демо
           </button>
         </motion.div>
-
-        {/* Дополнительные преимущества */}
-        <motion.div 
-          variants={{
-            hidden: { opacity: 0, y: 20 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
-          }}
-          className="flex items-center gap-6 pt-4 text-xs font-semibold text-slate-500 dark:text-slate-400"
-        >
-          <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /> Без привязки карт</span>
-          <span className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /> Сделано для вузов</span>
-        </motion.div>
       </motion.div>
 
       {/* Правая колонка с интерактивной 3D сценой */}
