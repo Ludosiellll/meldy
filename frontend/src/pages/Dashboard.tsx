@@ -332,7 +332,7 @@ export default function Dashboard() {
                   Твой личный наставник подготовил сессию обучения! ✨
                 </h4>
                 <p className="text-xs text-indigo-100 max-w-xl mt-0.5 leading-relaxed break-words">
-                  Сегодня в плане: повторение {cardsCount} карточек + разбор лекции <span className="font-bold break-all">"{activeMaterialName}"</span>. Пройди сессию и получи <span className="font-extrabold text-amber-300 animate-pulse">+50 XP</span>!
+                  Сегодня в плане: повторение {cardsCount} карточек + разбор лекции <span className="font-bold break-all">"{activeMaterialName}"</span>. Пройди сессию и получи <span className="font-extrabold text-amber-300 animate-pulse whitespace-nowrap">+50 XP</span>!
                 </p>
               </div>
             </div>
