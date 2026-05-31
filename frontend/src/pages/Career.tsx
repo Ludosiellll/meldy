@@ -141,6 +141,10 @@ export default function Career() {
   // Helper for dynamic formatting of salaries
   const formatSalary = (salary: string, location?: string) => {
     if (!salary) return 'не указана';
+    const trimmed = salary.trim().toLowerCase();
+    if (trimmed === '0' || trimmed.startsWith('0 ') || trimmed === 'не важно' || trimmed === 'неважно' || trimmed === 'not important' || trimmed.includes('договорная')) {
+      return 'не важна';
+    }
     let formatted = salary;
     formatted = formatted.replace(/\b(RUR|RUB)\b/gi, '₽');
     formatted = formatted.replace(/\b(BYN|BYR)\b/gi, ' BYN');
@@ -1881,7 +1885,7 @@ export default function Career() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
-              className="bg-white dark:bg-slate-900 text-slate-850 dark:text-white w-full max-w-6xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh] backdrop-blur-md"
+              className="bg-white dark:bg-slate-900 text-slate-850 dark:text-white w-full max-w-[96vw] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[92vh] backdrop-blur-md"
             >
               {/* Header */}
               <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
@@ -1978,7 +1982,7 @@ export default function Career() {
                     formatSalary={formatSalary}
                   />
                   {/* Left Side: Vacancy selector list */}
-                  <div className="hidden lg:flex w-full lg:w-[38%] shrink-0 border-r border-slate-200 dark:border-slate-800 p-4 flex-col gap-3 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
+                  <div className="hidden lg:flex w-full lg:w-[26%] shrink-0 border-r border-slate-200 dark:border-slate-800 p-4 flex-col gap-3 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Найдено вакансий: {foundVacancies.length}</h4>
                     <div className="space-y-4">
                       {foundVacancies.map((vac, vIdx) => {
@@ -2021,7 +2025,7 @@ export default function Career() {
                     {selectedVacancy ? (
                       <>
                         {/* Split Left: Detailed description */}
-                        <div className="w-full lg:w-[52%] p-5 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between">
+                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between">
                           <div className="space-y-6">
                             <div>
                               <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
