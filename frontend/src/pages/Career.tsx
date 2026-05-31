@@ -47,12 +47,14 @@ function patchModule(mod: CareerModule, profession: string): CareerModule {
   const isTechnicalProfession = 
     /разработчик|developer|программист|frontend|backend|fullstack|devops|qa|тестировщик|engineer|инженер|c#|\.net|python|java|golang|c\+\+|ruby|php|rust|swift|kotlin/i.test(profession || "");
 
-  if (isTechnicalProfession && mod.practice_type === 'copywriting' && (mod.title.includes('Основы') || mod.title.includes('введение') || mod.practice_task.task_description.includes('план обучения'))) {
-    return {
-      ...mod,
+  let patched = { ...mod };
+
+  if (isTechnicalProfession && patched.practice_type === 'copywriting' && (patched.title.includes('Основы') || patched.title.includes('введение') || patched.practice_task.task_description.includes('план обучения'))) {
+    patched = {
+      ...patched,
       practice_type: 'algo',
       practice_task: {
-        ...mod.practice_task,
+        ...patched.practice_task,
         task_description: "Напишите функцию solution(name), которая принимает имя и возвращает строку 'Привет, ' + name + '!'. Например: solution('Мир') должен вернуть 'Привет, Мир!'.",
         origin_interview_questions: "Компания: Тинькофф. Вопросы на собеседовании: 1) В чем разница между ссылочными типами и типами значений в вашем стеке? 2) Как устроена память в куче и стеке?",
         code_template: "function solution(name) {\n  // Напишите ваш код здесь\n  \n}",
@@ -74,7 +76,197 @@ function patchModule(mod: CareerModule, profession: string): CareerModule {
       }
     };
   }
-  return mod;
+
+  // Auto-enrich modules with exactly 10 progressive tasks if they do not have them
+  if (!patched.tasks || patched.tasks.length === 0) {
+    if (patched.practice_type === 'algo') {
+      patched.tasks = [
+        {
+          id: 1,
+          title: "Задача 1: Базовый вызов (" + (patched.title.length > 20 ? patched.title.slice(0, 20) + "..." : patched.title) + ")",
+          task_description: patched.practice_task.task_description,
+          code_template: patched.practice_task.code_template || "function solution() {\n  // Напишите решение на JavaScript\n}",
+          test_cases: patched.practice_task.test_cases && patched.practice_task.test_cases.length > 0
+            ? patched.practice_task.test_cases
+            : [{ "input": "[]", "expected": "[]" }]
+        },
+        {
+          id: 2,
+          title: "Задача 2: Условия (Четное/Нечетное)",
+          task_description: "Напишите функцию solution(num), которая принимает число num и возвращает true, если оно четное, и false, если нечетное.",
+          code_template: "function solution(num) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[4]", "expected": "true" },
+            { "input": "[7]", "expected": "false" }
+          ]
+        },
+        {
+          id: 3,
+          title: "Задача 3: Массивы (Поиск максимума)",
+          task_description: "Напишите функцию solution(arr), которая принимает массив чисел и возвращает наибольшее число из этого массива.",
+          code_template: "function solution(arr) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[[1, 5, 3, 9, 2]]", "expected": "9" },
+            { "input": "[[-1, -5, -3]]", "expected": "-1" }
+          ]
+        },
+        {
+          id: 4,
+          title: "Задача 4: Циклы (Сумма диапазона)",
+          task_description: "Напишите функцию solution(n), которая принимает целое положительное число n и возвращает сумму всех целых чисел от 1 до n включительно.",
+          code_template: "function solution(n) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[5]", "expected": "15" },
+            { "input": "[10]", "expected": "55" }
+          ]
+        },
+        {
+          id: 5,
+          title: "Задача 5: Строки (Разворот текста)",
+          task_description: "Напишите функцию solution(str), которая принимает строку и возвращает ее в перевернутом виде (задом наперед).",
+          code_template: "function solution(str) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": '["abc"]', "expected": '"cba"' },
+            { "input": '["hello"]', "expected": '"olleh"' }
+          ]
+        },
+        {
+          id: 6,
+          title: "Задача 6: Поиск (Индекс элемента)",
+          task_description: "Напишите функцию solution(arr, target), которая находит индекс числа target в массиве arr. Если элемент не найден, верните -1.",
+          code_template: "function solution(arr, target) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[[10, 20, 30], 20]", "expected": "1" },
+            { "input": "[[10, 20, 30], 40]", "expected": "-1" }
+          ]
+        },
+        {
+          id: 7,
+          title: "Задача 7: Массивы (Фильтрация положительных)",
+          task_description: "Напишите функцию solution(arr), которая принимает массив чисел и возвращает новый массив, содержащий только положительные числа (больше 0).",
+          code_template: "function solution(arr) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[[1, -2, 3, 0, -5]]", "expected": "[1,3]" }
+          ]
+        },
+        {
+          id: 8,
+          title: "Задача 8: Проверка (Палиндромы)",
+          task_description: "Напишите функцию solution(str), которая проверяет, является ли строка палиндромом (читается одинаково слева направо и справа налево).",
+          code_template: "function solution(str) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": '["radar"]', "expected": "true" },
+            { "input": '["hello"]', "expected": "false" }
+          ]
+        },
+        {
+          id: 9,
+          title: "Задача 9: Массивы (Уникальные значения)",
+          task_description: "Напишите функцию solution(arr), которая принимает массив чисел и возвращает массив, содержащий только уникальные элементы (без дубликатов).",
+          code_template: "function solution(arr) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[[1, 2, 2, 3, 1]]", "expected": "[1,2,3]" }
+          ]
+        },
+        {
+          id: 10,
+          title: "Задача 10: Финал (Числа Фибоначчи)",
+          task_description: "Напишите функцию solution(n), которая возвращает n-ое число Фибоначчи (f(0)=0, f(1)=1, f(2)=1, f(3)=2, f(4)=3, f(5)=5, f(6)=8 и т.д.).",
+          code_template: "function solution(n) {\n  // Напишите ваш код здесь\n  \n}",
+          test_cases: [
+            { "input": "[6]", "expected": "8" },
+            { "input": "[10]", "expected": "55" }
+          ]
+        }
+      ];
+    } else if (patched.practice_type === 'sql') {
+      patched.tasks = [
+        {
+          id: 1,
+          title: "Задача 1: Базовая выборка (" + (patched.title.length > 20 ? patched.title.slice(0, 20) + "..." : patched.title) + ")",
+          task_description: patched.practice_task.task_description,
+          code_template: patched.practice_task.code_template || "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: patched.practice_task.test_cases && patched.practice_task.test_cases.length > 0
+            ? patched.practice_task.test_cases
+            : [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 2,
+          title: "Задача 2: Конкретные колонки (SELECT name, salary)",
+          task_description: "Напишите SQL-запрос, который выбирает только имя (name) и зарплату (salary) из таблицы employees.",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 3,
+          title: "Задача 3: Фильтрация строк (WHERE equals)",
+          task_description: "Напишите SQL-запрос, который выбирает всех сотрудников из отдела 'IT' (колонка department).",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 4,
+          title: "Задача 4: Фильтрация по диапазону (WHERE range)",
+          task_description: "Напишите SQL-запрос, который выбирает всех сотрудников, у которых зарплата (salary) больше 80000.",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 5,
+          title: "Задача 5: Логические условия (AND)",
+          task_description: "Напишите SQL-запрос, который выбирает сотрудников из отдела 'IT' с зарплатой больше 90000.",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 6,
+          title: "Задача 6: Поиск шаблонов (LIKE)",
+          task_description: "Напишите SQL-запрос, который выбирает всех сотрудников, чье имя (name) начинается на букву 'А'.",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 7,
+          title: "Задача 7: Упорядочивание (ORDER BY)",
+          task_description: "Напишите SQL-запрос, который выбирает всех сотрудников и сортирует их по зарплате (salary) в порядке убывания (DESC).",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 8,
+          title: "Задача 8: Ограничение записей (LIMIT)",
+          task_description: "Напишите SQL-запрос, который возвращает 3-х сотрудников с самой высокой зарплатой (используйте ORDER BY и LIMIT).",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 9,
+          title: "Задача 9: Агрегация количества (COUNT)",
+          task_description: "Напишите SQL-запрос, который возвращает общее количество сотрудников в таблице employees.",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        },
+        {
+          id: 10,
+          title: "Задача 10: Финал (Комплексный SQL)",
+          task_description: "Напишите SQL-запрос, который выбирает имя (name) и зарплату (salary) 5 сотрудников из отдела 'IT' с зарплатой выше 70000, отсортированных по имени (name) в алфавитном порядке (ASC).",
+          code_template: "SELECT -- Напишите ваш SQL-запрос здесь\n;",
+          test_cases: [{"input": "[]", "expected": "[]"}]
+        }
+      ];
+    } else {
+      // General non-code practices
+      patched.tasks = Array.from({ length: 10 }, (_, i) => ({
+        id: i + 1,
+        title: `Шаг ${i + 1}: ${i === 0 ? 'Анализ' : i === 9 ? 'Финал' : 'Разработка'}`,
+        task_description: `Это этап ${i + 1} в выполнении вашего практического задания. \n\nОсновная задача: ${patched.practice_task.task_description} \n\nПроработайте данный шаг и напишите ответ для проверки ИИ-экспертом.`,
+        code_template: patched.practice_task.code_template,
+        test_cases: patched.practice_task.test_cases
+      }));
+    }
+  }
+
+  return patched;
 }
 
 export default function Career() {

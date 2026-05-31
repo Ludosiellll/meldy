@@ -351,11 +351,28 @@ def build_course_expansion_prompt(
         "hints": ["Шаг 1: ...", "Шаг 2: ...", "Шаг 3: ..."],
         "simplified_template": "// Guided version\\nfunction solution() {{\\n  // hints here\\n}}"
       }},
-      "practice_expert": {{
+       "practice_expert": {{
         "constraint": "Дополнительное ограничение повышенной сложности.",
         "bonus_description": "Что демонстрирует решение expert-версию."
       }},
-      "project_thread_step": "Что добавляется в {project_name} в этом модуле."
+      "project_thread_step": "Что добавляется в {project_name} в этом модуле.",
+      "tasks": [
+        {{
+          "id": 1,
+          "title": "Задача 1: Название базового шага",
+          "task_description": "Простейшая задача по теме модуля...",
+          "code_template": "function solution(x) {{\\n  // ваш код здесь\\n}}",
+          "test_cases": [{{ "input": "[1]", "expected": "1" }}]
+        }},
+        ...
+        {{
+          "id": 10,
+          "title": "Задача 10: Финал темы (Уровень Junior+)",
+          "task_description": "Сложная итоговая задача...",
+          "code_template": "function solution(x) {{\\n  // ваш код здесь\\n}}",
+          "test_cases": [{{ "input": "[10]", "expected": "100" }}]
+        }}
+      ]
     }}
   ]
 }}
@@ -540,6 +557,7 @@ ID этого модуля должен быть: "mod_{num_existing + 1}"
       "bonus_description": "Что студент докажет решив expert-версию."
     }}
 11. "project_thread_step": "Конкретное описание что студент добавляет в сквозной проект в этом модуле."
+12. "tasks": Вы ОБЯЗАНЫ включить этот массив. Он должен содержать ровно 10 последовательных, усложняющихся практических задач по теме модуля (от простейшего базового синтаксиса до продвинутых алгоритмов и оптимизаций). Каждая задача должна содержать id (1-10), заголовок (title), ТЗ (task_description), шаблон кода (code_template) и тест-кейсы (test_cases).
 
 ФОРМАТ ИНТЕРАКТИВНОЙ ПРАКТИКИ ДЛЯ РАЗРАБОТЧИКОВ (КРИТИЧЕСКИ ВАЖНО):
 Наша интерактивная песочница на фронтенде запускает код как JavaScript-функцию `solution(...)` для типа практики 'algo'.
@@ -560,7 +578,79 @@ ID этого модуля должен быть: "mod_{num_existing + 1}"
   "practice_task": {{...}},
   "practice_guided": {{...}},
   "practice_expert": {{...}},
-  "project_thread_step": "..."
+  "project_thread_step": "...",
+  "tasks": [
+    {{
+      "id": 1,
+      "title": "Задача 1: Название базового шага",
+      "task_description": "Простейшая задача на базовый синтаксис темы...",
+      "code_template": "function solution(x) {{\\n  // ваш код здесь\\n}}",
+      "test_cases": [{{ "input": "[1]", "expected": "1" }}]
+    }},
+    {{
+      "id": 2,
+      "title": "Задача 2: Название усложнения",
+      "task_description": "Чуть более сложная задача...",
+      "code_template": "function solution(x) {{\\n  // ваш код здесь\\n}}",
+      "test_cases": [{{ "input": "[1]", "expected": "2" }}]
+    }},
+    {{
+      "id": 3,
+      "title": "Задача 3: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 4,
+      "title": "Задача 4: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 5,
+      "title": "Задача 5: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 6,
+      "title": "Задача 6: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 7,
+      "title": "Задача 7: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 8,
+      "title": "Задача 8: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 9,
+      "title": "Задача 9: Название",
+      "task_description": "...",
+      "code_template": "...",
+      "test_cases": [...]
+    }},
+    {{
+      "id": 10,
+      "title": "Задача 10: Финал темы (Уровень Junior+)",
+      "task_description": "Итоговая комплексная задача на оптимизацию или сложный алгоритм...",
+      "code_template": "function solution(x) {{\\n  // ваш код здесь\\n}}",
+      "test_cases": [{{ "input": "[10]", "expected": "100" }}]
+    }}
+  ]
 }}
 """
 
