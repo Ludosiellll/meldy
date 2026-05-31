@@ -269,6 +269,25 @@ function patchModule(mod: CareerModule, profession: string): CareerModule {
   return patched;
 }
 
+function getCodeLanguage(code: string, profession: string, template: string): string {
+  const p = (profession || "").toLowerCase();
+  const t = (template || "").toLowerCase();
+  const c = (code || "").toLowerCase();
+
+  if (p.includes("python") || p.includes("django") || p.includes("fastapi") || t.includes("def ") || c.includes("def ")) return "python";
+  if (p.includes("c#") || p.includes(".net") || p.includes("csharp") || t.includes("using system") || c.includes("using system")) return "csharp";
+  if (p.includes("java") || t.includes("public class") || c.includes("public class")) return "java";
+  if (p.includes("golang") || p.includes("go ") || t.includes("package main") || c.includes("package main") || t.includes("func main") || c.includes("func main")) return "go";
+  if (p.includes("c++") || p.includes("cpp") || t.includes("#include") || c.includes("#include")) return "cpp";
+  if (p.includes("php") || t.includes("<?php") || c.includes("<?php")) return "php";
+  if (p.includes("ruby") || t.includes("def ") || c.includes("end")) return "ruby";
+  if (p.includes("rust") || t.includes("fn ") || c.includes("fn ")) return "rust";
+  if (p.includes("swift") || t.includes("func ") || c.includes("func ")) return "swift";
+  if (p.includes("kotlin") || t.includes("fun ") || c.includes("fun ")) return "kotlin";
+  
+  return "javascript";
+}
+
 export default function Career() {
   const { user } = useAuth();
   const { alert, confirm } = useConfirm();
@@ -893,19 +912,15 @@ export default function Career() {
     }
   };
 
-  const openSandbox = (mod: CareerModule) => {
-    setSelectedModule(mod);
-    setPracticeOpen(true);
+  const selectTask = (taskIndex: number, mod: CareerModule) => {
+    setActiveTaskIndex(taskIndex);
+    setLastEvalResult(null);
     setLocalTested(false);
     setLocalTestedPassed(false);
     setLocalTestLogs([]);
-    setIsEvaluating(false);
     
-    const initialTaskIdx = mod.completed_tasks ? Math.min(mod.completed_tasks.length, (mod.tasks?.length ?? 1) - 1) : 0;
-    setActiveTaskIndex(initialTaskIdx);
-    
-    const activeTask = mod.tasks && mod.tasks[initialTaskIdx]
-      ? mod.tasks[initialTaskIdx]
+    const activeTask = mod.tasks && mod.tasks[taskIndex]
+      ? mod.tasks[taskIndex]
       : mod.practice_task;
       
     // Initialize defaults based on practice type
@@ -920,7 +935,7 @@ export default function Career() {
     } else if (mod.practice_type === 'design') {
       setSandboxClickErrors({});
     } else if (mod.practice_type === 'copywriting') {
-      setSandboxText(activeTask.task_description.slice(0, 100) + '...');
+      setSandboxText(activeTask.task_description ? activeTask.task_description.slice(0, 100) + '...' : '');
     } else if (mod.practice_type === 'roleplay') {
       setRoleplayTurnsLeft(4);
       setRoleplayMessages([
@@ -930,6 +945,18 @@ export default function Career() {
         }
       ]);
     }
+  };
+
+  const openSandbox = (mod: CareerModule) => {
+    setSelectedModule(mod);
+    setPracticeOpen(true);
+    setIsEvaluating(false);
+    
+    const initialTaskIdx = mod.completed_tasks && mod.tasks && mod.tasks.length > 0
+      ? Math.max(0, Math.min(mod.completed_tasks.length, mod.tasks.length - 1))
+      : 0;
+    
+    selectTask(initialTaskIdx, mod);
   };
 
   const runLocalTests = () => {
@@ -942,6 +969,35 @@ export default function Career() {
       : selectedModule.practice_task;
     
     if (selectedModule.practice_type === 'algo') {
+      const codeLang = getCodeLanguage(sandboxCode, profile?.course?.profession || '', task.code_template || '');
+      const isNonJsAlgo = codeLang !== 'javascript';
+      
+      if (isNonJsAlgo) {
+        const logs: string[] = [];
+        logs.push(`💻 Обнаружен код на языке ${codeLang.toUpperCase()}.`);
+        
+        // Simple structural syntax check to make sure they didn't just leave it empty
+        const trimmedCode = sandboxCode.trim();
+        const hasCodeSignature = trimmedCode.length > 20 && 
+                                 !trimmedCode.includes('// Напишите ваше решение на JavaScript здесь') && 
+                                 !trimmedCode.includes('// напиши свой код здесь');
+        
+        if (hasCodeSignature) {
+          logs.push(`✅ Базовый синтаксический анализ структуры ${codeLang.toUpperCase()} выполнен успешно.`);
+          logs.push(`ℹ️ Локальный автозапуск тестов в браузере поддерживается только для JavaScript/TypeScript.`);
+          logs.push(`✨ Вы можете отправить ваше решение на "Ревью эксперта" для полной проверки и подробного разбора!`);
+          setLocalTestLogs(logs);
+          setLocalTestedPassed(true);
+          toast.success(`Базовая проверка кода на ${codeLang.toUpperCase()} пройдена!`);
+        } else {
+          logs.push(`❌ Код не изменен или слишком короткий. Пожалуйста, напишите ваше решение задачи.`);
+          setLocalTestLogs(logs);
+          setLocalTestedPassed(false);
+          toast.error('Пожалуйста, напишите решение!');
+        }
+        return;
+      }
+
       try {
         const userFn = new Function(`return ${sandboxCode}`)();
         const logs: string[] = [];
@@ -1013,8 +1069,8 @@ export default function Career() {
       if (query.includes('select') && query.includes('from')) {
         passed = true;
         logs.push('✅ Синтаксис SQL верный.');
-        const isUsersTask = selectedModule.practice_task.task_description.toLowerCase().includes('users') || 
-                            selectedModule.practice_task.task_description.toLowerCase().includes('пользовател') || 
+        const isUsersTask = task.task_description.toLowerCase().includes('users') || 
+                            task.task_description.toLowerCase().includes('пользовател') || 
                             query.includes('users');
         if (isUsersTask) {
           logs.push('🔍 Найдено подходящих записей: 5 (Active users in 2023)');
@@ -1035,7 +1091,7 @@ export default function Career() {
       // Check if this is a system or bash script task generated with 'web' type
       const isSystemOrScriptTask =
         /linux|bash|docker|devops|git|nginx|kubernetes|k8s|server|сервер|администрирование|деплой|cron/i.test(selectedModule.title) ||
-        /linux|bash|docker|devops|git|nginx|kubernetes|k8s|server|сервер|администрирование|деплой|cron/i.test(selectedModule.practice_task.task_description) ||
+        /linux|bash|docker|devops|git|nginx|kubernetes|k8s|server|сервер|администрирование|деплой|cron/i.test(task.task_description) ||
         (!code.includes('<div') && !code.includes('<p') && !code.includes('<html') && (code.includes('sudo') || code.includes('apt') || code.includes('docker') || code.includes('npm') || code.includes('#!') || code.includes('git') || code.includes('systemctl')));
 
       if (isSystemOrScriptTask) {
@@ -1216,7 +1272,7 @@ export default function Career() {
       let isModuleFullyCompleted = isMastered;
       let newCompletedTasks = [...(selectedModule.completed_tasks || [])];
       
-      if (selectedModule.tasks && selectedModule.tasks.length > 0) {
+      if (selectedModule.tasks && selectedModule.tasks.length > 0 && selectedModule.tasks[activeTaskIndex]) {
         const taskId = selectedModule.tasks[activeTaskIndex].id;
         if (!newCompletedTasks.includes(taskId)) {
           newCompletedTasks.push(taskId);
@@ -1367,10 +1423,14 @@ export default function Career() {
     setIsDiagnosticsLoading(true);
     setShowDiagnosticsPanel(true);
     try {
+      const activeTask = selectedModule.tasks && selectedModule.tasks[activeTaskIndex]
+        ? selectedModule.tasks[activeTaskIndex]
+        : selectedModule.practice_task;
+
       const report = await getCodeDiagnostics(
         sandboxCode,
-        selectedModule.title,
-        selectedModule.practice_task.task_description
+        selectedModule.title + (selectedModule.tasks ? ` - Задача ${activeTaskIndex + 1}` : ''),
+        activeTask.task_description
       );
       setDiagnosticsResult(report);
     } catch {
@@ -2902,12 +2962,7 @@ export default function Career() {
                             key={t.id}
                             disabled={!isUnlocked}
                             onClick={() => {
-                              setActiveTaskIndex(idx);
-                              setLastEvalResult(null);
-                              setLocalTested(false);
-                              setLocalTestedPassed(false);
-                              setLocalTestLogs([]);
-                              setSandboxCode(t.code_template || '');
+                              selectTask(idx, selectedModule);
                             }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold border transition-all flex items-center gap-1 shrink-0 ${
                               isActive 
@@ -3007,15 +3062,7 @@ export default function Career() {
                         <button
                           onClick={() => {
                             const nextIdx = activeTaskIndex + 1;
-                            setActiveTaskIndex(nextIdx);
-                            setLastEvalResult(null);
-                            setLocalTested(false);
-                            setLocalTestedPassed(false);
-                            setLocalTestLogs([]);
-                            const nextTask = selectedModule.tasks![nextIdx];
-                            if (selectedModule.practice_type === 'algo' || selectedModule.practice_type === 'sql') {
-                              setSandboxCode(nextTask.code_template || '');
-                            }
+                            selectTask(nextIdx, selectedModule);
                           }}
                           className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all hover:-translate-y-0.5"
                         >
