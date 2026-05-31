@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Award, CheckCircle2, AlertTriangle, MessageSquare, Loader2, Sparkles, Trophy } from 'lucide-react';
+import { X, Send, Award, CheckCircle2, AlertTriangle, MessageSquare, Loader2, Sparkles, Trophy, Mic, MicOff } from 'lucide-react';
 import { 
   startMockInterview, respondMockInterview, evaluateMockInterview, 
   MockInterviewEvaluation, saveXPToProfile, CareerProfile 
@@ -38,12 +38,80 @@ export default function MockInterviewModal({
   const [finished, setFinished] = useState(false);
   const [evaluation, setEvaluation] = useState<MockInterviewEvaluation | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     initInterview();
   }, []);
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'ru-RU';
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          toast.error('Пожалуйста, разрешите доступ к микрофону в настройках браузера.');
+        } else {
+          toast.error('Ошибка распознавания голоса.');
+        }
+      };
+
+      rec.onresult = (event: any) => {
+        const text = event.results[0][0].transcript;
+        if (text) {
+          setInput(prev => {
+            const trimmed = prev.trim();
+            return trimmed ? `${trimmed} ${text}` : text;
+          });
+          toast.success('Голос успешно распознан!');
+        }
+      };
+
+      setRecognition(rec);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (recognition) {
+        recognition.stop();
+      }
+    };
+  }, [recognition]);
+
+  const toggleListening = () => {
+    if (!recognition) {
+      toast.error('Распознавание речи не поддерживается вашим браузером. Используйте Google Chrome.');
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -323,13 +391,25 @@ export default function MockInterviewModal({
                       <div className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase px-1 sm:px-2 whitespace-nowrap">
                         Вопрос {getQuestionNumber()}/5
                       </div>
+                      <button
+                        onClick={toggleListening}
+                        disabled={sending}
+                        className={`p-2 sm:p-2.5 rounded-xl transition flex items-center justify-center shrink-0 border duration-200 ${
+                          isListening 
+                            ? 'bg-rose-500/10 border-rose-500 text-rose-500 animate-pulse' 
+                            : 'bg-slate-50 dark:bg-slate-950/70 border-slate-200 dark:border-slate-850 text-slate-500 hover:text-indigo-500 dark:text-slate-400 dark:hover:text-indigo-400'
+                        }`}
+                        title={isListening ? "Остановить запись" : "Ответить голосом"}
+                      >
+                        {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                      </button>
                       <input
                         type="text"
                         disabled={sending}
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
-                        placeholder="Напишите ваш ответ..."
+                        placeholder={isListening ? "Слушаю вас..." : "Напишите или продиктуйте ваш ответ..."}
                         className="flex-1 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-850 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
                       />
                       <button
