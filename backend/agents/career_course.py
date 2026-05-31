@@ -82,15 +82,17 @@ def build_course_designer_prompt(
     return f"""Ты — {expert['title']}.
 Tвой стиль преподавания и тон: {expert['tone']}
 
-Твоя задача — спроектировать ультимативно глубокую, содержательную и сбалансированную программу обучения (курс) из 4-5 модулей для студента, который хочет освоить профессию "{profession}" (уровень: {level}, целевая зарплата: {salary}).
-Этот курс должен быть профессиональным, структурированным и исключительно практичным.
+Твоя задача — спроектировать ультимативно глубокую, содержательную и сбалансированную программу обучения (курс) для студента, который хочет освоить профессию "{profession}" (уровень: {level}, целевая зарплата: {salary}).
+Этот курс должен быть профессиональным, структурированным и вести ученика от самого нуля (без опыта) до полной готовности к трудоустройству по выбранной вакансии.
 {demographics_block}
 При проектировании курса опирайся на реальные требования рынка, собранные из свежих вакансий:
 {vacancy_context}
 
-Спроектируй строго от 4 до 5 крупных, последовательных и детализированных модулей. Каждая тема должна быть раскрыта профессионально и глубоко.
+ИНСТРУКЦИЯ ПО ГЕНЕРАЦИИ ДВУХ СУЩНОСТЕЙ:
+1. **Силлабус (Syllabus)**: Спроектируй исчерпывающий, последовательный и детальный пошаговый план обучения (дорожную карту) из 10-15 микро-тем, разбитых по главам. План должен начинаться с абсолютных азов (например, Установка, Синтаксис, Переменные) и плавно переходить к продвинутым вещам (ООП, базы данных, сборка, фреймворки).
+2. **Модули (Modules)**: Чтобы не перегружать память и токенные лимиты, сгенерируй в этом запросе СТРОГО первые 2 подробных учебных модуля (mod_1 и mod_2), соответствующие первым 2 микро-темам из твоего силлабуса. Для остальных тем силлабуса детальные модули будут генерироваться постепенно по мере продвижения студента!
 
-Для каждого модуля ты ОБЯЗАН предоставить:
+Для первых двух модулей ты ОБЯЗАН предоставить:
 1. Зачем это нужно работодателям: конкретная привязка к реальным вакансиям.
 2. Подробная теория темы: 1-2 емких, содержательных параграфа (каждый из 3-4 предложений). Разбей параграфы через символ "|||" — каждый параграф будет отображаться как отдельный блок с кнопкой «Не понял».
 3. Лучшие отобранные ресурсы с ТОЧНЫМИ deep links (не главные страницы — конкретные статьи на Хабре, задачи LeetCode, разделы MDN, руководства Metanit).
@@ -117,7 +119,21 @@ Tвой стиль преподавания и тон: {expert['tone']}
 3. СТРОЖАЙШЕЕ ПРАВИЛО: В поле 'code_template' вы должны сгенерировать ИСКЛЮЧИТЕЛЬНО пустую сигнатуру функции с соответствующими аргументами (например, function solution(str) {{ \n  // Напишите ваше решение на JavaScript здесь\n }}). Категорически запрещено помещать готовое решение, законченный код или алгоритм внутрь 'code_template'! Студент обязан написать код самостоятельно.
 4. Это позволит пользователю без проблем писать код в песочнице и запускать тесты, понимая, что алгоритмическая логика универсальна.
 
-КРИТИЧЕСКИЙ РЕЖИМ ТОЧНЫХ ССЫЛОК: Запрещено давать общие ссылки вроде 'https://leetcode.com'. Обязательно прямые рабочие URL на конкретные задачи LeetCode (например, 'https://leetcode.com/problems/two-sum/'), точные статьи MDN, разделы документации, статьи Хабр или Metanit.
+СТРОЖАЙШЕЕ ПРАВИЛО ПРЕДОТВРАЩЕНИЯ ГАЛЛЮЦИНАЦИЙ ССЫЛОК (КРИТИЧЕСКИ ВАЖНО):
+- Категорически запрещено выдумывать или генерировать случайные URL-адреса статей на Хабре с выдуманными числовыми ID (например, хаотичные ссылки типа /articles/538742/ ведут на случайные посторонние публикации!).
+- Вместо этого используй исключительно 100% надежные и стабильные ресурсы:
+  1. Официальные сайты документации: https://learn.microsoft.com/ru-ru/dotnet/, https://docs.python.org/3/, https://react.dev/, https://www.typescriptlang.org/docs/, https://developer.mozilla.org/ru/
+  2. Руководства на Metanit (крайне стабильные русские ссылки):
+     - По C# и .NET: https://metanit.com/sharp/tutorial/
+     - По ASP.NET Core API: https://metanit.com/sharp/aspnet/
+     - По Entity Framework Core: https://metanit.com/sharp/entityframework/
+     - По TypeScript: https://metanit.com/web/typescript/
+     - По JavaScript: https://metanit.com/web/javascript/
+     - По Python: https://metanit.com/python/tutorial/
+     - По SQL/PostgreSQL: https://metanit.com/sql/postgres/
+     - По React: https://metanit.com/web/react/
+  3. Для LeetCode задач используй только реальные известные URL, например: https://leetcode.com/problems/two-sum/, https://leetcode.com/problems/valid-parentheses/
+- Если ты хочешь сослаться на тему, для которой не знаешь точной ссылки на Хабре, давай ссылку на главный тематический Хаб (например, https://habr.com/ru/hub/net/, https://habr.com/ru/hub/programming/ или https://habr.com/ru/hub/webdev/). Никаких выдуманных ID статей!
 
 САМООГРАНИЧЕНИЕ ПО ДЛИНЕ И ЦЕЛОСТНОСТИ:
 - Пиши содержательно, технично, но без лишней воды. Твой JSON-ответ должен быть СТРОГО полным и законченным. Никаких обрывов в конце генерации!
@@ -131,10 +147,30 @@ Tвой стиль преподавания и тон: {expert['tone']}
   "project_name": "Название сквозного проекта (например: 'Portfolio Website', 'Task Manager API', 'Analytics Dashboard')",
   "project_description": "Краткое описание сквозного проекта — что это будет на выходе курса",
   "insights": "Крайне подробный аналитический обзор рынка труда: тренды, требования, дефицитные скиллы.",
+  "syllabus": {{
+    "chapters": [
+      {{
+        "title": "Глава 1. Название главы",
+        "topics": [
+          {{ "title": "Тема 1 (соответствует mod_1)", "is_completed": true, "module_id": "mod_1" }},
+          {{ "title": "Тема 2 (соответствует mod_2)", "is_completed": true, "module_id": "mod_2" }},
+          {{ "title": "Тема 3", "is_completed": false }},
+          {{ "title": "Тема 4", "is_completed": false }}
+        ]
+      }},
+      {{
+        "title": "Глава 2. Название главы 2",
+        "topics": [
+          {{ "title": "Тема 5", "is_completed": false }},
+          {{ "title": "Тема 6", "is_completed": false }}
+        ]
+      }}
+    ]
+  }},
   "modules": [
     {{
       "id": "mod_1",
-      "title": "Название первого модуля",
+      "title": "Название первого модуля (должно в точности совпадать с Тема 1)",
       "description": "Исчерпывающее описание содержания модуля.",
       "why_needed": "Привязка к вакансиям (например: 'В 87% вакансий уровня Middle требуется...').",
       "detailed_theory": "Параграф 1 с детальным разбором концепции. ||| Параграф 2 с примерами и паттернами. ||| Параграф 3 с архитектурными решениями и нюансами реализации.",
@@ -172,11 +208,46 @@ Tвой стиль преподавания и тон: {expert['tone']}
         "bonus_description": "Что студент докажет решив expert-версию — какой навык это демонстрирует на собеседовании."
       }},
       "project_thread_step": "Конкретное описание что студент добавляет в сквозной проект в этом модуле: файл/компонент/функцию/раздел."
+    }},
+    {{
+      "id": "mod_2",
+      "title": "Название второго модуля (должно в точности совпадать с Тема 2)",
+      "description": "Исчерпывающее описание второго модуля...",
+      "why_needed": "...",
+      "detailed_theory": "...",
+      "resources": [
+        {{
+          "title": "...",
+          "url": "https://...",
+          "description": "..."
+        }}
+      ],
+      "practice_type": "algo",
+      "practice_task": {{
+        "task_description": "...",
+        "origin_interview_questions": "...",
+        "code_template": "function solution() {{\\n  // напиши свой код здесь\\n}}",
+        "test_cases": [
+          {{ "input": "...", "expected": "..." }}
+        ],
+        "non_code_options": [],
+        "non_code_correct": "",
+        "explanation": "..."
+      }},
+      "practice_guided": {{
+        "hints": [],
+        "simplified_template": ""
+      }},
+      "practice_expert": {{
+        "constraint": "...",
+        "bonus_description": "..."
+      }},
+      "project_thread_step": "..."
     }}
   ]
 }}
 
-Ты ОБЯЗАН спроектировать полноценный учебный трек строго из 4-5 глубоких модулей. Пиши исключительно содержательно, но ёмко, чтобы полностью сгенерировать все модули в рамках лимита токенов.
+Пиши исключительно содержательно, но ёмко, чтобы полностью сгенерировать силлабус и эти 2 модуля в рамках лимита токенов.
 Конспекты пользователя для адаптивного усиления тем (если есть):
 {user_materials[:10000]}
 """
@@ -224,6 +295,20 @@ def build_course_expansion_prompt(
 1. Привязку к сложным вакансиям Middle/Senior уровня.
 2. Подробную теорию (2-3 параграфа, разделённых через |||).
 3. Deep Links на продвинутые ресурсы (конкретные URL на РУССКОМ языке — Хабр, Metanit, и т.д.).
+   СТРОЖАЙШЕЕ ПРАВИЛО ПРЕДОТВРАЩЕНИЯ ГАЛЛЮЦИНАЦИЙ ССЫЛОК (КРИТИЧЕСКИ ВАЖНО):
+   - Категорически запрещено выдумывать или генерировать случайные URL-адреса статей на Хабре с выдуманными числовыми ID (например, /articles/538742/ ведут на посторонние статьи!).
+   - Вместо этого используй исключительно 100% надежные и стабильные ресурсы:
+     - Официальные сайты документации: https://learn.microsoft.com/ru-ru/dotnet/, https://docs.python.org/3/, https://react.dev/, https://www.typescriptlang.org/docs/, https://developer.mozilla.org/ru/
+     - Руководства на Metanit (крайне стабильные русские ссылки):
+       - По C# и .NET: https://metanit.com/sharp/tutorial/
+       - По ASP.NET Core: https://metanit.com/sharp/aspnet/
+       - По Entity Framework Core: https://metanit.com/sharp/entityframework/
+       - По TypeScript: https://metanit.com/web/typescript/
+       - По JavaScript: https://metanit.com/web/javascript/
+       - По Python: https://metanit.com/python/tutorial/
+       - По SQL/PostgreSQL: https://metanit.com/sql/postgres/
+       - По React: https://metanit.com/web/react/
+     - Если ты хочешь сослаться на тему, для которой не знаешь точной ссылки на Хабре, давай ссылку на главный тематический Хаб (например, https://habr.com/ru/hub/net/, https://habr.com/ru/hub/programming/ или https://habr.com/ru/hub/webdev/). Никаких выдуманных ID статей!
 4. Трёхуровневую практику: practice_task (Independent) + practice_guided + practice_expert.
 5. Симуляцию реального собеседования в крупной компании с origin_interview_questions.
 6. Шаг сквозного проекта: что добавляется в "{project_name}" в этом модуле.
@@ -373,6 +458,113 @@ def build_module_hint_prompt(paragraph_text: str, profession: str) -> str:
 """
 
 
+def build_single_module_prompt(
+    profession: str,
+    level: str,
+    salary: str,
+    topic_title: str,
+    current_course: dict
+) -> str:
+    existing_modules = current_course.get("modules", [])
+    num_existing = len(existing_modules)
+    project_name = current_course.get("project_name", "Сквозной проект")
+    expert = get_expert_persona(profession)
+    location = current_course.get("location", "")
+    
+    lang_instruction = ""
+    if location:
+        lang_instruction = f"ЯЗЫК УЧЕБНЫХ РЕСУРСОВ: Поскольку студент из русскоязычного региона ({location}), подбирай учебные материалы и ссылки (resources) строго на РУССКОМ языке (Хабр, Metanit, русская документация, русскоязычные переводы). Давай английские ссылки только при полном отсутствии русскоязычных качественных аналогов."
+
+    return f"""Ты — {expert['title']}.
+Твой стиль преподавания и тон: {expert['tone']}
+
+Студент проходит персональный курс по профессии "{profession}" (уровень: {level}, целевая зарплата: {salary}).
+Сквозной проект курса: "{project_name}"
+
+Твоя задача — спроектировать ОДИН ОЧЕНЬ ГЛУБОКИЙ, ПОДРОБНЫЙ И КАЧЕСТВЕННЫЙ УЧЕБНЫЙ МОДУЛЬ строго по теме:
+"{topic_title}"
+
+ID этого модуля должен быть: "mod_{num_existing + 1}"
+
+{lang_instruction}
+
+Модуль обязан быть оформлен строго в формате JSON и содержать:
+1. "id": "mod_{num_existing + 1}"
+2. "title": "{topic_title}"
+3. "description": "Исчерпывающее описание содержания модуля."
+4. "why_needed": "Конкретная привязка к вакансиям (например: 'В 87% вакансий уровня Middle требуется...')."
+5. "detailed_theory": "Параграф 1 с детальным разбором концепции. ||| Параграф 2 с примерами и паттернами. ||| Параграф 3 с архитектурными решениями и нюансами реализации."
+6. "resources": [
+     {{
+       "title": "Название материала",
+       "url": "https://конкретная-ссылка.com/точный-путь",
+       "description": "Почему именно этот ресурс и как по нему заниматься."
+     }}
+   ]
+   СТРОЖАЙШЕЕ ПРАВИЛО ПРЕДОТВРАЩЕНИЯ ГАЛЛЮЦИНАЦИЙ ССЫЛОК:
+   - Категорически запрещено придумывать или генерировать случайные URL-адреса на Хабре с выдуманными числовыми ID (например, ссылки типа /articles/538742/ ведут на посторонние статьи!).
+   - Вместо этого используй исключительно 100% надежные и стабильные ресурсы:
+     - Официальные сайты документации: https://learn.microsoft.com/ru-ru/dotnet/, https://docs.python.org/3/, https://react.dev/, https://www.typescriptlang.org/docs/, https://developer.mozilla.org/ru/
+     - Руководства на Metanit (крайне стабильные русские ссылки):
+       - По C# и .NET: https://metanit.com/sharp/tutorial/
+       - По ASP.NET Core: https://metanit.com/sharp/aspnet/
+       - По Entity Framework Core: https://metanit.com/sharp/entityframework/
+       - По TypeScript: https://metanit.com/web/typescript/
+       - По JavaScript: https://metanit.com/web/javascript/
+       - По Python: https://metanit.com/python/tutorial/
+       - По SQL/PostgreSQL: https://metanit.com/sql/postgres/
+       - По React: https://metanit.com/web/react/
+     - Если ты хочешь сослаться на тему, для которой не знаешь точной ссылки на Хабре, давай ссылку на главный тематический Хаб (например, https://habr.com/ru/hub/net/, https://habr.com/ru/hub/programming/ или https://habr.com/ru/hub/webdev/). Никаких выдуманных ID статей!
+7. "practice_type": "algo | sql | web | business | design | copywriting | roleplay"
+   (Выбирай 'algo' для всех задач программирования, написания кода, алгоритмов, скриптов, CI/CD, Git и т.д. в песочнице)
+8. "practice_task": {{
+     "task_description": "Подробнейшее ТЗ для уровня Independent.",
+     "origin_interview_questions": "Компания: [Яндекс/Тинькофф/Авито/Google]. Вопросы на реальном техническом интервью: 1) ... 2) ... 3) ... Каверзные follow-up вопросы интервьюера.",
+     "code_template": "function solution() {{\\n  // напиши свой код здесь\\n}}",
+     "test_cases": [
+       {{ "input": "...", "expected": "..." }}
+     ],
+     "non_code_options": [],
+     "non_code_correct": "",
+     "explanation": "Подробный разбор правильного решения."
+   }}
+9. "practice_guided": {{
+     "hints": [
+       "Шаг 1: ...",
+       "Шаг 2: ..."
+     ],
+     "simplified_template": "..."
+   }}
+10. "practice_expert": {{
+      "constraint": "Дополнительное ограничение которое делает задачу сложнее",
+      "bonus_description": "Что студент докажет решив expert-версию."
+    }}
+11. "project_thread_step": "Конкретное описание что студент добавляет в сквозной проект в этом модуле."
+
+ФОРМАТ ИНТЕРАКТИВНОЙ ПРАКТИКИ ДЛЯ РАЗРАБОТЧИКОВ (КРИТИЧЕСКИ ВАЖНО):
+Наша интерактивная песочница на фронтенде запускает код как JavaScript-функцию `solution(...)` для типа практики 'algo'.
+Поэтому, даже если профессия связана с C#, Python, Java, C++ или любым другим языком:
+1. Ты ОБЯЗАН написать формулировку задачи (`task_description`), шаблон кода (`code_template`) и тесты (`test_cases`) с использованием JavaScript-функции `function solution(...) {{ ... }}`.
+2. В описании задания (`task_description`) обязательно добавь понятное примечание на русском языке, например: «(Примечание: Наша песочница проверяет алгоритмы на JavaScript. Напишите решение на JavaScript, логика которого полностью идентична вашему основному стеку [Название стека, например C#])».
+3. СТРОЖАЙШЕЕ ПРАВИЛО: В поле 'code_template' вы должны сгенерировать ИСКЛЮЧИТЕЛЬНО пустую сигнатуру функции с соответствующими аргументами. Категорически запрещено помещать готовое решение внутрь 'code_template'! Студент обязан написать код самостоятельно.
+
+ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
+{{
+  "id": "mod_{num_existing + 1}",
+  "title": "{topic_title}",
+  "description": "...",
+  "why_needed": "...",
+  "detailed_theory": "...",
+  "resources": [...],
+  "practice_type": "...",
+  "practice_task": {{...}},
+  "practice_guided": {{...}},
+  "practice_expert": {{...}},
+  "project_thread_step": "..."
+}}
+"""
+
+
 class CareerCourseAgent(BaseAgent):
 
     async def generate_course(
@@ -408,6 +600,18 @@ class CareerCourseAgent(BaseAgent):
         raw_result = await self.run(prompt, context)
         data = self._parse_json(raw_result, {"modules": []})
         return data.get("modules", [])
+
+    async def generate_next_module(
+        self,
+        profession: str,
+        level: str,
+        salary: str,
+        topic_title: str,
+        current_course: dict
+    ) -> dict:
+        prompt = build_single_module_prompt(profession, level, salary, topic_title, current_course)
+        raw_result = await self.run(prompt, f"Сгенерируй один подробный модуль по теме: {topic_title}")
+        return self._parse_json(raw_result, {})
 
     async def generate_review_test(
         self,
@@ -813,6 +1017,27 @@ class CareerCourseAgent(BaseAgent):
                 "project_thread_step": "Разработайте схему хранения данных или интерфейсы моделей для сохранения состояния вашего прикладного проекта."
             })
 
+        default_syllabus = {
+            "chapters": [
+                {
+                    "title": "Глава 1. Основы и Введение",
+                    "topics": [
+                        { "title": modules[0]["title"], "is_completed": True, "module_id": "mod_1" },
+                        { "title": modules[1]["title"], "is_completed": True, "module_id": "mod_2" },
+                        { "title": "Тема 3. Системный анализ и паттерны проектирования", "is_completed": False },
+                        { "title": "Тема 4. Сборка и деплой приложения", "is_completed": False }
+                    ]
+                },
+                {
+                    "title": "Глава 2. Продвинутые концепции",
+                    "topics": [
+                        { "title": "Тема 5. Оптимизация производительности", "is_completed": False },
+                        { "title": "Тема 6. Масштабирование и финальный проект", "is_completed": False }
+                    ]
+                }
+            ]
+        }
+
         return {
             "profession": profession,
             "salary": salary,
@@ -820,5 +1045,6 @@ class CareerCourseAgent(BaseAgent):
             "project_name": project_name,
             "project_description": project_description,
             "insights": insights,
-            "modules": modules
+            "modules": modules,
+            "syllabus": default_syllabus
         }

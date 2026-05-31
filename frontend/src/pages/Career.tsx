@@ -17,7 +17,7 @@ import {
   getCareerProfile, generateCareerProfile, saveCareerProfile, 
   generateCareerCourse, sendCareerChat, evaluateCareerTask, 
   getCareerVacancies, sendVacancyChat, VacancyItem,
-  expandCareerCourse, CareerProfile, CareerCourse, CareerModule,
+  expandCareerCourse, generateNextSyllabusModule, CareerProfile, CareerCourse, CareerModule,
   generateReviewTest, updateModuleReview, getDueReviews,
   generateRetryTask, getModuleHint,
   saveXPToProfile, getLevelFromXP, XP_REWARDS, ModuleReviewRecord,
@@ -113,6 +113,7 @@ export default function Career() {
   const [expandChatInput, setExpandChatInput] = useState('');
   const [sendingExpandChat, setSendingExpandChat] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
+  const [isGeneratingNextModule, setIsGeneratingNextModule] = useState(false);
 
   // Sprint 3: Diagnostic Test States
   const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
@@ -521,6 +522,33 @@ export default function Career() {
       toast.error('Ошибка расширения курса.', { id: 'expand_course_load' });
     } finally {
       setIsExpanding(false);
+    }
+  };
+
+  const handleGenerateNextSyllabusModule = async () => {
+    if (!user || !profile?.course) return;
+    
+    setIsGeneratingNextModule(true);
+    toast.loading('ИИ-Методист проектирует практику и теорию для следующего шага...', { id: 'next_mod_load' });
+    
+    try {
+      const result = await generateNextSyllabusModule(user.id, profile.course);
+      if (result) {
+        if (result.completed) {
+          toast.success('Поздравляем! Весь силлабус успешно сгенерирован и пройден!', { id: 'next_mod_load' });
+        } else {
+          toast.success('Следующий учебный модуль успешно сгенерирован!', { id: 'next_mod_load' });
+          confetti({ particleCount: 100, spread: 60 });
+          loadProfile();
+        }
+      } else {
+        toast.error('Не удалось сгенерировать следующий модуль.', { id: 'next_mod_load' });
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Ошибка генерации следующего модуля.', { id: 'next_mod_load' });
+    } finally {
+      setIsGeneratingNextModule(false);
     }
   };
 
@@ -1396,29 +1424,146 @@ export default function Career() {
                       return null;
                     })()}
 
-                    {profile.course && profile.course.modules.length > 0 && profile.course.modules.every(m => m.completed) && (
-                      <div className="bg-gradient-to-tr from-indigo-50 via-white to-indigo-50 dark:from-indigo-950 dark:via-slate-900 dark:to-indigo-950 rounded-3xl border border-indigo-200 dark:border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600 rounded-full blur-3xl opacity-25" />
-                        <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-500/10 dark:shadow-none border border-emerald-400/20">
-                          <Award className="w-8 h-8" />
+                    {profile.course && profile.course.modules.length > 0 && profile.course.modules.every(m => m.completed) && (() => {
+                      const chapters = profile.course.syllabus?.chapters;
+                      const hasUncompleted = chapters ? chapters.some((c: any) => c.topics.some((t: any) => !t.is_completed)) : false;
+                      
+                      if (hasUncompleted) {
+                        const nextTopic = (() => {
+                          if (!chapters) return "";
+                          for (const c of chapters) {
+                            for (const t of c.topics) {
+                              if (!t.is_completed) return t.title;
+                            }
+                          }
+                          return "";
+                        })();
+                        
+                        return (
+                          <div className="bg-gradient-to-tr from-indigo-50 via-white to-indigo-50 dark:from-indigo-950 dark:via-slate-900 dark:to-indigo-950 rounded-3xl border border-indigo-200 dark:border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600 rounded-full blur-3xl opacity-25" />
+                            <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-indigo-400 rounded-full flex items-center justify-center text-white mx-auto shadow-lg shadow-indigo-500/10 dark:shadow-none border border-indigo-400/20">
+                              <Sparkles className="w-8 h-8 animate-pulse" />
+                            </div>
+                            <div className="space-y-2 max-w-lg mx-auto">
+                              <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center justify-center gap-2">
+                                Вы успешно прошли текущие модули! 🚀
+                              </h3>
+                              <p className="text-xs md:text-sm text-slate-600 dark:text-slate-200 leading-relaxed font-semibold">
+                                Вы отлично освоили материал! Чтобы продолжить движение по вашей карте обучения, ИИ-Методист готов сгенерировать следующий модуль по теме:
+                              </p>
+                              <div className="inline-block px-4 py-2 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/40 rounded-2xl text-xs md:text-sm font-extrabold text-indigo-600 dark:text-indigo-400">
+                                {nextTopic}
+                              </div>
+                            </div>
+                            <button
+                              onClick={handleGenerateNextSyllabusModule}
+                              disabled={isGeneratingNextModule}
+                              className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-500/15 dark:shadow-none flex items-center gap-2 mx-auto transition"
+                            >
+                              {isGeneratingNextModule ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 text-indigo-100 animate-spin" />
+                                  Проектируем модуль...
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="w-4 h-4 text-indigo-100 fill-indigo-100" />
+                                  Продолжить обучение (Сгенерировать следующий модуль)
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      }
+                      
+                      // Default legacy / completed all syllabus chapters card
+                      return (
+                        <div className="bg-gradient-to-tr from-indigo-50 via-white to-indigo-50 dark:from-indigo-950 dark:via-slate-900 dark:to-indigo-950 rounded-3xl border border-indigo-200 dark:border-indigo-500/30 p-6 md:p-8 text-center space-y-4 shadow-2xl relative overflow-hidden mb-6">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600 rounded-full blur-3xl opacity-25" />
+                          <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-full flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-500/10 dark:shadow-none border border-emerald-400/20">
+                            <Award className="w-8 h-8" />
+                          </div>
+                          <div className="space-y-2 max-w-lg mx-auto">
+                            <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center justify-center gap-2">
+                              Поздравляем с завершением! 🏆
+                            </h3>
+                            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-200 leading-relaxed font-semibold">
+                              Вы полностью прошли все {profile.course.modules.length} модулей практики и теории! ИИ-Методист готов проанализировать вашу успеваемость и расширить вашу учебную программу продвинутыми, более сложными темами под ваши новые цели.
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleStartExpandChat}
+                            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-500/15 dark:shadow-none flex items-center gap-2 mx-auto transition"
+                          >
+                            <Sparkles className="w-4 h-4 text-indigo-100 animate-pulse" />
+                            🚀 Расширить программу продвинутыми модулями
+                          </button>
                         </div>
-                        <div className="space-y-2 max-w-lg mx-auto">
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center justify-center gap-2">
-                            Поздравляем с завершением! 🏆
-                          </h3>
-                          <p className="text-xs md:text-sm text-slate-600 dark:text-slate-200 leading-relaxed font-semibold">
-                            Вы полностью прошли все {profile.course.modules.length} модулей практики и теории! ИИ-Методист готов проанализировать вашу успеваемость и расширить вашу учебную программу продвинутыми, более сложными темами под ваши новые цели.
-                          </p>
+                      );
+                    })()}
+
+                    {/* Syllabus Roadmap Widget */}
+                    {profile.course?.syllabus?.chapters && (
+                      <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 mb-6">
+                        <h3 className="text-sm font-black text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-indigo-500" />
+                          КАРТА ОБУЧЕНИЯ (СИЛЛАБУС)
+                        </h3>
+                        <div className="space-y-4">
+                          {profile.course.syllabus.chapters.map((chapter: any, cIdx: number) => (
+                            <div key={cIdx} className="space-y-2">
+                              <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                {chapter.title}
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {chapter.topics.map((topic: any, tIdx: number) => {
+                                  const isTopicCompleted = topic.is_completed;
+                                  const nextTopic = (() => {
+                                    if (!profile.course?.syllabus?.chapters) return null;
+                                    for (const c of profile.course.syllabus.chapters) {
+                                      for (const t of c.topics) {
+                                        if (!t.is_completed) return t.title;
+                                      }
+                                    }
+                                    return null;
+                                  })();
+                                  return (
+                                    <div 
+                                      key={tIdx} 
+                                      className={`flex items-center gap-3 p-3 rounded-xl border text-xs font-bold transition ${
+                                        isTopicCompleted 
+                                          ? 'bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400' 
+                                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                                      }`}
+                                    >
+                                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                                        isTopicCompleted 
+                                          ? 'bg-emerald-500 text-white' 
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                                      }`}>
+                                        {isTopicCompleted ? (
+                                          <Check className="w-3 h-3" />
+                                        ) : (
+                                          <span className="text-[10px]">{tIdx + 1}</span>
+                                        )}
+                                      </div>
+                                      <span className="truncate flex-1">{topic.title}</span>
+                                      {!isTopicCompleted && nextTopic === topic.title && (
+                                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                                          СЛЕДУЮЩИЙ
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <button
-                          onClick={handleStartExpandChat}
-                          className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-500/15 dark:shadow-none flex items-center gap-2 mx-auto transition"
-                        >
-                          <Sparkles className="w-4 h-4 text-indigo-100 animate-pulse" />
-                          🚀 Расширить программу продвинутыми модулями
-                        </button>
                       </div>
                     )}
+
                     <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                       Учебная программа (Интерактивный Таймлайн)

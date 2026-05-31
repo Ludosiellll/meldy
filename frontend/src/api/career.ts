@@ -7,7 +7,23 @@ export interface CareerCourse {
   insights: string;
   modules: CareerModule[];
   location?: string;
+  syllabus?: SyllabusData;
   last_generated_at?: string;
+}
+
+export interface SyllabusTopic {
+  title: string;
+  is_completed: boolean;
+  module_id?: string;
+}
+
+export interface SyllabusChapter {
+  title: string;
+  topics: SyllabusTopic[];
+}
+
+export interface SyllabusData {
+  chapters: SyllabusChapter[];
 }
 
 export interface CareerModule {
@@ -278,6 +294,46 @@ export async function expandCareerCourse(
     return newModules;
   } catch (error) {
     console.error('expandCareerCourse error:', error);
+    return null;
+  }
+}
+
+// Сгенерировать следующий модуль по силлабусу
+export async function generateNextSyllabusModule(
+  userId: string,
+  currentCourse: CareerCourse
+): Promise<{ completed: boolean; course: CareerCourse } | null> {
+  try {
+    const res = await fetch('/api/career/next_module', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        current_course: currentCourse
+      })
+    });
+    
+    if (!res.ok) {
+      throw new Error('Ошибка генерации следующего модуля по силлабусу');
+    }
+    
+    const data = await res.json();
+    const updatedCourse: CareerCourse = data.course;
+    
+    if (updatedCourse) {
+      const currentProfile = await getCareerProfile(userId);
+      if (currentProfile) {
+        currentProfile.course = updatedCourse;
+        await saveCareerProfile(userId, currentProfile);
+      }
+    }
+    
+    return {
+      completed: data.completed,
+      course: updatedCourse
+    };
+  } catch (error) {
+    console.error('generateNextSyllabusModule error:', error);
     return null;
   }
 }

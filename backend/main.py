@@ -708,6 +708,11 @@ class CareerCourseExpandRequest(BaseModel):
     extra_context: Optional[str] = ""
 
 
+class CareerNextModuleRequest(BaseModel):
+    user_id: str
+    current_course: dict
+
+
 class CareerVacanciesRequest(BaseModel):
     profession: str
     location: Optional[str] = ""
@@ -1278,6 +1283,68 @@ async def career_expand(request: Request, req: CareerCourseExpandRequest):
     except Exception as e:
         print(f"Error expanding course: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка расширения курса: {str(e)}")
+
+
+@app.post("/api/career/next_module")
+@limiter.limit("5/minute")
+async def career_next_module(request: Request, req: CareerNextModuleRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
+        
+    course = req.current_course
+    syllabus = course.get("syllabus", {})
+    chapters = syllabus.get("chapters", [])
+    
+    # Находим первую невыполненную тему
+    target_topic = None
+    target_chapter_idx = -1
+    target_topic_idx = -1
+    
+    for c_idx, chapter in enumerate(chapters):
+        for t_idx, topic in enumerate(chapter.get("topics", [])):
+            if not topic.get("is_completed"):
+                target_topic = topic
+                target_chapter_idx = c_idx
+                target_topic_idx = t_idx
+                break
+        if target_topic:
+            break
+            
+    if not target_topic:
+        return {"completed": True, "course": course}
+        
+    topic_title = target_topic.get("title")
+    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
+    
+    try:
+        new_module = await agent.generate_next_module(
+            profession=course.get("profession", "Разработчик"),
+            level=course.get("level", "Junior"),
+            salary=course.get("salary", "100000"),
+            topic_title=topic_title,
+            current_course=course
+        )
+        
+        if not new_module or not new_module.get("id"):
+            raise HTTPException(status_code=500, detail="ИИ вернул невалидную структуру модуля")
+            
+        # Обновляем силлабус в курсе
+        target_topic["is_completed"] = True
+        target_topic["module_id"] = new_module["id"]
+        
+        # Добавляем новый модуль в список модулей курса
+        if "modules" not in course:
+            course["modules"] = []
+        course["modules"].append(new_module)
+        
+        # Обновляем силлабус внутри курса
+        course["syllabus"] = syllabus
+        
+        return {"completed": False, "course": course}
+        
+    except Exception as e:
+        print(f"Error generating next module: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации следующего модуля: {str(e)}")
 
 
 @app.post("/api/career/evaluate_task")
