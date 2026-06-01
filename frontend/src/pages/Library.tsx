@@ -229,6 +229,11 @@ export default function Library() {
     }
   }, [user?.id]);
 
+  // Reset tab to conspectus on changing material
+  useEffect(() => {
+    setDrawerTab('conspectus');
+  }, [peekMaterial?.id]);
+
   // Auto clean quick-peek audio synthesis when drawer changes/unmounts
   useEffect(() => {
     return () => {
@@ -545,8 +550,8 @@ export default function Library() {
             onClick={() => setShowStats(!showStats)}
             className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-bold transition-all ${
               showStats 
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-850 dark:text-indigo-400' 
-                : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'
+                ? 'bg-indigo-550 border-indigo-200 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-900 dark:text-indigo-400' 
+                : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -582,13 +587,13 @@ export default function Library() {
               value={inviteCode} 
               onChange={e => setInviteCode(e.target.value.toUpperCase())}
               placeholder="Код: A7B-9X2" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl mb-3 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-3 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
             />
             <input 
               value={classNickname} 
               onChange={e => setClassNickname(e.target.value)}
               placeholder="Ваши Имя и Фамилия" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl mb-2 text-center text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-2 text-center text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
             />
             {joinError && <p className="text-rose-500 text-sm mb-4 text-center">{joinError}</p>}
             <div className="flex gap-2 mt-4">
@@ -610,7 +615,7 @@ export default function Library() {
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-950/10 dark:to-purple-950/10 rounded-2xl border border-indigo-100/50 dark:border-slate-800/80">
               
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-150 dark:border-slate-800 flex items-center gap-4">
+              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
                 <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center">
                   <BookOpen className="w-5 h-5" />
                 </div>
@@ -620,7 +625,7 @@ export default function Library() {
                 </div>
               </div>
 
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-150 dark:border-slate-800 flex items-center gap-4">
+              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
                 <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center">
                   <Brain className="w-5 h-5 animate-pulse" />
                 </div>
@@ -630,7 +635,7 @@ export default function Library() {
                 </div>
               </div>
 
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-150 dark:border-slate-800 flex items-center gap-4">
+              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
                 <div className="w-10 h-10 bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center">
                   <Headphones className="w-5 h-5" />
                 </div>
@@ -640,7 +645,7 @@ export default function Library() {
                 </div>
               </div>
 
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-150 dark:border-slate-800 flex items-center gap-4">
+              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
                 <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center">
                   <Award className="w-5 h-5" />
                 </div>
@@ -656,10 +661,10 @@ export default function Library() {
       </AnimatePresence>
 
       {/* Folders and Collections bar */}
-      <div className="space-y-3 bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-2xl border border-slate-150 dark:border-slate-850">
+      <div className="space-y-3 bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-black text-slate-850 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+            <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
               <FolderOpen className="w-4 h-4 text-indigo-500 animate-bounce" />
               Папки и разделы
             </h3>
@@ -689,12 +694,12 @@ export default function Library() {
             className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition-all flex items-center gap-2 relative ${
               selectedFolderId === ''
                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
             } ${
               draggedOverFolderId === 'all'
                 ? 'scale-105 ring-4 ring-offset-2 dark:ring-offset-slate-900 ring-indigo-500 border-indigo-500 shadow-lg'
                 : draggingCardId !== null
-                  ? 'border-dashed border-indigo-400 dark:border-indigo-650 animate-pulse'
+                  ? 'border-dashed border-indigo-400 dark:border-indigo-600 animate-pulse'
                   : ''
             }`}
           >
@@ -724,7 +729,7 @@ export default function Library() {
                 className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition-all flex items-center gap-2 relative ${
                   active
                     ? `${scheme.activeBg} ${scheme.activeBorder} shadow-md`
-                    : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-750 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850`
+                    : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800`
                 } ${
                   isDraggedOver 
                     ? `scale-105 ring-4 ring-offset-2 dark:ring-offset-slate-900 ${scheme.hoverRing} ${scheme.activeBorder} shadow-lg`
@@ -744,7 +749,7 @@ export default function Library() {
 
           <button
             onClick={() => setShowCreateFolderModal(true)}
-            className="px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-750 text-slate-450 hover:text-slate-650 hover:border-slate-400 dark:hover:border-slate-650 transition flex items-center gap-1.5 text-xs font-bold"
+            className="px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-800 text-slate-400 hover:text-slate-600 hover:border-slate-400 dark:hover:border-slate-700 transition flex items-center gap-1.5 text-xs font-bold"
           >
             <Plus className="w-4 h-4" />
             Добавить папку
@@ -787,7 +792,7 @@ export default function Library() {
           className={`px-4 py-2.5 rounded-xl border text-sm font-bold transition flex items-center justify-center gap-2 ${
             isMultiSelectActive 
               ? 'bg-indigo-600 border-indigo-600 text-white' 
-              : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'
+              : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
           {isMultiSelectActive ? (
@@ -831,9 +836,9 @@ export default function Library() {
       {/* Empty State */}
       {!loading && materials.length === 0 && (
         <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-8">
-          <BookOpen className="w-16 h-16 text-slate-350 dark:text-slate-650 mx-auto mb-4" />
+          <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-650 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">Библиотека пуста</h2>
-          <p className="text-slate-450 dark:text-slate-500 text-sm mb-6 max-w-sm mx-auto">Загрузите или проанализируйте первую лекцию, чтобы начать обучение</p>
+          <p className="text-slate-400 dark:text-slate-500 text-sm mb-6 max-w-sm mx-auto">Загрузите или проанализируйте первую лекцию, чтобы начать обучение</p>
           <button
             onClick={() => navigate('/analyze')}
             className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md"
@@ -866,15 +871,15 @@ export default function Library() {
                     navigate('/library/' + m.id);
                   }
                 }}
-                className={`card p-5 cursor-pointer relative transition-all group overflow-hidden border-2 rounded-2xl flex flex-col justify-between ${
+                className={`card p-5 cursor-pointer relative transition-all group overflow-visible border-2 rounded-2xl flex flex-col justify-between ${
                   isSelected 
                     ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/15 shadow-md scale-[0.99]' 
-                    : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-md hover:scale-[1.01]'
+                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-md hover:scale-[1.01]'
                 } ${draggingCardId === m.id ? 'opacity-50 scale-95 border-dashed border-indigo-400' : ''}`}
               >
                 {/* Drag handle helper icon visible on card hover */}
                 {!isMultiSelectActive && (
-                  <div className="absolute top-4 right-12 z-10 opacity-0 group-hover:opacity-100 transition p-1 bg-slate-50 dark:bg-slate-850 rounded-lg text-slate-400 dark:text-slate-500 cursor-grab" title="Потяните для переноса в папку">
+                  <div className="absolute top-4 right-12 z-10 opacity-0 group-hover:opacity-100 transition p-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-400 dark:text-slate-500 cursor-grab" title="Потяните для переноса в папку">
                     <Grab className="w-3.5 h-3.5" />
                   </div>
                 )}
@@ -916,7 +921,7 @@ export default function Library() {
                             onClick={e => handleTogglePublic(e, m)}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider transition ${
                               m.is_public
-                                ? 'bg-emerald-150 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border border-emerald-250 dark:border-emerald-900/40'
+                                ? 'bg-emerald-150 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 border border-slate-200 dark:border-slate-700'
                             }`}
                             title={m.is_public ? 'Опубликовано' : 'Сделать общедоступным'}
@@ -944,8 +949,8 @@ export default function Library() {
                             }}
                             className={`p-1.5 rounded-lg border transition ${
                               folderAssignments[m.id]
-                                ? 'bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/40'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-450 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-indigo-600'
+                                ? 'bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-850'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-indigo-600'
                             }`}
                             title="Положить в папку"
                           >
@@ -953,14 +958,20 @@ export default function Library() {
                           </button>
                           
                           {activeFolderDropdownId === m.id && (
-                            <div className="absolute right-0 mt-1.5 z-30 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-1.5 min-w-[180px] flex flex-col gap-0.5">
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                              transition={{ duration: 0.12 }}
+                              className="absolute right-0 mt-2 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 w-52 flex flex-col gap-1 text-slate-800 dark:text-slate-100"
+                            >
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   assignMaterialToFolder(m.id, '');
                                   setActiveFolderDropdownId(null);
                                 }}
-                                className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400"
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap transition-colors"
                               >
                                 Без папки (убрать)
                               </button>
@@ -973,14 +984,16 @@ export default function Library() {
                                     assignMaterialToFolder(m.id, f.id);
                                     setActiveFolderDropdownId(null);
                                   }}
-                                  className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-black flex items-center gap-2"
-                                  style={{ color: f.color === 'rose' ? '#e11d48' : f.color === 'amber' ? '#d97706' : f.color === 'emerald' ? '#059669' : f.color === 'sky' ? '#0284c7' : f.color === 'violet' ? '#7c3aed' : f.color === 'orange' ? '#ea580c' : f.color === 'teal' ? '#0d9488' : '#4f46e5' }}
+                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl text-xs font-semibold flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
                                 >
-                                  <div className="w-2.5 h-2.5 rounded-full bg-current" />
-                                  {f.name}
+                                  <div 
+                                    className="w-2.5 h-2.5 rounded-full shrink-0" 
+                                    style={{ backgroundColor: colorSchemes[f.color]?.dot || '#4f46e5' }} 
+                                  />
+                                  <span>{f.name}</span>
                                 </button>
                               ))}
-                            </div>
+                            </motion.div>
                           )}
                         </div>
                       )}
@@ -1002,7 +1015,7 @@ export default function Library() {
                       {!isMultiSelectActive && !isAssigned && (
                         <button
                           onClick={e => handleDelete(e, m.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-450 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition opacity-0 group-hover:opacity-100"
+                          className="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition opacity-0 group-hover:opacity-100"
                           title="Удалить"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1036,7 +1049,7 @@ export default function Library() {
                 </div>
 
                 {/* Footer and Date */}
-                <div className={`flex items-center justify-between mt-auto pt-2.5 border-t border-slate-100 dark:border-slate-800/60 ${isMultiSelectActive ? 'pl-8' : ''}`}>
+                <div className={`flex items-center justify-between mt-auto pt-2.5 border-t border-slate-150 dark:border-slate-800/60 ${isMultiSelectActive ? 'pl-8' : ''}`}>
                   <div className="flex flex-col">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
                       {format(new Date(m.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
@@ -1071,9 +1084,9 @@ export default function Library() {
       {/* Empty filter results */}
       {!loading && materials.length > 0 && filtered.length === 0 && (
         <div className="text-center py-16 bg-slate-50/50 dark:bg-slate-900/10 rounded-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
-          <FolderOpen className="w-12 h-12 text-slate-350 dark:text-slate-650 mx-auto mb-3 animate-pulse" />
+          <FolderOpen className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3 animate-pulse" />
           <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">В этой папке пока пусто</p>
-          <p className="text-xs text-slate-450 dark:text-slate-550 mt-1">Перетащите сюда материалы мышкой или выберите другой раздел</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Перетащите сюда материалы мышкой или выберите другой раздел</p>
         </div>
       )}
 
@@ -1084,7 +1097,7 @@ export default function Library() {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl border border-slate-250 dark:border-slate-855 px-6 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-[calc(100%-2rem)] md:w-auto md:min-w-[680px]"
+            className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl border border-slate-200 dark:border-slate-800 px-6 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-[calc(100%-2rem)] md:w-auto md:min-w-[680px]"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-extrabold text-sm shadow-md animate-pulse">
@@ -1092,7 +1105,7 @@ export default function Library() {
               </div>
               <div className="text-left">
                 <p className="text-xs font-black text-slate-800 dark:text-slate-100">Выбрано материалов</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-550 font-bold">Примените пакетные действия</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">Примените пакетные действия</p>
               </div>
             </div>
 
@@ -1109,10 +1122,16 @@ export default function Library() {
                 </button>
                 
                 {showBatchFolderSelect && (
-                  <div className="absolute bottom-full mb-2 left-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-2 min-w-[200px] flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 8 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute bottom-full mb-2 left-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-2 min-w-[200px] flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar"
+                  >
                     <button
                       onClick={() => handleBatchMoveToFolder('')}
-                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-855 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400"
+                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 transition-colors"
                     >
                       Без папки (убрать)
                     </button>
@@ -1121,14 +1140,16 @@ export default function Library() {
                       <button
                         key={f.id}
                         onClick={() => handleBatchMoveToFolder(f.id)}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-855 rounded-lg text-xs font-black flex items-center gap-2"
-                        style={{ color: f.color === 'rose' ? '#e11d48' : f.color === 'amber' ? '#d97706' : f.color === 'emerald' ? '#059669' : f.color === 'sky' ? '#0284c7' : f.color === 'violet' ? '#7c3aed' : f.color === 'orange' ? '#ea580c' : f.color === 'teal' ? '#0d9488' : '#4f46e5' }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg text-xs font-semibold flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
                       >
-                        <div className="w-2.5 h-2.5 rounded-full bg-current" />
-                        {f.name}
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full shrink-0" 
+                          style={{ backgroundColor: colorSchemes[f.color]?.dot || '#4f46e5' }} 
+                        />
+                        <span>{f.name}</span>
                       </button>
                     ))}
-                  </div>
+                  </motion.div>
                 )}
               </div>
 
@@ -1144,7 +1165,7 @@ export default function Library() {
               {/* Delete */}
               <button
                 onClick={handleBatchDelete}
-                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-455 hover:bg-rose-100 rounded-xl text-xs font-black transition border border-rose-100 dark:border-rose-900/35"
+                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-955/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-xl text-xs font-black transition border border-rose-100 dark:border-rose-900/35"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Удалить</span>
@@ -1170,8 +1191,8 @@ export default function Library() {
 
       {/* Folder Creation Modal */}
       {showCreateFolderModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-850 animate-scale-up">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-extrabold text-xl text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <FolderPlus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -1179,7 +1200,7 @@ export default function Library() {
               </h3>
               <button 
                 onClick={() => setShowCreateFolderModal(false)}
-                className="text-slate-400 hover:text-slate-650 p-1.5 rounded-lg hover:bg-slate-150 dark:hover:bg-slate-800 transition"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1193,7 +1214,7 @@ export default function Library() {
                   value={newFolderName}
                   onChange={e => setNewFolderName(e.target.value)}
                   placeholder="Напр. Математика, Программирование"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100 font-medium"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100 font-medium"
                 />
               </div>
 
@@ -1209,7 +1230,7 @@ export default function Library() {
                         className={`flex items-center justify-center p-3 rounded-xl border-2 transition ${
                           newFolderColor === col 
                             ? 'border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-500/20' 
-                            : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-850'
+                            : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
                         } ${scheme.bg}`}
                       >
                         <div className="w-4 h-4 rounded-full" style={{ backgroundColor: scheme.dot }} />
@@ -1231,7 +1252,7 @@ export default function Library() {
                         className={`flex items-center justify-center p-3 rounded-xl border-2 transition ${
                           newFolderIcon === ic 
                             ? 'bg-indigo-50 dark:bg-indigo-950/20 border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400' 
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                         }`}
                       >
                         <IconComp className="w-5 h-5" />
@@ -1245,7 +1266,7 @@ export default function Library() {
             <div className="flex gap-2 mt-6">
               <button 
                 onClick={() => setShowCreateFolderModal(false)} 
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-350 font-bold rounded-xl hover:bg-slate-250 dark:hover:bg-slate-700 transition"
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition"
               >
                 Отмена
               </button>
@@ -1263,363 +1284,361 @@ export default function Library() {
 
       {/* Premium Side-Drawer / Bottom-Sheet (Quick Peek) */}
       <AnimatePresence>
-        {peekMaterial && (
-          <>
-            <style>{`
-              .perspective-1000 {
-                perspective: 1000px;
-              }
-              .transform-style-3d {
-                transform-style: preserve-3d;
-              }
-              .backface-hidden {
-                backface-visibility: hidden;
-                -webkit-backface-visibility: hidden;
-              }
-              .rotate-y-180 {
-                transform: rotateY(180deg);
-              }
-            `}</style>
+        {peekMaterial && (() => {
+          const drawerCards = peekMaterial.flashcards_json?.flashcards || peekMaterial.summary_json?.flashcards?.flashcards || [];
+          const hasPodcast = peekMaterial.summary_json?.podcast && peekMaterial.summary_json.podcast.length > 0;
+          const hasCards = drawerCards.length > 0;
 
-            {/* Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-xs"
-              onClick={() => {
-                stopTTS();
-                setPeekMaterial(null);
-              }}
-            />
+          return (
+            <>
+              <style>{`
+                .perspective-1000 {
+                  perspective: 1000px;
+                }
+                .transform-style-3d {
+                  transform-style: preserve-3d;
+                }
+                .backface-hidden {
+                  backface-visibility: hidden;
+                  -webkit-backface-visibility: hidden;
+                }
+                .rotate-y-180 {
+                  transform: rotateY(180deg);
+                }
+              `}</style>
 
-            {/* Drawer */}
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 right-0 z-50 w-full md:w-[480px] h-[85vh] md:h-full bg-white dark:bg-slate-900 shadow-2xl border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 rounded-t-3xl md:rounded-t-none flex flex-col overflow-hidden text-slate-850 dark:text-slate-100"
-            >
-              {/* Drawer Header */}
-              <div className="p-5 border-b border-slate-150 dark:border-slate-800 flex justify-between items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  <span className="inline-block px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-black rounded uppercase tracking-wider mb-1">
-                    {peekMaterial.subject || 'Без предмета'}
-                  </span>
-                  <h3 className="font-extrabold text-base leading-snug truncate text-slate-900 dark:text-slate-100" title={peekMaterial.title}>
-                    {peekMaterial.title}
-                  </h3>
+              {/* Backdrop */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-xs"
+                onClick={() => {
+                  stopTTS();
+                  setPeekMaterial(null);
+                }}
+              />
+
+              {/* Drawer */}
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+                className="fixed bottom-0 right-0 z-50 w-full md:w-[480px] h-[85vh] md:h-full bg-white dark:bg-slate-900 shadow-2xl border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 rounded-t-3xl md:rounded-t-none flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+              >
+                {/* Drawer Header */}
+                <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <span className="inline-block px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-black rounded uppercase tracking-wider mb-1">
+                      {peekMaterial.subject || 'Без предмета'}
+                    </span>
+                    <h3 className="font-extrabold text-base leading-snug truncate text-slate-900 dark:text-slate-100" title={peekMaterial.title}>
+                      {peekMaterial.title}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => {
+                      stopTTS();
+                      setPeekMaterial(null);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    stopTTS();
-                    setPeekMaterial(null);
-                  }}
-                  className="p-1.5 text-slate-400 hover:text-slate-650 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              {/* Slider / Sheet Tabs */}
-              <div className="flex bg-slate-50 dark:bg-slate-900/60 p-1 border-b border-slate-150 dark:border-slate-800">
-                <button
-                  onClick={() => setDrawerTab('conspectus')}
-                  className={`flex-1 py-2 text-center text-xs font-black transition-all ${
-                    drawerTab === 'conspectus'
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  📝 Конспект
-                </button>
-                <button
-                  onClick={() => {
-                    setDrawerTab('podcast');
-                    setPeekSpeakingIndex(-1);
-                  }}
-                  className={`flex-1 py-2 text-center text-xs font-black transition-all ${
-                    drawerTab === 'podcast'
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  🎙️ Подкаст
-                </button>
-                <button
-                  onClick={() => {
-                    setDrawerTab('flashcards');
-                    setCardIndex(0);
-                    setIsFlipped(false);
-                  }}
-                  className={`flex-1 py-2 text-center text-xs font-black transition-all ${
-                    drawerTab === 'flashcards'
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  🃏 Карточки
-                </button>
-              </div>
+                {/* Slider / Sheet Tabs - ONLY render tabs when their content is actually present */}
+                {(hasPodcast || hasCards) && (
+                  <div className="flex bg-slate-50 dark:bg-slate-900/60 p-1 border-b border-slate-200 dark:border-slate-800">
+                    <button
+                      onClick={() => setDrawerTab('conspectus')}
+                      className={`flex-1 py-2 text-center text-xs font-black transition-all ${
+                        drawerTab === 'conspectus'
+                          ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      📝 Конспект
+                    </button>
+                    {hasPodcast && (
+                      <button
+                        onClick={() => {
+                          setDrawerTab('podcast');
+                          setPeekSpeakingIndex(-1);
+                        }}
+                        className={`flex-1 py-2 text-center text-xs font-black transition-all ${
+                          drawerTab === 'podcast'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        🎙️ Подкаст
+                      </button>
+                    )}
+                    {hasCards && (
+                      <button
+                        onClick={() => {
+                          setDrawerTab('flashcards');
+                          setCardIndex(0);
+                          setIsFlipped(false);
+                        }}
+                        className={`flex-1 py-2 text-center text-xs font-black transition-all ${
+                          drawerTab === 'flashcards'
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        🃏 Карточки
+                      </button>
+                    )}
+                  </div>
+                )}
 
-              {/* Drawer Content Area */}
-              <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/30 dark:bg-slate-900/30">
-                
-                {/* 1. CONSPECTUS TAB */}
-                {drawerTab === 'conspectus' && (
-                  <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
-                    <div className="flex items-center gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/60 dark:border-indigo-900/35 rounded-xl">
-                      <BookOpenCheck className="w-5 h-5 text-indigo-500" />
-                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">Быстрый обзор материала</span>
+                {/* Drawer Content Area */}
+                <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/30 dark:bg-slate-900/30">
+                  
+                  {/* 1. CONSPECTUS TAB */}
+                  {drawerTab === 'conspectus' && (
+                    <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
+                      <div className="flex items-center gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/60 dark:border-indigo-900/35 rounded-xl">
+                        <BookOpenCheck className="w-5 h-5 text-indigo-500" />
+                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">Быстрый обзор материала</span>
+                      </div>
+
+                      {peekMaterial.summary_json?.cheatsheet ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-slate-700 dark:text-slate-300 font-semibold font-sans">
+                          <ReactMarkdown>{peekMaterial.summary_json.cheatsheet}</ReactMarkdown>
+                        </div>
+                      ) : peekMaterial.summary_json?.content ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-slate-700 dark:text-slate-300 font-semibold font-sans">
+                          <ReactMarkdown>
+                            {peekMaterial.summary_json.content.slice(0, 1000) + (peekMaterial.summary_json.content.length > 1000 ? '...' : '')}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 dark:text-slate-500 italic">Сводка или шпаргалка не создана для этого файла.</p>
+                      )}
+
+                      {peekMaterial.summary_json?.terms && peekMaterial.summary_json.terms.length > 0 && (
+                        <div className="space-y-3 pt-3 border-t border-slate-200/60 dark:border-slate-800">
+                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">📚 Ключевые термины ({peekMaterial.summary_json.terms.length})</h4>
+                          <div className="space-y-2">
+                            {peekMaterial.summary_json.terms.slice(0, 10).map((t: any, idx: number) => (
+                              <div key={idx} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
+                                <span className="block text-xs font-black text-indigo-600 dark:text-indigo-400">{t.term}</span>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-semibold leading-relaxed">{t.definition}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  )}
 
-                    {peekMaterial.summary_json?.cheatsheet ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-slate-700 dark:text-slate-300">
-                        <ReactMarkdown>{peekMaterial.summary_json.cheatsheet}</ReactMarkdown>
-                      </div>
-                    ) : peekMaterial.summary_json?.content ? (
-                      <p className="text-xs text-slate-650 dark:text-slate-300 leading-relaxed font-medium">
-                        {peekMaterial.summary_json.content.slice(0, 800)}
-                        {peekMaterial.summary_json.content.length > 800 && '...'}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-slate-400 dark:text-slate-500 italic">Сводка или шпаргалка не создана для этого файла.</p>
-                    )}
-
-                    {peekMaterial.summary_json?.terms && peekMaterial.summary_json.terms.length > 0 && (
-                      <div className="space-y-3 pt-3 border-t border-slate-200/60 dark:border-slate-800">
-                        <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-250">📚 Ключевые термины ({peekMaterial.summary_json.terms.length})</h4>
-                        <div className="space-y-2">
-                          {peekMaterial.summary_json.terms.slice(0, 10).map((t: any, idx: number) => (
-                            <div key={idx} className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-855 rounded-xl shadow-xs">
-                              <span className="block text-xs font-black text-indigo-600 dark:text-indigo-400">{t.term}</span>
-                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-semibold leading-relaxed">{t.definition}</p>
+                  {/* 2. AI PODCAST TAB */}
+                  {drawerTab === 'podcast' && (
+                    <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                      {peekMaterial.summary_json?.podcast && peekMaterial.summary_json.podcast.length > 0 && (
+                        <div className="space-y-3">
+                          
+                          {/* Audio widget player */}
+                          <div className="bg-indigo-600 dark:bg-indigo-750 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                <Headphones className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <h4 className="font-extrabold text-xs">AI Подкаст</h4>
+                                <p className="text-[10px] text-indigo-200">Объяснение на простых примерах</p>
+                              </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 2. AI PODCAST TAB */}
-                {drawerTab === 'podcast' && (
-                  <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                    {peekMaterial.summary_json?.podcast && peekMaterial.summary_json.podcast.length > 0 ? (
-                      <div className="space-y-3">
-                        
-                        {/* Audio widget player */}
-                        <div className="bg-indigo-600 dark:bg-indigo-750 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                              <Headphones className="w-5 h-5 text-white" />
-                            </div>
-                            <div>
-                              <h4 className="font-extrabold text-xs">AI Подкаст</h4>
-                              <p className="text-[10px] text-indigo-200">Объяснение на простых примерах</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                const current = getTTSPlaybackRate();
-                                const next = current === 1.0 ? 1.25 : current === 1.25 ? 1.5 : current === 1.5 ? 2.0 : 1.0;
-                                setTTSPlaybackRate(next);
-                                setPeekPlaybackRate(next);
-                              }}
-                              className="px-2 py-1.5 bg-indigo-900/40 rounded-lg text-[10px] font-black text-indigo-200 hover:text-white"
-                            >
-                              {getTTSPlaybackRate()}x
-                            </button>
-                            <button
-                              onClick={playPeekPodcast}
-                              className="p-2.5 bg-white text-indigo-600 rounded-full hover:scale-105 active:scale-95 transition"
-                            >
-                              {peekIsPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                            </button>
-                            {peekSpeakingIndex !== -1 && (
+                            <div className="flex items-center gap-2">
                               <button
-                                onClick={stopPeekPodcast}
-                                className="p-2.5 bg-indigo-900/40 text-indigo-200 rounded-full hover:scale-105 transition"
+                                onClick={() => {
+                                  const current = getTTSPlaybackRate();
+                                  const next = current === 1.0 ? 1.25 : current === 1.25 ? 1.5 : current === 1.5 ? 2.0 : 1.0;
+                                  setTTSPlaybackRate(next);
+                                  setPeekPlaybackRate(next);
+                                }}
+                                className="px-2 py-1.5 bg-indigo-900/40 rounded-lg text-[10px] font-black text-indigo-200 hover:text-white"
                               >
-                                <Square className="w-4 h-4 fill-current" />
+                                {getTTSPlaybackRate()}x
                               </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Speech bubbles dialogue */}
-                        <div className="space-y-3 pt-2">
-                          {peekMaterial.summary_json.podcast.map((line: any, idx: number) => {
-                            const isMax = line.speaker === 'Макс';
-                            const isSpeaking = peekSpeakingIndex === idx;
-                            return (
-                              <div 
-                                key={idx} 
-                                onClick={() => playFromLine(idx)}
-                                className={`flex ${isMax ? 'justify-start' : 'justify-end'} cursor-pointer`}
+                              <button
+                                onClick={playPeekPodcast}
+                                className="p-2.5 bg-white text-indigo-600 rounded-full hover:scale-105 active:scale-95 transition"
                               >
-                                <div className={`p-3 rounded-2xl shadow-xs border max-w-[85%] transition-all ${
-                                  isSpeaking 
-                                    ? 'border-indigo-500 ring-4 ring-indigo-500/15 scale-[1.01]' 
-                                    : 'border-slate-150 dark:border-slate-800 hover:border-slate-250 dark:hover:border-slate-700'
-                                } ${isMax ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-bl-none' : 'bg-indigo-50 dark:bg-indigo-950/20 text-slate-800 dark:text-slate-100 rounded-br-none'}`}>
-                                  <div className="flex items-center justify-between mb-1 opacity-80">
-                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{line.speaker}</span>
-                                    {isSpeaking && <Volume2 className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />}
+                                {peekIsPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                              </button>
+                              {peekSpeakingIndex !== -1 && (
+                                <button
+                                  onClick={stopPeekPodcast}
+                                  className="p-2.5 bg-indigo-900/40 text-indigo-200 rounded-full hover:scale-105 transition"
+                                >
+                                  <Square className="w-4 h-4 fill-current" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Speech bubbles dialogue */}
+                          <div className="space-y-3 pt-2">
+                            {peekMaterial.summary_json.podcast.map((line: any, idx: number) => {
+                              const isMax = line.speaker === 'Макс';
+                              const isSpeaking = peekSpeakingIndex === idx;
+                              return (
+                                <div 
+                                  key={idx} 
+                                  onClick={() => playFromLine(idx)}
+                                  className={`flex ${isMax ? 'justify-start' : 'justify-end'} cursor-pointer`}
+                                >
+                                  <div className={`p-3 rounded-2xl shadow-xs border max-w-[85%] transition-all ${
+                                    isSpeaking 
+                                      ? 'border-indigo-500 ring-4 ring-indigo-500/15 scale-[1.01]' 
+                                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700'
+                                  } ${isMax ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-bl-none' : 'bg-indigo-50 dark:bg-indigo-950/20 text-slate-800 dark:text-slate-100 rounded-br-none'}`}>
+                                    <div className="flex items-center justify-between mb-1 opacity-80">
+                                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{line.speaker}</span>
+                                      {isSpeaking && <Volume2 className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />}
+                                    </div>
+                                    <p className="text-[11px] leading-relaxed font-semibold">{line.text}</p>
                                   </div>
-                                  <p className="text-[11px] leading-relaxed font-semibold">{line.text}</p>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <Headphones className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
-                        <p className="text-xs text-slate-450 dark:text-slate-500 italic">Подкаст для этого материала недоступен.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 3. SMART FLASHCARDS TAB */}
+                  {drawerTab === 'flashcards' && (
+                    <div className="flex-1 overflow-y-auto p-5 flex flex-col justify-between">
+                      {(() => {
+                        if (drawerCards.length === 0) return null;
+                        const currentCard = drawerCards[cardIndex];
+
+                        return (
+                          <div className="flex-grow flex flex-col justify-between space-y-6">
+                            {/* Top metadata counter */}
+                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                              <span>Повторение карточек</span>
+                              <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full font-black">
+                                {cardIndex + 1} из {drawerCards.length}
+                              </span>
+                            </div>
+
+                            {/* Flip Card Container */}
+                            <div 
+                              onClick={() => setIsFlipped(!isFlipped)}
+                              className="w-full h-64 cursor-pointer select-none perspective-1000 relative"
+                            >
+                              <div className={`w-full h-full duration-500 transform-style-3d relative transition-transform ${isFlipped ? 'rotate-y-180' : ''}`}>
+                                
+                                {/* Front Question Face */}
+                                <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/15 dark:to-slate-900 border-2 border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-6 flex flex-col justify-between shadow-md">
+                                  <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Вопрос</div>
+                                  <div className="flex-grow flex items-center justify-center text-center">
+                                    <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-150 line-clamp-4 leading-snug">
+                                      {currentCard.question}
+                                    </h3>
+                                  </div>
+                                  <div className="text-[10px] text-slate-450 dark:text-slate-500 text-center font-bold">Нажмите, чтобы перевернуть 🔄</div>
+                                </div>
+
+                                {/* Back Answer Face */}
+                                <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-slate-900 border-2 border-indigo-500/25 rounded-2xl p-6 flex flex-col justify-between shadow-lg">
+                                  <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Ответ</div>
+                                  <div className="flex-grow flex items-center justify-center text-center overflow-y-auto custom-scrollbar">
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                      {currentCard.answer}
+                                    </p>
+                                  </div>
+                                  <div className="text-[10px] text-slate-450 dark:text-slate-500 text-center font-bold">Нажмите, чтобы перевернуть 🔄</div>
+                                </div>
+
+                              </div>
+                            </div>
+
+                            {/* Control arrows and CTA */}
+                            <div className="flex items-center justify-between gap-3 pt-2">
+                              <button
+                                disabled={cardIndex === 0}
+                                onClick={() => {
+                                  setIsFlipped(false);
+                                  setCardIndex(cardIndex - 1);
+                                }}
+                                className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-40 transition text-slate-600 dark:text-slate-350 shrink-0 animate-scale-up"
+                              >
+                                <ChevronLeft className="w-5 h-5" />
+                              </button>
+
+                              <div className="flex-1 flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    toast.success('Запомнил!');
+                                    setIsFlipped(false);
+                                    if (cardIndex < drawerCards.length - 1) {
+                                      setCardIndex(cardIndex + 1);
+                                    }
+                                  }}
+                                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition active:scale-95 shadow-sm"
+                                >
+                                  Знаю 👍
+                                </button>
+                                  <button
+                                    onClick={() => {
+                                      toast.success('Повторим позже');
+                                      setIsFlipped(false);
+                                      if (cardIndex < drawerCards.length - 1) {
+                                        setCardIndex(cardIndex + 1);
+                                      }
+                                    }}
+                                    className="flex-1 py-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-xs font-black hover:bg-indigo-100 transition"
+                                  >
+                                    Повторить 🔁
+                                  </button>
+                                </div>
+
+                                <button
+                                  disabled={cardIndex === drawerCards.length - 1}
+                                  onClick={() => {
+                                    setIsFlipped(false);
+                                    setCardIndex(cardIndex + 1);
+                                  }}
+                                  className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-40 transition text-slate-600 dark:text-slate-350 shrink-0"
+                                >
+                                  <ChevronRight className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* 3. SMART FLASHCARDS TAB */}
-                {drawerTab === 'flashcards' && (
-                  <div className="flex-1 overflow-y-auto p-5 flex flex-col justify-between">
-                    {(() => {
-                      const drawerCards = peekMaterial.flashcards_json?.flashcards || peekMaterial.summary_json?.flashcards?.flashcards || [];
-                      if (drawerCards.length === 0) {
-                        return (
-                          <div className="text-center py-12 flex-1 flex flex-col justify-center">
-                            <BookOpen className="w-12 h-12 text-slate-350 dark:text-slate-650 mx-auto mb-3" />
-                            <p className="text-xs text-slate-450 dark:text-slate-550 italic">Карточки для этого материала недоступны.</p>
-                          </div>
-                        );
-                      }
+                </div>
 
-                      const currentCard = drawerCards[cardIndex];
-
-                      return (
-                        <div className="flex-grow flex flex-col justify-between space-y-6">
-                          {/* Top metadata counter */}
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                            <span>Повторение карточек</span>
-                            <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full font-black">
-                              {cardIndex + 1} из {drawerCards.length}
-                            </span>
-                          </div>
-
-                          {/* Flip Card Container */}
-                          <div 
-                            onClick={() => setIsFlipped(!isFlipped)}
-                            className="w-full h-64 cursor-pointer select-none perspective-1000 relative"
-                          >
-                            <div className={`w-full h-full duration-500 transform-style-3d relative transition-transform ${isFlipped ? 'rotate-y-180' : ''}`}>
-                              
-                              {/* Front Question Face */}
-                              <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/15 dark:to-slate-900 border-2 border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-6 flex flex-col justify-between shadow-md">
-                                <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Вопрос</div>
-                                <div className="flex-grow flex items-center justify-center text-center">
-                                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-150 line-clamp-4 leading-snug">
-                                    {currentCard.question}
-                                  </h3>
-                                </div>
-                                <div className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-bold">Нажмите, чтобы перевернуть 🔄</div>
-                              </div>
-
-                              {/* Back Answer Face */}
-                              <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-slate-900 border-2 border-indigo-500/25 rounded-2xl p-6 flex flex-col justify-between shadow-lg">
-                                <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Ответ</div>
-                                <div className="flex-grow flex items-center justify-center text-center overflow-y-auto custom-scrollbar">
-                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                    {currentCard.answer}
-                                  </p>
-                                </div>
-                                <div className="text-[10px] text-slate-400 dark:text-slate-500 text-center font-bold">Нажмите, чтобы перевернуть 🔄</div>
-                              </div>
-
-                            </div>
-                          </div>
-
-                          {/* Control arrows and CTA */}
-                          <div className="flex items-center justify-between gap-3 pt-2">
-                            <button
-                              disabled={cardIndex === 0}
-                              onClick={() => {
-                                setIsFlipped(false);
-                                setCardIndex(cardIndex - 1);
-                              }}
-                              className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-40 transition text-slate-650 dark:text-slate-350 shrink-0 animate-scale-up"
-                            >
-                              <ChevronLeft className="w-5 h-5" />
-                            </button>
-
-                            <div className="flex-1 flex gap-2">
-                              <button
-                                onClick={() => {
-                                  toast.success('Запомнил!');
-                                  setIsFlipped(false);
-                                  if (cardIndex < drawerCards.length - 1) {
-                                    setCardIndex(cardIndex + 1);
-                                  }
-                                }}
-                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition active:scale-95 shadow-sm"
-                              >
-                                Знаю 👍
-                              </button>
-                              <button
-                                onClick={() => {
-                                  toast.success('Повторим позже');
-                                  setIsFlipped(false);
-                                  if (cardIndex < drawerCards.length - 1) {
-                                    setCardIndex(cardIndex + 1);
-                                  }
-                                }}
-                                className="flex-1 py-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-xs font-black hover:bg-indigo-100 transition"
-                              >
-                                Повторить 🔁
-                              </button>
-                            </div>
-
-                            <button
-                              disabled={cardIndex === drawerCards.length - 1}
-                              onClick={() => {
-                                setIsFlipped(false);
-                                setCardIndex(cardIndex + 1);
-                              }}
-                              className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-40 transition text-slate-650 dark:text-slate-350 shrink-0"
-                            >
-                              <ChevronRight className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-              </div>
-
-              {/* Drawer Footer Navigation button */}
-              <div className="p-4 border-t border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900">
-                <button
-                  onClick={() => {
-                    stopTTS();
-                    navigate('/library/' + peekMaterial.id);
-                  }}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/15"
-                >
-                  Открыть полностью
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
+                {/* Drawer Footer Navigation button */}
+                <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  <button
+                    onClick={() => {
+                      stopTTS();
+                      navigate('/library/' + peekMaterial.id);
+                    }}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/15"
+                  >
+                    Открыть полностью
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
       </AnimatePresence>
-
     </div>
   );
 }
