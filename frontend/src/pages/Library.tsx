@@ -5,7 +5,7 @@ import {
   Search, BookOpen, Trash2, Plus, Headphones, Globe, Lock, EyeOff, Eye,
   Folder, FolderPlus, Check, CheckSquare, Square, BarChart3, ChevronDown, ChevronUp,
   BookOpenCheck, Code2, Brain, TrendingUp, Star, Award, Flame, X, Sparkles, FolderOpen,
-  ArrowRight, ShieldCheck, ChevronRight, ChevronLeft, Volume2, Play, Pause, RefreshCw
+  ArrowRight, ShieldCheck, ChevronRight, ChevronLeft, Volume2, Play, Pause, RefreshCw, Grab
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -26,14 +26,15 @@ interface Folder {
   icon: string;
 }
 
-const colorSchemes: Record<string, { bg: string; text: string; border: string; activeBg: string; activeBorder: string; dot: string }> = {
+const colorSchemes: Record<string, { bg: string; text: string; border: string; activeBg: string; activeBorder: string; dot: string; hoverRing: string }> = {
   indigo: {
     bg: 'bg-indigo-50 dark:bg-indigo-950/30',
     text: 'text-indigo-600 dark:text-indigo-400',
     border: 'border-indigo-100 dark:border-indigo-900/30',
     activeBg: 'bg-indigo-600 text-white',
     activeBorder: 'border-indigo-600',
-    dot: '#4f46e5'
+    dot: '#4f46e5',
+    hoverRing: 'ring-indigo-500/30 dark:ring-indigo-500/20'
   },
   rose: {
     bg: 'bg-rose-50 dark:bg-rose-950/30',
@@ -41,7 +42,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-rose-100 dark:border-rose-900/30',
     activeBg: 'bg-rose-600 text-white',
     activeBorder: 'border-rose-600',
-    dot: '#e11d48'
+    dot: '#e11d48',
+    hoverRing: 'ring-rose-500/30 dark:ring-rose-500/20'
   },
   amber: {
     bg: 'bg-amber-50 dark:bg-amber-950/30',
@@ -49,7 +51,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-amber-100 dark:border-amber-900/30',
     activeBg: 'bg-amber-600 text-white',
     activeBorder: 'border-amber-600',
-    dot: '#d97706'
+    dot: '#d97706',
+    hoverRing: 'ring-amber-500/30 dark:ring-amber-500/20'
   },
   emerald: {
     bg: 'bg-emerald-50 dark:bg-emerald-950/30',
@@ -57,7 +60,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-emerald-100 dark:border-emerald-900/30',
     activeBg: 'bg-emerald-600 text-white',
     activeBorder: 'border-emerald-600',
-    dot: '#059669'
+    dot: '#059669',
+    hoverRing: 'ring-emerald-500/30 dark:ring-emerald-500/20'
   },
   sky: {
     bg: 'bg-sky-50 dark:bg-sky-950/30',
@@ -65,7 +69,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-sky-100 dark:border-sky-900/30',
     activeBg: 'bg-sky-600 text-white',
     activeBorder: 'border-sky-600',
-    dot: '#0284c7'
+    dot: '#0284c7',
+    hoverRing: 'ring-sky-500/30 dark:ring-sky-500/20'
   },
   violet: {
     bg: 'bg-violet-50 dark:bg-violet-950/30',
@@ -73,7 +78,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-violet-100 dark:border-violet-900/30',
     activeBg: 'bg-violet-600 text-white',
     activeBorder: 'border-violet-600',
-    dot: '#7c3aed'
+    dot: '#7c3aed',
+    hoverRing: 'ring-violet-500/30 dark:ring-violet-500/20'
   },
   orange: {
     bg: 'bg-orange-50 dark:bg-orange-950/30',
@@ -81,7 +87,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-orange-100 dark:border-orange-900/30',
     activeBg: 'bg-orange-600 text-white',
     activeBorder: 'border-orange-600',
-    dot: '#ea580c'
+    dot: '#ea580c',
+    hoverRing: 'ring-orange-500/30 dark:ring-orange-500/20'
   },
   teal: {
     bg: 'bg-teal-50 dark:bg-teal-950/30',
@@ -89,7 +96,8 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     border: 'border-teal-100 dark:border-teal-900/30',
     activeBg: 'bg-teal-600 text-white',
     activeBorder: 'border-teal-600',
-    dot: '#0d9488'
+    dot: '#0d9488',
+    hoverRing: 'ring-teal-500/30 dark:ring-teal-500/20'
   }
 };
 
@@ -118,7 +126,7 @@ export default function Library() {
   const [joinError, setJoinError] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // New Upgrade States
+  // Folder states
   const [folders, setFolders] = useState<Folder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>(''); // "" means all
   const [folderAssignments, setFolderAssignments] = useState<Record<string, string>>({}); // { materialId: folderId }
@@ -127,6 +135,10 @@ export default function Library() {
   const [isMultiSelectActive, setIsMultiSelectActive] = useState(false);
   const [showStats, setShowStats] = useState(false);
   
+  // Drag & Drop visual states
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
+
   // Folder Creation Modal States
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -194,11 +206,10 @@ export default function Library() {
     loadData();
   }, [user?.id]);
 
-  // Load Folders Data
+  // Load Folders Data (Always loading immediately with default fallback to avoid blank sections)
   useEffect(() => {
-    if (!user) return;
-    
-    const storedFolders = localStorage.getItem(`library_folders_${user.id}`);
+    const userId = user?.id || 'default_user';
+    const storedFolders = localStorage.getItem(`library_folders_${userId}`);
     if (storedFolders) {
       try {
         setFolders(JSON.parse(storedFolders));
@@ -207,10 +218,10 @@ export default function Library() {
       }
     } else {
       setFolders(defaultFolders);
-      localStorage.setItem(`library_folders_${user.id}`, JSON.stringify(defaultFolders));
+      localStorage.setItem(`library_folders_${userId}`, JSON.stringify(defaultFolders));
     }
 
-    const storedAssignments = localStorage.getItem(`library_folder_assignments_${user.id}`);
+    const storedAssignments = localStorage.getItem(`library_folder_assignments_${userId}`);
     if (storedAssignments) {
       try {
         setFolderAssignments(JSON.parse(storedAssignments));
@@ -246,9 +257,8 @@ export default function Library() {
       const copy = { ...folderAssignments };
       delete copy[id];
       setFolderAssignments(copy);
-      if (user) {
-        localStorage.setItem(`library_folder_assignments_${user.id}`, JSON.stringify(copy));
-      }
+      const userId = user?.id || 'default_user';
+      localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(copy));
     }
   };
 
@@ -290,7 +300,8 @@ export default function Library() {
 
   // Folder actions
   const handleCreateFolder = () => {
-    if (!newFolderName.trim() || !user) return;
+    if (!newFolderName.trim()) return;
+    const userId = user?.id || 'default_user';
     const newFolder: Folder = {
       id: 'folder_' + Date.now(),
       name: newFolderName.trim(),
@@ -299,7 +310,7 @@ export default function Library() {
     };
     const updated = [...folders, newFolder];
     setFolders(updated);
-    localStorage.setItem(`library_folders_${user.id}`, JSON.stringify(updated));
+    localStorage.setItem(`library_folders_${userId}`, JSON.stringify(updated));
     toast.success('Папка создана!');
     setNewFolderName('');
     setShowCreateFolderModal(false);
@@ -313,10 +324,47 @@ export default function Library() {
       delete newAssignments[materialId];
     }
     setFolderAssignments(newAssignments);
-    if (user) {
-      localStorage.setItem(`library_folder_assignments_${user.id}`, JSON.stringify(newAssignments));
+    const userId = user?.id || 'default_user';
+    localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(newAssignments));
+
+    const mat = materials.find(m => m.id === materialId);
+    const folder = folders.find(f => f.id === folderId);
+    if (folder && mat) {
+      toast.success(`Материал «${mat.title}» перенесен в папку «${folder.name}»!`);
+    } else {
+      toast.success('Материал убран из папки');
     }
-    toast.success(folderId ? 'Материал перемещен в папку!' : 'Материал убран из папки');
+  };
+
+  // Native HTML5 Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, cardId: string) => {
+    setDraggingCardId(cardId);
+    e.dataTransfer.setData('text/plain', cardId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggingCardId(null);
+    setDraggedOverFolderId(null);
+  };
+
+  const handleDragEnter = (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    setDraggedOverFolderId(folderId);
+  };
+
+  const handleDragLeave = () => {
+    setDraggedOverFolderId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    const cardId = e.dataTransfer.getData('text/plain') || draggingCardId;
+    if (cardId) {
+      assignMaterialToFolder(cardId, folderId);
+    }
+    setDraggedOverFolderId(null);
+    setDraggingCardId(null);
   };
 
   // Multiple selection handlers
@@ -342,9 +390,8 @@ export default function Library() {
       const copy = { ...folderAssignments };
       selectedIds.forEach(id => delete copy[id]);
       setFolderAssignments(copy);
-      if (user) {
-        localStorage.setItem(`library_folder_assignments_${user.id}`, JSON.stringify(copy));
-      }
+      const userId = user?.id || 'default_user';
+      localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(copy));
 
       toast.success('Выбранные материалы удалены!');
       setSelectedIds([]);
@@ -380,10 +427,9 @@ export default function Library() {
     });
 
     setFolderAssignments(newAssignments);
-    if (user) {
-      localStorage.setItem(`library_folder_assignments_${user.id}`, JSON.stringify(newAssignments));
-    }
-    toast.success(folderId ? 'Материалы перемещены в папку!' : 'Материалы убраны из папок!');
+    const userId = user?.id || 'default_user';
+    localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(newAssignments));
+    toast.success(folderId ? 'Материалы перемещены в папку!' : 'Материалы убран из папок!');
     setSelectedIds([]);
     setIsMultiSelectActive(false);
     setShowBatchFolderSelect(false);
@@ -491,7 +537,7 @@ export default function Library() {
             <BookOpen className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             Библиотека знаний
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Управляйте лекциями, создавайте папки и изучайте конспекты</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">Управляйте лекциями, создавайте папки и изучайте конспекты</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
@@ -610,29 +656,46 @@ export default function Library() {
       </AnimatePresence>
 
       {/* Folders and Collections bar */}
-      <div className="space-y-3">
+      <div className="space-y-3 bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-2xl border border-slate-150 dark:border-slate-850">
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-black text-slate-850 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
-            <FolderOpen className="w-4 h-4 text-indigo-500" />
-            Папки и разделы
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-black text-slate-850 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
+              <FolderOpen className="w-4 h-4 text-indigo-500 animate-bounce" />
+              Папки и разделы
+            </h3>
+            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hidden md:inline ml-2 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-0.5 rounded-full">
+              💡 Перетащите карточку лекции на нужную папку для группировки!
+            </span>
+          </div>
           <button 
             onClick={() => setShowCreateFolderModal(true)}
-            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-850 font-black"
+            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-850 font-black transition"
           >
-            <FolderPlus className="w-3.5 h-3.5" />
+            <FolderPlus className="w-3.5 h-3.5 animate-pulse" />
             Создать папку
           </button>
         </div>
 
         {/* Horizontal folders scroll panel */}
-        <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none pb-2 gap-2 scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none pb-2 gap-2.5 scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+          
+          {/* Virtual "All folders" target */}
           <button
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={(e) => handleDragEnter(e, 'all')}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, '')}
             onClick={() => setSelectedFolderId('')}
-            className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition-all flex items-center gap-2 relative ${
               selectedFolderId === ''
                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850'
+            } ${
+              draggedOverFolderId === 'all'
+                ? 'scale-105 ring-4 ring-offset-2 dark:ring-offset-slate-900 ring-indigo-500 border-indigo-500 shadow-lg'
+                : draggingCardId !== null
+                  ? 'border-dashed border-indigo-400 dark:border-indigo-650 animate-pulse'
+                  : ''
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -646,16 +709,28 @@ export default function Library() {
             const scheme = colorSchemes[f.color] || colorSchemes.indigo;
             const FolderIcon = iconMap[f.icon] || Folder;
             const active = selectedFolderId === f.id;
+            const isDraggedOver = draggedOverFolderId === f.id;
+            const isAnyCardDragging = draggingCardId !== null;
             const count = folderMaterialsCount(f.id);
 
             return (
               <button
                 key={f.id}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnter={(e) => handleDragEnter(e, f.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, f.id)}
                 onClick={() => setSelectedFolderId(f.id)}
-                className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition-all flex items-center gap-2 relative ${
                   active
                     ? `${scheme.activeBg} ${scheme.activeBorder} shadow-md`
-                    : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-750 dark:text-slate-300 hover:bg-slate-50`
+                    : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-750 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850`
+                } ${
+                  isDraggedOver 
+                    ? `scale-105 ring-4 ring-offset-2 dark:ring-offset-slate-900 ${scheme.hoverRing} ${scheme.activeBorder} shadow-lg`
+                    : isAnyCardDragging
+                      ? `border-dashed ${scheme.activeBorder} animate-pulse`
+                      : ''
                 }`}
               >
                 <FolderIcon className={`w-4 h-4 ${active ? 'text-white' : scheme.text}`} />
@@ -678,8 +753,8 @@ export default function Library() {
       </div>
 
       {/* Filters & Actions bar */}
-      <div className="flex flex-col sm:flex-row gap-3 relative z-20">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 relative z-20 items-stretch sm:items-center">
+        <div className="relative flex-grow">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             value={search}
@@ -689,16 +764,19 @@ export default function Library() {
           />
         </div>
 
+        {/* Constraining wrapper container to ensure selection dropdown matches desktop layout size */}
         {subjects.length > 0 && (
-          <CustomSelect
-            value={subjectFilter}
-            onChange={val => setSubjectFilter(val)}
-            options={[
-              { value: '', label: 'Все предметы' },
-              ...subjects.map(s => ({ value: s, label: s }))
-            ]}
-            className="sm:w-64 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 shadow-sm"
-          />
+          <div className="w-full sm:w-56 shrink-0">
+            <CustomSelect
+              value={subjectFilter}
+              onChange={val => setSubjectFilter(val)}
+              options={[
+                { value: '', label: 'Все предметы' },
+                ...subjects.map(s => ({ value: s, label: s }))
+              ]}
+              className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            />
+          </div>
         )}
 
         <button
@@ -778,6 +856,9 @@ export default function Library() {
             return (
               <div
                 key={m.id}
+                draggable={!isMultiSelectActive}
+                onDragStart={(e) => handleDragStart(e, m.id)}
+                onDragEnd={handleDragEnd}
                 onClick={() => {
                   if (isMultiSelectActive) {
                     toggleSelectId(m.id);
@@ -788,9 +869,16 @@ export default function Library() {
                 className={`card p-5 cursor-pointer relative transition-all group overflow-hidden border-2 rounded-2xl flex flex-col justify-between ${
                   isSelected 
                     ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/15 shadow-md scale-[0.99]' 
-                    : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-md'
-                }`}
+                    : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-md hover:scale-[1.01]'
+                } ${draggingCardId === m.id ? 'opacity-50 scale-95 border-dashed border-indigo-400' : ''}`}
               >
+                {/* Drag handle helper icon visible on card hover */}
+                {!isMultiSelectActive && (
+                  <div className="absolute top-4 right-12 z-10 opacity-0 group-hover:opacity-100 transition p-1 bg-slate-50 dark:bg-slate-850 rounded-lg text-slate-400 dark:text-slate-500 cursor-grab" title="Потяните для переноса в папку">
+                    <Grab className="w-3.5 h-3.5" />
+                  </div>
+                )}
+
                 {/* Checkbox overlay when multi-select mode is active */}
                 {isMultiSelectActive && (
                   <div 
@@ -845,7 +933,7 @@ export default function Library() {
                     </div>
 
                     {/* Actions toolbar */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 relative z-30">
                       {/* Folder assignment dropdown trigger */}
                       {!isMultiSelectActive && !isAssigned && (
                         <div className="relative">
@@ -967,7 +1055,7 @@ export default function Library() {
                         setPeekMaterial(m);
                         setDrawerTab('podcast');
                       }}
-                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-850 dark:hover:text-indigo-300 font-bold transition"
+                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-850 dark:hover:text-indigo-300 font-bold transition font-black"
                     >
                       <Headphones className="w-3.5 h-3.5" /> 
                       Слушать →
@@ -982,10 +1070,10 @@ export default function Library() {
 
       {/* Empty filter results */}
       {!loading && materials.length > 0 && filtered.length === 0 && (
-        <div className="text-center py-16 bg-slate-50/50 dark:bg-slate-900/10 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <FolderOpen className="w-12 h-12 text-slate-350 dark:text-slate-650 mx-auto mb-3" />
-          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">Ничего не найдено</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Попробуйте сбросить папку или изменить поисковый запрос</p>
+        <div className="text-center py-16 bg-slate-50/50 dark:bg-slate-900/10 rounded-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
+          <FolderOpen className="w-12 h-12 text-slate-350 dark:text-slate-650 mx-auto mb-3 animate-pulse" />
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">В этой папке пока пусто</p>
+          <p className="text-xs text-slate-450 dark:text-slate-550 mt-1">Перетащите сюда материалы мышкой или выберите другой раздел</p>
         </div>
       )}
 
@@ -996,7 +1084,7 @@ export default function Library() {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl border border-slate-250 dark:border-slate-850 px-6 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-[calc(100%-2rem)] md:w-auto md:min-w-[680px]"
+            className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl border border-slate-250 dark:border-slate-855 px-6 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-[calc(100%-2rem)] md:w-auto md:min-w-[680px]"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-extrabold text-sm shadow-md animate-pulse">
@@ -1024,7 +1112,7 @@ export default function Library() {
                   <div className="absolute bottom-full mb-2 left-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-2 min-w-[200px] flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
                     <button
                       onClick={() => handleBatchMoveToFolder('')}
-                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400"
+                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-855 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400"
                     >
                       Без папки (убрать)
                     </button>
@@ -1033,7 +1121,7 @@ export default function Library() {
                       <button
                         key={f.id}
                         onClick={() => handleBatchMoveToFolder(f.id)}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-black flex items-center gap-2"
+                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-855 rounded-lg text-xs font-black flex items-center gap-2"
                         style={{ color: f.color === 'rose' ? '#e11d48' : f.color === 'amber' ? '#d97706' : f.color === 'emerald' ? '#059669' : f.color === 'sky' ? '#0284c7' : f.color === 'violet' ? '#7c3aed' : f.color === 'orange' ? '#ea580c' : f.color === 'teal' ? '#0d9488' : '#4f46e5' }}
                       >
                         <div className="w-2.5 h-2.5 rounded-full bg-current" />
@@ -1047,7 +1135,7 @@ export default function Library() {
               {/* Publish */}
               <button
                 onClick={handleBatchPublish}
-                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-xl text-xs font-black transition border border-emerald-100 dark:border-emerald-900/35"
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-xl text-xs font-black transition border border-emerald-100 dark:border-indigo-900/35"
               >
                 <Globe className="w-3.5 h-3.5" />
                 <span>Опубликовать</span>
@@ -1056,7 +1144,7 @@ export default function Library() {
               {/* Delete */}
               <button
                 onClick={handleBatchDelete}
-                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-450 hover:bg-rose-100 rounded-xl text-xs font-black transition border border-rose-100 dark:border-rose-900/35"
+                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-455 hover:bg-rose-100 rounded-xl text-xs font-black transition border border-rose-100 dark:border-rose-900/35"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Удалить</span>
@@ -1082,8 +1170,8 @@ export default function Library() {
 
       {/* Folder Creation Modal */}
       {showCreateFolderModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-955/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-850 animate-scale-up">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-extrabold text-xl text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <FolderPlus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -1304,7 +1392,7 @@ export default function Library() {
                         <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-250">📚 Ключевые термины ({peekMaterial.summary_json.terms.length})</h4>
                         <div className="space-y-2">
                           {peekMaterial.summary_json.terms.slice(0, 10).map((t: any, idx: number) => (
-                            <div key={idx} className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-850 rounded-xl shadow-xs">
+                            <div key={idx} className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-855 rounded-xl shadow-xs">
                               <span className="block text-xs font-black text-indigo-600 dark:text-indigo-400">{t.term}</span>
                               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-semibold leading-relaxed">{t.definition}</p>
                             </div>
