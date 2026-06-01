@@ -3581,12 +3581,12 @@ export default function Career() {
       {/* ADVANCED SYLLABUS EXPANSION DIALOGUE MODAL */}
       <AnimatePresence>
         {showExpandChat && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[80vh]"
+              className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-none sm:rounded-3xl border-0 sm:border border-slate-200 dark:border-slate-850 sm:dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[100dvh] sm:h-[80vh]"
             >
               {/* Header */}
               <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
@@ -3658,12 +3658,12 @@ export default function Career() {
       {/* COACH CHAT DIALOGUE MODAL */}
       <AnimatePresence>
         {showCoachChat && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[80vh]"
+              className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-none sm:rounded-3xl border-0 sm:border border-slate-200 dark:border-slate-850 sm:dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[100dvh] sm:h-[80vh]"
             >
               {/* Header */}
               <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
@@ -3751,12 +3751,12 @@ export default function Career() {
       {/* PRACTICE ZONE SANDBOX POPUP MODAL */}
       <AnimatePresence>
         {practiceOpen && selectedModule && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-[96vw] w-[96vw] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[90vh]"
+              className="bg-white dark:bg-slate-900 w-full sm:max-w-[96vw] sm:w-[96vw] rounded-none sm:rounded-3xl border-0 sm:border border-slate-200 dark:border-slate-850 sm:dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[100dvh] sm:h-[90vh]"
             >
               {/* Sandbox Top Header */}
               <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
