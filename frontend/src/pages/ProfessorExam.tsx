@@ -229,8 +229,8 @@ export default function ProfessorExam() {
   const navigate = useNavigate();
   const { verifyEnergy } = useEnergyConfirm();
 
-  // Восстановление состояния из sessionStorage
-  const savedStateStr = sessionStorage.getItem('studyforge_professor_exam_state');
+  // Восстановление состояния из localStorage
+  const savedStateStr = localStorage.getItem('studyforge_professor_exam_state');
   const savedState = savedStateStr ? JSON.parse(savedStateStr) : null;
 
   // Состояние материалов
@@ -275,9 +275,9 @@ export default function ProfessorExam() {
   // Состояние TTS
   const [ttsState, setTtsState] = useState<'playing' | 'paused' | 'stopped'>('stopped');
 
-  // Сохранение состояния в sessionStorage
+  // Сохранение состояния в localStorage
   useEffect(() => {
-    sessionStorage.setItem('studyforge_professor_exam_state', JSON.stringify({
+    localStorage.setItem('studyforge_professor_exam_state', JSON.stringify({
       selectedMaterialId,
       selectedProfId,
       examLength,
