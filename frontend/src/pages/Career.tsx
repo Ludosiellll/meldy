@@ -297,7 +297,7 @@ export default function Career() {
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'course' | 'plan' | 'analytics' | 'jobs'>('course');
+  const [activeTab, setActiveTab] = useState<'course' | 'plan' | 'analytics' | 'jobs' | 'interviews'>('course');
 
   // New states for Vacancy Selection Dashboard & AI Vacancy Chat
   const [showVacancySelector, setShowVacancySelector] = useState(false);
@@ -329,6 +329,7 @@ export default function Career() {
   // Sprint 3: Diagnostic Test States
   const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
   const [diagnosticModule, setDiagnosticModule] = useState<CareerModule | null>(null);
+  const [moduleTestModal, setModuleTestModal] = useState<{ open: boolean; module: CareerModule | null }>({ open: false, module: null });
 
   // Sprint 3: AI Code Diagnostics Sandbox States
   const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
@@ -1332,7 +1333,6 @@ export default function Career() {
       const isPerfect = score >= 90;
 
       // Handle multi-task module completion
-      let isModuleFullyCompleted = isMastered;
       let newCompletedTasks = [...(selectedModule.completed_tasks || [])];
       
       if (selectedModule.tasks && selectedModule.tasks.length > 0 && selectedModule.tasks[activeTaskIndex]) {
@@ -1340,8 +1340,9 @@ export default function Career() {
         if (!newCompletedTasks.includes(taskId)) {
           newCompletedTasks.push(taskId);
         }
-        isModuleFullyCompleted = newCompletedTasks.length === selectedModule.tasks.length;
       }
+      const tasksDone = newCompletedTasks.length === (selectedModule.tasks?.length ?? 10);
+      const isModuleFullyCompleted = tasksDone && !!selectedModule.test_completed;
 
       // Update local profile with completion + mastery score
       const updatedModules = profile.course?.modules.map(m => {
@@ -1671,6 +1672,16 @@ export default function Career() {
                 }`}
               >
                 📊 Аналитика
+              </button>
+              <button
+                onClick={() => setActiveTab('interviews')}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'interviews'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                🎙️ Собеседования
               </button>
 
             </div>
@@ -2131,14 +2142,49 @@ export default function Career() {
                                       </div>
                                     </div>
 
-                                    <div className="pt-4 flex items-center gap-4">
-                                      <button
-                                        onClick={() => openSandbox(mod)}
-                                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition"
-                                      >
-                                        <Play className="w-3.5 h-3.5" />
-                                        {isCompleted ? 'Перепройти Песочницу' : 'Начать Практическое Задание'}
-                                      </button>
+                                    <div className="pt-4 flex flex-col gap-4 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="flex flex-wrap items-center justify-between text-xs gap-3">
+                                    <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-700 dark:text-slate-200">Выполнено заданий:</span>
+                                    <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 font-extrabold rounded">
+                                    {mod.completed_tasks?.length ?? 0} из 10
+                                    </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-700 dark:text-slate-200">Итоговый тест (20 вопросов):</span>
+                                    <span className={`px-2 py-0.5 font-extrabold rounded ${
+                                    mod.test_completed
+                                    ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400'
+                                    }`}>
+                                    {mod.test_completed ? `Сдан (${mod.test_score}%)` : 'Не сдан'}
+                                    </span>
+                                    </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-4">
+                                    <button
+                                    onClick={() => openSandbox(mod)}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition"
+                                    >
+                                    <Play className="w-3.5 h-3.5" />
+                                    {mod.completed_tasks && mod.completed_tasks.length >= 10 ? 'Перепройти Песочницу' : 'Начать Практическое Задание'}
+                                    </button>
+
+                                    <button
+                                    disabled={!(mod.completed_tasks && mod.completed_tasks.length >= 10)}
+                                    onClick={() => setModuleTestModal({ open: true, module: mod })}
+                                    className={`px-5 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition shadow-sm ${
+                                    mod.test_completed
+                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                    : (mod.completed_tasks && mod.completed_tasks.length >= 10)
+                                    ? 'bg-violet-600 hover:bg-violet-500 text-white animate-pulse'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                    }`}
+                                    >
+                                    📝 {mod.test_completed ? 'Перепройти Тест Модуля' : 'Пройти Тест Модуля (20 вопросов)'}
+                                    </button>
+                                    </div>
 
                                       {isCompleted && mod.evaluation && (
                                         <div className="p-4 bg-emerald-50 dark:bg-slate-800 rounded-xl border border-emerald-100 dark:border-slate-800 text-xs w-full">
@@ -2386,6 +2432,129 @@ export default function Career() {
                       <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Генерируется детальный план обучения...</p>
                     </div>
                   )}
+                </div>
+              )
+            )
+          ) : activeTab === 'interviews' ? (
+            profile && (
+              !profile.course ? (
+                <div className="max-w-2xl mx-auto py-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
+                  <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <Briefcase className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mb-4">Сначала создайте курс</h3>
+                  <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                    Перейдите на вкладку <strong>🎓 ИИ-Курс</strong>, чтобы начать интервью с ИИ-коучем и сгенерировать масштабный план обучения.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Header card with progress stats & action button */}
+                  <div className="bg-gradient-to-tr from-violet-900/40 via-slate-900/90 to-violet-900/40 border border-violet-500/20 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-2xl">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl opacity-30 pointer-events-none" />
+                    
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                      <div className="space-y-3">
+                        <span className="px-3 py-1 bg-violet-500/10 border border-violet-500/30 text-violet-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                          Симуляция Технического Собеседования
+                        </span>
+                        <h2 className="text-xl md:text-3xl font-black text-white leading-tight flex items-center gap-3">
+                          <Award className="w-8 h-8 text-violet-450 animate-pulse" />
+                          🎙️ Тренажер ИИ-Интервью
+                        </h2>
+                        <p className="text-xs md:text-sm text-slate-300 max-w-xl font-medium leading-relaxed">
+                          Пройдите полноценное голосовое собеседование с ИИ-рекрутером на основе требований вакансии <strong className="text-violet-300">{profile.course.profession}</strong> и сданных вами модулей. В конце вы получите детальный разбор ваших soft & hard skills.
+                        </p>
+                      </div>
+
+                      {/* Enforce all modules completed rule */}
+                      {(() => {
+                        const totalModules = profile.course?.modules.length ?? 0;
+                        const completedModules = profile.course?.modules.filter(m => m.completed).length ?? 0;
+                        const isAllCompleted = totalModules > 0 && completedModules === totalModules;
+
+                        return (
+                          <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl md:w-80 shrink-0 space-y-4 shadow-xl backdrop-blur-sm">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs font-bold text-slate-350">
+                                <span>Готовность к собеседованию:</span>
+                                <span className="text-violet-400">{completedModules} из {totalModules} модулей</span>
+                              </div>
+                              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/50">
+                                <div className="bg-gradient-to-r from-violet-500 to-indigo-500 h-full transition-all duration-550" style={{ width: `${(completedModules / (totalModules || 1)) * 100}%` }} />
+                              </div>
+                            </div>
+
+                            {isAllCompleted ? (
+                              <button
+                                onClick={() => setShowMockInterview(true)}
+                                className="w-full px-5 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black shadow-lg shadow-violet-500/15 flex items-center justify-center gap-2 transition"
+                              >
+                                <Play className="w-4 h-4 fill-current" />
+                                Начать ИИ-Собеседование
+                              </button>
+                            ) : (
+                              <div className="space-y-2 pt-2 border-t border-slate-800/85">
+                                <div className="text-[10px] text-slate-455 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                                  <span>🔒 Доступ временно закрыт</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+                                  Чтобы запустить симуляцию собеседования, завершите все оставшиеся модули курса (пройдите по 10 заданий и сдайте тесты из 20 вопросов в каждом модуле!).
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* History List */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-2">
+                      📋 История пройденных собеседований
+                    </h3>
+                    
+                    {!profile.mock_interviews || profile.mock_interviews.length === 0 ? (
+                      <div className="text-center py-12 bg-slate-50 dark:bg-slate-950/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                        <Trophy className="w-8 h-8 text-slate-400 mx-auto mb-3" />
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">У вас пока нет завершенных собеседований.</p>
+                        <p className="text-[10px] text-slate-450 dark:text-slate-500 mt-0.5">Освойте программу курса и пройдите первую симуляцию!</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {profile.mock_interviews.map((item, idx) => (
+                          <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-950/30 border border-slate-250/60 dark:border-slate-800/60 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition hover:bg-slate-100/50 dark:hover:bg-slate-950/50">
+                            <div className="space-y-1 text-left">
+                              <span className="text-[10px] font-bold text-slate-455">{item.date}</span>
+                              <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                                {item.vacancy}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-455 leading-relaxed max-w-2xl">
+                                💬 <strong>Вердикт:</strong> {item.verdict}
+                              </p>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 self-start md:self-center shrink-0">
+                              <div className="text-right">
+                                <span className="text-[10px] text-slate-455 uppercase font-black tracking-wider block">Оценка HR</span>
+                                <span className={`text-sm font-black ${item.score >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-650 dark:text-indigo-400'}`}>
+                                  {item.score}/100
+                                </span>
+                              </div>
+                              
+                              <div className="text-right">
+                                <span className="text-[10px] text-slate-455 uppercase font-black tracking-wider block">Грейд</span>
+                                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-md">
+                                  {item.grade}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             )
@@ -3638,6 +3807,81 @@ export default function Career() {
               const token = data.session?.access_token;
               if (token) getDueReviews(token).then(setDueReviews).catch(() => {});
             });
+          }}
+        />
+      )}
+
+      {/* Module 20-question Test Modal */}
+      {moduleTestModal.open && moduleTestModal.module && (
+        <ReviewTestModal
+          moduleId={moduleTestModal.module.id}
+          moduleTitle={moduleTestModal.module.title}
+          moduleTheory={moduleTestModal.module.detailed_theory}
+          practiceType={moduleTestModal.module.practice_type}
+          courseProfession={profile?.course?.profession || ''}
+          token={(supabase.auth as any)._currentSession?.access_token || ''}
+          numQuestions={20}
+          onClose={() => setModuleTestModal({ open: false, module: null })}
+          onComplete={async (score) => {
+            if (!user || !profile || !profile.course) return;
+            const targetMod = moduleTestModal.module!;
+            
+            // Mark test as completed & update module completed status
+            const updatedModules = profile.course.modules.map(m => {
+              if (m.id === targetMod.id) {
+                const tasksDone = m.completed_tasks && m.completed_tasks.length >= 10;
+                const testPassed = score >= 70;
+                return {
+                  ...m,
+                  test_completed: true,
+                  test_score: score,
+                  completed: tasksDone && testPassed,
+                  mastery_score: Math.max(m.mastery_score ?? 0, score),
+                  score: Math.max(m.score ?? 0, score)
+                };
+              }
+              return m;
+            });
+
+            // Update syllabus topic status
+            const updatedSyllabus = profile.course.syllabus ? {
+              ...profile.course.syllabus,
+              chapters: profile.course.syllabus.chapters.map((ch: any) => ({
+                ...ch,
+                topics: ch.topics ? ch.topics.map((t: any) => {
+                  if (t.module_id === targetMod.id) {
+                    const m = updatedModules.find(x => x.id === targetMod.id);
+                    return { ...t, is_completed: !!m?.completed };
+                  }
+                  return t;
+                }) : []
+              }))
+            } : undefined;
+
+            const xpGain = score >= 70 ? 100 : 25; // 100 XP for passing module test, 25 for trying
+
+            const updatedProfile = await saveXPToProfile(
+              user.id,
+              {
+                ...profile,
+                course: {
+                  ...profile.course,
+                  modules: updatedModules,
+                  syllabus: updatedSyllabus || profile.course.syllabus
+                }
+              },
+              xpGain,
+              'roleplay'
+            );
+
+            if (updatedProfile) {
+              setProfile(updatedProfile);
+              toast.success(`🎉 Итоговый тест пройден! Результат: ${score}%. Получено +${xpGain} XP!`);
+              if (score >= 70) {
+                confetti({ particleCount: 150, spread: 80 });
+              }
+            }
+            setModuleTestModal({ open: false, module: null });
           }}
         />
       )}

@@ -1534,6 +1534,7 @@ class CareerReviewTestRequest(BaseModel):
     module_title: str
     module_theory: str
     practice_type: str
+    num_questions: int = 3
 
 class CareerRetryTaskRequest(BaseModel):
     module_title: str
@@ -1586,7 +1587,7 @@ class CareerSocraticChatRequest(BaseModel):
 @app.post("/api/career/review_test")
 @limiter.limit("20/minute")
 async def career_review_test(request: Request, req: CareerReviewTestRequest):
-    """Generate a 3-question Spaced Repetition mini-test for a completed module."""
+    """Generate a Spaced Repetition or module review test."""
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
 
@@ -1595,7 +1596,8 @@ async def career_review_test(request: Request, req: CareerReviewTestRequest):
         result = await agent.generate_review_test(
             req.module_title,
             req.module_theory,
-            req.practice_type
+            req.practice_type,
+            req.num_questions
         )
         return result
     except Exception as e:

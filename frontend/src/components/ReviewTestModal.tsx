@@ -14,13 +14,14 @@ interface ReviewTestModalProps {
   token: string;
   onClose: () => void;
   onComplete: (score: number) => void;
+  numQuestions?: number;
 }
 
 const TIMER_SECONDS = 90; // 90 sec per question
 
 export default function ReviewTestModal({
   moduleId, moduleTitle, moduleTheory, practiceType,
-  courseProfession, token, onClose, onComplete,
+  courseProfession, token, onClose, onComplete, numQuestions = 3,
 }: ReviewTestModalProps) {
   const [questions, setQuestions] = useState<ReviewQuestion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,7 @@ export default function ReviewTestModal({
   async function loadTest() {
     setLoading(true);
     try {
-      const data = await generateReviewTest(moduleId, moduleTitle, moduleTheory, practiceType);
+      const data = await generateReviewTest(moduleId, moduleTitle, moduleTheory, practiceType, numQuestions);
       setQuestions(data.questions || []);
     } catch {
       // fallback empty
@@ -167,15 +168,15 @@ export default function ReviewTestModal({
               <>
                 {/* Progress & Timer */}
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {questions.map((_, i) => (
                       <div
                         key={i}
                         className={`h-1.5 rounded-full transition-all ${
                           i < currentIdx
                             ? (scores[i] ? 'bg-emerald-500' : 'bg-rose-500')
-                            : i === currentIdx ? 'bg-indigo-500 w-8' : 'bg-slate-200 dark:bg-slate-700'
-                        } w-5`}
+                            : i === currentIdx ? 'bg-indigo-500 w-4' : 'bg-slate-200 dark:bg-slate-700'
+                        } ${questions.length > 10 ? 'w-2.5' : 'w-5'}`}
                       />
                     ))}
                   </div>

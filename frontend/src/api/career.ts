@@ -78,6 +78,8 @@ export interface CareerModule {
     test_cases?: { input: string; expected: string }[];
   }[];
   completed_tasks?: number[];
+  test_completed?: boolean;
+  test_score?: number;
   task_solutions?: Record<number, string>;
 }
 
@@ -465,7 +467,8 @@ export async function generateReviewTest(
   moduleId: string,
   moduleTitle: string,
   moduleTheory: string,
-  practiceType: string
+  practiceType: string,
+  numQuestions: number = 3
 ): Promise<{ questions: ReviewQuestion[] }> {
   const res = await fetch('/api/career/review_test', {
     method: 'POST',
@@ -475,6 +478,7 @@ export async function generateReviewTest(
       module_title: moduleTitle,
       module_theory: moduleTheory,
       practice_type: practiceType,
+      num_questions: numQuestions
     }),
   });
   if (!res.ok) throw new Error('Ошибка генерации теста повторения');

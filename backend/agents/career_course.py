@@ -379,7 +379,7 @@ def build_course_expansion_prompt(
 """
 
 
-def build_review_test_prompt(module_title: str, module_theory: str, practice_type: str) -> str:
+def build_review_test_prompt(module_title: str, module_theory: str, practice_type: str, num_questions: int = 3) -> str:
     return f"""Ты — строгий эксперт по созданию проверочных тестов для Spaced Repetition системы.
 
 Студент изучал модуль: "{module_title}"
@@ -387,7 +387,7 @@ def build_review_test_prompt(module_title: str, module_theory: str, practice_typ
 Ключевые концепции из теории:
 {module_theory[:3000]}
 
-Твоя задача — создать ровно 3 вопроса для быстрой проверки через Spaced Repetition.
+Твоя задача — создать ровно {num_questions} вопросов для быстрой проверки.
 Вопросы должны проверять ПОНИМАНИЕ, а не механическое запоминание.
 Сложность: средняя. Время на вопрос: 30-60 секунд.
 
@@ -707,10 +707,11 @@ class CareerCourseAgent(BaseAgent):
         self,
         module_title: str,
         module_theory: str,
-        practice_type: str
+        practice_type: str,
+        num_questions: int = 3
     ) -> dict:
-        prompt = build_review_test_prompt(module_title, module_theory, practice_type)
-        raw_result = await self.run(prompt, "Создай 3 вопроса для Spaced Repetition теста.")
+        prompt = build_review_test_prompt(module_title, module_theory, practice_type, num_questions)
+        raw_result = await self.run(prompt, f"Создай {num_questions} вопросов для теста.")
         return self._parse_json(raw_result, {"questions": []})
 
     async def generate_retry_task(
