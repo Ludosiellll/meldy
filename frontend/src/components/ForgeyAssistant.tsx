@@ -62,8 +62,6 @@ export default function ForgeyAssistant() {
   });
 
   const [isSocraticOpen, setIsSocraticOpen] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
 
   useEffect(() => {
     const handleToggle = () => {
@@ -93,43 +91,6 @@ export default function ForgeyAssistant() {
     }
     setSelectedFaq(null);
   }, [location.pathname]);
-
-  // Track global input focus to hide chatbot button on mobile keyboard
-  useEffect(() => {
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true')) {
-        setIsInputFocused(true);
-      }
-    };
-
-    const handleFocusOut = () => {
-      setIsInputFocused(false);
-    };
-
-    document.addEventListener('focusin', handleFocusIn);
-    document.addEventListener('focusout', handleFocusOut);
-    return () => {
-      document.removeEventListener('focusin', handleFocusIn);
-      document.removeEventListener('focusout', handleFocusOut);
-    };
-  }, []);
-
-  // Track if any active modal / overlay is currently open
-  useEffect(() => {
-    const checkModal = () => {
-      const hasModal = !!document.querySelector('.backdrop-blur-sm') || 
-                       !!document.querySelector('.bg-slate-900/60') ||
-                       !!document.querySelector('.bg-slate-950/80') ||
-                       !!document.querySelector('.bg-black/20') ||
-                       !!document.querySelector('[role="dialog"]');
-      setIsAnyModalOpen(hasModal);
-    };
-
-    checkModal();
-    const interval = setInterval(checkModal, 450);
-    return () => clearInterval(interval);
-  }, []);
 
   const getPageAdvice = () => {
     const path = location.pathname;
@@ -165,11 +126,8 @@ export default function ForgeyAssistant() {
   const isChatPage = location.pathname.startsWith('/chat');
   const isMessagesPage = location.pathname.startsWith('/messages');
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const shouldHideGlobally = isChatPage || isMessagesPage || isSocraticOpen || isAnyModalOpen || (isMobile && isInputFocused);
-
   if (!isVisible) return (
-    <div className={`fixed z-[9999] ${shouldHideGlobally ? 'hidden' : 'bottom-[80px] right-4 md:bottom-6 md:right-6'}`}>
+    <div className={`fixed z-[9999] ${isChatPage || isMessagesPage ? 'hidden' : 'bottom-[80px] right-4 md:bottom-6 md:right-6'}`}>
       <motion.button
         onClick={() => { setIsVisible(true); localStorage.removeItem('forgey_assistant_hidden'); }}
         whileHover={{ scale: 1.1 }}
@@ -182,8 +140,8 @@ export default function ForgeyAssistant() {
     </div>
   );
 
-  // Скрываем полностью при выполнении любого глобального условия
-  if (shouldHideGlobally) return null;
+  // На странице чата/сообщений или когда Socratic открыт — скрываем
+  if (isChatPage || isMessagesPage || isSocraticOpen) return null;
 
   return (
     <>
