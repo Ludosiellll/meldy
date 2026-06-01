@@ -6,7 +6,7 @@ import {
   CheckCircle2, Loader2, Code2, Cpu, MessageSquare, Send, 
   Play, Check, AlertCircle, ExternalLink, Lock, Unlock, 
   Award, Sparkles, Database, Eye, Smile, RefreshCw, 
-  Sliders, ChevronRight, X, ArrowLeft, ThumbsUp,
+  Sliders, ChevronRight, X, ArrowLeft, ThumbsUp, Printer,
   RotateCcw, BookOpen, Trophy, HelpCircle, GitBranch, Star,
   TrendingUp, Flame, Layers2, MapPin, Search
 } from 'lucide-react';
@@ -345,7 +345,18 @@ export default function Career() {
   const [capstoneSolutionCode, setCapstoneSolutionCode] = useState('');
   const [capstoneSubmissionTab, setCapstoneSubmissionTab] = useState<'github' | 'manual'>('github');
   const [capstoneGithubUrl, setCapstoneGithubUrl] = useState('');
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [compareViewMode, setCompareViewMode] = useState<'split' | 'refactoring'>('split');
   const [githubReadme, setGithubReadme] = useState<string | null>(null);
+  const [certificateStudentName, setCertificateStudentName] = useState('');
+
+  useEffect(() => {
+    if (showCertificateModal && user) {
+      const defaultName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '';
+      setCertificateStudentName(defaultName);
+    }
+  }, [showCertificateModal, user]);
+
   // States for manual vacancy search & filter (Variant B)
   const [searchProfession, setSearchProfession] = useState('');
   const [searchLocation, setSearchLocation] = useState('');
@@ -2350,20 +2361,30 @@ export default function Career() {
                                             <Trophy className="w-12 h-12 text-amber-400 animate-bounce" />
                                             <h4 className="text-sm font-extrabold text-white">Вы успешно защитили проект!</h4>
                                             <p className="text-[11px] text-slate-300 max-w-sm leading-relaxed font-semibold">
-                                              Поздравляем с официальным выпуском! Теперь вы можете сгенерировать GitHub README.md с описанием этого крутого кейса на вкладке Аналитики.
+                                              Поздравляем с официальным выпуском! Теперь вы можете посмотреть диплом выпускника и сгенерировать GitHub README портфолио на вкладке Аналитики.
                                             </p>
                                             
-                                            {profile?.capstone_project?.github_repo_url && (
-                                              <a
-                                                href={profile.capstone_project.github_repo_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition"
+                                            <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+                                              <button
+                                                onClick={() => setShowCertificateModal(true)}
+                                                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 rounded-xl text-xs font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-1.5 transition active:scale-95 animate-pulse"
                                               >
-                                                <GitBranch className="w-3.5 h-3.5" />
-                                                🐙 Перейти к репозиторию на GitHub
-                                              </a>
-                                            )}
+                                                <Award className="w-3.5 h-3.5" />
+                                                🎓 Посмотреть диплом
+                                              </button>
+
+                                              {profile?.capstone_project?.github_repo_url && (
+                                                <a
+                                                  href={profile.capstone_project.github_repo_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition"
+                                                >
+                                                  <GitBranch className="w-3.5 h-3.5" />
+                                                  🐙 Репозиторий
+                                                </a>
+                                              )}
+                                            </div>
                                             
                                             {profile?.capstone_project?.solution_code && (
                                               <details className="w-full mt-2 text-left">
@@ -2430,11 +2451,85 @@ export default function Career() {
                                         </div>
 
                                         {profile?.capstone_project?.evaluation?.refactored_solution && (
-                                          <div className="pt-3 border-t border-slate-850 text-left">
-                                            <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest block mb-2">💡 Рекомендованный рефакторинг и советы:</span>
-                                            <pre className="p-4 bg-slate-950 border border-slate-850 text-[10px] text-slate-300 font-mono rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                                              {profile?.capstone_project?.evaluation?.refactored_solution}
-                                            </pre>
+                                          <div className="pt-4 border-t border-slate-850 mt-4 text-left">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                              <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest block">
+                                                💡 Рекомендованный рефакторинг и советы:
+                                              </span>
+                                              
+                                              {/* Compare Mode Switcher */}
+                                              <div className="flex p-0.5 bg-slate-950 border border-slate-850 rounded-lg shrink-0">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setCompareViewMode('split')}
+                                                  className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md transition-all ${
+                                                    compareViewMode === 'split'
+                                                      ? 'bg-slate-900 text-violet-400 shadow-sm border border-slate-800/40'
+                                                      : 'text-slate-500 hover:text-slate-400'
+                                                  }`}
+                                                >
+                                                  Сплит-сравнение
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setCompareViewMode('refactoring')}
+                                                  className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md transition-all ${
+                                                    compareViewMode === 'refactoring'
+                                                      ? 'bg-slate-900 text-violet-400 shadow-sm border border-slate-800/40'
+                                                      : 'text-slate-500 hover:text-slate-400'
+                                                  }`}
+                                                >
+                                                  Только ревью ИИ
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {compareViewMode === 'split' ? (
+                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Left Panel: Student original code */}
+                                                <div className="space-y-1.5">
+                                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">
+                                                    📂 Ваше решение:
+                                                  </span>
+                                                  {profile?.capstone_project?.solution_code ? (
+                                                    <pre className="p-4 bg-slate-950 border border-slate-850 text-[10px] text-slate-355 font-mono rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[450px]">
+                                                      {profile.capstone_project.solution_code}
+                                                    </pre>
+                                                  ) : (
+                                                    <div className="p-5 bg-slate-950 border border-slate-850 rounded-xl text-center flex flex-col items-center justify-center min-h-[150px] gap-2">
+                                                      <GitBranch className="w-6 h-6 text-violet-500" />
+                                                      <span className="text-[10px] font-extrabold text-slate-300 uppercase">Проверка репозитория GitHub</span>
+                                                      <p className="text-[10px] text-slate-500 leading-relaxed font-semibold max-w-[250px]">
+                                                        Код проверен ИИ-Техлидом напрямую из вашего публичного репозитория:
+                                                      </p>
+                                                      <a
+                                                        href={profile?.capstone_project?.github_repo_url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[10px] text-violet-400 hover:underline font-bold break-all"
+                                                      >
+                                                        {profile?.capstone_project?.github_repo_url}
+                                                      </a>
+                                                    </div>
+                                                  )}
+                                                </div>
+
+                                                {/* Right Panel: AI recommended code */}
+                                                <div className="space-y-1.5">
+                                                  <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest block">
+                                                    🧙‍♂️ Код-ревью от ИИ-Ментора:
+                                                  </span>
+                                                  <pre className="p-4 bg-slate-950 border border-violet-900/30 text-[10px] text-violet-300 font-mono rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[450px]">
+                                                    {profile.capstone_project.evaluation.refactored_solution}
+                                                  </pre>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              /* Full screen AI Recommended solution */
+                                              <pre className="p-4 bg-slate-950 border border-slate-850 text-[10px] text-slate-300 font-mono rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                                                {profile?.capstone_project?.evaluation?.refactored_solution}
+                                              </pre>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -4430,6 +4525,134 @@ export default function Career() {
           onClose={() => { setShowDiagnosticModal(false); setDiagnosticModule(null); }}
           onComplete={handleDiagnosticComplete}
         />
+      )}
+
+      {/* Graduate Certificate Modal */}
+      {showCertificateModal && profile && user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md print:p-0 print:bg-white print:relative print:z-0">
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+              .print\\:relative, .print\\:relative * {
+                visibility: visible !important;
+              }
+              .print\\:relative {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+              }
+              .print\\:hidden {
+                display: none !important;
+              }
+            }
+          `}</style>
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-slate-900 border border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-4xl w-full text-center shadow-2xl overflow-hidden print:border-none print:shadow-none print:p-0 print:rounded-none print:bg-white print:w-full print:max-w-none print:relative"
+          >
+            {/* Ambient Background Lights - hidden in print */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 animate-pulse print:hidden" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -ml-16 -mb-16 animate-pulse print:hidden" />
+
+            {/* Modal Controls - hidden in print */}
+            <div className="absolute top-4 right-4 flex items-center gap-2 print:hidden z-10">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl transition flex items-center gap-1.5 text-xs font-black shadow-md active:scale-95"
+                title="Печать диплома / Сохранить в PDF"
+              >
+                <Printer className="w-4 h-4" />
+                Печать / PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCertificateModal(false)}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl transition shadow-md active:scale-95"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* CERTIFICATE CONTAINER */}
+            <div className="border-4 border-double border-amber-500/40 p-8 md:p-12 rounded-2xl bg-slate-950/60 relative overflow-hidden print:border-amber-500 print:bg-white print:p-8 print:text-black">
+              {/* Gold corners */}
+              <div className="absolute top-2 left-2 w-8 h-8 border-t-2 border-l-2 border-amber-500/50 print:border-amber-600" />
+              <div className="absolute top-2 right-2 w-8 h-8 border-t-2 border-r-2 border-amber-500/50 print:border-amber-600" />
+              <div className="absolute bottom-2 left-2 w-8 h-8 border-b-2 border-l-2 border-amber-500/50 print:border-amber-600" />
+              <div className="absolute bottom-2 right-2 w-8 h-8 border-b-2 border-r-2 border-amber-500/50 print:border-amber-600" />
+
+              {/* Logo / Header */}
+              <div className="flex flex-col items-center justify-center gap-2.5 mb-6">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-xl flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/20 print:shadow-none">
+                  <Award className="w-7 h-7" />
+                </div>
+                <span className="text-[10px] font-black text-amber-400 dark:text-amber-500 uppercase tracking-widest print:text-amber-600">
+                  Академический Сертификат Выпускника
+                </span>
+                <h2 className="text-3xl md:text-4xl font-serif font-black text-white dark:text-slate-100 tracking-wide mt-1.5 print:text-black">
+                  StudyForge Academia
+                </h2>
+              </div>
+
+              {/* Certificate Body */}
+              <div className="space-y-6 max-w-2xl mx-auto my-6">
+                <p className="text-xs md:text-sm text-slate-400 italic font-medium leading-relaxed print:text-slate-600">
+                  Настоящим документом подтверждается, что выпускник
+                </p>
+                <input
+                  type="text"
+                  value={certificateStudentName}
+                  onChange={(e) => setCertificateStudentName(e.target.value)}
+                  placeholder="Введите ваши Имя и Фамилию"
+                  className="text-center bg-transparent border-b border-transparent hover:border-amber-500/20 focus:border-amber-500 focus:outline-none text-xl md:text-2xl font-serif font-extrabold text-amber-300 dark:text-amber-400 w-full max-w-xl mx-auto py-1 print:border-none print:text-amber-600 print:text-center placeholder-slate-650"
+                />
+                <p className="text-xs md:text-sm text-slate-400 font-medium leading-relaxed max-w-lg mx-auto print:text-slate-600">
+                  успешно освоил полную учебную программу и защитил выпускную практическую работу по карьерному треку
+                </p>
+                <h4 className="text-base md:text-lg font-bold text-white uppercase tracking-wider print:text-black">
+                  🎓 {profile?.course?.profession || 'Специалист'}
+                </h4>
+                <p className="text-[10px] md:text-xs text-slate-400 dark:text-slate-500 font-semibold max-w-md mx-auto leading-relaxed print:text-slate-650">
+                  Программа обучения включала прохождение всех теоретических и практических модулей, выполнение интерактивных sandbox-заданий, сдачу итоговых экзаменов и защиту выпускного пет-проекта.
+                </p>
+              </div>
+
+              {/* Footer row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-800/40 mt-8 text-left text-[11px] font-medium text-slate-400 dark:text-slate-500 print:text-black print:border-slate-300">
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 print:text-slate-500 block">Оценка за проект:</span>
+                  <span className="text-xs font-bold text-emerald-400 print:text-emerald-600 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-current" />
+                    {profile?.capstone_project?.evaluation?.score || 90} из 100 баллов
+                  </span>
+                </div>
+                <div className="text-center md:text-left space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 print:text-slate-500 block">ID сертификата:</span>
+                  <span className="text-xs font-mono font-bold text-slate-350 print:text-slate-700">
+                    SF-{(user?.id?.slice(0, 8) || 'GRAD').toUpperCase()}-{new Date().getFullYear()}
+                  </span>
+                </div>
+                <div className="text-right space-y-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 print:text-slate-500 block">ИИ-Ректор StudyForge:</span>
+                  <span className="text-xs font-serif italic font-black text-amber-300/80 print:text-amber-700 block mt-0.5">
+                    Professor Veritas
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
 
     </div>
