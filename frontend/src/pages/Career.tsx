@@ -21,7 +21,7 @@ import {
   generateReviewTest, updateModuleReview, getDueReviews,
   generateRetryTask, getModuleHint,
   saveXPToProfile, getLevelFromXP, XP_REWARDS, ModuleReviewRecord,
-  getCodeDiagnostics, generateGithubReadme
+  getCodeDiagnostics, generateGithubReadme, generatePetProjects, evaluatePetProject
 } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
@@ -338,6 +338,11 @@ export default function Career() {
 
   // Sprint 3: GitHub README States
   const [isReadmeLoading, setIsReadmeLoading] = useState(false);
+
+  // Capstone Graduation Pet Project States
+  const [isGeneratingCapstone, setIsGeneratingCapstone] = useState(false);
+  const [isSubmittingCapstone, setIsSubmittingCapstone] = useState(false);
+  const [capstoneSolutionCode, setCapstoneSolutionCode] = useState('');
   const [githubReadme, setGithubReadme] = useState<string | null>(null);
   // States for manual vacancy search & filter (Variant B)
   const [searchProfession, setSearchProfession] = useState('');
@@ -1508,24 +1513,140 @@ export default function Career() {
   const handleGenerateReadme = async () => {
     if (!profile?.course?.profession) return;
     
+    const totalMod = profile.course.modules.length;
+    const completedMod = profile.course.modules.filter(m => m.completed).length;
+    const isAllModCompleted = totalMod > 0 && completedMod === totalMod;
+    const isCapCompleted = profile.capstone_project?.status === 'completed';
+
+    if (!isAllModCompleted) {
+      toast.error('Вы сможете сгенерировать GitHub README только после успешного завершения всех модулей вашего курса!');
+      return;
+    }
+    if (!isCapCompleted) {
+      toast.error('Вы сможете сгенерировать GitHub README только после успешной сдачи выпускного пет-проекта!');
+      return;
+    }
+
     const completedList = (profile.course.modules ?? [])
       .filter(m => m.completed)
       .map(m => m.title);
       
-    if (completedList.length < 3) {
-      toast.error('Вы сможете сгенерировать GitHub README только после успешного завершения как минимум 3-х модулей вашего курса! Подтвердите ваши навыки реальными результатами.');
-      return;
-    }
-    
     setIsReadmeLoading(true);
     try {
-      const data = await generateGithubReadme(profile.course.profession, completedList);
+      const data = await generateGithubReadme(
+        profile.course.profession,
+        completedList,
+        profile.capstone_project?.title,
+        profile.capstone_project?.description
+      );
       setGithubReadme(data.readme);
       toast.success('Портфолио README.md успешно сгенерировано!');
     } catch {
       toast.error('Не удалось сгенерировать портфолио.');
     } finally {
       setIsReadmeLoading(false);
+    }
+  };
+
+  const handleGenerateCapstoneProjects = async () => {
+    if (!profile?.course?.profession) return;
+    setIsGeneratingCapstone(true);
+    try {
+      const completedModulesList = (profile.course.modules ?? [])
+        .filter(m => m.completed)
+        .map(m => m.title);
+      const data = await generatePetProjects(
+        profile.course.profession,
+        profile.skills || [],
+        completedModulesList
+      );
+      const updatedProfile: CareerProfile = {
+        ...profile,
+        capstone_options: data.projects
+      };
+      setProfile(updatedProfile);
+      await saveCareerProfile(user!.id, updatedProfile);
+      toast.success('Выпускные пет-проекты успешно сгенерированы!');
+    } catch (err) {
+      toast.error('Не удалось сгенерировать пет-проекты.');
+    } finally {
+      setIsGeneratingCapstone(false);
+    }
+  };
+
+  const handleSelectCapstoneProject = async (project: any) => {
+    if (!user || !profile) return;
+    const ok = await confirm({
+      title: '🎯 Выбор выпускного проекта',
+      message: `Вы действительно хотите выбрать проект "${project.title}"? После выбора вы сможете приступить к его реализации.`
+    });
+    if (!ok) return;
+
+    const capstone = {
+      ...project,
+      chosen: true,
+      status: 'in_progress' as const
+    };
+    const updatedProfile: CareerProfile = {
+      ...profile,
+      capstone_project: capstone
+    };
+    setProfile(updatedProfile);
+    await saveCareerProfile(user.id, updatedProfile);
+    toast.success(`Проект "${project.title}" успешно выбран!`);
+  };
+
+  const handleSubmitCapstoneProject = async () => {
+    if (!user || !profile || !profile.capstone_project || !capstoneSolutionCode.trim()) return;
+    setIsSubmittingCapstone(true);
+    try {
+      const res = await evaluatePetProject(
+        profile.course?.profession || '',
+        profile.capstone_project.title,
+        profile.capstone_project.description,
+        profile.capstone_project.requirements,
+        capstoneSolutionCode
+      );
+      
+      const passed = res.score >= 70;
+      const updatedCapstone = {
+        ...profile.capstone_project,
+        solution_code: capstoneSolutionCode,
+        status: passed ? 'completed' as const : 'in_progress' as const,
+        evaluation: {
+          score: res.score,
+          verdict: res.verdict,
+          strengths: res.strengths,
+          weaknesses: res.weaknesses,
+          refactored_solution: res.refactored_solution
+        }
+      };
+
+      const xpGain = passed ? 500 : 50;
+
+      const updatedProfile = await saveXPToProfile(
+        user.id,
+        {
+          ...profile,
+          capstone_project: updatedCapstone
+        },
+        xpGain,
+        'roleplay'
+      );
+
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+        if (passed) {
+          toast.success(`🎉 Поздравляем с выпуском! Ваш проект принят с оценкой ${res.score}/100! Получено +${xpGain} XP!`);
+          confetti({ particleCount: 200, spread: 100 });
+        } else {
+          toast.error(`Проект оценен на ${res.score}/100. Нужно набрать не менее 70 баллов для сдачи. Изучите ревью и попробуйте еще раз! (+${xpGain} XP за попытку)`);
+        }
+      }
+    } catch (err) {
+      toast.error('Не удалось отправить проект на проверку.');
+    } finally {
+      setIsSubmittingCapstone(false);
     }
   };
 
@@ -1959,6 +2080,274 @@ export default function Career() {
                       );
                     })()}
 
+                    {/* Capstone Graduation Pet Project Section */}
+                    {(() => {
+                      const totalMod = profile?.course?.modules.length ?? 0;
+                      const completedMod = profile?.course?.modules.filter(m => m.completed).length ?? 0;
+                      const allModCompleted = totalMod > 0 && completedMod === totalMod;
+                      
+                      if (!allModCompleted) return null;
+                      
+                      return (
+                        <div className="mb-10 space-y-6">
+                          <div className="bg-gradient-to-tr from-violet-900/50 via-slate-900 to-indigo-900/50 border border-violet-500/30 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-2xl">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl opacity-30 pointer-events-none" />
+                            
+                            <div className="relative z-10 space-y-4 text-left">
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-violet-500/20 border border-violet-550/40 text-violet-300 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                  🎓 ВЫПУСКНОЙ ЭТАП StudyForge
+                                </span>
+                              </div>
+                              
+                              <h2 className="text-xl md:text-3xl font-black text-white leading-tight flex items-center gap-3">
+                                <Trophy className="w-8 h-8 text-amber-450 animate-bounce" />
+                                Выпускная Практическая Работа (Capstone Project)
+                              </h2>
+                              
+                              <p className="text-xs md:text-sm text-slate-350 leading-relaxed max-w-2xl font-medium">
+                                Поздравляем! Вы полностью изучили теорию и успешно сдали тесты по всем модулям. Чтобы получить итоговый сертификат и разблокировать генерацию GitHub README, выберите и реализуйте один из масштабных выпускных пет-проектов под руководством ИИ-Лида.
+                              </p>
+
+                              {!profile?.capstone_project?.chosen ? (
+                                // Stage 1: Choice generation or project selection
+                                (!profile?.capstone_options || profile.capstone_options.length === 0) ? (
+                                  <div className="pt-4 text-center">
+                                    <button
+                                      onClick={handleGenerateCapstoneProjects}
+                                      disabled={isGeneratingCapstone}
+                                      className="px-6 py-3.5 bg-gradient-to-r from-violet-650 to-indigo-650 hover:from-violet-550 hover:to-indigo-550 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg shadow-violet-500/20 flex items-center gap-2 transition mx-auto"
+                                    >
+                                      {isGeneratingCapstone ? (
+                                        <>
+                                          <Loader2 className="w-4 h-4 animate-spin text-white animate-pulse" />
+                                          ИИ-Методист проектирует пет-проекты...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="w-4 h-4 text-amber-300" />
+                                          ⚡ Сгенерировать варианты пет-проектов
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-6 pt-4 border-t border-slate-800">
+                                    <h3 className="text-sm md:text-base font-extrabold text-violet-300">
+                                      ✨ Выберите один из 3 предложенных проектов:
+                                    </h3>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                      {profile.capstone_options.map((proj, pIdx) => (
+                                        <div key={pIdx} className="bg-slate-950/60 border border-slate-800 hover:border-violet-500/40 p-5 rounded-2xl flex flex-col justify-between gap-4 transition-all shadow-xl hover:shadow-violet-950/20 text-left">
+                                          <div className="space-y-3">
+                                            <h4 className="text-sm font-black text-white">{proj.title}</h4>
+                                            <p className="text-[11px] text-slate-400 leading-relaxed min-h-[60px]">
+                                              {proj.description}
+                                            </p>
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                              {proj.tech_stack.map((t, tI) => (
+                                                <span key={tI} className="px-2 py-0.5 bg-violet-950/50 border border-violet-900/60 text-violet-400 rounded text-[9px] font-bold">
+                                                  {t}
+                                                </span>
+                                              ))}
+                                            </div>
+                                            
+                                            <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Ключевые требования:</span>
+                                              {proj.requirements.map((req, rI) => (
+                                                <div key={rI} className="flex items-start gap-1 text-[10px] text-slate-350">
+                                                  <span className="text-violet-400 font-bold shrink-0">•</span>
+                                                  <span>{req}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          
+                                          <button
+                                            onClick={() => handleSelectCapstoneProject(proj)}
+                                            className="w-full py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-[10px] font-extrabold rounded-lg shadow-sm transition"
+                                          >
+                                            🚀 Выбрать этот проект
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )
+                              ) : (
+                                // Stage 2: Chosen Capstone Project Workspace
+                                <div className="pt-4 border-t border-slate-800 space-y-6 text-left">
+                                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                      <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest">Текущий выпускной проект:</span>
+                                      <h3 className="text-lg md:text-xl font-black text-white">{profile?.capstone_project?.title}</h3>
+                                    </div>
+                                    <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider border rounded-full self-start md:self-center ${
+                                      profile?.capstone_project?.status === 'completed'
+                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                        : 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse'
+                                    }`}>
+                                      {profile?.capstone_project?.status === 'completed' ? '🎓 Успешно защищен' : '⚡ В процессе разработки'}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/45 p-4 rounded-xl border border-slate-850">
+                                    {profile?.capstone_project?.description}
+                                  </p>
+
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {profile?.capstone_project?.tech_stack?.map((t: string, idx: number) => (
+                                      <span key={idx} className="px-2 py-0.5 bg-violet-950/40 border border-violet-900/50 text-violet-400 rounded text-[10px] font-black uppercase tracking-wider">
+                                        {t}
+                                      </span>
+                                    ))}
+                                  </div>
+
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4 border-t border-slate-800">
+                                    {/* Left Column: Requirements checklist */}
+                                    <div className="space-y-4 text-left">
+                                      <h4 className="text-xs font-black text-violet-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                        <CheckCircle2 className="w-4 h-4 text-violet-405" />
+                                        Чек-лист требований к проверке:
+                                      </h4>
+                                      <div className="space-y-2.5">
+                                        {profile?.capstone_project?.requirements?.map((req: string, idx: number) => (
+                                          <div key={idx} className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-900 rounded-xl text-left">
+                                            <input
+                                              type="checkbox"
+                                              defaultChecked={profile?.capstone_project?.status === 'completed'}
+                                              className="w-4 h-4 accent-violet-500 bg-slate-950 border-slate-800 rounded focus:ring-violet-500"
+                                            />
+                                            <span className="text-xs text-slate-300 font-semibold">{req}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Right Column: Code submission and mentor review */}
+                                    <div className="space-y-4 flex flex-col justify-between text-left">
+                                      <div className="space-y-3">
+                                        <h4 className="text-xs font-black text-violet-300 flex items-center gap-1.5 uppercase tracking-wide">
+                                          <Code2 className="w-4 h-4 animate-pulse" />
+                                          💻 Текстовое решение выпускника:
+                                        </h4>
+                                        
+                                        {profile?.capstone_project?.status !== 'completed' ? (
+                                          <>
+                                            <textarea
+                                              value={capstoneSolutionCode}
+                                              onChange={(e) => setCapstoneSolutionCode(e.target.value)}
+                                              disabled={isSubmittingCapstone}
+                                              placeholder="Вставьте сюда ваш исходный код, архитектуру базы данных или подробное техническое описание решения выпускного проекта..."
+                                              className="w-full h-44 bg-slate-950 border border-slate-855 rounded-xl p-4 text-xs font-mono text-slate-205 placeholder-slate-650 focus:outline-none focus:ring-1 focus:ring-violet-500 leading-relaxed"
+                                            />
+                                            <button
+                                              onClick={handleSubmitCapstoneProject}
+                                              disabled={isSubmittingCapstone || !capstoneSolutionCode.trim()}
+                                              className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-550 hover:to-indigo-550 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg shadow-violet-500/10 flex items-center justify-center gap-2 transition"
+                                            >
+                                              {isSubmittingCapstone ? (
+                                                <>
+                                                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                                                  ИИ-Техлид проводит аудит решения...
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Send className="w-4 h-4" />
+                                                  Отправить проект на проверку ИИ-Лиду
+                                                </>
+                                              )}
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <div className="p-5 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+                                            <Trophy className="w-12 h-12 text-amber-400 animate-bounce" />
+                                            <h4 className="text-sm font-extrabold text-white">Вы успешно защитили проект!</h4>
+                                            <p className="text-[11px] text-slate-350 max-w-sm leading-relaxed">
+                                              Поздравляем с официальным выпуском! Теперь вы можете сгенерировать GitHub README.md с описанием этого крутого кейса на вкладке Аналитики.
+                                            </p>
+                                            <details className="w-full mt-2 text-left">
+                                              <summary className="text-[10px] text-emerald-400 font-black uppercase tracking-wider cursor-pointer hover:underline">Посмотреть ваше решение</summary>
+                                              <pre className="mt-2 p-3 bg-slate-950 border border-slate-850 rounded-lg overflow-x-auto text-[10px] text-slate-300 font-mono whitespace-pre-wrap max-h-40">
+                                                {profile?.capstone_project?.solution_code}
+                                              </pre>
+                                            </details>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* AI Evaluation feedback block */}
+                                  {profile?.capstone_project?.evaluation && (
+                                    <div className="pt-6 border-t border-slate-850 mt-6 space-y-4 text-left">
+                                      <div className="flex items-center justify-between gap-4 p-4 bg-slate-950/50 border border-slate-855 rounded-2xl">
+                                        <div className="flex items-center gap-3">
+                                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm border ${
+                                            profile?.capstone_project?.evaluation?.score >= 70
+                                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                          }`}>
+                                            {profile?.capstone_project?.evaluation?.score}/100
+                                          </div>
+                                          <div className="text-left">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Вердикт ИИ-Техлида:</span>
+                                            <p className="text-xs text-slate-200 font-extrabold leading-relaxed mt-0.5">
+                                              {profile?.capstone_project?.evaluation?.score >= 70 
+                                                ? '🎉 Проект зачтен! Выпуск подтвержден.' 
+                                                : '❌ Требуются доработки решения.'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="p-4 bg-slate-950/30 border border-slate-850 rounded-2xl text-xs space-y-3 text-left">
+                                        <div className="text-slate-300 leading-relaxed italic">
+                                          💬 <strong>Ревью:</strong> {profile?.capstone_project?.evaluation?.verdict}
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                          <div className="space-y-1.5 text-left">
+                                            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block">✅ Сильные стороны:</span>
+                                            {profile?.capstone_project?.evaluation?.strengths?.map((str: string, idx: number) => (
+                                              <div key={idx} className="text-[10px] text-slate-300 flex items-start gap-1">
+                                                <span className="text-emerald-500">•</span>
+                                                <span>{str}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                          
+                                          <div className="space-y-1.5 text-left">
+                                            <span className="text-[9px] font-black text-rose-400 uppercase tracking-widest block">⚠️ Зоны роста:</span>
+                                            {profile?.capstone_project?.evaluation?.weaknesses?.map((weak: string, idx: number) => (
+                                              <div key={idx} className="text-[10px] text-slate-300 flex items-start gap-1">
+                                                <span className="text-rose-500">•</span>
+                                                <span>{weak}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+
+                                        {profile?.capstone_project?.evaluation?.refactored_solution && (
+                                          <div className="pt-3 border-t border-slate-850 text-left">
+                                            <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest block mb-2">💡 Рекомендованный рефакторинг и советы:</span>
+                                            <pre className="p-4 bg-slate-950 border border-slate-850 text-[10px] text-slate-300 font-mono rounded-xl overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                                              {profile?.capstone_project?.evaluation?.refactored_solution}
+                                            </pre>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                       Учебная программа (Интерактивный Таймлайн)
@@ -2072,25 +2461,7 @@ export default function Career() {
                                      exit={{ opacity: 0, height: 0 }}
                                      className="overflow-hidden mt-5 pt-5 border-t border-slate-100 dark:border-slate-800 space-y-5"
                                    >
-                                     {!isCompleted && (
-                                       <div className="p-4 bg-gradient-to-r from-indigo-50 to-indigo-100/50 dark:from-indigo-950/20 dark:to-slate-900 border border-indigo-100 dark:border-indigo-900/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                                         <div className="flex items-center gap-3 text-left">
-                                           <div className="w-9 h-9 bg-indigo-600/10 dark:bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-200/20">
-                                             <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
-                                           </div>
-                                           <div>
-                                             <h5 className="text-xs font-black text-slate-800 dark:text-slate-200">Знаете эту тему отлично?</h5>
-                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Сдайте входную экспресс-диагностику и перейдите сразу к практике Expert!</p>
-                                           </div>
-                                         </div>
-                                         <button
-                                           onClick={() => { setDiagnosticModule(mod); setShowDiagnosticModal(true); }}
-                                           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-extrabold transition shrink-0 shadow-xs"
-                                         >
-                                           Сдать экстерном (+40 XP)
-                                         </button>
-                                       </div>
-                                     )}
+                                     /* Pass externally banner removed as per requirements */
 
                                      <div>
                                       <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">🎯 Зачем это бизнесу</h4>
@@ -2564,39 +2935,75 @@ export default function Career() {
                 <LearningDashboard profile={profile} />
 
                 {/* Sprint 3: GitHub README Portfolio Exporter Card */}
-                <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mt-6 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-800 dark:bg-slate-300" />
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-850 dark:text-slate-200 shrink-0">
-                        <GitBranch className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                      </div>
-                      <div>
-                        <h2 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          🐙 Экспорт портфолио в GitHub README
-                        </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Сгенерируйте профессиональный README для ваших проектов</p>
-                      </div>
-                    </div>
+                <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mt-6 relative overflow-hidden text-left">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-800 dark:bg-slate-350" />
+                  {(() => {
+                    const totalM = profile?.course?.modules.length ?? 0;
+                    const completedM = profile?.course?.modules.filter(m => m.completed).length ?? 0;
+                    const isAllMCompleted = totalM > 0 && completedM === totalM;
+                    const isCapCompleted = profile?.capstone_project?.status === "completed";
                     
-                    <button
-                      onClick={handleGenerateReadme}
-                      disabled={isReadmeLoading}
-                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-50 text-white dark:text-slate-900 rounded-xl text-xs font-extrabold flex items-center gap-2 transition disabled:opacity-50 shrink-0 self-start sm:self-center"
-                    >
-                      {isReadmeLoading ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Генерация...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Сгенерировать README.md
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    if (!isAllMCompleted || !isCapCompleted) {
+                      return (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-450 shrink-0 border border-slate-200 dark:border-slate-700">
+                              <Lock className="w-6 h-6 text-slate-400" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                🐙 Экспорт портфолио в GitHub README
+                              </h4>
+                              <p className="text-xs text-rose-500 dark:text-rose-455 font-semibold mt-1">
+                                {!isAllMCompleted 
+                                  ? "🔒 Доступ закрыт: завершите все модули учебного плана, чтобы разблокировать выпускной пет-проект." 
+                                  : "🔒 Доступ закрыт: успешно сдайте выпускной пет-проект (набрав не менее 70 баллов)." }
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            disabled
+                            className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl text-xs font-black cursor-not-allowed shrink-0 border border-slate-200 dark:border-slate-700"
+                          >
+                            Заблокировано
+                          </button>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-855 dark:text-slate-200 shrink-0">
+                            <GitBranch className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <div>
+                            <h2 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                              🐙 Экспорт портфолио в GitHub README
+                            </h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Сгенерируйте профессиональный README для ваших проектов</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleGenerateReadme}
+                          disabled={isReadmeLoading}
+                          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-50 text-white dark:text-slate-900 rounded-xl text-xs font-extrabold flex items-center gap-2 transition disabled:opacity-50 shrink-0 self-start sm:self-center"
+                        >
+                          {isReadmeLoading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Генерация...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Сгенерировать README.md
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                   {githubReadme && (
                     <div className="space-y-3.5 border-t border-slate-100 dark:border-slate-850 pt-5">

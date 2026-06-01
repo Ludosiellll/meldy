@@ -95,6 +95,23 @@ export interface VacancyRecord {
   match_score?: number;
 }
 
+export interface CapstoneProject {
+  title: string;
+  description: string;
+  tech_stack: string[];
+  requirements: string[];
+  chosen?: boolean;
+  status?: 'not_started' | 'in_progress' | 'completed';
+  solution_code?: string;
+  evaluation?: {
+    score: number;
+    verdict: string;
+    strengths: string[];
+    weaknesses: string[];
+    refactored_solution?: string;
+  };
+}
+
 export interface CareerProfile {
   skills: string[];
   professions: { title: string; match: number }[]
@@ -114,6 +131,9 @@ export interface CareerProfile {
   // Sprint 3 additions
   vacancies?: VacancyRecord[];
   last_course_deleted_at?: string;
+  // Graduation Capstone Pet Project
+  capstone_project?: CapstoneProject;
+  capstone_options?: CapstoneProject[];
 }
 
 export interface ReviewQuestion {
@@ -802,7 +822,9 @@ export async function getCodeDiagnostics(
 
 export async function generateGithubReadme(
   profession: string,
-  completedModules: string[]
+  completedModules: string[],
+  capstoneProjectTitle?: string,
+  capstoneProjectDescription?: string
 ): Promise<{ readme: string }> {
   const res = await fetch('/api/career/github_readme', {
     method: 'POST',
@@ -810,9 +832,57 @@ export async function generateGithubReadme(
     body: JSON.stringify({
       profession,
       completed_modules: completedModules,
+      capstone_project_title: capstoneProjectTitle,
+      capstone_project_description: capstoneProjectDescription,
     }),
   });
   if (!res.ok) throw new Error('Ошибка генерации README');
+  return res.json();
+}
+
+export async function generatePetProjects(
+  profession: string,
+  skills: string[],
+  completedModules: string[]
+): Promise<{ projects: CapstoneProject[] }> {
+  const res = await fetch('/api/career/generate_pet_projects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      profession,
+      skills,
+      completed_modules: completedModules
+    }),
+  });
+  if (!res.ok) throw new Error('Ошибка генерации выпускных проектов');
+  return res.json();
+}
+
+export async function evaluatePetProject(
+  profession: string,
+  projectTitle: string,
+  projectDescription: string,
+  requirements: string[],
+  solutionCode: string
+): Promise<{
+  score: number;
+  verdict: string;
+  strengths: string[];
+  weaknesses: string[];
+  refactored_solution?: string;
+}> {
+  const res = await fetch('/api/career/evaluate_pet_project', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      profession,
+      project_title: projectTitle,
+      project_description: projectDescription,
+      requirements,
+      solution_code: solutionCode
+    }),
+  });
+  if (!res.ok) throw new Error('Ошибка проверки выпускного проекта');
   return res.json();
 }
 

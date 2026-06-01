@@ -869,6 +869,22 @@ class CareerCodeDiagnosticsRequest(BaseModel):
 class CareerGithubReadmeRequest(BaseModel):
     profession: str
     completed_modules: List[str]
+    capstone_project_title: Optional[str] = None
+    capstone_project_description: Optional[str] = None
+
+
+class CareerPetProjectsRequest(BaseModel):
+    profession: str
+    skills: List[str]
+    completed_modules: List[str]
+
+
+class CareerPetProjectEvaluateRequest(BaseModel):
+    profession: str
+    project_title: str
+    project_description: str
+    requirements: List[str]
+    solution_code: str
 
 
 
@@ -1974,16 +1990,27 @@ async def career_github_readme(request: Request, req: CareerGithubReadmeRequest)
     
     completed_modules_str = ", ".join(req.completed_modules)
     
+    capstone_part = ""
+    if req.capstone_project_title and req.capstone_project_description:
+        capstone_part = f"""
+В качестве выпускной практической работы (Capstone Project) студент спроектировал и реализовал масштабный пет-проект:
+Название: "{req.capstone_project_title}"
+Описание: "{req.capstone_project_description}"
+Обязательно включи этот проект как главный и центральный кейс портфолио!
+"""
+
     system_prompt = f"""Ты — ИИ-Технический Рекрутер и Бренд-Консультант для разработчиков.
-Сгенерируй потрясающий, профессиональный файл README.md для GitHub-профиля студента, обучающегося по направлению "{req.profession}".
+Сгенерируй потрясающий, профессиональный файл README.md для GitHub-профиля студента, успешно окончившего полный ИИ-курс обучения по направлению "{req.profession}".
 Студент успешно освоил следующие темы в ИИ-буткемпе StudyForge: {completed_modules_str}.
+{capstone_part}
 
 Структура README должна включать:
 1. Заголовок с именем/направлением и целями.
 2. Иконки технологий (используй щиты shields.io).
-3. Раздел с пет-проектами из пройденных модулей (подано в привлекательном коммерческом виде).
-4. Метрики (например, оцифрованный Match Score, пройденные ИИ-собеседования).
-5. Раздел с контактами.
+3. Главный раздел: Выпускной Пет-Проект (Capstone Project) — распиши его в привлекательном коммерческом виде (суть, стек, ключевые фичи/User Stories).
+4. Раздел с другими проектами и темами из пройденных модулей.
+5. Метрики (например, оцифрованный Match Score, пройденные ИИ-собеседования).
+6. Раздел с контактами.
 
 Пиши на русском языке, используй премиальные Markdown-блоки и красивые эмодзи."""
     
@@ -1992,6 +2019,110 @@ async def career_github_readme(request: Request, req: CareerGithubReadmeRequest)
         return {"readme": readme}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка генерации README: {str(e)}")
+
+
+@app.post("/api/career/generate_pet_projects")
+@limiter.limit("10/minute")
+async def career_generate_pet_projects(request: Request, req: CareerPetProjectsRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    completed_modules_str = ", ".join(req.completed_modules)
+    skills_str = ", ".join(req.skills)
+    
+    system_prompt = f"""Ты — ИИ-Методист, Технический Архитектор и Куратор пет-проектов.
+Сгенерируй 3 уникальных, инновационных и практически полезных выпускных пет-проекта для студента, завершившего полный ИИ-курс обучения.
+
+Направление студента: "{req.profession}"
+Освоенные навыки: {skills_str}
+Изученные учебные модули: {completed_modules_str}
+
+Каждый пет-проект должен быть масштабным, но реализуемым в рамках учебного приложения. Он должен объединять знания и навыки из нескольких изученных модулей.
+
+Для каждого проекта обязательно укажи:
+1. title: Яркое, коммерчески привлекательное и солидное название проекта.
+2. description: Подробное описание сути проекта, решаемой проблемы и ценности для портфолио разработчика.
+3. tech_stack: Список из 3-5 технологий, библиотек или инструментов, наиболее подходящих для проекта.
+4. requirements: Список из 4-5 конкретных, измеримых функциональных требований / User Stories (на русском языке), которые студент должен реализовать (например, "Разработать REST API с аутентификацией", "Реализовать кэширование с помощью Redis", "Добавить валидацию форм"). Эти требования будут проверяться нами.
+
+Формат вывода: Верни ТОЛЬКО валидный JSON с ключом "projects", содержащим список из 3-х проектов.
+Пример структуры JSON:
+{{
+  "projects": [
+    {{
+      "title": "Умная CRM-система",
+      "description": "Платформа для управления клиентами с авто-анализом тональности писем...",
+      "tech_stack": ["React", "FastAPI", "PostgreSQL", "TailwindCSS"],
+      "requirements": [
+        "Интегрировать JWT-аутентификацию",
+        "Создать дашборд с графиками продаж",
+        "Добавить фильтрацию клиентов по статусам",
+        "Реализовать экспорт отчетов в CSV"
+      ]
+    }}
+  ]
+}}
+Не выводи никаких вводных или заключительных слов, никаких тегов markdown (кроме, возможно, json кода), только чистый валидный JSON."""
+
+    try:
+        raw = await agent.run(system_prompt, "Сгенерируй 3 пет-проекта.")
+        return parse_llm_json(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации пет-проектов: {str(e)}")
+
+
+@app.post("/api/career/evaluate_pet_project")
+@limiter.limit("10/minute")
+async def career_evaluate_pet_project(request: Request, req: CareerPetProjectEvaluateRequest):
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
+        
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    
+    requirements_str = "\n".join(f"- {r}" for r in req.requirements)
+    
+    system_prompt = f"""Ты — Старший Технический Лид, Главный Архитектор и ИИ-Ментор выпускных проектов.
+Проведи профессиональный, строгий, но конструктивный код-ревью (или аудит решения) выпускного пет-проекта студента.
+
+Направление: "{req.profession}"
+Название проекта: "{req.project_title}"
+Описание проекта: "{req.project_description}"
+
+Ключевые функциональные требования, которые студент должен был реализовать:
+{requirements_str}
+
+Студент предоставил следующее решение (это может быть исходный код, архитектурное описание, структура БД или развернутое техническое описание):
+---
+{req.solution_code}
+---
+
+Твоя задача — проанализировать решение и оценить его качество.
+Выставь итоговую оценку от 0 до 100.
+Для успешной сдачи (зачета) проекта студент должен набрать 70 или более баллов.
+
+Верни строго JSON с результатами ревью следующей структуры:
+{{
+  "score": 85, // Оценка от 0 до 100 (целое число)
+  "verdict": "Общий конструктивный отзыв на русском языке, анализирующий полноту реализации требований...",
+  "strengths": [
+    "Сильная сторона 1...",
+    "Сильная сторона 2..."
+  ],
+  "weaknesses": [
+    "Слабая сторона 1...",
+    "Слабая сторона 2..."
+  ],
+  "refactored_solution": "Если применимо, пример оптимизированного кода или более изящной архитектуры (markdown format)..."
+}}
+Не выводи никаких лишних слов или символов, кроме валидного JSON."""
+
+    try:
+        raw = await agent.run(system_prompt, "Проведи ревью выпускного проекта.")
+        return parse_llm_json(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка ревью пет-проекта: {str(e)}")
 
 
 @app.post("/api/career/update_review")
