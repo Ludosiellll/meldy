@@ -103,6 +103,7 @@ export interface CapstoneProject {
   chosen?: boolean;
   status?: 'not_started' | 'in_progress' | 'completed';
   solution_code?: string;
+  github_repo_url?: string;
   evaluation?: {
     score: number;
     verdict: string;
@@ -863,7 +864,8 @@ export async function evaluatePetProject(
   projectTitle: string,
   projectDescription: string,
   requirements: string[],
-  solutionCode: string
+  solutionCode: string,
+  githubRepoUrl?: string
 ): Promise<{
   score: number;
   verdict: string;
@@ -879,10 +881,14 @@ export async function evaluatePetProject(
       project_title: projectTitle,
       project_description: projectDescription,
       requirements,
-      solution_code: solutionCode
+      solution_code: solutionCode,
+      github_repo_url: githubRepoUrl
     }),
   });
-  if (!res.ok) throw new Error('Ошибка проверки выпускного проекта');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'Ошибка проверки выпускного проекта');
+  }
   return res.json();
 }
 

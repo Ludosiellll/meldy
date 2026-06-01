@@ -885,6 +885,7 @@ class CareerPetProjectEvaluateRequest(BaseModel):
     project_description: str
     requirements: List[str]
     solution_code: str
+    github_repo_url: Optional[str] = None
 
 
 
@@ -2079,8 +2080,129 @@ async def career_evaluate_pet_project(request: Request, req: CareerPetProjectEva
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
         
-    agent = BaseAgent(api_key=GROQ_API_KEY)
+    import httpx
+    import os
     
+    solution_to_audit = req.solution_code
+    
+    if req.github_repo_url and req.github_repo_url.strip():
+        url = req.github_repo_url.strip()
+        # Clean url of trailing slashes and .git extension
+        if url.endswith(".git"):
+            url = url[:-4]
+        url = url.rstrip("/")
+        
+        parts = url.split("github.com/")
+        if len(parts) < 2:
+            raise HTTPException(status_code=400, detail="Неверный формат ссылки. Укажите ссылку в формате https://github.com/пользователь/репозиторий")
+        
+        repo_path = parts[1] # e.g. owner/repo
+        sub_parts = repo_path.split("/")
+        if len(sub_parts) < 2:
+            raise HTTPException(status_code=400, detail="Неверный формат ссылки. Укажите ссылку в формате https://github.com/пользователь/репозиторий")
+            
+        owner, repo = sub_parts[0], sub_parts[1]
+        
+        headers = {"User-Agent": "StudyForge-Agent"}
+        
+        async with httpx.AsyncClient() as client:
+            # Check if repository exists and is public
+            check_url = f"https://api.github.com/repos/{owner}/{repo}"
+            try:
+                check_resp = await client.get(check_url, headers=headers)
+                if check_resp.status_code == 404:
+                    raise HTTPException(status_code=400, detail="Репозиторий не найден или является приватным. Пожалуйста, сделайте репозиторий публичным (Public) в настройках GitHub, чтобы ИИ-Лид мог прочитать его файлы.")
+                elif check_resp.status_code != 200:
+                    raise HTTPException(status_code=400, detail=f"Ошибка проверки репозитория GitHub: статус {check_resp.status_code}")
+            except httpx.RequestError as exc:
+                raise HTTPException(status_code=500, detail=f"Не удалось подключиться к GitHub API: {str(exc)}")
+            
+            # Fetch default branch
+            repo_data = check_resp.json()
+            default_branch = repo_data.get("default_branch", "main")
+            
+            # Fetch tree of files
+            tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1"
+            tree_resp = await client.get(tree_url, headers=headers)
+            if tree_resp.status_code != 200:
+                # Try master as fallback
+                fallback_branch = "master" if default_branch == "main" else "main"
+                tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{fallback_branch}?recursive=1"
+                tree_resp = await client.get(tree_url, headers=headers)
+                if tree_resp.status_code == 200:
+                    default_branch = fallback_branch
+                    
+            if tree_resp.status_code != 200:
+                raise HTTPException(status_code=400, detail="Не удалось загрузить структуру файлов репозитория. Убедитесь, что в репозитории есть файлы и ветка main или master.")
+                
+            tree_data = tree_resp.json()
+            items = tree_data.get("tree", [])
+            
+            # Filter and sort files
+            allowed_exts = {".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".java", ".cpp", ".cs", ".html", ".css", ".sql", ".php", ".rb", ".json", ".sh", ".yml", ".yaml"}
+            exclude_keywords = {"node_modules", "venv", "dist", "build", "__pycache__", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", ".git"}
+            
+            code_files = []
+            structure_lines = []
+            for item in items:
+                path = item.get("path", "")
+                is_file = item.get("type", "") == "blob"
+                
+                # Check excludes
+                if any(x in path for x in exclude_keywords):
+                    continue
+                    
+                if is_file:
+                    structure_lines.append(f"- {path}")
+                    ext = os.path.splitext(path)[1].lower()
+                    if ext in allowed_exts:
+                        code_files.append(item)
+                else:
+                    structure_lines.append(f"[Dir] {path}/")
+            
+            if not code_files:
+                raise HTTPException(status_code=400, detail="В репозитории не обнаружено подходящих исходных файлов кода для проверки (JS, TS, Python, SQL и др.).")
+            
+            # Select top 5 code files based on importance
+            def file_importance(item_node):
+                path_str = item_node.get("path", "").lower()
+                score = 0
+                if "app" in path_str or "main" in path_str or "index" in path_str or "server" in path_str or "queries" in path_str or "model" in path_str:
+                    score += 10
+                if path_str.endswith(".tsx") or path_str.endswith(".py") or path_str.endswith(".ts") or path_str.endswith(".sql"):
+                    score += 5
+                # penalty for config files
+                if "config" in path_str or "webpack" in path_str or "babel" in path_str:
+                    score -= 5
+                return score
+                
+            code_files = sorted(code_files, key=file_importance, reverse=True)[:5]
+            
+            # Download contents of selected files
+            downloaded_files_str = ""
+            for item in code_files:
+                path = item.get("path", "")
+                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{path}"
+                raw_resp = await client.get(raw_url)
+                if raw_resp.status_code == 200:
+                    content_text = raw_resp.text
+                    # Limit file size to 10KB to prevent context limit errors
+                    if len(content_text) > 10240:
+                        content_text = content_text[:10240] + "\n\n...[Файл усечен из-за превышения лимита размера]..."
+                    downloaded_files_str += f"\n\n--- Файл: {path} ---\n{content_text}\n"
+            
+            structure_str = "\n".join(structure_lines[:80]) # limit tree to 80 items
+            solution_to_audit = f"""[Решение отправлено через GitHub репозиторий: {url}]
+Ветка по умолчанию: {default_branch}
+
+СТРУКТУРА РЕПОЗИТОРИЯ (фрагмент):
+{structure_str}
+
+ИЗВЛЕЧЕННЫЙ ИСХОДНЫЙ КОД КЛЮЧЕВЫХ ФАЙЛОВ:
+{downloaded_files_str}
+"""
+
+    agent = BaseAgent(api_key=GROQ_API_KEY)
     requirements_str = "\n".join(f"- {r}" for r in req.requirements)
     
     system_prompt = f"""Ты — Старший Технический Лид, Главный Архитектор и ИИ-Ментор выпускных проектов.
@@ -2093,9 +2215,9 @@ async def career_evaluate_pet_project(request: Request, req: CareerPetProjectEva
 Ключевые функциональные требования, которые студент должен был реализовать:
 {requirements_str}
 
-Студент предоставил следующее решение (это может быть исходный код, архитектурное описание, структура БД или развернутое техническое описание):
+Студент предоставил следующее решение (это может быть исходный код, архитектурное описание, структура БД или извлеченные файлы репозитория):
 ---
-{req.solution_code}
+{solution_to_audit}
 ---
 
 Твоя задача — проанализировать решение и оценить его качество.

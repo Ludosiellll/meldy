@@ -343,6 +343,8 @@ export default function Career() {
   const [isGeneratingCapstone, setIsGeneratingCapstone] = useState(false);
   const [isSubmittingCapstone, setIsSubmittingCapstone] = useState(false);
   const [capstoneSolutionCode, setCapstoneSolutionCode] = useState('');
+  const [capstoneSubmissionTab, setCapstoneSubmissionTab] = useState<'github' | 'manual'>('github');
+  const [capstoneGithubUrl, setCapstoneGithubUrl] = useState('');
   const [githubReadme, setGithubReadme] = useState<string | null>(null);
   // States for manual vacancy search & filter (Variant B)
   const [searchProfession, setSearchProfession] = useState('');
@@ -1597,7 +1599,18 @@ export default function Career() {
   };
 
   const handleSubmitCapstoneProject = async () => {
-    if (!user || !profile || !profile.capstone_project || !capstoneSolutionCode.trim()) return;
+    if (!user || !profile || !profile.capstone_project) return;
+    
+    const isGithub = capstoneSubmissionTab === 'github';
+    if (isGithub && !capstoneGithubUrl.trim()) {
+      toast.error('Пожалуйста, введите корректную ссылку на ваш публичный GitHub репозиторий.');
+      return;
+    }
+    if (!isGithub && !capstoneSolutionCode.trim()) {
+      toast.error('Пожалуйста, введите ваше решение (код или архитектурное описание).');
+      return;
+    }
+
     setIsSubmittingCapstone(true);
     try {
       const res = await evaluatePetProject(
@@ -1605,13 +1618,15 @@ export default function Career() {
         profile.capstone_project.title,
         profile.capstone_project.description,
         profile.capstone_project.requirements,
-        capstoneSolutionCode
+        isGithub ? '' : capstoneSolutionCode,
+        isGithub ? capstoneGithubUrl : undefined
       );
       
       const passed = res.score >= 70;
       const updatedCapstone = {
         ...profile.capstone_project,
-        solution_code: capstoneSolutionCode,
+        solution_code: isGithub ? '' : capstoneSolutionCode,
+        github_repo_url: isGithub ? capstoneGithubUrl : '',
         status: passed ? 'completed' as const : 'in_progress' as const,
         evaluation: {
           score: res.score,
@@ -1643,8 +1658,8 @@ export default function Career() {
           toast.error(`Проект оценен на ${res.score}/100. Нужно набрать не менее 70 баллов для сдачи. Изучите ревью и попробуйте еще раз! (+${xpGain} XP за попытку)`);
         }
       }
-    } catch (err) {
-      toast.error('Не удалось отправить проект на проверку.');
+    } catch (err: any) {
+      toast.error(err.message || 'Не удалось отправить проект на проверку.');
     } finally {
       setIsSubmittingCapstone(false);
     }
@@ -2208,7 +2223,7 @@ export default function Career() {
                                     {/* Left Column: Requirements checklist */}
                                     <div className="space-y-4 text-left">
                                       <h4 className="text-xs font-black text-violet-300 flex items-center gap-1.5 uppercase tracking-wide">
-                                        <CheckCircle2 className="w-4 h-4 text-violet-405" />
+                                        <CheckCircle2 className="w-4 h-4 text-violet-400" />
                                         Чек-лист требований к проверке:
                                       </h4>
                                       <div className="space-y-2.5">
@@ -2225,37 +2240,107 @@ export default function Career() {
                                       </div>
                                     </div>
 
-                                    {/* Right Column: Code submission and mentor review */}
-                                    <div className="space-y-4 flex flex-col justify-between text-left">
-                                      <div className="space-y-3">
-                                        <h4 className="text-xs font-black text-violet-300 flex items-center gap-1.5 uppercase tracking-wide">
-                                          <Code2 className="w-4 h-4 animate-pulse" />
-                                          💻 Текстовое решение выпускника:
-                                        </h4>
-                                        
-                                        {profile?.capstone_project?.status !== 'completed' ? (
+                                    {/* Right Column: Code submission and mentor review with GitHub tabs */}
+                                    <div className="space-y-4 flex flex-col justify-between text-left w-full overflow-hidden">
+                                      <div className="space-y-3.5 w-full">
+                                        {profile?.capstone_project?.status !== "completed" ? (
                                           <>
-                                            <textarea
-                                              value={capstoneSolutionCode}
-                                              onChange={(e) => setCapstoneSolutionCode(e.target.value)}
-                                              disabled={isSubmittingCapstone}
-                                              placeholder="Вставьте сюда ваш исходный код, архитектуру базы данных или подробное техническое описание решения выпускного проекта..."
-                                              className="w-full h-44 bg-slate-950 border border-slate-855 rounded-xl p-4 text-xs font-mono text-slate-205 placeholder-slate-650 focus:outline-none focus:ring-1 focus:ring-violet-500 leading-relaxed"
-                                            />
+                                            <h4 className="text-xs font-black text-violet-300 flex items-center gap-1.5 uppercase tracking-wider">
+                                              <Code2 className="w-4 h-4 animate-pulse" />
+                                              💻 Выберите способ отправки решения:
+                                            </h4>
+                                            
+                                            {/* Submission Mode Tabs Switcher */}
+                                            <div className="flex p-1 bg-slate-100 dark:bg-slate-950 rounded-xl mb-4 w-full border border-slate-200/50 dark:border-slate-900">
+                                              <button
+                                                onClick={() => setCapstoneSubmissionTab("github")}
+                                                className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                                                  capstoneSubmissionTab === "github"
+                                                    ? "bg-white dark:bg-slate-800 text-slate-950 dark:text-white shadow-xs border border-slate-200/20" 
+                                                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                                                }`}
+                                              >
+                                                🐙 GitHub Репозиторий
+                                                <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-950 text-violet-650 dark:text-violet-400 rounded text-[9px] font-black uppercase">Рекомендуется</span>
+                                              </button>
+                                              <button
+                                                onClick={() => setCapstoneSubmissionTab("manual")}
+                                                className={`flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all ${
+                                                  capstoneSubmissionTab === "manual"
+                                                    ? "bg-white dark:bg-slate-800 text-slate-950 dark:text-white shadow-xs border border-slate-200/20" 
+                                                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                                                }`}
+                                              >
+                                                💻 Код текстом
+                                              </button>
+                                            </div>
+                                            
+                                            {/* Tab 1: GitHub Link submission */}
+                                            {capstoneSubmissionTab === "github" ? (
+                                              <div className="space-y-4 bg-slate-50 dark:bg-slate-950/40 p-4 border border-slate-200/60 dark:border-slate-900 rounded-2xl">
+                                                <div className="space-y-2 text-left">
+                                                  <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">📋 Пошаговая инструкция для защиты:</span>
+                                                  <div className="space-y-2 text-[11px] text-slate-650 dark:text-slate-300 font-medium leading-relaxed">
+                                                    <div className="flex items-start gap-1.5">
+                                                      <span className="text-violet-500 font-bold shrink-0">1.</span>
+                                                      <span>Создайте репозиторий на GitHub и сделайте его <strong>Публичным (Public)</strong>.</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-1.5">
+                                                      <span className="text-violet-500 font-bold shrink-0">2.</span>
+                                                      <span>Склонируйте его и пишите проект локально на ПК в вашей IDE (VS Code и др.) без каких-либо компиляционных ограничений!</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-1.5">
+                                                      <span className="text-violet-500 font-bold shrink-0">3.</span>
+                                                      <span>Сделайте коммиты и отправьте код (`git push origin main`) на GitHub.</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-1.5">
+                                                      <span className="text-violet-500 font-bold shrink-0">4.</span>
+                                                      <span>Вставьте ссылку ниже и нажмите «Проверить». ИИ-Техлид изучит файлы репозитория и проведет детальный аудит!</span>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                                
+                                                <div className="space-y-1.5">
+                                                  <label className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-wide block">Ссылка на репозиторий GitHub:</label>
+                                                  <div className="relative flex items-center w-full">
+                                                    <GitBranch className="absolute left-3 w-4 h-4 text-violet-500" />
+                                                    <input
+                                                      type="text"
+                                                      value={capstoneGithubUrl}
+                                                      onChange={(e) => setCapstoneGithubUrl(e.target.value)}
+                                                      disabled={isSubmittingCapstone}
+                                                      placeholder="https://github.com/пользователь/название-репозитория"
+                                                      className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 rounded-xl focus:outline-none focus:ring-1 focus:ring-violet-500 text-xs font-semibold transition shadow-inner"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="space-y-2">
+                                                <textarea
+                                                  value={capstoneSolutionCode}
+                                                  onChange={(e) => setCapstoneSolutionCode(e.target.value)}
+                                                  disabled={isSubmittingCapstone}
+                                                  placeholder="Вставьте сюда ваш исходный код, архитектуру базы данных или подробное техническое описание решения выпускного проекта..."
+                                                  className="w-full h-48 bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-855 rounded-xl p-4 text-xs font-mono text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-650 focus:outline-none focus:ring-1 focus:ring-violet-500 leading-relaxed shadow-inner"
+                                                />
+                                              </div>
+                                            )}
+                                            
                                             <button
                                               onClick={handleSubmitCapstoneProject}
-                                              disabled={isSubmittingCapstone || !capstoneSolutionCode.trim()}
-                                              className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-550 hover:to-indigo-550 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg shadow-violet-500/10 flex items-center justify-center gap-2 transition"
+                                              disabled={isSubmittingCapstone || (capstoneSubmissionTab === "github" ? !capstoneGithubUrl.trim() : !capstoneSolutionCode.trim())}
+                                              className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-650 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg shadow-violet-500/10 flex items-center justify-center gap-2 transition"
                                             >
                                               {isSubmittingCapstone ? (
                                                 <>
                                                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                                                  ИИ-Техлид проводит аудит решения...
+                                                  ИИ-Техлид проводит аудит репозитория...
                                                 </>
                                               ) : (
                                                 <>
-                                                  <Send className="w-4 h-4" />
-                                                  Отправить проект на проверку ИИ-Лиду
+                                                  {capstoneSubmissionTab === "github" ? <GitBranch className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                                                  {capstoneSubmissionTab === "github" ? "Проверить репозиторий GitHub" : "Отправить код на проверку ИИ-Лиду"}
                                                 </>
                                               )}
                                             </button>
@@ -2264,15 +2349,30 @@ export default function Career() {
                                           <div className="p-5 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
                                             <Trophy className="w-12 h-12 text-amber-400 animate-bounce" />
                                             <h4 className="text-sm font-extrabold text-white">Вы успешно защитили проект!</h4>
-                                            <p className="text-[11px] text-slate-350 max-w-sm leading-relaxed">
+                                            <p className="text-[11px] text-slate-300 max-w-sm leading-relaxed font-semibold">
                                               Поздравляем с официальным выпуском! Теперь вы можете сгенерировать GitHub README.md с описанием этого крутого кейса на вкладке Аналитики.
                                             </p>
-                                            <details className="w-full mt-2 text-left">
-                                              <summary className="text-[10px] text-emerald-400 font-black uppercase tracking-wider cursor-pointer hover:underline">Посмотреть ваше решение</summary>
-                                              <pre className="mt-2 p-3 bg-slate-950 border border-slate-850 rounded-lg overflow-x-auto text-[10px] text-slate-300 font-mono whitespace-pre-wrap max-h-40">
-                                                {profile?.capstone_project?.solution_code}
-                                              </pre>
-                                            </details>
+                                            
+                                            {profile?.capstone_project?.github_repo_url && (
+                                              <a
+                                                href={profile.capstone_project.github_repo_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition"
+                                              >
+                                                <GitBranch className="w-3.5 h-3.5" />
+                                                🐙 Перейти к репозиторию на GitHub
+                                              </a>
+                                            )}
+                                            
+                                            {profile?.capstone_project?.solution_code && (
+                                              <details className="w-full mt-2 text-left">
+                                                <summary className="text-[10px] text-emerald-400 font-black uppercase tracking-wider cursor-pointer hover:underline">Посмотреть ваше решение</summary>
+                                                <pre className="mt-2 p-3 bg-slate-950 border border-slate-850 rounded-lg overflow-x-auto text-[10px] text-slate-300 font-mono whitespace-pre-wrap max-h-40">
+                                                  {profile.capstone_project.solution_code}
+                                                </pre>
+                                              </details>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -2947,14 +3047,14 @@ export default function Career() {
                       return (
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-450 shrink-0 border border-slate-200 dark:border-slate-700">
+                            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 shrink-0 border border-slate-200 dark:border-slate-700">
                               <Lock className="w-6 h-6 text-slate-400" />
                             </div>
                             <div>
                               <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                                 🐙 Экспорт портфолио в GitHub README
                               </h4>
-                              <p className="text-xs text-rose-500 dark:text-rose-455 font-semibold mt-1">
+                              <p className="text-xs text-rose-500 dark:text-rose-400 font-semibold mt-1">
                                 {!isAllMCompleted 
                                   ? "🔒 Доступ закрыт: завершите все модули учебного плана, чтобы разблокировать выпускной пет-проект." 
                                   : "🔒 Доступ закрыт: успешно сдайте выпускной пет-проект (набрав не менее 70 баллов)." }
