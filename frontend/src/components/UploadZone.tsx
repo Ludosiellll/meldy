@@ -195,8 +195,8 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               </div>
               <p className="text-slate-800 dark:text-slate-200 font-semibold text-lg mb-1">Перетащите файл сюда</p>
               <p className="text-slate-400 dark:text-slate-500">или нажмите для выбора</p>
-              <p className="text-slate-300 dark:text-slate-600 text-sm mt-3">
-                {tab === 'docs' ? 'Поддерживаются PDF, DOCX, TXT, MD, JPG, PNG — до 50 МБ' : 'Поддерживаются MP4, MP3, WAV — до 50 МБ'}
+              <p className="text-slate-300 dark:text-slate-660 text-sm mt-3">
+                {tab === 'docs' ? 'Поддерживаются PDF, DOCX, HTML, TXT, MD, JPG, PNG — до 50 МБ' : 'Поддерживаются MP4, MP3, WAV — до 50 МБ'}
               </p>
             </div>
             
@@ -227,7 +227,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
         ) : null}
 
         <input id="fi" type="file" className="hidden" 
-          accept={tab === 'docs' ? ".pdf,.docx,.txt,.md,.doc,.jpg,.jpeg,.png" : ".mp4,.mp3,.wav,.mpeg,.m4a"}
+          accept={tab === 'docs' ? ".pdf,.docx,.txt,.md,.doc,.html,.htm,.jpg,.jpeg,.png" : ".mp4,.mp3,.wav,.mpeg,.m4a"}
           onChange={e => { if (e.target.files?.[0]) { validateAndSet(e.target.files[0]); e.target.value = ''; } }} />
         
         {sizeError && (

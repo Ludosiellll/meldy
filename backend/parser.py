@@ -9,6 +9,8 @@ def extract_text(contents: bytes, filename: str) -> str:
         return _extract_pdf(contents)
     elif ext == "docx":
         return _extract_docx(contents)
+    elif ext in ("html", "htm"):
+        return _extract_html(contents)
     elif ext in ("txt", "md", "doc"):
         return _extract_text(contents)
     else:
@@ -49,3 +51,26 @@ def _extract_text(contents: bytes) -> str:
         except UnicodeDecodeError:
             continue
     return contents.decode("utf-8", errors="replace")
+
+
+def _extract_html(contents: bytes) -> str:
+    try:
+        from bs4 import BeautifulSoup
+        html_str = _extract_text(contents)
+        soup = BeautifulSoup(html_str, "html.parser")
+        
+        # Remove script and style elements
+        for script in soup(["script", "style", "header", "footer", "nav"]):
+            script.decompose()
+            
+        # Get text
+        text = soup.get_text(separator="\n")
+        
+        # Clean up spacing and empty lines
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = "\n".join(chunk for chunk in chunks if chunk)
+        
+        return text
+    except Exception as e:
+        raise ValueError(f"Ошибка чтения HTML: {e}")

@@ -162,7 +162,7 @@ async def analyze(
             detail="GROQ_API_KEY не настроен на сервере",
         )
 
-    allowed_extensions = (".pdf", ".txt", ".docx", ".md", ".doc")
+    allowed_extensions = (".pdf", ".txt", ".docx", ".md", ".doc", ".html", ".htm")
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed_extensions:
         raise HTTPException(
