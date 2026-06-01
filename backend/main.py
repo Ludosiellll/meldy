@@ -575,12 +575,14 @@ class ProfessorQuestionRequest(BaseModel):
     socratic_mode: bool = False
     exam_history: List[dict] = []
     recent_mistakes: List[str] = []
+    professor_id: Optional[str] = None
 
 
 class ProfessorEvaluateRequest(BaseModel):
     context: str
     question: str
     student_answer: str
+    professor_id: Optional[str] = None
 
 
 class MissionsGenerateRequest(BaseModel):
@@ -638,7 +640,7 @@ async def professor_question(request: Request, req: ProfessorQuestionRequest):
     else:
         socratic_instr = ""
 
-    system_prompt = build_professor_question_prompt(req.context, req.history_text)
+    system_prompt = build_professor_question_prompt(req.context, req.history_text, req.professor_id)
     if mood_instr:
         system_prompt += f"\n\nКОНТЕКСТ СОСТОЯНИЯ СТУДЕНТА: {mood_instr}"
     if adaptive_instr:
@@ -653,7 +655,7 @@ async def professor_question(request: Request, req: ProfessorQuestionRequest):
 @limiter.limit("15/minute")
 async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
-    system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer)
+    system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer, req.professor_id)
     raw = await agent.run(system_prompt, "Оцени мой ответ.")
     
     try:

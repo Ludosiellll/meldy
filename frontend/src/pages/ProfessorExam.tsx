@@ -579,7 +579,8 @@ export default function ProfessorExam() {
         body: JSON.stringify({
           context,
           question: currentQuestion,
-          student_answer: answerText
+          student_answer: answerText,
+          professor_id: selectedProfId
         })
       });
 
