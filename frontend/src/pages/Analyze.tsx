@@ -151,9 +151,9 @@ export default function Analyze() {
           try {
             await incrementAIUsage(user.id, 20); // списываем 20 за анализ
             
-            const title = sourceFileNameRef.current
+            const title = results.summarizer?.title || (sourceFileNameRef.current
               ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
-              : 'Без названия';
+              : 'Без названия');
 
             const { data: inserted, error } = await supabase
               .from('materials')

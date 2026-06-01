@@ -89,7 +89,7 @@ class CoordinatorAgent:
             }
 
         fallbacks = {
-            "summarizer": {"subject": "Конспект", "content": "", "terms": []},
+            "summarizer": {"title": "Без названия", "subject": "Конспект", "content": "", "terms": []},
             "flashcards": {"flashcards": []},
             "quiz": {"quiz": []},
             "cheatsheet": {"content": ""},
@@ -113,14 +113,14 @@ class CoordinatorAgent:
         except Exception as e:
             if name == "summarizer":
                 print(f"Summarizer parse error: {e}, raw: {raw[:100]}")
-                return {"content": raw, "subject": "Конспект (fallback)", "terms": [], "error": str(e)}
+                return {"content": raw, "title": "Без названия (fallback)", "subject": "Конспект (fallback)", "terms": [], "error": str(e)}
             return {"error": f"Parse error: {str(e)}", "raw": raw}
 
         if name == "summarizer":
             if isinstance(parsed, dict):
                 return parsed
             print(f"Summarizer invalid format (not dict), raw: {raw[:100]}")
-            return {"content": str(parsed), "subject": "Конспект (fallback)", "terms": [], "error": "Invalid format"}
+            return {"content": str(parsed), "title": "Без названия (fallback)", "subject": "Конспект (fallback)", "terms": [], "error": "Invalid format"}
 
         if name in ("flashcards", "quiz", "podcast", "missions"):
             if isinstance(parsed, list):
