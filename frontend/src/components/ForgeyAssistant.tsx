@@ -127,11 +127,8 @@ export default function ForgeyAssistant() {
     };
 
     checkModal();
-
-    const observer = new MutationObserver(checkModal);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => observer.disconnect();
+    const interval = setInterval(checkModal, 450);
+    return () => clearInterval(interval);
   }, []);
 
   const getPageAdvice = () => {
