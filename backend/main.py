@@ -2176,6 +2176,7 @@ async def career_update_review(request: Request, req: CareerUpdateReviewRequest)
     
     token = auth_header[7:]
     sb = create_client(sb_url, sb_key)
+    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал (auth.uid() != NULL)
     
     # Get user from token
     try:
@@ -2259,6 +2260,7 @@ async def career_due_reviews(request: Request):
     
     token = auth_header[7:]
     sb = create_client(sb_url, sb_key)
+    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
     
     try:
         user_resp = sb.auth.get_user(token)
@@ -2450,6 +2452,7 @@ async def hh_exchange(request: Request, req: HHExchangeRequest):
             
         from supabase import create_client
         sb = create_client(sb_url, sb_key)
+        sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
         try:
             user_resp = sb.auth.get_user(token)
             user_id = user_resp.user.id
@@ -2495,6 +2498,7 @@ async def hh_resumes(request: Request):
         
     from supabase import create_client
     sb = create_client(sb_url, sb_key)
+    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
     try:
         user_resp = sb.auth.get_user(token)
         user_id = user_resp.user.id
@@ -2546,6 +2550,7 @@ async def hh_apply(request: Request, req: HHApplyRequest):
         
     from supabase import create_client
     sb = create_client(sb_url, sb_key)
+    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
     try:
         user_resp = sb.auth.get_user(token)
         user_id = user_resp.user.id
