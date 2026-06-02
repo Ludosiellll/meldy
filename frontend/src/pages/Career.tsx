@@ -22,7 +22,7 @@ import {
   generateRetryTask, getModuleHint,
   saveXPToProfile, getLevelFromXP, XP_REWARDS, ModuleReviewRecord,
   getCodeDiagnostics, generateGithubReadme, generatePetProjects, evaluatePetProject,
-  getHHAuthUrl
+  getHHAuthUrl, getHHResumes
 } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
@@ -39,7 +39,6 @@ import ReviewTestModal from '../components/ReviewTestModal';
 import MockInterviewModal from '../components/MockInterviewModal';
 import SocraticTutor from '../components/SocraticTutor';
 import LearningDashboard from '../components/LearningDashboard';
-import JobTracker from '../components/JobTracker';
 import DiagnosticTestModal from '../components/DiagnosticTestModal';
 import VacancyMobileTabs from '../components/VacancyMobileTabs';
 import { supabase } from '../lib/supabase';
@@ -366,6 +365,177 @@ export default function Career() {
       setHhConnecting(false);
     }
   };
+
+  const [resumes, setResumes] = useState<any[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>('');
+  const [loadingResumes, setLoadingResumes] = useState(false);
+
+  const loadResumes = async () => {
+    setLoadingResumes(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+
+      const res = await getHHResumes(token);
+      const items = res.items || [];
+      setResumes(items);
+      
+      if (items.length > 0) {
+        const savedResumeId = localStorage.getItem('sf_hh_resume_id');
+        if (savedResumeId && items.some((r: any) => r.id === savedResumeId)) {
+          setSelectedResumeId(savedResumeId);
+        } else {
+          setSelectedResumeId(items[0].id);
+          localStorage.setItem('sf_hh_resume_id', items[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load HH resumes:', err);
+    } finally {
+      setLoadingResumes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (profile?.hh_access_token) {
+      loadResumes();
+    }
+  }, [profile?.hh_access_token]);
+
+  const handleImportSkills = async () => {
+    if (!selectedResumeId) {
+      toast.error('Выберите резюме для импорта.');
+      return;
+    }
+    const resume = resumes.find(r => r.id === selectedResumeId);
+    if (!resume) return;
+
+    const rawSkills = resume.key_skills || [];
+    const skillsList = rawSkills.map((s: any) => s.name || s).filter(Boolean);
+
+    if (skillsList.length === 0) {
+      toast.error('В выбранном резюме не найдены ключевые навыки.');
+      return;
+    }
+
+    if (!profile) return;
+    const currentSkills = profile.skills || [];
+    const mergedSkills = Array.from(new Set([...currentSkills, ...skillsList]));
+
+    const updatedProfile = {
+      ...profile,
+      skills: mergedSkills
+    };
+
+    setProfile(updatedProfile);
+    if (user) {
+      await saveCareerProfile(user.id, updatedProfile);
+    }
+
+    toast.success(`Импортировано навыков: ${skillsList.length}. Всего навыков в профиле: ${mergedSkills.length}`);
+  };
+
+  const handleDisconnectHH = async () => {
+    if (!profile) return;
+    const updatedProfile = {
+      ...profile,
+      hh_access_token: undefined,
+      hh_refresh_token: undefined
+    };
+    setProfile(updatedProfile);
+    if (user) {
+      await saveCareerProfile(user.id, updatedProfile);
+    }
+    setResumes([]);
+    setSelectedResumeId('');
+    toast.success('Аккаунт HeadHunter успешно отключен.');
+  };
+
+  const renderHHIntegrationCard = () => {
+    if (!profile) return null;
+
+    return (
+      <div className="bg-gradient-to-r from-red-50/50 to-white dark:from-red-950/10 dark:to-slate-900/60 border border-red-150/40 dark:border-red-900/30 p-5 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden text-left">
+        <div className="absolute right-0 top-0 w-24 h-24 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-red-650 flex items-center justify-center font-black text-white text-lg tracking-tighter shrink-0 select-none shadow-md">
+            hh
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              Интеграция с HeadHunter API
+              {profile.hh_access_token ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black border border-emerald-500/20">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> подключено
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-450 text-[10px] font-bold">
+                  отключено
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {profile.hh_access_token 
+                ? 'Импортируйте навыки из вашего резюме на HeadHunter или отключайте интеграцию.'
+                : 'Свяжите аккаунт, чтобы импортировать профессиональные навыки из резюме.'}
+            </p>
+          </div>
+        </div>
+
+        {profile.hh_access_token ? (
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto md:justify-end shrink-0">
+            {loadingResumes ? (
+              <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-red-500" /> Загружаем резюме...
+              </div>
+            ) : resumes.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <select
+                  value={selectedResumeId}
+                  onChange={(e) => {
+                    setSelectedResumeId(e.target.value);
+                    localStorage.setItem('sf_hh_resume_id', e.target.value);
+                  }}
+                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold text-slate-750 dark:text-slate-200 focus:outline-none"
+                >
+                  {resumes.map(r => (
+                    <option key={r.id} value={r.id}>{r.title}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleImportSkills}
+                  className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/50 text-xs font-bold rounded-xl transition"
+                  title="Синхронизировать ключевые навыки из резюме в ваш профиль"
+                >
+                  Импортировать навыки
+                </button>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 py-2">У вас нет активных резюме на HH</div>
+            )}
+            
+            <button
+              onClick={handleDisconnectHH}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-500 dark:text-slate-400 text-xs font-bold rounded-xl transition border border-slate-200 dark:border-slate-700/60"
+            >
+              Отключить
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleConnectHH}
+            disabled={hhConnecting}
+            className="px-5 py-2.5 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 shrink-0 self-start md:self-center"
+          >
+            {hhConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Вход через HeadHunter'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
 
   // States for advanced course expansion dialogue
   const [showExpandChat, setShowExpandChat] = useState(false);
@@ -2010,36 +2180,26 @@ export default function Career() {
             <div>
               {!profile?.course ? (
                 /* No course generated screen, propose interview with coach */
-                <div className="max-w-2xl mx-auto py-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
-                  <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Sparkles className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <h3 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mb-4">Создайте курс, превосходящий ожидания</h3>
-                  <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-                    Наш ИИ-коуч Форджи проведет с вами интервью, выкачает вакансии с HeadHunter API и построит гигантский индивидуальный курс с 7 интерактивными песочницами. Вы будете писать реальный код, делать SQL-запросы, верстать, считать приоритеты и общаться с разгневанными клиентами.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-6">
-                    <button
-                      onClick={handleStartCoachChat}
-                      className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-violet-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
-                    >
-                      <MessageSquare className="w-5 h-5 animate-pulse" />
-                      Начать диалог с Коучем
-                    </button>
-                    
-                    {!profile?.hh_access_token && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                  <div className="text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm">
+                    <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <Sparkles className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <h3 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mb-4">Создайте курс, превосходящий ожидания</h3>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                      Наш ИИ-коуч Форджи проведет с вами интервью, выкачает вакансии с HeadHunter API и построит гигантский индивидуальный курс с 7 интерактивными песочницами. Вы будете писать реальный код, делать SQL-запросы, верстать, считать приоритеты и общаться с разгневанными клиентами.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-6">
                       <button
-                        onClick={handleConnectHH}
-                        disabled={hhConnecting}
-                        className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold flex items-center justify-center gap-2.5 transition"
+                        onClick={handleStartCoachChat}
+                        className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-violet-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
                       >
-                        <div className="w-6 h-6 rounded bg-red-650 flex items-center justify-center font-black text-white text-xs tracking-tighter shrink-0 select-none shadow-sm">
-                          hh
-                        </div>
-                        {hhConnecting ? 'Подключение...' : 'Связать аккаунт HeadHunter'}
+                        <MessageSquare className="w-5 h-5 animate-pulse" />
+                        Начать диалог с Коучем
                       </button>
-                    )}
+                    </div>
                   </div>
+                  {renderHHIntegrationCard()}
                 </div>
               ) : (
                 /* RENDER Timeline and Modules dashboard */
@@ -3292,21 +3452,9 @@ export default function Career() {
             )
           ) : activeTab === 'jobs' ? (
             profile && (
-              <JobTracker
-                profile={profile}
-                onUpdateProfile={handleUpdateProfile}
-                onStartInterview={(vac) => {
-                  setSelectedVacancy({
-                    title: vac.title,
-                    company: vac.company,
-                    salary: '',
-                    requirements: vac.requirements,
-                    responsibility: '',
-                    source: 'Custom'
-                  });
-                  setShowMockInterview(true);
-                }}
-              />
+              <div className="max-w-2xl mx-auto space-y-6">
+                {renderHHIntegrationCard()}
+              </div>
             )
           ) : (
             profile && (

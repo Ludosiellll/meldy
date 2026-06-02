@@ -2383,6 +2383,8 @@ class HHApplyRequest(BaseModel):
 @app.get("/api/hh/auth_url")
 async def hh_auth_url():
     import os
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
     client_id = os.getenv("HH_CLIENT_ID", "")
     redirect_uri = os.getenv("HH_REDIRECT_URI", "")
     if not client_id or not redirect_uri:
@@ -2396,6 +2398,8 @@ async def hh_auth_url():
 async def hh_exchange(request: Request, req: HHExchangeRequest):
     import os
     import httpx
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
     
     client_id = os.getenv("HH_CLIENT_ID", "")
     client_secret = os.getenv("HH_CLIENT_SECRET", "")
