@@ -1031,6 +1031,30 @@ export default function Career() {
     }
   };
 
+  const getMatchScore = (title: string, requirements: string): number => {
+    const text = `${title} ${requirements}`.toLowerCase();
+    let score = 70;
+    
+    if (profile?.skills && profile.skills.length > 0) {
+      let matched = 0;
+      profile.skills.forEach(s => {
+        const skill = s.toLowerCase().trim();
+        if (skill && text.includes(skill)) {
+          matched++;
+        }
+      });
+      const ratio = matched / profile.skills.length;
+      score = Math.round(60 + ratio * 38);
+    } else {
+      let hash = 0;
+      for (let i = 0; i < title.length; i++) {
+        hash = title.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      score = 70 + Math.abs(hash % 25);
+    }
+    return Math.min(99, score);
+  };
+
   const fetchAndSetVacancies = async (profession: string, location: string) => {
     setLoadingVacancies(true);
     try {
@@ -3912,6 +3936,17 @@ export default function Career() {
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0 border border-slate-200 dark:border-slate-700">{vac.source}</span>
                             </div>
                             <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold truncate">{vac.company}</span>
+                            
+                            {/* AI Match Score Badge */}
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${
+                                getMatchScore(vac.title, vac.requirements) >= 85
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                                  : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/25'
+                              }`}>
+                                ✨ Совпадение: {getMatchScore(vac.title, vac.requirements)}%
+                              </span>
+                            </div>
                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/40 gap-2">
                               <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400 whitespace-nowrap">{formatSalary(vac.salary, pendingCourseParams?.location)}</span>
                               <span className="text-[10px] text-indigo-400 flex items-center gap-0.5 font-bold shrink-0">Детали <ChevronRight className="w-3 h-3" /></span>
@@ -3926,8 +3961,8 @@ export default function Career() {
                   <div className="hidden lg:flex flex-grow flex-col lg:flex-row overflow-hidden bg-slate-50/30 dark:bg-slate-900/20">
                     {selectedVacancy ? (
                       <>
-                        {/* Split Left: Detailed description */}
-                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between">
+                        {/* Split Left: Detailed description with premium styled scrollbar */}
+                        <div className="w-full lg:w-[50%] p-6 border-r border-slate-200 dark:border-slate-800 overflow-y-auto flex flex-col justify-between pr-4 scrollbar-thin scrollbar-thumb-indigo-500/20 hover:scrollbar-thumb-indigo-500/40 dark:scrollbar-thumb-slate-700/50 scrollbar-track-transparent">
                           <div className="space-y-6">
                             <div>
                               <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">

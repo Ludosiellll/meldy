@@ -468,8 +468,8 @@ export async function getCareerVacancies(
       url.searchParams.append("access_token", token);
     }
 
-    // Bypass CORS and Cloud IP block using a high-performance CORS proxy
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url.toString())}`;
+    // Bypass CORS and Cloud IP block using corsproxy.io
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url.toString())}`;
 
     const response = await fetch(proxyUrl, {
       method: 'GET'
@@ -1065,7 +1065,7 @@ export async function exchangeHHCode(code: string, token: string): Promise<{ suc
 export async function getHHResumes(token: string): Promise<any> {
   try {
     const targetUrl = `https://api.hh.ru/resumes/mine?access_token=${token}`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
     
     const response = await fetch(proxyUrl, {
       method: 'GET'
