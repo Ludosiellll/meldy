@@ -133,7 +133,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
     if (!urlInput.trim()) return;
     setLoading(true);
     try {
-      const data = await parseVacancy(urlInput);
+      const data = await parseVacancy(urlInput, profile.hh_access_token);
       
       const userSkillsLower = (profile.skills ?? []).map(s => s.toLowerCase());
       const vacancySkillsLower = data.skills.map(s => s.toLowerCase());

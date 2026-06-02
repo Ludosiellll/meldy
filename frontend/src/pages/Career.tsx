@@ -650,7 +650,7 @@ export default function Career() {
   const fetchAndSetVacancies = async (profession: string, location: string) => {
     setLoadingVacancies(true);
     try {
-      const v = await getCareerVacancies(profession, location);
+      const v = await getCareerVacancies(profession, location, profile?.hh_access_token);
       setFoundVacancies(v);
       if (v.length > 0) {
         setSelectedVacancy(v[0]);
@@ -3373,6 +3373,38 @@ export default function Career() {
                 <div className="flex-1 flex flex-col items-center justify-center gap-4">
                   <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
                   <p className="text-sm text-slate-400 font-semibold animate-pulse">Анализируем вакансии и подключаем ИИ-консультанта...</p>
+                </div>
+              ) : foundVacancies.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-xl mx-auto space-y-6">
+                  <div className="w-16 h-16 bg-amber-500/10 dark:bg-amber-500/5 rounded-2xl flex items-center justify-center border border-amber-500/20 shadow-sm mx-auto">
+                    <AlertCircle className="w-8 h-8 text-amber-500 animate-pulse" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-base md:text-lg">Вакансий не найдено</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Мы не смогли найти вакансии по запросу <strong className="text-indigo-600 dark:text-indigo-400">"{pendingCourseParams?.profession}"</strong> в локации <strong className="text-indigo-600 dark:text-indigo-400">"{pendingCourseParams?.location || 'любой регион'}"</strong> на HeadHunter API.
+                    </p>
+                  </div>
+                  
+                  <div className="w-full bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl text-left text-xs space-y-3.5">
+                    <span className="font-bold text-slate-700 dark:text-slate-200 block border-b border-slate-200 dark:border-slate-800 pb-1.5 uppercase tracking-wider text-[10px]">Рекомендации по поиску:</span>
+                    <ul className="list-disc list-inside space-y-2 text-slate-650 dark:text-slate-400 leading-normal font-semibold">
+                      <li>Попробуйте <strong>изменить/сократить поисковый запрос</strong> (например, вместо <code className="text-indigo-500 dark:text-indigo-400 font-mono">Senior React Developer</code> напишите просто <code className="text-indigo-500 dark:text-indigo-400 font-mono">Frontend</code> или <code className="text-indigo-500 dark:text-indigo-400 font-mono">React</code>).</li>
+                      <li>Попробуйте <strong>указать более крупный город или регион</strong> (например, <code className="text-indigo-500 dark:text-indigo-400 font-mono">Москва</code>, <code className="text-indigo-500 dark:text-indigo-400 font-mono">Минск</code>, <code className="text-indigo-500 dark:text-indigo-400 font-mono">Санкт-Петербург</code>).</li>
+                      <li>Оставьте поле локации <strong>пустым</strong> — тогда поиск выдаст все вакансии без территориального ограничения (отлично подойдет для <strong>удаленной работы</strong>).</li>
+                    </ul>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      setSearchProfession(profile?.course?.profession || 'Frontend-разработчик');
+                      setSearchLocation('');
+                      fetchAndSetVacancies(profile?.course?.profession || 'Frontend-разработчик', '');
+                    }}
+                    className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition shadow-md"
+                  >
+                    Показать вакансии без привязки к городу
+                  </button>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">

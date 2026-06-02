@@ -440,11 +440,95 @@ export interface VacancyItem {
 
 export async function getCareerVacancies(
   profession: string,
-  location?: string
+  location?: string,
+  token?: string
 ): Promise<VacancyItem[]> {
+  let areaId: number | null = null;
+  const loc = (location || "").toLowerCase();
+  if (loc.includes("беларусь") || loc.includes("belarus") || loc.includes("минск")) {
+    areaId = 16;
+  } else if (loc.includes("казахстан") || loc.includes("kazakhstan") || loc.includes("алматы") || loc.includes("астана")) {
+    areaId = 40;
+  } else if (loc.includes("узбекистан") || loc.includes("uzbekistan") || loc.includes("ташкент")) {
+    areaId = 97;
+  } else if (loc.includes("россия") || loc.includes("russia") || loc.includes("москва") || loc.includes("спб") || loc.includes("петербург")) {
+    areaId = 113;
+  }
+
+  const queryText = areaId ? profession.trim() : `${profession} ${location || ""}`.trim();
+  
+  try {
+    const url = new URL("https://api.hh.ru/vacancies");
+    url.searchParams.append("text", queryText);
+    url.searchParams.append("per_page", "12");
+    if (areaId) {
+      url.searchParams.append("area", areaId.toString());
+    }
+
+    const headers: Record<string, string> = {
+      "HH-User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: headers
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const items = data.items || [];
+      const vacancies: VacancyItem[] = items.slice(0, 10).map((item: any) => {
+        const title = item.name || "Вакансия";
+        const company = item.employer?.name || "Не указана";
+        const salaryInfo = item.salary || {};
+        const salaryFrom = salaryInfo.from;
+        const salaryTo = salaryInfo.to;
+        const salaryCurrency = salaryInfo.currency || "RUR";
+        
+        let salary = "не указана";
+        if (salaryFrom && salaryTo) {
+          salary = `${salaryFrom} - ${salaryTo} ${salaryCurrency}`;
+        } else if (salaryFrom) {
+          salary = `от ${salaryFrom} ${salaryCurrency}`;
+        } else if (salaryTo) {
+          salary = `до ${salaryTo} ${salaryCurrency}`;
+        }
+        
+        const snippet = item.snippet || {};
+        let requirements = snippet.requirement || "";
+        let responsibility = snippet.responsibility || "";
+        
+        requirements = requirements.replace(/<[^>]*>/g, '');
+        responsibility = responsibility.replace(/<[^>]*>/g, '');
+        
+        return {
+          title,
+          company,
+          salary,
+          requirements,
+          responsibility,
+          url: item.alternate_url || "",
+          source: "HeadHunter"
+        };
+      });
+      return vacancies;
+    } else {
+      console.warn(`Direct HH search failed with status ${response.status}. Falling back to backend.`);
+    }
+  } catch (err) {
+    console.warn("Direct HH search failed with error. Falling back to backend:", err);
+  }
+
+  // Fallback to backend proxy
   const res = await fetch('/api/career/vacancies', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
     body: JSON.stringify({
       profession,
       location: location || ""
@@ -757,16 +841,82 @@ export async function sendSocraticChat(
 
 // ── Sprint 3 API Clients ──────────────────────────────────────────────────────
 
-export async function parseVacancy(url: string): Promise<{
+export async function parseVacancy(
+  url: string,
+  token?: string
+): Promise<{
   title: string;
   company: string;
   salary: string;
   requirements: string;
   skills: string[];
 }> {
+  const match = url.match(/vacancy\/(\d+)/);
+  if (match) {
+    const vacancyId = match[1];
+    try {
+      const headers: Record<string, string> = {
+        "HH-User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`https://api.hh.ru/vacancies/${vacancyId}`, {
+        method: 'GET',
+        headers: headers
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const title = data.name || "Вакансия";
+        const company = data.employer?.name || "Не указана";
+        
+        const salaryInfo = data.salary || {};
+        const salaryFrom = salaryInfo.from;
+        const salaryTo = salaryInfo.to;
+        const salaryCurrency = salaryInfo.currency || "RUR";
+        
+        let salary = "не указана";
+        if (salaryFrom && salaryTo) {
+          salary = `${salaryFrom} - ${salaryTo} ${salaryCurrency}`;
+        } else if (salaryFrom) {
+          salary = `от ${salaryFrom} ${salaryCurrency}`;
+        } else if (salaryTo) {
+          salary = `до ${salaryTo} ${salaryCurrency}`;
+        }
+        
+        const rawDescription = data.description || "";
+        const descText = rawDescription.replace(/<[^>]*>/g, '');
+        const sentences = descText.split(/(?<=[.!?])\s+/);
+        const requirements = sentences.slice(0, 3).join(' ');
+        
+        const keySkills = (data.key_skills || [])
+          .map((skill: any) => skill.name)
+          .filter(Boolean);
+        
+        return {
+          title,
+          company,
+          salary,
+          requirements,
+          skills: keySkills.length > 0 ? keySkills : ["Git", "SQL"]
+        };
+      } else {
+        console.warn(`Direct HH parse failed with status ${response.status}. Falling back to backend.`);
+      }
+    } catch (err) {
+      console.warn("Direct HH parse failed with error. Falling back to backend:", err);
+    }
+  }
+
+  // Fallback to backend parser
   const res = await fetch('/api/career/parse_vacancy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
     body: JSON.stringify({ url }),
   });
   if (!res.ok) throw new Error('Ошибка парсинга вакансии');
