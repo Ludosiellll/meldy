@@ -302,11 +302,34 @@ export default function Career() {
   const [activeTab, setActiveTab] = useState<'course' | 'plan' | 'analytics' | 'jobs' | 'interviews'>(initialTab);
 
   // New states for Vacancy Selection Dashboard & AI Vacancy Chat
-  const [showVacancySelector, setShowVacancySelector] = useState(false);
-  const [foundVacancies, setFoundVacancies] = useState<VacancyItem[]>([]);
+  const [showVacancySelector, setShowVacancySelector] = useState<boolean>(() => {
+    return localStorage.getItem('sf_show_vacancy_selector') === 'true';
+  });
+  const [foundVacancies, setFoundVacancies] = useState<VacancyItem[]>(() => {
+    const saved = localStorage.getItem('sf_found_vacancies');
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loadingVacancies, setLoadingVacancies] = useState(false);
-  const [selectedVacancy, setSelectedVacancy] = useState<VacancyItem | null>(null);
-  const [vacancyChatMessages, setVacancyChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [selectedVacancy, setSelectedVacancy] = useState<VacancyItem | null>(() => {
+    const saved = localStorage.getItem('sf_selected_vacancy');
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [vacancyChatMessages, setVacancyChatMessages] = useState<{ role: string; content: string }[]>(() => {
+    const saved = localStorage.getItem('sf_vacancy_chat_messages');
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [vacancyChatInput, setVacancyChatInput] = useState('');
   const [sendingVacancyChat, setSendingVacancyChat] = useState(false);
   const [pendingCourseParams, setPendingCourseParams] = useState<{
@@ -317,7 +340,14 @@ export default function Career() {
     age?: number;
     gender: string;
     extraContext: string;
-  } | null>(null);
+  } | null>(() => {
+    const saved = localStorage.getItem('sf_pending_course_params');
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // States for advanced course expansion dialogue
@@ -403,8 +433,17 @@ export default function Career() {
   };
 
   // Coaching Chat State
-  const [showCoachChat, setShowCoachChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [showCoachChat, setShowCoachChat] = useState<boolean>(() => {
+    return localStorage.getItem('sf_show_coach_chat') === 'true';
+  });
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>(() => {
+    const saved = localStorage.getItem('sf_coach_chat_messages');
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -471,6 +510,43 @@ export default function Career() {
       });
     }
   }, [localTestLogs, localTestedPassed]);
+
+  // Sync Onboarding & Coach Chat States to localStorage
+  useEffect(() => {
+    localStorage.setItem('sf_show_vacancy_selector', String(showVacancySelector));
+  }, [showVacancySelector]);
+
+  useEffect(() => {
+    localStorage.setItem('sf_found_vacancies', JSON.stringify(foundVacancies));
+  }, [foundVacancies]);
+
+  useEffect(() => {
+    if (selectedVacancy) {
+      localStorage.setItem('sf_selected_vacancy', JSON.stringify(selectedVacancy));
+    } else {
+      localStorage.removeItem('sf_selected_vacancy');
+    }
+  }, [selectedVacancy]);
+
+  useEffect(() => {
+    localStorage.setItem('sf_vacancy_chat_messages', JSON.stringify(vacancyChatMessages));
+  }, [vacancyChatMessages]);
+
+  useEffect(() => {
+    if (pendingCourseParams) {
+      localStorage.setItem('sf_pending_course_params', JSON.stringify(pendingCourseParams));
+    } else {
+      localStorage.removeItem('sf_pending_course_params');
+    }
+  }, [pendingCourseParams]);
+
+  useEffect(() => {
+    localStorage.setItem('sf_show_coach_chat', String(showCoachChat));
+  }, [showCoachChat]);
+
+  useEffect(() => {
+    localStorage.setItem('sf_coach_chat_messages', JSON.stringify(chatMessages));
+  }, [chatMessages]);
 
   useEffect(() => {
     if (!user) return;
@@ -591,6 +667,15 @@ export default function Career() {
 
     setProfile(updatedProfile);
     await saveCareerProfile(user.id, updatedProfile);
+    
+    localStorage.removeItem('sf_show_vacancy_selector');
+    localStorage.removeItem('sf_found_vacancies');
+    localStorage.removeItem('sf_selected_vacancy');
+    localStorage.removeItem('sf_vacancy_chat_messages');
+    localStorage.removeItem('sf_pending_course_params');
+    localStorage.removeItem('sf_show_coach_chat');
+    localStorage.removeItem('sf_coach_chat_messages');
+
     toast.success('ИИ-курс успешно удален! Лимит 24 часа на создание нового курса активирован.');
   };
 
@@ -889,6 +974,15 @@ export default function Career() {
       if (newCourse) {
         toast.success('Элитный практический курс успешно составлен!', { id: 'gen_course' });
         confetti({ particleCount: 150, spread: 80 });
+        
+        localStorage.removeItem('sf_show_vacancy_selector');
+        localStorage.removeItem('sf_found_vacancies');
+        localStorage.removeItem('sf_selected_vacancy');
+        localStorage.removeItem('sf_vacancy_chat_messages');
+        localStorage.removeItem('sf_pending_course_params');
+        localStorage.removeItem('sf_show_coach_chat');
+        localStorage.removeItem('sf_coach_chat_messages');
+
         loadProfile();
       } else {
         toast.error('Произошла ошибка при генерации курса.', { id: 'gen_course' });
