@@ -1240,10 +1240,14 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
             print(f"Trying to fetch vacancies from HH for {req.profession} in {req.location}...")
             vacancy_text = await fetch_hh_vacancies(req.profession, req.location, hh_access_token)
         except Exception as e_hh:
-            print(f"HH API failed: {e_hh}")
-            raise HTTPException(
-                status_code=503, 
-                detail=f"Не удалось получить вакансии с HeadHunter для '{req.profession}' в локации '{req.location}'. Проверьте соединение или уточните поисковый запрос."
+            # HH API недоступен или не нашёл вакансии — не падаем, генерируем курс с общим контекстом
+            print(f"HH API failed (using generic context): {e_hh}")
+            vacancy_text = (
+                f"Общие требования рынка труда для профессии '{req.profession}' уровня {req.level}: "
+                f"Необходимы знания профессионального стека технологий, умение читать и писать чистый поддерживаемый код, "
+                f"базовые знания алгоритмов и структур данных, навыки работы в команде по Agile/Scrum, "
+                f"опыт работы с Git, умение декомпозировать задачи и знание лучших практик отрасли. "
+                f"Ожидаемая зарплата на уровень {req.level}: {req.salary}."
             )
             
     agent = CareerCourseAgent(api_key=GROQ_API_KEY)

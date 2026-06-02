@@ -837,6 +837,18 @@ export default function Career() {
     }
   };
 
+  const handleClearCoachChat = () => {
+    const welcome = [{
+      role: 'assistant',
+      content: 'Привет! Я Форджи, твой личный карьерный коуч. Моя цель — помочь тебе определиться с будущей IT-профессией, разобрать твои интересы и составить ультимативно подробный курс на базе вакансий реального рынка труда.\n\nРасскажи, в каком направлении ты хочешь развиваться? К чему лежит душа? У тебя уже есть опыт в программировании, дизайне, аналитике или управлении?'
+    }];
+    setChatMessages(welcome);
+    setChatInput('');
+    setPendingCourseParams(null);
+    localStorage.setItem('sf_coach_chat_messages', JSON.stringify(welcome));
+    toast.success('Контекст чата очищен. Начинаем заново!');
+  };
+
   const handleDeleteCourse = async () => {
     if (!profile || !user) return;
     
@@ -3643,12 +3655,21 @@ export default function Career() {
                     <p className="text-xs text-slate-500 dark:text-slate-400">ИИ Коуч Форджи подберет ваш идеальный трек</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setShowCoachChat(false)}
-                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-850 rounded-full text-slate-400 dark:text-slate-300 transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleClearCoachChat}
+                    title="Очистить чат и начать заново"
+                    className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => setShowCoachChat(false)}
+                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-850 rounded-full text-slate-400 dark:text-slate-300 transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Chat flow body */}
