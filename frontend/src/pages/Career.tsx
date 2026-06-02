@@ -931,14 +931,118 @@ export default function Career() {
     }
   };
 
+  const getMockVacancies = (profession: string, location: string): VacancyItem[] => {
+    const prof = profession.toLowerCase();
+    const loc = location || 'Любой регион';
+    
+    if (prof.includes('front') || prof.includes('фронт') || prof.includes('react') || prof.includes('js') || prof.includes('javascript') || prof.includes('веб')) {
+      return [
+        {
+          title: `Junior Frontend Разработчик (React / TypeScript)`,
+          company: "Студия Цифровых Решений «ForgeTech»",
+          salary: "70 000 - 100 000 ₽",
+          requirements: "Знание HTML5, CSS3, ES6+ JavaScript. Базовый опыт работы с React и state-менеджерами (Redux Toolkit, Zustand). Понимание TypeScript, адаптивной верстки, работы с REST API и Git. Стремление развиваться и писать поддерживаемый код.",
+          responsibility: "Разработка новых компонентов интерфейса, верстка по макетам Figma, участие в проектировании UI/UX, оптимизация производительности веб-приложений, написание юнит-тестов.",
+          source: "StudyForge Mock API"
+        },
+        {
+          title: `React Developer (Junior+/Middle)`,
+          company: "Финтех Платформа «Альфа-Вектор»",
+          salary: "120 000 - 160 000 ₽",
+          requirements: "Опыт коммерческой веб-разработки от 1 года. Глубокие знания React, React Hooks, TypeScript. Знание CSS-in-JS или препроцессоров (Sass/Less). Базовые навыки работы с Webpack/Vite. Готовность к кросс-браузерной кросс-платформенной верстке.",
+          responsibility: "Поддержка и масштабирование существующих финтех-сервисов, интеграция с внутренними микросервисами по gRPC/REST, рефакторинг и покрытие кода тестами.",
+          source: "StudyForge Mock API"
+        },
+        {
+          title: `Frontend Developer (Vue.js / Nuxt)`,
+          company: "Группа компаний «НекстМедиа»",
+          salary: "90 000 ₽",
+          requirements: "Отличные знания Vue 2/3 (Composition API), Vuex/Pinia. Понимание NuxtJS, SSR концепций. Понимание принципов семантической кроссбраузерной верстки, БЭМ, TailwindCSS. Опыт работы с REST API.",
+          responsibility: "Разработка корпоративных порталов и промо-страниц, оптимизация скорости загрузки сайтов, интеграция аналитических систем, участие в код-ревью.",
+          source: "StudyForge Mock API"
+        }
+      ];
+    } else if (prof.includes('back') || prof.includes('бэк') || prof.includes('python') || prof.includes('php') || prof.includes('node') || prof.includes('django') || prof.includes('flask') || prof.includes('сервер')) {
+      return [
+        {
+          title: `Junior Backend Разработчик (Python / FastAPI)`,
+          company: "Облачные Системы «CloudCore»",
+          salary: "80 000 - 110 000 ₽",
+          requirements: "Уверенное владение Python 3.9+. Базовые знания веб-фреймворков FastAPI или Django. Понимание реляционных баз данных (PostgreSQL, MySQL), написание простых SQL-запросов. Базовые навыки работы с Docker и Git.",
+          responsibility: "Проектирование и разработка REST API эндпоинтов, написание бизнес-логики сервисов, интеграция с внешними API, написание автотестов (pytest).",
+          source: "StudyForge Mock API"
+        },
+        {
+          title: `Python/Django Backend-разработчик`,
+          company: "Платформа автоматизации «СмартЛогистик»",
+          salary: "130 000 - 170 000 ₽",
+          requirements: "Опыт работы с Python от 1 года. Отличные знания Django, Django REST Framework (DRF). Опыт проектирования БД и оптимизации ORM-запросов. Навыки работы с очередями задач (Celery, Redis) и Docker.",
+          responsibility: "Разработка ядра системы управления складской логистикой, оптимизация производительности медленных SQL-запросов, развертывание сервисов в Docker-контейнерах.",
+          source: "StudyForge Mock API"
+        },
+        {
+          title: `Junior Node.js / TypeScript Developer`,
+          company: "Игровая студия «PlayApex»",
+          salary: "95 000 ₽",
+          requirements: "Хорошие знания Node.js, Express/NestJS, TypeScript. Понимание работы протокола WebSockets. Опыт работы с NoSQL СУБД (MongoDB, Redis). Знание базовых паттернов проектирования.",
+          responsibility: "Разработка бэкенда многопользовательских систем, интеграция платежных систем, создание панелей администратора, отслеживание багов через Sentry.",
+          source: "StudyForge Mock API"
+        }
+      ];
+    } else if (prof.includes('data') || prof.includes('аналитик') || prof.includes('sql') || prof.includes('pandas') || prof.includes('bi')) {
+      return [
+        {
+          title: `Junior Data Analyst / Аналитик Данных`,
+          company: "Аналитическое агентство «ИнсайтМаркет»",
+          salary: "75 000 ₽",
+          requirements: "Отличные знания SQL (сложные запросы, оконные функции, джоины). Базовые знания Python (Pandas, NumPy, Matplotlib). Опыт работы с одной из BI-систем (Tableau, PowerBI, Yandex DataLens). Аналитический склад ума.",
+          responsibility: "Сбор и обработка сырых данных из различных источников, создание интерактивных дашбордов для бизнеса, проверка продуктовых гипотез, подготовка регулярных отчетов.",
+          source: "StudyForge Mock API"
+        },
+        {
+          title: `Продуктовый аналитик (Product Analyst)`,
+          company: "E-commerce Маркетплейс «МегаСейл»",
+          salary: "140 000 - 180 000 ₽",
+          requirements: "Опыт продуктовой аналитики от 1.5 лет. Знание методологии A/B тестирования и математической статистики. Глубокий SQL, навыки визуализации данных. Опыт работы с Google Analytics / AppMetrica.",
+          responsibility: "Анализ пользовательских воронок и удержания (Retention, Cohort Analysis), дизайн и оценка результатов A/B тестов, поиск точек роста конверсии, выстраивание систем метрик.",
+          source: "StudyForge Mock API"
+        }
+      ];
+    } else {
+      return [
+        {
+          title: `Junior ${profession || 'IT-специалист'}`,
+          company: "Технологическая компания «Сфера ИТ»",
+          salary: "65 000 - 90 000 ₽",
+          requirements: `Интерес к сфере ${profession || 'информационных технологий'}. Быстрая обучаемость, аналитический склад ума, базовое понимание процессов разработки ПО. Знание основных инструментов (Git, базовый синтаксис профильных языков).`,
+          responsibility: `Выполнение базовых практических задач по профилю ${profession || 'IT-разработки'}, помощь ведущим специалистам в тестировании, документировании и отладке систем.`,
+          source: "StudyForge Mock API"
+        },
+        {
+          title: `${profession || 'Middle IT-специалист'}`,
+          company: "Международная IT-компания «ГлобалДев»",
+          salary: "120 000 - 150 000 ₽",
+          requirements: `Опыт работы по специальности от 1 года. Знание профессионального стека технологий в области ${profession || 'ИТ'}, опыт решения прикладных коммерческих задач, навыки работы в кросс-функциональной команде.`,
+          responsibility: `Разработка архитектурных компонентов продукта, интеграция решений с внешними модулями, оптимизация бизнес-логики и повышение отказоустойчивости сервисов.`,
+          source: "StudyForge Mock API"
+        }
+      ];
+    }
+  };
+
   const fetchAndSetVacancies = async (profession: string, location: string) => {
     setLoadingVacancies(true);
     try {
-      const v = await getCareerVacancies(profession, location, profile?.hh_access_token);
+      let v: VacancyItem[] = [];
+      if (profile?.hh_access_token) {
+        v = await getCareerVacancies(profession, location, profile.hh_access_token);
+      } else {
+        // Fallback to high-quality mock vacancies if HH is not connected
+        v = getMockVacancies(profession, location);
+      }
       setFoundVacancies(v);
       if (v.length > 0) {
         setSelectedVacancy(v[0]);
-        // Initialize AI chat context for vacancy
         setVacancyChatMessages([
           {
             role: 'assistant',
@@ -948,7 +1052,19 @@ export default function Career() {
       }
     } catch (e) {
       console.error(e);
-      toast.error('Не удалось загрузить вакансии.');
+      // Even if API fails, let's load mock vacancies so the user isn't stuck with empty search
+      const mockV = getMockVacancies(profession, location);
+      setFoundVacancies(mockV);
+      if (mockV.length > 0) {
+        setSelectedVacancy(mockV[0]);
+        setVacancyChatMessages([
+          {
+            role: 'assistant',
+            content: `Привет! Я твой карьерный ИИ-консультант StudyForge. Я вижу, что ты выбрал отличную вакансию: **"${mockV[0].title}"** в компании **"${mockV[0].company}"**.\n\nЯ полностью проанализировал требования работодателя. Спроси меня о чём угодно: о каверзных вопросах на собеседовании, о том, какие технологии из списка самые критичные, или о том, как лучше презентовать твой опыт под эту позицию!`
+          }
+        ]);
+      }
+      toast('Не удалось загрузить вакансии из API. Подключен оффлайн-режим.', { icon: '⚠️' });
     } finally {
       setLoadingVacancies(false);
     }
@@ -3604,6 +3720,25 @@ export default function Career() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              
+              {/* HeadHunter Status Banners */}
+              {!profile?.hh_access_token ? (
+                <div className="mx-6 mt-4 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300 font-semibold shrink-0 shadow-sm animate-all">
+                  <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block text-amber-900 dark:text-amber-200 mb-0.5 text-sm">Вы не подключили аккаунт HeadHunter!</span>
+                    Отображаются примерные (модельные) вакансии с рынка труда. Чтобы искать и анализировать настоящие вакансии в реальном времени под ваши требования, пожалуйста, пройдите авторизацию через HeadHunter (раздел интеграции внизу страницы карьеры).
+                  </div>
+                </div>
+              ) : (
+                <div className="mx-6 mt-4 p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl flex items-start gap-3 text-xs text-emerald-800 dark:text-emerald-300 font-semibold shrink-0 shadow-sm animate-all">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block text-emerald-900 dark:text-emerald-250 mb-0.5 text-sm">Официальная интеграция HeadHunter подключена!</span>
+                    Поиск выполняется напрямую с рынка труда через живое API hh.ru. Мы подобрали актуальные предложения под ваши параметры. Выберите лучшую вакансию для адаптации вашего курса.
+                  </div>
+                </div>
+              )}
 
               {/* Manual Search & Filter Bar (Variant B) */}
               <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 items-center shrink-0">
