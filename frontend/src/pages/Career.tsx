@@ -3394,12 +3394,17 @@ export default function Career() {
                       <li>Оставьте поле локации <strong>пустым</strong> — тогда поиск выдаст все вакансии без территориального ограничения (отлично подойдет для <strong>удаленной работы</strong>).</li>
                     </ul>
                   </div>
-                  
                   <button
                     onClick={() => {
-                      setSearchProfession(profile?.course?.profession || 'Frontend-разработчик');
+                      const prof = pendingCourseParams?.profession || profile?.course?.profession || 'Frontend-разработчик';
+                      setSearchProfession(prof);
                       setSearchLocation('');
-                      fetchAndSetVacancies(profile?.course?.profession || 'Frontend-разработчик', '');
+                      setPendingCourseParams(prev => prev ? {
+                        ...prev,
+                        profession: prof,
+                        location: ''
+                      } : null);
+                      fetchAndSetVacancies(prof, '');
                     }}
                     className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition shadow-md"
                   >

@@ -465,16 +465,14 @@ export async function getCareerVacancies(
       url.searchParams.append("area", areaId.toString());
     }
 
-    const headers: Record<string, string> = {
-      "HH-User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
-    };
+    const headers: Record<string, string> = {};
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: headers
+      headers: Object.keys(headers).length > 0 ? headers : undefined
     });
 
     if (response.ok) {
@@ -855,16 +853,14 @@ export async function parseVacancy(
   if (match) {
     const vacancyId = match[1];
     try {
-      const headers: Record<string, string> = {
-        "HH-User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
-      };
+      const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
       
       const response = await fetch(`https://api.hh.ru/vacancies/${vacancyId}`, {
         method: 'GET',
-        headers: headers
+        headers: Object.keys(headers).length > 0 ? headers : undefined
       });
       
       if (response.ok) {
