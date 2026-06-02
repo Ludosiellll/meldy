@@ -455,11 +455,7 @@ export async function getCareerVacancies(
     areaId = 113;
   }
 
-  if (!areaId) {
-    areaId = 113; // Default to Russia to avoid IP-based narrow search
-  }
-
-  const queryText = profession.trim();
+  const queryText = areaId ? profession.trim() : `${profession} ${location || ""}`.trim();
   
   try {
     const url = new URL("https://api.hh.ru/vacancies");
