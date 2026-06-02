@@ -22,6 +22,7 @@ import Analytics from './pages/Analytics';
 import QuickPrep from './pages/QuickPrep';
 import KnowledgeMap from './pages/KnowledgeMap';
 import AuthCallback from './pages/AuthCallback';
+import HHCallback from './pages/HHCallback';
 import SocialHub from './pages/SocialHub';
 import CoStudy from './pages/CoStudy';
 import Career from './pages/Career';
@@ -122,6 +123,7 @@ export default function App() {
         } />
         <Route path="/shared/:id" element={<SharedMaterial />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/hh-callback" element={<PrivateRoute><HHCallback /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

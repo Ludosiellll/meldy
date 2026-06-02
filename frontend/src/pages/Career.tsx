@@ -10,7 +10,7 @@ import {
   RotateCcw, BookOpen, Trophy, HelpCircle, GitBranch, Star,
   TrendingUp, Flame, Layers2, MapPin, Search
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { 
@@ -297,7 +297,9 @@ export default function Career() {
   const [profile, setProfile] = useState<CareerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'course' | 'plan' | 'analytics' | 'jobs' | 'interviews'>('course');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as 'course' | 'plan' | 'analytics' | 'jobs' | 'interviews') || 'course';
+  const [activeTab, setActiveTab] = useState<'course' | 'plan' | 'analytics' | 'jobs' | 'interviews'>(initialTab);
 
   // New states for Vacancy Selection Dashboard & AI Vacancy Chat
   const [showVacancySelector, setShowVacancySelector] = useState(false);
@@ -483,6 +485,13 @@ export default function Career() {
   }, [user?.id]);
 
   useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['course', 'plan', 'analytics', 'jobs', 'interviews'].includes(tab)) {
+      setActiveTab(tab as any);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (showCoachChat) {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -583,6 +592,13 @@ export default function Career() {
     setProfile(updatedProfile);
     await saveCareerProfile(user.id, updatedProfile);
     toast.success('ИИ-курс успешно удален! Лимит 24 часа на создание нового курса активирован.');
+  };
+
+  const handleUpdateProfile = async (updatedProfile: CareerProfile) => {
+    setProfile(updatedProfile);
+    if (user) {
+      await saveCareerProfile(user.id, updatedProfile);
+    }
   };
 
   const handleSendCoachMessage = async (textToSend?: string) => {
@@ -1788,7 +1804,10 @@ export default function Career() {
           {profile && (
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-x-auto max-w-[85vw] sm:max-w-none">
               <button
-                onClick={() => setActiveTab('course')}
+                onClick={() => {
+                  setActiveTab('course');
+                  setSearchParams({ tab: 'course' });
+                }}
                 className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'course'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
@@ -1801,7 +1820,10 @@ export default function Career() {
                 )}
               </button>
               <button
-                onClick={() => setActiveTab('plan')}
+                onClick={() => {
+                  setActiveTab('plan');
+                  setSearchParams({ tab: 'plan' });
+                }}
                 className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'plan'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
@@ -1811,7 +1833,10 @@ export default function Career() {
                 📋 План обучения
               </button>
               <button
-                onClick={() => setActiveTab('analytics')}
+                onClick={() => {
+                  setActiveTab('analytics');
+                  setSearchParams({ tab: 'analytics' });
+                }}
                 className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'analytics'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
@@ -1821,7 +1846,23 @@ export default function Career() {
                 📊 Аналитика
               </button>
               <button
-                onClick={() => setActiveTab('interviews')}
+                onClick={() => {
+                  setActiveTab('jobs');
+                  setSearchParams({ tab: 'jobs' });
+                }}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'jobs'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                💼 Вакансии
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('interviews');
+                  setSearchParams({ tab: 'interviews' });
+                }}
                 className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'interviews'
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
@@ -3123,6 +3164,24 @@ export default function Career() {
                   </div>
                 </div>
               )
+            )
+          ) : activeTab === 'jobs' ? (
+            profile && (
+              <JobTracker
+                profile={profile}
+                onUpdateProfile={handleUpdateProfile}
+                onStartInterview={(vac) => {
+                  setSelectedVacancy({
+                    title: vac.title,
+                    company: vac.company,
+                    salary: '',
+                    requirements: vac.requirements,
+                    responsibility: '',
+                    source: 'Custom'
+                  });
+                  setShowMockInterview(true);
+                }}
+              />
             )
           ) : (
             profile && (

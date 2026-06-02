@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Briefcase, Plus, Link, Trash2, ArrowRight, ArrowLeft, 
-  Sparkles, CheckCircle2, AlertCircle, Loader2, Play 
+  Sparkles, CheckCircle2, AlertCircle, Loader2, Play,
+  Send, ExternalLink, RefreshCw, Check, X, ShieldCheck
 } from 'lucide-react';
-import { parseVacancy, VacancyRecord, CareerProfile } from '../api/career';
+import { parseVacancy, VacancyRecord, CareerProfile, getHHAuthUrl, getHHResumes, applyHHVacancy } from '../api/career';
+import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface JobTrackerProps {
@@ -28,9 +30,108 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
   const [manualCompany, setManualCompany] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [activeTab, setActiveTab] = useState<typeof COLUMNS[number]['key']>('selected'); // for mobile columns swiping
+  const [activeTab, setActiveTab] = useState<typeof COLUMNS[number]['key']>('selected');
+
+  // HeadHunter States
+  const [resumes, setResumes] = useState<any[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>('');
+  const [loadingResumes, setLoadingResumes] = useState(false);
+  const [hhConnecting, setHhConnecting] = useState(false);
+
+  // Apply on HH States
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applyVacancy, setApplyVacancy] = useState<VacancyRecord | null>(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [applying, setApplying] = useState(false);
 
   const vacancies = profile.vacancies ?? [];
+
+  // Load HH Resumes on mount/update if connected
+  useEffect(() => {
+    if (profile.hh_access_token) {
+      loadResumes();
+    }
+  }, [profile.hh_access_token]);
+
+  const loadResumes = async () => {
+    setLoadingResumes(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+
+      const res = await getHHResumes(token);
+      const items = res.items || [];
+      setResumes(items);
+      
+      if (items.length > 0) {
+        const savedResumeId = localStorage.getItem('sf_hh_resume_id');
+        if (savedResumeId && items.some((r: any) => r.id === savedResumeId)) {
+          setSelectedResumeId(savedResumeId);
+        } else {
+          setSelectedResumeId(items[0].id);
+          localStorage.setItem('sf_hh_resume_id', items[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load HH resumes:', err);
+    } finally {
+      setLoadingResumes(false);
+    }
+  };
+
+  const handleConnectHH = async () => {
+    setHhConnecting(true);
+    try {
+      const res = await getHHAuthUrl();
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Не удалось получить ссылку для авторизации HeadHunter.');
+    } finally {
+      setHhConnecting(false);
+    }
+  };
+
+  const handleDisconnectHH = () => {
+    onUpdateProfile({
+      ...profile,
+      hh_access_token: undefined,
+      hh_refresh_token: undefined
+    });
+    setResumes([]);
+    setSelectedResumeId('');
+    toast.success('Аккаунт HeadHunter успешно отключен.');
+  };
+
+  const handleImportSkills = () => {
+    if (!selectedResumeId) {
+      toast.error('Выберите резюме для импорта.');
+      return;
+    }
+    const resume = resumes.find(r => r.id === selectedResumeId);
+    if (!resume) return;
+
+    const rawSkills = resume.key_skills || [];
+    const skillsList = rawSkills.map((s: any) => s.name || s).filter(Boolean);
+
+    if (skillsList.length === 0) {
+      toast.error('В выбранном резюме не найдены ключевые навыки.');
+      return;
+    }
+
+    const currentSkills = profile.skills || [];
+    const mergedSkills = Array.from(new Set([...currentSkills, ...skillsList]));
+
+    onUpdateProfile({
+      ...profile,
+      skills: mergedSkills
+    });
+
+    toast.success(`Импортировано навыков: ${skillsList.length}. Всего навыков в профиле: ${mergedSkills.length}`);
+  };
 
   const handleParseVacancy = async () => {
     if (!urlInput.trim()) return;
@@ -38,7 +139,6 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
     try {
       const data = await parseVacancy(urlInput);
       
-      // Calculate match score
       const userSkillsLower = (profile.skills ?? []).map(s => s.toLowerCase());
       const vacancySkillsLower = data.skills.map(s => s.toLowerCase());
       const matched = vacancySkillsLower.filter(s => userSkillsLower.includes(s));
@@ -64,12 +164,12 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
       };
 
       onUpdateProfile(updatedProfile);
-      toast.success('Вакансия успешно спарсена и добавлена!');
+      toast.success('Вакансия успешно добавлена!');
       setUrlInput('');
       setShowAddForm(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error('Не удалось спарсить вакансию. Попробуйте ввести вручную.');
+      toast.error(e.message || 'Не удалось спарсить вакансию. Пожалуйста, убедитесь, что ссылка ведет на hh.ru.');
     } finally {
       setLoading(false);
     }
@@ -87,7 +187,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
       company: manualCompany,
       salary: 'по результатам собеседования',
       requirements: 'Добавлено вручную.',
-      skills: profile.skills.slice(0, 3), // default guess
+      skills: profile.skills.slice(0, 3),
       status: 'selected',
       match_score: 80
     };
@@ -136,9 +236,129 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
     return v.skills.filter(s => !userSkillsLower.includes(s.toLowerCase()));
   };
 
+  const handleOpenApplyModal = (v: VacancyRecord) => {
+    setApplyVacancy(v);
+    setCoverLetter(`Здравствуйте!\n\nМеня заинтересовала вакансия "${v.title}" в вашей компании.\nЯ успешно освоил практическую учебную траекторию по направлению "${profile.course?.profession || 'Разработчик'}" на платформе StudyForge и буду рад обсудить эту позицию.\n\nС уважением,\nСтудент StudyForge`);
+    setShowApplyModal(true);
+  };
+
+  const handleSendApply = async () => {
+    if (!applyVacancy || !selectedResumeId) return;
+    const match = applyVacancy.url?.match(/vacancy\/(\d+)/);
+    const hhVacancyId = match ? match[1] : null;
+
+    if (!hhVacancyId) {
+      toast.error('Не удалось определить ID вакансии для отклика.');
+      return;
+    }
+
+    setApplying(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error('Сессия авторизации не найдена');
+
+      await applyHHVacancy(hhVacancyId, selectedResumeId, coverLetter, token);
+
+      const updatedProfile = {
+        ...profile,
+        vacancies: vacancies.map(x => x.id === applyVacancy.id ? { ...x, status: 'applied' as const } : x)
+      };
+
+      onUpdateProfile(updatedProfile);
+      toast.success('Отклик успешно отправлен на HeadHunter!');
+      setShowApplyModal(false);
+      setApplyVacancy(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Не удалось отправить отклик на HeadHunter');
+    } finally {
+      setApplying(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header section with add button */}
+      {/* HeadHunter API Connection Dashboard */}
+      <div className="bg-gradient-to-r from-red-50/50 to-white dark:from-red-950/10 dark:to-slate-900/60 border border-red-150/40 dark:border-red-900/30 p-5 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden text-left">
+        <div className="absolute right-0 top-0 w-24 h-24 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center font-black text-white text-lg tracking-tighter shrink-0 select-none shadow-md">
+            hh
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              Интеграция с HeadHunter API
+              {profile.hh_access_token ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black border border-emerald-500/20">
+                  <ShieldCheck className="w-3 h-3" /> подключено
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-450 text-[10px] font-bold">
+                  отключено
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {profile.hh_access_token 
+                ? 'Импортируйте навыки из вашего резюме на HeadHunter или откликайтесь прямо с Kanban доски.'
+                : 'Свяжите аккаунт, чтобы импортировать профессиональные навыки и отправлять отклики.'}
+            </p>
+          </div>
+        </div>
+
+        {profile.hh_access_token ? (
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto md:justify-end shrink-0">
+            {loadingResumes ? (
+              <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-red-500" /> Загружаем резюме...
+              </div>
+            ) : resumes.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <select
+                  value={selectedResumeId}
+                  onChange={(e) => {
+                    setSelectedResumeId(e.target.value);
+                    localStorage.setItem('sf_hh_resume_id', e.target.value);
+                  }}
+                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+                >
+                  {resumes.map(r => (
+                    <option key={r.id} value={r.id}>{r.title}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleImportSkills}
+                  className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/50 text-xs font-bold rounded-xl transition"
+                  title="Синхронизировать ключевые навыки из резюме в ваш профиль"
+                >
+                  Импортировать навыки
+                </button>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 py-2">У вас нет активных резюме на HH</div>
+            )}
+            
+            <button
+              onClick={handleDisconnectHH}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-500 dark:text-slate-400 text-xs font-bold rounded-xl transition border border-slate-200 dark:border-slate-700/60"
+            >
+              Отключить
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleConnectHH}
+            disabled={hhConnecting}
+            className="px-5 py-2.5 bg-red-650 hover:bg-red-600 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 shrink-0 self-start md:self-center"
+          >
+            {hhConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Вход через HeadHunter'}
+          </button>
+        )}
+      </div>
+
+      {/* Kanban Dashboard Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center">
@@ -146,7 +366,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
           </div>
           <div>
             <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">Умный Трекер Вакансий</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Вставляйте ссылки на HH.ru, парсите требования и готовьтесь к интервью</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Добавляйте ссылки на вакансии HeadHunter для подготовки и отслеживания</p>
           </div>
         </div>
         
@@ -155,7 +375,7 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
           className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm shrink-0"
         >
           <Plus className="w-4 h-4" />
-          Добавить отклик
+          Добавить вакансию
         </button>
       </div>
 
@@ -172,11 +392,11 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Parse via HH link */}
-              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl">
+              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl text-left">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                  <Link className="w-4 h-4" /> Ссылка на HeadHunter (HH.ru)
+                  <Link className="w-4 h-4" /> Ссылка на HeadHunter (hh.ru)
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Автоматически выгрузим название компании, должность, навыки и требования</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Вставьте ссылку на вакансию, чтобы автоматически выгрузить детали.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -197,11 +417,11 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
               </div>
 
               {/* Manual mode */}
-              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl">
+              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800/80 rounded-xl text-left">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
                   <Briefcase className="w-4 h-4" /> Вручную
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Если вы нашли вакансию на другом ресурсе</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Добавить вакансию вручную, если ссылка отсутствует.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
@@ -279,12 +499,13 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
                 ) : (
                   list.map(v => {
                     const missing = getMissingSkills(v);
+                    const canApplyOnHH = profile.hh_access_token && v.url && v.url.includes('hh.ru');
                     
                     return (
                       <motion.div
                         key={v.id}
                         layoutId={v.id}
-                        className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition space-y-3 group"
+                        className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition space-y-3 group text-left"
                       >
                         {/* Title & Company */}
                         <div>
@@ -337,18 +558,31 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
                           </div>
                         )}
 
-                        {/* Tailored Mock Interview Action */}
-                        <button
-                          onClick={() => onStartInterview({ 
-                            title: v.title, 
-                            company: v.company, 
-                            requirements: v.requirements ?? 'Обучение по треку курса' 
-                          })}
-                          className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white dark:bg-indigo-950/20 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-950 rounded-lg text-[9px] font-extrabold flex items-center justify-center gap-1 transition"
-                        >
-                          <Play className="w-2.5 h-2.5 fill-current" />
-                          Собеседование
-                        </button>
+                        <div className="flex flex-col gap-1.5">
+                          {/* Apply on HH Button if eligible */}
+                          {canApplyOnHH && v.status === 'selected' && (
+                            <button
+                              onClick={() => handleOpenApplyModal(v)}
+                              className="w-full py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[9px] font-extrabold flex items-center justify-center gap-1 transition shadow-sm"
+                            >
+                              <Send className="w-2.5 h-2.5" />
+                              Откликнуться на HH
+                            </button>
+                          )}
+
+                          {/* Tailored Mock Interview Action */}
+                          <button
+                            onClick={() => onStartInterview({ 
+                              title: v.title, 
+                              company: v.company, 
+                              requirements: v.requirements ?? 'Обучение по треку курса' 
+                            })}
+                            className="w-full py-1.5 bg-indigo-55 hover:bg-indigo-600 text-indigo-600 hover:text-white dark:bg-indigo-950/20 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-950 rounded-lg text-[9px] font-extrabold flex items-center justify-center gap-1 transition"
+                          >
+                            <Play className="w-2.5 h-2.5 fill-current" />
+                            Собеседование
+                          </button>
+                        </div>
 
                         {/* Navigation Arrows for status transitions */}
                         <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/80">
@@ -379,6 +613,104 @@ export default function JobTracker({ profile, onUpdateProfile, onStartInterview 
           );
         })}
       </div>
+
+      {/* HeadHunter Job Application Cover Letter Dialog Modal */}
+      <AnimatePresence>
+        {showApplyModal && applyVacancy && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4 text-left"
+            >
+              <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center font-black text-white text-sm tracking-tighter">
+                    hh
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">Отклик на HeadHunter</h4>
+                    <p className="text-[10px] text-slate-450">Прямое взаимодействие с работодателем через HH API</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowApplyModal(false)}
+                  className="p-1.5 hover:bg-slate-150 dark:hover:bg-slate-800 rounded-full text-slate-400 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">Вакансия</span>
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-150">{applyVacancy.title} ({applyVacancy.company})</span>
+                </div>
+
+                {resumes.length > 0 ? (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 block">Резюме для отклика</label>
+                    <select
+                      value={selectedResumeId}
+                      onChange={(e) => {
+                        setSelectedResumeId(e.target.value);
+                        localStorage.setItem('sf_hh_resume_id', e.target.value);
+                      }}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800/80 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+                    >
+                      {resumes.map(r => (
+                        <option key={r.id} value={r.id}>{r.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <p className="text-xs text-rose-500 font-semibold bg-rose-500/5 border border-rose-500/10 p-2.5 rounded-lg">
+                    У вас нет доступных резюме на HeadHunter для отклика.
+                  </p>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 block">Сопроводительное письмо</label>
+                  <textarea
+                    rows={6}
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                    placeholder="Напишите сопроводительное письмо..."
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800/80 p-3 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-450 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-150 dark:border-slate-800">
+                <button
+                  onClick={() => setShowApplyModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-350 text-xs font-bold rounded-xl transition"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleSendApply}
+                  disabled={applying || !selectedResumeId}
+                  className="px-4 py-2 bg-red-650 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md transition flex items-center gap-1.5"
+                >
+                  {applying ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Отправка...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Откликнуться
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

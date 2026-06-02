@@ -891,18 +891,21 @@ class CareerPetProjectEvaluateRequest(BaseModel):
 
 
 
-async def fetch_hh_vacancies(profession: str, location: str = "") -> str:
+async def fetch_hh_vacancies(profession: str, location: str = "", hh_access_token: str = None) -> str:
     """
     Скачивает вакансии из API HeadHunter по названию профессии и локации,
     извлекает требования, обязанности и ключевые навыки.
     """
     import httpx
     import re
+    import os
     
     url = "https://api.hh.ru/vacancies"
     headers = {
-        "User-Agent": "StudyForge/1.0 (contact@studyforge.edu)"
+        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
     }
+    if hh_access_token:
+        headers["Authorization"] = f"Bearer {hh_access_token}"
     
     # Геотаргетинг: добавляем локацию прямо в поисковый запрос (самый надежный способ фильтрации)
     query_text = f"{profession} {location}".strip()
@@ -929,7 +932,7 @@ async def fetch_hh_vacancies(profession: str, location: str = "") -> str:
         params["area"] = area_id
     
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers, params=params, timeout=8.0)
+        response = await client.get(url, headers=headers, params=params, timeout=10.0)
         if response.status_code != 200:
             raise Exception(f"HH API returned status {response.status_code}")
         
@@ -968,268 +971,120 @@ async def fetch_hh_vacancies(profession: str, location: str = "") -> str:
         return "\n\n".join(summary)
 
 
-async def fetch_trudvsem_vacancies(profession: str, location: str = "") -> str:
-    """
-    Скачивает вакансии из государственного API 'Работа в России' (api.trudvsem.ru).
-    Используется как резервный источник.
-    """
+async def fetch_structured_vacancies(profession: str, location: str = "", hh_access_token: str = None) -> list:
     import httpx
     import re
+    import os
     
-    url = "https://opendata.trudvsem.ru/api/v1/vacancies"
-    query_text = f"{profession} {location}".strip()
-    
+    url = "https://api.hh.ru/vacancies"
+    headers = {
+        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
+    }
+    if hh_access_token:
+        headers["Authorization"] = f"Bearer {hh_access_token}"
+        
+    area_id = None
+    if location:
+        loc_lower = location.lower()
+        if "беларусь" in loc_lower or "belarus" in loc_lower or "минск" in loc_lower:
+            area_id = 16
+        elif "казахстан" in loc_lower or "kazakhstan" in loc_lower or "алматы" in loc_lower or "астана" in loc_lower:
+            area_id = 40
+        elif "узбекистан" in loc_lower or "uzbekistan" in loc_lower or "ташкент" in loc_lower:
+            area_id = 97
+        elif "россия" in loc_lower or "russia" in loc_lower or "москва" in loc_lower or "спб" in loc_lower or "петербург" in loc_lower:
+            area_id = 113
+            
+    if area_id:
+        query_text = profession.strip()
+    else:
+        query_text = f"{profession} {location}".strip()
+        
     params = {
         "text": query_text,
-        "limit": 10
+        "per_page": 12
     }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, params=params, timeout=8.0)
-        if response.status_code != 200:
-            raise Exception(f"TrudVsem API returned status {response.status_code}")
+    if area_id:
+        params["area"] = area_id
         
-        data = response.json()
-        results = data.get("results", {})
-        vacancies = results.get("vacancies", [])
-        if not vacancies:
-            raise Exception("No vacancies found on TrudVsem")
-            
-        summary = []
-        clean_html = re.compile('<.*?>')
-        
-        for item in vacancies[:8]:
-            v = item.get("vacancy", {})
-            title = v.get("job-name", "Вакансия")
-            salary = v.get("salary", "не указана")
-            req = v.get("requirement", {}).get("education", "") or v.get("requirement", {}).get("qualification", "") or ""
-            duty = v.get("duty", "")
-            
-            req = re.sub(clean_html, '', req)
-            duty = re.sub(clean_html, '', duty)
-            
-            summary.append(f"- {title} (Зарплата: {salary})\n  Требования: {req}\n  Обязанности: {duty}")
-            
-        return "\n\n".join(summary)
-
-
-async def fetch_structured_vacancies(profession: str, location: str = "") -> list:
-    import httpx
-    import re
-    
-    # 1. Try HH first
     try:
-        url = "https://api.hh.ru/vacancies"
-        headers = {
-            "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
-        }
-        # Маппинг регионов на HH area ID
-        area_id = None
-        if location:
-            loc_lower = location.lower()
-            if "беларусь" in loc_lower or "belarus" in loc_lower or "минск" in loc_lower:
-                area_id = 16
-            elif "казахстан" in loc_lower or "kazakhstan" in loc_lower or "алматы" in loc_lower or "астана" in loc_lower:
-                area_id = 40
-            elif "узбекистан" in loc_lower or "uzbekistan" in loc_lower or "ташкент" in loc_lower:
-                area_id = 97
-            elif "россия" in loc_lower or "russia" in loc_lower or "москва" in loc_lower or "спб" in loc_lower or "петербург" in loc_lower:
-                area_id = 113
-                
-        if area_id:
-            query_text = profession.strip()
-        else:
-            query_text = f"{profession} {location}".strip()
-            
-        params = {
-            "text": query_text,
-            "per_page": 12
-        }
-        if area_id:
-            params["area"] = area_id
-            
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=8.0)
+            response = await client.get(url, headers=headers, params=params, timeout=10.0)
             if response.status_code == 200:
                 data = response.json()
                 items = data.get("items", [])
-                if items:
-                    result = []
-                    clean_html = re.compile('<.*?>')
-                    for item in items[:5]:
-                        title = item.get("name", "Вакансия")
-                        company = item.get("employer", {}).get("name", "Не указана")
-                        salary_info = item.get("salary") or {}
-                        salary_from = salary_info.get("from")
-                        salary_to = salary_info.get("to")
-                        salary_currency = salary_info.get("currency", "RUR")
+                result = []
+                clean_html = re.compile('<.*?>')
+                for item in items[:10]:
+                    title = item.get("name", "Вакансия")
+                    company = item.get("employer", {}).get("name", "Не указана")
+                    salary_info = item.get("salary") or {}
+                    salary_from = salary_info.get("from")
+                    salary_to = salary_info.get("to")
+                    salary_currency = salary_info.get("currency", "RUR")
+                    
+                    sal_str = ""
+                    if salary_from and salary_to:
+                        sal_str = f"{salary_from} - {salary_to} {salary_currency}"
+                    elif salary_from:
+                        sal_str = f"от {salary_from} {salary_currency}"
+                    elif salary_to:
+                        sal_str = f"до {salary_to} {salary_currency}"
+                    else:
+                        sal_str = "не указана"
                         
-                        sal_str = ""
-                        if salary_from and salary_to:
-                            sal_str = f"{salary_from} - {salary_to} {salary_currency}"
-                        elif salary_from:
-                            sal_str = f"от {salary_from} {salary_currency}"
-                        elif salary_to:
-                            sal_str = f"до {salary_to} {salary_currency}"
-                        else:
-                            sal_str = "не указана"
-                            
-                        snippet = item.get("snippet") or {}
-                        req_text = snippet.get("requirement") or ""
-                        resp_text = snippet.get("responsibility") or ""
-                        
-                        req_text = re.sub(clean_html, '', req_text)
-                        resp_text = re.sub(clean_html, '', resp_text)
-                        
-                        alt_url = item.get("alternate_url", "")
-                        
-                        result.append({
-                            "title": title,
-                            "company": company,
-                            "salary": sal_str,
-                            "requirements": req_text,
-                            "responsibility": resp_text,
-                            "url": alt_url,
-                            "source": "HeadHunter"
-                        })
-                    return result
+                    snippet = item.get("snippet") or {}
+                    req_text = snippet.get("requirement") or ""
+                    resp_text = snippet.get("responsibility") or ""
+                    
+                    req_text = re.sub(clean_html, '', req_text)
+                    resp_text = re.sub(clean_html, '', resp_text)
+                    
+                    alt_url = item.get("alternate_url", "")
+                    
+                    result.append({
+                        "title": title,
+                        "company": company,
+                        "salary": sal_str,
+                        "requirements": req_text,
+                        "responsibility": resp_text,
+                        "url": alt_url,
+                        "source": "HeadHunter"
+                    })
+                return result
     except Exception as e:
         print(f"Structured HH failed: {e}")
-
-    # 2. Try TrudVsem fallback
-    try:
-        url = "https://opendata.trudvsem.ru/api/v1/vacancies"
-        query_text = f"{profession} {location}".strip()
-        params = {
-            "text": query_text,
-            "limit": 10
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=8.0)
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get("results", {})
-                vacancies = results.get("vacancies", [])
-                if vacancies:
-                    result = []
-                    clean_html = re.compile('<.*?>')
-                    for item in vacancies[:5]:
-                        v = item.get("vacancy", {})
-                        title = v.get("job-name", "Вакансия")
-                        company = v.get("company", {}).get("name", "Не указана")
-                        salary = v.get("salary", "не указана")
-                        
-                        req_text = v.get("requirement", {}).get("education", "") or v.get("requirement", {}).get("qualification", "") or ""
-                        resp_text = v.get("duty", "")
-                        
-                        req_text = re.sub(clean_html, '', req_text)
-                        resp_text = re.sub(clean_html, '', resp_text)
-                        
-                        alt_url = v.get("vac_url", "")
-                        
-                        result.append({
-                            "title": title,
-                            "company": company,
-                            "salary": f"{salary} RUR" if isinstance(salary, (int, float)) or (isinstance(salary, str) and salary.isdigit()) else str(salary),
-                            "requirements": req_text,
-                            "responsibility": resp_text,
-                            "url": alt_url,
-                            "source": "Работа в России"
-                        })
-                    return result
-    except Exception as e:
-        print(f"Structured TrudVsem failed: {e}")
         
-    # 3. Fallback to intelligent LLM generation when standard APIs fail or are blocked
-    if GROQ_API_KEY:
-        try:
-            print("Falling back to LLM to generate realistic vacancies...")
-            agent = BaseAgent(api_key=GROQ_API_KEY)
-            
-            # Map location to HH area codes
-            area_id = ""
-            loc_lower = location.lower() if location else ""
-            if "минск" in loc_lower or "беларусь" in loc_lower:
-                area_id = "16"
-            elif "алматы" in loc_lower or "астана" in loc_lower or "казахстан" in loc_lower:
-                area_id = "40"
-            elif "ташкент" in loc_lower or "узбекистан" in loc_lower:
-                area_id = "97"
-            elif "москва" in loc_lower:
-                area_id = "1"
-            elif "петербург" in loc_lower or "спб" in loc_lower:
-                area_id = "2"
-            elif "россия" in loc_lower:
-                area_id = "113"
-                
-            prof_query = profession.replace(' ', '+')
-            loc_query = location.replace(' ', '+') if location else ""
-            
-            system_prompt = f"""You are a professional HR assistant and technical recruiter for StudyForge.
-Your task is to generate 4 to 5 highly realistic, detailed, existing-style vacancies for a candidate in the field of: '{profession}' located in: '{location}'.
-
-You MUST output ONLY a valid JSON list of objects (no markdown, no backticks, no code blocks, just raw JSON).
-Each object in the JSON list MUST have the exact keys:
-1. "title": Specific job title (e.g., "Junior Python-разработчик"). Make them realistic, highly technical, and varied.
-2. "company": A realistic, active IT company or agency in this location (e.g. EPAM, Yandex, BelkaCar, local IT firms).
-3. "salary": Realistic salary range in the appropriate local currency (e.g., "2200 - 3500 BYN" for Minsk, "от 120 000 руб." for Russia, or "1500 - 2500 USD").
-4. "requirements": Bulleted or plain text list of realistic technical requirements.
-5. "responsibility": Plain text list of realistic job responsibilities.
-6. "url": A working search link on HeadHunter for this position in this city.
-   Use the area ID "{area_id}" if not empty.
-   Format: "https://hh.ru/search/vacancy?text={prof_query}+{loc_query}&area={area_id}" (if area_id is not empty) or "https://hh.ru/search/vacancy?text={prof_query}+{loc_query}" (if empty).
-7. "source": "HeadHunter (ИИ-Подборка)"
-
-Example output format:
-[
-  {{
-    "title": "Junior Python-разработчик",
-    "company": "СофтТехнолоджи",
-    "salary": "1800 - 2500 BYN",
-    "requirements": "Знание Python 3, Django or FastAPI, базовые знания SQL, Git.",
-    "responsibility": "Разработка серверной части веб-приложений, поддержка существующего кода, написание тестов.",
-    "url": "https://hh.ru/search/vacancy?text=Python+FastAPI&area=16",
-    "source": "HeadHunter (ИИ-Подборка)"
-  }}
-]
-"""
-            user_query = f"Сгенерируй 4-5 реалистичных вакансий для '{profession}' в локации '{location}'."
-            reply = await agent.run(system_prompt, user_query)
-            
-            # Clean up potential markdown code block wrappers
-            reply = reply.strip()
-            if reply.startswith("```"):
-                reply = re.sub(r"^```(?:json)?\n", "", reply)
-                reply = re.sub(r"\n```$", "", reply)
-                reply = reply.strip()
-                
-            generated = json.loads(reply)
-            if isinstance(generated, list) and len(generated) > 0:
-                print(f"Successfully generated {len(generated)} realistic vacancies via LLM.")
-                return generated
-        except Exception as ex:
-            print(f"LLM vacancy generation failed: {ex}")
-            
     return []
 
 
 @app.post("/api/career/vacancies")
 @limiter.limit("10/minute")
 async def get_career_vacancies(request: Request, req: CareerVacanciesRequest):
-    vacancies = await fetch_structured_vacancies(req.profession, req.location)
-    if not vacancies:
-        # Return fallback mock vacancies
-        vacancies = [
-            {
-                "title": f"Junior {req.profession}",
-                "company": "Учебный трек StudyForge",
-                "salary": "от 120 000 руб.",
-                "requirements": f"Базовые навыки по направлению {req.profession}, инициативность, умение работать в команде.",
-                "responsibility": "Разработка учебных проектов, участие в командных созвонах, прохождение практики.",
-                "url": "https://hh.ru",
-                "source": "Рыночный стандарт"
-            }
-        ]
+    # Retrieve user's hh_access_token from Supabase profile if authenticated
+    hh_access_token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        import os
+        from supabase import create_client
+        sb_url = os.getenv("SUPABASE_URL", "")
+        sb_key = os.getenv("SUPABASE_KEY", "")
+        if sb_url and sb_key:
+            try:
+                sb = create_client(sb_url, sb_key)
+                user_resp = sb.auth.get_user(token)
+                user_id = user_resp.user.id
+                
+                # Fetch profile_json
+                profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
+                if profile_res.data:
+                    profile_json = profile_res.data.get("profile_json", {})
+                    hh_access_token = profile_json.get("hh_access_token")
+            except Exception as e_token:
+                print(f"Error fetching HH access token for vacancies: {e_token}")
+
+    vacancies = await fetch_structured_vacancies(req.profession, req.location, hh_access_token)
     return vacancies
 
 
@@ -1353,22 +1208,37 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
         vacancy_text = req.vacancy_context
     else:
         # Сначала пытаемся получить вакансии из HH API
+        hh_access_token = None
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            import os
+            from supabase import create_client
+            sb_url = os.getenv("SUPABASE_URL", "")
+            sb_key = os.getenv("SUPABASE_KEY", "")
+            if sb_url and sb_key:
+                try:
+                    sb = create_client(sb_url, sb_key)
+                    user_resp = sb.auth.get_user(token)
+                    user_id = user_resp.user.id
+                    
+                    # Fetch profile_json
+                    profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
+                    if profile_res.data:
+                        profile_json = profile_res.data.get("profile_json", {})
+                        hh_access_token = profile_json.get("hh_access_token")
+                except Exception as e_token:
+                    print(f"Error fetching HH access token for course generator: {e_token}")
+
         try:
             print(f"Trying to fetch vacancies from HH for {req.profession} in {req.location}...")
-            vacancy_text = await fetch_hh_vacancies(req.profession, req.location)
+            vacancy_text = await fetch_hh_vacancies(req.profession, req.location, hh_access_token)
         except Exception as e_hh:
-            print(f"HH API failed: {e_hh}. Trying fallback 'Работа в России' API...")
-            # Если HH не сработал, пробуем резервный ТрудоВсем
-            try:
-                vacancy_text = await fetch_trudvsem_vacancies(req.profession, req.location)
-                print("Successfully fetched vacancies from 'Работа в России' fallback API.")
-            except Exception as e_trud:
-                print(f"TrudVsem fallback API also failed: {e_trud}")
-                # Обе системы лежат — честно говорим пользователю подождать, как просил клиент
-                raise HTTPException(
-                    status_code=503, 
-                    detail="Серверы вакансий (HeadHunter и Работа в России) временно перегружены или недоступны. Пожалуйста, подождите 1-2 минуты и повторите попытку."
-                )
+            print(f"HH API failed: {e_hh}")
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Не удалось получить вакансии с HeadHunter для '{req.profession}' в локации '{req.location}'. Проверьте соединение или уточните поисковый запрос."
+            )
             
     agent = CareerCourseAgent(api_key=GROQ_API_KEY)
     
@@ -1834,67 +1704,96 @@ async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest)
 @app.post("/api/career/parse_vacancy")
 @limiter.limit("15/minute")
 async def career_parse_vacancy(request: Request, req: CareerVacancyParseRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
     import re
     import httpx
-    
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
+    import os
+
+    # Проверяем, является ли ссылка вакансией на HH
+    match = re.search(r'vacancy/(\d+)', req.url)
+    if not match:
+        raise HTTPException(
+            status_code=400,
+            detail="Поддерживаются только действительные ссылки на вакансии HeadHunter (например: https://hh.ru/vacancy/123456)"
+        )
+        
+    vacancy_id = match.group(1)
+    # Получаем токен из Supabase
+    hh_access_token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        sb_url = os.getenv("SUPABASE_URL", "")
+        sb_key = os.getenv("SUPABASE_KEY", "")
+        if sb_url and sb_key:
+            try:
+                from supabase import create_client
+                sb = create_client(sb_url, sb_key)
+                user_resp = sb.auth.get_user(token)
+                user_id = user_resp.user.id
+                
+                profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
+                if profile_res.data:
+                    profile_json = profile_res.data.get("profile_json", {})
+                    hh_access_token = profile_json.get("hh_access_token")
+            except Exception as e_token:
+                print(f"Error fetching HH access token for parsing: {e_token}")
+                
+    # Запрашиваем через официальный API HeadHunter
+    url = f"https://api.hh.ru/vacancies/{vacancy_id}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
     }
-    
-    html_text = ""
+    if hh_access_token:
+        headers["Authorization"] = f"Bearer {hh_access_token}"
+        
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(req.url, headers=headers, timeout=6.0, follow_redirects=True)
-            if resp.status_code == 200:
-                html_text = resp.text
-    except Exception as e:
-        print(f"Direct scrap error for {req.url}: {e}")
+            resp = await client.get(url, headers=headers, timeout=10.0)
+            if resp.status_code != 200:
+                raise Exception(f"HH API returned status {resp.status_code}")
+                
+            vac_data = resp.json()
+            title = vac_data.get("name", "Вакансия")
+            company = vac_data.get("employer", {}).get("name", "Не указана")
+            
+            salary_info = vac_data.get("salary") or {}
+            salary_from = salary_info.get("from")
+            salary_to = salary_info.get("to")
+            salary_currency = salary_info.get("currency", "RUR")
+            
+            sal_str = ""
+            if salary_from and salary_to:
+                sal_str = f"{salary_from} - {salary_to} {salary_currency}"
+            elif salary_from:
+                sal_str = f"от {salary_from} {salary_currency}"
+            elif salary_to:
+                sal_str = f"до {salary_to} {salary_currency}"
+            else:
+                sal_str = "не указана"
+                
+            raw_description = vac_data.get("description", "")
+            clean_html = re.compile('<.*?>')
+            desc_text = re.sub(clean_html, '', raw_description)
+            sentences = re.split(r'(?<=[.!?])\s+', desc_text)
+            requirements = " ".join(sentences[:3])
+            
+            key_skills = [skill.get("name") for skill in vac_data.get("key_skills", []) if skill.get("name")]
+            if not key_skills:
+                key_skills = ["Git", "SQL"]
+                
+            return {
+                "title": title,
+                "company": company,
+                "salary": sal_str,
+                "requirements": requirements,
+                "skills": key_skills
+            }
+    except Exception as e_api:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Не удалось загрузить вакансию через HeadHunter API: {str(e_api)}"
+        )
 
-    body_text = ""
-    if html_text:
-        # Strip script & style tags
-        clean_html = re.sub(r'<(script|style).*?>.*?</\1>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
-        # Strip all other HTML tags
-        clean_text = re.sub(r'<.*?>', ' ', clean_html, flags=re.DOTALL)
-        # Collapse whitespace
-        body_text = re.sub(r'\s+', ' ', clean_text).strip()
-        
-    system_prompt = """Ты — экспертный ИИ-парсер вакансий StudyForge.
-Твоя задача — извлечь или спрогнозировать детальные структурированные данные о вакансии из предоставленной страницы или URL.
-
-Верни результат СТРОГО в формате JSON:
-{
-  "title": "Название вакансии (например, Junior Frontend Developer)",
-  "company": "Название компании (например, Сбербанк или Яндекс)",
-  "salary": "Зарплата (например, 80 000 - 120 000 ₽ или 'по результатам собеседования')",
-  "requirements": "Краткое описание требований вакансии в 2-3 предложениях",
-  "skills": ["Навык 1", "Навык 2", "Навык 3", "Навык 4", "Навык 5"]
-}
-
-Если переданный текст пуст (был заблокирован парсинг) или содержит мало информации, то на основе URL адреса (например, содержащего 'frontend-developer') и контекста сгенерируй МАКСИМАЛЬНО РЕАЛИСТИЧНЫЕ, качественные и актуальные требования, навыки и оклад для этой вакансии на ИТ-рынке.
-"""
-    
-    user_query = f"URL вакансии: {req.url}\n\nСпарсенный текст страницы:\n{body_text[:4500]}"
-    
-    try:
-        raw = await agent.run(system_prompt, user_query)
-        return parse_llm_json(raw)
-    except Exception as e:
-        # Graceful fallback
-        return {
-            "title": "IT Специалист",
-            "company": "Указанная компания",
-            "salary": "по результатам собеседования",
-            "requirements": "Разработка надежных систем, работа с базами данных, оптимизация производительности.",
-            "skills": ["Git", "SQL", "Docker", "REST API"]
-        }
 
 
 @app.post("/api/career/diagnostic_test")
@@ -2469,6 +2368,213 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
             return {"message": "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова.", "grades": []}
             
         return {"message": f"Произошла техническая ошибка: {err_str}", "grades": []}
+
+
+class HHExchangeRequest(BaseModel):
+    code: str
+
+
+class HHApplyRequest(BaseModel):
+    vacancy_id: str
+    resume_id: str
+    message: Optional[str] = ""
+
+
+@app.get("/api/hh/auth_url")
+async def hh_auth_url():
+    import os
+    client_id = os.getenv("HH_CLIENT_ID", "")
+    redirect_uri = os.getenv("HH_REDIRECT_URI", "")
+    if not client_id or not redirect_uri:
+        raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
+    
+    url = f"https://hh.ru/oauth/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
+    return {"url": url}
+
+
+@app.post("/api/hh/exchange")
+async def hh_exchange(request: Request, req: HHExchangeRequest):
+    import os
+    import httpx
+    
+    client_id = os.getenv("HH_CLIENT_ID", "")
+    client_secret = os.getenv("HH_CLIENT_SECRET", "")
+    redirect_uri = os.getenv("HH_REDIRECT_URI", "")
+    if not client_id or not client_secret or not redirect_uri:
+        raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
+        
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    token = auth_header[7:]
+    
+    # 1. Exchange code for token
+    url = "https://hh.ru/oauth/token"
+    headers = {
+        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)"),
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": req.code,
+        "redirect_uri": redirect_uri
+    }
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(url, headers=headers, data=data, timeout=10.0)
+        if resp.status_code != 200:
+            print(f"HH Token exchange failed: {resp.status_code} - {resp.text}")
+            raise HTTPException(status_code=400, detail=f"Ошибка авторизации HH: {resp.text}")
+        
+        hh_data = resp.json()
+        access_token = hh_data.get("access_token")
+        refresh_token = hh_data.get("refresh_token")
+        
+        # 2. Save tokens in user's profile in Supabase
+        sb_url = os.getenv("SUPABASE_URL", "")
+        sb_key = os.getenv("SUPABASE_KEY", "")
+        if not sb_url or not sb_key:
+            raise HTTPException(status_code=500, detail="Supabase не настроен")
+            
+        from supabase import create_client
+        sb = create_client(sb_url, sb_key)
+        try:
+            user_resp = sb.auth.get_user(token)
+            user_id = user_resp.user.id
+            
+            # Fetch existing profile
+            profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
+            profile_json = {}
+            if profile_res.data:
+                profile_json = profile_res.data.get("profile_json", {}) or {}
+                
+            # Update with tokens
+            profile_json["hh_access_token"] = access_token
+            profile_json["hh_refresh_token"] = refresh_token
+            
+            # Upsert
+            sb.table("career_profiles").upsert({
+                "user_id": user_id,
+                "profile_json": profile_json,
+                "updated_at": "now()"
+            }, on_conflict="user_id").execute()
+            
+        except Exception as e_db:
+            print(f"Failed to save HH tokens to Supabase: {e_db}")
+            raise HTTPException(status_code=500, detail="Ошибка базы данных при сохранении токенов")
+            
+        return {"success": True, "message": "Аккаунт HeadHunter успешно подключен!"}
+
+
+@app.get("/api/hh/resumes")
+async def hh_resumes(request: Request):
+    import os
+    import httpx
+    
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    token = auth_header[7:]
+    
+    sb_url = os.getenv("SUPABASE_URL", "")
+    sb_key = os.getenv("SUPABASE_KEY", "")
+    if not sb_url or not sb_key:
+        raise HTTPException(status_code=500, detail="Supabase не настроен")
+        
+    from supabase import create_client
+    sb = create_client(sb_url, sb_key)
+    try:
+        user_resp = sb.auth.get_user(token)
+        user_id = user_resp.user.id
+        profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
+        if not profile_res.data:
+            raise HTTPException(status_code=404, detail="Карьерный профиль не найден")
+            
+        profile_json = profile_res.data.get("profile_json", {})
+        hh_access_token = profile_json.get("hh_access_token")
+        if not hh_access_token:
+            raise HTTPException(status_code=400, detail="Аккаунт HeadHunter не подключен")
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    # Query resumes
+    url = "https://api.hh.ru/resumes/mine"
+    headers = {
+        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)"),
+        "Authorization": f"Bearer {hh_access_token}"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url, headers=headers, timeout=10.0)
+        if resp.status_code != 200:
+            print(f"HH Get Resumes failed: {resp.status_code} - {resp.text}")
+            raise HTTPException(status_code=resp.status_code, detail=f"Не удалось получить резюме: {resp.text}")
+            
+        resumes_data = resp.json()
+        return resumes_data
+
+
+@app.post("/api/hh/apply")
+async def hh_apply(request: Request, req: HHApplyRequest):
+    import os
+    import httpx
+    
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Не авторизован")
+    token = auth_header[7:]
+    
+    sb_url = os.getenv("SUPABASE_URL", "")
+    sb_key = os.getenv("SUPABASE_KEY", "")
+    if not sb_url or not sb_key:
+        raise HTTPException(status_code=500, detail="Supabase не настроен")
+        
+    from supabase import create_client
+    sb = create_client(sb_url, sb_key)
+    try:
+        user_resp = sb.auth.get_user(token)
+        user_id = user_resp.user.id
+        profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
+        if not profile_res.data:
+            raise HTTPException(status_code=404, detail="Профиль не найден")
+            
+        profile_json = profile_res.data.get("profile_json", {})
+        hh_access_token = profile_json.get("hh_access_token")
+        if not hh_access_token:
+            raise HTTPException(status_code=400, detail="Аккаунт HeadHunter не подключен")
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    # Send negotiation to HH
+    url = "https://api.hh.ru/negotiations"
+    headers = {
+        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)"),
+        "Authorization": f"Bearer {hh_access_token}"
+    }
+    
+    # Multipart form or json parameters for application
+    data = {
+        "vacancy_id": req.vacancy_id,
+        "resume_id": req.resume_id,
+        "message": req.message
+    }
+    
+    async with httpx.AsyncClient() as client:
+        # According to HH.ru docs, negotiations requires POST query params or x-www-form-urlencoded
+        resp = await client.post(url, headers=headers, params=data, timeout=10.0)
+        if resp.status_code not in (200, 201):
+            print(f"HH Apply failed: {resp.status_code} - {resp.text}")
+            raise HTTPException(status_code=resp.status_code, detail=f"Ошибка отклика: {resp.text}")
+            
+        return {"success": True, "message": "Вы успешно откликнулись на вакансию!"}
 
 
 if __name__ == "__main__":

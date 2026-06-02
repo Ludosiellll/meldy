@@ -135,6 +135,8 @@ export interface CareerProfile {
   // Graduation Capstone Pet Project
   capstone_project?: CapstoneProject;
   capstone_options?: CapstoneProject[];
+  hh_access_token?: string;
+  hh_refresh_token?: string;
 }
 
 export interface ReviewQuestion {
@@ -891,4 +893,66 @@ export async function evaluatePetProject(
   }
   return res.json();
 }
+
+export async function getHHAuthUrl(): Promise<{ url: string }> {
+  const res = await fetch('/api/hh/auth_url');
+  if (!res.ok) throw new Error('Не удалось получить ссылку для авторизации HeadHunter');
+  return res.json();
+}
+
+export async function exchangeHHCode(code: string, token: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/hh/exchange', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ code })
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Не удалось связать аккаунт HeadHunter');
+  }
+  return res.json();
+}
+
+export async function getHHResumes(token: string): Promise<any> {
+  const res = await fetch('/api/hh/resumes', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Не удалось загрузить ваши резюме');
+  }
+  return res.json();
+}
+
+export async function applyHHVacancy(
+  vacancyId: string,
+  resumeId: string,
+  message: string,
+  token: string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/hh/apply', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      vacancy_id: vacancyId,
+      resume_id: resumeId,
+      message
+    })
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Не удалось отправить отклик');
+  }
+  return res.json();
+}
+
 
