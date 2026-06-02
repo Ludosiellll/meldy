@@ -21,7 +21,8 @@ import {
   generateReviewTest, updateModuleReview, getDueReviews,
   generateRetryTask, getModuleHint,
   saveXPToProfile, getLevelFromXP, XP_REWARDS, ModuleReviewRecord,
-  getCodeDiagnostics, generateGithubReadme, generatePetProjects, evaluatePetProject
+  getCodeDiagnostics, generateGithubReadme, generatePetProjects, evaluatePetProject,
+  getHHAuthUrl
 } from '../api/career';
 import { getMaterials } from '../api/materials';
 import ReactMarkdown from 'react-markdown';
@@ -349,6 +350,22 @@ export default function Career() {
     }
   });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const [hhConnecting, setHhConnecting] = useState(false);
+  const handleConnectHH = async () => {
+    setHhConnecting(true);
+    try {
+      const res = await getHHAuthUrl();
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Не удалось получить ссылку для авторизации HeadHunter.');
+    } finally {
+      setHhConnecting(false);
+    }
+  };
 
   // States for advanced course expansion dialogue
   const [showExpandChat, setShowExpandChat] = useState(false);
@@ -2001,14 +2018,28 @@ export default function Career() {
                   <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
                     Наш ИИ-коуч Форджи проведет с вами интервью, выкачает вакансии с HeadHunter API и построит гигантский индивидуальный курс с 7 интерактивными песочницами. Вы будете писать реальный код, делать SQL-запросы, верстать, считать приоритеты и общаться с разгневанными клиентами.
                   </p>
-                  
-                  <button
-                    onClick={handleStartCoachChat}
-                    className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold flex items-center gap-3 hover:from-indigo-700 hover:to-violet-700 transition shadow-lg shadow-indigo-200 dark:shadow-none mx-auto"
-                  >
-                    <MessageSquare className="w-5 h-5 animate-pulse" />
-                    Начать диалог с Коучем
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-6">
+                    <button
+                      onClick={handleStartCoachChat}
+                      className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-violet-700 transition shadow-lg shadow-indigo-200 dark:shadow-none"
+                    >
+                      <MessageSquare className="w-5 h-5 animate-pulse" />
+                      Начать диалог с Коучем
+                    </button>
+                    
+                    {!profile?.hh_access_token && (
+                      <button
+                        onClick={handleConnectHH}
+                        disabled={hhConnecting}
+                        className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold flex items-center justify-center gap-2.5 transition"
+                      >
+                        <div className="w-6 h-6 rounded bg-red-650 flex items-center justify-center font-black text-white text-xs tracking-tighter shrink-0 select-none shadow-sm">
+                          hh
+                        </div>
+                        {hhConnecting ? 'Подключение...' : 'Связать аккаунт HeadHunter'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 /* RENDER Timeline and Modules dashboard */
@@ -3488,22 +3519,37 @@ export default function Career() {
                       <li>Оставьте поле локации <strong>пустым</strong> — тогда поиск выдаст все вакансии без территориального ограничения (отлично подойдет для <strong>удаленной работы</strong>).</li>
                     </ul>
                   </div>
-                  <button
-                    onClick={() => {
-                      const prof = pendingCourseParams?.profession || profile?.course?.profession || 'Frontend-разработчик';
-                      setSearchProfession(prof);
-                      setSearchLocation('');
-                      setPendingCourseParams(prev => prev ? {
-                        ...prev,
-                        profession: prof,
-                        location: ''
-                      } : null);
-                      fetchAndSetVacancies(prof, '');
-                    }}
-                    className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition shadow-md"
-                  >
-                    Показать вакансии без привязки к городу
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center items-center w-full">
+                    <button
+                      onClick={() => {
+                        const prof = pendingCourseParams?.profession || profile?.course?.profession || 'Frontend-разработчик';
+                        setSearchProfession(prof);
+                        setSearchLocation('');
+                        setPendingCourseParams(prev => prev ? {
+                          ...prev,
+                          profession: prof,
+                          location: ''
+                        } : null);
+                        fetchAndSetVacancies(prof, '');
+                      }}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-indigo-650 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition shadow-md"
+                    >
+                      Показать вакансии без привязки к городу
+                    </button>
+
+                    {!profile?.hh_access_token && (
+                      <button
+                        onClick={handleConnectHH}
+                        disabled={hhConnecting}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-red-650 hover:bg-red-600 text-white text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-2"
+                      >
+                        <div className="w-5 h-5 rounded bg-white flex items-center justify-center font-black text-red-650 text-[10px] tracking-tighter shrink-0 select-none">
+                          hh
+                        </div>
+                        {hhConnecting ? 'Подключение...' : 'Подключить HeadHunter API'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">

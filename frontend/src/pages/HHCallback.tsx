@@ -27,6 +27,7 @@ export default function HHCallback() {
         return;
       }
 
+      let hasCourse = false;
       try {
         const token = session.access_token;
         const res = await exchangeHHCode(code, token);
@@ -35,12 +36,25 @@ export default function HHCallback() {
         } else {
           toast.error(res.message || 'Не удалось связать аккаунт HeadHunter.');
         }
+        
+        const { data: profileRes } = await supabase
+          .from('career_profiles')
+          .select('profile_json')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+          
+        if (profileRes?.profile_json?.course) {
+          hasCourse = true;
+        }
       } catch (err: any) {
         console.error(err);
         toast.error(err.message || 'Ошибка при обмене токенов.');
       } finally {
-        // Redirect to career with a tab parameter so we can select jobs
-        navigate('/career?tab=jobs', { replace: true });
+        if (hasCourse) {
+          navigate('/career?tab=jobs', { replace: true });
+        } else {
+          navigate('/career', { replace: true });
+        }
       }
     });
   }, [navigate]);
