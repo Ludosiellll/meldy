@@ -305,6 +305,7 @@ export default function Career() {
   const [showVacancySelector, setShowVacancySelector] = useState<boolean>(() => {
     return localStorage.getItem('sf_show_vacancy_selector') === 'true';
   });
+  const [isUsingMockData, setIsUsingMockData] = useState<boolean>(false);
   const [foundVacancies, setFoundVacancies] = useState<VacancyItem[]>(() => {
     const saved = localStorage.getItem('sf_found_vacancies');
     try {
@@ -1036,9 +1037,17 @@ export default function Career() {
       let v: VacancyItem[] = [];
       if (profile?.hh_access_token) {
         v = await getCareerVacancies(profession, location, profile.hh_access_token);
+        if (v.length === 0) {
+          v = getMockVacancies(profession, location);
+          setIsUsingMockData(true);
+          toast('В указанном городе не найдено вакансий. Подключены примерные вакансии.', { icon: 'ℹ️' });
+        } else {
+          setIsUsingMockData(false);
+        }
       } else {
         // Fallback to high-quality mock vacancies if HH is not connected
         v = getMockVacancies(profession, location);
+        setIsUsingMockData(true);
       }
       setFoundVacancies(v);
       if (v.length > 0) {
@@ -1055,6 +1064,7 @@ export default function Career() {
       // Even if API fails, let's load mock vacancies so the user isn't stuck with empty search
       const mockV = getMockVacancies(profession, location);
       setFoundVacancies(mockV);
+      setIsUsingMockData(true);
       if (mockV.length > 0) {
         setSelectedVacancy(mockV[0]);
         setVacancyChatMessages([
@@ -3730,11 +3740,19 @@ export default function Career() {
                     Отображаются примерные (модельные) вакансии с рынка труда. Чтобы искать и анализировать настоящие вакансии в реальном времени под ваши требования, пожалуйста, пройдите авторизацию через HeadHunter (раздел интеграции внизу страницы карьеры).
                   </div>
                 </div>
+              ) : isUsingMockData ? (
+                <div className="mx-6 mt-4 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-250/20 dark:border-amber-900/40 rounded-2xl flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300 font-semibold shrink-0 shadow-sm animate-all">
+                  <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block text-amber-900 dark:text-amber-200 mb-0.5 text-sm">Реальных вакансий не найдено!</span>
+                    Интеграция с HeadHunter активна, но в локации <strong>"{pendingCourseParams?.location || 'любой регион'}"</strong> по запросу <strong>"{pendingCourseParams?.profession}"</strong> не найдено открытых вакансий. Мы временно загрузили качественные примерные вакансии, чтобы вы могли продолжить.
+                  </div>
+                </div>
               ) : (
-                <div className="mx-6 mt-4 p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl flex items-start gap-3 text-xs text-emerald-800 dark:text-emerald-300 font-semibold shrink-0 shadow-sm animate-all">
+                <div className="mx-6 mt-4 p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250/20 dark:border-emerald-900/40 rounded-2xl flex items-start gap-3 text-xs text-emerald-800 dark:text-emerald-300 font-semibold shrink-0 shadow-sm animate-all">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-extrabold block text-emerald-900 dark:text-emerald-250 mb-0.5 text-sm">Официальная интеграция HeadHunter подключена!</span>
+                    <span className="font-extrabold block text-emerald-900 dark:text-emerald-200 mb-0.5 text-sm">Официальная интеграция HeadHunter подключена!</span>
                     Поиск выполняется напрямую с рынка труда через живое API hh.ru. Мы подобрали актуальные предложения под ваши параметры. Выберите лучшую вакансию для адаптации вашего курса.
                   </div>
                 </div>
