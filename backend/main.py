@@ -9,9 +9,9 @@ load_dotenv()
 
 # Резервная настройка Supabase, если переменные окружения не заданы (например, в Hugging Face Spaces)
 if not os.getenv("SUPABASE_URL"):
-    os.environ["SUPABASE_URL"] = "https://daunnytubqbzafjnpfnw.supabase.co"
+    os.environ["SUPABASE_URL"] = os.getenv("VITE_SUPABASE_URL") or "https://daunnytubqbzafjnpfnw.supabase.co"
 if not os.getenv("SUPABASE_KEY"):
-    os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhdW5ueXR1YnFiemFmam5wZm53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMzUxMDQsImV4cCI6MjA5NDYxMTEwNH0.1VLX3fW8NSmXlP6yknWbwslyrMMkc9TgA-oP3T_NzWE"
+    os.environ["SUPABASE_KEY"] = os.getenv("VITE_SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhdW5ueXR1YnFiemFmam5wZm53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMzUxMDQsImV4cCI6MjA5NDYxMTEwNH0.1VLX3fW8NSmXlP6yknWbwslyrMMkc9TgA-oP3T_NzWE"
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -2397,8 +2397,8 @@ async def hh_auth_url():
     import os
     from dotenv import load_dotenv
     load_dotenv(override=True)
-    client_id = os.getenv("HH_CLIENT_ID", "")
-    redirect_uri = os.getenv("HH_REDIRECT_URI", "")
+    client_id = os.getenv("HH_CLIENT_ID") or "QA5GINJ5HOSGMT135U8382F91NK81GVH14AOKN412O9J4841J7M6IPESFQ80NH1V"
+    redirect_uri = os.getenv("HH_REDIRECT_URI") or "https://ludosiel-studyforge.hf.space/hh-callback"
     if not client_id or not redirect_uri:
         raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
     
@@ -2413,9 +2413,9 @@ async def hh_exchange(request: Request, req: HHExchangeRequest):
     from dotenv import load_dotenv
     load_dotenv(override=True)
     
-    client_id = os.getenv("HH_CLIENT_ID", "")
-    client_secret = os.getenv("HH_CLIENT_SECRET", "")
-    redirect_uri = os.getenv("HH_REDIRECT_URI", "")
+    client_id = os.getenv("HH_CLIENT_ID") or "QA5GINJ5HOSGMT135U8382F91NK81GVH14AOKN412O9J4841J7M6IPESFQ80NH1V"
+    client_secret = os.getenv("HH_CLIENT_SECRET") or "G0CSHFQUHGIVUBMGPK9RGLB5FVAK04QV21PQSSVADBVTFER165ULLI78HM5VFIB9"
+    redirect_uri = os.getenv("HH_REDIRECT_URI") or "https://ludosiel-studyforge.hf.space/hh-callback"
     if not client_id or not client_secret or not redirect_uri:
         raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
         
