@@ -1,40 +1,41 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import UpdatePassword from './pages/UpdatePassword';
-import Dashboard from './pages/Dashboard';
-import Analyze from './pages/Analyze';
-import Library from './pages/Library';
-import MaterialDetail from './pages/MaterialDetail';
-import Review from './pages/Review';
-import Planner from './pages/Planner';
-import Courses from './pages/Courses';
-import Chat from './pages/Chat';
-import ProfessorExam from './pages/ProfessorExam';
-import Missions from './pages/Missions';
-import MistakeDiary from './pages/MistakeDiary';
-import MoodTracker from './pages/MoodTracker';
-import Analytics from './pages/Analytics';
-import QuickPrep from './pages/QuickPrep';
-import KnowledgeMap from './pages/KnowledgeMap';
-import AuthCallback from './pages/AuthCallback';
-import HHCallback from './pages/HHCallback';
-import SocialHub from './pages/SocialHub';
-import CoStudy from './pages/CoStudy';
-import Career from './pages/Career';
-import StudySession from './pages/StudySession';
-import Profile from './pages/Profile';
-import Messages from './pages/Messages';
-import TeacherDashboard from './pages/TeacherDashboard';
-import Pricing from './pages/Pricing';
 import PWAUpdater from './components/PWAUpdater';
-import ShortsPlayer from './pages/ShortsPlayer';
-import SharedMaterial from './pages/SharedMaterial';
-import AssignmentView from './pages/AssignmentView';
+
+const Landing = lazy(() => import('./pages/Landing'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const UpdatePassword = lazy(() => import('./pages/UpdatePassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Analyze = lazy(() => import('./pages/Analyze'));
+const Library = lazy(() => import('./pages/Library'));
+const MaterialDetail = lazy(() => import('./pages/MaterialDetail'));
+const Review = lazy(() => import('./pages/Review'));
+const Courses = lazy(() => import('./pages/Courses'));
+const Chat = lazy(() => import('./pages/Chat'));
+const ProfessorExam = lazy(() => import('./pages/ProfessorExam'));
+const Missions = lazy(() => import('./pages/Missions'));
+const MistakeDiary = lazy(() => import('./pages/MistakeDiary'));
+const MoodTracker = lazy(() => import('./pages/MoodTracker'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const QuickPrep = lazy(() => import('./pages/QuickPrep'));
+const KnowledgeMap = lazy(() => import('./pages/KnowledgeMap'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const HHCallback = lazy(() => import('./pages/HHCallback'));
+const SocialHub = lazy(() => import('./pages/SocialHub'));
+const CoStudy = lazy(() => import('./pages/CoStudy'));
+const Career = lazy(() => import('./pages/Career'));
+const StudySession = lazy(() => import('./pages/StudySession'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Messages = lazy(() => import('./pages/Messages'));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const ShortsPlayer = lazy(() => import('./pages/ShortsPlayer'));
+const SharedMaterial = lazy(() => import('./pages/SharedMaterial'));
+const AssignmentView = lazy(() => import('./pages/AssignmentView'));
 
 import { Smartphone } from 'lucide-react';
 
@@ -82,6 +83,7 @@ export default function App() {
           }
         }} 
       />
+      <Suspense fallback={<RouteLoading />}>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -126,6 +128,18 @@ export default function App() {
         <Route path="/hh-callback" element={<PrivateRoute><HHCallback /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
+  );
+}
+
+function RouteLoading() {
+  return (
+    <div className="min-h-screen bg-[#07111f] flex items-center justify-center text-slate-300">
+      <div className="flex flex-col items-center gap-3" role="status" aria-label="Загрузка страницы">
+        <div className="h-8 w-8 rounded-full border-2 border-cyan-300 border-t-transparent animate-spin" />
+        <span className="text-xs tracking-wide">Загружаем страницу…</span>
+      </div>
+    </div>
   );
 }

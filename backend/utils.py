@@ -74,7 +74,9 @@ def repair_json(json_str: str) -> str:
 
 def parse_llm_json(raw: str) -> Any:
     """Utility to extract and parse JSON from LLM string output, with auto-repair support."""
-    json_str = raw.strip()
+    if not isinstance(raw, str):
+        raise ValueError("Ответ модели должен быть строкой")
+    json_str = raw.strip().lstrip("\ufeff")
     if "```json" in json_str:
         json_str = json_str.split("```json")[1].split("```")[0]
     elif "```" in json_str:

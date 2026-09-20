@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
@@ -7,7 +8,11 @@ from pywebpush import webpush, WebPushException
 
 router = APIRouter()
 
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", open("private_key.pem").read().strip())
+_private_key_path = Path(__file__).resolve().with_name("private_key.pem")
+VAPID_PRIVATE_KEY = os.getenv(
+    "VAPID_PRIVATE_KEY",
+    _private_key_path.read_text(encoding="utf-8").strip() if _private_key_path.exists() else "",
+)
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "BEdVrUuTGrqZWpxNBc3tfNP0N4CtLzEAlH3U64D4WMKkfps-96rEJj6ntl2_2MnFzRNupEWQ1uzl4kBAcjrtRiQ")
 VAPID_CLAIMS = {"sub": "mailto:admin@studyforge.local"}
 

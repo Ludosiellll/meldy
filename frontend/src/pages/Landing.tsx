@@ -22,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
+import LandingHero from '../components/LandingHero';
 
 const reveal = {
   hidden: { opacity: 0, y: 28 },
@@ -40,7 +41,7 @@ export default function Landing() {
     <div className="landing-shell min-h-screen overflow-hidden bg-[#07111f] text-[#edf7ff] selection:bg-cyan-300 selection:text-slate-950">
       <Navbar />
       <main>
-        <Hero />
+        <LandingHero />
         <LearningFlow />
         <FeatureGrid />
         <MethodSection />
@@ -55,14 +56,14 @@ function Navbar() {
   const navigate = useNavigate();
 
   return (
-    <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.07] bg-[#07111f]/70 backdrop-blur-2xl">
-      <div className="mx-auto flex h-[72px] max-w-[1400px] items-center justify-between px-5 sm:px-8 lg:px-12">
-        <button className="group flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" onClick={() => navigate('/')}>
+    <nav className="fixed inset-x-0 top-0 z-50 overflow-hidden border-b border-white/[0.07] bg-[#07111f]/70 backdrop-blur-2xl">
+      <div className="mx-auto flex h-[72px] min-w-0 max-w-[1400px] items-center justify-between gap-3 px-4 sm:px-8 lg:px-12">
+        <button className="group flex min-w-0 shrink items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" onClick={() => navigate('/')}>
           <span className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-xl border border-cyan-300/30 bg-cyan-300/10">
             <span className="absolute inset-0 translate-y-full bg-cyan-300 transition-transform duration-300 group-hover:translate-y-0" />
             <GraduationCap className="relative h-5 w-5 text-cyan-200 transition-colors group-hover:text-slate-950" />
           </span>
-          <span className="text-lg font-black tracking-[-0.04em] text-white">StudyForge</span>
+          <span className="landing-logo-text truncate text-lg font-black tracking-[-0.04em] text-white">StudyForge</span>
         </button>
 
         <div className="hidden items-center gap-8 text-sm font-medium text-slate-400 md:flex">
@@ -75,7 +76,7 @@ function Navbar() {
           <button className="hidden rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/5 hover:text-white sm:block" onClick={() => navigate('/login')}>
             Войти
           </button>
-          <button className="landing-button-primary px-4 py-2.5 text-xs sm:px-5 sm:text-sm" onClick={() => navigate('/register')}>
+          <button className="landing-nav-cta landing-button-primary shrink-0 px-3 py-2.5 text-[11px] sm:px-5 sm:text-sm" onClick={() => navigate('/register')}>
             Попробовать
             <ArrowRight className="h-4 w-4" />
           </button>
@@ -85,184 +86,6 @@ function Navbar() {
   );
 }
 
-function Hero() {
-  const navigate = useNavigate();
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <section className="relative isolate min-h-[900px] overflow-hidden px-5 pb-28 pt-32 sm:px-8 lg:pt-40">
-      <div className="landing-aurora landing-aurora-one" />
-      <div className="landing-aurora landing-aurora-two" />
-      <div className="landing-grid absolute inset-0 -z-10 opacity-45" />
-      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-[#07111f]" />
-
-      <div className="relative mx-auto grid max-w-[1400px] items-center gap-16 lg:grid-cols-[0.84fr_1.16fr] lg:gap-12">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          transition={{ staggerChildren: reduceMotion ? 0 : 0.12 }}
-          className="relative z-10 max-w-2xl"
-        >
-          <motion.div variants={reveal} transition={{ duration: 0.65 }} className="mb-7 inline-flex items-center gap-2 rounded-full border border-cyan-200/20 bg-cyan-200/[0.07] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300" />
-            </span>
-            Учебный материал → система знаний
-          </motion.div>
-
-          <motion.h1 variants={reveal} transition={{ duration: 0.75 }} className="max-w-[760px] text-[clamp(3.5rem,7vw,7.5rem)] font-black leading-[0.86] tracking-[-0.075em] text-white">
-            Лекция больше
-            <span className="landing-title-accent block">не просто файл.</span>
-          </motion.h1>
-
-          <motion.p variants={reveal} transition={{ duration: 0.7 }} className="mt-8 max-w-xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
-            Загрузите материал один раз. StudyForge соберёт из него конспект, карточки, тест, подкаст и маршрут повторения.
-          </motion.p>
-
-          <motion.div variants={reveal} transition={{ duration: 0.7 }} className="mt-9 flex flex-wrap items-center gap-3">
-            <button className="landing-button-primary px-6 py-4 text-sm sm:px-7 sm:text-base" onClick={() => navigate('/register')}>
-              Загрузить первую лекцию
-              <ArrowRight className="h-5 w-5" />
-            </button>
-            <button className="landing-button-ghost px-6 py-4 text-sm sm:text-base" onClick={() => navigate('/analyze')}>
-              <Play className="h-4 w-4 fill-current" />
-              Открыть демо
-            </button>
-          </motion.div>
-
-          <motion.div variants={reveal} transition={{ duration: 0.7 }} className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-xs font-medium text-slate-400 sm:text-sm">
-            {['PDF, DOCX, TXT и видео', 'Результаты в одном месте'].map((item) => (
-              <span key={item} className="flex items-center gap-2">
-                <span className="grid h-5 w-5 place-items-center rounded-full border border-emerald-300/30 bg-emerald-300/10">
-                  <Check className="h-3 w-3 text-emerald-300" />
-                </span>
-                {item}
-              </span>
-            ))}
-          </motion.div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 36 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-          className="relative mx-auto w-full max-w-[760px] lg:translate-x-6"
-        >
-          <KnowledgeForge />
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-const demoStates = [
-  { id: 'summary', label: 'Конспект', icon: FileText },
-  { id: 'cards', label: 'Карточки', icon: Brain },
-  { id: 'quiz', label: 'Тест', icon: Zap },
-];
-
-function KnowledgeForge() {
-  const [active, setActive] = useState(0);
-  const reduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    if (reduceMotion) return;
-    const timer = window.setInterval(() => setActive((current) => (current + 1) % demoStates.length), 3200);
-    return () => window.clearInterval(timer);
-  }, [reduceMotion]);
-
-  return (
-    <div className="relative min-h-[540px] sm:min-h-[610px]">
-      <div className="absolute left-[8%] top-[6%] h-[82%] w-[84%] rounded-full bg-cyan-300/10 blur-[80px]" />
-      <motion.div
-        animate={reduceMotion ? undefined : { y: [0, -9, 0], rotate: [-1.2, 0.4, -1.2] }}
-        transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute left-0 top-24 z-20 hidden w-44 rounded-2xl border border-white/10 bg-[#0c1a2b]/90 p-4 shadow-2xl backdrop-blur-xl sm:block"
-      >
-        <div className="flex items-center gap-2 text-xs font-bold text-cyan-200"><Upload className="h-4 w-4" /> Лекция загружена</div>
-        <div className="mt-3 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-rose-400/15"><FileText className="h-5 w-5 text-rose-300" /></div>
-          <div className="min-w-0"><p className="truncate text-xs font-semibold text-white">Квантовая физика.pdf</p><p className="mt-1 text-[10px] text-slate-500">24 страницы</p></div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        animate={reduceMotion ? undefined : { y: [0, 11, 0], rotate: [1.5, -0.5, 1.5] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
-        className="absolute right-0 top-8 z-20 hidden w-48 rounded-2xl border border-violet-300/20 bg-violet-300/[0.08] p-4 shadow-2xl backdrop-blur-xl md:block"
-      >
-        <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">Связи найдены</span><Network className="h-4 w-4 text-violet-300" /></div>
-        <div className="mt-4 flex items-center justify-center gap-3">
-          {[2, 4, 3].map((size, index) => <span key={index} className="rounded-full bg-violet-300" style={{ width: size * 4, height: size * 4, opacity: 0.45 + index * 0.2 }} />)}
-        </div>
-      </motion.div>
-
-      <div className="landing-demo-window absolute inset-x-0 top-16 mx-auto w-[94%] overflow-hidden rounded-[28px] sm:top-20 sm:w-[86%]">
-        <div className="flex h-14 items-center justify-between border-b border-white/[0.08] px-4 sm:px-6">
-          <div className="flex gap-2"><span className="h-2.5 w-2.5 rounded-full bg-rose-400" /><span className="h-2.5 w-2.5 rounded-full bg-amber-300" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-300" /></div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500"><WandSparkles className="h-3.5 w-3.5 text-cyan-300" /> Анализ завершён</div>
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-cyan-200 to-violet-400" />
-        </div>
-
-        <div className="grid min-h-[430px] grid-cols-1 sm:grid-cols-[150px_1fr]">
-          <aside className="hidden border-r border-white/[0.07] p-4 sm:block">
-            <div className="mb-7 flex items-center gap-2 px-2 text-xs font-black text-white"><Sparkles className="h-4 w-4 text-cyan-300" /> StudyForge</div>
-            <div className="space-y-1.5">
-              {demoStates.map((state, index) => (
-                <button key={state.id} onClick={() => setActive(index)} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[11px] font-semibold transition ${active === index ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'}`}>
-                  <state.icon className="h-3.5 w-3.5" />{state.label}
-                </button>
-              ))}
-            </div>
-            <div className="mt-24 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
-              <p className="text-[9px] uppercase tracking-wider text-slate-600">Материал</p>
-              <p className="mt-1.5 text-[10px] font-semibold text-slate-300">Квантовая физика</p>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/5"><div className="h-full w-full bg-gradient-to-r from-cyan-300 to-violet-400" /></div>
-            </div>
-          </aside>
-
-          <div className="relative overflow-hidden p-5 sm:p-7">
-            <div className="mb-5 flex items-start justify-between">
-              <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-300">Рабочая область</p><h3 className="mt-1.5 text-lg font-black tracking-tight text-white">Основы квантовой механики</h3></div>
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[9px] font-bold text-emerald-300">ГОТОВО</span>
-            </div>
-
-            <div className="mb-5 flex gap-2 sm:hidden">
-              {demoStates.map((state, index) => <button aria-label={state.label} key={state.id} onClick={() => setActive(index)} className={`rounded-lg p-2 ${active === index ? 'bg-cyan-300 text-slate-950' : 'bg-white/5 text-slate-400'}`}><state.icon className="h-4 w-4" /></button>)}
-            </div>
-
-            <motion.div key={active} initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.45 }}>
-              {active === 0 && <SummaryDemo />}
-              {active === 1 && <CardsDemo />}
-              {active === 2 && <QuizDemo />}
-            </motion.div>
-          </div>
-        </div>
-      </div>
-
-      <motion.div
-        animate={reduceMotion ? undefined : { y: [0, -8, 0], rotate: [-0.8, 0.8, -0.8] }}
-        transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
-        className="absolute bottom-0 right-[4%] z-30 w-48 rounded-2xl border border-emerald-300/20 bg-[#10261f]/90 p-4 shadow-2xl backdrop-blur-xl sm:w-56"
-      >
-        <div className="flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-300 text-slate-950"><Brain className="h-4 w-4" /></div><div><p className="text-[10px] text-emerald-200/60">Следующее повторение</p><p className="text-xs font-bold text-white">Сегодня · 12 карточек</p></div></div>
-      </motion.div>
-    </div>
-  );
-}
-
-function SummaryDemo() {
-  return <div className="space-y-3"><div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4"><div className="mb-3 flex items-center gap-2 text-xs font-bold text-white"><span className="h-2 w-2 rounded-full bg-cyan-300" />Ключевая идея</div><p className="text-xs leading-6 text-slate-400">Состояние частицы описывается волновой функцией, а измерение связывает возможный результат с его вероятностью.</p></div><div className="grid grid-cols-2 gap-3"><div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4"><p className="text-[9px] uppercase tracking-wider text-slate-600">Термины</p><p className="mt-2 text-2xl font-black text-cyan-200">14</p></div><div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4"><p className="text-[9px] uppercase tracking-wider text-slate-600">Разделы</p><p className="mt-2 text-2xl font-black text-violet-200">05</p></div></div><div className="space-y-2 pt-1">{[100, 86, 92].map((width, i) => <div key={i} className="h-2 rounded-full bg-white/[0.05]"><motion.div initial={{ width: 0 }} animate={{ width: `${width}%` }} transition={{ duration: 0.7, delay: i * 0.08 }} className="h-full rounded-full bg-gradient-to-r from-cyan-300/50 to-violet-400/30" /></div>)}</div></div>;
-}
-
-function CardsDemo() {
-  return <div className="relative mx-auto max-w-sm pt-2"><div className="absolute inset-x-8 top-6 h-48 rotate-3 rounded-2xl border border-violet-300/10 bg-violet-300/5" /><div className="relative flex h-52 flex-col justify-between rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.09] to-violet-300/[0.04] p-5"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-cyan-300">Карточка 04 / 14</p><p className="text-center text-lg font-black leading-snug text-white">Что означает принцип суперпозиции?</p><div className="flex justify-center"><span className="rounded-full bg-white/[0.06] px-3 py-1.5 text-[10px] text-slate-400">Нажмите, чтобы открыть ответ</span></div></div></div>;
-}
-
-function QuizDemo() {
-  return <div><p className="mb-4 text-sm font-bold leading-6 text-white">Что происходит с волновой функцией при измерении?</p><div className="space-y-2.5">{['Она коллапсирует в одно состояние', 'Она исчезает навсегда', 'Она удваивает амплитуду'].map((answer, i) => <div key={answer} className={`flex items-center gap-3 rounded-xl border p-3 text-[11px] ${i === 0 ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100' : 'border-white/[0.07] bg-white/[0.025] text-slate-400'}`}><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg font-black ${i === 0 ? 'bg-emerald-300 text-slate-950' : 'bg-white/5 text-slate-500'}`}>{String.fromCharCode(65 + i)}</span>{answer}{i === 0 && <Check className="ml-auto h-4 w-4 text-emerald-300" />}</div>)}</div></div>;
-}
 
 function LearningFlow() {
   const steps = [

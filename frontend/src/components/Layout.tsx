@@ -25,30 +25,24 @@ const navGroups = [
   {
     title: 'Учёба',
     items: [
-      { to: '/dashboard',     icon: LayoutDashboard, label: 'Дашборд',              className: '' },
+      { to: '/dashboard',     icon: LayoutDashboard, label: 'Сегодня',              className: '' },
       { to: '/analyze',       icon: Zap,             label: 'Добавить материал',    className: 'tour-step-desktop-upload' },
       { to: '/library',       icon: BookOpen,        label: 'Библиотека',           className: 'tour-step-desktop-library' },
-      { to: '/knowledge-map', icon: Network,         label: 'Карта знаний',         className: '' },
     ]
   },
   {
     title: 'Практика',
     items: [
-      { to: '/chat',          icon: MessageSquare,   label: 'Чат-наставник',        className: 'tour-step-desktop-chat' },
       { to: '/review',        icon: Brain,           label: 'Смарт-карточки',       className: '' },
       { to: '/exam',          icon: Award,           label: 'Устный экзамен',       className: 'tour-step-desktop-exam' },
-      { to: '/quick-prep',    icon: Clock,           label: 'Быстрый повтор',       className: '' },
-      { to: '/career',        icon: Briefcase,       label: 'Карьера и вакансии',   className: '' },
+      { to: '/mistakes',      icon: BookMarked,      label: 'Ошибки',               className: '' },
     ]
   },
   {
     title: 'Прогресс',
     items: [
-      { to: '/messages',                icon: MessageSquare,   label: 'Диалоги и друзья',     className: '' },
-      { to: '/analytics?tab=platform',  icon: BarChart2,       label: 'Аналитика обучения',   className: '' },
-      { to: '/analytics?tab=gradebook', icon: GraduationCap,   label: 'Дневник оценок',       className: 'tour-step-desktop-gradebook' },
-      { to: '/mistakes',                icon: BookMarked,      label: 'Дневник ошибок',       className: '' },
-      { to: '/play',                    icon: Gamepad2,        label: 'Квесты',               className: '' },
+      { to: '/analytics?tab=platform',  icon: BarChart2,       label: 'Прогресс',             className: '' },
+      { to: '/knowledge-map',           icon: Network,         label: 'Карта знаний',         className: '' },
     ]
   },
 ];
@@ -68,10 +62,10 @@ const teacherNavGroups = [
 
 
 const mobileNavItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Главная' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Сегодня' },
+  { to: '/analyze',   icon: Zap,             label: 'Добавить' },
   { to: '/library',   icon: BookOpen,         label: 'Материалы', className: 'tour-step-mobile-library' },
-  { to: '/chat',      icon: MessageSquare,    label: 'Чат', className: 'tour-step-mobile-chat' },
-  { to: '/analytics?tab=gradebook', icon: GraduationCap, label: 'Оценки', className: 'tour-step-mobile-gradebook' },
+  { to: '/review',    icon: Brain,           label: 'Практика' },
   { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
 

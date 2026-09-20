@@ -113,8 +113,8 @@ class CoordinatorAgent:
         except Exception as e:
             if name == "summarizer":
                 print(f"Summarizer parse error: {e}, raw: {raw[:100]}")
-                return {"content": raw, "title": "Без названия (fallback)", "subject": "Конспект (fallback)", "terms": [], "error": str(e)}
-            return {"error": f"Parse error: {str(e)}", "raw": raw}
+                return {"content": "", "title": "Конспект не сформирован", "subject": "", "terms": [], "error": "Ответ ИИ пришёл в неверном формате"}
+            return {"error": "Ответ ИИ пришёл в неверном формате"}
 
         if name == "summarizer":
             if isinstance(parsed, dict):
@@ -133,6 +133,6 @@ class CoordinatorAgent:
                             return {name: v}
                 return parsed
             
-            return {"error": "Invalid format", "raw": raw}
+            return {"error": "Ответ ИИ пришёл в неверном формате"}
             
         return {"content": raw}

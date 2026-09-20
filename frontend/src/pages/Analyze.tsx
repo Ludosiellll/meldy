@@ -86,18 +86,27 @@ export default function Analyze() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Ошибка сервера'); }
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No body');
-      const dec = new TextDecoder(); let buf = '';
+      const dec = new TextDecoder('utf-8'); let buf = '';
+      const consumeSSE = (chunk: string) => {
+        buf += chunk;
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          const trimmed = line.endsWith('\r') ? line.slice(0, -1) : line;
+          if (!trimmed.startsWith('data:')) continue;
+          const payload = trimmed.slice(5).trim();
+          if (!payload) continue;
+          try { handleSSE(JSON.parse(payload)); }
+          catch (error) { console.warn('Пропущено повреждённое SSE-событие', error); }
+        }
+      };
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const l of lines) {
-          if (l.startsWith('data: ')) {
-            try { handleSSE(JSON.parse(l.slice(6))); } catch {}
-          }
-        }
+        consumeSSE(dec.decode(value, { stream: true }));
       }
+      consumeSSE(dec.decode());
+      if (buf.trim().startsWith('data:')) consumeSSE('\n');
     } catch (err: Error | any) { 
       if (err.name === 'AbortError') return;
       setState(p => ({ ...p, phase: 'error', error: err.message })); 
@@ -149,8 +158,6 @@ export default function Analyze() {
 
         (async () => {
           try {
-            await incrementAIUsage(user.id, 20); // списываем 20 за анализ
-            
             const title = results.summarizer?.title || (sourceFileNameRef.current
               ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
               : 'Без названия');
@@ -177,8 +184,12 @@ export default function Analyze() {
 
             if (error) {
               console.error('Supabase insert error:', error);
+              toast.error('Результат получен, но сохранить его не удалось. Попробуйте ещё раз.');
               return;
             }
+
+            // Списываем лимит только после успешного сохранения материала.
+            await incrementAIUsage(user.id, 20);
 
             if (inserted?.id) {
               setState(p => ({ ...p, savedMaterialId: inserted.id }));
@@ -192,6 +203,7 @@ export default function Analyze() {
             await recordStudyActivity(user.id, 0, 1);
           } catch (err) {
             console.error('AI Usage or DB error:', err);
+            toast.error('Не удалось завершить сохранение результата.');
           }
         })();
       }

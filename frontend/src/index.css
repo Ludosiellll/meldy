@@ -54,6 +54,14 @@ html { scroll-behavior: smooth; }
 
 .landing-shell {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100vw;
+}
+
+@media (max-width: 430px) {
+  .landing-logo-text { font-size: 0.95rem; }
+  .landing-nav-cta { display: none !important; }
 }
 
 .landing-grid {
@@ -214,6 +222,17 @@ html { scroll-behavior: smooth; }
   .landing-button-ghost,
   .landing-feature-card,
   .landing-feature-card::before { transition-duration: 0.01ms; }
+}
+
+/* Keep the landing header within the narrowest phone viewport. This rule is
+   intentionally placed after the shared button styles so the CTA cannot
+   reintroduce horizontal overflow through its display declaration. */
+@media (max-width: 430px) {
+  .landing-nav-cta { display: none !important; }
+}
+
+@media (max-width: 1100px) {
+  .landing-nav-cta { display: none !important; }
 }
 
 ::-webkit-scrollbar { width: 6px; }

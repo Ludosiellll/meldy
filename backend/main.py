@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import uuid
 from datetime import date
 from typing import AsyncGenerator, List, Optional
 
@@ -42,14 +43,17 @@ import traceback
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    print(f"Global exception: {exc}")
+    error_id = uuid.uuid4().hex[:12]
+    print(f"Global exception [{error_id}]: {exc}")
     traceback.print_exc()
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "traceback": traceback.format_exc()}
+        content={"detail": "Внутренняя ошибка сервера", "error_id": error_id}
     )
 
-origins = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
+origins = [origin.strip() for origin in os.getenv(
+    "CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+).split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +64,26 @@ app.add_middleware(
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
+
+
+async def read_upload_with_limit(file: UploadFile) -> bytes:
+    """Read an upload with a hard cap so one request cannot exhaust memory."""
+    chunks = []
+    total = 0
+    chunk_size = 1024 * 1024
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Файл слишком большой. Максимальный размер: {MAX_UPLOAD_BYTES // (1024 * 1024)} МБ",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 app.include_router(push_router, prefix="/api/push", tags=["push"])
 
@@ -116,11 +140,12 @@ async def event_stream(
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress."""
     try:
-        contents = await file.read()
+        contents = await read_upload_with_limit(file)
         text = extract_text(contents, file.filename or "file.txt")
 
         if not text.strip():
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Не удалось извлечь текст из файла'})}\n\n"
+            message = "В файле не найден текст. Для сканированного PDF используйте PDF с OCR или DOCX/TXT."
+            yield f"data: {json.dumps({'type': 'error', 'message': message}, ensure_ascii=False)}\n\n"
             return
 
         yield f"data: {json.dumps({'type': 'text_extracted', 'length': len(text), 'text': text})}\n\n"
@@ -148,7 +173,10 @@ async def event_stream(
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        error_id = uuid.uuid4().hex[:12]
+        print(f"Analysis error [{error_id}]: {e}")
+        traceback.print_exc()
+        yield f"data: {json.dumps({'type': 'error', 'message': f'Не удалось завершить анализ. Код ошибки: {error_id}'}, ensure_ascii=False)}\n\n"
 
 @app.post("/api/analyze")
 @limiter.limit("5/minute")
@@ -168,7 +196,7 @@ async def analyze(
             detail="GROQ_API_KEY не настроен на сервере",
         )
 
-    allowed_extensions = (".pdf", ".txt", ".docx", ".md", ".doc", ".html", ".htm")
+    allowed_extensions = (".pdf", ".txt", ".docx", ".md", ".html", ".htm")
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed_extensions:
         raise HTTPException(
@@ -209,7 +237,7 @@ async def event_stream_media(
         if file:
             yield f"data: {json.dumps({'type': 'status', 'message': 'Загрузка медиа в ИИ для транскрипции (до 2 минут)...'})}\n\n"
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or "")[1].lower()) as tmp:
-                content = await file.read()
+                content = await read_upload_with_limit(file)
                 tmp.write(content)
                 tmp_path = tmp.name
             try:
