@@ -5,9 +5,10 @@ import { Eye, EyeOff, GraduationCap, ArrowLeft, Check, X, Copy } from 'lucide-re
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import SourceReferences from './SourceReferences';
 import 'katex/dist/katex.min.css';
 
-export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
+export default function FlashcardsView({ data, sources = [] }: { data: FlashcardsInfo; sources?: { id: string; text: string }[] }) {
   const cards = data?.flashcards;
 
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
@@ -181,6 +182,7 @@ export default function FlashcardsView({ data }: { data: FlashcardsInfo }) {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                <SourceReferences ids={c.source_ids} sources={sources} compact />
               </div>
               <button 
                 onClick={(e) => { 

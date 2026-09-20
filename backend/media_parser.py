@@ -4,7 +4,8 @@ import tempfile
 import asyncio
 from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import random
 
 def get_gemini_keys():
@@ -109,53 +110,60 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
     loop = asyncio.get_event_loop()
     last_error = None
     
-    GEMINI_MODELS = [
-        "gemini-3.1-flash-lite",
-        "gemini-2.5-flash-preview-05-20",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
+    gemini_models = [
+        model.strip() for model in os.getenv(
+            "GEMINI_MODELS", "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash"
+        ).split(",") if model.strip()
     ]
     
     for key in shuffled_keys:
         try:
-            genai.configure(api_key=key)
+            client = genai.Client(api_key=key)
             
             # Загружаем файл в Gemini
-            myfile = await loop.run_in_executor(None, lambda: genai.upload_file(file_path, mime_type=mime_type))
+            myfile = await loop.run_in_executor(
+                None,
+                lambda: client.files.upload(
+                    file=file_path,
+                    config=types.UploadFileConfig(mime_type=mime_type) if mime_type else None,
+                ),
+            )
             
             try:
                 # Ожидаем завершения процессинга на стороне Google
                 while myfile.state.name == "PROCESSING":
                     await asyncio.sleep(2)
-                    myfile = await loop.run_in_executor(None, lambda: genai.get_file(myfile.name))
+                    myfile = await loop.run_in_executor(None, lambda: client.files.get(name=myfile.name))
                     
                 if myfile.state.name == "FAILED":
                     raise ValueError("Ошибка обработки медиа-файла серверами Google.")
                     
                 response = None
-                for model_name in GEMINI_MODELS:
+                for model_name in gemini_models:
                     try:
-                        model = genai.GenerativeModel(model_name)
                         is_image = mime_type and mime_type.startswith('image/')
                         if is_image:
                             prompt = "Внимательно изучи это изображение. Это фотография конспекта, школьной доски или страницы учебника. Извлеки АБСОЛЮТНО ВЕСЬ текст, который ты видишь. Сохрани структуру: заголовки, списки, абзацы. Если видишь математические формулы, запиши их в формате LaTeX (KaTeX). Если часть текста неразборчива, напиши [неразборчиво], но постарайся восстановить по контексту. Твоя единственная цель - сделать идеальный текстовый слепок изображения без лишних комментариев."
                         else:
                             prompt = "Сделай максимально полную и точную текстовую расшифровку всего, что сказано в этом аудио/видео. Передай речь дословно на языке оригинала."
                         
-                        response = await model.generate_content_async([myfile, prompt])
-                        if response and response.text:
+                        response = await client.aio.models.generate_content(
+                            model=model_name,
+                            contents=[myfile, prompt],
+                        )
+                        if response and getattr(response, "text", None):
                             break
                     except Exception as model_err:
                         continue
                         
-                if not response or not response.text:
+                if not response or not getattr(response, "text", None):
                     raise ValueError("Модели Gemini не справились с задачей.")
-                    
+
                 return response.text
                 
             finally:
                 try:
-                    await loop.run_in_executor(None, lambda: genai.delete_file(myfile.name))
+                    await loop.run_in_executor(None, lambda: client.files.delete(name=myfile.name))
                 except:
                     pass
         except Exception as e:

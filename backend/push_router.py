@@ -1,6 +1,5 @@
 import os
 import json
-from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
@@ -8,13 +7,9 @@ from pywebpush import webpush, WebPushException
 
 router = APIRouter()
 
-_private_key_path = Path(__file__).resolve().with_name("private_key.pem")
-VAPID_PRIVATE_KEY = os.getenv(
-    "VAPID_PRIVATE_KEY",
-    _private_key_path.read_text(encoding="utf-8").strip() if _private_key_path.exists() else "",
-)
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").strip()
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "BEdVrUuTGrqZWpxNBc3tfNP0N4CtLzEAlH3U64D4WMKkfps-96rEJj6ntl2_2MnFzRNupEWQ1uzl4kBAcjrtRiQ")
-VAPID_CLAIMS = {"sub": "mailto:admin@studyforge.local"}
+VAPID_CLAIMS = {"sub": os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@studyforge.local")}
 
 SUBSCRIPTIONS_FILE = "subscriptions.json"
 
@@ -44,6 +39,8 @@ async def subscribe(sub: PushSubscription):
 
 @router.post("/send")
 async def send_notification(request: Request):
+    if not VAPID_PRIVATE_KEY:
+        raise HTTPException(status_code=503, detail="Push-уведомления не настроены")
     data = await request.json()
     user_id = data.get("user_id")
     message = data.get("message", "Время повторить материалы!")

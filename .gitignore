@@ -7,3 +7,5 @@ dist/
 *.egg-info/
 *.tsbuildinfo
 .env
+backend/private_key.pem
+backend/*_private*.pem

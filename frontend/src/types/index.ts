@@ -17,6 +17,7 @@ export interface AnalysisSettings {
 export interface Flashcard {
   question: string;
   answer: string;
+  source_ids?: string[];
 }
 
 export interface QuizQuestion {
@@ -25,6 +26,7 @@ export interface QuizQuestion {
   options: string[];
   correct: string;
   explanation?: string;
+  source_ids?: string[];
 }
 
 export interface Mission {
@@ -35,6 +37,7 @@ export interface Mission {
   options: string[];
   correct: string;
   hint: string;
+  source_ids?: string[];
 }
 
 export interface PodcastSegment {
@@ -45,12 +48,21 @@ export interface PodcastSegment {
 export interface Term {
   term: string;
   definition: string;
+  source_ids?: string[];
+}
+
+export interface GroundingInfo {
+  source_count: number;
+  citable_items: number;
+  sources: { id: string; text: string }[];
 }
 
 export interface SummaryInfo {
   subject?: string;
   content: string;
   terms?: Term[];
+  source_ids?: string[];
+  grounding?: GroundingInfo;
 }
 
 export interface CheatsheetInfo {
@@ -93,6 +105,8 @@ export interface AnalysisResults {
   cheatsheet?: CheatsheetInfo;
   podcast?: PodcastInfo;
   missions?: MissionsInfo;
+  warnings?: { agent: string; message: string }[];
+  grounding?: GroundingInfo;
 }
 
 export interface HistoryItem {
@@ -111,7 +125,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   quizCount: 5,
   quizDifficulty: 'mixed',
   quizType: 'multiple',
-  enabledAgents: ['summarizer', 'flashcards', 'quiz', 'cheatsheet', 'podcast', 'missions'],
+  enabledAgents: ['summarizer', 'flashcards', 'quiz'],
 };
 
 // Database specific types

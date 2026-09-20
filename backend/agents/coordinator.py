@@ -2,7 +2,12 @@ import asyncio
 import json
 from typing import AsyncGenerator, Dict, Any, Optional
 
-from utils import parse_llm_json
+from utils import (
+    build_source_chunks,
+    build_source_context,
+    enrich_agent_result,
+    parse_llm_json,
+)
 from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt, build_cheatsheet_prompt, build_podcast_prompt, build_missions_prompt
 
 
@@ -21,6 +26,10 @@ class CoordinatorAgent:
         enabled_agents: Optional[list[str]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         results: Dict[str, Any] = {}
+        source_chunks = build_source_chunks(text)
+        source_context = build_source_context(source_chunks)
+
+        grounding_instruction = """\n\nПРОВЕРЯЕМАЯ ОСНОВА:\nНиже приведены фрагменты исходного материала с идентификаторами [S01], [S02] и т.д. Используй только информацию из исходного текста. Не добавляй факты, которых в нём нет. Если поле поддерживает source_ids, укажи один или несколько идентификаторов наиболее подходящих фрагментов.\n\nФРАГМЕНТЫ ИСТОЧНИКА:\n""" + source_context
 
         prompts = {
             "summarizer": build_summarizer_prompt(summary_detail),
@@ -30,13 +39,22 @@ class CoordinatorAgent:
             "podcast": build_podcast_prompt(),
             "missions": build_missions_prompt(),
         }
+        prompts = {name: prompt + grounding_instruction for name, prompt in prompts.items()}
 
         async def run_agent(name: str, prompt: str) -> tuple:
             try:
                 raw = await self.base.run(prompt, text)
-                return (name, self._parse_result(name, raw))
+                parsed = self._parse_result(name, raw)
+                return (name, enrich_agent_result(name, parsed, source_chunks))
             except Exception as e:
-                return (name, {"error": str(e)})
+                if getattr(e, "status_code", None) == 429:
+                    message = "API_LIMIT_REACHED"
+                else:
+                    # Do not stream provider URLs, request ids, or SDK details
+                    # to the browser. The server log keeps the original error.
+                    print(f"Agent {name} failed: {e}")
+                    message = "Не удалось сформировать этот раздел"
+                return (name, {"error": message})
 
         all_agents = ["summarizer", "flashcards", "quiz", "cheatsheet", "podcast", "missions"]
         if enabled_agents:
@@ -97,6 +115,27 @@ class CoordinatorAgent:
             "missions": {"missions": []},
         }
 
+        warnings = [
+            {
+                "agent": name,
+                "message": result.get("error", "Не удалось сформировать результат"),
+            }
+            for name, result in results.items()
+            if isinstance(result, dict) and result.get("error")
+        ]
+        citable_items = 0
+        for result in results.values():
+            if not isinstance(result, dict):
+                continue
+            if result.get("source_ids"):
+                citable_items += 1
+            for value in result.values():
+                if isinstance(value, list):
+                    citable_items += sum(
+                        1 for item in value
+                        if isinstance(item, dict) and item.get("source_ids")
+                    )
+
         yield {
             "type": "results",
             "summarizer": results.get("summarizer") or fallbacks["summarizer"],
@@ -105,6 +144,12 @@ class CoordinatorAgent:
             "cheatsheet": results.get("cheatsheet") or fallbacks["cheatsheet"],
             "podcast": results.get("podcast") or fallbacks["podcast"],
             "missions": results.get("missions") or fallbacks["missions"],
+            "warnings": warnings,
+            "grounding": {
+                "source_count": len(source_chunks),
+                "citable_items": citable_items,
+                "sources": source_chunks,
+            },
         }
 
     def _parse_result(self, name: str, raw: str) -> Any:

@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import SourceReferences from './SourceReferences';
 
-export default function QuizView({ data, onComplete }: { data: any, onComplete?: (scorePct: number) => void }) {
+export default function QuizView({ data, onComplete, sources = [] }: { data: any, onComplete?: (scorePct: number) => void, sources?: { id: string; text: string }[] }) {
   const quiz = data?.quiz;
 
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -271,6 +272,7 @@ export default function QuizView({ data, onComplete }: { data: any, onComplete?:
               {submitted && q.explanation && (
                 <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 italic border-t border-slate-100 dark:border-slate-800/80 pt-3">💡 {q.explanation}</p>
               )}
+              <SourceReferences ids={q.source_ids} sources={sources} compact />
             </motion.div>
           );
         })}

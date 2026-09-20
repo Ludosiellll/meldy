@@ -267,6 +267,7 @@ export default function MaterialDetail() {
             summarizer: material.summary_json,
             flashcards: material.flashcards_json,
             quiz: material.quiz_json,
+            grounding: (material.summary_json as any)?.grounding,
           }}
           onReset={() => navigate('/analyze')}
           textLength={material.original_text?.length || material.summary_json?.content?.length || 0}

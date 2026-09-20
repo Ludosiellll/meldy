@@ -82,7 +82,16 @@ export default function Analyze() {
     try {
       const abortController = new AbortController();
       (window as any)._analyzeAbort = abortController;
-      const res = await fetch(endpoint, { method: 'POST', body: fd, signal: abortController.signal });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Сессия истекла. Войдите снова и повторите анализ.');
+      }
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: fd,
+        signal: abortController.signal,
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Ошибка сервера'); }
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No body');
@@ -148,7 +157,9 @@ export default function Analyze() {
         quiz: d.quiz,
         cheatsheet: d.cheatsheet,
         podcast: d.podcast,
-        missions: d.missions
+        missions: d.missions,
+        warnings: d.warnings || [],
+        grounding: d.grounding,
       };
       const dur = analysisStartRef.current
         ? Math.round((Date.now() - analysisStartRef.current) / 1000)
@@ -173,7 +184,9 @@ export default function Analyze() {
                   content: results.summarizer?.content || '',
                   terms: results.summarizer?.terms || [],
                   cheatsheet: results.cheatsheet?.content || '',
-                  podcast: results.podcast?.podcast || []
+                  podcast: results.podcast?.podcast || [],
+                  source_ids: results.summarizer?.source_ids || [],
+                  grounding: results.grounding,
                 },
                 missions_json: results.missions,
                 flashcards_json: results.flashcards,

@@ -7,8 +7,10 @@ import { ConfirmProvider } from './contexts/ConfirmContext'
 import { ThemeProvider } from './contexts/ThemeProvider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { installApiAuth } from './lib/apiAuth'
 
 const queryClient = new QueryClient()
+installApiAuth()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -1,4 +1,6 @@
 import json
+import math
+import re
 from typing import Any
 
 def repair_json(json_str: str) -> str:
@@ -104,8 +106,129 @@ def parse_llm_json(raw: str) -> Any:
             raise primary_error
 
 
-import re
-import math
+# Source grounding helpers -------------------------------------------------
+#
+# The model still receives the full extracted document, but these compact,
+# numbered excerpts give it stable anchors and let the UI show where a card or
+# question came from.  This is deliberately lexical: it is deterministic,
+# cheap, and honest about what has (and has not) been verified.
+_SOURCE_STOPWORDS = {
+    "это", "также", "который", "которая", "которые", "после", "перед",
+    "если", "при", "для", "или", "как", "что", "из", "на", "по", "с",
+    "и", "в", "во", "к", "у", "о", "об", "до", "не", "ни", "от",
+    "the", "and", "for", "with", "that", "this", "from", "are", "was",
+}
+
+
+def _source_tokens(value: str) -> set[str]:
+    return {
+        token for token in re.findall(r"[a-zа-яё0-9]{3,}", (value or "").lower())
+        if token not in _SOURCE_STOPWORDS
+    }
+
+
+def build_source_chunks(text: str, chunk_chars: int = 850, max_chunks: int = 80) -> list[dict[str, str]]:
+    """Split extracted text into stable, human-readable source fragments."""
+    if not text or not text.strip():
+        return []
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    chunks: list[str] = []
+    for paragraph in paragraphs:
+        if len(paragraph) <= chunk_chars:
+            chunks.append(paragraph)
+            continue
+
+        words = paragraph.split()
+        current: list[str] = []
+        current_length = 0
+        for word in words:
+            if current and current_length + len(word) + 1 > chunk_chars:
+                chunks.append(" ".join(current))
+                current = []
+                current_length = 0
+            current.append(word)
+            current_length += len(word) + 1
+        if current:
+            chunks.append(" ".join(current))
+
+    return [
+        {"id": f"S{index:02d}", "text": chunk[:chunk_chars].strip()}
+        for index, chunk in enumerate(chunks[:max_chunks], start=1)
+        if chunk.strip()
+    ]
+
+
+def build_source_context(chunks: list[dict[str, str]], max_chars: int = 14000) -> str:
+    """Format source fragments for a prompt without overflowing the context."""
+    parts: list[str] = []
+    used = 0
+    for chunk in chunks:
+        part = f"[{chunk['id']}] {chunk['text']}"
+        if parts and used + len(part) + 2 > max_chars:
+            break
+        parts.append(part)
+        used += len(part) + 2
+    return "\n\n".join(parts)
+
+
+def find_source_ids(query: str, chunks: list[dict[str, str]], top_k: int = 2) -> list[str]:
+    """Return the best lexical source matches for one generated item."""
+    query_tokens = _source_tokens(query)
+    if not query_tokens:
+        return []
+
+    scored: list[tuple[float, int, str]] = []
+    for index, chunk in enumerate(chunks):
+        chunk_tokens = _source_tokens(chunk.get("text", ""))
+        overlap = query_tokens & chunk_tokens
+        if not overlap:
+            continue
+        # A small bonus for covering several distinct concepts keeps a generic
+        # one-word match from beating a genuinely explanatory fragment.
+        score = len(overlap) + min(len(overlap), 5) * 0.15
+        scored.append((score, index, chunk["id"]))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [source_id for _, _, source_id in scored[:top_k]]
+
+
+def enrich_agent_result(name: str, payload: Any, chunks: list[dict[str, str]]) -> Any:
+    """Attach deterministic source ids to citable generated items."""
+    if not isinstance(payload, dict) or payload.get("error"):
+        return payload
+
+    def annotate(items: Any, query_builder) -> int:
+        count = 0
+        if not isinstance(items, list):
+            return count
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            source_ids = find_source_ids(query_builder(item), chunks)
+            item["source_ids"] = source_ids
+            count += bool(source_ids)
+        return count
+
+    cited = 0
+    if name == "summarizer":
+        cited += annotate(payload.get("terms"), lambda item: f"{item.get('term', '')} {item.get('definition', '')}")
+        payload["source_ids"] = find_source_ids(payload.get("content", ""), chunks, top_k=3)
+        cited += bool(payload["source_ids"])
+    elif name == "flashcards":
+        cited += annotate(payload.get("flashcards"), lambda item: f"{item.get('question', '')} {item.get('answer', '')}")
+    elif name == "quiz":
+        cited += annotate(payload.get("quiz"), lambda item: f"{item.get('question', '')} {item.get('explanation', '')}")
+    elif name == "missions":
+        cited += annotate(payload.get("missions"), lambda item: f"{item.get('title', '')} {item.get('explanation', '')} {item.get('question', '')}")
+    elif name == "podcast":
+        cited += annotate(payload.get("podcast"), lambda item: item.get("text", ""))
+    elif name == "cheatsheet":
+        payload["source_ids"] = find_source_ids(payload.get("content", ""), chunks, top_k=3)
+        cited += bool(payload["source_ids"])
+    return payload
+
+
 from typing import List, Dict
 
 def extract_relevant_paragraphs(text: str, query: str, top_k: int = 8, chunk_chars: int = 700) -> str:

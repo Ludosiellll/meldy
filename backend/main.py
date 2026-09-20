@@ -18,6 +18,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import httpx
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -67,6 +68,53 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 
 
+async def require_authenticated_user(request: Request) -> dict:
+    """Validate the Supabase access token before starting a paid AI request."""
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Требуется войти в аккаунт")
+
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Сессия не найдена")
+
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_KEY", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=503, detail="Авторизация временно недоступна")
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.get(
+                f"{supabase_url}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "apikey": supabase_key,
+                },
+            )
+        if response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Сессия истекла. Войдите снова")
+        user = response.json()
+        if not user.get("id"):
+            raise HTTPException(status_code=401, detail="Сессия недействительна")
+        return user
+    except HTTPException:
+        raise
+    except (httpx.TimeoutException, httpx.RequestError):
+        raise HTTPException(status_code=503, detail="Не удалось проверить сессию")
+
+
+@app.middleware("http")
+async def protect_backend_api(request: Request, call_next):
+    """Require a Supabase session for every backend endpoint except health."""
+    if request.method != "OPTIONS" and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        try:
+            await require_authenticated_user(request)
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return await call_next(request)
+
+
 async def read_upload_with_limit(file: UploadFile) -> bytes:
     """Read an upload with a hard cap so one request cannot exhaust memory."""
     chunks = []
@@ -90,6 +138,8 @@ app.include_router(push_router, prefix="/api/push", tags=["push"])
 scheduler = AsyncIOScheduler()
 
 async def scheduled_reminders():
+    if not VAPID_PRIVATE_KEY:
+        return
     subs = load_subscriptions()
     for user_id, sub_info in subs.items():
         try:

@@ -3,6 +3,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { SummaryInfo } from '../types';
+import SourceReferences from './SourceReferences';
 
 /** Извлекает чистый текст конспекта, защищаясь от сырого JSON в content */
 function extractCleanContent(data: any): string {
@@ -55,7 +56,7 @@ function SectionBlock({ icon, title, children }: { icon: string; title: string; 
   );
 }
 
-export default function SummaryView({ data }: { data: SummaryInfo }) {
+export default function SummaryView({ data, sources = [] }: { data: SummaryInfo; sources?: { id: string; text: string }[] }) {
   const content = extractCleanContent(data);
   const terms = extractTerms(data);
 
@@ -68,6 +69,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
 
   return (
     <div className="space-y-1">
+      <SourceReferences ids={data?.source_ids} sources={sources} />
       {sections.map((sec: string, i: number) => {
         const match = sec.match(/^## (.+)/);
         if (!match) {
@@ -115,6 +117,7 @@ export default function SummaryView({ data }: { data: SummaryInfo }) {
               <div key={i} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 rounded-xl p-3">
                 <p className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-0.5">{t.term}</p>
                 <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">{t.definition}</p>
+                <SourceReferences ids={t.source_ids} sources={sources} compact />
               </div>
             ))}
           </div>

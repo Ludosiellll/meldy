@@ -2,9 +2,11 @@ from groq import AsyncGroq
 import os
 import random
 import asyncio
+import base64
+from collections import OrderedDict
 from datetime import datetime
-import google.generativeai as genai
-from google.generativeai.types import SafetySettingDict, HarmCategory, HarmBlockThreshold
+from google import genai
+from google.genai import types
 from fastapi import HTTPException
 
 def build_summarizer_prompt(detail: str = "medium") -> str:
@@ -378,7 +380,24 @@ def build_academic_scan_prompt() -> str:
 Пиши на русском языке, без markdown."""
 
 class BaseAgent:
-    _run_cache = {} # Class-level cache to share across instances (LiteLLM-style Caching)
+    # A bounded process-local cache prevents repeated demo requests from
+    # burning provider quota without allowing an unbounded memory leak.
+    _run_cache = OrderedDict()
+    _max_cache_entries = max(16, int(os.getenv("AI_CACHE_ENTRIES", "128")))
+
+    @classmethod
+    def _cache_get(cls, key):
+        value = cls._run_cache.get(key)
+        if value is not None:
+            cls._run_cache.move_to_end(key)
+        return value
+
+    @classmethod
+    def _cache_set(cls, key, value):
+        cls._run_cache[key] = value
+        cls._run_cache.move_to_end(key)
+        while len(cls._run_cache) > cls._max_cache_entries:
+            cls._run_cache.popitem(last=False)
 
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
         self.groq_api_key = api_key
@@ -393,11 +412,11 @@ class BaseAgent:
         else:
             self.groq_client = None
 
-        self.safety_settings: list[SafetySettingDict] = [
-            {"category": HarmCategory.HARM_CATEGORY_HARASSMENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
-            {"category": HarmCategory.HARM_CATEGORY_HATE_SPEECH, "threshold": HarmBlockThreshold.BLOCK_NONE},
-            {"category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, "threshold": HarmBlockThreshold.BLOCK_NONE},
-            {"category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, "threshold": HarmBlockThreshold.BLOCK_NONE},
+        self.safety_settings = [
+            types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+            types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+            types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+            types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
         ]
 
     async def run(self, system_prompt: str, user_text: str) -> str:
@@ -408,9 +427,10 @@ class BaseAgent:
 
         # Проверяем кэш перед отправкой запроса (LiteLLM-style Caching)
         cache_key = (system_prompt, truncated)
-        if cache_key in BaseAgent._run_cache:
+        cached = BaseAgent._cache_get(cache_key)
+        if cached is not None:
             print(f"DEBUG: [Cache Hit] Возвращаем кэшированный ответ для ИИ-агента.")
-            return BaseAgent._run_cache[cache_key]
+            return cached
 
         gemini_errors = []
         json_mode = "JSON" in system_prompt or "json" in system_prompt
@@ -422,41 +442,39 @@ class BaseAgent:
             
             for key in shuffled_keys:
                 try:
-                    genai.configure(api_key=key)
-                    GEMINI_MODELS = [
-                        "gemini-3.1-flash-lite",
-                        "gemini-3-flash-preview",
-                        "gemini-3.1-pro-preview",
-                        "gemini-2.5-flash",
-                        "gemini-2.0-flash",
-                        "gemini-1.5-flash",
+                    client = genai.Client(api_key=key)
+                    gemini_models = [
+                        model.strip() for model in os.getenv(
+                            "GEMINI_MODELS", "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash"
+                        ).split(",") if model.strip()
                     ]
                     
                     response_text = None
                     last_err = None
                     
-                    for model_name in GEMINI_MODELS:
+                    for model_name in gemini_models:
                         try:
-                            model_loaded = genai.GenerativeModel(model_name)
                             full_prompt = f"{system_prompt}\n\nЗАПРОС:\n{truncated}"
-                            response = await model_loaded.generate_content_async(
-                                full_prompt,
-                                generation_config=genai.types.GenerationConfig(
+                            response = await client.aio.models.generate_content(
+                                model=model_name,
+                                contents=full_prompt,
+                                config=types.GenerateContentConfig(
                                     temperature=0.3,
                                     max_output_tokens=8192,
-                                    response_mime_type="application/json" if json_mode else "text/plain"
+                                    response_mime_type="application/json" if json_mode else "text/plain",
+                                    safety_settings=self.safety_settings,
                                 ),
-                                safety_settings=self.safety_settings
                             )
-                            if response and response.text:
-                                response_text = response.text
+                            response_value = getattr(response, "text", None)
+                            if response_value:
+                                response_text = response_value
                                 break
                         except Exception as e:
                             last_err = str(e)
                             continue
                             
                     if response_text:
-                        BaseAgent._run_cache[cache_key] = response_text
+                        BaseAgent._cache_set(cache_key, response_text)
                         return response_text
                         
                     gemini_errors.append(f"Key {key[:6]}... error: {last_err[:100] if last_err else 'No text'}")
@@ -481,7 +499,7 @@ class BaseAgent:
                     
                 response = await self.groq_client.chat.completions.create(**kwargs)
                 response_text = response.choices[0].message.content or ""
-                BaseAgent._run_cache[cache_key] = response_text
+                BaseAgent._cache_set(cache_key, response_text)
                 return response_text
             except Exception as e:
                 groq_err = str(e)
@@ -496,9 +514,10 @@ class BaseAgent:
         # Проверяем кэш перед отправкой запроса (LiteLLM-style Caching)
         img_hash = hash(images_base64[0]) if images_base64 else 0
         cache_key = (system_prompt, user_text, img_hash)
-        if cache_key in BaseAgent._run_cache:
+        cached = BaseAgent._cache_get(cache_key)
+        if cached is not None:
             print(f"DEBUG: [Cache Hit] Возвращаем кэшированный ответ для ИИ-агента (Vision).")
-            return BaseAgent._run_cache[cache_key]
+            return cached
 
         gemini_errors = []
         json_mode = "JSON" in system_prompt or "json" in system_prompt
@@ -510,41 +529,43 @@ class BaseAgent:
             
             for key in shuffled_keys:
                 try:
-                    genai.configure(api_key=key)
-                    GEMINI_MODELS = [
-                        "gemini-3.1-flash-lite",
-                        "gemini-3.0-flash-lite",
-                        "gemini-2.5-flash",
-                        "gemini-2.0-flash-lite-preview-02-05",
-                        "gemini-1.5-flash",
+                    client = genai.Client(api_key=key)
+                    gemini_models = [
+                        model.strip() for model in os.getenv(
+                            "GEMINI_MODELS", "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash"
+                        ).split(",") if model.strip()
                     ]
                     
                     response_text = None
                     last_err = None
                     
-                    for model_name in GEMINI_MODELS:
+                    for model_name in gemini_models:
                         try:
-                            model_loaded = genai.GenerativeModel(model_name)
                             full_prompt = f"{system_prompt}\n\nЗАПРОС:\n{user_text}"
-                            image_parts = [{"mime_type": mime_type, "data": img} for img in images_base64]
-                            response = await model_loaded.generate_content_async(
-                                [full_prompt] + image_parts,
-                                generation_config=genai.types.GenerationConfig(
+                            image_parts = [
+                                types.Part.from_bytes(data=base64.b64decode(img), mime_type=mime_type)
+                                for img in images_base64
+                            ]
+                            response = await client.aio.models.generate_content(
+                                model=model_name,
+                                contents=[full_prompt] + image_parts,
+                                config=types.GenerateContentConfig(
                                     temperature=0.3,
                                     max_output_tokens=8192,
-                                    response_mime_type="application/json" if json_mode else "text/plain"
+                                    response_mime_type="application/json" if json_mode else "text/plain",
+                                    safety_settings=self.safety_settings,
                                 ),
-                                safety_settings=self.safety_settings
                             )
-                            if response and response.text:
-                                response_text = response.text
+                            response_value = getattr(response, "text", None)
+                            if response_value:
+                                response_text = response_value
                                 break
                         except Exception as e:
                             last_err = str(e)
                             continue
                             
                     if response_text:
-                        BaseAgent._run_cache[cache_key] = response_text
+                        BaseAgent._cache_set(cache_key, response_text)
                         return response_text
                         
                     gemini_errors.append(f"Key {key[:6]}... error: {last_err[:100] if last_err else 'No text'}")
@@ -572,7 +593,7 @@ class BaseAgent:
                     
                 response = await self.groq_client.chat.completions.create(**kwargs)
                 response_text = response.choices[0].message.content or ""
-                BaseAgent._run_cache[cache_key] = response_text
+                BaseAgent._cache_set(cache_key, response_text)
                 return response_text
             except Exception as e:
                 groq_err = str(e)

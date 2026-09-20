@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2, Mic, Smartphone, Headphones, Play, Edit3, Sparkles } from 'lucide-react';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2, Mic, Smartphone, Headphones, Play, Edit3, Sparkles, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
@@ -10,6 +10,15 @@ import toast from 'react-hot-toast';
 import { updateMaterialTitle } from '../api/materials';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions' | 'podcast' | 'shorts';
+
+const AGENT_LABELS: Record<string, string> = {
+  summarizer: 'Конспект',
+  flashcards: 'Карточки',
+  quiz: 'Тест',
+  cheatsheet: 'Шпаргалка',
+  podcast: 'Подкаст',
+  missions: 'Миссии',
+};
 
 function extractCleanContent(data: any): string {
   let raw = data?.content || (data as any)?.raw || '';
@@ -639,6 +648,34 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         </div>
       </div>
 
+      {(results.grounding || results.warnings?.length) && (
+        <div className="mb-6 rounded-2xl border border-emerald-200/70 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 no-print">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 mt-0.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Привязка к исходному материалу</p>
+              {results.grounding && (
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                  Использовано фрагментов: {results.grounding.source_count}. Найдено связей с источником: {results.grounding.citable_items}.
+                  {' '}Откройте «Источник» под карточкой или вопросом, чтобы проверить фрагмент.
+                </p>
+              )}
+              <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-1">Связь по совпадению терминов помогает быстро проверить ответ, но не заменяет чтение оригинала.</p>
+            </div>
+          </div>
+          {!!results.warnings?.length && (
+            <div className="mt-3 pt-3 border-t border-emerald-200/70 dark:border-emerald-900/40 space-y-1">
+              {results.warnings.map(warning => (
+                <p key={warning.agent} className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  Раздел «{AGENT_LABELS[warning.agent] || warning.agent}» не сформирован. Остальные результаты сохранены.
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Pill-вкладки */}
       <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print border border-slate-200/20 dark:border-slate-800/60">
         {tabs.map(t => {
@@ -677,13 +714,13 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       </div>
 
       <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px] printable-section">
-        {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} /></div>}
+        {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} sources={results.grounding?.sources} /></div>}
         {tab === 'flashcards' && (
           <div className="flex flex-col gap-4">
-            <FlashcardsView data={results.flashcards} />
+            <FlashcardsView data={results.flashcards} sources={results.grounding?.sources} />
           </div>
         )}
-        {tab === 'quiz' && <QuizView data={results.quiz} />}
+        {tab === 'quiz' && <QuizView data={results.quiz} sources={results.grounding?.sources} />}
         {tab === 'missions' && (
           <div className="card p-10 flex flex-col items-center text-center justify-center min-h-[300px]">
             <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4">
