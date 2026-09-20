@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Hash, Clock, Cpu, Gamepad2, Mic, Smartphone, Headphones, Play, Edit3, Sparkles, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Gamepad2, Edit3, ShieldCheck, AlertTriangle, Check, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
@@ -8,6 +8,7 @@ import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
 import { updateMaterialTitle } from '../api/materials';
+import { getResultDisplayTitle } from '../utils/resultPresentation';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions' | 'podcast' | 'shorts';
 
@@ -45,9 +46,18 @@ function extractCleanContent(data: any): string {
   return raw.trim();
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function parseMarkdownToHtml(md: string): string {
   if (!md) return '';
-  let html = md.replace(/\r\n/g, '\n');
+  let html = escapeHtml(md).replace(/\r\n/g, '\n');
   
   // Headers
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
@@ -109,7 +119,7 @@ function parseMarkdownToHtml(md: string): string {
   return html;
 }
 
-function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): string {
+function buildHtmlExport(results: AnalysisResults, displayTitle: string): string {
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   
@@ -121,20 +131,20 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
 
   const flashcardsHtml = flashcards.map((c: Flashcard, i: number) =>
     `<div class="card">
-      <p class="card-q">Карточка ${i+1}: ${c.question}</p>
-      <p class="card-a">${c.answer}</p>
+      <p class="card-q">Карточка ${i+1}: ${escapeHtml(c.question)}</p>
+      <p class="card-a">${escapeHtml(c.answer)}</p>
     </div>`
   ).join('\n');
 
   const quizHtml = quiz.map((q: QuizQuestion, i: number) => {
     const options = (q.options || []).map((o: string) => {
       const isCorrect = o.startsWith(q.correct);
-      return `<li class="${isCorrect ? 'correct' : ''}">${o}${isCorrect ? ' ✓' : ''}</li>`;
+      return `<li class="${isCorrect ? 'correct' : ''}">${escapeHtml(o)}${isCorrect ? ' ✓' : ''}</li>`;
     }).join('\n');
     return `<div class="card">
-      <p class="card-q">${i+1}. ${q.question}</p>
+      <p class="card-q">${i+1}. ${escapeHtml(q.question)}</p>
       <ul class="opt-list">${options}</ul>
-      ${q.explanation ? `<p class="explanation">💡 ${q.explanation}</p>` : ''}
+      ${q.explanation ? `<p class="explanation">Пояснение: ${escapeHtml(q.explanation)}</p>` : ''}
     </div>`;
   }).join('\n');
 
@@ -143,7 +153,7 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StudyForge — ${sourceFileName || 'Анализ материала'}</title>
+<title>StudyForge — ${escapeHtml(displayTitle)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -169,7 +179,7 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
   }
   .doc-logo {
     width: 36px; height: 36px;
-    background: #4f46e5;
+    background: #0f766e;
     border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     color: white; font-weight: 900; font-size: 16px;
@@ -177,7 +187,7 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
   }
   .doc-header-text h1 {
     font-size: 13px; font-weight: 700;
-    color: #4f46e5; letter-spacing: 0.05em;
+    color: #0f766e; letter-spacing: 0.05em;
     text-transform: uppercase; margin: 0;
   }
   .doc-header-text p {
@@ -202,7 +212,7 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
     font-weight: 700;
     margin: 36px 0 16px;
     padding-bottom: 10px;
-    border-bottom: 2px solid #4f46e5;
+    border-bottom: 2px solid #0f766e;
     color: #0f172a;
   }
   h3 {
@@ -277,25 +287,25 @@ function buildHtmlExport(results: AnalysisResults, sourceFileName?: string): str
   <div class="doc-logo">SF</div>
   <div class="doc-header-text">
     <h1>StudyForge</h1>
-    <p>ИИ-анализ учебных материалов · ${date}, ${time}</p>
+    <p>Материал подготовлен ${date}, ${time}</p>
   </div>
 </div>
 
-<h2 class="doc-title" style="border:none;margin-top:0;padding-bottom:0;font-size:22px">${sourceFileName ? sourceFileName.replace(/\.[^.]+$/, '') : 'Учебный материал'}</h2>
+<h2 class="doc-title" style="border:none;margin-top:0;padding-bottom:0;font-size:22px">${escapeHtml(displayTitle)}</h2>
 <p class="doc-meta">${date}</p>
 
 <div class="section">
-<h2>📝 Конспект</h2>
+<h2>Конспект</h2>
 <div style="line-height:1.8">${summaryHtml}</div>
 </div>
 
 ${flashcards.length > 0 ? `<div class="section">
-<h2>🃏 Карточки (${flashcards.length})</h2>
+<h2>Карточки (${flashcards.length})</h2>
 ${flashcardsHtml}
 </div>` : ''}
 
 ${quiz.length > 0 ? `<div class="section">
-<h2>❓ Тест (${quiz.length})</h2>
+<h2>Тест (${quiz.length})</h2>
 ${quizHtml}
 </div>` : ''}
 
@@ -303,36 +313,42 @@ ${quizHtml}
 </html>`;
 }
 
-export default function ResultsPanel({ results, onReset, textLength, analysisDuration, sourceFileName, materialId }: {
-  results: AnalysisResults; onReset: () => void; textLength?: number; analysisDuration?: number; sourceFileName?: string; materialId?: string;
+export default function ResultsPanel({ results, onReset, textLength, analysisDuration, sourceFileName, materialId, embedded = false }: {
+  results: AnalysisResults; onReset: () => void; textLength?: number; analysisDuration?: number; sourceFileName?: string; materialId?: string; embedded?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('summary');
   const [copied, setCopied] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
-  // States for Title management and suggestion
-  const [currentTitle, setCurrentTitle] = useState(sourceFileName ? sourceFileName.replace(/\.[^/.]+$/, '') : 'Учебный материал');
+  const derivedTitle = useMemo(
+    () => getResultDisplayTitle(results, sourceFileName),
+    [results, sourceFileName],
+  );
+  const [currentTitle, setCurrentTitle] = useState(derivedTitle);
   const [isEditing, setIsEditing] = useState(false);
-  const [editVal, setEditVal] = useState(currentTitle);
-  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  const [editVal, setEditVal] = useState(derivedTitle);
 
   const flashcardCount = results.flashcards?.flashcards?.length || 0;
   const quizCount = results.quiz?.quiz?.length || 0;
+  const exerciseCount = flashcardCount + quizCount;
+  const readingMinutes = textLength ? Math.max(1, Math.round(textLength / 800)) : null;
 
-  const rawTabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
-    { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
-    { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
-    { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
-    { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" /> },
-  ];
+  const tabs = useMemo(() => {
+    const rawTabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
+      { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
+      { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
+      { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
+      { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" /> },
+    ];
 
-  const tabs = rawTabs.filter(t => {
-    if (t.id === 'summary') return !!(results.summarizer?.content || (results.summarizer as any)?.raw);
-    if (t.id === 'flashcards') return flashcardCount > 0;
-    if (t.id === 'quiz') return quizCount > 0;
-    if (t.id === 'missions') return !!(results.missions?.missions?.length || (results.missions as any)?.length);
-    return true;
-  });
+    return rawTabs.filter(t => {
+      if (t.id === 'summary') return !!(results.summarizer?.content || (results.summarizer as { raw?: string })?.raw);
+      if (t.id === 'flashcards') return flashcardCount > 0;
+      if (t.id === 'quiz') return quizCount > 0;
+      if (t.id === 'missions') return !!(results.missions?.missions?.length || (results.missions as unknown as { length?: number })?.length);
+      return true;
+    });
+  }, [results, flashcardCount, quizCount]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -348,50 +364,12 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     if (tabs.length > 0 && !tabs.find(t => t.id === tab)) {
       setTab(tabs[0].id);
     }
-  }, [results, tabs]);
+  }, [tab, tabs]);
 
-  // Heuristic function to extract clean, nice AI suggested topic name from summary markdown
-  const getAiSuggestedTitle = () => {
-    const content = results.summarizer?.content || (results.summarizer as any)?.raw || '';
-    if (!content) return null;
-    const lines = content.split('\n').map((l: string) => l.trim()).filter(Boolean);
-    for (const line of lines) {
-      const clean = line.replace(/^[#*\s-]+/, '').replace(/[#*\s-]+$/, '').trim();
-      if (clean && clean.length > 3 && clean.length < 80) {
-        return clean;
-      }
-    }
-    return null;
-  };
-
-  const isGenericTitle = (title: string) => {
-    const lower = title.toLowerCase();
-    return (
-      /^(img_|screenshot_|whatsapp_|photo_|video_|audio_|file_|doc_|unnamed|scan_|temp_)/.test(lower) ||
-      /^\d+_\d+$/.test(title) ||
-      /^\d+$/.test(title) ||
-      lower.includes('whatsapp image') ||
-      lower.includes('whatsapp video') ||
-      lower.includes('снимок экрана') ||
-      lower.includes('без названия') ||
-      lower.includes('unknown')
-    );
-  };
-
-  const aiSuggestedTitle = getAiSuggestedTitle();
-  const showSuggestion = aiSuggestedTitle && isGenericTitle(currentTitle) && materialId;
-
-  const applySuggestedTitle = async () => {
-    if (!materialId || !aiSuggestedTitle) return;
-    try {
-      await updateMaterialTitle(materialId, aiSuggestedTitle);
-      setCurrentTitle(aiSuggestedTitle);
-      setEditVal(aiSuggestedTitle);
-      toast.success('Название успешно обновлено на рекомендуемое! ✨');
-    } catch (e) {
-      toast.error('Не удалось переименовать');
-    }
-  };
+  useEffect(() => {
+    setCurrentTitle(derivedTitle);
+    setEditVal(derivedTitle);
+  }, [derivedTitle]);
 
   const saveManualTitle = async () => {
     if (!materialId || !editVal.trim()) return;
@@ -399,7 +377,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       await updateMaterialTitle(materialId, editVal.trim());
       setCurrentTitle(editVal.trim());
       setIsEditing(false);
-      toast.success('Название успешно обновлено! ✍️');
+      toast.success('Название сохранено');
     } catch (e) {
       toast.error('Не удалось сохранить название');
     }
@@ -417,9 +395,9 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const handleCopy = () => { navigator.clipboard.writeText(getContent()); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   const handleDownloadHtml = () => {
-    const baseName = (sourceFileName || 'demo').replace(/\.[^.]+$/, '');
+    const baseName = currentTitle.replace(/[\\/:*?"<>|]+/g, '_');
     const dateStr = new Date().toISOString().slice(0, 10);
-    const html = buildHtmlExport(results, sourceFileName);
+    const html = buildHtmlExport(results, currentTitle);
     const b = new Blob([html], { type: 'text/html' });
     const u = URL.createObjectURL(b);
     const a = document.createElement('a');
@@ -451,7 +429,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const handlePrintPdf = () => {
     // Build a standalone printable HTML page in isolation so that none of the
     // app's UI (sidebar, header, audio players, etc.) leaks into the PDF.
-    const html = buildHtmlExport(results, sourceFileName);
+    const html = buildHtmlExport(results, currentTitle);
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) {
       toast.error('Разрешите открытие всплывающих окон в браузере для печати.');
@@ -467,272 +445,172 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   };
 
   return (
-    <div className="py-6">
-      {/* AI Suggestion Rename Card */}
-      <AnimatePresence>
-        {showSuggestion && !suggestionDismissed && (
-          <motion.div
-            initial={{ opacity: 0, y: -15, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -15, scale: 0.98 }}
-            className="mb-6 p-4 md:p-5 bg-indigo-50/90 dark:bg-indigo-950/40 backdrop-blur-md border border-indigo-200 dark:border-indigo-900/60 rounded-2xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden group select-none no-print"
-          >
-            {/* Ambient background blur glow */}
-            <div className="absolute -right-16 -bottom-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl group-hover:scale-110 transition-transform duration-500" />
-            
-            <div className="flex items-start gap-3.5 flex-1 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 text-indigo-600 dark:text-indigo-400">
-                <Sparkles className="w-5.5 h-5.5 animate-pulse" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 mb-0.5">
-                  ИИ-Наставник Forgey заметил шаблонное название
-                </h4>
-                <p className="text-sm font-bold text-slate-850 dark:text-slate-200 leading-snug">
-                  Заменить нечитаемое <code className="text-xs px-1 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-mono text-slate-700 dark:text-slate-300">{currentTitle}</code> на красивое название:
-                </p>
-                <p className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5 italic">
-                  «{aiSuggestedTitle}»
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
-              <button
-                onClick={() => setSuggestionDismissed(true)}
-                className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 transition active:scale-[0.98]"
-              >
-                Пропустить
-              </button>
-              <button
-                onClick={applySuggestedTitle}
-                className="px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shadow-md shadow-indigo-500/10 active:scale-[0.96] flex items-center gap-1.5"
-              >
-                Переименовать ✨
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 no-print">
-        <div className="flex-1 min-w-0">
-          {isEditing ? (
-            <div className="flex items-center gap-2 max-w-lg">
-              <input
-                type="text"
-                value={editVal}
-                onChange={e => setEditVal(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-850 dark:text-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1"
-                placeholder="Введите название..."
-              />
-              <button onClick={saveManualTitle} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold transition hover:bg-emerald-700 active:scale-[0.98]">
-                Сохранить
-              </button>
-              <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition hover:bg-slate-300 active:scale-[0.98]">
-                Отмена
-              </button>
-            </div>
-          ) : (
-            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2 group flex-wrap">
-              {currentTitle}
-              {materialId && (
-                <button
-                  onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
-                  className="p-1 text-slate-400 hover:text-indigo-500 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
-                  title="Изменить название"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </button>
-              )}
-            </h2>
-          )}
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Анализ лекции успешно завершен</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          
-          {/* Export Dropdown */}
-          <div className="relative export-menu-container">
-            <button 
-              onClick={() => setShowExport(!showExport)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Экспорт</span>
-            </button>
-
-            <AnimatePresence>
-              {showExport && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50 flex flex-col gap-1"
-                >
-                  <button onClick={() => { handleCopy(); setShowExport(false); }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full text-left">
-                    <Copy className="w-4 h-4" />{copied ? 'Скопировано' : 'Копировать'}
-                  </button>
-                  
-                  {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                    <button onClick={() => { handlePrintPdf(); setShowExport(false); }}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full text-left">
-                      <Download className="w-4 h-4" />В PDF / Печать
-                    </button>
-                  )}
-                  
-                  {tab === 'flashcards' && (
-                    <button onClick={() => { handleExportAnki(); setShowExport(false); }}
-                      title="Anki — это популярная бесплатная программа..."
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition w-full text-left">
-                      <Download className="w-4 h-4" />В Anki (.txt)
-                    </button>
-                  )}
-                  
-                  {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                    <button onClick={() => { handleDownloadHtml(); setShowExport(false); }}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full text-left">
-                      <Download className="w-4 h-4" />Скачать HTML
-                    </button>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <button onClick={onReset}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-sm whitespace-nowrap">
-            <RotateCcw className="w-4 h-4" />Новый анализ
-          </button>
-        </div>
-      </div>
-
-      {/* Статистика */}
-      <div className="flex overflow-x-auto pb-4 gap-3 mb-2 snap-x -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:pb-0 hide-scrollbar no-print">
-        <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center shrink-0">
-            <Hash className="w-4 h-4 text-brand-500 dark:text-brand-400" />
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Символов</p>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{textLength?.toLocaleString() || '—'}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500">{textLength ? `~${Math.round(textLength / 5)} слов` : '—'}</p>
-          </div>
-        </div>
-        <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-            <Clock className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Время чтения</p>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              {textLength ? `~${Math.max(1, Math.round(textLength / 800))} мин` : (analysisDuration ? `${analysisDuration} сек` : '—')}
-            </p>
-          </div>
-        </div>
-        <div className="card p-3 flex items-center gap-3 shrink-0 snap-start min-w-[160px] md:min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-            <Layers className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-          </div>
-          <div>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Практика</p>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              {flashcardCount + quizCount} упражнений
-            </p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-              {quizCount} тестов / {flashcardCount} карточек
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {(results.grounding || results.warnings?.length) && (
-        <div className="mb-6 rounded-2xl border border-emerald-200/70 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 no-print">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 mt-0.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+    <div className="py-4 md:py-6">
+      <header className="border-b border-slate-200 dark:border-slate-800 pb-5 md:pb-6 no-print">
+        <div className={`flex flex-col gap-5 ${embedded ? 'sm:flex-row sm:justify-end' : 'lg:flex-row lg:items-start lg:justify-between'}`}>
+          {!embedded && (
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Привязка к исходному материалу</p>
-              {results.grounding && (
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                  Использовано фрагментов: {results.grounding.source_count}. Найдено связей с источником: {results.grounding.citable_items}.
-                  {' '}Откройте «Источник» под карточкой или вопросом, чтобы проверить фрагмент.
-                </p>
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                Материал обработан
+              </div>
+
+              {isEditing ? (
+                <div className="flex max-w-2xl items-center gap-2">
+                  <input
+                    type="text"
+                    value={editVal}
+                    onChange={event => setEditVal(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') saveManualTitle();
+                      if (event.key === 'Escape') setIsEditing(false);
+                    }}
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    placeholder="Название материала"
+                    aria-label="Название материала"
+                    autoFocus
+                  />
+                  <button onClick={saveManualTitle} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-500" aria-label="Сохранить название">
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setIsEditing(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Отменить изменение">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="group flex min-w-0 items-start gap-2">
+                  <h1 className="max-w-3xl text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-slate-950 dark:text-slate-50 md:text-3xl">
+                    {currentTitle}
+                  </h1>
+                  {materialId && (
+                    <button
+                      onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
+                      className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-teal-700 focus-visible:opacity-100 dark:hover:bg-slate-800 dark:hover:text-teal-300 md:opacity-0 md:group-hover:opacity-100"
+                      aria-label="Изменить название"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               )}
-              <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-1">Связь по совпадению терминов помогает быстро проверить ответ, но не заменяет чтение оригинала.</p>
-            </div>
-          </div>
-          {!!results.warnings?.length && (
-            <div className="mt-3 pt-3 border-t border-emerald-200/70 dark:border-emerald-900/40 space-y-1">
-              {results.warnings.map(warning => (
-                <p key={warning.agent} className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  Раздел «{AGENT_LABELS[warning.agent] || warning.agent}» не сформирован. Остальные результаты сохранены.
-                </p>
-              ))}
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                {textLength ? <span>{textLength.toLocaleString('ru-RU')} символов</span> : null}
+                {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
+                {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
+                {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
+                {exerciseCount > 0 ? <span>{exerciseCount} заданий для практики</span> : null}
+                {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
+              </div>
             </div>
           )}
+
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
+            <div className="relative export-menu-container">
+              <button
+                onClick={() => setShowExport(value => !value)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                aria-expanded={showExport}
+              >
+                <Download className="h-4 w-4" />
+                <span>Экспорт</span>
+              </button>
+
+              <AnimatePresence>
+                {showExport && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-850"
+                  >
+                    <button onClick={() => { handleCopy(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                      <Copy className="h-4 w-4" />{copied ? 'Скопировано' : 'Копировать'}
+                    </button>
+                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                      <button onClick={() => { handlePrintPdf(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <Download className="h-4 w-4" />Печать или PDF
+                      </button>
+                    )}
+                    {tab === 'flashcards' && (
+                      <button onClick={() => { handleExportAnki(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <Download className="h-4 w-4" />Файл для Anki
+                      </button>
+                    )}
+                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                      <button onClick={() => { handleDownloadHtml(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <Download className="h-4 w-4" />Скачать HTML
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <button onClick={onReset} className="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:flex-none">
+              <RotateCcw className="h-4 w-4" />Новый анализ
+            </button>
+          </div>
         </div>
+
+        {results.grounding?.source_count ? (
+          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <ShieldCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            <span>Основано на {results.grounding.source_count} фрагментах исходника</span>
+            {results.grounding.citable_items > 0 ? (
+              <><span aria-hidden="true">·</span><span>{results.grounding.citable_items} подтверждённых связей</span></>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!!results.warnings?.length && (
+          <div className="mt-4 space-y-2" role="status">
+            {results.warnings.map(warning => (
+              <p key={warning.agent} className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Раздел «{AGENT_LABELS[warning.agent] || warning.agent}» не создан. Остальные результаты доступны.
+              </p>
+            ))}
+          </div>
+        )}
+      </header>
+
+      {tabs.length > 1 && (
+        <nav className="no-print -mx-4 flex overflow-x-auto border-b border-slate-200 px-4 dark:border-slate-800 md:mx-0 md:px-0" aria-label="Разделы результата">
+          {tabs.map(item => {
+            const isActive = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={`relative flex shrink-0 items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition ${isActive ? 'border-cyan-400 text-slate-950 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {item.count !== undefined ? <span className="text-xs tabular-nums text-slate-400">{item.count}</span> : null}
+              </button>
+            );
+          })}
+        </nav>
       )}
 
-      {/* Pill-вкладки */}
-      <div className="flex overflow-x-auto gap-1.5 mb-6 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full md:w-fit snap-x -mx-4 px-4 md:mx-0 md:px-0 hide-scrollbar no-print border border-slate-200/20 dark:border-slate-800/60">
-        {tabs.map(t => {
-          const isActive = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`relative flex shrink-0 snap-start items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
-                isActive
-                  ? 'text-white'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              {isActive && (
-                <motion.span
-                  layoutId="activeResultsTab"
-                  className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                />
-              )}
-              <span className="relative z-10 flex items-center gap-1.5">
-                {t.icon}
-                <span>{t.label}</span>
-                {t.count !== undefined && (
-                  <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-md transition-colors ${
-                    isActive ? 'bg-indigo-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-650 dark:text-slate-400'
-                  }`}>
-                    {t.count}
-                  </span>
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-[300px] printable-section">
-        {tab === 'summary' && <div className="card p-6"><SummaryView data={results.summarizer} sources={results.grounding?.sources} /></div>}
-        {tab === 'flashcards' && (
-          <div className="flex flex-col gap-4">
-            <FlashcardsView data={results.flashcards} sources={results.grounding?.sources} />
-          </div>
+      <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${tabs.length > 1 ? 'pt-6' : 'pt-7'} min-h-[260px] printable-section`}>
+        {tab === 'summary' && (
+          <article className="max-w-[820px]">
+            <SummaryView data={results.summarizer} sources={results.grounding?.sources} />
+          </article>
         )}
+        {tab === 'flashcards' && <FlashcardsView data={results.flashcards} sources={results.grounding?.sources} />}
         {tab === 'quiz' && <QuizView data={results.quiz} sources={results.grounding?.sources} />}
         {tab === 'missions' && (
-          <div className="card p-10 flex flex-col items-center text-center justify-center min-h-[300px]">
-            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4">
-              <Gamepad2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Сюжетные миссии готовы!</h3>
-            <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm">
-              ИИ создал для вас персональный мини-квест на основе этого материала. Сыграем?
-            </p>
-            <Link to={materialId ? `/play?materialId=${materialId}` : '/play'} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm inline-flex items-center gap-2">
-              <Gamepad2 className="w-5 h-5" />
-              Начать игру
+          <div className="flex min-h-[260px] max-w-xl flex-col items-start justify-center border-y border-slate-200 py-10 dark:border-slate-800">
+            <Gamepad2 className="mb-4 h-7 w-7 text-teal-600 dark:text-teal-400" />
+            <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Учебная миссия</h2>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-400">Пройдите короткий сценарий по материалу и проверьте, как применяются ключевые идеи.</p>
+            <Link to={materialId ? `/play?materialId=${materialId}` : '/play'} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500">
+              Начать миссию
             </Link>
           </div>
         )}

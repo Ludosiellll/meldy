@@ -44,7 +44,7 @@ export default function QuizView({ data, onComplete, sources = [] }: { data: any
         {data?.error && <p className="text-rose-500 text-xs mb-3">Ошибка: {data.error}</p>}
         {data?.raw && (
           <details className="text-xs">
-            <summary className="text-indigo-600 cursor-pointer hover:underline mb-2">Показать сырой ответ AI</summary>
+            <summary className="text-indigo-600 cursor-pointer hover:underline mb-2">Показать технические данные</summary>
             <pre className="p-3 bg-slate-900 text-slate-300 rounded overflow-x-auto whitespace-pre-wrap max-h-64">
               {data.raw}
             </pre>
@@ -140,7 +140,7 @@ export default function QuizView({ data, onComplete, sources = [] }: { data: any
                 onClick={fsNext}
                 className="mt-10 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-base font-black transition shadow-lg shadow-indigo-600/20 duration-150 active:scale-[0.98] cursor-pointer"
               >
-                {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест 🎯'}
+                {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест'}
               </motion.button>
             )}
           </div>
@@ -157,7 +157,7 @@ export default function QuizView({ data, onComplete, sources = [] }: { data: any
                   style={{ width: `${Math.round((fsCorrect / fsTotal) * 100)}%` }}
                 />
               </div>
-              <p className="text-slate-400 text-sm font-medium">Тест успешно завершен аудиторией! {Math.round((fsCorrect / fsTotal) * 100)}% правильных ответов.</p>
+              <p className="text-slate-400 text-sm font-medium">Тест завершён. Правильных ответов: {Math.round((fsCorrect / fsTotal) * 100)}%.</p>
             </div>
 
             <div className="max-w-2xl w-full mx-auto space-y-4 pr-1">
@@ -270,7 +270,7 @@ export default function QuizView({ data, onComplete, sources = [] }: { data: any
                 })}
               </div>
               {submitted && q.explanation && (
-                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 italic border-t border-slate-100 dark:border-slate-800/80 pt-3">💡 {q.explanation}</p>
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-3"><span className="font-medium text-slate-700 dark:text-slate-300">Пояснение:</span> {q.explanation}</p>
               )}
               <SourceReferences ids={q.source_ids} sources={sources} compact />
             </motion.div>

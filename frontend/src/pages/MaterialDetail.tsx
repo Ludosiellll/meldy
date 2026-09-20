@@ -271,7 +271,9 @@ export default function MaterialDetail() {
           }}
           onReset={() => navigate('/analyze')}
           textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
+          sourceFileName={material.title}
           materialId={material.id}
+          embedded
         />
       ) : mode === 'podcast' ? (
         <ExpressPrepView 

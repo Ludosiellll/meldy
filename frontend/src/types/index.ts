@@ -58,6 +58,7 @@ export interface GroundingInfo {
 }
 
 export interface SummaryInfo {
+  title?: string;
   subject?: string;
   content: string;
   terms?: Term[];

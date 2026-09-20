@@ -236,7 +236,7 @@ export default function Analyze() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto">
+    <div className={`mx-auto p-4 md:p-6 ${state.phase === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}>
       <AnimatePresence mode="wait">
         {state.phase === 'upload' && (
           <motion.div key="upload" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
@@ -258,12 +258,12 @@ export default function Analyze() {
               sourceFileName={state.sourceFileName} 
               materialId={state.savedMaterialId} 
             />
-            <div className="mt-6 text-center">
+            <div className="mt-2 border-t border-slate-200 pt-5 text-left dark:border-slate-800">
               <button
                 onClick={() => navigate('/library')}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md flex items-center gap-2 mx-auto"
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               >
-                <BookOpen className="w-4 h-4" /> Перейти в библиотеку
+                <BookOpen className="w-4 h-4" /> Открыть библиотеку
               </button>
             </div>
           </motion.div>
@@ -275,9 +275,9 @@ export default function Analyze() {
                 <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle className="w-8 h-8 text-amber-500" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Нейросеть перегружена</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Сервис временно занят</h2>
                 <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm max-w-sm mx-auto leading-relaxed">
-                  Сейчас слишком много студентов анализируют материалы одновременно, и мы достигли лимита запросов к Google AI. Пожалуйста, сделайте паузу и попробуйте через 5 минут!
+                  Сейчас одновременно обрабатывается слишком много материалов. Подождите несколько минут и повторите попытку.
                 </p>
                 <button onClick={reset} className="px-6 py-2.5 bg-amber-500 text-white font-bold rounded-xl text-sm hover:bg-amber-600 transition shadow-lg shadow-amber-500/20">
                   Попробовать снова

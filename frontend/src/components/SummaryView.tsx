@@ -44,15 +44,19 @@ function extractTerms(data: any): { term: string; definition: string }[] {
   return data?.terms || data?.summary_json?.terms || [];
 }
 
-function SectionBlock({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+function SectionBlock({ index, title, children }: { index: number; title: string; children: React.ReactNode }) {
   return (
-    <div className="mb-5">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">{icon}</span>
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+    <section className="grid gap-2 border-b border-slate-200 py-6 first:pt-0 last:border-b-0 dark:border-slate-800 sm:grid-cols-[2.5rem_minmax(0,1fr)] sm:gap-4">
+      <span className="pt-1 font-mono text-[11px] font-medium tabular-nums tracking-wider text-slate-400 dark:text-slate-500" aria-hidden="true">
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <div className="min-w-0">
+        <h2 className="mb-3 text-lg font-semibold leading-snug tracking-[-0.01em] text-slate-950 dark:text-slate-50 md:text-xl">{title}</h2>
+        <div className="text-[15px] leading-7 text-slate-700 dark:text-slate-300 md:text-base">
+          {children}
+        </div>
       </div>
-      <div className="pl-7 text-slate-700 dark:text-slate-300 text-[15px] leading-relaxed">{children}</div>
-    </div>
+    </section>
   );
 }
 
@@ -68,33 +72,29 @@ export default function SummaryView({ data, sources = [] }: { data: SummaryInfo;
   const sections = content ? content.split(/(?=^## )/gm).filter(Boolean) : [];
 
   return (
-    <div className="space-y-1">
-      <SourceReferences ids={data?.source_ids} sources={sources} />
+    <div>
+      <div className="mb-6">
+        <SourceReferences ids={data?.source_ids} sources={sources} />
+      </div>
       {sections.map((sec: string, i: number) => {
         const match = sec.match(/^## (.+)/);
         if (!match) {
           // Первый блок без заголовка — обычный абзац
           return (
-            <div key={i} className="markdown-content text-slate-700 dark:text-slate-300 mb-4">
+            <div key={i} className="markdown-content mb-6 max-w-[70ch] text-[15px] leading-7 text-slate-700 dark:text-slate-300 md:text-base">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{sec.trim()}</ReactMarkdown>
             </div>
           );
         }
         const title = match[1].trim();
         const body = sec.replace(/^## .+\n?/, '').trim();
-        const icon =
-          title.includes('📌') ? '📌' :
-          title.includes('🔑') ? '🔑' :
-          title.includes('📖') ? '📖' :
-          title.includes('💡') ? '💡' :
-          title.includes('Вывод') ? '🏁' :
-          title.includes('Ключев') ? '🔑' :
-          title.includes('Структур') ? '🗂️' :
-          '📄';
-        const cleanTitle = title.replace(/[📌🔑📖📚💡]/g, '').trim();
+        const cleanTitle = title.replace(/[📌🔑📖📚💡🏁🗂️]/g, '').trim();
+        const headingIndex = sections
+          .slice(0, i + 1)
+          .filter(section => /^## /m.test(section)).length - 1;
 
         return (
-          <SectionBlock key={i} icon={icon} title={cleanTitle}>
+          <SectionBlock key={i} index={headingIndex} title={cleanTitle}>
             <div className="markdown-content">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{body}</ReactMarkdown>
             </div>
@@ -104,24 +104,23 @@ export default function SummaryView({ data, sources = [] }: { data: SummaryInfo;
 
       {/* Словарь терминов */}
       {terms.length > 0 && (
-        <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-lg">📚</span>
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Словарь терминов</h3>
-            <span className="ml-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-full">
-              {terms.length}
-            </span>
+        <section className="mt-8 border-t border-slate-300 pt-7 dark:border-slate-700">
+          <div className="mb-4 flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Термины</h2>
+            <span className="text-xs tabular-nums text-slate-400">{terms.length}</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <dl className="divide-y divide-slate-200 border-y border-slate-200 dark:divide-slate-800 dark:border-slate-800">
             {terms.map((t: any, i: number) => (
-              <div key={i} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 rounded-xl p-3">
-                <p className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-0.5">{t.term}</p>
-                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">{t.definition}</p>
-                <SourceReferences ids={t.source_ids} sources={sources} compact />
+              <div key={i} className="grid gap-1 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-6">
+                <dt className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.term}</dt>
+                <dd className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+                  {t.definition}
+                  <SourceReferences ids={t.source_ids} sources={sources} compact />
+                </dd>
               </div>
             ))}
-          </div>
-        </div>
+          </dl>
+        </section>
       )}
     </div>
   );
