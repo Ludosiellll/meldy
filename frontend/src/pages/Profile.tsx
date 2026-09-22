@@ -141,7 +141,7 @@ export default function Profile() {
         await subscribeUserToPush(user.id);
         setPushEnabled(true);
       } else {
-        toast('Для отключения уведомлений перейдите в настройки браузера.', { icon: 'ℹ️' });
+        toast('Отключить уведомления можно в настройках браузера.');
       }
     } catch (err) {
       console.error(err);
@@ -176,35 +176,34 @@ export default function Profile() {
         await updateProfile(user!.id, { avatar_url: url });
         setProfile(prev => prev ? { ...prev, avatar_url: url } : null);
       }
-      toast.success('Фото успешно обновлено!');
+      toast.success('Фото обновлено');
     } else {
-      toast.error('Ошибка при загрузке фото.');
+      toast.error('Не удалось загрузить фото');
     }
   };
 
-  if (loading) return <div className="flex min-h-[85vh] items-center justify-center"><Loader2 className="w-8 h-8 text-indigo-500 animate-spin" /></div>;
+  if (loading) return <div className="flex min-h-[85vh] items-center justify-center"><Loader2 className="w-8 h-8 text-cyan-400 animate-spin" /></div>;
   if (!profile) return <div className="p-8 text-center text-slate-500">Профиль не найден.</div>;
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-[85vh]">
+    <main className="mx-auto min-h-[85vh] max-w-5xl px-4 py-8 md:px-8 md:py-12">
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/20 dark:border-slate-800 shadow-2xl relative mb-8"
+        className="mb-8 border-y border-slate-200 py-7 dark:border-slate-800"
       >
-        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 via-purple-500/5 to-rose-500/10 pointer-events-none rounded-3xl" />
+        <div className="hidden" />
         
         <div className="relative flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
           <div className="relative group shrink-0 mb-4 md:mb-0 z-10">
-            {/* Анимированное кольцо прогресса уровня */}
-            <svg viewBox="0 0 100 100" className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none">
+            <svg viewBox="0 0 100 100" className="hidden">
               <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-200/50 dark:text-slate-800/50" />
-              <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={`${levelInfo.progress * 3.01} 301`} strokeLinecap="round" className="text-indigo-500 transition-all duration-1000 ease-out" />
+              <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={`${levelInfo.progress * 3.01} 301`} strokeLinecap="round" className="text-cyan-500" />
             </svg>
 
-            <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] border-white dark:border-slate-900 shadow-xl overflow-hidden bg-slate-100 dark:bg-slate-800 relative z-10 ${profile.is_pro ? 'ring-4 ring-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.6)]' : ''}`}>
+            <div className="relative z-10 h-28 w-28 overflow-hidden rounded-full border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 md:h-32 md:w-32">
               {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                <img src={profile.avatar_url} alt="Фото профиля" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <UserCircle2 className="w-16 h-16 md:w-20 md:h-20 text-slate-400" />
@@ -213,25 +212,25 @@ export default function Profile() {
             </div>
             
             {isMyProfile && (
-              <label className="absolute bottom-2 right-2 w-10 h-10 md:w-12 md:h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(79,70,229,0.6)] transition-all hover:scale-110 border-2 border-white dark:border-slate-900 z-10">
+              <label className="absolute bottom-2 right-2 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-cyan-400 text-slate-950 transition hover:bg-cyan-300 dark:border-slate-950">
                 {uploadingAvatar ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5 md:w-6 md:h-6" />}
                 <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploadingAvatar} />
               </label>
             )}
 
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-black tracking-widest shadow-lg border-2 border-white dark:border-slate-900 whitespace-nowrap z-30" style={{ zIndex: 30 }}>
-              LVL {levelInfo.level}
+            <div className="absolute -bottom-2 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              Уровень {levelInfo.level}
             </div>
           </div>
           
           <div className="flex-1 text-center md:text-left pt-2">
             <div className="flex flex-col md:flex-row items-center md:justify-start gap-3 mb-2">
-              <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">{profile.full_name || 'Студент'}</h1>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white md:text-4xl">{profile.full_name || 'Студент'}</h1>
               {profile.is_pro && (
                 <div className="flex flex-col items-center md:items-start">
-                  <div className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-lg shadow-[0_0_15px_rgba(251,191,36,0.5)]">
+                  <div className="flex items-center gap-1.5 rounded-md border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-amber-600 dark:text-amber-300">
                     <Star className="w-4 h-4 fill-current" />
-                    <span className="text-xs font-black tracking-widest uppercase">PRO</span>
+                    <span className="text-xs font-semibold">PRO</span>
                   </div>
                   {profile.pro_until && (
                     <span className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-bold">
@@ -254,7 +253,7 @@ export default function Profile() {
             </div>
 
             {profile.university && (
-              <div className="flex items-center justify-center md:justify-start gap-2 text-indigo-600 dark:text-indigo-400 font-semibold mb-3">
+              <div className="mb-3 flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300 md:justify-start">
                 <GraduationCap className="w-5 h-5" />
                 {profile.university}
               </div>
@@ -268,7 +267,7 @@ export default function Profile() {
             {!isMyProfile ? (
               <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-3">
                 {friendStatus === 'none' && (
-                  <button onClick={handleAddFriend} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-500 transition shadow-lg hover:shadow-indigo-500/25">
+                  <button onClick={handleAddFriend} className="flex items-center gap-2 rounded-lg bg-cyan-400 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-300">
                     <UserPlus className="w-5 h-5" /> Добавить в друзья
                   </button>
                 )}
@@ -304,7 +303,7 @@ export default function Profile() {
               </div>
             ) : (
               <div className="mt-4 flex justify-center md:justify-start">
-                <button onClick={() => setIsEditing(!isEditing)} className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition shadow-sm border ${isEditing ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500/20' : 'bg-white/50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800'}`}>
+                <button onClick={() => setIsEditing(!isEditing)} className={`flex items-center gap-2 rounded-lg border px-5 py-2.5 font-semibold transition ${isEditing ? 'border-rose-500/30 text-rose-600 dark:text-rose-400' : 'border-slate-200 text-slate-700 hover:border-cyan-400 dark:border-slate-700 dark:text-slate-200'}`}>
                   {isEditing ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                   {isEditing ? 'Отменить редактирование' : 'Редактировать профиль'}
                 </button>
@@ -315,13 +314,13 @@ export default function Profile() {
 
         {/* Форма редактирования (плавная) */}
         {isEditing && (
-          <motion.div initial={{ opacity: 0, y: -20, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} className="mb-8 p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl relative z-20">
-            <h3 className="font-bold text-slate-900 dark:text-white mb-4">Редактирование профиля</h3>
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="relative z-20 mb-8 border-y border-slate-200 py-6 dark:border-slate-800">
+            <h3 className="mb-4 font-semibold text-slate-900 dark:text-white">Редактирование профиля</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Имя и Фамилия</label>
-                  <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full px-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-inner" placeholder="Иван Иванов" />
+                  <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full rounded-lg border border-slate-200 bg-transparent px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-400 dark:border-slate-700 dark:text-slate-100" placeholder="Иван Иванов" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Университет / Школа</label>
@@ -329,15 +328,15 @@ export default function Profile() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">О себе (Био)</label>
-                <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="w-full px-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-inner min-h-[100px] resize-none" rows={3} placeholder="Расскажите немного о себе..." />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">О себе</label>
+                <textarea value={editForm.bio} onChange={e => setEditForm({...editForm, bio: e.target.value})} className="min-h-[100px] w-full resize-none rounded-lg border border-slate-200 bg-transparent px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-400 dark:border-slate-700 dark:text-slate-100" rows={3} placeholder="Факультет, направление и учебные интересы" />
               </div>
               <div className="w-full md:w-1/2 relative z-20">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Роль в системе</label>
                 <CustomSelect 
                   value={editForm.role} 
                   onChange={val => setEditForm({...editForm, role: val})} 
-                  className="px-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                  className="rounded-lg border border-slate-200 bg-transparent px-4 py-3 text-slate-900 focus:ring-2 focus:ring-cyan-400 dark:border-slate-700 dark:text-slate-100"
                   options={[
                     { value: 'student', label: 'Студент' },
                     { value: 'teacher', label: 'Преподаватель' }
@@ -345,82 +344,46 @@ export default function Profile() {
                 />
               </div>
               <div className="flex justify-end pt-4">
-                <button onClick={handleSaveProfile} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/30 hover:-translate-y-1">Сохранить изменения</button>
+                <button onClick={handleSaveProfile} className="rounded-lg bg-cyan-400 px-6 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-300">Сохранить</button>
               </div>
             </div>
           </motion.div>
         )}
 
         {!isEditing && profile.bio && (
-          <div className="mb-8 p-5 bg-white/40 dark:bg-slate-950/40 rounded-2xl border border-white/20 dark:border-slate-800/40 text-slate-700 dark:text-slate-300 leading-relaxed italic relative">
-            <span className="absolute top-2 left-2 text-4xl text-indigo-500/20 font-serif leading-none">"</span>
-            <div className="relative z-10 px-4">{profile.bio}</div>
+          <div className="mb-8 border-y border-slate-200 py-5 text-slate-700 dark:border-slate-800 dark:text-slate-300">
+            <div className="max-w-3xl leading-7">{profile.bio}</div>
           </div>
         )}
 
-        {/* BENTO GRID STATISTICS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="col-span-2 md:col-span-2 row-span-2 p-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl text-white shadow-lg relative overflow-hidden flex flex-col justify-center">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-black/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                  <Star className="w-5 h-5 text-yellow-300 fill-yellow-300" />
-                </div>
-                <div className="text-sm font-bold uppercase tracking-widest text-indigo-100">Опыт</div>
-              </div>
-              <div className="text-5xl font-black mb-1">{xp} <span className="text-xl text-indigo-200">XP</span></div>
-              <div className="text-sm font-medium text-indigo-100 mb-4">{levelInfo.name}</div>
-              
-              <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden">
-                <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${levelInfo.progress}%` }} />
-              </div>
-              <div className="flex justify-between mt-2 text-[10px] font-bold text-indigo-100 uppercase tracking-wider">
-                <span>Ур. {levelInfo.level}</span>
-                <span>{levelInfo.currentXP} / {levelInfo.nextXP} XP</span>
-              </div>
+        <div className="grid grid-cols-2 border-y border-slate-200 dark:border-slate-800 md:grid-cols-4">
+          {[
+            { label: 'Опыт', value: `${xp} XP`, icon: Star },
+            { label: 'Дней подряд', value: profile.streak_days || 0, icon: Trophy },
+            { label: 'Материалов', value: profile.total_materials || 0, icon: BookOpen },
+            { label: 'Повторений', value: profile.total_reviews || 0, icon: GraduationCap },
+          ].map(({ label, value, icon: Icon }, index) => (
+            <div key={label} className={`py-5 ${index % 2 ? 'pl-5' : 'pr-5'} ${index > 1 ? 'border-t border-slate-200 dark:border-slate-800' : ''} md:border-l md:border-t-0 md:px-5 md:first:border-l-0 md:first:pl-0`}>
+              <Icon className="mb-3 h-4 w-4 text-cyan-500" />
+              <div className="text-2xl font-semibold text-slate-950 dark:text-white">{value}</div>
+              <div className="mt-1 text-xs text-slate-500">{label}</div>
             </div>
-          </div>
-          
-          <div className="p-5 bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700/50 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm hover:-translate-y-1 transition-transform cursor-default">
-            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-3">
-              <Trophy className="w-6 h-6 text-amber-500" />
-            </div>
-            <div className="text-3xl font-black text-slate-900 dark:text-white">{profile.streak_days || 0}</div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Огненный Стрик</div>
-          </div>
-          
-          <div className="p-5 bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700/50 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm hover:-translate-y-1 transition-transform cursor-default">
-            <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-3">
-              <BookOpen className="w-6 h-6 text-emerald-500" />
-            </div>
-            <div className="text-3xl font-black text-slate-900 dark:text-white">{profile.total_materials || 0}</div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Конспектов</div>
-          </div>
-
-          <div className="col-span-2 p-5 bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700/50 rounded-3xl flex items-center gap-4 shadow-sm hover:-translate-y-1 transition-transform cursor-default">
-            <div className="w-14 h-14 bg-sky-500/10 rounded-2xl flex items-center justify-center shrink-0">
-              <GraduationCap className="w-7 h-7 text-sky-500" />
-            </div>
-            <div>
-              <div className="text-3xl font-black text-slate-900 dark:text-white leading-none mb-1">{profile.total_reviews || 0}</div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Пройдено повторений и экзаменов</div>
-            </div>
-          </div>
+          ))}
         </div>
+
+        <p className="py-4 text-sm text-slate-500">
+          Уровень {levelInfo.level}: {levelInfo.name}. До следующего уровня — {Math.max(0, levelInfo.nextXP - levelInfo.currentXP)} XP.
+        </p>
 
         {isMyProfile && (
           <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
-            <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4">Настройки устройства</h3>
-            <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Уведомления</h3>
+            <div className="flex flex-col justify-between gap-4 border-y border-slate-200 py-4 dark:border-slate-800 sm:flex-row sm:items-center">
               <div className="flex items-start sm:items-center gap-3">
-                <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${pushEnabled ? 'bg-indigo-100 dark:bg-indigo-950/40' : 'bg-slate-200 dark:bg-slate-800'}`}>
-                  {pushEnabled ? <Bell className="w-5 h-5 text-indigo-600" /> : <BellOff className="w-5 h-5 text-slate-500" />}
-                </div>
+                {pushEnabled ? <Bell className="w-5 h-5 text-cyan-500" /> : <BellOff className="w-5 h-5 text-slate-500" />}
                 <div className="text-left">
-                  <p className="font-bold text-slate-900 dark:text-slate-200 text-sm">Push-уведомления (PWA)</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">Ежедневные напоминания о материалах, требующих повторения.</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-200 text-sm">Напоминания о повторении</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">StudyForge сообщит, когда карточки будут готовы к повторению.</p>
                 </div>
               </div>
               <button 
@@ -428,8 +391,8 @@ export default function Profile() {
                 disabled={pushLoading || pushEnabled}
                 className={`w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition ${
                   pushLoading ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed' :
-                  pushEnabled ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 cursor-default border border-indigo-100 dark:border-indigo-950' :
-                  'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-600 text-white shadow-sm'
+                  pushEnabled ? 'text-cyan-600 dark:text-cyan-300 cursor-default border border-cyan-400/30' :
+                  'bg-cyan-400 hover:bg-cyan-300 text-slate-950'
                 }`}
               >
                 {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
@@ -439,13 +402,12 @@ export default function Profile() {
         )}
       </motion.div>
 
-      {/* Входящие заявки в друзья */}
       {isMyProfile && incomingRequests.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">Входящие заявки в друзья ({incomingRequests.length})</h2>
+        <section className="border-y border-slate-200 py-6 dark:border-slate-800">
+          <h2 className="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">Заявки в друзья · {incomingRequests.length}</h2>
           <div className="space-y-3">
             {incomingRequests.map(req => (
-              <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div key={req.id} className="flex items-center justify-between border-b border-slate-200 py-4 last:border-b-0 dark:border-slate-800">
                 <div className="flex items-center gap-3">
                   {req.friend_avatar ? (
                     <img src={req.friend_avatar} className="w-10 h-10 rounded-full object-cover" alt="avatar" />
@@ -465,7 +427,7 @@ export default function Profile() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {cropImageSrc && (
@@ -475,6 +437,6 @@ export default function Profile() {
           onClose={() => setCropImageSrc(null)} 
         />
       )}
-    </div>
+    </main>
   );
 }

@@ -63,14 +63,22 @@ def _extract_text(contents: bytes) -> str:
             except UnicodeDecodeError:
                 pass
 
-    for encoding in ("utf-8", "cp1251", "cp866", "latin-1"):
+    try:
+        return clean_extracted_text(contents.decode("utf-8"))
+    except UnicodeDecodeError:
+        pass
+
+    candidates = []
+    for encoding in ("cp1251", "cp866", "latin-1"):
         try:
             decoded = contents.decode(encoding)
             cleaned = clean_extracted_text(decoded)
             if _looks_like_text(cleaned):
-                return cleaned
+                candidates.append((_legacy_decode_score(cleaned), cleaned))
         except UnicodeDecodeError:
             continue
+    if candidates:
+        return max(candidates, key=lambda item: item[0])[1]
     return clean_extracted_text(contents.decode("utf-8", errors="replace"))
 
 
@@ -93,6 +101,25 @@ def _looks_like_text(text: str) -> bool:
         return False
     printable = sum(char.isprintable() or char in "\n\t" for char in text)
     return printable / len(text) >= 0.85
+
+
+def _legacy_decode_score(text: str) -> float:
+    """Prefer ordinary Russian text over printable legacy-codec mojibake."""
+    if not text:
+        return float("-inf")
+
+    normal_cyrillic = sum("А" <= char <= "я" or char in "Ёё" for char in text)
+    extended_cyrillic = sum("\u0400" <= char <= "\u052f" for char in text) - normal_cyrillic
+    latin_letters = sum(char.isascii() and char.isalpha() for char in text)
+    suspicious = sum(
+        char in "\u00ad\ufffd" or (char.isprintable() and not char.isspace() and ord(char) < 32)
+        for char in text
+    )
+    common_pairs = sum(
+        text.lower().count(pair)
+        for pair in ("ст", "но", "ен", "ов", "ни", "ра", "во", "ко", "пр", "то")
+    )
+    return normal_cyrillic * 3 + common_pairs * 2 + latin_letters - extended_cyrillic * 4 - suspicious * 8
 
 
 def _extract_html(contents: bytes) -> str:

@@ -1,7 +1,10 @@
 import json
+import ipaddress
 import math
 import re
+import socket
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 def repair_json(json_str: str) -> str:
     """Repair truncated or malformed JSON strings by backtracking and closing open structures."""
@@ -318,6 +321,58 @@ def extract_relevant_paragraphs(text: str, query: str, top_k: int = 8, chunk_cha
     return "\n\n".join(selected_chunks)
 
 
+def is_safe_public_url(url: str) -> bool:
+    """Allow only public HTTP(S) targets; DNS is checked immediately before fetching."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        hostname = parsed.hostname.rstrip(".").lower()
+        if hostname == "localhost" or hostname.endswith(".localhost"):
+            return False
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            return True
+        return address.is_global
+    except ValueError:
+        return False
+
+
+async def _assert_public_target(url: str) -> None:
+    if not is_safe_public_url(url):
+        raise ValueError("Можно анализировать только публичные HTTP/HTTPS-ссылки.")
+
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise ValueError("В ссылке не найден адрес сайта.")
+
+    try:
+        resolved = await __import__("asyncio").to_thread(
+            socket.getaddrinfo, hostname, None, type=socket.SOCK_STREAM
+        )
+    except socket.gaierror as exc:
+        raise ValueError("Не удалось найти сайт по указанному адресу.") from exc
+
+    addresses = {item[4][0] for item in resolved}
+    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+        raise ValueError("Ссылки на локальные и внутренние адреса запрещены.")
+
+
+async def _get_public_response(client, url: str, max_redirects: int = 3):
+    current_url = url
+    for _ in range(max_redirects + 1):
+        await _assert_public_target(current_url)
+        response = await client.get(current_url, timeout=10.0, follow_redirects=False)
+        if response.status_code not in (301, 302, 303, 307, 308):
+            return response
+        location = response.headers.get("location")
+        if not location:
+            raise ValueError("Сайт вернул некорректное перенаправление.")
+        current_url = urljoin(current_url, location)
+    raise ValueError("Сайт перенаправляет запрос слишком много раз.")
+
+
 async def scrape_url(url: str) -> str:
     """
     Scrapes a web page using a hybrid workflow:
@@ -329,9 +384,11 @@ async def scrape_url(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
 
+    await _assert_public_target(url)
+
     jina_url = f"https://r.jina.ai/{url}"
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=False) as client:
             response = await client.get(jina_url, timeout=12.0)
             if response.status_code == 200 and response.text.strip():
                 text = response.text
@@ -345,8 +402,8 @@ async def scrape_url(url: str) -> str:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        async with httpx.AsyncClient(follow_redirects=True, headers=headers) as client:
-            response = await client.get(url, timeout=10.0)
+        async with httpx.AsyncClient(follow_redirects=False, headers=headers) as client:
+            response = await _get_public_response(client, url)
             if response.status_code != 200:
                 raise ValueError(f"HTTP error {response.status_code}")
             

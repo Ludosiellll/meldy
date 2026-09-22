@@ -8,6 +8,26 @@ from google import genai
 from google.genai import types
 import random
 
+
+async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None) -> str:
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        return ""
+
+    from groq import AsyncGroq
+
+    client = AsyncGroq(api_key=api_key)
+    with open(file_path, "rb") as audio_file:
+        response = await client.audio.transcriptions.create(
+            model=os.getenv("GROQ_TRANSCRIPTION_MODEL", "whisper-large-v3-turbo"),
+            file=(os.path.basename(file_path), audio_file, mime_type or "audio/mpeg"),
+            response_format="text",
+            temperature=0,
+        )
+    if isinstance(response, str):
+        return response.strip()
+    return str(getattr(response, "text", "") or "").strip()
+
 def get_gemini_keys():
     raw_keys = os.getenv("GEMINI_API_KEY", "")
     keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
@@ -103,6 +123,14 @@ async def _download_and_transcribe_youtube(youtube_url: str) -> str:
             os.remove(temp_path)
 
 async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
+    if mime_type and mime_type.startswith("audio/"):
+        try:
+            groq_text = await _transcribe_audio_with_groq(file_path, mime_type)
+            if groq_text:
+                return groq_text
+        except Exception as exc:
+            print(f"Groq audio transcription failed; trying Gemini: {exc}")
+
     keys = get_gemini_keys()
     shuffled_keys = list(keys)
     random.shuffle(shuffled_keys)

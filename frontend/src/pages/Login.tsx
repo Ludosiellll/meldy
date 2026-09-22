@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
-import { GraduationCap, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { validateEmail } from '../utils/validators';
 
 export default function Login() {
@@ -53,14 +53,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-[#f6f8fa] dark:bg-[#07111f] flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative">
+      <div className="flex-1 flex flex-col justify-start sm:justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative pt-28 pb-12 sm:py-12">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-            <GraduationCap className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 bg-cyan-300 rounded-md flex items-center justify-center">
+            <GraduationCap className="w-4 h-4 text-slate-950" />
           </div>
-          <span className="font-extrabold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-cyan-600 transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -70,8 +70,8 @@ export default function Login() {
           className="w-full max-w-sm mx-auto"
         >
           <div className="mb-8">
-            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-2">С возвращением!</h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">Войдите, чтобы продолжить изучение тем и прокачку hard-скиллов в интерактивной песочнице.</p>
+            <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight mb-2">Продолжить подготовку</h1>
+            <p className="text-slate-500 dark:text-slate-400">Ваши материалы, карточки и результаты сохранены в одном месте.</p>
           </div>
 
           {error && (
@@ -82,12 +82,14 @@ export default function Login() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
                   autoComplete="email"
                   value={email}
@@ -95,34 +97,38 @@ export default function Login() {
                     setEmail(e.target.value);
                     setEmailError(validateEmail(e.target.value));
                   }}
-                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500 focus:border-indigo-500'} rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-all shadow-sm`}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby={emailError ? 'login-email-error' : undefined}
+                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-cyan-400 focus:border-cyan-400'} rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-colors`}
                   placeholder="you@example.com"
                   required
                 />
               </div>
-              {emailError && <p className="text-rose-500 text-xs font-bold mt-1.5">{emailError}</p>}
+              {emailError && <p id="login-email-error" role="alert" className="text-rose-500 text-xs font-medium mt-1.5">{emailError}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Пароль</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Пароль</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                  className="block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-colors"
                   placeholder="••••••••"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                  tabIndex={-1}
+                  className="absolute inset-y-0 right-0 px-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-300 transition-colors"
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -131,7 +137,7 @@ export default function Login() {
                 <button 
                   type="button" 
                   onClick={() => navigate('/forgot-password')} 
-                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
+                  className="text-xs font-medium text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 transition-colors"
                 >
                   Забыли пароль?
                 </button>
@@ -141,10 +147,10 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-lg shadow-indigo-200 hover:shadow-indigo-300 disabled:opacity-70"
+              className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent rounded-lg text-sm font-semibold text-slate-950 bg-cyan-300 hover:bg-cyan-200 focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors disabled:opacity-70"
             >
               {loading ? (
-                <span className="flex items-center gap-2">Входим... <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /></span>
+                <span className="flex items-center gap-2">Входим… <div className="w-4 h-4 border-2 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" /></span>
               ) : (
                 <span className="flex items-center gap-2">Войти <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></span>
               )}
@@ -156,14 +162,14 @@ export default function Login() {
               <div className="w-full border-t border-slate-200 dark:border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#f8fafc] dark:bg-slate-950 px-3 text-slate-400 dark:text-slate-500 font-medium">или войдите через</span>
+              <span className="bg-[#f6f8fa] dark:bg-[#07111f] px-3 text-slate-400 dark:text-slate-500">или</span>
             </div>
           </div>
 
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all shadow-sm hover:shadow-md"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-300 dark:hover:border-cyan-700 transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M17.64 9.20455C17.64 8.56636 17.5827 7.95273 17.4764 7.36364H9V10.845H13.8436C13.635 11.97 13.0009 12.9232 12.0477 13.5614V15.8195H14.9564C16.6582 14.2527 17.64 11.9455 17.64 9.20455Z" fill="#4285F4"/>
@@ -176,53 +182,36 @@ export default function Login() {
 
           <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Нет аккаунта?{' '}
-            <button onClick={() => navigate('/register')} className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline transition-all">
-              Создать профиль
+            <button onClick={() => navigate('/register')} className="font-semibold text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 hover:underline transition-colors">
+              Зарегистрироваться
             </button>
           </p>
         </motion.div>
       </div>
 
       {/* Right Column: Branded Visual (Hidden on mobile) */}
-      <div className="hidden lg:flex flex-1 relative bg-indigo-600 overflow-hidden items-center justify-center p-12">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-indigo-800" />
-        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-indigo-400/20 rounded-full blur-3xl" />
-        
-        {/* Geometric pattern overlay */}
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-
-        {/* Floating Card UI */}
+      <div className="hidden lg:flex flex-1 relative bg-[#07111f] overflow-hidden items-center justify-center p-12 border-l border-white/10">
+        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(148,163,184,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.08) 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
         <motion.div 
-          initial={{ opacity: 0, scale: 0.9, rotateY: -15 }}
-          animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-          transition={{ duration: 0.8, type: "spring" }}
-          className="relative w-full max-w-lg bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl"
-          style={{ transformStyle: "preserve-3d", perspective: 1000 }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative w-full max-w-lg"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-full text-white text-xs font-bold mb-6">
-            <CheckCircle2 className="w-4 h-4" /> AI-Ассистент
-          </div>
-          
-          <h2 className="text-3xl font-black text-white leading-tight mb-4 tracking-tight">
-            Готовьтесь к экзаменам <br/>
-            и прокачивайте <span className="whitespace-nowrap">hard-скиллы</span>
-          </h2>
-          
-          <p className="text-indigo-100 leading-relaxed text-sm mb-8">
-            StudyForge преобразует лекции в умные конспекты, генерирует масштабные силлабусы под рынок вакансий и проводит практические код-экзамены с ИИ.
-          </p>
-
-          <div className="space-y-3">
+          <p className="text-xs font-medium tracking-[0.16em] uppercase text-cyan-300 mb-5">Как работает StudyForge</p>
+          <h2 className="text-4xl font-semibold text-white leading-[1.08] tracking-tight mb-8">От источника до уверенного ответа.</h2>
+          <div className="border-y border-white/10 divide-y divide-white/10">
             {[
-              { label: "Готовые ИИ-силлабусы", value: "до 35 тем" },
-              { label: "Практика в SQL песочнице", value: "100% интерактив" },
-              { label: "Рост навыков на карте", value: "в реальном времени" }
-            ].map((stat, i) => (
-              <div key={i} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-3">
-                <span className="text-indigo-100 text-sm font-medium">{stat.label}</span>
-                <span className="text-white font-bold">{stat.value}</span>
+              ['01', 'Загрузите материал', 'PDF, DOCX, текст, изображение или запись лекции.'],
+              ['02', 'Разберите главное', 'Получите конспект со ссылками на исходные фрагменты.'],
+              ['03', 'Проверьте себя', 'Закрепите тему карточками и коротким тестом.'],
+            ].map(([number, title, description]) => (
+              <div key={number} className="grid grid-cols-[44px_1fr] gap-4 py-5">
+                <span className="text-xs font-medium text-cyan-300 tabular-nums">{number}</span>
+                <div>
+                  <h3 className="text-base font-semibold text-white mb-1">{title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-400">{description}</p>
+                </div>
               </div>
             ))}
           </div>

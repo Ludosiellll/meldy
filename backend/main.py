@@ -109,7 +109,7 @@ async def protect_backend_api(request: Request, call_next):
     """Require a Supabase session for every backend endpoint except health."""
     if request.method != "OPTIONS" and request.url.path.startswith("/api/") and request.url.path != "/api/health":
         try:
-            await require_authenticated_user(request)
+            request.state.user = await require_authenticated_user(request)
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return await call_next(request)
@@ -170,6 +170,7 @@ async def shutdown_event():
 class HealthResponse(BaseModel):
     status: str
     groq_configured: bool
+    gemini_configured: bool
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -177,6 +178,7 @@ async def health():
     return HealthResponse(
         status="ok",
         groq_configured=bool(GROQ_API_KEY),
+        gemini_configured=bool(os.getenv("GEMINI_API_KEY", "").strip()),
     )
 
 async def event_stream(
@@ -325,7 +327,11 @@ async def event_stream_media(
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        error_id = uuid.uuid4().hex[:12]
+        print(f"Media analysis error [{error_id}]: {e}")
+        traceback.print_exc()
+        message = f"Не удалось обработать медиа. Код ошибки: {error_id}"
+        yield f"data: {json.dumps({'type': 'error', 'message': message}, ensure_ascii=False)}\n\n"
 
 
 @app.post("/api/analyze/media")
@@ -416,7 +422,11 @@ async def event_stream_url(
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        error_id = uuid.uuid4().hex[:12]
+        print(f"URL analysis error [{error_id}]: {e}")
+        traceback.print_exc()
+        message = f"Не удалось обработать ссылку. Код ошибки: {error_id}"
+        yield f"data: {json.dumps({'type': 'error', 'message': message}, ensure_ascii=False)}\n\n"
 
 
 @app.post("/api/analyze/url")
@@ -2475,7 +2485,7 @@ async def hh_auth_url():
     import os
     from dotenv import load_dotenv
     load_dotenv(override=True)
-    client_id = os.getenv("HH_CLIENT_ID") or "QA5GINJ5HOSGMT135U8382F91NK81GVH14AOKN412O9J4841J7M6IPESFQ80NH1V"
+    client_id = os.getenv("HH_CLIENT_ID")
     redirect_uri = os.getenv("HH_REDIRECT_URI") or "https://ludosiel-studyforge.hf.space/hh-callback"
     if not client_id or not redirect_uri:
         raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
@@ -2491,8 +2501,8 @@ async def hh_exchange(request: Request, req: HHExchangeRequest):
     from dotenv import load_dotenv
     load_dotenv(override=True)
     
-    client_id = os.getenv("HH_CLIENT_ID") or "QA5GINJ5HOSGMT135U8382F91NK81GVH14AOKN412O9J4841J7M6IPESFQ80NH1V"
-    client_secret = os.getenv("HH_CLIENT_SECRET") or "G0CSHFQUHGIVUBMGPK9RGLB5FVAK04QV21PQSSVADBVTFER165ULLI78HM5VFIB9"
+    client_id = os.getenv("HH_CLIENT_ID")
+    client_secret = os.getenv("HH_CLIENT_SECRET")
     redirect_uri = os.getenv("HH_REDIRECT_URI") or "https://ludosiel-studyforge.hf.space/hh-callback"
     if not client_id or not client_secret or not redirect_uri:
         raise HTTPException(status_code=500, detail="HH API credentials not configured on server")

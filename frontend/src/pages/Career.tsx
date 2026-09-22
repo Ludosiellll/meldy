@@ -42,6 +42,7 @@ import LearningDashboard from '../components/LearningDashboard';
 import DiagnosticTestModal from '../components/DiagnosticTestModal';
 import VacancyMobileTabs from '../components/VacancyMobileTabs';
 import { supabase } from '../lib/supabase';
+import { runCodeSandbox } from '../utils/codeSandbox';
 
 function patchModule(mod: CareerModule, profession: string): CareerModule {
   const isTechnicalProfession = 
@@ -1500,7 +1501,7 @@ export default function Career() {
     }
   };
 
-  const runLocalTests = () => {
+  const runLocalTests = async () => {
     if (!selectedModule) return;
     setLocalTested(true);
     setLocalTestLogs([]);
@@ -1540,46 +1541,23 @@ export default function Career() {
       }
 
       try {
-        const userFn = new Function(`return ${sandboxCode}`)();
         const logs: string[] = [];
         let passed = true;
 
         if (task.test_cases && task.test_cases.length > 0) {
+          const cases = task.test_cases.map((tc: any) => {
+            const parseValue = (value: string) => {
+              try { return JSON.parse(value); } catch { return value; }
+            };
+            return { input: parseValue(tc.input), expected: parseValue(tc.expected) };
+          });
+          const sandboxResult = await runCodeSandbox(sandboxCode, cases);
           task.test_cases.forEach((tc: any, idx: number) => {
-            let inputParsed;
-            try {
-              inputParsed = JSON.parse(tc.input);
-            } catch {
-              try {
-                inputParsed = new Function(`return (${tc.input})`)();
-              } catch {
-                inputParsed = tc.input;
-              }
-            }
-
-            let expectedParsed;
-            try {
-              expectedParsed = JSON.parse(tc.expected);
-            } catch {
-              try {
-                expectedParsed = new Function(`return (${tc.expected})`)();
-              } catch {
-                expectedParsed = tc.expected;
-              }
-            }
-            
-            let result;
-            if (Array.isArray(inputParsed)) {
-              result = userFn(...inputParsed);
+            const result = sandboxResult.results[idx];
+            if (result.passed) {
+              logs.push(`Тест ${idx + 1} пройден. Вход: ${tc.input} · Результат: ${JSON.stringify(result.actual)}`);
             } else {
-              result = userFn(inputParsed);
-            }
-
-            const isMatch = JSON.stringify(result) === JSON.stringify(expectedParsed);
-            if (isMatch) {
-              logs.push(`✅ Тест ${idx + 1} пройден! Вход: ${tc.input} | Ожидалось: ${tc.expected} | Получено: ${JSON.stringify(result)}`);
-            } else {
-              logs.push(`❌ Тест ${idx + 1} провален! Вход: ${tc.input} | Ожидалось: ${tc.expected} | Получено: ${JSON.stringify(result)}`);
+              logs.push(`Тест ${idx + 1} не пройден. Ожидалось: ${tc.expected} · Получено: ${JSON.stringify(result.actual)}`);
               passed = false;
             }
           });
@@ -1595,7 +1573,7 @@ export default function Career() {
           toast.error('Некоторые тесты провалились.');
         }
       } catch (e: any) {
-        setLocalTestLogs([`💥 Ошибка компиляции или выполнения: ${e.message}`]);
+        setLocalTestLogs([`Ошибка проверки: ${e.message}`]);
         setLocalTestedPassed(false);
         toast.error('Ошибка в коде!');
       }

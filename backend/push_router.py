@@ -30,10 +30,19 @@ def save_subscriptions(subs):
     with open(SUBSCRIPTIONS_FILE, "w") as f:
         json.dump(subs, f)
 
+def _authenticated_user_id(request: Request) -> str:
+    user = getattr(request.state, "user", None) or {}
+    user_id = user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Требуется войти в аккаунт")
+    return user_id
+
+
 @router.post("/subscribe")
-async def subscribe(sub: PushSubscription):
+async def subscribe(request: Request, sub: PushSubscription):
+    user_id = _authenticated_user_id(request)
     subs = load_subscriptions()
-    subs[sub.user_id] = sub.subscription
+    subs[user_id] = sub.subscription
     save_subscriptions(subs)
     return {"status": "ok"}
 
@@ -42,7 +51,7 @@ async def send_notification(request: Request):
     if not VAPID_PRIVATE_KEY:
         raise HTTPException(status_code=503, detail="Push-уведомления не настроены")
     data = await request.json()
-    user_id = data.get("user_id")
+    user_id = _authenticated_user_id(request)
     message = data.get("message", "Время повторить материалы!")
     
     subs = load_subscriptions()

@@ -10,10 +10,9 @@ export default function PWAUpdater() {
   } = useRegisterSW({
     onRegistered(r: any) {
       if (r) {
-        // Проверяем обновления каждые 15 секунд (специально для презентации)
-        setInterval(() => {
+        window.setTimeout(() => {
           r.update();
-        }, 15000);
+        }, 60_000);
       }
     },
   });
@@ -23,14 +22,14 @@ export default function PWAUpdater() {
       toast(
         (t) => (
           <div className="flex flex-col gap-2">
-            <span className="font-bold text-slate-900 dark:text-white">Доступна новая версия!</span>
-            <span className="text-sm text-slate-500 dark:text-slate-400">Нажмите кнопку ниже, чтобы применить изменения немедленно.</span>
+            <span className="font-semibold text-slate-900 dark:text-white">Доступно обновление</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Обновите страницу, чтобы получить последнюю версию.</span>
             <button 
               onClick={() => {
                 updateServiceWorker(true);
                 toast.dismiss(t.id);
               }}
-              className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold w-full transition"
+              className="mt-2 px-4 py-2 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-lg font-semibold w-full transition-colors"
             >
               Обновить сейчас
             </button>

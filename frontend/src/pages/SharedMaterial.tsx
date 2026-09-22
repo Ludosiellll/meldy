@@ -37,7 +37,7 @@ export default function SharedMaterial() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -48,7 +48,7 @@ export default function SharedMaterial() {
         <Bot className="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4" />
         <h2 className="text-2xl font-black text-slate-800 dark:text-slate-200 mb-2">Материал не найден</h2>
         <p className="text-slate-500 dark:text-slate-400 mb-8">Возможно, ссылка устарела или автор закрыл к нему доступ.</p>
-        <button onClick={() => navigate('/')} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl">На главную</button>
+        <button onClick={() => navigate('/')} className="px-6 py-3 bg-cyan-300 text-slate-950 font-semibold rounded-lg hover:bg-cyan-200 transition-colors">На главную</button>
       </div>
     );
   }
@@ -74,15 +74,15 @@ export default function SharedMaterial() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sm:p-6 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-            <Bot className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 bg-cyan-300 rounded-lg flex items-center justify-center">
+            <Bot className="w-6 h-6 text-slate-950" />
           </div>
           <div>
             <h1 className="font-black text-slate-900 dark:text-white text-lg">StudyForge</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Shared Note</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Общий материал</p>
           </div>
         </div>
-        <button onClick={() => navigate('/register')} className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg text-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition">
+        <button onClick={() => navigate('/register')} className="px-4 py-2 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 font-semibold rounded-lg text-sm hover:bg-cyan-100 dark:hover:bg-cyan-950/50 transition-colors">
           Создать свой
         </button>
       </div>
@@ -99,8 +99,8 @@ export default function SharedMaterial() {
         {cheatsheet ? (
           <div className="bg-slate-900 dark:bg-slate-800/80 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-slate-200/10 dark:border-slate-800 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
-            <p className="text-[10px] font-extrabold text-indigo-300 dark:text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
-              ⚡ Экспресс-шпаргалка
+            <p className="text-[10px] font-semibold text-cyan-700 dark:text-cyan-300 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+              Краткий конспект
             </p>
             <div className="prose prose-invert max-w-none text-sm sm:text-base text-slate-300 leading-relaxed cheatsheet-style">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{cheatsheet}</ReactMarkdown>
@@ -117,12 +117,12 @@ export default function SharedMaterial() {
         )}
 
         {/* CTA */}
-        <div className="bg-indigo-600 rounded-2xl p-6 sm:p-8 text-center text-white shadow-xl relative overflow-hidden mt-8">
+        <div className="bg-[#091522] border border-white/10 rounded-xl p-6 sm:p-8 text-center text-white relative overflow-hidden mt-8">
            <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -ml-20 -mt-20 pointer-events-none" />
-           <h3 className="text-2xl font-black mb-3">Понравился конспект?</h3>
-           <p className="text-indigo-100 max-w-md mx-auto mb-6 text-sm">Загрузи любую свою лекцию или учебник в StudyForge, и ИИ создаст по ней шпаргалку, тесты, флеш-карточки и аудио-подкаст за 5 секунд.</p>
-           <button onClick={() => navigate('/register')} className="px-8 py-3 bg-white text-indigo-600 font-black rounded-xl hover:bg-indigo-50 transition shadow-lg hover:-translate-y-0.5">
-             Начать бесплатно
+           <h3 className="text-2xl font-semibold mb-3">Подготовьте свой материал</h3>
+           <p className="text-slate-300 max-w-md mx-auto mb-6 text-sm">Загрузите лекцию или учебник, чтобы получить конспект, карточки и тест со ссылками на источник.</p>
+           <button onClick={() => navigate('/register')} className="px-8 py-3 bg-cyan-300 text-slate-950 font-semibold rounded-lg hover:bg-cyan-200 transition-colors">
+             Создать материал
            </button>
         </div>
       </div>

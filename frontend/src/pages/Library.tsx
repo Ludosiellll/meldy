@@ -2,7 +2,7 @@ import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
-  Search, BookOpen, Trash2, Plus, Headphones, Globe, Lock, EyeOff, Eye,
+  Search, BookOpen, FileText, Trash2, Plus, Headphones, Globe, Lock, EyeOff, Eye,
   Folder, FolderPlus, Check, CheckSquare, Square, BarChart3, ChevronDown, ChevronUp,
   BookOpenCheck, Code2, Brain, TrendingUp, Star, Award, Flame, X, Sparkles, FolderOpen,
   ArrowRight, ShieldCheck, ChevronRight, ChevronLeft, Volume2, Play, Pause, RefreshCw, Grab
@@ -28,13 +28,13 @@ interface Folder {
 
 const colorSchemes: Record<string, { bg: string; text: string; border: string; activeBg: string; activeBorder: string; dot: string; hoverRing: string }> = {
   indigo: {
-    bg: 'bg-indigo-50 dark:bg-indigo-950/30',
-    text: 'text-indigo-600 dark:text-indigo-400',
-    border: 'border-indigo-100 dark:border-indigo-900/30',
-    activeBg: 'bg-indigo-600 text-white',
-    activeBorder: 'border-indigo-600',
-    dot: '#4f46e5',
-    hoverRing: 'ring-indigo-500/30 dark:ring-indigo-500/20'
+    bg: 'bg-cyan-50 dark:bg-cyan-950/30',
+    text: 'text-cyan-700 dark:text-cyan-300',
+    border: 'border-cyan-100 dark:border-cyan-900/30',
+    activeBg: 'bg-cyan-300 text-slate-950',
+    activeBorder: 'border-cyan-300',
+    dot: '#22d3ee',
+    hoverRing: 'ring-cyan-400/30 dark:ring-cyan-400/20'
   },
   rose: {
     bg: 'bg-rose-50 dark:bg-rose-950/30',
@@ -73,13 +73,13 @@ const colorSchemes: Record<string, { bg: string; text: string; border: string; a
     hoverRing: 'ring-sky-500/30 dark:ring-sky-500/20'
   },
   violet: {
-    bg: 'bg-violet-50 dark:bg-violet-950/30',
-    text: 'text-violet-600 dark:text-violet-400',
-    border: 'border-violet-100 dark:border-violet-900/30',
-    activeBg: 'bg-violet-600 text-white',
-    activeBorder: 'border-violet-600',
-    dot: '#7c3aed',
-    hoverRing: 'ring-violet-500/30 dark:ring-violet-500/20'
+    bg: 'bg-sky-50 dark:bg-sky-950/30',
+    text: 'text-sky-700 dark:text-sky-300',
+    border: 'border-sky-100 dark:border-sky-900/30',
+    activeBg: 'bg-sky-600 text-white',
+    activeBorder: 'border-sky-600',
+    dot: '#0284c7',
+    hoverRing: 'ring-sky-500/30 dark:ring-sky-500/20'
   },
   orange: {
     bg: 'bg-orange-50 dark:bg-orange-950/30',
@@ -434,7 +434,7 @@ export default function Library() {
     setFolderAssignments(newAssignments);
     const userId = user?.id || 'default_user';
     localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(newAssignments));
-    toast.success(folderId ? 'Материалы перемещены в папку!' : 'Материалы убран из папок!');
+    toast.success(folderId ? 'Материалы перемещены в папку' : 'Материалы убраны из папок');
     setSelectedIds([]);
     setIsMultiSelectActive(false);
     setShowBatchFolderSelect(false);
@@ -527,30 +527,29 @@ export default function Library() {
   // Metrics computing reactively
   const totalCards = materials.reduce((acc, m) => acc + (m.flashcards_json?.flashcards?.length || 0), 0);
   const totalPodcasts = materials.filter(m => m.summary_json?.podcast?.length > 0).length;
-  const avgGrade = localStorage.getItem('avg_exam_score') || '84';
   const folderMaterialsCount = (folderId: string) => {
     return materials.filter(m => folderAssignments[m.id] === folderId).length;
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+    <main className="mx-auto max-w-7xl space-y-7 px-4 py-6 sm:px-6 md:py-10">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-5 border-b border-slate-200 pb-7 dark:border-slate-800 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-            <BookOpen className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            Библиотека знаний
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 dark:text-cyan-300">Материалы</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 md:text-4xl">
+            Библиотека
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">Управляйте лекциями, создавайте папки и изучайте конспекты</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Лекции, конспекты и материалы для повторения.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setShowStats(!showStats)}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-bold transition-all ${
+            className={`flex min-h-11 items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
               showStats 
-                ? 'bg-indigo-550 border-indigo-200 text-indigo-600 dark:bg-indigo-950/20 dark:border-indigo-900 dark:text-indigo-400' 
+                ? 'bg-cyan-50 border-cyan-200 text-cyan-800 dark:bg-cyan-950/20 dark:border-cyan-900 dark:text-cyan-300'
                 : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
@@ -561,17 +560,17 @@ export default function Library() {
           
           <button
             onClick={() => setShowJoinModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold transition"
+            className="flex min-h-11 items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors"
           >
             Ввести код класса
           </button>
           
           <button
             onClick={() => navigate('/analyze')}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md hover:shadow-indigo-500/10 active:translate-y-0.5"
+            className="flex min-h-11 items-center gap-2 px-4 py-2 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Новый анализ
+            Добавить материал
           </button>
         </div>
       </div>
@@ -587,18 +586,18 @@ export default function Library() {
               value={inviteCode} 
               onChange={e => setInviteCode(e.target.value.toUpperCase())}
               placeholder="Код: A7B-9X2" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-3 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg mb-3 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-cyan-400 outline-none text-slate-900 dark:text-slate-100"
             />
             <input 
               value={classNickname} 
               onChange={e => setClassNickname(e.target.value)}
               placeholder="Ваши Имя и Фамилия" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl mb-2 text-center text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100" 
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg mb-2 text-center text-lg focus:ring-2 focus:ring-cyan-400 outline-none text-slate-900 dark:text-slate-100"
             />
             {joinError && <p className="text-rose-500 text-sm mb-4 text-center">{joinError}</p>}
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowJoinModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">Отмена</button>
-              <button onClick={handleJoinGroup} disabled={!inviteCode.trim() || !classNickname.trim()} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition">Вступить</button>
+              <button onClick={handleJoinGroup} disabled={!inviteCode.trim() || !classNickname.trim()} className="flex-1 py-2.5 bg-cyan-300 text-slate-950 font-semibold rounded-lg hover:bg-cyan-200 disabled:opacity-50 transition-colors">Вступить</button>
             </div>
           </div>
         </div>
@@ -613,45 +612,35 @@ export default function Library() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-950/10 dark:to-purple-950/10 rounded-2xl border border-indigo-100/50 dark:border-slate-800/80">
+            <div className="grid grid-cols-1 gap-0 border-y border-slate-200 dark:border-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-slate-200 sm:dark:divide-slate-800">
               
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center">
+              <div className="flex items-center gap-4 px-4 py-5">
+                <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 rounded-lg flex items-center justify-center">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{materials.length}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Материалы</p>
+                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{materials.length}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Материалов</p>
                 </div>
               </div>
 
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
+              <div className="flex items-center gap-4 px-4 py-5">
                 <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center">
-                  <Brain className="w-5 h-5 animate-pulse" />
+                  <Brain className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{totalCards}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Умные карточки</p>
+                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{totalCards}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Карточек</p>
                 </div>
               </div>
 
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-                <div className="w-10 h-10 bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center">
+              <div className="flex items-center gap-4 px-4 py-5">
+                <div className="w-10 h-10 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 rounded-lg flex items-center justify-center">
                   <Headphones className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{totalPodcasts}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">AI Подкасты</p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-                <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center">
-                  <Award className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{avgGrade}%</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Успеваемость</p>
+                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{totalPodcasts}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Аудиоверсий</p>
                 </div>
               </div>
 
@@ -661,22 +650,22 @@ export default function Library() {
       </AnimatePresence>
 
       {/* Folders and Collections bar */}
-      <div className="space-y-3 bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+      <div className="space-y-3 border-y border-slate-200 py-4 dark:border-slate-800">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1.5">
-              <FolderOpen className="w-4 h-4 text-indigo-500 animate-bounce" />
-              Папки и разделы
+            <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-[0.1em] flex items-center gap-1.5">
+              <FolderOpen className="w-4 h-4 text-cyan-600 dark:text-cyan-300" />
+              Папки
             </h3>
-            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hidden md:inline ml-2 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-0.5 rounded-full">
-              💡 Перетащите карточку лекции на нужную папку для группировки!
+            <span className="text-xs text-slate-400 hidden md:inline ml-2">
+              Перетащите материал, чтобы изменить папку
             </span>
           </div>
           <button 
             onClick={() => setShowCreateFolderModal(true)}
-            className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-850 font-black transition"
+            className="flex items-center gap-1 text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 font-semibold transition-colors"
           >
-            <FolderPlus className="w-3.5 h-3.5 animate-pulse" />
+            <FolderPlus className="w-3.5 h-3.5" />
             Создать папку
           </button>
         </div>
@@ -691,15 +680,15 @@ export default function Library() {
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, '')}
             onClick={() => setSelectedFolderId('')}
-            className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition-all flex items-center gap-2 relative ${
+            className={`px-4 py-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-2 relative ${
               selectedFolderId === ''
-                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                ? 'bg-cyan-300 border-cyan-300 text-slate-950'
                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
             } ${
               draggedOverFolderId === 'all'
-                ? 'scale-105 ring-4 ring-offset-2 dark:ring-offset-slate-900 ring-indigo-500 border-indigo-500 shadow-lg'
+                ? 'ring-2 ring-offset-2 dark:ring-offset-slate-900 ring-cyan-400 border-cyan-400'
                 : draggingCardId !== null
-                  ? 'border-dashed border-indigo-400 dark:border-indigo-600 animate-pulse'
+                  ? 'border-dashed border-cyan-400 dark:border-cyan-500'
                   : ''
             }`}
           >
@@ -726,7 +715,7 @@ export default function Library() {
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, f.id)}
                 onClick={() => setSelectedFolderId(f.id)}
-                className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black transition-all flex items-center gap-2 relative ${
+                className={`px-4 py-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-2 relative ${
                   active
                     ? `${scheme.activeBg} ${scheme.activeBorder} shadow-md`
                     : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800`
@@ -765,7 +754,7 @@ export default function Library() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Поиск по названию..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-900 dark:text-slate-100"
+            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-cyan-400 transition text-slate-900 dark:text-slate-100"
           />
         </div>
 
@@ -779,7 +768,7 @@ export default function Library() {
                 { value: '', label: 'Все предметы' },
                 ...subjects.map(s => ({ value: s, label: s }))
               ]}
-              className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 shadow-sm"
+              className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-cyan-400"
             />
           </div>
         )}
@@ -789,9 +778,9 @@ export default function Library() {
             setIsMultiSelectActive(!isMultiSelectActive);
             setSelectedIds([]);
           }}
-          className={`px-4 py-2.5 rounded-xl border text-sm font-bold transition flex items-center justify-center gap-2 ${
+          className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
             isMultiSelectActive 
-              ? 'bg-indigo-600 border-indigo-600 text-white' 
+              ? 'bg-cyan-300 border-cyan-300 text-slate-950'
               : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
@@ -835,15 +824,15 @@ export default function Library() {
 
       {/* Empty State */}
       {!loading && materials.length === 0 && (
-        <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-8">
+        <div className="text-center py-20 border-y border-dashed border-slate-300 dark:border-slate-700 p-8">
           <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-650 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">Библиотека пуста</h2>
-          <p className="text-slate-400 dark:text-slate-500 text-sm mb-6 max-w-sm mx-auto">Загрузите или проанализируйте первую лекцию, чтобы начать обучение</p>
+          <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">Материалов пока нет</h2>
+          <p className="text-slate-400 dark:text-slate-500 text-sm mb-6 max-w-sm mx-auto">Добавьте лекцию или конспект, чтобы получить карточки и тест.</p>
           <button
             onClick={() => navigate('/analyze')}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition shadow-md"
+            className="px-6 py-2.5 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors"
           >
-            Загрузить материал →
+            Добавить материал →
           </button>
         </div>
       )}
@@ -871,11 +860,11 @@ export default function Library() {
                     navigate('/library/' + m.id);
                   }
                 }}
-                className={`card p-5 cursor-pointer relative transition-all group overflow-visible border-2 rounded-2xl flex flex-col justify-between ${
+                className={`p-5 cursor-pointer relative transition-colors group overflow-visible border rounded-xl flex flex-col justify-between ${
                   isSelected 
-                    ? 'border-indigo-600 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/15 shadow-md scale-[0.99]' 
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:shadow-md hover:scale-[1.01]'
-                } ${draggingCardId === m.id ? 'opacity-50 scale-95 border-dashed border-indigo-400' : ''}`}
+                    ? 'border-cyan-400 dark:border-cyan-500 bg-cyan-50/20 dark:bg-cyan-950/15'
+                    : 'border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 hover:border-cyan-300 dark:hover:border-cyan-700'
+                } ${draggingCardId === m.id ? 'opacity-50 scale-95 border-dashed border-cyan-400' : ''}`}
               >
                 {/* Drag handle helper icon visible on card hover */}
                 {!isMultiSelectActive && (
@@ -894,7 +883,7 @@ export default function Library() {
                     className="absolute top-4 left-4 z-10 p-0.5 bg-white dark:bg-slate-900 rounded-lg shadow-sm"
                   >
                     {isSelected ? (
-                      <CheckSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                      <CheckSquare className="w-5 h-5 text-cyan-700 dark:text-cyan-300" />
                     ) : (
                       <Square className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                     )}
@@ -912,7 +901,7 @@ export default function Library() {
                           </span>
                         )}
                         {m.subject && (
-                          <span className="inline-block px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/30 text-indigo-750 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider truncate max-w-[140px]">
+                          <span className="inline-block px-2 py-0.5 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 text-[10px] font-semibold rounded uppercase tracking-wider truncate max-w-[140px]">
                             {m.subject}
                           </span>
                         )}
@@ -922,7 +911,7 @@ export default function Library() {
                             className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider transition ${
                               m.is_public
                                 ? 'bg-emerald-150 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 border border-slate-200 dark:border-slate-700'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 border border-slate-200 dark:border-slate-700'
                             }`}
                             title={m.is_public ? 'Опубликовано' : 'Сделать общедоступным'}
                           >
@@ -932,7 +921,7 @@ export default function Library() {
                         )}
                       </div>
                       
-                      <h3 className="font-extrabold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 break-words hover:text-indigo-600 transition">
+                      <h3 className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 break-words group-hover:text-cyan-700 dark:group-hover:text-cyan-300 transition-colors">
                         {m.title}
                       </h3>
                     </div>
@@ -949,8 +938,8 @@ export default function Library() {
                             }}
                             className={`p-1.5 rounded-lg border transition ${
                               folderAssignments[m.id]
-                                ? 'bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-850'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-indigo-600'
+                                ? 'bg-cyan-50 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-900'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-cyan-700'
                             }`}
                             title="Положить в папку"
                           >
@@ -1005,7 +994,7 @@ export default function Library() {
                             e.stopPropagation();
                             setPeekMaterial(m);
                           }}
-                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-lg transition"
+                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 rounded-lg transition-colors"
                           title="Быстрый просмотр"
                         >
                           <Eye className="w-4 h-4" />
@@ -1037,11 +1026,11 @@ export default function Library() {
 
                 {/* Substats */}
                 <div className={`flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 my-4 ${isMultiSelectActive ? 'pl-8' : ''}`}>
-                  <span title="Конспект">📝</span>
-                  <span title="Умные карточки">🃏 {fcCount}</span>
-                  <span title="Вопросы">❓ {qCount}</span>
+                  <span className="inline-flex items-center gap-1" title="Конспект"><FileText className="h-3.5 w-3.5" /> Конспект</span>
+                  <span className="tabular-nums" title="Карточки">{fcCount} карточек</span>
+                  <span className="tabular-nums" title="Вопросы">{qCount} вопросов</span>
                   {hasPodcast && (
-                    <span className="ml-auto flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 font-black bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
+                    <span className="ml-auto flex items-center gap-1 text-[10px] text-cyan-700 dark:text-cyan-300 font-semibold bg-cyan-50 dark:bg-cyan-950/30 px-2 py-0.5 rounded-full">
                       <Headphones className="w-3 h-3" /> 
                       Подкаст
                     </span>
@@ -1068,7 +1057,7 @@ export default function Library() {
                         setPeekMaterial(m);
                         setDrawerTab('podcast');
                       }}
-                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-850 dark:hover:text-indigo-300 font-bold transition font-black"
+                      className="flex items-center gap-1 text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 font-semibold transition-colors"
                     >
                       <Headphones className="w-3.5 h-3.5" /> 
                       Слушать →
@@ -1100,7 +1089,7 @@ export default function Library() {
             className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl border border-slate-200 dark:border-slate-800 px-6 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-[calc(100%-2rem)] md:w-auto md:min-w-[680px]"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-extrabold text-sm shadow-md animate-pulse">
+              <div className="w-8 h-8 bg-cyan-300 text-slate-950 rounded-lg flex items-center justify-center font-semibold text-sm">
                 {selectedIds.length}
               </div>
               <div className="text-left">
@@ -1114,7 +1103,7 @@ export default function Library() {
               <div className="relative">
                 <button
                   onClick={() => setShowBatchFolderSelect(!showBatchFolderSelect)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 rounded-xl text-xs font-black transition border border-indigo-100 dark:border-indigo-900/35"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 rounded-lg text-xs font-semibold transition-colors border border-cyan-100 dark:border-cyan-900/35"
                 >
                   <Folder className="w-3.5 h-3.5" />
                   <span>В папку</span>
@@ -1195,7 +1184,7 @@ export default function Library() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-extrabold text-xl text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <FolderPlus className="w-5 h-5 text-cyan-700 dark:text-cyan-300" />
                 Создать новую папку
               </h3>
               <button 
@@ -1214,7 +1203,7 @@ export default function Library() {
                   value={newFolderName}
                   onChange={e => setNewFolderName(e.target.value)}
                   placeholder="Напр. Математика, Программирование"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100 font-medium"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-cyan-400 outline-none text-slate-900 dark:text-slate-100 font-medium"
                 />
               </div>
 
@@ -1229,7 +1218,7 @@ export default function Library() {
                         onClick={() => setNewFolderColor(col)}
                         className={`flex items-center justify-center p-3 rounded-xl border-2 transition ${
                           newFolderColor === col 
-                            ? 'border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-500/20' 
+                            ? 'border-cyan-400 dark:border-cyan-500 ring-2 ring-cyan-400/20'
                             : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
                         } ${scheme.bg}`}
                       >
@@ -1251,7 +1240,7 @@ export default function Library() {
                         onClick={() => setNewFolderIcon(ic)}
                         className={`flex items-center justify-center p-3 rounded-xl border-2 transition ${
                           newFolderIcon === ic 
-                            ? 'bg-indigo-50 dark:bg-indigo-950/20 border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400' 
+                            ? 'bg-cyan-50 dark:bg-cyan-950/20 border-cyan-400 dark:border-cyan-500 text-cyan-700 dark:text-cyan-300'
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                         }`}
                       >
@@ -1273,7 +1262,7 @@ export default function Library() {
               <button 
                 onClick={handleCreateFolder} 
                 disabled={!newFolderName.trim()} 
-                className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition"
+                className="flex-1 py-2.5 bg-cyan-300 text-slate-950 font-semibold rounded-lg hover:bg-cyan-200 disabled:opacity-50 transition-colors"
               >
                 Создать
               </button>
@@ -1330,7 +1319,7 @@ export default function Library() {
                 {/* Drawer Header */}
                 <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <span className="inline-block px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-black rounded uppercase tracking-wider mb-1">
+                    <span className="inline-block px-2 py-0.5 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 text-[10px] font-semibold rounded uppercase tracking-wider mb-1">
                       {peekMaterial.subject || 'Без предмета'}
                     </span>
                     <h3 className="font-extrabold text-base leading-snug truncate text-slate-900 dark:text-slate-100" title={peekMaterial.title}>
@@ -1359,7 +1348,7 @@ export default function Library() {
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
-                      📝 Конспект
+                      Конспект
                     </button>
                     {hasPodcast && (
                       <button
@@ -1389,7 +1378,7 @@ export default function Library() {
                             : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                         }`}
                       >
-                        🃏 Карточки
+                        Карточки
                       </button>
                     )}
                   </div>
@@ -1403,7 +1392,7 @@ export default function Library() {
                     <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
                       <div className="flex items-center gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/60 dark:border-indigo-900/35 rounded-xl">
                         <BookOpenCheck className="w-5 h-5 text-indigo-500" />
-                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">Быстрый обзор материала</span>
+                        <span className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">Краткий обзор</span>
                       </div>
 
                       {peekMaterial.summary_json?.cheatsheet ? (
@@ -1449,7 +1438,7 @@ export default function Library() {
                                 <Headphones className="w-5 h-5 text-white" />
                               </div>
                               <div>
-                                <h4 className="font-extrabold text-xs">AI Подкаст</h4>
+                                <h4 className="font-semibold text-xs">Аудиоверсия</h4>
                                 <p className="text-[10px] text-indigo-200">Объяснение на простых примерах</p>
                               </div>
                             </div>
@@ -1628,7 +1617,7 @@ export default function Library() {
                       stopTTS();
                       navigate('/library/' + peekMaterial.id);
                     }}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/15"
+                    className="w-full py-3 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                   >
                     Открыть полностью
                     <ArrowRight className="w-4 h-4" />
@@ -1639,6 +1628,6 @@ export default function Library() {
           );
         })()}
       </AnimatePresence>
-    </div>
+    </main>
   );
 }

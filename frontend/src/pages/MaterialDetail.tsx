@@ -60,14 +60,14 @@ export default function MaterialDetail() {
 
   if (loading) return (
     <div className="p-6 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-cyan-300 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   if (!material) return (
     <div className="p-6 text-center">
       <p className="text-slate-400">Материал не найден</p>
-      <button onClick={() => navigate('/library')} className="mt-4 text-indigo-600 text-sm hover:underline">← Библиотека</button>
+      <button onClick={() => navigate('/library')} className="mt-4 text-cyan-700 dark:text-cyan-300 text-sm hover:underline">← Библиотека</button>
     </div>
   );
 
@@ -89,7 +89,7 @@ export default function MaterialDetail() {
         : 'grid-cols-1';
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
       {/* Back */}
       <button
         onClick={() => navigate('/library')}
@@ -106,7 +106,7 @@ export default function MaterialDetail() {
             <input
               value={titleInput}
               onChange={e => setTitleInput(e.target.value)}
-              className="flex-1 px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-xl font-semibold outline-none focus:ring-2 focus:ring-cyan-400"
               placeholder="Название материала"
               autoFocus
             />
@@ -115,10 +115,10 @@ export default function MaterialDetail() {
           </div>
         ) : (
           <div className="flex items-start gap-2 pr-8">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 break-words">{material.title}</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 break-words">{material.title}</h1>
             <button 
               onClick={() => setEditingTitle(true)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity mt-1.5 text-slate-400 hover:text-indigo-600"
+              className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity mt-1.5 text-slate-400 hover:text-cyan-600"
               title="Переименовать материал"
             >
               <Edit3 className="w-4 h-4" />
@@ -133,7 +133,7 @@ export default function MaterialDetail() {
             <input
               value={subjectInput}
               onChange={e => setSubjectInput(e.target.value)}
-              className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-cyan-400"
               placeholder="Предмет"
               autoFocus
             />
@@ -146,7 +146,7 @@ export default function MaterialDetail() {
             className="flex items-center gap-1.5 text-sm"
           >
             {material.subject ? (
-              <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-md">{material.subject}</span>
+              <span className="px-2 py-0.5 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 rounded-md">{material.subject}</span>
             ) : (
               <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1"><Edit3 className="w-3 h-3" />Добавить предмет</span>
             )}
@@ -172,7 +172,7 @@ export default function MaterialDetail() {
 
         <button 
           onClick={() => navigate(`/co-study/${id}`)}
-          className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md transition"
+          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-950/50 rounded-md transition-colors"
         >
           <Users className="w-3.5 h-3.5" /> Совместная комната
         </button>
@@ -184,10 +184,10 @@ export default function MaterialDetail() {
 
       {/* Режимы обучения */}
       {colCount > 1 && (
-        <div className={`grid grid-cols-1 gap-2 bg-slate-100/80 dark:bg-slate-900/80 p-1.5 rounded-2xl w-full mb-6 border border-slate-200 dark:border-slate-800 ${gridColsClass}`}>
+        <div className={`grid grid-cols-1 gap-1 border-y border-slate-200 dark:border-slate-800 py-1 w-full mb-7 ${gridColsClass}`}>
           <button
             onClick={() => setMode('full')}
-            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 select-none ${
               mode === 'full'
                 ? 'text-white'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -196,19 +196,19 @@ export default function MaterialDetail() {
             {mode === 'full' && (
               <motion.span
                 layoutId="activeDetailMode"
-                className="absolute inset-0 bg-slate-900 dark:bg-slate-850 rounded-xl shadow-md -z-10"
+                className="absolute inset-0 bg-slate-900 dark:bg-slate-800 rounded-lg -z-10"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
             <span className="relative z-10 flex items-center gap-2">
               <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" />
-              <span>Полное обучение</span>
+              <span>Материал</span>
             </span>
           </button>
           {hasCheatsheet && (
             <button
               onClick={() => setMode('express')}
-              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 select-none ${
                 mode === 'express'
                   ? 'text-white'
                   : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
@@ -217,44 +217,44 @@ export default function MaterialDetail() {
               {mode === 'express' && (
                 <motion.span
                   layoutId="activeDetailMode"
-                  className="absolute inset-0 bg-rose-600 rounded-xl shadow-md -z-10"
+                  className="absolute inset-0 bg-slate-900 dark:bg-slate-800 rounded-lg -z-10"
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
               <span className="relative z-10 flex items-center gap-2">
                 <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
-                <span>За 5 минут</span>
+                <span>Кратко</span>
               </span>
             </button>
           )}
           {hasPodcast && (
             <button
               onClick={() => setMode('podcast')}
-              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors duration-200 select-none ${
+              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 select-none ${
                 mode === 'podcast'
-                  ? 'text-white'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  ? 'text-slate-950'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300'
               }`}
             >
               {mode === 'podcast' && (
                 <motion.span
                   layoutId="activeDetailMode"
-                  className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                  className="absolute inset-0 bg-cyan-300 rounded-lg -z-10"
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
               <span className="relative z-10 flex items-center gap-2">
                 <Headphones className="w-5 h-5 sm:w-4 sm:h-4" />
-                <span>AI-Подкаст</span>
+                <span>Аудио</span>
               </span>
             </button>
           )}
           {hasFlashcards && (
             <button
               onClick={() => navigate(`/shorts/${id}`)}
-              className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-fuchsia-500/20 transition-transform hover:-translate-y-0.5"
+              className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
-              Учебный TikTok 📱
+              Карточки в ленте
             </button>
           )}
         </div>
@@ -317,6 +317,6 @@ export default function MaterialDetail() {
         />
       )}
 
-    </div>
+    </main>
   );
 }

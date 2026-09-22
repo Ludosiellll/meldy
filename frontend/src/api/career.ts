@@ -441,92 +441,11 @@ export interface VacancyItem {
 export async function getCareerVacancies(
   profession: string,
   location?: string,
-  token?: string
+  _legacyToken?: string
 ): Promise<VacancyItem[]> {
-  let areaId: number | null = null;
-  const loc = (location || "").toLowerCase();
-  if (loc.includes("беларусь") || loc.includes("belarus") || loc.includes("минск")) {
-    areaId = 16;
-  } else if (loc.includes("казахстан") || loc.includes("kazakhstan") || loc.includes("алматы") || loc.includes("астана")) {
-    areaId = 40;
-  } else if (loc.includes("узбекистан") || loc.includes("uzbekistan") || loc.includes("ташкент")) {
-    areaId = 97;
-  } else if (loc.includes("россия") || loc.includes("russia") || loc.includes("москва") || loc.includes("спб") || loc.includes("петербург")) {
-    areaId = 113;
-  }
-
-  const queryText = areaId ? profession.trim() : `${profession} ${location || ""}`.trim();
-  
-  try {
-    const url = new URL("https://api.hh.ru/vacancies");
-    url.searchParams.append("text", queryText);
-    url.searchParams.append("per_page", "12");
-    if (areaId) {
-      url.searchParams.append("area", areaId.toString());
-    }
-    if (token) {
-      url.searchParams.append("access_token", token);
-    }
-
-    // Bypass CORS and Cloud IP block using corsproxy.io
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url.toString())}`;
-
-    const response = await fetch(proxyUrl, {
-      method: 'GET'
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const items = data.items || [];
-      const vacancies: VacancyItem[] = items.slice(0, 10).map((item: any) => {
-        const title = item.name || "Вакансия";
-        const company = item.employer?.name || "Не указана";
-        const salaryInfo = item.salary || {};
-        const salaryFrom = salaryInfo.from;
-        const salaryTo = salaryInfo.to;
-        const salaryCurrency = salaryInfo.currency || "RUR";
-        
-        let salary = "не указана";
-        if (salaryFrom && salaryTo) {
-          salary = `${salaryFrom} - ${salaryTo} ${salaryCurrency}`;
-        } else if (salaryFrom) {
-          salary = `от ${salaryFrom} ${salaryCurrency}`;
-        } else if (salaryTo) {
-          salary = `до ${salaryTo} ${salaryCurrency}`;
-        }
-        
-        const snippet = item.snippet || {};
-        let requirements = snippet.requirement || "";
-        let responsibility = snippet.responsibility || "";
-        
-        requirements = requirements.replace(/<[^>]*>/g, '');
-        responsibility = responsibility.replace(/<[^>]*>/g, '');
-        
-        return {
-          title,
-          company,
-          salary,
-          requirements,
-          responsibility,
-          url: item.alternate_url || "",
-          source: "HeadHunter"
-        };
-      });
-      return vacancies;
-    } else {
-      console.warn(`Proxy HH search failed with status ${response.status}. Falling back to backend.`);
-    }
-  } catch (err) {
-    console.warn("Proxy HH search failed with error. Falling back to backend:", err);
-  }
-
-  // Fallback to backend proxy
   const res = await fetch('/api/career/vacancies', {
     method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       profession,
       location: location || ""
@@ -1063,21 +982,6 @@ export async function exchangeHHCode(code: string, token: string): Promise<{ suc
 }
 
 export async function getHHResumes(token: string): Promise<any> {
-  try {
-    const targetUrl = `https://api.hh.ru/resumes/mine?access_token=${token}`;
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-    
-    const response = await fetch(proxyUrl, {
-      method: 'GET'
-    });
-    
-    if (response.ok) {
-      return await response.json();
-    }
-  } catch (err) {
-    console.warn("Direct HH resumes fetch failed, falling back to backend:", err);
-  }
-
   const res = await fetch('/api/hh/resumes', {
     method: 'GET',
     headers: {

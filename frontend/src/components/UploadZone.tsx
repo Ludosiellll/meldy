@@ -21,7 +21,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
   const [sizeError, setSizeError] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
 
-  const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+  const MAX_SIZE = 15 * 1024 * 1024;
 
   const validateAndSet = async (f: File) => {
     let finalFile = f;
@@ -40,7 +40,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
     }
 
     if (finalFile.size > MAX_SIZE) {
-      setSizeError(`Файл слишком большой (${(finalFile.size / 1024 / 1024).toFixed(1)} МБ). Максимум — 50 МБ.`);
+      setSizeError(`Файл занимает ${(finalFile.size / 1024 / 1024).toFixed(1)} МБ. Максимальный размер — 15 МБ.`);
       setFile(null);
     } else if (hasBadWords(finalFile.name)) {
       setSizeError('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
@@ -72,14 +72,14 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
       {/* Hero */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 mb-3 leading-tight">
-          Превратите любую лекцию<br />в готовый учебный материал
+          Один материал — полный цикл подготовки
         </h1>
         <p className="text-slate-500 dark:text-slate-400 text-lg mb-8">
-          Три AI-агента параллельно создают конспект, карточки и тест — за 15 секунд
+          Загрузите источник. StudyForge подготовит конспект, карточки и тест со ссылками на исходный текст.
         </p>
         <div className="flex flex-wrap justify-center gap-6">
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-            <FileText className="w-5 h-5 text-indigo-500" />
+            <FileText className="w-5 h-5 text-cyan-500" />
             <span className="text-sm font-medium">Структурированный конспект</span>
           </div>
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
@@ -100,19 +100,19 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               onClick={() => { setTab('docs'); setFile(null); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition whitespace-nowrap ${tab === 'docs' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
-              📄 Документы
+              <FileText className="inline-block w-4 h-4 mr-2" aria-hidden="true" />Документы
             </button>
             <button
               onClick={() => { setTab('media'); setFile(null); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition whitespace-nowrap ${tab === 'media' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
-              ▶️ Видео / Аудио
+              <Video className="inline-block w-4 h-4 mr-2" aria-hidden="true" />Видео и аудио
             </button>
             <button
               onClick={() => { setTab('url'); setFile(null); }}
               className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition whitespace-nowrap ${tab === 'url' ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
-              🔗 Ссылка
+              <Link className="inline-block w-4 h-4 mr-2" aria-hidden="true" />Ссылка
             </button>
          </div>
       </motion.div>
@@ -139,14 +139,17 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               Анализ веб-страницы по ссылке
             </h3>
             <p className="text-slate-400 dark:text-slate-500 text-sm max-w-md mx-auto mb-6">
-              Вставьте ссылку на любую статью, новость, главу учебника или Википедию. ИИ автоматически извлечет чистый текст без рекламы и навигации.
+              Вставьте публичную ссылку на статью или учебный материал. Мы извлечём основной текст без меню и рекламы.
             </p>
 
             <div className="max-w-lg mx-auto relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-brand-500 to-indigo-500 rounded-xl blur opacity-25 group-focus-within:opacity-40 transition duration-300 pointer-events-none" />
+              <div className="absolute inset-0 bg-cyan-400 rounded-xl blur opacity-15 group-focus-within:opacity-25 transition duration-300 pointer-events-none" />
               <div className="relative flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden transition-all duration-300 group-focus-within:border-brand-500 shadow-sm">
                 <input
                   type="url"
+                  name="source-url"
+                  autoComplete="url"
+                  aria-label="Ссылка на учебный материал"
                   placeholder="https://ru.wikipedia.org/wiki/..."
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
@@ -196,7 +199,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               <p className="text-slate-800 dark:text-slate-200 font-semibold text-lg mb-1">Перетащите файл сюда</p>
               <p className="text-slate-400 dark:text-slate-500">или нажмите для выбора</p>
               <p className="text-slate-300 dark:text-slate-660 text-sm mt-3">
-                {tab === 'docs' ? 'Поддерживаются PDF, DOCX, HTML, TXT, MD, JPG, PNG — до 50 МБ' : 'Поддерживаются MP4, MP3, WAV — до 50 МБ'}
+                {tab === 'docs' ? 'PDF, DOCX, HTML, TXT, MD, JPG и PNG — до 15 МБ' : 'MP4, MP3, WAV, MPEG и M4A — до 15 МБ'}
               </p>
             </div>
             
@@ -204,9 +207,9 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
               <div className="mt-3 flex justify-center sm:hidden">
                 <button
                   onClick={() => document.getElementById('camera-input')?.click()}
-                  className="flex w-full items-center justify-center gap-2 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 rounded-xl text-sm font-bold transition border border-indigo-100 dark:border-indigo-800"
+                  className="flex w-full items-center justify-center gap-2 px-4 py-3 bg-cyan-50 dark:bg-cyan-950/30 hover:bg-cyan-100 dark:hover:bg-cyan-950/50 text-cyan-800 dark:text-cyan-300 rounded-xl text-sm font-semibold transition border border-cyan-100 dark:border-cyan-900"
                 >
-                  <Camera className="w-5 h-5 text-indigo-500 dark:text-indigo-400" /> Сфотографировать конспект
+                  <Camera className="w-5 h-5 text-cyan-600 dark:text-cyan-300" /> Сфотографировать конспект
                 </button>
                 <input id="camera-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { if (e.target.files?.[0]) { validateAndSet(e.target.files[0]); e.target.value = ''; } }} />
               </div>

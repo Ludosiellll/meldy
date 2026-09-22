@@ -196,71 +196,67 @@ export default function Analytics() {
 
   const heatColor = (v: number) => {
     if (v === 0) return 'bg-slate-100 dark:bg-slate-800';
-    if (v < 3) return 'bg-indigo-200 dark:bg-indigo-800';
-    if (v < 7) return 'bg-indigo-400 dark:bg-indigo-600';
-    if (v < 15) return 'bg-indigo-600 dark:bg-indigo-500';
-    return 'bg-indigo-800 dark:bg-indigo-400';
+    if (v < 3) return 'bg-cyan-200 dark:bg-cyan-900';
+    if (v < 7) return 'bg-cyan-400 dark:bg-cyan-700';
+    if (v < 15) return 'bg-cyan-600 dark:bg-cyan-500';
+    return 'bg-cyan-800 dark:bg-cyan-300';
   };
 
   if (loading) return (
     <div className="p-6 flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-8 h-8 border-2 border-cyan-300 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6 md:space-y-8">
+    <main className="mx-auto max-w-6xl space-y-7 px-4 py-6 sm:px-6 md:py-10">
       {/* Заголовок и табы */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-950/50 rounded-xl flex items-center justify-center">
-            <BarChart2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Аналитика и успеваемость</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Следите за прогрессом и школьными оценками</p>
-          </div>
+      <div className="flex flex-col gap-5 border-b border-slate-200 pb-7 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 dark:text-cyan-300">Результаты</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 md:text-4xl">Прогресс</h1>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Повторения, экзамены и активность по дням.</p>
         </div>
 
-        <div className="flex bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800/60 p-1 rounded-2xl w-full md:w-auto backdrop-blur-md shadow-sm select-none">
+        <div className="flex border border-slate-200 dark:border-slate-800 p-1 rounded-lg w-full md:w-auto select-none">
           <button
             onClick={() => setActiveTab('platform')}
-            className={`relative flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
+            className={`relative flex-1 md:px-5 py-2.5 rounded-md text-xs sm:text-sm font-semibold transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
               activeTab === 'platform' 
-                ? 'text-white' 
+                ? 'text-slate-950'
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
             {activeTab === 'platform' && (
               <motion.span
                 layoutId="activeAnalyticsTab"
-                className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                className="absolute inset-0 bg-cyan-300 rounded-md -z-10"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
             <span className="relative z-10 flex items-center gap-2">
               <BarChart2 className="w-4 h-4 shrink-0" />
-              <span>Аналитика обучения</span>
+              <span>Обучение</span>
             </span>
           </button>
           <button
             onClick={() => setActiveTab('gradebook')}
-            className={`relative flex-1 md:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black tracking-wide transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
+            className={`relative flex-1 md:px-5 py-2.5 rounded-md text-xs sm:text-sm font-semibold transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
               activeTab === 'gradebook' 
-                ? 'text-white' 
+                ? 'text-slate-950'
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
             {activeTab === 'gradebook' && (
               <motion.span
                 layoutId="activeAnalyticsTab"
-                className="absolute inset-0 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-md -z-10"
+                className="absolute inset-0 bg-cyan-300 rounded-md -z-10"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
             <span className="relative z-10 flex items-center gap-2">
               <GraduationCap className="w-4 h-4 shrink-0" />
-              <span>Дневник оценок</span>
+              <span>Оценки</span>
             </span>
           </button>
         </div>
@@ -274,7 +270,7 @@ export default function Analytics() {
           <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl p-6 text-white relative overflow-hidden"
+        className="hidden"
       >
         <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
         <div className="relative">
@@ -311,18 +307,18 @@ export default function Analytics() {
           { icon: Flame, label: 'Стрик', value: `${streak} дн.`, colorBg: 'bg-rose-50 dark:bg-rose-950/40', colorIcon: 'text-rose-600 dark:text-rose-400', sub: 'дней подряд' },
           { icon: Trophy, label: 'Экзаменов', value: exams.length, colorBg: 'bg-amber-50 dark:bg-amber-950/40', colorIcon: 'text-amber-600 dark:text-amber-400', sub: 'сдано' },
           { icon: Brain, label: 'Карточек', value: totalCards, colorBg: 'bg-emerald-50 dark:bg-emerald-950/40', colorIcon: 'text-emerald-600 dark:text-emerald-400', sub: 'повторено' },
-          { icon: Target, label: 'Средний балл', value: `${avgExamScore}%`, colorBg: 'bg-indigo-50 dark:bg-indigo-950/40', colorIcon: 'text-indigo-600 dark:text-indigo-400', sub: 'на экзаменах' },
+          { icon: Target, label: 'Средний балл', value: `${avgExamScore}%`, colorBg: 'bg-cyan-50 dark:bg-cyan-950/40', colorIcon: 'text-cyan-700 dark:text-cyan-300', sub: 'на экзаменах' },
         ].map(({ icon: Icon, label, value, colorBg, colorIcon, sub }) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card p-3 md:p-4"
+            className="border-y border-slate-200 p-3 dark:border-slate-800 md:p-4"
           >
             <div className={`w-9 h-9 ${colorBg} rounded-lg flex items-center justify-center mb-3`}>
               <Icon className={`w-5 h-5 ${colorIcon}`} />
             </div>
-            <p className="text-2xl font-black text-slate-900 dark:text-slate-100">{value}</p>
+            <p className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">{value}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</p>
           </motion.div>
         ))}
@@ -331,9 +327,9 @@ export default function Analytics() {
       {/* Два столбца: график активности + radar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* График активности */}
-        <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-indigo-500" />
+        <div className="border-y border-slate-200 p-4 dark:border-slate-800 md:p-5 overflow-x-auto custom-scrollbar">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-cyan-600 dark:text-cyan-300" />
             Активность за 30 дней
           </h3>
           <div style={{ height: 180, minWidth: 280 }}>
@@ -341,8 +337,8 @@ export default function Analytics() {
               <AreaChart data={activityData}>
                 <defs>
                   <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} stroke={isDark ? '#334155' : '#e2e8f0'} interval={4} />
@@ -351,15 +347,15 @@ export default function Analytics() {
                   contentStyle={{ borderRadius: 8, border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', fontSize: 12, backgroundColor: isDark ? '#1e293b' : '#ffffff', color: isDark ? '#f1f5f9' : '#0f172a' }}
                   formatter={(v: number) => [v, 'Карточек']}
                 />
-                <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#actGrad)" />
+                <Area type="monotone" dataKey="value" stroke="#22d3ee" strokeWidth={2} fill="url(#actGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Профиль навыков */}
-        <div className="card p-4 md:p-5">
-          <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+        <div className="border-y border-slate-200 p-4 dark:border-slate-800 md:p-5">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-500" />
             Профиль навыков
           </h3>
@@ -368,7 +364,7 @@ export default function Analytics() {
               <RadarChart data={radarData}>
                 <PolarGrid stroke={isDark ? '#334155' : '#e2e8f0'} />
                 <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} />
-                <Radar name="Навыки" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} strokeWidth={2} />
+                <Radar name="Навыки" dataKey="A" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.16} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
@@ -376,10 +372,10 @@ export default function Analytics() {
       </div>
 
       {/* Оценки на экзаменах */}
-      <div className="card p-4 md:p-5 overflow-x-auto custom-scrollbar">
-        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+      <div className="border-y border-slate-200 p-4 dark:border-slate-800 md:p-5 overflow-x-auto custom-scrollbar">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
           <Award className="w-4 h-4 text-rose-500" />
-          Динамика оценок на AI-Экзамене
+          Динамика оценок на устном экзамене
         </h3>
         {examScoreData.length < 3 ? (
           <div className="h-[160px] flex flex-col items-center justify-center text-center">
@@ -403,7 +399,7 @@ export default function Analytics() {
                 <Bar
                   dataKey="score"
                   radius={[4, 4, 0, 0]}
-                  fill="#6366f1"
+                  fill="#22d3ee"
                   label={{ position: 'top', fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b', formatter: (v: number) => `${v}%` }}
                 />
               </BarChart>
@@ -413,8 +409,8 @@ export default function Analytics() {
       </div>
 
       {/* Тепловая карта */}
-      <div className="card p-4 md:p-5">
-        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
+      <div className="border-y border-slate-200 p-4 dark:border-slate-800 md:p-5">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
           <Calendar className="w-4 h-4 text-emerald-500" />
           Карта активности (12 недель)
         </h3>
@@ -436,10 +432,10 @@ export default function Analytics() {
           <span className="text-xs text-slate-400 dark:text-slate-500">Меньше</span>
           {[
             'bg-slate-100 dark:bg-slate-800',
-            'bg-indigo-200 dark:bg-indigo-800',
-            'bg-indigo-400 dark:bg-indigo-600',
-            'bg-indigo-600 dark:bg-indigo-500',
-            'bg-indigo-800 dark:bg-indigo-400'
+            'bg-cyan-200 dark:bg-cyan-900',
+            'bg-cyan-400 dark:bg-cyan-700',
+            'bg-cyan-600 dark:bg-cyan-500',
+            'bg-cyan-800 dark:bg-cyan-300'
           ].map(c => (
             <div key={c} className={`w-3 h-3 rounded-sm ${c}`} />
           ))}
@@ -448,9 +444,9 @@ export default function Analytics() {
       </div>
 
       {/* Тепловая карта владения знаниями */}
-      <div className="card p-4 md:p-5">
-        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
-          <Brain className="w-4 h-4 text-indigo-500 animate-pulse" />
+      <div className="border-y border-slate-200 p-4 dark:border-slate-800 md:p-5">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
+          <Brain className="w-4 h-4 text-cyan-600 dark:text-cyan-300" />
           Карта владения знаниями по темам
         </h3>
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
@@ -571,6 +567,6 @@ export default function Analytics() {
       </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

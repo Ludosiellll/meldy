@@ -33,16 +33,13 @@ const navGroups = [
   {
     title: 'Практика',
     items: [
-      { to: '/review',        icon: Brain,           label: 'Смарт-карточки',       className: '' },
-      { to: '/exam',          icon: Award,           label: 'Устный экзамен',       className: 'tour-step-desktop-exam' },
-      { to: '/mistakes',      icon: BookMarked,      label: 'Ошибки',               className: '' },
+      { to: '/review',        icon: Brain,           label: 'Повторение',           className: '' },
     ]
   },
   {
     title: 'Прогресс',
     items: [
       { to: '/analytics?tab=platform',  icon: BarChart2,       label: 'Прогресс',             className: '' },
-      { to: '/knowledge-map',           icon: Network,         label: 'Карта знаний',         className: '' },
     ]
   },
 ];
@@ -304,7 +301,7 @@ export default function Layout() {
   );
 
   return (
-    <div className="fixed inset-0 flex bg-slate-50 dark:bg-slate-950 overflow-hidden">
+    <div className="app-shell fixed inset-0 flex bg-[#f6f8fa] dark:bg-[#07111f] overflow-hidden">
       <OnboardingManager />
       
       {/* Token Modal */}
@@ -325,12 +322,12 @@ export default function Layout() {
       )}
 
       {/* ═══ SIDEBAR ════════════════════════════════════════════════════════════ */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-xl flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-[#091522] flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 border-r border-white/[0.07] ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Logo */}
         <div className="p-4 md:p-5 flex items-center justify-between w-full border-b border-slate-800">
           <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 hover:opacity-80 transition text-left">
-            <div className="w-7 h-7 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
-              <GraduationCap className="w-4 h-4 text-white" />
+            <div className="w-7 h-7 rounded-md bg-cyan-300 flex items-center justify-center">
+              <GraduationCap className="w-4 h-4 text-slate-950" />
             </div>
             <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
           </button>
@@ -341,7 +338,7 @@ export default function Layout() {
         </div>
 
         {/* XP / Level блок */}
-        {profile === null ? (
+        {false && (profile === null ? (
           <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 animate-pulse h-[116px] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -411,14 +408,14 @@ export default function Layout() {
               )}
             </div>
           </div>
-        )}
+        ))}
 
         {/* Navigation */}
         {showInstall && (
           <div className="px-3 mb-4">
             <button
               onClick={handleInstallClick}
-              className="w-full flex items-center gap-2 justify-center px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[13px] font-bold transition-colors"
+              className="w-full flex items-center gap-2 justify-center px-4 py-2 bg-cyan-300/10 hover:bg-cyan-300/15 text-cyan-200 border border-cyan-200/20 rounded-lg text-[13px] font-semibold transition-colors"
             >
               <Download className="w-4 h-4" />
               Установить приложение
@@ -439,7 +436,7 @@ export default function Layout() {
                     className={({ isActive }) =>
                       `flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-lg transition-colors ${(item as any).className || ''} ` +
                       (isActive
-                        ? 'bg-slate-800 text-white shadow-sm ring-1 ring-white/5'
+                        ? 'bg-cyan-300/10 text-cyan-100 ring-1 ring-cyan-200/15'
                         : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200')
                     }
                   >
@@ -465,7 +462,7 @@ export default function Layout() {
         </nav>
 
         {/* Разделитель + быстрые иконки: Сообщество и Профиль */}
-        <div className="px-4 pb-3 border-t border-slate-800 pt-3 flex items-center gap-2">
+        <div className="hidden px-4 pb-3 border-t border-slate-800 pt-3 items-center gap-2">
           <NavLink
             to="/network"
             title="Study Network"
@@ -499,7 +496,7 @@ export default function Layout() {
               {avatarUrl ? (
                 <img src={avatarUrl} alt="avatar" className={`w-8 h-8 rounded-full object-cover ring-2 ${profile?.is_pro ? 'ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]' : 'ring-indigo-500/50'}`} />
               ) : (
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ring-2 ${profile?.is_pro ? 'bg-gradient-to-br from-amber-400 to-amber-600 ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]' : 'bg-indigo-600 ring-indigo-500/50'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ring-1 ${profile?.is_pro ? 'bg-amber-400 text-slate-950 ring-amber-300' : 'bg-cyan-300 text-slate-950 ring-cyan-200/50'}`}>
                   {initial}
                 </div>
               )}
@@ -512,7 +509,7 @@ export default function Layout() {
             </div>
             
             <div className="relative hidden md:flex items-center gap-1">
-              <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-indigo-400 transition relative p-1" title="Переключить тему">
+              <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-cyan-300 transition-colors relative p-1" title="Переключить тему">
                 {isDarkActive ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               
@@ -538,8 +535,8 @@ export default function Layout() {
         {/* ═══ MOBILE HEADER ════════════════════════════════════════════════ */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shrink-0 z-30">
           <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 hover:opacity-80 transition text-left">
-            <div className="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center shadow-sm">
-              <GraduationCap className="w-3.5 h-3.5 text-white" />
+            <div className="w-6 h-6 rounded bg-cyan-300 flex items-center justify-center">
+              <GraduationCap className="w-3.5 h-3.5 text-slate-950" />
             </div>
             <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
           </button>
@@ -594,12 +591,12 @@ export default function Layout() {
               to={item.to}
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] gap-1 text-[10px] font-bold transition ${item.className || ''} ` +
-                (isActive ? 'text-indigo-600' : 'text-slate-400')
+                (isActive ? 'text-cyan-600 dark:text-cyan-300' : 'text-slate-400')
               }
             >
               {({ isActive }) => (
                 <div className="relative flex flex-col items-center justify-center">
-                  <item.icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  <item.icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-cyan-600 dark:text-cyan-300' : 'text-slate-400'}`} />
                   {item.label}
                   {item.to === '/chat' && unreadDMs > 0 && (
                     <span className="absolute -top-1 -right-2 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border border-white dark:border-slate-900 animate-pulse">

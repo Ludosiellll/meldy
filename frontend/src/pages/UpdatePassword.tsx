@@ -62,10 +62,10 @@ export default function UpdatePassword() {
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-            <GraduationCap className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 bg-cyan-300 rounded-md flex items-center justify-center">
+            <GraduationCap className="w-4 h-4 text-slate-950" />
           </div>
-          <span className="font-extrabold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-indigo-600 transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-cyan-600 transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -75,8 +75,8 @@ export default function UpdatePassword() {
           className="w-full max-w-sm mx-auto"
         >
           <div className="mb-8">
-            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight mb-2">Новый пароль</h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">Придумайте надежный пароль для вашего аккаунта</p>
+            <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight mb-2">Новый пароль</h1>
+            <p className="text-slate-500 dark:text-slate-400">Используйте не менее шести символов.</p>
           </div>
 
           {error && (
@@ -95,16 +95,19 @@ export default function UpdatePassword() {
           ) : (
             <form onSubmit={handleUpdate} className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Новый пароль</label>
+                <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Новый пароль</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <Lock className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
+                    id="new-password"
+                    name="new-password"
                     type="password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-colors"
                     placeholder="••••••••"
                     required
                   />
@@ -112,16 +115,19 @@ export default function UpdatePassword() {
               </div>
               
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Подтвердите пароль</label>
+                <label htmlFor="confirm-new-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Подтвердите пароль</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <Lock className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
+                    id="confirm-new-password"
+                    name="confirm-new-password"
                     type="password"
+                    autoComplete="new-password"
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-colors"
                     placeholder="••••••••"
                     required
                   />
@@ -131,7 +137,7 @@ export default function UpdatePassword() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-lg shadow-indigo-200 hover:shadow-indigo-300 disabled:opacity-70 mt-4"
+                className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent rounded-lg text-sm font-semibold text-slate-950 bg-cyan-300 hover:bg-cyan-200 focus-visible:ring-2 focus-visible:ring-cyan-400 transition-colors disabled:opacity-70 mt-4"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">Сохраняем... <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /></span>
@@ -145,8 +151,8 @@ export default function UpdatePassword() {
       </div>
 
       {/* Right Column: Branded Visual (Hidden on mobile) */}
-      <div className="hidden lg:flex flex-1 relative bg-indigo-600 overflow-hidden items-center justify-center p-12">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-indigo-800" />
+      <div className="hidden lg:flex flex-1 relative bg-[#07111f] overflow-hidden items-center justify-center p-12 border-l border-white/10">
+        <div className="absolute inset-0 bg-[#07111f]" />
         <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-white/10 rounded-full blur-3xl" />
         
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
@@ -155,19 +161,19 @@ export default function UpdatePassword() {
           initial={{ opacity: 0, scale: 0.9, rotateY: -15 }}
           animate={{ opacity: 1, scale: 1, rotateY: 0 }}
           transition={{ duration: 0.8, type: "spring" }}
-          className="relative w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl"
+          className="relative w-full max-w-md border-y border-white/10 py-8"
           style={{ transformStyle: "preserve-3d", perspective: 1000 }}
         >
           <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-6 border border-white/20 shadow-inner">
             <ShieldCheck className="w-6 h-6 text-white" />
           </div>
           
-          <h2 className="text-3xl font-black text-white leading-tight mb-4 tracking-tight">
-            Финальный шаг
+          <h2 className="text-3xl font-semibold text-white leading-tight mb-4 tracking-tight">
+            Один шаг до продолжения
           </h2>
           
-          <p className="text-indigo-100 leading-relaxed text-sm mb-6">
-            Ваши данные будут надежно зашифрованы. Для большей безопасности используйте разные пароли на разных сервисах.
+          <p className="text-slate-300 leading-relaxed text-sm mb-6">
+            После сохранения вы вернётесь в StudyForge и продолжите работу с прежними материалами.
           </p>
         </motion.div>
       </div>

@@ -288,7 +288,7 @@ export default function Analyze() {
                 <AlertTriangle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Ошибка</h2>
                 <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">{state.error}</p>
-                <button onClick={reset} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition">Попробовать снова</button>
+                <button onClick={reset} className="rounded-lg bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300">Попробовать снова</button>
               </>
             )}
           </motion.div>
