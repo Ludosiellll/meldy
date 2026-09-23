@@ -109,7 +109,7 @@ export default function Dashboard() {
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-10">
       <header className="flex flex-col gap-5 border-b border-slate-200 pb-7 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 dark:text-cyan-300">Сегодня</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sf-accent)]">Сегодня</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 md:text-4xl">{name}, что повторим?</h1>
           <p className="mt-2 text-sm capitalize text-slate-500 dark:text-slate-400">{format(new Date(), 'EEEE, d MMMM', { locale: ru })}</p>
         </div>
@@ -119,16 +119,15 @@ export default function Dashboard() {
       </header>
 
       <section className="grid gap-8 py-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.75fr)]">
-        <button type="button" onClick={() => navigate(primaryAction.route)} className="group relative min-h-64 overflow-hidden rounded-xl border border-cyan-300/35 bg-[#091827] p-6 text-left text-white transition-colors hover:border-cyan-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 sm:p-8">
-          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(148,163,184,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,.08)_1px,transparent_1px)] [background-size:36px_36px]" />
+        <button type="button" onClick={() => navigate(primaryAction.route)} className="group relative min-h-64 overflow-hidden rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-6 text-left text-[var(--sf-ink)] transition-colors hover:border-[var(--sf-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sf-accent)] sm:p-8">
           <div className="relative flex h-full min-h-48 flex-col justify-between gap-8">
             <div>
-              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-md border border-cyan-200/20 bg-cyan-300/10"><PrimaryIcon className="h-5 w-5 text-cyan-300" /></div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-300">{primaryAction.eyebrow}</p>
+              <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-md border border-[var(--sf-line)] bg-[var(--sf-accent-soft)]"><PrimaryIcon className="h-5 w-5 text-[var(--sf-accent)]" /></div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sf-accent)]">{primaryAction.eyebrow}</p>
               <h2 className="mt-2 max-w-xl text-2xl font-semibold tracking-tight sm:text-3xl">{primaryAction.title}</h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">{primaryAction.description}</p>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--sf-muted)] sm:text-base">{primaryAction.description}</p>
             </div>
-            <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">{primaryAction.label}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
+            <span className="inline-flex min-h-11 w-fit items-center gap-2 rounded-full bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition group-hover:-translate-y-px group-hover:bg-[var(--sf-accent-hover)] group-active:translate-y-px group-active:shadow-none">{primaryAction.label}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
           </div>
         </button>
 
@@ -156,7 +155,7 @@ export default function Dashboard() {
         <div>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">Библиотека</p><h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">Последние материалы</h2></div>
-            <button type="button" onClick={() => navigate('/library')} className="text-sm font-medium text-cyan-700 hover:text-cyan-600 dark:text-cyan-300">Открыть все</button>
+            <button type="button" onClick={() => navigate('/library')} className="text-sm font-medium text-[var(--sf-accent)] hover:opacity-80">Открыть все</button>
           </div>
           {materials.length === 0 ? (
             <div className="border-y border-dashed border-slate-300 py-10 text-center dark:border-slate-700"><FileText className="mx-auto h-6 w-6 text-slate-400" /><p className="mt-3 text-sm text-slate-600 dark:text-slate-300">В библиотеке пока нет материалов.</p></div>

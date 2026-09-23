@@ -70,7 +70,7 @@ export default function LandingHero() {
             <button className="sf-watch" onClick={replay}><Play size={14} fill="currentColor" /> Смотреть демо</button>
           </div>
           <p className="sf-formats">PDF, DOCX, TXT · аудио и видео</p>
-          <div className="sf-intro-foot"><span>01 — 04</span><p>От первого прочтения<br />до самостоятельного ответа.</p></div>
+          <div className="sf-intro-foot"><p>От первого прочтения<br />до самостоятельного ответа.</p></div>
         </div>
 
         <div className="sf-demo-wrap" ref={stageRef} id="learning-demo">
@@ -78,35 +78,35 @@ export default function LandingHero() {
           <div className="sf-demo">
             <div className="sf-demo-toolbar"><div><FileText size={15} /><span>Как работает память.pdf</span></div><span>Пример материала</span></div>
             <div className="sf-stage">
-              <div className="sf-stage-heading"><span>УЧИМСЯ НА ОДНОМ ПРИМЕРЕ</span><span className="sf-chapter-number">0{chapter + 1}<small> / 04</small></span></div>
+              <div className="sf-stage-heading"><span>УЧИМСЯ НА ОДНОМ ПРИМЕРЕ</span></div>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div className="sf-scene" key={`${chapter}-${run}`} initial={{ opacity: 0, y: reduceMotion ? 0 : 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduceMotion ? 0 : -12 }} transition={{ duration: reduceMotion ? 0 : 0.32 }}>
                   {chapter === 0 && <div className="sf-paper">
-                    <div className="sf-paper-meta"><span>ПСИХОЛОГИЯ ОБУЧЕНИЯ</span><span>01 / 06</span></div>
+                    <div className="sf-paper-meta"><span>ПСИХОЛОГИЯ ОБУЧЕНИЯ</span></div>
                     <h2>Почему мы забываем<br />прочитанное?</h2>
                     <p>Знакомый текст легко принять за усвоенный. При повторном чтении кажется, что вы всё знаете, но без конспекта ответить бывает сложнее.</p>
                     <p><span className={autoplay ? 'sf-highlight sf-highlight-animate' : 'sf-highlight'}>Активное вспоминание — попытка восстановить информацию по памяти, прежде чем посмотреть ответ.</span></p>
-                    <div className="sf-source-note"><span>01</span> Именно эту мысль разберём дальше <ArrowRight size={15} /></div>
+                    <div className="sf-source-note">Именно эту мысль разберём дальше <ArrowRight size={15} /></div>
                   </div>}
                   {chapter === 1 && <div className="sf-summary">
                     <div className="sf-scene-label">КОНСПЕКТ / ГЛАВНОЕ</div>
                     <h2>Знакомо ≠ запомнил.</h2>
                     <p className="sf-summary-lead">Проверяйте, что можете вспомнить<br />без открытого конспекта.</p>
-                    {['Прочитайте небольшой фрагмент.', 'Закройте текст и объясните своими словами.', 'Сверьтесь с материалом и заполните пробелы.'].map((text, i) => <motion.div className="sf-summary-row" key={text} initial={{ opacity: reduceMotion ? 1 : 0, x: reduceMotion ? 0 : 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: reduceMotion ? 0 : i * 0.22 }}><span>0{i + 1}</span><p>{text}</p></motion.div>)}
+                    {['Прочитайте небольшой фрагмент.', 'Закройте текст и объясните своими словами.', 'Сверьтесь с материалом и заполните пробелы.'].map((text, i) => <motion.div className="sf-summary-row" key={text} initial={{ opacity: reduceMotion ? 1 : 0, x: reduceMotion ? 0 : 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: reduceMotion ? 0 : i * 0.22 }}><p>{text}</p></motion.div>)}
                     <div className="sf-source-tag"><FileText size={13} /> По материалу «Как работает память»</div>
                   </div>}
                   {chapter === 2 && <div className="sf-cards">
                     <div className="sf-scene-label">КАРТОЧКА / ПОПРОБУЙТЕ ВСПОМНИТЬ</div>
                     <button className={`sf-flashcard ${flipped ? 'is-flipped' : ''}`} onClick={() => { setPlaying(false); setFlipped(v => !v); }} aria-label={flipped ? 'Скрыть ответ на карточке' : 'Открыть ответ на карточке'} aria-pressed={flipped}>
                       <span className="sf-card-rotator">
-                        <span className="sf-card-face sf-card-front" aria-hidden={flipped}><span className="sf-card-top">01 <span>ВОПРОС</span></span><strong>Что такое<br />активное вспоминание?</strong><span className="sf-card-bottom">Подумайте. Затем переверните. <ArrowUpRight size={18} /></span></span>
+                        <span className="sf-card-face sf-card-front" aria-hidden={flipped}><span className="sf-card-top">ВОПРОС</span><strong>Что такое<br />активное вспоминание?</strong><span className="sf-card-bottom">Подумайте. Затем переверните. <ArrowUpRight size={18} /></span></span>
                         <span className="sf-card-face sf-card-back" aria-hidden={!flipped}><span className="sf-card-top"><Check size={20} /><span>ОТВЕТ</span></span><strong>Восстановить информацию по памяти до просмотра подсказки.</strong><span className="sf-card-bottom">Например, объяснить тему с закрытым конспектом.</span></span>
                       </span>
                     </button>
                     <p className="sf-card-hint">Нажмите на карточку, чтобы перевернуть её.</p>
                   </div>}
                   {chapter === 3 && <div className="sf-quiz">
-                    <div className="sf-scene-label">ПРОВЕРКА / ВОПРОС 01</div>
+                    <div className="sf-scene-label">ПРОВЕРКА ЗНАНИЙ</div>
                     <h2>Как проверить,<br />что вы запомнили тему?</h2>
                     <div className="sf-answers">{answers.map((text, i) => <button key={text} className={`sf-answer ${answer === i ? (i === 1 ? 'is-correct' : 'is-wrong') : ''}`} onClick={() => { setPlaying(false); setAnswer(i); }} aria-pressed={answer === i}><span>{String.fromCharCode(65 + i)}</span>{text}{answer === i && i === 1 && <Check size={16} />}</button>)}</div>
                     <div className={`sf-feedback ${answer !== null ? 'is-visible' : ''}`} aria-live="polite">{answer === 1 ? 'Верно. Самостоятельный ответ показывает, что удалось вспомнить.' : answer !== null ? 'Перечитывание и выделение не проверяют вспоминание. Попробуйте ответить без текста.' : 'Выберите ответ — это демо можно попробовать.'}</div>
@@ -115,7 +115,7 @@ export default function LandingHero() {
               </AnimatePresence>
             </div>
             <div className="sf-demo-controls">
-              <div className="sf-chapters" aria-label="Этапы демонстрации">{chapters.map((label, i) => <button key={label} aria-pressed={chapter === i} onClick={() => selectChapter(i)} className={chapter === i ? 'is-active' : ''}><span className="sf-track">{chapter === i && <span key={`${chapter}-${autoplay}-${run}`} className={autoplay ? 'sf-track-fill is-playing' : 'sf-track-fill'} style={{ animationDuration: `${durations[i]}ms` }} />}</span><span><small>0{i + 1}</small>{label}</span></button>)}</div>
+              <div className="sf-chapters" aria-label="Этапы демонстрации">{chapters.map((label, i) => <button key={label} aria-pressed={chapter === i} onClick={() => selectChapter(i)} className={chapter === i ? 'is-active' : ''}><span className="sf-track">{chapter === i && <span key={`${chapter}-${autoplay}-${run}`} className={autoplay ? 'sf-track-fill is-playing' : 'sf-track-fill'} style={{ animationDuration: `${durations[i]}ms` }} />}</span><span>{label}</span></button>)}</div>
               <button className="sf-playback" aria-label={playing && !reduceMotion ? 'Приостановить демо' : 'Продолжить демо'} onClick={() => setPlaying(v => !v)} disabled={!!reduceMotion}>{playing && !reduceMotion ? <Pause size={16} /> : <Play size={16} />}</button>
               <button className="sf-playback sf-replay" aria-label="Начать демо заново" onClick={replay}><RotateCcw size={16} /></button>
             </div>

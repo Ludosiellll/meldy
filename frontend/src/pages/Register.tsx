@@ -108,14 +108,14 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa] dark:bg-[#07111f] flex text-slate-900 dark:text-slate-100">
+    <div className="auth-page min-h-screen flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-start sm:justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative pt-28 pb-12 sm:py-12">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-cyan-300 rounded-md flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-slate-950" />
+          <div className="app-logo-mark w-8 h-8 rounded-md flex items-center justify-center">
+            <GraduationCap className="w-4 h-4" />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-cyan-600 transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -309,7 +309,7 @@ export default function Register() {
               <div className="w-full border-t border-slate-200 dark:border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#f8fafc] dark:bg-slate-950 px-3 text-slate-400 dark:text-slate-500 font-medium">или войти через</span>
+              <span className="auth-divider-label px-3 text-slate-400 dark:text-slate-500 font-medium">или войти через</span>
             </div>
           </div>
 
@@ -330,7 +330,7 @@ export default function Register() {
 
           <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Уже есть аккаунт?{' '}
-            <button onClick={() => navigate('/login')} className="font-semibold text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 hover:underline transition-colors">
+            <button onClick={() => navigate('/login')} className="font-semibold text-[var(--sf-accent)] hover:underline transition-colors">
               Войти
             </button>
           </p>
@@ -338,12 +338,7 @@ export default function Register() {
       </div>
 
       {/* Right Column: Branded Visual (Hidden on mobile) */}
-      <div className="hidden lg:flex flex-1 relative bg-[#07111f] overflow-hidden items-center justify-center p-12 border-l border-white/10">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(148,163,184,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.08) 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
-        
-        {/* Geometric pattern overlay */}
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+      <div className="auth-showcase hidden lg:flex flex-1 relative overflow-hidden items-center justify-center p-12 border-l">
 
         {/* Floating Abstract Element */}
         <motion.div 
@@ -352,7 +347,7 @@ export default function Register() {
           transition={{ duration: 0.8, type: "spring", delay: 0.1 }}
           className="relative z-10 w-full max-w-md"
         >
-          <div className="border-y border-white/10 py-8 relative">
+          <div className="border-y py-8 relative">
             <div className="w-12 h-12 bg-cyan-300/10 rounded-lg flex items-center justify-center mb-6 border border-cyan-200/20">
               <BookOpen className="w-6 h-6 text-cyan-300" />
             </div>

@@ -40,6 +40,7 @@ const navGroups = [
     title: 'Прогресс',
     items: [
       { to: '/analytics?tab=platform',  icon: BarChart2,       label: 'Прогресс',             className: '' },
+      { to: '/knowledge-map', icon: Network, label: 'Карта знаний', className: '' },
     ]
   },
 ];
@@ -301,7 +302,7 @@ export default function Layout() {
   );
 
   return (
-    <div className="app-shell fixed inset-0 flex bg-[#f6f8fa] dark:bg-[#07111f] overflow-hidden">
+    <div className="app-shell fixed inset-0 flex overflow-hidden">
       <OnboardingManager />
       
       {/* Token Modal */}
@@ -322,17 +323,17 @@ export default function Layout() {
       )}
 
       {/* ═══ SIDEBAR ════════════════════════════════════════════════════════════ */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-[#091522] flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 border-r border-white/[0.07] ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 w-72 md:w-64 flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 border-r ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         {/* Logo */}
-        <div className="p-4 md:p-5 flex items-center justify-between w-full border-b border-slate-800">
+        <div className="p-4 md:p-5 flex items-center justify-between w-full border-b">
           <button onClick={() => navigate('/dashboard')} className="flex items-center gap-3 hover:opacity-80 transition text-left">
-            <div className="w-7 h-7 rounded-md bg-cyan-300 flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-slate-950" />
+            <div className="app-logo-mark w-7 h-7 rounded-md flex items-center justify-center">
+              <GraduationCap className="w-4 h-4" />
             </div>
-            <span className="font-semibold tracking-tight text-white text-lg">StudyForge</span>
+            <span className="font-semibold tracking-tight text-lg">StudyForge</span>
           </button>
           
-          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 -mr-2 text-slate-400 hover:text-white transition">
+              <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 -mr-2 text-slate-400 hover:text-slate-900 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -425,7 +426,7 @@ export default function Layout() {
         <nav className="flex-1 px-3 pb-6 space-y-5 overflow-y-auto custom-scrollbar">
           {currentNavGroups.map((group: any, idx: number) => (
             <div key={idx}>
-              <h3 className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <h3 className="app-nav-group-title px-3 text-[11px] font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 {group.title}
               </h3>
               <div className="space-y-0.5">
@@ -436,8 +437,8 @@ export default function Layout() {
                     className={({ isActive }) =>
                       `flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-lg transition-colors ${(item as any).className || ''} ` +
                       (isActive
-                        ? 'bg-cyan-300/10 text-cyan-100 ring-1 ring-cyan-200/15'
-                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200')
+                        ? 'app-nav-active'
+                        : 'app-nav-idle')
                     }
                   >
                     <div className="flex items-center gap-3">
@@ -509,7 +510,7 @@ export default function Layout() {
             </div>
             
             <div className="relative hidden md:flex items-center gap-1">
-              <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-cyan-300 transition-colors relative p-1" title="Переключить тему">
+              <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="text-slate-500 hover:text-[var(--sf-accent)] transition-colors relative p-1" title="Переключить тему">
                 {isDarkActive ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               
@@ -533,10 +534,10 @@ export default function Layout() {
       {/* ═══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
         {/* ═══ MOBILE HEADER ════════════════════════════════════════════════ */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shrink-0 z-30">
+        <header className="app-mobile-header md:hidden flex items-center justify-between px-4 py-3 backdrop-blur-md border-b shrink-0 z-30">
           <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 hover:opacity-80 transition text-left">
-            <div className="w-6 h-6 rounded bg-cyan-300 flex items-center justify-center">
-              <GraduationCap className="w-3.5 h-3.5 text-slate-950" />
+            <div className="app-logo-mark w-6 h-6 rounded flex items-center justify-center">
+              <GraduationCap className="w-3.5 h-3.5" />
             </div>
             <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
           </button>
@@ -557,10 +558,10 @@ export default function Layout() {
                 </div>
               )}
             </button>
-            <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="p-2 text-slate-500 hover:text-indigo-600 transition" title="Переключить тему">
+            <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="p-2 text-slate-500 hover:text-[var(--sf-accent)] transition" title="Переключить тему">
               {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <button onClick={handleOpenNotifications} className="p-2 text-slate-500 hover:text-indigo-600 transition relative">
+            <button onClick={handleOpenNotifications} className="p-2 text-slate-500 hover:text-[var(--sf-accent)] transition relative">
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
@@ -568,7 +569,7 @@ export default function Layout() {
                 </span>
               )}
             </button>
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -mr-2 text-slate-500 hover:text-indigo-600 transition relative">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -mr-2 text-slate-500 hover:text-[var(--sf-accent)] transition relative">
               <Menu className="w-6 h-6" />
               {unreadDMs > 0 && (
                 <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white dark:border-slate-900 animate-pulse" />
@@ -584,19 +585,19 @@ export default function Layout() {
         </main>
 
         {/* ═══ MOBILE BOTTOM NAV ════════════════════════════════════════════════ */}
-        <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex md:hidden pb-safe">
+        <nav className="app-mobile-nav fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t flex md:hidden pb-safe">
           {mobileNavItems.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] gap-1 text-[10px] font-bold transition ${item.className || ''} ` +
-                (isActive ? 'text-cyan-600 dark:text-cyan-300' : 'text-slate-400')
+                (isActive ? 'app-nav-active' : 'app-nav-idle')
               }
             >
               {({ isActive }) => (
                 <div className="relative flex flex-col items-center justify-center">
-                  <item.icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-cyan-600 dark:text-cyan-300' : 'text-slate-400'}`} />
+                  <item.icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-[var(--sf-accent)]' : 'text-slate-400'}`} />
                   {item.label}
                   {item.to === '/chat' && unreadDMs > 0 && (
                     <span className="absolute -top-1 -right-2 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border border-white dark:border-slate-900 animate-pulse">

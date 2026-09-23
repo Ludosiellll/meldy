@@ -33,14 +33,14 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-950 flex text-slate-900 dark:text-slate-100">
+    <div className="auth-page min-h-screen flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-cyan-300 rounded-md flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-slate-950" />
+          <div className="app-logo-mark w-8 h-8 rounded-md flex items-center justify-center">
+            <GraduationCap className="w-4 h-4" />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-cyan-600 transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -88,7 +88,7 @@ export default function ForgotPassword() {
                     autoComplete="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-colors"
+                    className="block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-[var(--sf-accent)] focus:border-[var(--sf-accent)] outline-none transition-colors"
                     placeholder="you@example.com"
                     required
                   />
@@ -111,7 +111,7 @@ export default function ForgotPassword() {
 
           <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Вспомнили пароль?{' '}
-            <button onClick={() => navigate('/login')} className="font-semibold text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 hover:underline transition-colors">
+            <button onClick={() => navigate('/login')} className="font-semibold text-[var(--sf-accent)] hover:underline transition-colors">
               Войти в аккаунт
             </button>
           </p>
@@ -119,18 +119,13 @@ export default function ForgotPassword() {
       </div>
 
       {/* Right Column: Branded Visual (Hidden on mobile) */}
-      <div className="hidden lg:flex flex-1 relative bg-[#07111f] overflow-hidden items-center justify-center p-12 border-l border-white/10">
-        <div className="absolute inset-0 bg-[#07111f]" />
-        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-400/10 rounded-full blur-3xl" />
-        
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+      <div className="auth-showcase hidden lg:flex flex-1 relative overflow-hidden items-center justify-center p-12 border-l">
 
         <motion.div 
           initial={{ opacity: 0, scale: 0.9, rotateY: 15 }}
           animate={{ opacity: 1, scale: 1, rotateY: 0 }}
           transition={{ duration: 0.8, type: "spring" }}
-          className="relative w-full max-w-md border-y border-white/10 py-8"
+          className="relative w-full max-w-md border-y py-8"
           style={{ transformStyle: "preserve-3d", perspective: 1000 }}
         >
           <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-6 border border-white/20 shadow-inner">
@@ -145,8 +140,8 @@ export default function ForgotPassword() {
             Укажите почту аккаунта и откройте ссылку из письма. После смены пароля материалы останутся на месте.
           </p>
           
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex gap-3">
-            <HelpCircle className="w-5 h-5 text-cyan-300 shrink-0" />
+          <div className="auth-showcase-note border rounded-xl p-4 flex gap-3">
+            <HelpCircle className="w-5 h-5 text-[var(--sf-accent)] shrink-0" />
             <p className="text-xs text-slate-300">Проверьте папку «Спам», если письмо долго не приходит.</p>
           </div>
         </motion.div>

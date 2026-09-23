@@ -1,14 +1,25 @@
-import { SummaryInfo, Term } from '../types';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Network, BookOpen, AlertCircle, CheckCircle2,
-  Plus, Minus, ChevronRight, Zap, Info, HelpCircle
+  AlertCircle, ArrowUpRight, BookOpen, Check, CheckCircle2, ChevronRight,
+  FileText, Focus, Network, RotateCcw, Search, X, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeProvider';
+
+type KnowledgeStatus = 'weak' | 'strong' | 'neutral';
+type GraphFilter = 'all' | 'shared' | 'weak';
+type ViewMode = 'map' | 'list';
+
+interface MaterialRecord {
+  id: string;
+  title: string;
+  subject?: string | null;
+  created_at?: string | null;
+  summary_json?: unknown;
+  [key: string]: unknown;
+}
 
 interface GraphNode {
   id: string;
@@ -16,16 +27,13 @@ interface GraphNode {
   type: 'material' | 'concept';
   x: number;
   y: number;
-  vx: number;
-  vy: number;
   radius: number;
-  status: 'weak' | 'strong' | 'neutral';
+  labelWidth: number;
+  status: KnowledgeStatus;
   color: string;
   definition?: string;
   materials?: { id: string; title: string }[];
-  details?: any;
-  fx?: number | null;
-  fy?: number | null;
+  details?: MaterialRecord;
 }
 
 interface GraphLink {
@@ -33,17 +41,354 @@ interface GraphLink {
   target: string;
 }
 
-// Obsidian-style palette
-const SUBJECT_COLORS = [
-  '#a78bfa', // Purple / Violet
-  '#38bdf8', // Cyan / Sky
-  '#f472b6', // Pink
-  '#fb923c', // Orange
-  '#fb7185', // Rose
-  '#2dd4bf', // Teal
-  '#c084fc', // Fuchsia
-  '#60a5fa'  // Blue
-];
+interface ParsedTerm {
+  term: string;
+  definition: string;
+}
+
+interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+  viewBox: string;
+}
+
+const SUBJECT_COLORS = ['#607d75', '#8a6d52', '#5c7590', '#806b8a', '#8a6058', '#6f7e51'];
+const STATUS_COLORS: Record<KnowledgeStatus, string> = {
+  weak: '#b65342',
+  strong: '#4f8065',
+  neutral: '#557a96'
+};
+
+function normalizeTerm(value: string) {
+  return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU');
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function extractTerms(rawSummary: unknown): ParsedTerm[] {
+  let summary: any = rawSummary;
+  if (typeof summary === 'string') {
+    try { summary = JSON.parse(summary); } catch { /* older rows may store Markdown directly */ }
+  }
+
+  const structured = Array.isArray(summary?.terms) ? summary.terms : [];
+  const terms: ParsedTerm[] = structured
+    .filter((item: any) => item?.term && item?.definition)
+    .map((item: any) => ({ term: String(item.term).trim(), definition: String(item.definition).trim() }));
+  if (terms.length) return dedupeTerms(terms);
+
+  const content = typeof summary === 'string' ? summary : summary?.content || summary?.raw || '';
+  if (typeof content !== 'string' || !content.trim()) return [];
+
+  const sections = content.split(/(?=^##\s)/gm);
+  const termsSection = sections.find(section => /термин|терминология|глоссар/i.test(section));
+  const headingPattern = /(?:^|\n)\s*(?:\d+\.|[-*])\s+\*\*([^*]+)\*\*\s*(?:—|–|-|:)\s*([^\n]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = headingPattern.exec(termsSection || '')) !== null) {
+    terms.push({ term: match[1].trim(), definition: match[2].trim() });
+  }
+
+  if (!terms.length) {
+    const inlinePattern = /\*\*([^*]+)\*\*\s*(?:—|–|-|:)\s*([^\n]+)/g;
+    while ((match = inlinePattern.exec(content)) !== null) {
+      const term = match[1].trim();
+      const definition = match[2].trim();
+      if (term.length <= 48 && definition.length > 5) terms.push({ term, definition });
+    }
+  }
+
+  return dedupeTerms(terms);
+}
+
+function dedupeTerms(terms: ParsedTerm[]) {
+  const seen = new Set<string>();
+  return terms.filter(({ term, definition }) => {
+    const key = normalizeTerm(term);
+    if (!key || key.length < 2 || !definition || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function truncate(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1).trimEnd()}…` : value;
+}
+
+function titleLines(value: string): [string, string] {
+  const words = value.trim().split(/\s+/);
+  let first = '';
+  let second = '';
+  for (const word of words) {
+    if (!first || `${first} ${word}`.length <= 19) first = `${first} ${word}`.trim();
+    else if (!second || `${second} ${word}`.length <= 19) second = `${second} ${word}`.trim();
+    else {
+      second = truncate(`${second} ${word}`, 19);
+      break;
+    }
+  }
+  if (!second && value.length > first.length) second = truncate(value.slice(first.length).trim(), 19);
+  return [first || 'Без названия', second];
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function pluralCount(value: number, forms: [string, string, string]) {
+  const mod100 = Math.abs(value) % 100;
+  const mod10 = mod100 % 10;
+  const form = mod100 > 10 && mod100 < 20 ? forms[2] : mod10 === 1 ? forms[0] : mod10 >= 2 && mod10 <= 4 ? forms[1] : forms[2];
+  return `${value} ${form}`;
+}
+
+function buildGraph(materials: MaterialRecord[], mistakes: any[]): GraphData {
+  const center = { x: 820, y: 620 };
+  const materialCount = materials.length;
+  const groupedMaterials = [...materials].sort((a, b) =>
+    String(a.subject || 'Общее').localeCompare(String(b.subject || 'Общее'), 'ru') ||
+    String(a.title || '').localeCompare(String(b.title || ''), 'ru') ||
+    String(a.id).localeCompare(String(b.id))
+  );
+  const columns = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(materialCount * 1.7))));
+  const rows = Math.ceil(materialCount / columns);
+  const columnStep = 360;
+  const rowStep = 310;
+  const nodes: GraphNode[] = [];
+  const links: GraphLink[] = [];
+  const materialPositions = new Map<string, { x: number; y: number }>();
+  const subjectColor = (subject: string) => SUBJECT_COLORS[hashString(subject) % SUBJECT_COLORS.length];
+
+  groupedMaterials.forEach((material, index) => {
+    const row = Math.floor(index / columns);
+    const column = index % columns;
+    const itemsInRow = Math.min(columns, materialCount - row * columns);
+    const x = center.x + (column - (itemsInRow - 1) / 2) * columnStep;
+    const y = center.y + (row - (rows - 1) / 2) * rowStep;
+    const subject = String(material.subject || 'Общее').trim() || 'Общее';
+    materialPositions.set(material.id, { x, y });
+    nodes.push({
+      id: material.id,
+      label: String(material.title || 'Без названия'),
+      type: 'material',
+      x,
+      y,
+      radius: 98,
+      labelWidth: 190,
+      status: 'neutral',
+      color: subjectColor(subject),
+      details: material
+    });
+  });
+
+  const conceptMap = new Map<string, {
+    term: string;
+    definition: string;
+    materials: { id: string; title: string }[];
+    status: KnowledgeStatus;
+  }>();
+
+  for (const material of materials) {
+    for (const parsed of extractTerms(material.summary_json)) {
+      const key = normalizeTerm(parsed.term);
+      if (!key) continue;
+      const matchingMistakes = mistakes.filter((mistake: any) => {
+        const topic = normalizeTerm(String(mistake.topic || ''));
+        const question = normalizeTerm(String(mistake.question || ''));
+        return topic.includes(key) || question.includes(key);
+      });
+      const status: KnowledgeStatus = matchingMistakes.some((mistake: any) => mistake.is_resolved !== true)
+        ? 'weak'
+        : matchingMistakes.length ? 'strong' : 'neutral';
+      const existing = conceptMap.get(key);
+      const materialRef = { id: material.id, title: String(material.title || 'Без названия') };
+      if (existing) {
+        if (!existing.materials.some(item => item.id === material.id)) existing.materials.push(materialRef);
+        if (status === 'weak') existing.status = 'weak';
+        else if (status === 'strong' && existing.status === 'neutral') existing.status = 'strong';
+        if (parsed.definition.length > existing.definition.length) existing.definition = parsed.definition;
+      } else {
+        conceptMap.set(key, { term: parsed.term, definition: parsed.definition, materials: [materialRef], status });
+      }
+    }
+  }
+
+  const concepts = [...conceptMap.entries()].sort(([keyA], [keyB]) => keyA.localeCompare(keyB, 'ru'));
+  const conceptsByMaterial = new Map<string, string[]>();
+  for (const [key, value] of concepts) {
+    for (const material of value.materials) {
+      const list = conceptsByMaterial.get(material.id) || [];
+      list.push(key);
+      conceptsByMaterial.set(material.id, list);
+    }
+  }
+  const sharedConcepts = concepts.filter(([, value]) => value.materials.length > 1);
+  const sharedIndex = new Map(sharedConcepts.map(([key], index) => [key, index]));
+  const conceptPositions = new Map<string, { x: number; y: number }>();
+
+  for (const [key, value] of concepts) {
+    const linkedPositions = value.materials
+      .map(material => materialPositions.get(material.id))
+      .filter((position): position is { x: number; y: number } => Boolean(position));
+    if (!linkedPositions.length) continue;
+
+    let x: number;
+    let y: number;
+    if (linkedPositions.length > 1) {
+      const centroid = linkedPositions.reduce((sum, position) => ({ x: sum.x + position.x / linkedPositions.length, y: sum.y + position.y / linkedPositions.length }), { x: 0, y: 0 });
+      const index = sharedIndex.get(key) || 0;
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(1, sharedConcepts.length);
+      const bridgeOffset = 62 + Math.floor(index / 10) * 34;
+      x = centroid.x + Math.cos(angle) * bridgeOffset;
+      y = centroid.y + Math.sin(angle) * bridgeOffset;
+    } else {
+      const materialId = value.materials[0].id;
+      const position = linkedPositions[0];
+      const siblings = conceptsByMaterial.get(materialId) || [key];
+      const index = siblings.indexOf(key);
+      const angle = -Math.PI / 2 + index * 2.399963229728653;
+      const ring = 154 + Math.floor(index / 10) * 76;
+      x = position.x + Math.cos(angle) * ring;
+      y = position.y + Math.sin(angle) * ring;
+    }
+    conceptPositions.set(key, { x, y });
+  }
+
+  const conceptEntries = concepts.filter(([key]) => conceptPositions.has(key));
+  // Keep topic labels legible without moving source materials: only concepts relax around their true links.
+  for (let pass = 0; pass < 90; pass++) {
+    let changed = false;
+    for (let index = 0; index < conceptEntries.length; index++) {
+      const [keyA, valueA] = conceptEntries[index];
+      const a = conceptPositions.get(keyA)!;
+      const halfA = Math.min(104, Math.max(28, valueA.term.length * 3.2));
+      for (let other = index + 1; other < conceptEntries.length; other++) {
+        const [keyB, valueB] = conceptEntries[other];
+        const b = conceptPositions.get(keyB)!;
+        const halfB = Math.min(104, Math.max(28, valueB.term.length * 3.2));
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const minDistance = halfA + halfB + 28;
+        const distance = Math.hypot(dx, dy) || 0.01;
+        if (distance < minDistance) {
+          const shift = Math.min(14, (minDistance - distance) * 0.28);
+          const nx = (dx / distance) * shift;
+          const ny = (dy / distance) * shift;
+          a.x -= nx; a.y -= ny;
+          b.x += nx; b.y += ny;
+          changed = true;
+        }
+      }
+      for (const material of nodes) {
+        if (material.type !== 'material') continue;
+        const dx = a.x - material.x;
+        const dy = a.y - material.y;
+        const distance = Math.hypot(dx, dy) || 0.01;
+        const minDistance = material.radius + Math.max(46, halfA) + 14;
+        if (distance < minDistance) {
+          const shift = Math.min(18, (minDistance - distance) * 0.38);
+          a.x += (dx / distance) * shift;
+          a.y += (dy / distance) * shift;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+
+  for (const [key, value] of concepts) {
+    const position = conceptPositions.get(key);
+    if (!position) continue;
+    nodes.push({
+      id: `concept:${key}`,
+      label: value.term,
+      type: 'concept',
+      x: position.x,
+      y: position.y,
+      radius: 12 + Math.min(5, Math.max(0, value.materials.length - 1) * 2),
+      labelWidth: Math.min(208, Math.max(56, value.term.length * 7)),
+      status: value.status,
+      color: STATUS_COLORS[value.status],
+      definition: value.definition,
+      materials: value.materials
+    });
+    for (const material of value.materials) links.push({ source: material.id, target: `concept:${key}` });
+  }
+
+  const margin = 80;
+  if (!nodes.length) return { nodes, links, viewBox: '0 0 900 620' };
+  const minX = Math.min(...nodes.map(node => node.x - (node.type === 'material' ? node.radius : node.labelWidth / 2) - margin));
+  const maxX = Math.max(...nodes.map(node => node.x + (node.type === 'material' ? node.radius : node.labelWidth / 2) + margin));
+  const minY = Math.min(...nodes.map(node => node.y - (node.type === 'material' ? 40 : node.radius + 28) - margin));
+  const maxY = Math.max(...nodes.map(node => node.y + (node.type === 'material' ? 40 : node.radius + 34) + margin));
+  const width = Math.max(720, maxX - minX);
+  const height = Math.max(520, maxY - minY);
+  const viewBox = `${(minX + maxX - width) / 2} ${(minY + maxY - height) / 2} ${width} ${height}`;
+
+  return { nodes, links, viewBox };
+}
+
+function statusLabel(status: KnowledgeStatus) {
+  if (status === 'weak') return 'Нужна практика';
+  if (status === 'strong') return 'Ошибка исправлена';
+  return 'Нет отметок';
+}
+
+function fitViewBox(nodes: GraphNode[], aspectRatio: number) {
+  if (!nodes.length || !Number.isFinite(aspectRatio) || aspectRatio <= 0) return '0 0 900 620';
+  const margin = 64;
+  const bounds = nodes.reduce((box, node) => {
+    const halfWidth = node.type === 'material' ? node.radius : node.labelWidth / 2;
+    const halfHeight = node.type === 'material' ? 42 : node.radius + 34;
+    return {
+      minX: Math.min(box.minX, node.x - halfWidth),
+      maxX: Math.max(box.maxX, node.x + halfWidth),
+      minY: Math.min(box.minY, node.y - halfHeight),
+      maxY: Math.max(box.maxY, node.y + halfHeight)
+    };
+  }, { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+  let width = Math.max(420, bounds.maxX - bounds.minX + margin * 2);
+  let height = Math.max(300, bounds.maxY - bounds.minY + margin * 2);
+  if (width / height > aspectRatio) height = width / aspectRatio;
+  else width = height * aspectRatio;
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  return `${centerX - width / 2} ${centerY - height / 2} ${width} ${height}`;
+}
+
+function compactFocusLayout(nodes: GraphNode[]) {
+  const materials = nodes.filter(node => node.type === 'material').sort((a, b) => a.y - b.y || a.x - b.x);
+  const concepts = nodes.filter(node => node.type === 'concept');
+  if (!materials.length || !concepts.length) return nodes;
+
+  const materialY = new Map(materials.map((node, index) => [node.id, (index - (materials.length - 1) / 2) * 220]));
+  const positionedMaterials = materials.map(node => ({ ...node, x: 280, y: materialY.get(node.id)! }));
+  const orderedConcepts = concepts.map(node => {
+    const linkedY = (node.materials || []).map(material => materialY.get(material.id)).filter((y): y is number => y !== undefined);
+    return { node, y: linkedY.length ? linkedY.reduce((sum, value) => sum + value, 0) / linkedY.length : node.y };
+  }).sort((a, b) => a.y - b.y || a.node.label.localeCompare(b.node.label, 'ru'));
+
+  let previousY = -Infinity;
+  const placedConcepts = orderedConcepts.map(({ node, y }) => {
+    const nextY = Math.max(y, previousY + 106);
+    previousY = nextY;
+    return { node, y: nextY };
+  });
+  const offset = placedConcepts.length
+    ? (placedConcepts[0].y + placedConcepts[placedConcepts.length - 1].y) / 2
+    : 0;
+  const positionedConcepts = placedConcepts.map(({ node, y }) => ({ ...node, x: 520, y: y - offset }));
+  const positions = new Map([...positionedMaterials, ...positionedConcepts].map(node => [node.id, node]));
+  return nodes.map(node => positions.get(node.id) || node);
+}
 
 export default function KnowledgeMap() {
   const { user } = useAuth();
@@ -52,964 +397,525 @@ export default function KnowledgeMap() {
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   const [loading, setLoading] = useState(true);
-  const [materials, setMaterials] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [materials, setMaterials] = useState<MaterialRecord[]>([]);
   const [mistakes, setMistakes] = useState<any[]>([]);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Карта (zoom/pan)
+  const [activeFilter, setActiveFilter] = useState<GraphFilter>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => window.innerWidth < 640 ? 'list' : 'map');
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
-
-  // Физика графа
-  const [nodes, setNodes] = useState<GraphNode[]>([]);
-  const [links, setLinks] = useState<GraphLink[]>([]);
-  
-  const requestRef = useRef<number | null>(null);
-  const nodesRef = useRef<GraphNode[]>([]);
-  const linksRef = useRef<GraphLink[]>([]);
   const svgRef = useRef<SVGSVGElement | null>(null);
-  
-  // Перетаскивание и зум
-  const draggingNodeId = useRef<string | null>(null);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  const isPanning = useRef(false);
-  const panStartPos = useRef({ x: 0, y: 0 });
-  
-  // Pinch zoom (щипок)
-  const initialPinchDistance = useRef<number | null>(null);
-  const initialPinchScale = useRef<number>(1);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const [canvasWidth, setCanvasWidth] = useState(960);
+  const gestureRef = useRef({ mode: 'idle' as 'idle' | 'pan' | 'pinch', lastX: 0, lastY: 0, startDistance: 0, startScale: 1, anchorX: 0, anchorY: 0 });
+  const pointerMapRef = useRef(new Map<number, { x: number; y: number }>());
+  const viewRef = useRef({ scale: 1, panX: 0, panY: 0 });
 
-  // 1. Загрузка данных
+  const surfaceClass = 'rounded-2xl border border-[var(--sf-line)] bg-[var(--sf-surface)]';
+
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       supabase.from('materials').select('*').eq('user_id', user.id),
       supabase.from('mistake_diary').select('*').eq('user_id', user.id)
-    ]).then(([matsRes, mistakesRes]) => {
-      setMaterials(matsRes.data || []);
-      setMistakes(mistakesRes.data || []);
-      setLoading(false);
-    }).catch(console.error);
-  }, [user?.id]);
+    ]).then(([materialsResult, mistakesResult]) => {
+      if (materialsResult.error) throw materialsResult.error;
+      if (mistakesResult.error) throw mistakesResult.error;
+      if (cancelled) return;
+      setMaterials((materialsResult.data || []) as MaterialRecord[]);
+      setMistakes(mistakesResult.data || []);
+    }).catch(error => {
+      console.error('Knowledge map data load failed:', error);
+      if (!cancelled) setLoadError(true);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [user?.id, reloadKey]);
 
-  // Парсер терминов из конспекта
-  const extractTerms = (rawSummary: any) => {
-    let summaryJson = rawSummary;
-    if (typeof rawSummary === 'string') {
-      try { summaryJson = JSON.parse(rawSummary); } catch (e) {}
+  const graph = useMemo(() => buildGraph(materials, mistakes), [materials, mistakes]);
+  const { nodes, links, viewBox } = graph;
+  const nodeById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes]);
+  const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) || null : null;
+  const conceptNodes = nodes.filter(node => node.type === 'concept');
+  const materialNodes = nodes.filter(node => node.type === 'material');
+  const graphStats = {
+    concepts: conceptNodes.length,
+    materials: materialNodes.length,
+    shared: conceptNodes.filter(node => (node.materials?.length || 0) > 1).length,
+    weak: conceptNodes.filter(node => node.status === 'weak').length
+  };
+  const commonTopics = [...conceptNodes]
+    .filter(node => (node.materials?.length || 0) > 1)
+    .sort((a, b) => (b.materials?.length || 0) - (a.materials?.length || 0) || a.label.localeCompare(b.label, 'ru'))
+    .slice(0, 5);
+  const weakTopics = conceptNodes.filter(node => node.status === 'weak').sort((a, b) => (b.materials?.length || 0) - (a.materials?.length || 0)).slice(0, 5);
+  const [, , viewWidth, viewHeight] = viewBox.split(' ').map(Number);
+  const mapCanvasHeight = Math.round(Math.min(820, Math.max(440, canvasWidth * viewHeight / viewWidth)));
+
+  useEffect(() => {
+    const element = canvasRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(entries => {
+      const nextWidth = entries[0]?.contentRect.width;
+      if (nextWidth) setCanvasWidth(nextWidth);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [viewMode]);
+
+  const filterIds = useMemo(() => {
+    if (activeFilter === 'all') return new Set(nodes.map(node => node.id));
+    const conceptIds = new Set(conceptNodes
+      .filter(node => activeFilter === 'shared' ? (node.materials?.length || 0) > 1 : node.status === 'weak')
+      .map(node => node.id));
+    const visible = new Set(conceptIds);
+    links.forEach(link => {
+      if (conceptIds.has(link.target)) visible.add(link.source);
+    });
+    return visible;
+  }, [activeFilter, conceptNodes, links, nodes]);
+  const visibleNodes = nodes.filter(node => filterIds.has(node.id));
+  const visibleLinks = links.filter(link => filterIds.has(link.source) && filterIds.has(link.target));
+  const neighborMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const link of links) {
+      if (!map.has(link.source)) map.set(link.source, new Set());
+      if (!map.has(link.target)) map.set(link.target, new Set());
+      map.get(link.source)!.add(link.target);
+      map.get(link.target)!.add(link.source);
     }
-
-    const terms: { term: string; definition: string }[] = [];
-
-    // Приоритет 1: Использование структурированных терминов от ИИ
-    if (summaryJson?.terms && Array.isArray(summaryJson.terms)) {
-      summaryJson.terms.forEach((t: any) => {
-        if (t.term && t.definition) {
-          let def = String(t.definition).trim();
-          if (def.length > 150) {
-             const dotIndex = def.indexOf('.');
-             if (dotIndex > 10) def = def.substring(0, dotIndex + 1);
-          }
-          terms.push({ term: String(t.term).trim(), definition: def });
-        }
+    return map;
+  }, [links]);
+  const normalizedSearch = normalizeTerm(searchQuery);
+  const searchMatches = visibleNodes.filter(node => normalizeTerm(node.label).includes(normalizedSearch));
+  const selectedNeighbors = selectedNodeId ? neighborMap.get(selectedNodeId) || new Set<string>() : new Set<string>();
+  const expandFocus = (nodeId: string) => {
+    const focused = new Set<string>([nodeId]);
+    const direct = neighborMap.get(nodeId) || new Set<string>();
+    direct.forEach(id => focused.add(id));
+    if (nodeById.get(nodeId)?.type === 'material') {
+      direct.forEach(conceptId => {
+        (neighborMap.get(conceptId) || new Set<string>()).forEach(connectedId => focused.add(connectedId));
       });
     }
+    return focused;
+  };
+  const searchFocusIds = new Set(searchMatches.flatMap(node => [...expandFocus(node.id)].filter(id => filterIds.has(id))));
+  const selectedFocusIds = selectedNodeId ? expandFocus(selectedNodeId) : new Set<string>();
+  const conceptConnections = selectedNode?.type === 'material'
+    ? [...selectedNeighbors].map(id => nodeById.get(id)).filter((node): node is GraphNode => Boolean(node && node.type === 'concept'))
+    : [];
+  const focusForFit = selectedNodeId
+    ? selectedFocusIds
+    : normalizedSearch && searchMatches.length
+      ? searchFocusIds
+      : filterIds;
+  const nodesForFit = nodes.filter(node => focusForFit.has(node.id));
+  const compactMobileFocus = canvasWidth < 640 && Boolean(selectedNodeId || normalizedSearch || activeFilter !== 'all') && nodesForFit.length <= 12;
+  const displayNodes = compactMobileFocus ? compactFocusLayout(nodesForFit) : nodes;
+  const displayNodeById = new Map(displayNodes.map(node => [node.id, node]));
+  const displayViewBox = fitViewBox(compactMobileFocus ? displayNodes : nodesForFit.length ? nodesForFit : visibleNodes, canvasWidth / Math.max(440, mapCanvasHeight));
 
-    if (terms.length > 0) return terms;
-
-    const content = summaryJson?.content || summaryJson?.raw || '';
-    if (!content) return [];
-    
-    // Попытка 1: Ищем специализированную секцию терминов (стандартный формат)
-    const sections = content.split(/(?=^## )/gm);
-    const termsSection = sections.find((s: string) => 
-      s.includes('Термины') || s.includes('Терминология') || s.includes('📚')
-    );
-
-    const lineRegex = /(?:\d+\.|\*|-)\s+\*\*([^*]+)\*\*\s*(?:—|-|–|:)\s*(.+)/g;
-    
-    if (termsSection) {
-      let match;
-      while ((match = lineRegex.exec(termsSection)) !== null) {
-        terms.push({
-          term: match[1].trim(),
-          definition: match[2].trim()
-        });
-      }
-    }
-    
-    // Попытка 2: Если терминов не найдено (или секции нет), ищем любые выделенные термины по всему тексту
-    if (terms.length === 0) {
-      const globalRegex = /\*\*([^*]+)\*\*\s*(?:—|-|–|:)\s*([^\n]+)/g;
-      let match;
-      while ((match = globalRegex.exec(content)) !== null) {
-        const term = match[1].trim();
-        let definition = match[2].trim();
-        
-        if (term.length > 0 && term.length <= 45 && definition.length > 5) {
-          if (definition.length > 150) {
-             const dotIndex = definition.indexOf('.');
-             if (dotIndex > 10) definition = definition.substring(0, dotIndex + 1);
-          }
-          terms.push({ term, definition });
-        }
-      }
-    }
-
-    return terms;
+  const updateView = (next: { scale: number; panX: number; panY: number }) => {
+    viewRef.current = next;
+    setScale(next.scale);
+    setPanX(next.panX);
+    setPanY(next.panY);
   };
 
-  // 2. Генерация графа
-  useEffect(() => {
-    if (loading || materials.length === 0) return;
+  const svgPoint = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: clientX, y: clientY };
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    const matrix = svg.getScreenCTM();
+    return matrix ? point.matrixTransform(matrix.inverse()) : { x: clientX, y: clientY };
+  };
 
-    const width = 1600;
-    const height = 1000;
-
-    const tempNodes: GraphNode[] = [];
-    const tempLinks: GraphLink[] = [];
-
-    const conceptMap: Record<string, {
-      term: string;
-      definition: string;
-      materials: { id: string; title: string }[];
-      status: 'weak' | 'strong' | 'neutral';
-    }> = {};
-
-    const subjectColorMap: Record<string, string> = {};
-    let colorIdx = 0;
-
-    // Дедупликация материалов (лекций) с одинаковыми названиями
-    // Предотвращает ситуацию, когда загруженные дубликаты стягивают концепты в центр между собой
-    const uniqueMaterials = materials.reduce((acc: any[], current) => {
-      if (!acc.some(item => item.title.trim().toLowerCase() === current.title.trim().toLowerCase())) {
-        acc.push(current);
-      }
-      return acc;
-    }, []);
-
-    const numMats = uniqueMaterials.length;
-    // Случайное разбрасывание лекций по всему холсту — органичный хаос
-    // Проход разделения потом гарантирует, что ничего не перекрывается
-
-    uniqueMaterials.forEach((mat, idx) => {
-      const subject = mat.subject || 'Общее';
-      if (!subjectColorMap[subject]) {
-        subjectColorMap[subject] = SUBJECT_COLORS[colorIdx % SUBJECT_COLORS.length];
-        colorIdx++;
-      }
-
-      // Размещаем лекции случайно по всему холсту (без краёв для понятий)
-      const initX = 150 + Math.random() * (width - 300);
-      const initY = 150 + Math.random() * (height - 300);
-
-      tempNodes.push({
-        id: mat.id,
-        label: mat.title,
-        type: 'material',
-        x: initX,
-        y: initY,
-        vx: 0,
-        vy: 0,
-        radius: 36,
-        status: 'neutral',
-        color: subjectColorMap[subject],
-        details: mat
-      });
-
-      const terms = extractTerms(mat.summary_json);
-      terms.forEach((t: Term) => {
-        const key = t.term.toLowerCase();
-        
-        const termMistakes = mistakes.filter(m => {
-          const topicMatch = m.topic && m.topic.toLowerCase().includes(key);
-          const questionMatch = m.question && m.question.toLowerCase().includes(key);
-          return topicMatch || questionMatch;
-        });
-
-        let status: 'weak' | 'strong' | 'neutral' = 'neutral';
-        if (termMistakes.length > 0) {
-          status = termMistakes.some(m => !m.is_resolved) ? 'weak' : 'strong';
-        }
-
-        if (conceptMap[key]) {
-          // Prevent duplicates
-          if (!conceptMap[key].materials.find(m => m.id === mat.id)) {
-            conceptMap[key].materials.push({ id: mat.id, title: mat.title });
-          }
-          if (status === 'weak') conceptMap[key].status = 'weak';
-          else if (status === 'strong' && conceptMap[key].status !== 'weak') {
-            conceptMap[key].status = 'strong';
-          }
-        } else {
-          conceptMap[key] = {
-            term: t.term,
-            definition: t.definition,
-            materials: [{ id: mat.id, title: mat.title }],
-            status
-          };
-        }
-      });
+  const zoomAt = (nextScale: number, anchor: { x: number; y: number }) => {
+    const current = viewRef.current;
+    const bounded = Math.min(2.6, Math.max(0.55, nextScale));
+    const ratio = bounded / current.scale;
+    updateView({
+      scale: bounded,
+      panX: anchor.x - (anchor.x - current.panX) * ratio,
+      panY: anchor.y - (anchor.y - current.panY) * ratio
     });
+  };
 
-    const conceptKeys = Object.keys(conceptMap);
-
-    // Группируем понятия по их первой лекции для равномерного размещения по орбите (a не случайного)
-    const conceptsByFirstMat: Record<string, string[]> = {};
-    conceptKeys.forEach(key => {
-      const firstMatId = conceptMap[key].materials[0]?.id;
-      if (firstMatId) {
-        if (!conceptsByFirstMat[firstMatId]) conceptsByFirstMat[firstMatId] = [];
-        conceptsByFirstMat[firstMatId].push(key);
-      }
-    });
-
-    conceptKeys.forEach((key, idx) => {
-      const value = conceptMap[key];
-      const linksCount = value.materials.length;
-
-      // Размещаем понятия на случайных углах вокруг своей лекции — органичный хаос
-      let startX = width / 2;
-      let startY = height / 2;
-      if (value.materials.length > 0) {
-        const firstMat = tempNodes.find(n => n.id === value.materials[0].id);
-        if (firstMat) {
-          // Случайный угол — так выглядит природнее и хаотичнее
-          const termAngle = Math.random() * Math.PI * 2;
-          const orbitR = firstMat.radius + 80 + Math.random() * 20;
-          startX = firstMat.x + Math.cos(termAngle) * orbitR;
-          startY = firstMat.y + Math.sin(termAngle) * orbitR;
-        }
-      }
-
-      tempNodes.push({
-        id: key,
-        label: value.term,
-        type: 'concept',
-        x: startX,
-        y: startY,
-        vx: 0,
-        vy: 0,
-        radius: 10 + linksCount * 2.5, // Динамический размер планеты
-        status: value.status,
-        color: value.status === 'weak' ? '#ef4444' : value.status === 'strong' ? '#22c55e' : '#818cf8',
-        definition: value.definition,
-        materials: value.materials
-      });
-
-      value.materials.forEach(mat => {
-        tempLinks.push({
-          source: mat.id,
-          target: key
-        });
-      });
-    });
-
-    // ===== ПРОХОД РАЗДЕЛЕНИЯ: устраняем все перекрытия синхронно =====
-    // Это заменяет физическую симуляцию, давая детерминированный результат без конфликтов сил
-    for (let pass = 0; pass < 200; pass++) {
-      let anyMoved = false;
-      for (let i = 0; i < tempNodes.length; i++) {
-        for (let j = i + 1; j < tempNodes.length; j++) {
-          const a = tempNodes[i];
-          const b = tempNodes[j];
-          const dx = (b.x - a.x) || 0.01;
-          const dy = (b.y - a.y) || 0.01;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
-
-          let minDist: number;
-          if (a.type === 'material' && b.type === 'material') {
-            // Лекция от лекции: должно быть между ними много места
-            minDist = a.radius + b.radius + 200;
-          } else if (a.type === 'concept' && b.type === 'concept') {
-            // Понятие от понятия: учитываем примерную ширину текстовой метки (~80пк)
-            minDist = a.radius + b.radius + 80;
-          } else {
-            // Понятие от лекции
-            const mat = a.type === 'material' ? a : b;
-            const con = a.type === 'concept' ? a : b;
-            const linked = tempLinks.some(l =>
-              (l.source === mat.id && l.target === con.id) ||
-              (l.target === mat.id && l.source === con.id)
-            );
-            // Своя: не давать понятию наезжать на центр лекции
-            // Чужая: выталкивать очень сильно
-            minDist = linked
-              ? mat.radius + con.radius + 70
-              : mat.radius + con.radius + 160;
-          }
-
-          if (dist < minDist) {
-            const overlap = (minDist - dist) * 0.5;
-            const nx = (dx / dist) * overlap;
-            const ny = (dy / dist) * overlap;
-            a.x -= nx; a.y -= ny;
-            b.x += nx; b.y += ny;
-            anyMoved = true;
-          }
-        }
-      }
-      // Удерживаем все узлы внутри границ холста
-      tempNodes.forEach(n => {
-        n.x = Math.max(70, Math.min(width - 70, n.x));
-        n.y = Math.max(70, Math.min(height - 70, n.y));
-      });
-      if (!anyMoved) break; // ранняя сходимость
-    }
-
-    nodesRef.current = tempNodes;
-    linksRef.current = tempLinks;
-    setNodes([...tempNodes]);
-    setLinks(tempLinks);
-  }, [loading, materials, mistakes]);
-
-  // 3. Обработчик перетаскивания (без физики — позиции статичны)
-  useEffect(() => {
-    if (nodes.length === 0) return;
-
-    const tick = () => {
-      const currentNodes = nodesRef.current;
-      let hasDrag = false;
-      for (const node of currentNodes) {
-        if (node.fx !== null && node.fx !== undefined &&
-            node.fy !== null && node.fy !== undefined) {
-          node.x = node.fx;
-          node.y = node.fy;
-          hasDrag = true;
-        }
-      }
-      if (hasDrag) setNodes([...currentNodes]);
-      requestRef.current = requestAnimationFrame(tick);
-    };
-
-    requestRef.current = requestAnimationFrame(tick);
-    return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
-  }, [loading]);
-
-
-
-
-  // Zoom wheel
-  useEffect(() => {
+  const zoomFromControl = (factor: number) => {
     const svg = svgRef.current;
     if (!svg) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const zoomIntensity = 0.06;
-      const zoomFactor = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
-      setScale(s => Math.max(0.4, Math.min(2.5, s * zoomFactor)));
-    };
-
-    svg.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      svg.removeEventListener('wheel', handleWheel);
-    };
-  }, [loading]);
-
-  // Drag & Pan
-  const getMouseCoords = (clientX: number, clientY: number) => {
-    if (!svgRef.current) return { x: 0, y: 0 };
-    const pt = svgRef.current.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const ctm = svgRef.current.getScreenCTM();
-    if (!ctm) return { x: 0, y: 0 };
-    return pt.matrixTransform(ctm.inverse());
+    const bounds = svg.getBoundingClientRect();
+    zoomAt(viewRef.current.scale * factor, svgPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
   };
 
-  const handlePointerDown = (clientX: number, clientY: number, node?: GraphNode) => {
-    if (!svgRef.current) return;
+  const resetView = () => updateView({ scale: 1, panX: 0, panY: 0 });
+  const resetMap = () => {
+    setActiveFilter('all');
+    setSearchQuery('');
+    setSelectedNodeId(null);
+    resetView();
+  };
 
-    if (node) {
-      const coords = getMouseCoords(clientX, clientY);
-      draggingNodeId.current = node.id;
-      const clickX = (coords.x - panX) / scale;
-      const clickY = (coords.y - panY) / scale;
-      dragStartPos.current = { x: clickX, y: clickY };
-      
-      const matchedNode = nodesRef.current.find(n => n.id === node.id);
-      if (matchedNode) {
-        matchedNode.fx = matchedNode.x;
-        matchedNode.fy = matchedNode.y;
-      }
-    } else {
-      isPanning.current = true;
-      panStartPos.current = { x: clientX - panX, y: clientY - panY };
-      setSelectedNode(null);
+  const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    if ((event.target as Element).closest('[data-map-node="true"]')) return;
+    const point = svgPoint(event.clientX, event.clientY);
+    pointerMapRef.current.set(event.pointerId, point);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointerMapRef.current.size === 1) {
+      gestureRef.current = { ...gestureRef.current, mode: 'pan', lastX: point.x, lastY: point.y };
+    } else if (pointerMapRef.current.size >= 2) {
+      const points = [...pointerMapRef.current.values()];
+      const centerPoint = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+      const current = viewRef.current;
+      gestureRef.current = {
+        mode: 'pinch',
+        lastX: centerPoint.x,
+        lastY: centerPoint.y,
+        startDistance: Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y),
+        startScale: current.scale,
+        anchorX: (centerPoint.x - current.panX) / current.scale,
+        anchorY: (centerPoint.y - current.panY) / current.scale
+      };
     }
   };
 
-  const handlePointerMove = (clientX: number, clientY: number) => {
-    if (!svgRef.current) return;
-
-    if (draggingNodeId.current) {
-      const coords = getMouseCoords(clientX, clientY);
-      const clickX = (coords.x - panX) / scale;
-      const clickY = (coords.y - panY) / scale;
-
-      const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
-      if (matchedNode) {
-        matchedNode.fx = clickX;
-        matchedNode.fy = clickY;
-      }
-    } else if (isPanning.current) {
-      setPanX(clientX - panStartPos.current.x);
-      setPanY(clientY - panStartPos.current.y);
-    }
-  };
-
-  const handlePointerUp = (node?: GraphNode) => {
-    if (draggingNodeId.current) {
-      const matchedNode = nodesRef.current.find(n => n.id === draggingNodeId.current);
-      if (matchedNode) {
-        matchedNode.fx = null;
-        matchedNode.fy = null;
-      }
-      if (node) {
-        setSelectedNode(node);
-      }
-      draggingNodeId.current = null;
-    }
-    isPanning.current = false;
-  };
-
-  const handleMouseDown = (e: React.MouseEvent, node?: GraphNode) => {
-    e.preventDefault();
-    handlePointerDown(e.clientX, e.clientY, node);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    handlePointerMove(e.clientX, e.clientY);
-  };
-
-  const handleMouseUp = (e: React.MouseEvent, node?: GraphNode) => {
-    handlePointerUp(node);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent, node?: GraphNode) => {
-    if (e.touches.length === 2) {
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
-      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
-      initialPinchDistance.current = dist;
-      initialPinchScale.current = scale;
-      isPanning.current = false;
+  const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!pointerMapRef.current.has(event.pointerId)) return;
+    const point = svgPoint(event.clientX, event.clientY);
+    pointerMapRef.current.set(event.pointerId, point);
+    const current = viewRef.current;
+    if (pointerMapRef.current.size >= 2) {
+      const points = [...pointerMapRef.current.values()];
+      const centerPoint = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+      const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      const gesture = gestureRef.current;
+      const nextScale = Math.min(2.6, Math.max(0.55, gesture.startScale * (distance / Math.max(1, gesture.startDistance))));
+      updateView({ scale: nextScale, panX: centerPoint.x - gesture.anchorX * nextScale, panY: centerPoint.y - gesture.anchorY * nextScale });
       return;
     }
-    initialPinchDistance.current = null;
-    handlePointerDown(e.touches[0].clientX, e.touches[0].clientY, node);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && initialPinchDistance.current !== null) {
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
-      const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
-      const zoomFactor = dist / initialPinchDistance.current;
-      setScale(Math.max(0.4, Math.min(2.5, initialPinchScale.current * zoomFactor)));
-      return;
+    if (gestureRef.current.mode === 'pan') {
+      const dx = point.x - gestureRef.current.lastX;
+      const dy = point.y - gestureRef.current.lastY;
+      gestureRef.current.lastX = point.x;
+      gestureRef.current.lastY = point.y;
+      updateView({ ...current, panX: current.panX + dx, panY: current.panY + dy });
     }
-    handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
   };
 
-  const handleTouchEnd = (e: React.TouchEvent, node?: GraphNode) => {
-    if (e.touches.length < 2) {
-      initialPinchDistance.current = null;
-    }
-    handlePointerUp(node);
+  const onPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    pointerMapRef.current.delete(event.pointerId);
+    gestureRef.current.mode = pointerMapRef.current.size ? 'pan' : 'idle';
   };
 
-  const zoomIn = () => setScale(s => Math.min(2.5, s + 0.15));
-  const zoomOut = () => setScale(s => Math.max(0.4, s - 0.15));
-  const resetZoom = () => {
-    setScale(1);
-    setPanX(0);
-    setPanY(0);
+  const onWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+    zoomAt(viewRef.current.scale * factor, svgPoint(event.clientX, event.clientY));
   };
 
-  // Stats
-  const graphStats = useMemo(() => {
-    const conceptCount = nodes.filter(n => n.type === 'concept').length;
-    const materialsCount = nodes.filter(n => n.type === 'material').length;
-    const weakCount = nodes.filter(n => n.type === 'concept' && n.status === 'weak').length;
-    const strongCount = nodes.filter(n => n.type === 'concept' && n.status === 'strong').length;
-    return { conceptCount, materialsCount, weakCount, strongCount };
-  }, [nodes]);
+  const selectNode = (node: GraphNode) => { setSelectedNodeId(node.id); resetView(); };
+  const noResults = Boolean(normalizedSearch) && searchMatches.length === 0;
 
   return (
-    <div className="p-3 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6 min-h-screen text-slate-900 dark:text-slate-100">
-      {/* Заголовок */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-950/50 rounded-xl flex items-center justify-center border border-indigo-500/20">
-            <Network className="w-5 h-5 text-indigo-400" />
+    <main className="mx-auto min-h-screen w-full max-w-[1500px] space-y-5 px-4 py-5 text-[var(--sf-ink)] sm:px-6 lg:space-y-6 lg:px-8">
+      <header className="flex flex-col gap-4 border-b border-[var(--sf-line)] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sf-accent)]">
+            <Network className="h-4 w-4" /> Связи между материалами
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Интерактивная карта знаний</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Граф понятий лекций и междисциплинарных связей в стиле Obsidian</p>
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Карта знаний</h1>
+          <p className="mt-1.5 max-w-2xl text-sm text-[var(--sf-muted)]">
+            Общие понятия показывают, где пересекаются ваши конспекты. Нажмите на узел, чтобы перейти от карты к материалу или теме.
+          </p>
         </div>
-      </div>
+        {!loading && !loadError && materials.length > 0 && (
+          <p className="shrink-0 text-sm text-[var(--sf-muted)]">
+            <span className="font-medium text-[var(--sf-ink)]">{pluralCount(graphStats.materials, ['материал', 'материала', 'материалов'])}</span>
+            <span className="mx-2 text-[var(--sf-line)]">/</span>
+            <span className="font-medium text-[var(--sf-ink)]">{pluralCount(graphStats.concepts, ['понятие', 'понятия', 'понятий'])}</span>
+            <span className="mx-2 text-[var(--sf-line)]">/</span>
+            <span className="font-medium text-[var(--sf-ink)]">{pluralCount(graphStats.shared, ['общая тема', 'общие темы', 'общих тем'])}</span>
+          </p>
+        )}
+      </header>
 
       {loading ? (
-        <div className="flex items-center justify-center py-40">
-          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className={`${surfaceClass} flex min-h-[420px] items-center justify-center`} aria-label="Загрузка карты">
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--sf-accent)] border-r-transparent" />
         </div>
-      ) : materials.length === 0 ? (
-        <div className="p-12 text-center max-w-md mx-auto space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
-          <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center mx-auto border border-indigo-100 dark:border-indigo-900/50">
-            <BookOpen className="w-8 h-8 text-indigo-500" />
-          </div>
-          <h3 className="font-bold text-slate-800 dark:text-slate-100">Библиотека пуста</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Загрузите конспекты лекций в разделе «Анализ материалов», чтобы AI извлёк термины и построил карту знаний.
-          </p>
-          <button
-            onClick={() => navigate('/analyze')}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-500/10 dark:shadow-none"
-          >
-            Загрузить материалы
+      ) : loadError ? (
+        <section className={`${surfaceClass} mx-auto max-w-xl px-6 py-12 text-center`}>
+          <AlertCircle className="mx-auto h-8 w-8 text-[#b65342]" />
+          <h2 className="mt-3 text-lg font-semibold">Не удалось загрузить карту</h2>
+          <p className="mt-2 text-sm text-[var(--sf-muted)]">Материалы не изменены. Проверьте подключение и повторите попытку.</p>
+          <button onClick={() => setReloadKey(key => key + 1)} className="mt-5 rounded-full bg-[var(--sf-accent)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--sf-accent-hover)]">
+            Повторить
           </button>
-        </div>
+        </section>
+      ) : materials.length === 0 ? (
+        <section className={`${surfaceClass} mx-auto max-w-xl px-6 py-12 text-center`}>
+          <BookOpen className="mx-auto h-9 w-9 text-[var(--sf-accent)]" />
+          <h2 className="mt-3 text-lg font-semibold">Пока нет материалов</h2>
+          <p className="mt-2 text-sm text-[var(--sf-muted)]">Загрузите конспект — карта покажет его понятия и связи с другими материалами.</p>
+          <button onClick={() => navigate('/analyze')} className="mt-5 inline-flex items-center gap-2 rounded-full bg-[var(--sf-accent)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--sf-accent-hover)]">
+            Добавить материал <ArrowUpRight className="h-4 w-4" />
+          </button>
+        </section>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-          
-          {/* График и интерактивная область (3 колонки) */}
-          <div className="lg:col-span-3 flex flex-col space-y-4">
-            
-            {/* Панель управления картой */}
-            <div className="p-4 flex flex-wrap gap-4 items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block shadow-[0_0_8px_rgba(239,68,68,0.5)]" /> 
-                  Слабое место (ошибка)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] inline-block shadow-[0_0_8px_rgba(34,197,94,0.5)]" /> 
-                  Успешно пройдено
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#818cf8] inline-block shadow-[0_0_8px_rgba(129,140,248,0.5)]" /> 
-                  Изучено
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
+        <>
+          <section className={`${surfaceClass} flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4`} aria-label="Управление картой">
+            <div className="flex gap-1 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="Фильтр карты">
+              {([
+                ['all', 'Вся карта', nodes.length],
+                ['shared', 'Общие темы', graphStats.shared],
+                ['weak', 'Нужно повторить', graphStats.weak]
+              ] as const).map(([value, label, count]) => (
                 <button
-                  onClick={zoomOut}
-                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-700"
-                  title="Отдалить"
+                  key={value}
+                  type="button"
+                  aria-pressed={activeFilter === value}
+                  onClick={() => { setActiveFilter(value); setSelectedNodeId(null); resetView(); }}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm font-medium transition ${activeFilter === value ? 'bg-[var(--sf-accent)] text-white' : 'text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]'}`}
                 >
-                  <Minus className="w-3.5 h-3.5" />
+                  {label}<span className={`text-xs ${activeFilter === value ? 'text-white/80' : 'text-[var(--sf-muted)]'}`}>{count}</span>
                 </button>
-                <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 w-12 text-center">
-                  {Math.round(scale * 100)}%
-                </span>
-                <button
-                  onClick={zoomIn}
-                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition border border-slate-300 dark:border-slate-700"
-                  title="Приблизить"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={resetZoom}
-                  className="ml-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-xs font-bold text-white transition shadow-lg shadow-indigo-600/10 dark:shadow-none"
-                >
-                  Сбросить
-                </button>
-              </div>
+              ))}
             </div>
-
-            <div className="relative bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm select-none min-h-[60vh] md:min-h-[550px]">
-              
-              <svg
-                ref={svgRef}
-                viewBox="0 0 1600 1000"
-                preserveAspectRatio="xMidYMid meet"
-                className="w-full h-[60vh] md:h-[550px] cursor-grab active:cursor-grabbing touch-none"
-                onMouseDown={(e) => handleMouseDown(e)}
-                onMouseMove={handleMouseMove}
-                onMouseUp={(e) => handleMouseUp(e)}
-                onMouseLeave={(e) => handleMouseUp(e)}
-                onTouchStart={(e) => handleTouchStart(e)}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={(e) => handleTouchEnd(e)}
-                onTouchCancel={(e) => handleTouchEnd(e)}
-                onDoubleClick={resetZoom}
-              >
-                <defs>
-                  <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
-                    <circle cx="1" cy="1" r="1" fill={isDark ? '#475569' : '#cbd5e1'} />
-                  </pattern>
-                  <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                  <filter id="glow-rose" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                  <filter id="glow-emerald" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-
-                <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
-                  
-                  {/* Фоновая сетка внутри SVG */}
-                  <rect x="-4000" y="-4000" width="8000" height="8000" fill="url(#grid)" className="opacity-40 dark:opacity-20" />
-                  
-                  {/* Рендеринг связей (линии) */}
-                  {links.map((link, idx) => {
-                    const sourceNode = nodes.find(n => n.id === link.source);
-                    const targetNode = nodes.find(n => n.id === link.target);
-                    if (!sourceNode || !targetNode) return null;
-
-                    const isHighlight = selectedNode?.id === sourceNode.id || selectedNode?.id === targetNode.id;
-
-                    const activeSearch = searchQuery.trim().toLowerCase();
-                    let searchOpacity = 1;
-                    if (activeSearch) {
-                      const sourceMatch = sourceNode.label.toLowerCase().includes(activeSearch);
-                      const targetMatch = targetNode.label.toLowerCase().includes(activeSearch);
-                      searchOpacity = (sourceMatch || targetMatch) ? 0.8 : 0.08;
-                    }
-
-                    return (
-                      <line
-                        key={`link-${idx}`}
-                        x1={sourceNode.x}
-                        y1={sourceNode.y}
-                        x2={targetNode.x}
-                        y2={targetNode.y}
-                        stroke={isHighlight ? '#6366f1' : isDark ? '#334155' : '#cbd5e1'}
-                        strokeOpacity={(isHighlight ? 0.9 : 0.4) * searchOpacity}
-                        strokeWidth={isHighlight ? 2 : 1}
-                        strokeDasharray={targetNode.type === 'concept' ? '3,3' : undefined}
-                        className="transition-all duration-300"
-                      />
-                    );
-                  })}
-
-                  {/* Рендеринг узлов (круги) */}
-                  {nodes.map((node) => {
-                    const isSelected = selectedNode?.id === node.id;
-                    const isLinkedToSelected = selectedNode && links.some(l => 
-                       (l.source === selectedNode.id && l.target === node.id) || 
-                       (l.target === selectedNode.id && l.source === node.id)
-                    );
-                    const isHighlightNode = !selectedNode || isSelected || isLinkedToSelected;
-
-                    const isMaterial = node.type === 'material';
-                    
-                    const activeSearch = searchQuery.trim().toLowerCase();
-                    const isSearchResult = activeSearch && node.label.toLowerCase().includes(activeSearch);
-                    
-                    // Учитываем поиск и выделение
-                    let searchOpacity = 1;
-                    if (activeSearch && !isSearchResult) searchOpacity = 0.15;
-                    else if (selectedNode && !isHighlightNode) searchOpacity = 0.15;
-
-                    const isLabelBelow = isMaterial || (node.label.charCodeAt(0) % 2 === 0);
-                    const labelY = isLabelBelow ? (node.radius + 22) : (-node.radius - 14);
-
-                    // Выбираем glow-фильтр в зависимости от статуса и типа
-                    let filterUrl = '';
-                    if (isMaterial) {
-                      filterUrl = 'url(#glow-purple)';
-                    } else if (node.status === 'weak') {
-                      filterUrl = 'url(#glow-rose)';
-                    } else if (node.status === 'strong') {
-                      filterUrl = 'url(#glow-emerald)';
-                    }
-
-                    return (
-                      <g
-                        key={node.id}
-                        transform={`translate(${node.x}, ${node.y})`}
-                        className="cursor-pointer group transition-opacity duration-300"
-                        onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, node); }}
-                        onMouseUp={(e) => { e.stopPropagation(); handleMouseUp(e, node); }}
-                        onTouchStart={(e) => { e.stopPropagation(); handleTouchStart(e, node); }}
-                        onTouchEnd={(e) => { e.stopPropagation(); handleTouchEnd(e, node); }}
-                        style={{ opacity: searchOpacity }}
-                      >
-                        {/* Дополнительный вращающийся неоновый ободок для найденного по поиску узла */}
-                        {isSearchResult && (
-                          <circle
-                            r={node.radius + 8}
-                            fill="none"
-                            stroke="#fb923c"
-                            strokeWidth={1.5}
-                            strokeDasharray="4,2"
-                            className="animate-spin"
-                            style={{ transformOrigin: '0 0', animationDuration: '8s' }}
-                          />
-                        )}
-
-                        {/* Свечение / Аура Obsidian */}
-                        {filterUrl && (
-                          <circle
-                            r={node.radius}
-                            fill={isMaterial ? '#7c3aed' : node.color}
-                            filter={filterUrl}
-                            opacity={isSelected ? 0.6 : 0.3}
-                            className="transition-all duration-300 group-hover:opacity-65"
-                          />
-                        )}
-
-                        {/* Внутреннее тело узла */}
-                        <circle
-                          r={node.radius}
-                          fill={isMaterial ? (isDark ? '#1e293b' : '#ffffff') : node.color}
-                          stroke={isMaterial ? '#6366f1' : (isDark ? '#0f172a' : '#ffffff')}
-                          strokeWidth={isMaterial ? 3.5 : 1.5}
-                          className="transition-all duration-200 group-hover:scale-105"
-                          style={{
-                            filter: isSelected ? 'brightness(1.2) contrast(1.1)' : 'none'
-                          }}
-                        />
-
-                        {/* Иконка внутри узла лекции */}
-                        {isMaterial && (
-                          <path
-                            d="M -5,-6 L 1,-6 L 5,-2 L 5,6 L -5,6 Z M 1,-6 L 1,-2 L 5,-2"
-                            fill="none"
-                            stroke="#a78bfa"
-                            strokeWidth={1.5}
-                            transform="scale(0.8)"
-                          />
-                        )}
-
-                        {/* Подпись узла с тенью для высокой читаемости на темном фоне */}
-                        <text
-                          y={labelY}
-                          textAnchor="middle"
-                          fill={isDark 
-                            ? (isSelected ? '#f8fafc' : isMaterial ? '#e2e8f0' : '#94a3b8') 
-                            : (isSelected ? '#1e293b' : isMaterial ? '#334155' : '#64748b')}
-                          className="text-[10px] font-bold select-none pointer-events-none transition-colors"
-                          style={{
-                            textShadow: isDark 
-                              ? '0px 1px 2px #0f172a, 0px 0px 4px #0f172a' 
-                              : '0px 1px 2px #ffffff, 0px 0px 4px #ffffff'
-                          }}
-                        >
-                          {node.label.length > 20 ? `${node.label.slice(0, 18)}...` : node.label}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </g>
-              </svg>
-
-              {/* Хинт по использованию */}
-              <div className="absolute bottom-4 left-4 z-10 group">
-                <div className="md:hidden w-10 h-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm cursor-pointer">
-                  <Info className="w-5 h-5 text-indigo-400" />
-                </div>
-                <div className="hidden group-hover:block md:block absolute md:static bottom-full left-0 mb-2 md:mb-0 p-3.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] text-slate-500 dark:text-slate-400 w-48 md:w-auto md:max-w-xs space-y-1.5 shadow-xl md:shadow-none pointer-events-none">
-                  <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                    <Info className="hidden md:block w-3.5 h-3.5 text-indigo-400" /> Навигация по графу
-                  </p>
-                  <div className="hidden md:block space-y-1.5">
-                    <p>• Колесико мыши: Масштаб</p>
-                    <p>• Перетаскивание: Перемещение</p>
-                    <p>• Клик по узлу: Информация</p>
-                    <p>• Двойной клик: Сброс зума</p>
-                  </div>
-                  <div className="md:hidden space-y-1.5">
-                    <p>• Щипок (2 пальца): Масштаб</p>
-                    <p>• Свайп: Перемещение</p>
-                    <p>• Нажатие: Информация</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Информационная боковая панель (1 колонка) */}
-          <div className="lg:col-span-1 space-y-6">
-            
-            {/* Поиск по карте */}
-            <div className="p-4 space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Поиск по карте</h3>
-              <div className="relative">
+            <div className="flex min-w-0 items-center gap-2">
+              <label className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sf-muted)]" />
                 <input
-                  type="text"
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Найти понятие или лекцию..."
-                  className="w-full pl-8 pr-8 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
+                  onChange={event => { setSearchQuery(event.target.value); resetView(); }}
+                  placeholder="Найти материал или тему"
+                  aria-label="Найти материал или тему"
+                  className="h-10 w-full rounded-full border border-[var(--sf-line)] bg-[var(--sf-canvas)] pl-9 pr-9 text-sm text-[var(--sf-ink)] outline-none placeholder:text-[var(--sf-muted)] focus:border-[var(--sf-accent)]"
                 />
-                <span className="absolute left-2.5 top-2.5 text-[10px] text-slate-500">🔍</span>
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2.5 top-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-sm font-bold"
+                {searchQuery && <button type="button" onClick={() => setSearchQuery('')} aria-label="Очистить поиск" className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)]"><X className="h-4 w-4" /></button>}
+              </label>
+              <div className="flex shrink-0 rounded-full border border-[var(--sf-line)] p-0.5" role="group" aria-label="Вид карты">
+                <button type="button" onClick={() => setViewMode('map')} aria-pressed={viewMode === 'map'} aria-label="Показать граф" className={`grid h-9 w-9 place-items-center rounded-full ${viewMode === 'map' ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]' : 'text-[var(--sf-muted)]'}`}><Network className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} aria-label="Показать списком" className={`grid h-9 w-9 place-items-center rounded-full ${viewMode === 'list' ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]' : 'text-[var(--sf-muted)]'}`}><FileText className="h-4 w-4" /></button>
+              </div>
+            </div>
+          </section>
+
+          {noResults && <p role="status" className="rounded-xl border border-[var(--sf-line)] px-4 py-3 text-sm text-[var(--sf-muted)]">Ничего не найдено. Попробуйте изменить запрос.</p>}
+          {activeFilter === 'shared' && graphStats.shared === 0 && <p role="status" className="rounded-xl border border-[var(--sf-line)] px-4 py-3 text-sm text-[var(--sf-muted)]">Пока нет понятий, которые встречаются в нескольких материалах.</p>}
+          {activeFilter === 'weak' && graphStats.weak === 0 && <p role="status" className="rounded-xl border border-[var(--sf-line)] px-4 py-3 text-sm text-[var(--sf-muted)]">В дневнике ошибок пока нет тем для повторения.</p>}
+
+          <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-5">
+            <section className={`${surfaceClass} min-w-0 overflow-hidden`} aria-label="Граф знаний">
+              {viewMode === 'map' ? (
+                <div ref={canvasRef} className="relative overflow-hidden bg-[var(--sf-workbench)]">
+                  <svg
+                    ref={svgRef}
+                    viewBox={displayViewBox}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ height: mapCanvasHeight }}
+                    className="block min-h-[440px] w-full touch-none select-none"
+                    role="img"
+                    aria-label="Карта связей между материалами и понятиями. Узлы доступны с клавиатуры."
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    onPointerCancel={onPointerUp}
+                    onWheel={onWheel}
                   >
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
+                    <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
+                      {visibleLinks.map((link, index) => {
+                        const source = displayNodeById.get(link.source);
+                        const target = displayNodeById.get(link.target);
+                        if (!source || !target) return null;
+                        const selectedLink = selectedNodeId === source.id || selectedNodeId === target.id;
+                        const searchLink = !normalizedSearch || searchFocusIds.has(source.id) && searchFocusIds.has(target.id);
+                        const related = !selectedNodeId || selectedFocusIds.has(source.id) && selectedFocusIds.has(target.id);
+                        const status = target.status;
+                        const color = selectedLink ? (isDark ? '#77b5e7' : '#0868b2') : STATUS_COLORS[status];
+                        const dx = target.x - source.x;
+                        const dy = target.y - source.y;
+                        const distance = Math.hypot(dx, dy) || 1;
+                        const edgeRatio = Math.min(96 / Math.max(Math.abs(dx), 0.01), 31 / Math.max(Math.abs(dy), 0.01));
+                        const x1 = source.x + dx * edgeRatio;
+                        const y1 = source.y + dy * edgeRatio;
+                        const x2 = target.x - (dx / distance) * target.radius;
+                        const y2 = target.y - (dy / distance) * target.radius;
+                        return <line key={`${link.source}-${link.target}-${index}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={selectedLink ? 2.1 : 1.35} strokeOpacity={searchLink && related ? (selectedLink ? 0.9 : 0.36) : 0.055} strokeLinecap="round" className="transition-[stroke-opacity,stroke-width] duration-200" />;
+                      })}
 
-            {/* Статистика карты */}
-            <div className="p-5 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm border-b border-slate-200 dark:border-slate-800 pb-2">Статистика знаний</h3>
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
-                  <p className="text-lg font-black text-slate-900 dark:text-slate-200">{graphStats.materialsCount}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Лекций</p>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-850 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
-                  <p className="text-lg font-black text-slate-900 dark:text-slate-200">{graphStats.conceptCount}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Понятий</p>
-                </div>
-                {graphStats.weakCount > 0 ? (
-                  <div className="bg-red-950/20 p-2.5 rounded-xl border border-red-500/20 col-span-2">
-                    <p className="text-lg font-black text-red-400">{graphStats.weakCount}</p>
-                    <p className="text-[10px] text-red-300">Слабых тем (требуют повторения)</p>
-                  </div>
-                ) : (
-                  <div className="bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-500/20 col-span-2">
-                    <p className="text-sm font-bold text-emerald-400">Все понятия усвоены! 🎉</p>
-                  </div>
-                )}
-              </div>
-            </div>
+                      {visibleNodes.map(node => {
+                        const displayNode = displayNodeById.get(node.id) || node;
+                        const isSelected = selectedNodeId === node.id;
+                        const isConnected = selectedFocusIds.has(node.id);
+                        const isSearchMatch = Boolean(normalizedSearch) && normalizeTerm(node.label).includes(normalizedSearch);
+                        const inSearchContext = !normalizedSearch || searchFocusIds.has(node.id);
+                        const inSelectedContext = !selectedNodeId || isSelected || isConnected;
+                        const opacity = inSearchContext && inSelectedContext ? 1 : 0.14;
+                        const color = node.type === 'material' ? node.color : STATUS_COLORS[node.status];
+                        return (
+                          <g
+                            key={node.id}
+                            data-map-node="true"
+                            transform={`translate(${displayNode.x} ${displayNode.y})`}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={isSelected}
+                            aria-label={`${node.type === 'material' ? 'Материал' : `Понятие, ${statusLabel(node.status)}`}: ${node.label}`}
+                            onClick={() => selectNode(node)}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectNode(node); }
+                            }}
+                            style={{ opacity, cursor: 'pointer' }}
+                            className="transition-opacity duration-200 focus:outline-none"
+                          >
+                            <title>{node.label}</title>
+                            {node.type === 'material' ? (
+                              <>
+                                <rect x={-96} y={-31} width={192} height={62} rx={14} fill={isSelected ? (isDark ? '#293a49' : '#e8f2fb') : (isDark ? '#302f2c' : '#ffffff')} stroke={isSelected ? (isDark ? '#77b5e7' : '#0868b2') : (isDark ? '#55514a' : '#d8d5cf')} strokeWidth={isSelected ? 2 : 1.2} />
+                                <rect x={-96} y={-20} width={3} height={40} rx={1.5} fill={node.color} />
+                                <path d="M -79 -10 h10 l5 5 v16 h-15 z M -69 -10 v6 h5 M -76 2 h9 M -76 7 h9" fill="none" stroke={isDark ? '#d0cec8' : '#555650'} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                                <circle cx={82} cy={-17} r={4} fill={node.color} />
+                                <text x={-57} y={-2} textAnchor="start" fill={isDark ? '#f2f0ec' : '#20201e'} fontSize="11.5" fontWeight="600" className="pointer-events-none">
+                                  <tspan x={-57}>{titleLines(node.label)[0]}</tspan>
+                                  {titleLines(node.label)[1] && <tspan x={-57} dy="14" fill={isDark ? '#b0ada6' : '#696862'} fontSize="10.5" fontWeight="400">{titleLines(node.label)[1]}</tspan>}
+                                </text>
+                              </>
+                            ) : (
+                              <>
+                                <circle r={node.radius + (isSelected || isSearchMatch ? 5 : 0)} fill="none" stroke={isSelected || isSearchMatch ? (isDark ? '#77b5e7' : '#0868b2') : color} strokeOpacity={isSelected || isSearchMatch ? 0.62 : 0.18} strokeWidth={1.4} />
+                                <circle r={node.radius} fill={isDark ? '#302f2c' : '#ffffff'} stroke={color} strokeWidth={2.2} />
+                                {node.status !== 'neutral' && <text x="0" y="4" textAnchor="middle" fill={color} fontSize="11" fontWeight="700" className="pointer-events-none">{node.status === 'weak' ? '!' : '✓'}</text>}
+                                <text y={node.radius + 17} textAnchor="middle" fill={isDark ? '#e2dfd8' : '#3f403c'} fontSize="10.5" fontWeight={isSelected || isSearchMatch ? '700' : '500'} className="pointer-events-none">{truncate(node.label, 28)}</text>
+                                {(node.materials?.length || 0) > 1 && <text y={node.radius + 30} textAnchor="middle" fill={isDark ? '#b0ada6' : '#696862'} fontSize="9" className="pointer-events-none">{node.materials!.length} материала</text>}
+                              </>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </g>
+                  </svg>
 
-            {/* Карточка деталей выбранного узла */}
-            <AnimatePresence mode="wait">
+                  <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full border border-[var(--sf-line)] bg-[var(--sf-surface)] p-1 shadow-sm" role="group" aria-label="Масштаб карты">
+                    <button type="button" onClick={() => zoomFromControl(1.2)} aria-label="Приблизить" className="grid h-9 w-9 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"><ZoomIn className="h-4 w-4" /></button>
+                    <span className="w-10 text-center text-[11px] tabular-nums text-[var(--sf-muted)]">{Math.round(scale * 100)}%</span>
+                    <button type="button" onClick={() => zoomFromControl(1 / 1.2)} aria-label="Отдалить" className="grid h-9 w-9 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"><ZoomOut className="h-4 w-4" /></button>
+                    <span className="mx-0.5 h-5 w-px bg-[var(--sf-line)]" />
+                    <button type="button" onClick={resetMap} aria-label="Показать всю карту" title="Показать всю карту" className="grid h-9 w-9 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"><Focus className="h-4 w-4" /></button>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-h-[660px] space-y-1 overflow-y-auto p-3 sm:p-4">
+                  {visibleNodes.map(node => (
+                    <button key={node.id} type="button" onClick={() => selectNode(node)} className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition ${selectedNodeId === node.id ? 'bg-[var(--sf-accent-soft)]' : 'hover:bg-[var(--sf-surface-soft)]'}`}>
+                      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${node.type === 'material' ? 'border border-[var(--sf-line)] bg-[var(--sf-surface)]' : 'rounded-full border-2 bg-[var(--sf-surface)]'}`} style={{ color: node.type === 'material' ? node.color : STATUS_COLORS[node.status], borderColor: node.type === 'concept' ? STATUS_COLORS[node.status] : undefined }}>
+                        {node.type === 'material' ? <FileText className="h-4 w-4" /> : node.status === 'weak' ? <AlertCircle className="h-4 w-4" /> : node.status === 'strong' ? <Check className="h-4 w-4" /> : <Network className="h-4 w-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-[var(--sf-ink)]">{node.label}</span>
+                        <span className="mt-0.5 block truncate text-xs text-[var(--sf-muted)]">{node.type === 'material' ? `${String(node.details?.subject || 'Общее')} · ${(neighborMap.get(node.id) || new Set()).size} понятий` : `${node.materials?.length || 0} материалов · ${statusLabel(node.status)}`}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {viewMode === 'map' && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--sf-line)] px-4 py-3 text-[11px] text-[var(--sf-muted)]">
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] border border-[var(--sf-muted)]" /> Материал</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-2 border-[#557a96]" /> Понятие</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#b65342]" /> Нужна практика</span>
+              </div>}
+              <div className="border-t border-[var(--sf-line)] px-4 py-3 text-xs text-[var(--sf-muted)]">
+                {viewMode === 'map' ? 'Перетаскивайте поле, используйте колесо мыши или щипок для масштаба. Нажмите на узел для подробностей.' : `${visibleNodes.length} элементов · список остаётся доступен при любом фильтре.`}
+              </div>
+            </section>
+
+            <aside className="min-w-0 space-y-4">
               {selectedNode ? (
-                <motion.div
-                  key={selectedNode.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 border-l-4 rounded-2xl space-y-4 shadow-sm"
-                  style={{ borderLeftColor: selectedNode.color }}
-                >
+                <section className={`${surfaceClass} p-4 sm:p-5`} aria-live="polite">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--sf-muted)]">{selectedNode.type === 'material' ? 'Материал' : 'Понятие'}</p>
+                      <h2 className="mt-1.5 break-words text-lg font-semibold leading-snug">{selectedNode.label}</h2>
+                    </div>
+                    <button type="button" onClick={() => { setSelectedNodeId(null); resetView(); }} aria-label="Закрыть подробности" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)]"><X className="h-4 w-4" /></button>
+                  </div>
+
                   {selectedNode.type === 'material' ? (
-                    // ДЕТАЛИ ЛЕКЦИИ
                     <>
-                      <div>
-                        <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                          Лекция
-                        </span>
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug line-clamp-3 break-words">{selectedNode.label}</h4>
-                        {selectedNode.details?.subject && (
-                          <span className="text-xs text-indigo-400 font-semibold mt-1 block">
-                            Предмет: {selectedNode.details.subject}
-                          </span>
-                        )}
+                      <p className="mt-2 text-sm text-[var(--sf-muted)]">{String(selectedNode.details?.subject || 'Без предмета')}{formatDate(selectedNode.details?.created_at as string) ? ` · ${formatDate(selectedNode.details?.created_at as string)}` : ''}</p>
+                      <div className="mt-4 border-t border-[var(--sf-line)] pt-3">
+                        <p className="mb-2 text-xs font-medium text-[var(--sf-muted)]">Понятия в этом материале</p>
+                          {conceptConnections.length ? <div className="flex flex-wrap gap-1.5">{conceptConnections.map(node => <button key={node.id} type="button" onClick={() => selectNode(node)} className="rounded-full border border-[var(--sf-line)] px-2.5 py-1.5 text-xs text-[var(--sf-ink)] hover:border-[var(--sf-accent)]">{node.label}</button>)}</div> : <p className="text-sm text-[var(--sf-muted)]">В конспекте пока не найдено понятий для карты.</p>}
                       </div>
-
-                      <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                        <p>Добавлена: {new Date(selectedNode.details?.created_at).toLocaleDateString('ru-RU')}</p>
-                      </div>
-
-                      <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                          onClick={() => navigate(`/library/${selectedNode.id}`)}
-                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10 dark:shadow-none"
-                        >
-                          <BookOpen className="w-3.5 h-3.5" /> Изучать лекцию
-                        </button>
-                        <button
-                          onClick={() => navigate('/exam')}
-                          className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-xl text-xs transition border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5"
-                        >
-                          <Zap className="w-3.5 h-3.5 text-amber-400" /> Проверить знания
-                        </button>
+                      <div className="mt-4 flex flex-col gap-2">
+                        <button type="button" onClick={() => navigate(`/library/${selectedNode.id}`)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--sf-accent-hover)]"><BookOpen className="h-4 w-4" /> Открыть материал</button>
+                        <button type="button" onClick={() => navigate('/exam')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--sf-line)] px-4 text-sm font-medium text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]">Проверить себя <ArrowUpRight className="h-4 w-4" /></button>
                       </div>
                     </>
                   ) : (
-                    // ДЕТАЛИ КОНЦЕПТА
                     <>
-                      <div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[9px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                            Понятие
-                          </span>
-                          {selectedNode.status === 'weak' ? (
-                            <span className="flex items-center gap-1 text-[10px] text-red-400 font-bold">
-                              <AlertCircle className="w-3 h-3 animate-pulse" /> Ошибка
-                            </span>
-                          ) : selectedNode.status === 'strong' ? (
-                            <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
-                              <CheckCircle2 className="w-3 h-3" /> Усвоено
-                            </span>
-                          ) : null}
-                        </div>
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 mt-2 leading-snug line-clamp-3 break-words">{selectedNode.label}</h4>
+                      <div className="mt-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium" style={{ color: STATUS_COLORS[selectedNode.status], backgroundColor: isDark ? '#302f2c' : '#f3f2ef' }}>
+                        {selectedNode.status === 'weak' ? <AlertCircle className="h-3.5 w-3.5" /> : selectedNode.status === 'strong' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Network className="h-3.5 w-3.5" />}
+                        {statusLabel(selectedNode.status)}
                       </div>
-
-                      {selectedNode.definition && (
-                        <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1.5">
-                          <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 dark:text-slate-400 block">Определение</span>
-                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{selectedNode.definition}</p>
+                      {selectedNode.definition && <p className="mt-3 text-sm leading-relaxed text-[var(--sf-muted)]">{selectedNode.definition}</p>}
+                      <div className="mt-4 border-t border-[var(--sf-line)] pt-3">
+                        <p className="mb-2 text-xs font-medium text-[var(--sf-muted)]">Встречается в материалах</p>
+                        <div className="space-y-1">
+                          {(selectedNode.materials || []).map(material => <button key={material.id} type="button" onClick={() => { setSelectedNodeId(material.id); resetView(); }} className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-left text-sm text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]"><span className="truncate">{material.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" /></button>)}
                         </div>
-                      )}
-
-                      {selectedNode.materials && selectedNode.materials.length > 0 && (
-                        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">Встречается в лекциях:</span>
-                          <div className="space-y-1.5">
-                            {selectedNode.materials.map(m => (
-                              <button
-                                key={m.id}
-                                onClick={() => navigate(`/library/${m.id}`)}
-                                className="w-full text-left p-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 flex justify-between items-center transition border border-slate-200 dark:border-slate-800"
-                              >
-                                <span className="truncate pr-2">{m.title}</span>
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedNode.status === 'weak' && (
-                        <button
-                          onClick={() => navigate('/mistakes')}
-                          className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/15 dark:shadow-none"
-                        >
-                          <Zap className="w-3.5 h-3.5" /> Исправить в практике
-                        </button>
-                      )}
+                      </div>
+                      {selectedNode.status === 'weak' && <button type="button" onClick={() => navigate('/mistakes')} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--sf-accent-hover)]"><RotateCcw className="h-4 w-4" /> Разобрать ошибки</button>}
                     </>
                   )}
-                </motion.div>
+                </section>
               ) : (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="p-6 text-center text-slate-400 italic text-xs space-y-2 py-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm"
-                >
-                  <HelpCircle className="w-6 h-6 mx-auto text-slate-500 dark:text-slate-400" />
-                  <p className="text-slate-500 dark:text-slate-400">Нажмите на любой элемент графа, чтобы просмотреть его описание, связи и статус освоения.</p>
-                </motion.div>
+                <section className={`${surfaceClass} p-4 sm:p-5`}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--sf-muted)]">Как читать карту</p>
+                  <h2 className="mt-1.5 text-base font-semibold">Материалы соединяются через понятия</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--sf-muted)]">Если тема встречается в нескольких конспектах, она становится мостом между ними. Выберите такой узел, чтобы увидеть определение и исходные материалы.</p>
+                </section>
               )}
-            </AnimatePresence>
+
+              <section className={`${surfaceClass} p-4`}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold">Что связывает материалы</h2>
+                    <p className="mt-0.5 text-xs text-[var(--sf-muted)]">Понятия, найденные в нескольких конспектах</p>
+                  </div>
+                  <span className="text-xs tabular-nums text-[var(--sf-muted)]">{graphStats.shared}</span>
+                </div>
+                {commonTopics.length ? <div className="space-y-1">{commonTopics.map(node => <button key={node.id} type="button" onClick={() => { setActiveFilter('all'); setSelectedNodeId(node.id); resetView(); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sf-surface-soft)]"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLORS[node.status] }} /><span className="min-w-0 flex-1 truncate text-sm text-[var(--sf-ink)]">{node.label}</span><span className="shrink-0 text-xs text-[var(--sf-muted)]">×{node.materials?.length}</span></button>)}</div> : <p className="py-1 text-sm text-[var(--sf-muted)]">Общие понятия появятся, когда тема встретится в двух или более конспектах.</p>}
+              </section>
+
+              <section className={`${surfaceClass} p-4`}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold">Темы для повторения</h2>
+                    <p className="mt-0.5 text-xs text-[var(--sf-muted)]">По открытым записям в дневнике ошибок</p>
+                  </div>
+                  <span className="text-xs tabular-nums text-[var(--sf-muted)]">{graphStats.weak}</span>
+                </div>
+                {weakTopics.length ? <div className="space-y-1">{weakTopics.map(node => <button key={node.id} type="button" onClick={() => { setActiveFilter('all'); setSelectedNodeId(node.id); resetView(); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sf-surface-soft)]"><AlertCircle className="h-4 w-4 shrink-0 text-[#b65342]" /><span className="min-w-0 flex-1 truncate text-sm text-[var(--sf-ink)]">{node.label}</span><ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" /></button>)}</div> : <p className="py-1 text-sm text-[var(--sf-muted)]">Нет открытых ошибок по понятиям из этих конспектов.</p>}
+              </section>
+            </aside>
           </div>
-        </div>
+        </>
       )}
-    </div>
+    </main>
   );
 }

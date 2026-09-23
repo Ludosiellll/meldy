@@ -213,7 +213,7 @@ export default function Analytics() {
       {/* Заголовок и табы */}
       <div className="flex flex-col gap-5 border-b border-slate-200 pb-7 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 dark:text-cyan-300">Результаты</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sf-accent)]">Результаты</p>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 md:text-4xl">Прогресс</h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Повторения, экзамены и активность по дням.</p>
         </div>
@@ -223,14 +223,14 @@ export default function Analytics() {
             onClick={() => setActiveTab('platform')}
             className={`relative flex-1 md:px-5 py-2.5 rounded-md text-xs sm:text-sm font-semibold transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
               activeTab === 'platform' 
-                ? 'text-slate-950'
+                ? 'text-white'
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
             {activeTab === 'platform' && (
               <motion.span
                 layoutId="activeAnalyticsTab"
-                className="absolute inset-0 bg-cyan-300 rounded-md -z-10"
+                className="absolute inset-0 bg-[var(--sf-accent)] rounded-md -z-10"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
@@ -243,14 +243,14 @@ export default function Analytics() {
             onClick={() => setActiveTab('gradebook')}
             className={`relative flex-1 md:px-5 py-2.5 rounded-md text-xs sm:text-sm font-semibold transition-colors duration-200 flex items-center justify-center gap-2 select-none ${
               activeTab === 'gradebook' 
-                ? 'text-slate-950'
+                ? 'text-white'
                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
             {activeTab === 'gradebook' && (
               <motion.span
                 layoutId="activeAnalyticsTab"
-                className="absolute inset-0 bg-cyan-300 rounded-md -z-10"
+                className="absolute inset-0 bg-[var(--sf-accent)] rounded-md -z-10"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}

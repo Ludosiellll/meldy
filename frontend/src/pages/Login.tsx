@@ -53,14 +53,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa] dark:bg-[#07111f] flex text-slate-900 dark:text-slate-100">
+    <div className="auth-page min-h-screen flex text-slate-900 dark:text-slate-100">
       {/* Left Column: Form */}
       <div className="flex-1 flex flex-col justify-start sm:justify-center px-6 sm:px-12 lg:px-24 xl:px-32 relative pt-28 pb-12 sm:py-12">
         <button onClick={() => navigate('/')} className="absolute top-8 left-6 sm:left-12 flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-cyan-300 rounded-md flex items-center justify-center">
-            <GraduationCap className="w-4 h-4 text-slate-950" />
+          <div className="app-logo-mark w-8 h-8 rounded-md flex items-center justify-center">
+            <GraduationCap className="w-4 h-4" />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-cyan-600 transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">StudyForge</span>
         </button>
 
         <motion.div 
@@ -99,7 +99,7 @@ export default function Login() {
                   }}
                   aria-invalid={Boolean(emailError)}
                   aria-describedby={emailError ? 'login-email-error' : undefined}
-                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-cyan-400 focus:border-cyan-400'} rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-colors`}
+                  className={`block w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border ${emailError ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-[var(--sf-accent)] focus:border-[var(--sf-accent)]'} rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 outline-none transition-colors`}
                   placeholder="you@example.com"
                   required
                 />
@@ -120,14 +120,14 @@ export default function Login() {
                   autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 outline-none transition-colors"
+                  className="block w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:ring-2 focus:ring-[var(--sf-accent)] focus:border-[var(--sf-accent)] outline-none transition-colors"
                   placeholder="••••••••"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 px-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-300 transition-colors"
+                  className="absolute inset-y-0 right-0 px-3.5 flex items-center text-slate-400 dark:text-slate-500 hover:text-[var(--sf-accent)] transition-colors"
                   aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -137,7 +137,7 @@ export default function Login() {
                 <button 
                   type="button" 
                   onClick={() => navigate('/forgot-password')} 
-                  className="text-xs font-medium text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 transition-colors"
+                  className="text-xs font-medium text-[var(--sf-accent)] hover:underline transition-colors"
                 >
                   Забыли пароль?
                 </button>
@@ -162,7 +162,7 @@ export default function Login() {
               <div className="w-full border-t border-slate-200 dark:border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#f6f8fa] dark:bg-[#07111f] px-3 text-slate-400 dark:text-slate-500">или</span>
+              <span className="auth-divider-label px-3 text-slate-400 dark:text-slate-500">или</span>
             </div>
           </div>
 
@@ -182,7 +182,7 @@ export default function Login() {
 
           <p className="mt-8 text-center text-sm text-slate-500 dark:text-slate-400 font-medium">
             Нет аккаунта?{' '}
-            <button onClick={() => navigate('/register')} className="font-semibold text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 hover:underline transition-colors">
+            <button onClick={() => navigate('/register')} className="font-semibold text-[var(--sf-accent)] hover:underline transition-colors">
               Зарегистрироваться
             </button>
           </p>
@@ -190,27 +190,25 @@ export default function Login() {
       </div>
 
       {/* Right Column: Branded Visual (Hidden on mobile) */}
-      <div className="hidden lg:flex flex-1 relative bg-[#07111f] overflow-hidden items-center justify-center p-12 border-l border-white/10">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(148,163,184,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.08) 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
+      <div className="auth-showcase hidden lg:flex flex-1 relative overflow-hidden items-center justify-center p-12 border-l">
         <motion.div 
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="relative w-full max-w-lg"
         >
-          <p className="text-xs font-medium tracking-[0.16em] uppercase text-cyan-300 mb-5">Как работает StudyForge</p>
-          <h2 className="text-4xl font-semibold text-white leading-[1.08] tracking-tight mb-8">От источника до уверенного ответа.</h2>
-          <div className="border-y border-white/10 divide-y divide-white/10">
+          <p className="auth-showcase-eyebrow text-xs font-medium mb-5">Как работает StudyForge</p>
+          <h2 className="auth-showcase-title text-4xl font-semibold leading-[1.08] tracking-tight mb-8">От источника до уверенного ответа.</h2>
+          <div className="auth-showcase-list border-y divide-y">
             {[
-              ['01', 'Загрузите материал', 'PDF, DOCX, текст, изображение или запись лекции.'],
-              ['02', 'Разберите главное', 'Получите конспект со ссылками на исходные фрагменты.'],
-              ['03', 'Проверьте себя', 'Закрепите тему карточками и коротким тестом.'],
-            ].map(([number, title, description]) => (
-              <div key={number} className="grid grid-cols-[44px_1fr] gap-4 py-5">
-                <span className="text-xs font-medium text-cyan-300 tabular-nums">{number}</span>
+              ['Загрузите материал', 'PDF, DOCX, текст, изображение или запись лекции.'],
+              ['Разберите главное', 'Получите конспект со ссылками на исходные фрагменты.'],
+              ['Проверьте себя', 'Закрепите тему карточками и коротким тестом.'],
+            ].map(([title, description]) => (
+              <div key={title} className="py-5">
                 <div>
-                  <h3 className="text-base font-semibold text-white mb-1">{title}</h3>
-                  <p className="text-sm leading-relaxed text-slate-400">{description}</p>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">{title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
                 </div>
               </div>
             ))}

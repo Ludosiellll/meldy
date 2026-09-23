@@ -38,7 +38,7 @@ export default function Gradebook() {
   const queryClient = useQueryClient();
   const { verifyEnergy } = useEnergyConfirm();
 
-  const { data: subjects = [], isLoading: isLoadingSubjects } = useQuery({
+  const { data: subjects = [], isLoading: isLoadingSubjects, isError: subjectsError, refetch: refetchSubjects } = useQuery({
     queryKey: ['academic_subjects', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -49,7 +49,7 @@ export default function Gradebook() {
     enabled: !!user?.id
   });
 
-  const { data: grades = [], isLoading: isLoadingGrades } = useQuery({
+  const { data: grades = [], isLoading: isLoadingGrades, isError: gradesError, refetch: refetchGrades } = useQuery({
     queryKey: ['academic_grades', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -61,6 +61,10 @@ export default function Gradebook() {
   });
 
   const loading = isLoadingSubjects || isLoadingGrades;
+  const hasLoadError = subjectsError || gradesError;
+  const isFivePoint = subjects.length > 0 && subjects.every(s => s.target_grade <= 5) && grades.every(g => g.value <= 5);
+  const maxScore = isFivePoint ? 5 : 10;
+  const gradeValues = Array.from({ length: maxScore - 1 }, (_, index) => index + 2);
 
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [newSubName, setNewSubName] = useState('');
@@ -97,7 +101,7 @@ export default function Gradebook() {
         user_id: user.id,
         name: newSubName.trim(),
         target_grade: newSubTarget,
-        color: '#6366f1'
+        color: '#0868b2'
       }).select().single();
       if (error) throw error;
       return data;
@@ -107,10 +111,21 @@ export default function Gradebook() {
       setShowAddSubject(false);
       setNewSubName('');
       toast.success('Предмет успешно добавлен!');
-    }
+    },
+    onError: () => toast.error('Не удалось добавить предмет. Попробуйте ещё раз.'),
   });
 
-  const handleAddSubject = () => addSubjectMutation.mutate();
+  const handleAddSubject = () => {
+    if (!newSubName.trim()) {
+      toast.error('Введите название предмета.');
+      return;
+    }
+    if (!Number.isFinite(newSubTarget) || newSubTarget <= 0 || newSubTarget > maxScore) {
+      toast.error(`Целевой балл должен быть от 1 до ${maxScore}.`);
+      return;
+    }
+    addSubjectMutation.mutate();
+  };
 
   const addGradeMutation = useMutation({
     mutationFn: async (params?: { subId: string, val: number }) => {
@@ -118,6 +133,7 @@ export default function Gradebook() {
       const targetSubId = params?.subId || gradeSubId;
       const targetVal = params?.val !== undefined ? params.val : gradeValue;
       if (!targetSubId) throw new Error('No subject');
+      if (!Number.isFinite(targetVal) || targetVal < 2 || targetVal > maxScore) throw new Error('Grade outside active scale');
       const { data, error } = await supabase.from('academic_grades').insert({
         user_id: user.id,
         subject_id: targetSubId,
@@ -132,7 +148,8 @@ export default function Gradebook() {
       setShowAddGrade(false);
       if (user) updateQuestProgress(user.id, 'grade', 1);
       toast.success('Оценка сохранена!');
-    }
+    },
+    onError: () => toast.error('Не удалось сохранить оценку. Проверьте данные и попробуйте ещё раз.'),
   });
 
   const handleAddGrade = (params?: { subId: string, val: number }) => addGradeMutation.mutate(params);
@@ -145,7 +162,8 @@ export default function Gradebook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
       toast.success('Оценка удалена');
-    }
+    },
+    onError: () => toast.error('Не удалось удалить оценку.'),
   });
 
   const deleteSubjectMutation = useMutation({
@@ -161,7 +179,8 @@ export default function Gradebook() {
       }
       setSubjectToDelete(null);
       toast.success('Предмет удален');
-    }
+    },
+    onError: () => toast.error('Не удалось удалить предмет. Оценки не изменены.'),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,9 +222,8 @@ export default function Gradebook() {
     setScanText('');
     setScanning(true);
     
+    let failurePhase: 'recognition' | 'saving' = 'recognition';
     try {
-      if (user?.id) await incrementAIUsage(user.id, 1);
-      
       const res = await fetch('/api/academic/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -216,60 +234,135 @@ export default function Gradebook() {
           chat_history: scanMessages.map(m => ({ role: m.role, content: m.content, images_base64: m.images || [] }))
         })
       });
-      const data = await res.json();
+      const data: any = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(res.status === 401 ? 'Войдите в аккаунт и повторите попытку.' : 'Сервис распознавания временно недоступен.');
+      }
+      failurePhase = 'saving';
+      if (user?.id) await incrementAIUsage(user.id, 1);
       
       if (data.message) {
         setScanMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
       }
       
-      // Auto-create subjects if they don't exist
-      let localSubjects = [...subjects];
-      const clearedSubjects = new Set<string>();
-      
-      for (const g of data.grades || []) {
-        let sub = localSubjects.find(s => s.name.toLowerCase() === g.subject.toLowerCase());
-        if (!sub) {
-          const isFive = subjects.length > 0 && subjects.every(s => s.target_grade <= 5) && grades.every(gr => gr.value <= 5);
-          const { data: newSub } = await supabase.from('academic_subjects').insert({
+      const scannedGrades = Array.isArray(data.grades) ? data.grades : [];
+      const knownSubjects = new Map(subjects.map(subject => [subject.name.trim().toLocaleLowerCase(), subject]));
+      const missingNames = [...new Set(scannedGrades
+        .map((grade: any) => typeof grade.subject === 'string' ? grade.subject.trim() : '')
+        .filter((name: string) => name && !knownSubjects.has(name.toLocaleLowerCase())))];
+      const isFivePoint = subjects.length > 0 && subjects.every(subject => subject.target_grade <= 5) && grades.every(grade => grade.value <= 5);
+
+      if (missingNames.length > 0) {
+        const { data: createdSubjects, error: createSubjectsError } = await supabase
+          .from('academic_subjects')
+          .insert(missingNames.map(name => ({
             user_id: user!.id,
-            name: g.subject,
-            target_grade: (isFive && g.value <= 5) ? 5.0 : 9.0,
-            color: '#6366f1'
-          }).select().single();
-          if (newSub) {
-            sub = newSub;
-            localSubjects.push(newSub as Subject);
-          }
+            name,
+            target_grade: isFivePoint ? 5 : 9,
+            color: '#0868b2'
+          })))
+          .select();
+        if (createSubjectsError) throw createSubjectsError;
+        if ((createdSubjects || []).length !== missingNames.length) {
+          throw new Error('Не удалось создать все распознанные предметы.');
         }
-        
-        if (sub) {
-          if (data.replace_existing && !clearedSubjects.has(sub.id)) {
-            await supabase.from('academic_grades').delete().eq('subject_id', sub.id).eq('user_id', user!.id);
-            clearedSubjects.add(sub.id);
-          }
-          await supabase.from('academic_grades').insert({
-            user_id: user!.id,
-            subject_id: sub.id,
-            value: g.value,
-            date: g.date || new Date().toISOString().split('T')[0]
-          });
+        for (const subject of (createdSubjects || []) as Subject[]) {
+          knownSubjects.set(subject.name.trim().toLocaleLowerCase(), subject);
         }
       }
-      
-      if (data.grades && data.grades.length > 0) {
+
+      const rowsToSave: Array<{ user_id: string; subject_id: string; value: number; date: string }> = scannedGrades.flatMap((grade: any) => {
+        const subjectName = typeof grade.subject === 'string' ? grade.subject.trim() : '';
+        const subject = knownSubjects.get(subjectName.toLocaleLowerCase());
+        const value = Number(grade.value);
+        if (!subject || !Number.isFinite(value) || value < 2 || value > (isFivePoint ? 5 : 10)) return [];
+        return [{
+          user_id: user!.id,
+          subject_id: subject.id,
+          value,
+          date: typeof grade.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(grade.date)
+            ? grade.date
+            : new Date().toISOString().split('T')[0]
+        }];
+      });
+
+      if (rowsToSave.length > 0) {
+        const subjectsToReplace = [...new Set(rowsToSave.map(row => row.subject_id))];
+        let previousGradeIds: string[] = [];
+        if (data.replace_existing) {
+          const { data: previousGrades, error: previousGradesError } = await supabase
+            .from('academic_grades')
+            .select('id')
+            .eq('user_id', user!.id)
+            .in('subject_id', subjectsToReplace);
+          if (previousGradesError) throw previousGradesError;
+          previousGradeIds = (previousGrades || []).map((grade: { id: string }) => grade.id);
+        }
+
+        const { data: insertedGrades, error: insertError } = await supabase
+          .from('academic_grades')
+          .insert(rowsToSave)
+          .select('id');
+        if (insertError) throw insertError;
+        if ((insertedGrades || []).length !== rowsToSave.length) {
+          throw new Error('Не все оценки были сохранены.');
+        }
+
+        if (data.replace_existing && previousGradeIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('academic_grades')
+            .delete()
+            .eq('user_id', user!.id)
+            .in('id', previousGradeIds);
+          if (deleteError) {
+            const insertedIds = (insertedGrades || []).map((grade: { id: string }) => grade.id);
+            if (insertedIds.length > 0) {
+              const { error: rollbackError } = await supabase.from('academic_grades').delete().eq('user_id', user!.id).in('id', insertedIds);
+              if (rollbackError) {
+                throw new Error('Не удалось завершить замену. Старые оценки сохранены, но проверьте список на повторы.');
+              }
+            }
+            throw deleteError;
+          }
+        }
+
         queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
         queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
-        updateQuestProgress(user!.id, 'grade', data.grades.length);
-        toast.success(`Распознано и добавлено ${data.grades.length} оценок!`);
+        updateQuestProgress(user!.id, 'grade', rowsToSave.length);
+        toast.success(`Добавлено оценок: ${rowsToSave.length}.`);
       }
     } catch (err) {
       console.error(err);
-      setScanMessages(prev => [...prev, { role: 'assistant', content: 'Ой, произошла ошибка! Попробуйте еще раз.' }]);
+      setScanImages(requestImages);
+      setScanText(requestText);
+      const knownMessage = err instanceof Error && (
+        err.message === 'Войдите в аккаунт и повторите попытку.' ||
+        err.message === 'Сервис распознавания временно недоступен.' ||
+        err.message === 'Не удалось завершить замену. Старые оценки сохранены, но проверьте список на повторы.'
+      )
+        ? err.message
+        : failurePhase === 'recognition'
+          ? 'Не удалось распознать данные. Файлы и текст остались в форме — попробуйте ещё раз.'
+          : 'Не удалось сохранить оценки. Файлы и текст остались в форме — проверьте подключение и повторите попытку.';
+      setScanMessages(prev => [...prev, { role: 'assistant', content: knownMessage }]);
     }
     setScanning(false);
   };
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Загрузка дневника...</div>;
+  if (loading) return <div className="p-8 text-center text-slate-500">Загрузка оценок…</div>;
+  if (hasLoadError) return (
+    <div className="mx-auto max-w-lg border-y border-[var(--sf-line)] py-10 text-center">
+      <h2 className="text-lg font-semibold text-[var(--sf-ink)]">Не удалось загрузить оценки</h2>
+      <p className="mt-2 text-sm text-[var(--sf-muted)]">Проверьте подключение и попробуйте ещё раз. Данные не удалены.</p>
+      <button
+        type="button"
+        onClick={() => { void Promise.all([refetchSubjects(), refetchGrades()]); }}
+        className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--sf-accent-hover)]"
+      >
+        Повторить
+      </button>
+    </div>
+  );
 
   const subjectStats = subjects.map(sub => {
     const subGrades = grades.filter(g => g.subject_id === sub.id);
@@ -280,10 +373,6 @@ export default function Gradebook() {
   const overallAvg = subjectStats.length 
     ? subjectStats.reduce((sum, s) => sum + s.avg, 0) / subjectStats.filter(s => s.avg > 0).length 
     : 0;
-
-  // Default to 10.0 unless there are grades/subjects that explicitly suggest a 5-point system
-  const isFivePoint = subjects.length > 0 && subjects.every(s => s.target_grade <= 5) && grades.every(g => g.value <= 5);
-  const maxScore = isFivePoint ? 5.0 : 10.0;
 
   if (selectedSubject) {
     const subGrades = grades.filter(g => g.subject_id === selectedSubject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -311,12 +400,12 @@ export default function Gradebook() {
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800">
           <h3 className="font-bold text-sm text-slate-500 mb-3 uppercase tracking-wider">Быстрое добавление (сегодня)</h3>
           <div className="flex flex-wrap gap-2 mb-2">
-            {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => (
+            {gradeValues.map(v => (
               <button 
                 key={v}
                 onClick={() => handleAddGrade({ subId: selectedSubject.id, val: v })}
                 disabled={addGradeMutation.isPending}
-                className="w-10 h-10 rounded-xl font-black text-base bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+                className="w-10 h-10 rounded-xl font-black text-base bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-[var(--sf-accent-soft)] hover:text-[var(--sf-accent)] transition"
               >
                 {v}
               </button>
@@ -358,29 +447,29 @@ export default function Gradebook() {
   return (
     <div className="space-y-6">
       {/* Header Widget */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-rose-500 rounded-2xl p-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-lg">
+      <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-5 text-[var(--sf-ink)] sm:flex-row sm:items-center">
         <div>
-          <p className="text-white/80 font-bold uppercase tracking-wider text-xs mb-1">Моя успеваемость (GPA)</p>
+          <p className="mb-1 text-xs font-medium text-[var(--sf-muted)]">Средний балл</p>
           <div className="flex items-end gap-3">
-            <span className="text-4xl font-black">{overallAvg ? overallAvg.toFixed(2) : '-'}</span>
-            <span className="text-white/60 text-sm mb-1 pb-0.5">/ {maxScore.toFixed(1)}</span>
+            <span className="text-4xl font-semibold tabular-nums">{overallAvg ? overallAvg.toFixed(2) : '—'}</span>
+            <span className="mb-1 pb-0.5 text-sm text-[var(--sf-muted)]">из {maxScore.toFixed(0)}</span>
           </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button onClick={() => setShowScan(true)} className="flex-1 sm:flex-none bg-white/20 hover:bg-white/30 backdrop-blur-sm p-3 rounded-xl transition flex flex-col items-center gap-1">
-            <Camera className="w-5 h-5" />
-            <span className="text-[10px] font-bold">Скан по фото</span>
+          <button onClick={() => setShowScan(true)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[var(--sf-line)] px-4 text-sm font-medium text-[var(--sf-ink)] transition hover:bg-[var(--sf-surface-soft)] sm:flex-none">
+            <Camera className="h-4 w-4" />
+            <span>Скан по фото</span>
           </button>
-          <button onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="flex-1 sm:flex-none bg-white text-indigo-600 hover:bg-indigo-50 p-3 rounded-xl transition flex flex-col items-center gap-1 shadow-sm">
-            <Plus className="w-5 h-5" />
-            <span className="text-[10px] font-bold">Оценка</span>
+          <button onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition hover:-translate-y-px hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none sm:flex-none">
+            <Plus className="h-4 w-4" />
+            <span>Добавить оценку</span>
           </button>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-indigo-500" />
+          <BookOpen className="w-5 h-5 text-[var(--sf-accent)]" />
           Мои предметы
         </h2>
         <div className="flex items-center gap-3">
@@ -392,7 +481,7 @@ export default function Gradebook() {
               <Table className="w-4 h-4" />
             </button>
           </div>
-          <button onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:opacity-80 transition">
+          <button onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="text-sm font-bold text-[var(--sf-accent)] hover:opacity-80 transition">
             + Предмет
           </button>
         </div>
@@ -533,13 +622,15 @@ export default function Gradebook() {
               <input 
                 type="number" 
                 step="0.1" 
+                min="1"
+                max={maxScore}
                 value={newSubTarget} 
                 onChange={e => setNewSubTarget(parseFloat(e.target.value))} 
                 className="w-full mb-6 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
               />
               <div className="flex gap-2">
                 <button onClick={() => setShowAddSubject(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
-                <button onClick={handleAddSubject} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Создать</button>
+                <button onClick={handleAddSubject} disabled={addSubjectMutation.isPending || !newSubName.trim() || !Number.isFinite(newSubTarget) || newSubTarget <= 0 || newSubTarget > maxScore} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Создать</button>
               </div>
             </motion.div>
           </div>
@@ -556,8 +647,8 @@ export default function Gradebook() {
                 options={subjects.map(s => ({ value: s.id, label: s.name }))}
                 className="w-full mb-3"
               />
-              <div className="grid grid-cols-5 gap-2 mb-6">
-                {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => (
+              <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${gradeValues.length}, minmax(0, 1fr))` }}>
+                {gradeValues.map(v => (
                   <button 
                     key={v} 
                     onClick={() => setGradeValue(v)} 
@@ -569,7 +660,7 @@ export default function Gradebook() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setShowAddGrade(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
-                <button onClick={() => handleAddGrade()} disabled={!gradeSubId} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Сохранить</button>
+                <button onClick={() => handleAddGrade()} disabled={!gradeSubId || addGradeMutation.isPending} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Сохранить</button>
               </div>
             </motion.div>
           </div>
@@ -581,7 +672,7 @@ export default function Gradebook() {
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-indigo-500" />
-                  Smart Scan
+                  Распознавание оценок
                 </h3>
                 <button onClick={() => setShowScan(false)} className="text-slate-400 hover:text-slate-600 transition">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
