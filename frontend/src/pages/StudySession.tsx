@@ -66,6 +66,9 @@ export default function StudySession() {
   const [cardIdx, setCardIdx] = useState(0);
   const [cardRevealed, setCardRevealed] = useState(false);
   const [cardStats, setCardStats] = useState({ correct: 0, wrong: 0 });
+  const [cardProcessing, setCardProcessing] = useState(false);
+  const [cardSaveError, setCardSaveError] = useState<string | null>(null);
+  const cardProcessingRef = useRef(false);
 
   // Шаг 2: Чтение + Чат
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -264,34 +267,45 @@ export default function StudySession() {
     }
   };
 
-  const handleCardAnswer = (quality: number) => {
-    if (!sessionCards[cardIdx]) return;
+  const handleCardAnswer = async (quality: number) => {
+    if (!sessionCards[cardIdx] || cardProcessingRef.current) return;
     
     const card = sessionCards[cardIdx];
-    
-    // 1. Сразу (синхронно) обновляем UI, чтобы отклик был 0мс
-    if (quality >= 3) {
-      setCardStats(p => ({ ...p, correct: p.correct + 1 }));
-    } else {
-      setCardStats(p => ({ ...p, wrong: p.wrong + 1 }));
-    }
+    cardProcessingRef.current = true;
+    setCardProcessing(true);
+    setCardSaveError(null);
 
-    if (cardIdx + 1 >= sessionCards.length) {
-      playSuccessSound();
-      setPhase('read');
-    } else {
-      setCardIdx(p => p + 1);
-      setCardRevealed(false);
-    }
+    try {
+      if (card.id && !card.isMock) {
+        await updateCardProgress(card.id, quality);
+      } else if (!card.isMock) {
+        throw new Error('Study card is missing its database id.');
+      }
 
-    // 2. Фоновые (асинхронные) запросы в Supabase, не блокирующие переключение карточек в UI
-    if (card.id && !card.isMock) {
-      updateCardProgress(card.id, quality).catch(err => console.error("Error updating card progress:", err));
-    }
-    
-    if (user?.id) {
-      updateQuestProgress(user.id, 'review', 1).catch(err => console.error("Error updating quest progress:", err));
-      recordStudyActivity(user.id, 1, 0).catch(err => console.error("Error recording study activity:", err));
+      if (quality >= 3) {
+        setCardStats(p => ({ ...p, correct: p.correct + 1 }));
+      } else {
+        setCardStats(p => ({ ...p, wrong: p.wrong + 1 }));
+      }
+
+      if (cardIdx + 1 >= sessionCards.length) {
+        playSuccessSound();
+        setPhase('read');
+      } else {
+        setCardIdx(p => p + 1);
+        setCardRevealed(false);
+      }
+
+      if (user?.id) {
+        updateQuestProgress(user.id, 'review', 1).catch(err => console.error('Error updating quest progress:', err));
+        recordStudyActivity(user.id, 1, 0).catch(err => console.error('Error recording study activity:', err));
+      }
+    } catch (error) {
+      console.error('Error saving card progress:', error);
+      setCardSaveError('Ответ не сохранён. Проверьте соединение и попробуйте ещё раз.');
+    } finally {
+      cardProcessingRef.current = false;
+      setCardProcessing(false);
     }
   };
 
@@ -603,7 +617,7 @@ export default function StudySession() {
             </motion.div>
 
             {/* Управление */}
-            <div className="pt-3">
+            <div className="pt-3" aria-busy={cardProcessing}>
               {!cardRevealed ? (
                 <button
                   onClick={handleRevealCard}
@@ -615,24 +629,29 @@ export default function StudySession() {
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => handleCardAnswer(1)}
-                    className="h-14 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
+                    disabled={cardProcessing}
+                    className="h-14 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
                   >
                     <span>Не знал 😕</span>
                   </button>
                   <button
                     onClick={() => handleCardAnswer(3)}
-                    className="h-14 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
+                    disabled={cardProcessing}
+                    className="h-14 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
                   >
                     <span>Затруднялся 🤔</span>
                   </button>
                   <button
                     onClick={() => handleCardAnswer(5)}
-                    className="h-14 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98]"
+                    disabled={cardProcessing}
+                    className="h-14 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] disabled:cursor-wait disabled:opacity-60"
                   >
                     <span>Знал! 😎</span>
                   </button>
                 </div>
               )}
+              {cardProcessing && <p role="status" aria-live="polite" className="mt-3 text-center text-sm text-slate-600 dark:text-slate-300">Сохраняем ответ…</p>}
+              {cardSaveError && <p role="alert" className="mt-3 text-center text-sm text-rose-700 dark:text-rose-300">{cardSaveError}</p>}
             </div>
           </motion.div>
         )}

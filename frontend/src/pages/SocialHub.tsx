@@ -66,7 +66,14 @@ export default function SocialHub() {
     setFeed(prev => prev.map(item =>
       item.id === m.id ? { ...item, is_liked_by_me: !isLiked, likes_count: item.likes_count + (isLiked ? -1 : 1) } : item
     ));
-    await toggleLike(user.id, m.id, !!isLiked);
+    const saved = await toggleLike(m.id, !!isLiked);
+    if (!saved) {
+      setFeed(prev => prev.map(item => item.id === m.id ? {
+        ...item,
+        is_liked_by_me: !!isLiked,
+        likes_count: Math.max(0, item.likes_count + (isLiked ? 1 : -1)),
+      } : item));
+    }
   };
 
   const handleCopy = async (m: PublicMaterial) => {

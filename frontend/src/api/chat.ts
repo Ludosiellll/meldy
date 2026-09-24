@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getPublicProfiles } from './social';
 
 export interface Friendship {
   id: string;
@@ -44,7 +45,7 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
   const friendIds = data.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id);
   if (friendIds.length === 0) return [];
 
-  const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url').in('id', friendIds);
+  const profiles = await getPublicProfiles(friendIds);
   const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
   return data.map(f => {
@@ -54,7 +55,7 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
       ...f,
       friend_id: friendId,
       friend_name: p?.full_name || 'Неизвестный',
-      friend_avatar: p?.avatar_url
+      friend_avatar: p?.avatar_url || undefined
     };
   });
 }
@@ -65,16 +66,6 @@ export async function sendFriendRequest(requesterId: string, addresseeId: string
     addressee_id: addresseeId,
     status: 'pending'
   });
-  if (!error) {
-    // Создаём уведомление адресату
-    await supabase.from('notifications').insert({
-      user_id: addresseeId,
-      type: 'friend_request',
-      title: 'Новая заявка в друзья',
-      body: 'Кто-то хочет добавить вас в друзья',
-      related_id: requesterId
-    });
-  }
   return !error;
 }
 
@@ -85,14 +76,7 @@ export async function respondFriendRequest(friendshipId: string, status: 'accept
 
 export async function searchUsers(query: string, currentUserId: string) {
   const q = query.replace('#', '').trim();
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, avatar_url, university, public_id')
-    .neq('id', currentUserId)
-    .or(`full_name.ilike.%${query}%,public_id.eq.${q}`)
-    .limit(20);
-  if (error) return [];
-  return data || [];
+  return getPublicProfiles(null, q, currentUserId, 20);
 }
 
 // ── Блокировки ────────────────────────────────────────────────────────────────
@@ -141,13 +125,13 @@ export async function getChats(userId: string): Promise<ChatContact[]> {
   
   if (ids.size === 0) return [];
   
-  const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url').in('id', Array.from(ids));
+  const profiles = await getPublicProfiles(Array.from(ids));
   
   return (profiles || []).map(p => ({
     id: p.id,
     friend_id: p.id,
     friend_name: p.full_name || 'Неизвестный',
-    friend_avatar: p.avatar_url
+    friend_avatar: p.avatar_url || undefined
   }));
 }
 
@@ -169,16 +153,6 @@ export async function sendMessage(senderId: string, receiverId: string, content:
     content
   }).select('*').single();
 
-  if (!error) {
-    // Уведомление получателю
-    await supabase.from('notifications').insert({
-      user_id: receiverId,
-      type: 'message',
-      title: 'Новое сообщение',
-      body: content.slice(0, 80),
-      related_id: senderId
-    });
-  }
   if (error) console.error('sendMessage error:', error);
   return data;
 }

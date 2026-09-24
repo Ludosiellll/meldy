@@ -290,7 +290,7 @@ export default function Library() {
   const handleJoinGroup = async () => {
     if (!user || !inviteCode.trim() || !classNickname.trim()) return;
     setJoinError('');
-    const ok = await joinGroup(user.id, inviteCode.trim(), classNickname.trim());
+    const ok = await joinGroup(inviteCode.trim(), classNickname.trim());
     if (ok) {
       setShowJoinModal(false);
       setInviteCode('');

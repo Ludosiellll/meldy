@@ -30,8 +30,13 @@ export async function syncFlashcards(userId: string, materialId: string, cards: 
 
 export async function updateCardProgress(cardId: string, quality: number) {
   // SM-2 алгоритм
-  const { data: card } = await supabase.from('flashcard_progress').select('*').eq('id', cardId).single();
-  if (!card) return;
+  const { data: card, error: readError } = await supabase
+    .from('flashcard_progress')
+    .select('*')
+    .eq('id', cardId)
+    .single();
+  if (readError) throw readError;
+  if (!card) throw new Error('Карточка для повторения не найдена.');
 
   let { ease_factor, interval_days, repetitions } = card;
   if (quality >= 3) {
@@ -48,8 +53,9 @@ export async function updateCardProgress(cardId: string, quality: number) {
   const next_review = new Date();
   next_review.setDate(next_review.getDate() + interval_days);
 
-  await supabase.from('flashcard_progress').update({
+  const { error: updateError } = await supabase.from('flashcard_progress').update({
     ease_factor, interval_days, repetitions,
     next_review: next_review.toISOString()
   }).eq('id', cardId);
+  if (updateError) throw updateError;
 }

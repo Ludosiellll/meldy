@@ -1,4 +1,4 @@
-import { X, Zap, Crown, CheckCircle2 } from 'lucide-react';
+import { X, Zap, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FREE_DAILY_LIMIT } from '../api/limits';
 import { useNavigate } from 'react-router-dom';
@@ -56,23 +56,8 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
             {/* Info */}
             <div className="p-6 space-y-4 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
               <p className="text-center font-medium">
-                У вас безлимитный доступ к нейросетям. Энергия больше не заканчивается! ⚡
+                Для вашего аккаунта дневной лимит ИИ не применяется.
               </p>
-              
-              <ul className="space-y-3 mt-4">
-                <li className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span>Безлимитная генерация тестов и карточек</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span>Приоритетные подкасты без очереди</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <span>Экзамен с ИИ-профессором</span>
-                </li>
-              </ul>
             </div>
 
             {/* CTA */}
@@ -147,7 +132,7 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
             </p>
             <div className="flex items-center gap-2 p-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 rounded-xl font-medium border border-indigo-100 dark:border-indigo-900">
               <Zap className="w-5 h-5 shrink-0" />
-              <span>Бесплатная энергия восстанавливается каждую полночь по Москве.</span>
+              <span>Дневной лимит обновляется в 00:00 UTC.</span>
             </div>
           </div>
 
@@ -158,14 +143,11 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
                 onClose();
                 navigate('/pricing');
               }}
-              className="w-full relative group overflow-hidden rounded-2xl p-[2px]"
+              className="w-full rounded-lg bg-cyan-500 px-6 py-3 font-semibold text-slate-950 transition-colors hover:bg-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 rounded-2xl opacity-70 group-hover:opacity-100 transition duration-300 animate-pulse" />
-              <div className="relative bg-white dark:bg-slate-900 rounded-[14px] px-6 py-3 transition group-hover:bg-opacity-0">
-                <div className="flex items-center justify-center gap-2 group-hover:text-white transition-colors text-slate-800 dark:text-slate-100 font-bold">
-                  <Crown className="w-5 h-5 text-amber-500 group-hover:text-white transition-colors" />
-                  Получить Безлимит (PRO)
-                </div>
+              <div className="flex items-center justify-center gap-2">
+                <Crown className="w-5 h-5" />
+                Посмотреть тариф PRO
               </div>
             </button>
             <button 

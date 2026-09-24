@@ -5,7 +5,7 @@ export interface Group {
   id: string;
   name: string;
   teacher_id: string;
-  invite_code: string;
+  invite_code?: string;
   created_at: string;
 }
 
@@ -19,6 +19,19 @@ export interface GroupMember {
   student_avatar?: string;
   total_xp?: number;
   total_reviews?: number;
+  weekly_xp?: number;
+}
+
+export interface GroupWeeklyScore {
+  student_id: string;
+  weekly_xp: number;
+}
+
+interface GroupMemberRpcRow extends Omit<GroupMember, 'total_reviews' | 'total_xp'> {
+  full_name?: string | null;
+  avatar_url?: string | null;
+  total_reviews?: number | null;
+  total_xp?: number | null;
 }
 
 export interface Assignment {
@@ -35,9 +48,10 @@ export interface Assignment {
 // Generate random code e.g. MTH-4X9
 export function generateInviteCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const a = Array.from({length: 3}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  const b = Array.from({length: 3}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  return `${a}-${b}`;
+  const random = new Uint32Array(10);
+  globalThis.crypto.getRandomValues(random);
+  const code = Array.from(random, value => chars[value % chars.length]).join('');
+  return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`;
 }
 
 export async function createGroup(name: string, teacherId: string): Promise<Group | null> {
@@ -62,48 +76,45 @@ export async function getTeacherGroups(teacherId: string): Promise<Group[]> {
 }
 
 export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
-  const { data, error } = await supabase.from('group_members').select('*').eq('group_id', groupId);
+  const { data, error } = await supabase.rpc('get_group_members', { p_group_id: groupId });
   if (error || !data) return [];
-
-  const studentIds = data.map(m => m.student_id);
-  
-  // Fetch profiles for names/avatars
-  const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url, total_reviews').in('id', studentIds);
-  // Fetch XP
-  const { data: xps } = await supabase.from('user_xp').select('user_id, total_xp').in('user_id', studentIds);
-  
-  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-  const xpMap = new Map((xps || []).map(x => [x.user_id, x.total_xp]));
-
-  return data.map(m => {
-    const p = profileMap.get(m.student_id);
-    return {
-      ...m,
-      student_name: m.class_nickname || p?.full_name,
-      student_avatar: p?.avatar_url,
-      total_reviews: p?.total_reviews,
-      total_xp: xpMap.get(m.student_id) || 0
-    };
-  });
+  return (data as GroupMemberRpcRow[]).map(m => ({
+    ...m,
+    student_name: m.class_nickname || m.full_name || 'Студент',
+    student_avatar: m.avatar_url || undefined,
+    total_reviews: m.total_reviews || 0,
+    total_xp: m.total_xp || 0,
+  }));
 }
 
-export async function joinGroup(studentId: string, inviteCode: string, classNickname?: string): Promise<boolean> {
-  // 1. Find group by code
-  const { data: group, error: grpErr } = await supabase.from('groups').select('id').eq('invite_code', inviteCode.toUpperCase()).single();
-  if (grpErr || !group) return false;
+export async function getGroupWeeklyScores(groupId: string): Promise<GroupWeeklyScore[]> {
+  const { data, error } = await supabase.rpc('get_group_weekly_scores', { p_group_id: groupId });
+  if (error || !data) {
+    console.error('getGroupWeeklyScores', error);
+    return [];
+  }
+  return data as GroupWeeklyScore[];
+}
 
-  // 2. Insert membership
-  const { error } = await supabase.from('group_members').insert({
-    group_id: group.id,
-    student_id: studentId,
-    class_nickname: classNickname || null
+export async function joinGroup(inviteCode: string, classNickname?: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('join_group_by_invite_code', {
+    p_invite_code: inviteCode.trim().toUpperCase(),
+    p_class_nickname: classNickname?.trim() || null,
   });
-
-  if (error && error.code !== '23505') { // Ignore unique constraint violation
+  if (error) {
     console.error('joinGroup', error);
     return false;
   }
-  return true;
+  return data === true;
+}
+
+export async function getStudentGroups(): Promise<Group[]> {
+  const { data, error } = await supabase.rpc('get_student_groups');
+  if (error) {
+    console.error('getStudentGroups', error);
+    return [];
+  }
+  return data || [];
 }
 
 export async function updateStudentNickname(groupId: string, studentId: string, nickname: string) {
@@ -131,22 +142,6 @@ export async function createAssignment(groupId: string, materialId: string, dead
   }).select('*').single();
   if (error) { console.error('createAssignment', error); return false; }
   
-  const { data: material } = await supabase.from('materials').select('title').eq('id', materialId).single();
-  const matTitle = material?.title || 'Новое задание';
-
-  const members = await getGroupMembers(groupId);
-  const notifications = members.map(m => ({
-    user_id: m.student_id,
-    type: 'assignment',
-    title: 'Новое задание',
-    body: `Преподаватель добавил задание: ${matTitle}`,
-    related_id: assignment.id
-  }));
-
-  if (notifications.length > 0) {
-    await supabase.from('notifications').insert(notifications);
-  }
-
   return true;
 }
 

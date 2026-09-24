@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -38,14 +38,33 @@ export default function Review() {
   const [done, setDone] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const processingRef = useRef(false);
 
-  const loadCards = () => {
-    if (!user?.id) return;
+  const loadCards = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    getDueCards(user.id)
-      .then(data => { setCards(data); setIdx(0); setRevealed(false); setSessionStats({ correct: 0, wrong: 0 }); setDone(false); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    setLoadError(null);
+    setSaveError(null);
+    processingRef.current = false;
+    try {
+      const data = await getDueCards(user.id);
+      setCards(data);
+      setIdx(0);
+      setRevealed(false);
+      setSessionStats({ correct: 0, wrong: 0 });
+      setDone(false);
+    } catch (error) {
+      console.error('Error loading due cards:', error);
+      setCards([]);
+      setLoadError('Не удалось загрузить карточки. Проверьте соединение и повторите попытку.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadCards(); }, [user?.id]);
@@ -57,39 +76,58 @@ export default function Review() {
     }
   };
 
-  const handleAnswer = (quality: number) => {
-    if (!cards[idx]) return;
+  const handleAnswer = async (quality: number) => {
+    if (!cards[idx] || processingRef.current) return;
     
     const currentCard = cards[idx];
+    processingRef.current = true;
+    setProcessing(true);
+    setSaveError(null);
 
-    // 1. Сразу (синхронно) обновляем UI
-    if (quality >= 3) {
-      setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
-    } else {
-      setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
-    }
+    try {
+      if (!currentCard.id) throw new Error('Review card is missing its database id.');
+      await updateCardProgress(currentCard.id, quality);
 
-    if (idx + 1 >= cards.length) {
-      playSuccessSound();
-      setDone(true);
-    } else {
-      setIdx(p => p + 1);
-      setRevealed(false);
-    }
+      if (quality >= 3) {
+        setSessionStats(p => ({ ...p, correct: p.correct + 1 }));
+      } else {
+        setSessionStats(p => ({ ...p, wrong: p.wrong + 1 }));
+      }
 
-    // 2. Фоновые (асинхронные) запросы в Supabase, не блокирующие поток UI
-    if (currentCard.id) {
-      updateCardProgress(currentCard.id, quality).catch(err => console.error("Error updating card progress:", err));
-    }
-    if (user?.id) {
-      updateQuestProgress(user.id, 'review', 1).catch(err => console.error("Error updating quest progress:", err));
-      recordStudyActivity(user.id, 1, 0).catch(err => console.error("Error recording study activity:", err));
+      if (idx + 1 >= cards.length) {
+        playSuccessSound();
+        setDone(true);
+      } else {
+        setIdx(p => p + 1);
+        setRevealed(false);
+      }
+
+      if (user?.id) {
+        updateQuestProgress(user.id, 'review', 1).catch(err => console.error('Error updating quest progress:', err));
+        recordStudyActivity(user.id, 1, 0).catch(err => console.error('Error recording study activity:', err));
+      }
+    } catch (error) {
+      console.error('Error saving card progress:', error);
+      setSaveError('Ответ не сохранён. Проверьте соединение и попробуйте ещё раз.');
+    } finally {
+      processingRef.current = false;
+      setProcessing(false);
     }
   };
 
   if (loading) return (
     <div className="p-4 md:p-6 flex items-center justify-center min-h-[60vh]">
       <div className="w-8 h-8 border-2 border-cyan-300 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (loadError) return (
+    <div className="mx-auto max-w-xl px-4 py-16 text-center md:py-24">
+      <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mb-3">Не удалось загрузить карточки</h2>
+      <p role="alert" className="text-sm text-rose-700 dark:text-rose-300 mb-6">{loadError}</p>
+      <button onClick={loadCards} className="px-5 py-2.5 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors">
+        Повторить загрузку
+      </button>
     </div>
   );
 
@@ -118,7 +156,7 @@ export default function Review() {
     return (
       <div className="mx-auto max-w-xl px-4 py-16 text-center md:py-24">
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-cyan-700 dark:text-cyan-300">Результат</p>
-        <h2 className="text-3xl font-semibold text-slate-900 dark:text-slate-100 mb-6">Повторение завершено</h2>
+        <h2 className="text-3xl font-semibold text-slate-900 dark:text-slate-100 mb-6">Сессия завершена</h2>
         <div className="relative inline-block mb-4">
           <CircularProgress value={pct} size={120} strokeWidth={10} isDark={darkMode} />
           <div className="absolute inset-0 flex items-center justify-center">
@@ -126,10 +164,10 @@ export default function Review() {
           </div>
         </div>
         <p className="text-slate-500 dark:text-slate-400 mb-1">Правильно: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{sessionStats.correct}</span> из {total}</p>
-        <p className="text-slate-400 dark:text-slate-500 text-sm mb-8">Следующее повторение будет назначено по вашим ответам.</p>
+        <p className="text-slate-600 dark:text-slate-300 text-sm mb-8">Ответы сохранены. Если карточки ещё остались, продолжите следующей группой.</p>
         <div className="flex justify-center gap-3 flex-wrap">
           <button onClick={loadCards} className="flex items-center gap-2 px-5 py-2.5 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors">
-            <RotateCcw className="w-4 h-4" />Проверить ещё раз
+            <RotateCcw className="w-4 h-4" />Продолжить повторение
           </button>
           <button onClick={() => navigate('/dashboard')} className="px-5 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-sm font-medium transition">
             На главную
@@ -192,7 +230,7 @@ export default function Review() {
       </motion.div>
 
       {/* Actions */}
-      <div className="mt-6">
+      <div className="mt-6" aria-busy={processing}>
         {!revealed ? (
           <button
             onClick={handleReveal}
@@ -204,24 +242,29 @@ export default function Review() {
           <div className="grid grid-cols-3 gap-2 md:gap-3">
             <button
               onClick={() => handleAnswer(1)}
-              className="h-14 md:h-12 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400 rounded-xl font-medium transition text-sm"
+              disabled={processing}
+              className="h-14 md:h-12 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400 rounded-xl font-medium transition text-sm disabled:cursor-wait disabled:opacity-60"
             >
               Не помню
             </button>
             <button
               onClick={() => handleAnswer(3)}
-              className="h-14 md:h-12 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-400 rounded-xl font-medium transition text-sm"
+              disabled={processing}
+              className="h-14 md:h-12 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-950/60 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-400 rounded-xl font-medium transition text-sm disabled:cursor-wait disabled:opacity-60"
             >
               С трудом
             </button>
             <button
               onClick={() => handleAnswer(5)}
-              className="h-14 md:h-12 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded-xl font-medium transition text-sm"
+              disabled={processing}
+              className="h-14 md:h-12 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400 rounded-xl font-medium transition text-sm disabled:cursor-wait disabled:opacity-60"
             >
               Знаю
             </button>
           </div>
         )}
+        {processing && <p role="status" aria-live="polite" className="mt-3 text-center text-sm text-slate-600 dark:text-slate-300">Сохраняем ответ…</p>}
+        {saveError && <p role="alert" className="mt-3 text-center text-sm text-rose-700 dark:text-rose-300">{saveError}</p>}
       </div>
     </main>
   );

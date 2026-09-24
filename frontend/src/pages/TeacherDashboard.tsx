@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
-import { getTeacherGroups, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions, deleteGroup, removeStudentFromGroup, updateStudentNickname, deleteAssignment } from '../api/groups';
+import { getTeacherGroups, getStudentGroups, getGroupMembers, getGroupWeeklyScores, createGroup, getGroupAssignments, createAssignment, Group, GroupMember, Assignment, toggleAssignmentCompletion, getStudentCompletions, getGroupCompletions, deleteGroup, removeStudentFromGroup, updateStudentNickname, deleteAssignment } from '../api/groups';
+import { getPublicProfiles } from '../api/social';
 import { getMaterials } from '../api/materials';
 import { Material } from '../types';
 import { Users, Plus, Key, Calendar, BookOpen, AlertCircle, TrendingUp, Award, Trophy, Medal, Crown, ShieldAlert, GraduationCap, Check, Backpack, CheckCircle2, Trash2, Edit2, UserMinus, MessageSquare } from 'lucide-react';
@@ -17,70 +18,18 @@ import { MiniprofileModal } from '../components/MiniprofileModal';
 
 // Функция получения участников группы с подсчетом недельного XP
 async function getGroupMembersWithWeeklyXP(groupId: string): Promise<GroupMember[]> {
-  const { data: membersData, error: memErr } = await supabase
-    .from('group_members')
-    .select('*')
-    .eq('group_id', groupId);
-  if (memErr || !membersData) return [];
-
-  const studentIds = membersData.map(m => m.student_id);
-  if (studentIds.length === 0) return [];
-
-  // Загружаем профили
-  const { data: profiles } = await supabase.from('profiles').select('id, full_name, avatar_url, total_reviews').in('id', studentIds);
-  // Загружаем общий XP
-  const { data: xps } = await supabase.from('user_xp').select('user_id, total_xp').in('user_id', studentIds);
-
-  // Вычисляем недельный XP на основе активности за последние 7 дней
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
-
-  // 1. Учебные сессии
-  const { data: weeklySessions } = await supabase
-    .from('study_sessions')
-    .select('user_id, cards_reviewed, materials_added')
-    .gte('date', oneWeekAgoStr)
-    .in('user_id', studentIds);
-
-  // 2. Сданные экзамены
-  const { data: weeklyExams } = await supabase
-    .from('exam_sessions')
-    .select('user_id, score')
-    .eq('status', 'completed')
-    .gte('completed_at', oneWeekAgo.toISOString())
-    .in('user_id', studentIds);
-
-  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-  const xpMap = new Map((xps || []).map(x => [x.user_id, x.total_xp]));
-  
-  // Карта недельного XP
-  const weeklyScoreMap = new Map<string, number>();
-  studentIds.forEach(id => weeklyScoreMap.set(id, 0));
-
-  // Карточка повторена = 2 XP, материал загружен = 50 XP
-  (weeklySessions || []).forEach(s => {
-    const current = weeklyScoreMap.get(s.user_id) || 0;
-    const cardsXp = (s.cards_reviewed || 0) * 2;
-    const matsXp = (s.materials_added || 0) * 50;
-    weeklyScoreMap.set(s.user_id, current + cardsXp + matsXp);
-  });
-
-  // Экзамен сдан = 100 XP
-  (weeklyExams || []).forEach(e => {
-    const current = weeklyScoreMap.get(e.user_id) || 0;
-    weeklyScoreMap.set(e.user_id, current + 100);
-  });
+  const [membersData, weeklyScores] = await Promise.all([
+    getGroupMembers(groupId),
+    getGroupWeeklyScores(groupId),
+  ]);
+  if (!membersData.length) return [];
+  const weeklyScoreMap = new Map(weeklyScores.map(score => [score.student_id, score.weekly_xp]));
 
   return membersData.map(m => {
-    const p = profileMap.get(m.student_id);
     return {
       ...m,
-      student_name: m.class_nickname || p?.full_name || 'Студент',
-      student_avatar: p?.avatar_url,
-      total_reviews: p?.total_reviews || 0,
-      total_xp: xpMap.get(m.student_id) || 0,
-      weekly_xp: (m as any).weekly_xp = weeklyScoreMap.get(m.student_id) || 0
+      total_xp: m.total_xp || 0,
+      weekly_xp: weeklyScoreMap.get(m.student_id) || 0
     };
   });
 }
@@ -214,23 +163,7 @@ export default function TeacherDashboard() {
       setLoading(true);
     }
     
-    const { data: memberships } = await supabase
-      .from('group_members')
-      .select('group_id')
-      .eq('student_id', user.id);
-      
-    if (!memberships || memberships.length === 0) {
-      setGroups([]);
-      localStorage.setItem(cacheKey, '[]');
-      setLoading(false);
-      return;
-    }
-    
-    const groupIds = memberships.map(m => m.group_id);
-    const { data: groupsData } = await supabase
-      .from('groups')
-      .select('*')
-      .in('id', groupIds);
+    const groupsData = await getStudentGroups();
       
     setGroups(groupsData || []);
     localStorage.setItem(cacheKey, JSON.stringify(groupsData || []));
@@ -284,10 +217,9 @@ export default function TeacherDashboard() {
         
         const group = groups.find(g => g.id === selectedGroupId);
         if (group) {
-          supabase.from('profiles').select('full_name').eq('id', group.teacher_id).maybeSingle()
-            .then(({ data }) => {
-              setTeacherName(data?.full_name || 'Неизвестный преподаватель');
-            });
+          getPublicProfiles([group.teacher_id], null, null, 1).then(([profile]) => {
+            setTeacherName(profile?.full_name || 'Неизвестный преподаватель');
+          });
         }
       } else if (role === 'teacher') {
         const cacheGroupCompletions = localStorage.getItem(`group_completions_${selectedGroupId}`);
