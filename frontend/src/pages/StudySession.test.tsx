@@ -135,6 +135,30 @@ describe('Study session card persistence', () => {
     expect(await screen.findByText(/Шаг 2 из 3/)).toBeInTheDocument();
   });
 
+  it.each([
+    ['current { flashcards: [...] } format', { flashcards: [
+      { id: 1, question: 'Что такое кривая забывания?', answer: 'Падение удержания памяти со временем.', source_ids: ['S01'] },
+      { id: 2, question: 'Зачем увеличивать интервалы?', answer: 'Чтобы повторять перед моментом забывания.' },
+    ] }],
+    ['legacy array format', [
+      { question: 'Что такое кривая забывания?', answer: 'Падение удержания памяти со временем.' },
+      { question: 'Зачем увеличивать интервалы?', answer: 'Чтобы повторять перед моментом забывания.' },
+    ]],
+  ])('offers practice cards from the material when nothing is due (%s)', async (_format, flashcardsJson) => {
+    const user = userEvent.setup();
+    api.getDueCards.mockResolvedValue([]);
+    api.getMaterials.mockResolvedValue([{ ...material, flashcards_json: flashcardsJson }]);
+
+    render(<MemoryRouter><StudySession /></MemoryRouter>);
+
+    expect(await screen.findByText('Разминка с карточками (2 шт)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Поехали/ }));
+
+    expect(await screen.findByText('Шаг 1 из 3 · Повторение карточек')).toBeInTheDocument();
+    expect(screen.getByText('Что такое кривая забывания?')).toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+  });
+
   it('keeps the same card visible when progress cannot be saved', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     api.updateCardProgress.mockRejectedValue(new Error('offline'));

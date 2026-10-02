@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle, ArrowUpRight, BookOpen, Check, CheckCircle2, ChevronRight,
@@ -364,6 +364,13 @@ function fitViewBox(nodes: GraphNode[], aspectRatio: number) {
   return `${centerX - width / 2} ${centerY - height / 2} ${width} ${height}`;
 }
 
+// Ctrl + wheel and trackpad pinch (browsers report it as a wheel event with ctrlKey): zoom follows
+// deltaY smoothly, while a ~100px mouse-wheel notch is capped at a single ~22% step.
+function wheelZoomFactor(event: WheelEvent) {
+  const pixels = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * 800 : event.deltaY;
+  return Math.exp(-Math.max(-20, Math.min(20, pixels)) * 0.01);
+}
+
 function compactFocusLayout(nodes: GraphNode[]) {
   const materials = nodes.filter(node => node.type === 'material').sort((a, b) => a.y - b.y || a.x - b.x);
   const concepts = nodes.filter(node => node.type === 'concept');
@@ -414,6 +421,10 @@ export default function KnowledgeMap() {
   const gestureRef = useRef({ mode: 'idle' as 'idle' | 'pan' | 'pinch', lastX: 0, lastY: 0, startDistance: 0, startScale: 1, anchorX: 0, anchorY: 0 });
   const pointerMapRef = useRef(new Map<number, { x: number; y: number }>());
   const viewRef = useRef({ scale: 1, panX: 0, panY: 0 });
+  // Frame pinned by the user's first zoom, pan or zoom-button gesture.
+  const [pinnedFrame, setPinnedFrame] = useState<{ viewBox: string; compactKey: string | null } | null>(null);
+  const wheelHandlerRef = useRef<(event: WheelEvent) => void>(() => {});
+  const wheelCleanupRef = useRef<(() => void) | null>(null);
 
   const surfaceClass = 'rounded-2xl border border-[var(--sf-line)] bg-[var(--sf-surface)]';
 
@@ -522,16 +533,29 @@ export default function KnowledgeMap() {
       ? searchFocusIds
       : filterIds;
   const nodesForFit = nodes.filter(node => focusForFit.has(node.id));
-  const compactMobileFocus = canvasWidth < 640 && Boolean(selectedNodeId || normalizedSearch || activeFilter !== 'all') && nodesForFit.length <= 12;
+  const compactCandidate = canvasWidth < 640 && Boolean(selectedNodeId || normalizedSearch || activeFilter !== 'all') && nodesForFit.length <= 12;
+  const compactKey = compactCandidate ? nodesForFit.map(node => node.id).sort().join('|') : null;
+  // Until the user moves the map, the frame fits the current selection, filter or search. After a gesture
+  // the frame stays pinned, so focus changes keep the chosen zoom. The compact mobile layout is built for one
+  // focus set, so its pinned frame lasts only until that focus changes.
+  const pinActive = pinnedFrame !== null && (pinnedFrame.compactKey === null || pinnedFrame.compactKey === compactKey);
+  const compactMobileFocus = pinActive ? pinnedFrame.compactKey !== null : compactCandidate;
   const displayNodes = compactMobileFocus ? compactFocusLayout(nodesForFit) : nodes;
   const displayNodeById = new Map(displayNodes.map(node => [node.id, node]));
-  const displayViewBox = fitViewBox(compactMobileFocus ? displayNodes : nodesForFit.length ? nodesForFit : visibleNodes, canvasWidth / Math.max(440, mapCanvasHeight));
+  const fittedViewBox = fitViewBox(compactMobileFocus ? displayNodes : nodesForFit.length ? nodesForFit : visibleNodes, canvasWidth / Math.max(440, mapCanvasHeight));
+  const displayViewBox = pinActive ? pinnedFrame.viewBox : fittedViewBox;
+  const view = pinActive ? { scale, panX, panY } : { scale: 1, panX: 0, panY: 0 };
 
   const updateView = (next: { scale: number; panX: number; panY: number }) => {
     viewRef.current = next;
     setScale(next.scale);
     setPanX(next.panX);
     setPanY(next.panY);
+  };
+
+  const moveView = (next: { scale: number; panX: number; panY: number }) => {
+    if (!pinActive) setPinnedFrame({ viewBox: displayViewBox, compactKey: compactMobileFocus ? compactKey : null });
+    updateView(next);
   };
 
   const svgPoint = (clientX: number, clientY: number) => {
@@ -548,7 +572,7 @@ export default function KnowledgeMap() {
     const current = viewRef.current;
     const bounded = Math.min(2.6, Math.max(0.55, nextScale));
     const ratio = bounded / current.scale;
-    updateView({
+    moveView({
       scale: bounded,
       panX: anchor.x - (anchor.x - current.panX) * ratio,
       panY: anchor.y - (anchor.y - current.panY) * ratio
@@ -562,7 +586,10 @@ export default function KnowledgeMap() {
     zoomAt(viewRef.current.scale * factor, svgPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
   };
 
-  const resetView = () => updateView({ scale: 1, panX: 0, panY: 0 });
+  const resetView = () => {
+    setPinnedFrame(null);
+    updateView({ scale: 1, panX: 0, panY: 0 });
+  };
   const resetMap = () => {
     setActiveFilter('all');
     setSearchQuery('');
@@ -604,7 +631,7 @@ export default function KnowledgeMap() {
       const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
       const gesture = gestureRef.current;
       const nextScale = Math.min(2.6, Math.max(0.55, gesture.startScale * (distance / Math.max(1, gesture.startDistance))));
-      updateView({ scale: nextScale, panX: centerPoint.x - gesture.anchorX * nextScale, panY: centerPoint.y - gesture.anchorY * nextScale });
+      moveView({ scale: nextScale, panX: centerPoint.x - gesture.anchorX * nextScale, panY: centerPoint.y - gesture.anchorY * nextScale });
       return;
     }
     if (gestureRef.current.mode === 'pan') {
@@ -612,7 +639,7 @@ export default function KnowledgeMap() {
       const dy = point.y - gestureRef.current.lastY;
       gestureRef.current.lastX = point.x;
       gestureRef.current.lastY = point.y;
-      updateView({ ...current, panX: current.panX + dx, panY: current.panY + dy });
+      moveView({ ...current, panX: current.panX + dx, panY: current.panY + dy });
     }
   };
 
@@ -621,13 +648,57 @@ export default function KnowledgeMap() {
     gestureRef.current.mode = pointerMapRef.current.size ? 'pan' : 'idle';
   };
 
-  const onWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+  const onWheel = (event: WheelEvent) => {
+    // A plain wheel scrolls the page; only Ctrl + wheel and trackpad pinch zoom the map.
+    if (!event.ctrlKey) return;
     event.preventDefault();
-    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-    zoomAt(viewRef.current.scale * factor, svgPoint(event.clientX, event.clientY));
+    zoomAt(viewRef.current.scale * wheelZoomFactor(event), svgPoint(event.clientX, event.clientY));
   };
 
-  const selectNode = (node: GraphNode) => { setSelectedNodeId(node.id); resetView(); };
+  useLayoutEffect(() => {
+    wheelHandlerRef.current = onWheel;
+  });
+
+  // React registers wheel listeners as passive, so preventDefault in onWheel is ignored.
+  // A native non-passive listener keeps the browser from zooming the page while the map zooms.
+  const attachSvg = useCallback((svg: SVGSVGElement | null) => {
+    wheelCleanupRef.current?.();
+    wheelCleanupRef.current = null;
+    svgRef.current = svg;
+    if (!svg) return;
+    const listener = (event: WheelEvent) => wheelHandlerRef.current(event);
+    svg.addEventListener('wheel', listener, { passive: false });
+    wheelCleanupRef.current = () => svg.removeEventListener('wheel', listener);
+  }, []);
+
+  // A pinned compact frame is stale once its focus changes: return to the fitted frame.
+  useEffect(() => {
+    if (pinnedFrame && !pinActive) resetView();
+  }, [pinnedFrame, pinActive]);
+
+  // When a pinned frame shows none of the newly selected, filtered or found nodes,
+  // pan to the first of them without changing the zoom.
+  useEffect(() => {
+    if (!pinActive || compactMobileFocus) return;
+    const targetIds = selectedNodeId ? [selectedNodeId] : normalizedSearch ? searchMatches.map(node => node.id) : [...filterIds];
+    const targets = targetIds.map(id => nodeById.get(id)).filter((node): node is GraphNode => Boolean(node));
+    if (!targets.length) return;
+    const [x, y, width, height] = displayViewBox.split(' ').map(Number);
+    const current = viewRef.current;
+    const inFrame = (node: GraphNode) => {
+      const screenX = current.panX + current.scale * node.x;
+      const screenY = current.panY + current.scale * node.y;
+      return screenX >= x && screenX <= x + width && screenY >= y && screenY <= y + height;
+    };
+    if (targets.some(inFrame)) return;
+    updateView({
+      ...current,
+      panX: x + width / 2 - current.scale * targets[0].x,
+      panY: y + height / 2 - current.scale * targets[0].y
+    });
+  }, [selectedNodeId, normalizedSearch, activeFilter]);
+
+  const selectNode = (node: GraphNode) => setSelectedNodeId(node.id);
   const noResults = Boolean(normalizedSearch) && searchMatches.length === 0;
 
   return (
@@ -688,7 +759,7 @@ export default function KnowledgeMap() {
                   key={value}
                   type="button"
                   aria-pressed={activeFilter === value}
-                  onClick={() => { setActiveFilter(value); setSelectedNodeId(null); resetView(); }}
+                  onClick={() => { setActiveFilter(value); setSelectedNodeId(null); }}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full px-3.5 text-sm font-medium transition ${activeFilter === value ? 'bg-[var(--sf-accent)] text-white' : 'text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]'}`}
                 >
                   {label}<span className={`text-xs ${activeFilter === value ? 'text-white/80' : 'text-[var(--sf-muted)]'}`}>{count}</span>
@@ -700,7 +771,7 @@ export default function KnowledgeMap() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sf-muted)]" />
                 <input
                   value={searchQuery}
-                  onChange={event => { setSearchQuery(event.target.value); resetView(); }}
+                  onChange={event => setSearchQuery(event.target.value)}
                   placeholder="Найти материал или тему"
                   aria-label="Найти материал или тему"
                   className="h-10 w-full rounded-full border border-[var(--sf-line)] bg-[var(--sf-canvas)] pl-9 pr-9 text-sm text-[var(--sf-ink)] outline-none placeholder:text-[var(--sf-muted)] focus:border-[var(--sf-accent)]"
@@ -723,20 +794,19 @@ export default function KnowledgeMap() {
               {viewMode === 'map' ? (
                 <div ref={canvasRef} className="relative overflow-hidden bg-[var(--sf-workbench)]">
                   <svg
-                    ref={svgRef}
+                    ref={attachSvg}
                     viewBox={displayViewBox}
                     preserveAspectRatio="xMidYMid meet"
                     style={{ height: mapCanvasHeight }}
-                    className="block min-h-[440px] w-full touch-none select-none"
+                    className="block min-h-[440px] w-full touch-pan-y select-none"
                     role="img"
                     aria-label="Карта связей между материалами и понятиями. Узлы доступны с клавиатуры."
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={onPointerUp}
                     onPointerCancel={onPointerUp}
-                    onWheel={onWheel}
                   >
-                    <g transform={`translate(${panX}, ${panY}) scale(${scale})`}>
+                    <g transform={`translate(${view.panX}, ${view.panY}) scale(${view.scale})`}>
                       {visibleLinks.map((link, index) => {
                         const source = displayNodeById.get(link.source);
                         const target = displayNodeById.get(link.target);
@@ -811,7 +881,7 @@ export default function KnowledgeMap() {
 
                   <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full border border-[var(--sf-line)] bg-[var(--sf-surface)] p-1 shadow-sm" role="group" aria-label="Масштаб карты">
                     <button type="button" onClick={() => zoomFromControl(1.2)} aria-label="Приблизить" className="grid h-9 w-9 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"><ZoomIn className="h-4 w-4" /></button>
-                    <span className="w-10 text-center text-[11px] tabular-nums text-[var(--sf-muted)]">{Math.round(scale * 100)}%</span>
+                    <span className="w-10 text-center text-[11px] tabular-nums text-[var(--sf-muted)]">{Math.round(view.scale * 100)}%</span>
                     <button type="button" onClick={() => zoomFromControl(1 / 1.2)} aria-label="Отдалить" className="grid h-9 w-9 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"><ZoomOut className="h-4 w-4" /></button>
                     <span className="mx-0.5 h-5 w-px bg-[var(--sf-line)]" />
                     <button type="button" onClick={resetMap} aria-label="Показать всю карту" title="Показать всю карту" className="grid h-9 w-9 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"><Focus className="h-4 w-4" /></button>
@@ -839,7 +909,7 @@ export default function KnowledgeMap() {
                 <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#b65342]" /> Нужна практика</span>
               </div>}
               <div className="border-t border-[var(--sf-line)] px-4 py-3 text-xs text-[var(--sf-muted)]">
-                {viewMode === 'map' ? 'Перетаскивайте поле, используйте колесо мыши или щипок для масштаба. Нажмите на узел для подробностей.' : `${visibleNodes.length} элементов · список остаётся доступен при любом фильтре.`}
+                {viewMode === 'map' ? 'Перетаскивайте карту мышью или двумя пальцами. Масштаб — Ctrl и колесо мыши, щипок или кнопки «+» и «−». Нажмите на узел, чтобы открыть подробности.' : `${visibleNodes.length} элементов · список остаётся доступен при любом фильтре.`}
               </div>
             </section>
 
@@ -851,7 +921,7 @@ export default function KnowledgeMap() {
                       <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--sf-muted)]">{selectedNode.type === 'material' ? 'Материал' : 'Понятие'}</p>
                       <h2 className="mt-1.5 break-words text-lg font-semibold leading-snug">{selectedNode.label}</h2>
                     </div>
-                    <button type="button" onClick={() => { setSelectedNodeId(null); resetView(); }} aria-label="Закрыть подробности" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)]"><X className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => setSelectedNodeId(null)} aria-label="Закрыть подробности" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)]"><X className="h-4 w-4" /></button>
                   </div>
 
                   {selectedNode.type === 'material' ? (
@@ -876,7 +946,7 @@ export default function KnowledgeMap() {
                       <div className="mt-4 border-t border-[var(--sf-line)] pt-3">
                         <p className="mb-2 text-xs font-medium text-[var(--sf-muted)]">Встречается в материалах</p>
                         <div className="space-y-1">
-                          {(selectedNode.materials || []).map(material => <button key={material.id} type="button" onClick={() => { setSelectedNodeId(material.id); resetView(); }} className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-left text-sm text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]"><span className="truncate">{material.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" /></button>)}
+                          {(selectedNode.materials || []).map(material => <button key={material.id} type="button" onClick={() => setSelectedNodeId(material.id)} className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-left text-sm text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]"><span className="truncate">{material.title}</span><ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" /></button>)}
                         </div>
                       </div>
                       {selectedNode.status === 'weak' && <button type="button" onClick={() => navigate('/mistakes')} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--sf-accent-hover)]"><RotateCcw className="h-4 w-4" /> Разобрать ошибки</button>}
@@ -899,7 +969,7 @@ export default function KnowledgeMap() {
                   </div>
                   <span className="text-xs tabular-nums text-[var(--sf-muted)]">{graphStats.shared}</span>
                 </div>
-                {commonTopics.length ? <div className="space-y-1">{commonTopics.map(node => <button key={node.id} type="button" onClick={() => { setActiveFilter('all'); setSelectedNodeId(node.id); resetView(); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sf-surface-soft)]"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLORS[node.status] }} /><span className="min-w-0 flex-1 truncate text-sm text-[var(--sf-ink)]">{node.label}</span><span className="shrink-0 text-xs text-[var(--sf-muted)]">×{node.materials?.length}</span></button>)}</div> : <p className="py-1 text-sm text-[var(--sf-muted)]">Общие понятия появятся, когда тема встретится в двух или более конспектах.</p>}
+                {commonTopics.length ? <div className="space-y-1">{commonTopics.map(node => <button key={node.id} type="button" onClick={() => { setActiveFilter('all'); setSelectedNodeId(node.id); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sf-surface-soft)]"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLORS[node.status] }} /><span className="min-w-0 flex-1 truncate text-sm text-[var(--sf-ink)]">{node.label}</span><span className="shrink-0 text-xs text-[var(--sf-muted)]">×{node.materials?.length}</span></button>)}</div> : <p className="py-1 text-sm text-[var(--sf-muted)]">Общие понятия появятся, когда тема встретится в двух или более конспектах.</p>}
               </section>
 
               <section className={`${surfaceClass} p-4`}>
@@ -910,7 +980,7 @@ export default function KnowledgeMap() {
                   </div>
                   <span className="text-xs tabular-nums text-[var(--sf-muted)]">{graphStats.weak}</span>
                 </div>
-                {weakTopics.length ? <div className="space-y-1">{weakTopics.map(node => <button key={node.id} type="button" onClick={() => { setActiveFilter('all'); setSelectedNodeId(node.id); resetView(); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sf-surface-soft)]"><AlertCircle className="h-4 w-4 shrink-0 text-[#b65342]" /><span className="min-w-0 flex-1 truncate text-sm text-[var(--sf-ink)]">{node.label}</span><ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" /></button>)}</div> : <p className="py-1 text-sm text-[var(--sf-muted)]">Нет открытых ошибок по понятиям из этих конспектов.</p>}
+                {weakTopics.length ? <div className="space-y-1">{weakTopics.map(node => <button key={node.id} type="button" onClick={() => { setActiveFilter('all'); setSelectedNodeId(node.id); }} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-[var(--sf-surface-soft)]"><AlertCircle className="h-4 w-4 shrink-0 text-[#b65342]" /><span className="min-w-0 flex-1 truncate text-sm text-[var(--sf-ink)]">{node.label}</span><ChevronRight className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" /></button>)}</div> : <p className="py-1 text-sm text-[var(--sf-muted)]">Нет открытых ошибок по понятиям из этих конспектов.</p>}
               </section>
             </aside>
           </div>

@@ -42,18 +42,16 @@ export default function ReviewTestModal({
   useEffect(() => {
     if (!loading && !done && !answered) {
       timerRef.current = setInterval(() => {
-        setTimer(t => {
-          if (t <= 1) {
-            clearInterval(timerRef.current!);
-            handleAnswer(null); // time out = wrong
-            return 0;
-          }
-          return t - 1;
-        });
+        setTimer(t => Math.max(0, t - 1));
       }, 1000);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [loading, done, answered, currentIdx]);
+
+  // Time out = wrong answer. Handled here, not inside the setTimer updater, which must stay pure.
+  useEffect(() => {
+    if (timer === 0 && !loading && !done && !answered) handleAnswer(null);
+  }, [timer, loading, done, answered]);
 
   async function loadTest() {
     setLoading(true);
@@ -73,7 +71,12 @@ export default function ReviewTestModal({
     setAnswered(true);
     const q = questions[currentIdx];
     const isCorrect = choice !== null && choice.startsWith(q.correct);
-    setScores(s => [...s, isCorrect]);
+    // One result per question, so a repeated call cannot add an extra answer.
+    setScores(s => {
+      const next = [...s];
+      next[currentIdx] = isCorrect;
+      return next;
+    });
   }
 
   async function handleNext() {
@@ -83,8 +86,8 @@ export default function ReviewTestModal({
       setAnswered(false);
       setTimer(TIMER_SECONDS);
     } else {
-      // finish
-      const correct = [...scores, selected !== null && selected.startsWith(questions[currentIdx].correct)].filter(Boolean).length;
+      // finish: handleAnswer has already recorded the last answer in scores
+      const correct = scores.filter(Boolean).length;
       const total = questions.length;
       const pct = Math.round((correct / total) * 100);
       setFinalScore(pct);

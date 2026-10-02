@@ -43,6 +43,18 @@ interface ChatMessage {
   content: string;
 }
 
+// Анализ сохраняет { flashcards: [...] }, старые материалы — просто массив карточек.
+function materialPracticeCards(flashcardsJson: unknown): Flashcard[] {
+  const items: unknown[] = Array.isArray(flashcardsJson)
+    ? flashcardsJson
+    : Array.isArray((flashcardsJson as { flashcards?: unknown } | null)?.flashcards)
+      ? (flashcardsJson as { flashcards: unknown[] }).flashcards
+      : [];
+  return items
+    .filter((card: any) => typeof card?.question === 'string' && card.question.trim() && typeof card?.answer === 'string' && card.answer.trim())
+    .map((card: any) => ({ question: card.question, answer: card.answer, isMock: true }));
+}
+
 export default function StudySession() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -146,20 +158,17 @@ export default function StudySession() {
       // Готовим карточки для сессии (Шаг 1)
       let preparedCards: Flashcard[] = [];
       const relatedDueCards = cards.filter(c => c.material_id === mat.id);
-      
+      const practiceCards = materialPracticeCards(mat.flashcards_json);
+
       if (relatedDueCards.length > 0) {
         // Берем просроченные карточки именно по этой лекции
         preparedCards = relatedDueCards.slice(0, 10);
       } else if (cards.length > 0) {
         // Если по ней нет, берем любые просроченные
         preparedCards = cards.slice(0, 10);
-      } else if (mat.flashcards_json && mat.flashcards_json.length > 0) {
+      } else if (practiceCards.length > 0) {
         // Если просроченных карточек 0 вообще, берем из кэша лекции (как тренировку)
-        preparedCards = mat.flashcards_json.slice(0, 5).map((c: any) => ({
-          question: c.question,
-          answer: c.answer,
-          isMock: true
-        }));
+        preparedCards = practiceCards.slice(0, 5);
       }
 
       setSessionCards(preparedCards);
