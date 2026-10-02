@@ -11,7 +11,6 @@ import { supabase } from '../lib/supabase';
 import { CustomSelect } from '../components/CustomSelect';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
-import { updateQuestProgress } from '../api/quests';
 import { incrementAIUsage } from '../api/limits';
 import toast from 'react-hot-toast';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
@@ -123,8 +122,6 @@ export default function Chat() {
         role: 'user',
         content: userMsg.content
       });
-
-      await updateQuestProgress(user.id, 'chat', 1);
 
       // Получаем актуальное настроение пользователя
       const { data: moodData } = await supabase

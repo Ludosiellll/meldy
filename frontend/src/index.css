@@ -376,7 +376,6 @@ h1, h2, h3 { text-wrap: balance; }
   aside,
   header,
   .no-print,
-  .tour-step-xp,
   nav,
   button,
   .fixed,
@@ -445,16 +444,6 @@ h1, h2, h3 { text-wrap: balance; }
   }
   .mb-5, .mt-6 {
     page-break-inside: avoid;
-  }
-}
-
-/* Portrait Lock - Show only on mobile devices in landscape mode */
-@media (max-width: 950px) and (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
-  .portrait-lock {
-    display: flex !important;
-  }
-  #root > :not(.portrait-lock) {
-    display: none !important;
   }
 }
 

@@ -9,3 +9,8 @@ dist/
 .env
 backend/private_key.pem
 backend/*_private*.pem
+
+# Local code dumps and scratch scripts (may contain personal data)
+ALL_CODE.txt
+project-code.txt
+scratch/

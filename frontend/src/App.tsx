@@ -21,7 +21,6 @@ const Missions = lazy(() => import('./pages/Missions'));
 const MistakeDiary = lazy(() => import('./pages/MistakeDiary'));
 const MoodTracker = lazy(() => import('./pages/MoodTracker'));
 const Analytics = lazy(() => import('./pages/Analytics'));
-const QuickPrep = lazy(() => import('./pages/QuickPrep'));
 const KnowledgeMap = lazy(() => import('./pages/KnowledgeMap'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const HHCallback = lazy(() => import('./pages/HHCallback'));
@@ -37,8 +36,6 @@ const ShortsPlayer = lazy(() => import('./pages/ShortsPlayer'));
 const SharedMaterial = lazy(() => import('./pages/SharedMaterial'));
 const AssignmentView = lazy(() => import('./pages/AssignmentView'));
 
-import { Smartphone } from 'lucide-react';
-
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return (
@@ -49,23 +46,12 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
-const PortraitLock = () => (
-  <div className="portrait-lock fixed inset-0 z-[99999] bg-slate-950 flex-col items-center justify-center p-6 text-center text-white hidden">
-    <Smartphone className="w-16 h-16 text-indigo-500 mb-6 animate-pulse" style={{ transform: 'rotate(90deg)' }} />
-    <h2 className="text-2xl font-black mb-3 text-slate-100">Переверните устройство</h2>
-    <p className="text-slate-400 max-w-sm mx-auto leading-relaxed">
-      Пожалуйста, используйте вертикальную ориентацию экрана для корректной работы с платформой.
-    </p>
-  </div>
-);
-
 import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   return (
     <BrowserRouter>
       <PWAUpdater />
-      <PortraitLock />
       <Toaster 
         position="top-right" 
         toastOptions={{ 
@@ -115,7 +101,7 @@ export default function App() {
           <Route path="mistakes" element={<MistakeDiary />} />
           <Route path="mood" element={<MoodTracker />} />
           <Route path="analytics" element={<Analytics />} />
-          <Route path="quick-prep" element={<QuickPrep />} />
+          <Route path="quick-prep" element={<Navigate to="/library" replace />} />
           <Route path="knowledge-map" element={<KnowledgeMap />} />
           <Route path="teacher" element={<TeacherDashboard />} />
           <Route path="pricing" element={<Pricing />} />

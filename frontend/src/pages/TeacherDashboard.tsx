@@ -506,7 +506,7 @@ export default function TeacherDashboard() {
             </p>
             {role === 'student' && (
               <button
-                onClick={() => navigate('/library')}
+                onClick={() => navigate('/library?join=')}
                 className="mt-6 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200 dark:shadow-none"
               >
                 Вступить в класс
@@ -517,7 +517,7 @@ export default function TeacherDashboard() {
           {/* Step by step guide card */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base mb-4">
-              Как устроена работа с классами? 🧭
+              Как устроена работа с классами?
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -554,7 +554,7 @@ export default function TeacherDashboard() {
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">2</span>
                     <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Вступите в класс</h4>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Перейдите в «Библиотеку» и в правом верхнем углу нажмите кнопку «Ввести код класса».</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">Нажмите «Вступить в класс» здесь или в «Библиотеке» и введите код. Ссылка-приглашение от преподавателя откроет то же окно с уже введённым кодом.</p>
                   </div>
                   <div className="space-y-2">
                     <span className="w-7 h-7 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-xs">3</span>
@@ -658,7 +658,7 @@ export default function TeacherDashboard() {
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border dark:border-slate-800">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Пригласить в класс</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Попросите учеников отсканировать этот QR-код или ввести код вручную в Библиотеке.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Попросите учеников отсканировать этот QR-код или ввести код в «Библиотеке» через кнопку «Вступить в класс».</p>
                     
                     <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 inline-block mb-6 shadow-sm">
                       <QRCode 

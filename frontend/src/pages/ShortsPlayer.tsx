@@ -125,13 +125,13 @@ export default function ShortsPlayer() {
         </div>
         <h2 className="text-2xl font-bold mb-3">Нет карточек</h2>
         <p className="text-slate-400 mb-8 max-w-sm">
-          Чтобы смотреть TikTok-шортсы, сначала нужно сгенерировать флеш-карточки для этого материала.
+          Чтобы листать карточки лентой, сначала создайте карточки для этого материала.
         </p>
         <button 
           onClick={() => navigate(`/library/${id}`)}
           className="px-6 py-3 bg-indigo-600 rounded-xl font-bold"
         >
-          Вернуться в библиотеку
+          Вернуться к материалу
         </button>
       </div>
     );
@@ -148,7 +148,7 @@ export default function ShortsPlayer() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="text-white/80 font-bold text-sm bg-black/30 px-3 py-1.5 rounded-full pointer-events-auto backdrop-blur-md border border-white/10">
-          Учебный TikTok
+          Карточки лентой
         </div>
       </div>
 

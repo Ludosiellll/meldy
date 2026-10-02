@@ -1,4 +1,4 @@
-import { ExamResult, StudySession, Achievement, Mistake } from '../types';
+import { ExamResult, StudySession, Mistake } from '../types';
 import { useState, useEffect } from 'react';
 import Gradebook from '../components/Gradebook';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -16,7 +16,6 @@ import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { getUserXP, calcLevel, ACHIEVEMENTS } from '../api/quests';
 import { useTheme } from '../contexts/ThemeProvider';
 
 export default function Analytics() {
@@ -28,36 +27,28 @@ export default function Analytics() {
   const activeTab = searchParams.get('tab') === 'gradebook' ? 'gradebook' : 'platform';
   const setActiveTab = (tab: string) => setSearchParams({ tab });
   const [loading, setLoading] = useState(true);
-  const [xp, setXp] = useState(0);
   const [sessions, setSessions] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [mistakes, setMistakes] = useState<any[]>([]);
-  const [earnedAchievements, setEarnedAchievements] = useState<string[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [cardProgress, setCardProgress] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user?.id) return;
     Promise.all([
-      getUserXP(user.id),
       supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(60),
       supabase.from('exam_sessions').select('*').eq('user_id', user.id).eq('status', 'completed').order('completed_at', { ascending: false }).limit(30),
       supabase.from('mistake_diary').select('*').eq('user_id', user.id),
-      supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id),
       supabase.from('materials').select('id, title, subject, created_at').eq('user_id', user.id),
       supabase.from('flashcard_progress').select('material_id, repetitions').eq('user_id', user.id),
-    ]).then(([xpVal, sessRes, examsRes, mistakesRes, achRes, matsRes, cardsRes]) => {
-      setXp(xpVal);
+    ]).then(([sessRes, examsRes, mistakesRes, matsRes, cardsRes]) => {
       setSessions(sessRes.data ?? []);
       setExams(examsRes.data ?? []);
       setMistakes(mistakesRes.data ?? []);
-      setEarnedAchievements((achRes.data ?? []).map((a: Achievement) => a.achievement_id));
       setMaterials(matsRes.data ?? []);
       setCardProgress(cardsRes.data ?? []);
     }).catch(console.error).finally(() => setLoading(false));
   }, [user?.id]);
-
-  const levelInfo = calcLevel(xp);
 
   // Расчет владения темами
   const knowledgeHeatmap = (() => {
@@ -266,41 +257,6 @@ export default function Analytics() {
         <Gradebook />
       ) : (
         <div className="space-y-6 md:space-y-8">
-          {/* XP и уровень */}
-          <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="hidden"
-      >
-        <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
-        <div className="relative">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mb-1">Уровень {levelInfo.level}</p>
-              <h2 className="text-2xl font-black">{levelInfo.name}</h2>
-            </div>
-            <div className="text-right">
-              <p className="text-3xl font-black">{xp}</p>
-              <p className="text-indigo-200 text-xs">всего XP</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-white rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${levelInfo.progress}%` }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-              />
-            </div>
-            <span className="text-xs font-bold text-indigo-200 shrink-0">
-              {levelInfo.currentXP}/{levelInfo.nextXP} XP
-            </span>
-          </div>
-          <p className="text-indigo-200 text-xs mt-2">до уровня {levelInfo.level + 1}</p>
-        </div>
-      </motion.div>
-
       {/* Ключевые метрики */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
         {[
@@ -527,44 +483,6 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Достижения */}
-      <div className="card p-4 md:p-5">
-        <h3 className="font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-          <Trophy className="w-4 h-4 text-amber-500" />
-          Достижения ({earnedAchievements.length}/{ACHIEVEMENTS.length})
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {ACHIEVEMENTS.map(ach => {
-            const earned = earnedAchievements.includes(ach.id);
-            return (
-              <div
-                key={ach.id}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  earned
-                    ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 shadow-sm'
-                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-40 grayscale'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 ${
-                  earned ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-slate-200 dark:bg-slate-800'
-                }`}>
-                  <Trophy className={`w-5 h-5 ${earned ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-600'}`} />
-                </div>
-                <p className={`text-xs font-bold leading-tight ${earned ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}>
-                  {ach.title}
-                </p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{ach.description}</p>
-                {earned && (
-                  <span className="mt-1.5 inline-flex items-center gap-0.5 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
-                    <Zap className="w-2.5 h-2.5" />
-                    +{ach.xp}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
         </div>
       )}
     </main>

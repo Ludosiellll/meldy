@@ -2,7 +2,6 @@ import { QuizQuestion, QuizInfo } from '../types';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import SourceReferences from './SourceReferences';
 
 export default function QuizView({ data, onComplete, sources = [] }: { data: any, onComplete?: (scorePct: number) => void, sources?: { id: string; text: string }[] }) {
@@ -26,10 +25,6 @@ export default function QuizView({ data, onComplete, sources = [] }: { data: any
     setSubmitted(true);
     const score = quiz.filter((q: QuizQuestion, i: number) => answers[i]?.startsWith(q.correct)).length;
     const pct = Math.round((score / quiz.length) * 100);
-    
-    if (score === quiz.length) {
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ['#4F46E5', '#10b981', '#f59e0b'] });
-    }
     
     if (onComplete) {
       onComplete(pct);

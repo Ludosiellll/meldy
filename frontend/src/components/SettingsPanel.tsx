@@ -1,5 +1,5 @@
 import { AnalysisSettings } from '../types';
-import { FileText, Layers, HelpCircle, Zap, Headphones, Gamepad2, CheckCircle2 } from 'lucide-react';
+import { FileText, Layers, HelpCircle, Zap, Headphones, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   settings: AnalysisSettings;
@@ -36,8 +36,7 @@ export default function SettingsPanel({ settings, onChange }: Props) {
             { id: 'flashcards', label: 'Карточки', desc: 'Флеш-карточки для быстрого интервального повторения', icon: Layers, color: 'amber' },
             { id: 'quiz', label: 'Тест', desc: 'Интерактивный тест с подробным разбором ошибок', icon: HelpCircle, color: 'emerald' },
             { id: 'cheatsheet', label: 'Шпаргалка', desc: 'Самая главная выжимка лекции для быстрой проверки', icon: Zap, color: 'orange' },
-            { id: 'podcast', label: 'Подкаст', desc: 'Увлекательный аудио-подкаст между двумя ведущими', icon: Headphones, color: 'purple' },
-            { id: 'missions', label: 'Миссии', desc: 'Сюжетный текстовый квест-игра на основе лекции', icon: Gamepad2, color: 'rose' }
+            { id: 'podcast', label: 'Аудиоразговор', desc: 'Два ведущих обсуждают материал, можно слушать', icon: Headphones, color: 'purple' },
           ].map(agent => {
             const isChecked = (settings.enabledAgents || []).includes(agent.id);
             const Icon = agent.icon;

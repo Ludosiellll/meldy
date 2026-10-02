@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, CheckCircle2, Clock, FileText, HelpCircle, BookOpen, Sparkles, Mic, Compass } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, FileText, HelpCircle, BookOpen, Sparkles, Mic } from 'lucide-react';
 import { AgentStatus } from '../types';
 
 function UnifiedProgressBar({ value }: { value: number }) {
@@ -110,7 +110,7 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
       }
     },
     podcast: {
-      label: 'Аудио-подкаст',
+      label: 'Аудиоразговор',
       icon: Mic,
       color: 'text-violet-600',
       bgColor: 'bg-violet-50',
@@ -118,21 +118,8 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
       glowColor: 'shadow-violet-500/5',
       desc: {
         idle: 'Ожидание генерации сценария...',
-        running: 'Создаем текстовый скрипт для аудио-подкаста...',
-        done: 'Подкаст озвучен и готов к прослушиванию'
-      }
-    },
-    missions: {
-      label: 'Учебные квесты',
-      icon: Compass,
-      color: 'text-cyan-600',
-      bgColor: 'bg-cyan-50',
-      borderColor: 'border-cyan-200',
-      glowColor: 'shadow-cyan-500/5',
-      desc: {
-        idle: 'Ожидание построения целей...',
-        running: 'Формируем индивидуальные миссии для лекции...',
-        done: 'Квесты сгенерированы'
+        running: 'Пишем сценарий разговора по материалу...',
+        done: 'Аудиоразговор готов к прослушиванию'
       }
     }
   };

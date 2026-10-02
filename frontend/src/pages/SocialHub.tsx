@@ -100,17 +100,17 @@ export default function SocialHub() {
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-3">
             <Globe className="w-8 h-8 text-indigo-600" />
-            Study Network
+            Сообщество
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Глобальное сообщество студентов</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Открытые материалы других студентов и поиск людей</p>
         </div>
 
         {/* Табы */}
         <div className="flex bg-slate-200/60 dark:bg-slate-950 p-1 rounded-2xl border border-slate-300/20 dark:border-slate-800/60 overflow-x-auto custom-scrollbar w-full sm:w-auto shrink-0">
           {[
-            { key: 'feed', label: 'Маркетплейс' },
+            { key: 'feed', label: 'Открытые материалы' },
             { key: 'leaderboard', label: 'Лидерборд' },
-            { key: 'search', label: '🔍 Найти' },
+            { key: 'search', label: 'Найти людей' },
           ].map(tab => {
             const isActive = activeTab === tab.key;
             return (

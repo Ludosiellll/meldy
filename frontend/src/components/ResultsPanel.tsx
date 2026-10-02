@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Gamepad2, Edit3, ShieldCheck, AlertTriangle, Check, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, ShieldCheck, AlertTriangle, Check, X } from 'lucide-react';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
@@ -10,15 +9,14 @@ import toast from 'react-hot-toast';
 import { updateMaterialTitle } from '../api/materials';
 import { getResultDisplayTitle } from '../utils/resultPresentation';
 
-type Tab = 'summary' | 'flashcards' | 'quiz' | 'missions' | 'podcast' | 'shorts';
+type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast' | 'shorts';
 
 const AGENT_LABELS: Record<string, string> = {
   summarizer: 'Конспект',
   flashcards: 'Карточки',
   quiz: 'Тест',
   cheatsheet: 'Шпаргалка',
-  podcast: 'Подкаст',
-  missions: 'Миссии',
+  podcast: 'Аудиоразговор',
 };
 
 function extractCleanContent(data: any): string {
@@ -338,14 +336,12 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
       { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
       { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
-      { id: 'missions', label: 'Миссии', icon: <Gamepad2 className="w-4 h-4" /> },
     ];
 
     return rawTabs.filter(t => {
       if (t.id === 'summary') return !!(results.summarizer?.content || (results.summarizer as { raw?: string })?.raw);
       if (t.id === 'flashcards') return flashcardCount > 0;
       if (t.id === 'quiz') return quizCount > 0;
-      if (t.id === 'missions') return !!(results.missions?.missions?.length || (results.missions as unknown as { length?: number })?.length);
       return true;
     });
   }, [results, flashcardCount, quizCount]);
@@ -385,10 +381,12 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
 
 
+  // Миссии больше не показываются во вкладках, поэтому и предупреждение о них не нужно.
+  const visibleWarnings = (results.warnings || []).filter(w => w.agent !== 'missions');
+
   const getContent = () => {
     if (tab === 'summary') return results.summarizer?.content || (results.summarizer as any)?.raw || '';
     if (tab === 'flashcards') return JSON.stringify(results.flashcards?.flashcards || results.flashcards, null, 2);
-    if (tab === 'missions') return JSON.stringify(results.missions?.missions || results.missions, null, 2);
     return JSON.stringify(results.quiz?.quiz || results.quiz, null, 2);
   };
 
@@ -564,9 +562,9 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
           </div>
         ) : null}
 
-        {!!results.warnings?.length && (
+        {visibleWarnings.length > 0 && (
           <div className="mt-4 space-y-2" role="status">
-            {results.warnings.map(warning => (
+            {visibleWarnings.map(warning => (
               <p key={warning.agent} className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 Раздел «{AGENT_LABELS[warning.agent] || warning.agent}» не создан. Остальные результаты доступны.
@@ -604,16 +602,6 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         )}
         {tab === 'flashcards' && <FlashcardsView data={results.flashcards} sources={results.grounding?.sources} />}
         {tab === 'quiz' && <QuizView data={results.quiz} sources={results.grounding?.sources} />}
-        {tab === 'missions' && (
-          <div className="flex min-h-[260px] max-w-xl flex-col items-start justify-center border-y border-slate-200 py-10 dark:border-slate-800">
-            <Gamepad2 className="mb-4 h-7 w-7 text-teal-600 dark:text-teal-400" />
-            <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-50">Учебная миссия</h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-400">Пройдите короткий сценарий по материалу и проверьте, как применяются ключевые идеи.</p>
-            <Link to={materialId ? `/play?materialId=${materialId}` : '/play'} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-500">
-              Начать миссию
-            </Link>
-          </div>
-        )}
       </motion.div>
     </div>
   );

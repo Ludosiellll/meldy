@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-import { ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, FileText, Flame, Plus, RotateCcw } from 'lucide-react';
+import { ArrowRight, BarChart3, BookOpen, CheckCircle2, FileText, Flame, Plus, RotateCcw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { getMaterials } from '../api/materials';
@@ -15,7 +15,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [materials, setMaterials] = useState<any[]>([]);
   const [dueCards, setDueCards] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,13 +23,11 @@ export default function Dashboard() {
     Promise.all([
       getMaterials(user.id),
       getDueCards(user.id),
-      supabase.from('subjects').select('*').eq('user_id', user.id),
       supabase.from('study_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
     ])
-      .then(([materialsData, cardsData, subjectsResult, sessionsResult]) => {
+      .then(([materialsData, cardsData, sessionsResult]) => {
         setMaterials(materialsData);
         setDueCards(cardsData);
-        setSubjects(subjectsResult.data || []);
         setSessions(sessionsResult.data || []);
       })
       .catch(console.error)
@@ -59,13 +56,6 @@ export default function Dashboard() {
       return { day: format(date, 'dd.MM'), reviewed: reviewedByDate[key] || 0 };
     });
   }, [sessions]);
-
-  const nextExam = useMemo(() => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    return subjects
-      .filter(subject => subject.exam_date && subject.exam_date >= today)
-      .sort((a, b) => a.exam_date.localeCompare(b.exam_date))[0] || null;
-  }, [subjects]);
 
   const reviewedToday = sessions.find(session => session.date === format(new Date(), 'yyyy-MM-dd'))?.cards_reviewed || 0;
   const name = user?.user_metadata?.full_name?.split(' ')[0] || 'Студент';
@@ -138,18 +128,6 @@ export default function Dashboard() {
           <Metric label="Материалов" value={materials.length} icon={BookOpen} />
         </div>
       </section>
-
-      {nextExam && (
-        <button type="button" onClick={() => navigate('/courses')} className="mb-8 flex w-full items-center gap-4 border-y border-amber-300/40 bg-amber-50/60 px-1 py-4 text-left transition-colors hover:bg-amber-50 dark:border-amber-800/40 dark:bg-amber-950/15 dark:hover:bg-amber-950/25">
-          <CalendarDays className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-amber-700 dark:text-amber-400">Ближайший экзамен</p>
-            <p className="mt-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nextExam.name}</p>
-          </div>
-          <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">{format(new Date(nextExam.exam_date), 'd MMMM', { locale: ru })}</span>
-          <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
-        </button>
-      )}
 
       <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(320px,.8fr)]">
         <div>

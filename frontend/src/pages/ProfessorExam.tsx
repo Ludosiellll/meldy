@@ -35,10 +35,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
-import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } from '../api/quests';
+import { updateQuestProgress, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
-import AchievementToast from '../components/AchievementToast';
-import type { Achievement } from '../components/AchievementToast';
 import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
 import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
@@ -75,7 +73,6 @@ interface ProfessorConfig {
   borderColor: string;
   textAccent: string;
   hoverAccent: string;
-  signature: string;
 }
 
 const PROFESSORS: ProfessorConfig[] = [
@@ -92,7 +89,6 @@ const PROFESSORS: ProfessorConfig[] = [
     borderColor: 'border-indigo-200 dark:border-indigo-800',
     textAccent: 'text-indigo-600 dark:text-indigo-400',
     hoverAccent: 'hover:border-indigo-500 dark:hover:border-indigo-400',
-    signature: 'А.С. Смирнов'
   },
   {
     id: 'elizaveta',
@@ -107,7 +103,6 @@ const PROFESSORS: ProfessorConfig[] = [
     borderColor: 'border-purple-200 dark:border-purple-800',
     textAccent: 'text-purple-600 dark:text-purple-400',
     hoverAccent: 'hover:border-purple-500 dark:hover:border-purple-400',
-    signature: 'Е.П. Ковалевская'
   },
   {
     id: 'max',
@@ -122,7 +117,6 @@ const PROFESSORS: ProfessorConfig[] = [
     borderColor: 'border-emerald-200 dark:border-emerald-800',
     textAccent: 'text-emerald-600 dark:text-emerald-400',
     hoverAccent: 'hover:border-emerald-500 dark:hover:border-emerald-400',
-    signature: 'Max_Dev'
   }
 ];
 
@@ -268,9 +262,8 @@ export default function ProfessorExam() {
   const [socraticMode, setSocraticMode] = useState<boolean>(savedState?.socraticMode || false);
   const [todayMood, setTodayMood] = useState<any>(null);
 
-  // Конфетти и достижения
+  // Конфетти
   const [showConfetti, setShowConfetti] = useState(false);
-  const [achievement, setAchievement] = useState<Achievement | null>(null);
 
   // Состояние TTS
   const [ttsState, setTtsState] = useState<'playing' | 'paused' | 'stopped'>('stopped');
@@ -630,11 +623,6 @@ export default function ProfessorExam() {
           if (sessionData) {
             fetchExamHistory();
             await updateQuestProgress(user.id, 'exam', 1);
-            
-            const newAchs = await checkAndAwardAchievements(user.id);
-            if (newAchs.length > 0) {
-              setAchievement({ id: newAchs[0].id, title: newAchs[0].title, description: newAchs[0].description, icon: newAchs[0].icon, xp: newAchs[0].xp });
-            }
           }
 
           await recordStudyActivity(user.id, 1, 0);
@@ -742,7 +730,6 @@ export default function ProfessorExam() {
   return (
     <div className="p-3 md:p-6 max-w-4xl mx-auto min-h-[80vh] flex flex-col justify-center select-none-elements">
       <ConfettiCelebration trigger={showConfetti} type="exam5" />
-      <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
       
       {/* Заголовок */}
       <div className="flex items-center gap-2 mb-6 justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
@@ -1428,22 +1415,18 @@ export default function ProfessorExam() {
               <div className={`h-2.5 bg-gradient-to-r ${activeProf.gradient}`} />
               
               <div className="p-5 md:p-8">
-                {/* Шапка ведомости */}
+                {/* Шапка результата */}
                 <div className="text-center mb-8 pb-5 border-b border-slate-100 dark:border-slate-850">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Министерство умственного развития</span>
-                  <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-slate-100 mt-1.5 uppercase tracking-wide font-serif">
-                    Академическая зачетная книжка
+                  <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100">
+                    Результат проверки
                   </h2>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-550 font-bold uppercase tracking-widest mt-0.5">
-                    Meldy Academy • Кафедра когнитивного обучения
-                  </p>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                   
-                  {/* Левая страница: Сведения, Средний балл, Печать и Подпись */}
+                  {/* Левая страница: сведения, средний балл и оценка */}
                   <div className="space-y-5 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-150/40 dark:border-slate-800/80 p-5 rounded-2xl relative shadow-inner">
-                    <h3 className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200/40 dark:border-slate-850 pb-2 mb-3">Сведения о зачете</h3>
+                    <h3 className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-200/40 dark:border-slate-850 pb-2 mb-3">Сведения</h3>
                     
                     <div className="space-y-2.5 text-xs">
                       <div className="flex justify-between items-center pb-2 border-b border-slate-200/30 dark:border-slate-800/40">
@@ -1498,9 +1481,9 @@ export default function ProfessorExam() {
                         </div>
                       </div>
                       
-                      {/* Гербовая Печать */}
+                      {/* Оценка */}
                       <div className="flex flex-col items-center">
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black mb-2.5">Запись зачета</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black mb-2.5">Оценка</span>
                         <motion.div
                           initial={{ scale: 0.8, opacity: 0, rotate: -20 }}
                           animate={{ scale: 1, opacity: 1, rotate: 5 }}
@@ -1516,23 +1499,12 @@ export default function ProfessorExam() {
                           }`}
                         >
                           <div className="absolute inset-1 rounded-full border border-dashed border-white/20 scale-95" />
-                          <span className="text-[7px] tracking-widest font-black uppercase text-white/70 absolute top-3">ЗАЧТЕНО</span>
+                          <span className="text-[7px] tracking-widest font-black uppercase text-white/70 absolute top-3">{finalGrade === '2' ? 'НЕ ЗАЧТЕНО' : 'ЗАЧТЕНО'}</span>
                           <span className="text-3xl font-black drop-shadow-md z-10">{finalGrade}</span>
                           <span className="text-[8px] tracking-widest font-black uppercase text-white/80 absolute bottom-3">
                             {finalGrade === '5' ? 'ОТЛИЧНО' : finalGrade === '4' ? 'ХОРОШО' : finalGrade === '3' ? 'УДОВЛ.' : 'НЕУДОВЛ.'}
                           </span>
                         </motion.div>
-                      </div>
-                    </div>
-                    
-                    {/* Подпись экзаменатора */}
-                    <div className="pt-4 border-t border-slate-200/40 dark:border-slate-800 flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Подпись:</span>
-                      <div className="text-right">
-                        <span className="font-serif italic font-extrabold text-indigo-650 dark:text-indigo-400 tracking-widest text-sm block px-3.5 py-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-150/40 dark:border-slate-800 rotate-1 shadow-sm select-none">
-                          {activeProf.signature}
-                        </span>
-                        <span className="text-[7px] text-slate-400 uppercase font-black tracking-widest mt-1 block">цифровая проверка</span>
                       </div>
                     </div>
                   </div>

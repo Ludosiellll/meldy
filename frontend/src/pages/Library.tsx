@@ -161,9 +161,9 @@ export default function Library() {
 
   // Handle ?join=CODE parameter
   useEffect(() => {
-    const joinCode = searchParams.get('join');
-    if (joinCode) {
-      setInviteCode(joinCode);
+    // ?join=CODE opens the join modal with the code; bare ?join opens it empty.
+    if (searchParams.has('join')) {
+      setInviteCode((searchParams.get('join') || '').toUpperCase());
       setShowJoinModal(true);
       setSearchParams({});
     }
@@ -411,7 +411,7 @@ export default function Library() {
     try {
       await Promise.all(selectedIds.map(id => updateMaterialVisibility(id, true)));
       setMaterials(prev => prev.map(m => selectedIds.includes(m.id) ? { ...m, is_public: true } : m));
-      toast.success('Выбранные материалы успешно опубликованы!');
+      toast.success('Материалы стали открытыми: по ссылке их смогут открыть и скопировать другие студенты.');
       setSelectedIds([]);
       setIsMultiSelectActive(false);
     } catch (e) {
@@ -557,14 +557,14 @@ export default function Library() {
             Статистика
             {showStats ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
-          
+
           <button
             onClick={() => setShowJoinModal(true)}
-            className="flex min-h-11 items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors"
+            className="flex min-h-11 items-center px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
           >
-            Ввести код класса
+            Вступить в класс
           </button>
-          
+
           <button
             onClick={() => navigate('/analyze')}
             className="flex min-h-11 items-center gap-2 px-4 py-2 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors"
@@ -579,7 +579,7 @@ export default function Library() {
       {showJoinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800">
-            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">Присоединиться к группе</h3>
+            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">Вступить в класс</h3>
             <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Введите код класса и ваши настоящие имя и фамилию (для преподавателя).</p>
             <input 
               autoFocus
@@ -913,10 +913,10 @@ export default function Library() {
                                 ? 'bg-emerald-150 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 border border-slate-200 dark:border-slate-700'
                             }`}
-                            title={m.is_public ? 'Опубликовано' : 'Сделать общедоступным'}
+                            title={m.is_public ? 'Виден всем в открытых материалах. Нажмите, чтобы оставить только для себя' : 'Виден только вам. Нажмите, чтобы добавить в открытые материалы'}
                           >
                             {m.is_public ? <Globe className="w-3 h-3 text-emerald-600" /> : <Lock className="w-3 h-3 text-slate-400" />}
-                            {m.is_public ? 'Сеть' : 'Поделиться'}
+                            {m.is_public ? 'В открытых материалах' : 'Только для меня'}
                           </button>
                         )}
                       </div>
@@ -1148,7 +1148,7 @@ export default function Library() {
                 className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-xl text-xs font-black transition border border-emerald-100 dark:border-indigo-900/35"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>Опубликовать</span>
+                <span>В открытые материалы</span>
               </button>
 
               {/* Delete */}

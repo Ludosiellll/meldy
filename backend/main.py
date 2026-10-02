@@ -32,7 +32,7 @@ from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pywebpush import webpush, WebPushException
 
-app = FastAPI(title="AI Student Assistant", version="1.0.0")
+app = FastAPI(title="Meldy API", version="1.0.0")
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -472,20 +472,6 @@ class ChatRequest(BaseModel):
     extra_params: dict = {}
 
 
-class PlanSubject(BaseModel):
-    name: str
-    exam_date: str
-    color: str
-
-
-class PlanRequest(BaseModel):
-    subjects: List[PlanSubject]
-    available_hours_per_day: int = 2
-    context_materials: str = ""
-    user_goals: str = ""
-    mood: dict = None
-
-
 class CourseMaterial(BaseModel):
     id: str
     title: str
@@ -539,76 +525,6 @@ async def chat(request: Request, req: ChatRequest):
 
     reply = await agent.run(system_prompt, full_user_query)
     return {"reply": reply}
-
-
-@app.post("/api/plan")
-@limiter.limit("5/minute")
-async def plan(request: Request, req: PlanRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    subjects_text = "\n".join([
-        f"- {s.name}: экзамен {s.exam_date}"
-        for s in req.subjects
-    ])
-    today = __import__('datetime').date.today().isoformat()
-
-    materials_section = ""
-    if req.context_materials:
-        materials_section = f"""
-
-КОНСПЕКТЫ СТУДЕНТА (используй их для составления конкретных тем и задач):
-{req.context_materials[:20000]}"""
-
-    goals_section = ""
-    if req.user_goals:
-        goals_section = f"""
-
-ПОЖЕЛАНИЯ СТУДЕНТА (учи́тывай при планировании):
-{req.user_goals}"""
-
-    mood_info = ""
-    if req.mood:
-        m = req.mood
-        mood_info = f"\n\nТЕКУЩЕЕ СОСТОЯНИЕ СТУДЕНТА: {m.get('mood')}, энергия: {m.get('energy_level')}/5. "
-        if m.get('notes'):
-            mood_info += f"Причина состояния со слов студента: '{m['notes']}' (учитывай это только если текст осмысленный). "
-        if m.get('energy_level', 3) <= 2:
-            mood_info += "Студент очень устал, планируй максимально легкие и короткие задачи."
-        elif m.get('energy_level', 3) >= 4:
-            mood_info += "Студент полон сил, можно планировать интенсивную работу."
-
-    system_prompt = f"""Ты — опытный учебный планировщик.
-Сегодняшняя дата: {today}
-Доступно часов для учебы в день: {req.available_hours_per_day}
-
-Предметы и даты экзаменов:
-{subjects_text}{materials_section}{goals_section}{mood_info}
-
-ВАЖНО: Проанализируй конспекты студента и сам определи, какой конспект к какому предмету относится (по названиям, терминам, темам). Если конспект не подходит ни к одному предмету — игнорируй его.
-
-Создай детальный ежедневный план подготовки для КАЖДОГО из перечисленных предметов.
-Распредели время между предметами пропорционально их сложности и близости экзамена.
-Для каждого дня указывай конкретные темы или задачи, основанные на конспектах студента.
-Если по какому-то предмету нет конспектов — предложи общие темы для изучения.
-
-ОБЯЗАТЕЛЬНО верни ответ в формате JSON:
-{{
-  "plan": [
-    {{
-      "date": "YYYY-MM-DD",
-      "tasks": [
-        {{"subject": "Название предмета", "task": "Что именно сделать", "hours": 1}}
-      ]
-    }}
-  ]
-}}"""
-
-    raw = await agent.run(system_prompt, "Сгенерируй план подготовки.")
-    
-    try:
-        return parse_llm_json(raw)
-    except:
-        return {"plan": []}
 
 
 @app.post("/api/courses/generate")

@@ -380,13 +380,7 @@ export default function Messages() {
                   </h3>
                 {acceptedFriends.length === 0 ? (
                   <div className="text-center py-6">
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">У вас пока нет друзей.</p>
-                    <button
-                      onClick={() => navigate('/network')}
-                      className="text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
-                    >
-                      Найти в Study Network
-                    </button>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет друзей. Найдите человека через поиск выше и отправьте заявку.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">

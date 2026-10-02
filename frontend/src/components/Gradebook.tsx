@@ -202,9 +202,9 @@ export default function Gradebook() {
   const handleScan = async () => {
     if (!scanText && scanImages.length === 0) return;
     
-    // Проверка лимитов для AI (1 токен за Smart Scan)
+    // Проверка лимитов для AI (1 токен за распознавание по фото)
     if (user?.id) {
-      const ok = await verifyEnergy(user.id, 1, 'Smart Scan оценок');
+      const ok = await verifyEnergy(user.id, 1, 'Распознавание оценок по фото');
       if (!ok) return;
     }
 
@@ -458,7 +458,7 @@ export default function Gradebook() {
         <div className="flex gap-2 w-full sm:w-auto">
           <button onClick={() => setShowScan(true)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[var(--sf-line)] px-4 text-sm font-medium text-[var(--sf-ink)] transition hover:bg-[var(--sf-surface-soft)] sm:flex-none">
             <Camera className="h-4 w-4" />
-            <span>Скан по фото</span>
+            <span>Распознать по фото</span>
           </button>
           <button onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition hover:-translate-y-px hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none sm:flex-none">
             <Plus className="h-4 w-4" />
@@ -522,7 +522,7 @@ export default function Gradebook() {
               {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
                 <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 p-2.5 rounded-lg text-xs font-medium flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>Оценки падают! Рекомендуем сгенерировать ИИ-подкаст по последней теме.</span>
+                  <span>Средний балл ниже цели. Повторите последнюю тему: карточки, тест или аудиоразговор по материалу.</span>
                 </div>
               )}
             </div>

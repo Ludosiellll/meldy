@@ -10,7 +10,7 @@ import { DEMO_TEXT } from '../demo';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
-import { updateQuestProgress, recordStudyActivity } from '../api/quests';
+import { recordStudyActivity } from '../api/quests';
 import { hasBadWords } from '../utils/moderation';
 import toast from 'react-hot-toast';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
@@ -21,9 +21,11 @@ const initAgents: AgentStatus[] = [
   { id: 'flashcards', label: 'Карточки', status: 'idle', progress: 0 },
   { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
   { id: 'cheatsheet', label: 'Шпаргалка', status: 'idle', progress: 0 },
-  { id: 'podcast', label: 'Подкаст', status: 'idle', progress: 0 },
-  { id: 'missions', label: 'Миссии', status: 'idle', progress: 0 },
+  { id: 'podcast', label: 'Аудиоразговор', status: 'idle', progress: 0 },
 ];
+
+// Миссии больше не показываются в результатах, поэтому их не генерируем при анализе.
+const SELECTABLE_AGENT_IDS = new Set(initAgents.map(a => a.id));
 
 interface Toast {
   id: number;
@@ -61,7 +63,10 @@ export default function Analyze() {
 
     analysisStartRef.current = Date.now();
     sourceFileNameRef.current = file ? file.name : (url ? url : 'Unknown');
-    const activeAgents = initAgents.filter(a => (state.settings.enabledAgents || []).includes(a.id));
+    // Пустой список бэкенд понимает как «все агенты», включая миссии, поэтому подставляем набор по умолчанию.
+    const selectedAgents = (state.settings.enabledAgents || []).filter(id => SELECTABLE_AGENT_IDS.has(id));
+    const enabledAgents = selectedAgents.length > 0 ? selectedAgents : DEFAULT_SETTINGS.enabledAgents;
+    const activeAgents = initAgents.filter(a => enabledAgents.includes(a.id));
     setState({ phase: 'extracting', agents: activeAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
     
     const fd = new FormData();
@@ -73,7 +78,7 @@ export default function Analyze() {
     fd.append('quiz_count', String(state.settings.quizCount));
     fd.append('quiz_difficulty', state.settings.quizDifficulty);
     fd.append('quiz_type', state.settings.quizType);
-    fd.append('enabled_agents', JSON.stringify(state.settings.enabledAgents || []));
+    fd.append('enabled_agents', JSON.stringify(enabledAgents));
     
     // Определяем эндпоинт в зависимости от типа
     const isMedia = file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/'));
@@ -120,15 +125,6 @@ export default function Analyze() {
       if (err.name === 'AbortError') return;
       setState(p => ({ ...p, phase: 'error', error: err.message })); 
     }
-  };
-
-  const agentDoneLabels: Record<string, string> = {
-    summarizer: 'Конспект готов',
-    flashcards: 'Карточки готовы',
-    quiz: 'Тест готов',
-    cheatsheet: 'Шпаргалка готова',
-    podcast: 'Подкаст готов',
-    missions: 'Квесты готовы',
   };
 
   const handleSSE = (d: Record<string, any>) => {
@@ -212,7 +208,6 @@ export default function Analyze() {
             if (cards.length > 0 && inserted?.id) {
               await syncFlashcards(user.id, inserted.id, cards);
             }
-            await updateQuestProgress(user.id, 'analyze', 1);
             await recordStudyActivity(user.id, 0, 1);
           } catch (err) {
             console.error('AI Usage or DB error:', err);

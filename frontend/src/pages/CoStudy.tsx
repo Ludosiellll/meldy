@@ -517,7 +517,7 @@ export default function CoStudy() {
             
             <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 mb-6">
               {friends.length === 0 ? (
-                <p className="text-slate-500 dark:text-slate-400 text-center py-4">У вас пока нет друзей. Добавьте их в Social Hub!</p>
+                <p className="text-slate-500 dark:text-slate-400 text-center py-4">У вас пока нет друзей. Скопируйте ссылку на комнату ниже и отправьте её однокурснику.</p>
               ) : (
                 friends.map(f => (
                   <div key={f.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">

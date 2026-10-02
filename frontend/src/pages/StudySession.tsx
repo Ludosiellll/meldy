@@ -15,11 +15,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useSound } from '../hooks/useSound';
 import { getDueCards, updateCardProgress } from '../api/flashcards';
 import { getMaterials, updateMaterialMissions } from '../api/materials';
-import { addXP, recordStudyActivity, updateQuestProgress, checkAndAwardAchievements } from '../api/quests';
+import { addXP, recordStudyActivity } from '../api/quests';
 import { incrementAIUsage } from '../api/limits';
-import ConfettiCelebration from '../components/ConfettiCelebration';
-import AchievementToast from '../components/AchievementToast';
-import type { Achievement } from '../components/AchievementToast';
 
 interface Flashcard {
   id?: string;
@@ -98,8 +95,6 @@ export default function StudySession() {
   const [quizScore, setQuizScore] = useState(0);
 
   // Награды и финал
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [achievement, setAchievement] = useState<Achievement | null>(null);
   const [xpGained, setXpGained] = useState(0);
 
   // Скролл чата
@@ -177,13 +172,9 @@ export default function StudySession() {
       setChatMessages([
         {
           role: 'assistant',
-          content: `Привет, ${user?.user_metadata?.full_name || 'друг'}! Я Meldy 🤖, твой персональный наставник.
+          content: `Привет, ${user?.user_metadata?.full_name || 'друг'}! Сессия по теме **«${mat.title}»**.
 
-Я подготовил сессию по теме **«${mat.title}»**. 
-
-Мы начнем с тренировки ${preparedCards.length} карточек для укрепления памяти, затем разберем выжимку теории, а в конце проверим знания коротким квестом из 3-х вопросов. 
-
-За прохождение ты получишь **+50 XP** и продвинешь свой стрик дней 🔥. Начнем?`
+${preparedCards.length > 0 ? `Сначала повторим карточки (${preparedCards.length} шт.), затем разберём` : 'Сначала разберём'} главное из теории, а в конце ответим на 3 проверочных вопроса. Начнём?`
         }
       ]);
 
@@ -306,7 +297,6 @@ export default function StudySession() {
       }
 
       if (user?.id) {
-        updateQuestProgress(user.id, 'review', 1).catch(err => console.error('Error updating quest progress:', err));
         recordStudyActivity(user.id, 1, 0).catch(err => console.error('Error recording study activity:', err));
       }
     } catch (error) {
@@ -420,7 +410,6 @@ export default function StudySession() {
 
   const handleFinishSession = async () => {
     setPhase('completed');
-    setShowConfetti(true);
     playSuccessSound();
 
     if (user?.id) {
@@ -432,26 +421,12 @@ export default function StudySession() {
         await addXP(user.id, earnedXP);
         playXpSound();
 
-        // Записываем завершение квестов/активности
-        await updateQuestProgress(user.id, 'quiz', 1);
+        // Записываем учебную активность
         await recordStudyActivity(user.id, sessionCards.length, 0);
-
-        // Проверяем новые достижения
-        const newAchs = await checkAndAwardAchievements(user.id);
-        if (newAchs.length > 0) {
-          setAchievement({
-            id: newAchs[0].id,
-            title: newAchs[0].title,
-            description: newAchs[0].description,
-            icon: newAchs[0].icon,
-            xp: newAchs[0].xp
-          });
-        }
       } catch (err) {
         console.error(err);
       }
     }
-    setTimeout(() => setShowConfetti(false), 3000);
   };
 
   if (loading) return (
@@ -484,9 +459,6 @@ export default function StudySession() {
 
   return (
     <div className="p-3 md:p-6 max-w-6xl mx-auto min-h-[90vh] flex flex-col justify-center relative w-full">
-      <ConfettiCelebration trigger={showConfetti} type="quest" />
-      <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
-
       {/* ── КНОПКА ЗАКРЫТИЯ ── */}
       {phase !== 'completed' && (
         <button
@@ -952,7 +924,7 @@ export default function StudySession() {
             </h2>
             
             <p className="text-slate-600 dark:text-slate-300 text-sm md:text-base max-w-lg mx-auto mb-6 leading-relaxed">
-              Отличная работа! Ты успешно прошёл интервальное повторение, проработал теорию лекции <strong className="font-extrabold text-indigo-600 dark:text-indigo-400">«{activeMaterial?.title}»</strong> и ответил на проверочные вопросы. Твой стрик дней под защитой 🔥!
+              Отличная работа! Ты успешно прошёл интервальное повторение, проработал теорию лекции <strong className="font-extrabold text-indigo-600 dark:text-indigo-400">«{activeMaterial?.title}»</strong> и ответил на проверочные вопросы. Занятие засчитано в серию дней.
             </p>
 
             {/* Награды */}
@@ -963,7 +935,7 @@ export default function StudySession() {
               </div>
               <div className="bg-orange-500 text-white font-extrabold px-6 py-3.5 rounded-2xl shadow-md flex items-center gap-2 border border-orange-400/40">
                 <Flame className="w-4.5 h-4.5 text-white animate-pulse" />
-                <span className="text-sm tracking-wider">СТРИК ПОДТВЕРЖДЕН 🔥</span>
+                <span className="text-sm tracking-wider">СЕРИЯ ДНЕЙ ПРОДОЛЖАЕТСЯ</span>
               </div>
             </div>
 

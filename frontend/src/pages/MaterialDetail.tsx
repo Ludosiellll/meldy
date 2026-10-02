@@ -1,7 +1,7 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen, Users } from 'lucide-react';
+import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -71,14 +71,12 @@ export default function MaterialDetail() {
     </div>
   );
 
-  const hasFlashcards = material.flashcards_json?.flashcards?.length > 0;
   const hasPodcast = material.summary_json?.podcast?.length > 0;
   const hasCheatsheet = material.summary_json?.cheatsheet && material.summary_json.cheatsheet.trim() !== '';
 
   let colCount = 1; // "Полное обучение"
   if (hasCheatsheet) colCount++;
   if (hasPodcast) colCount++;
-  if (hasFlashcards) colCount++;
 
   const gridColsClass = colCount === 4 
     ? 'md:grid-cols-4 sm:grid-cols-2' 
@@ -164,17 +162,10 @@ export default function MaterialDetail() {
           }`}
         >
           {material.is_public ? (
-            <><Globe className="w-3.5 h-3.5" /> В Маркетплейсе</>
+            <><Globe className="w-3.5 h-3.5" /> В открытых материалах</>
           ) : (
             <><Lock className="w-3.5 h-3.5" /> Только для меня</>
           )}
-        </button>
-
-        <button 
-          onClick={() => navigate(`/co-study/${id}`)}
-          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-950/50 rounded-md transition-colors"
-        >
-          <Users className="w-3.5 h-3.5" /> Совместная комната
         </button>
       </div>
 
@@ -247,14 +238,6 @@ export default function MaterialDetail() {
                 <Headphones className="w-5 h-5 sm:w-4 sm:h-4" />
                 <span>Аудио</span>
               </span>
-            </button>
-          )}
-          {hasFlashcards && (
-            <button
-              onClick={() => navigate(`/shorts/${id}`)}
-              className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              Карточки в ленте
             </button>
           )}
         </div>

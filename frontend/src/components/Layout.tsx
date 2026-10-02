@@ -2,18 +2,15 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
-  Clock, MessageSquare, LogOut, Award, Gamepad2,
-  BookMarked, BarChart2, ChevronRight, Network,
-  Globe, User, Bell, Menu, X, Users, CreditCard, Briefcase
+  MessageSquare, LogOut, BarChart2, Network,
+  User, Bell, Menu, X
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getUserXP, calcLevel } from '../api/quests';
 import { getProfile, UserProfile } from '../api/social';
 import { getUnreadCount, subscribeToNotifications, subscribeToMessages, getNotifications, markAllRead, Notification, getUnreadDMsGrouped, deleteNotification } from '../api/chat';
 import toast from 'react-hot-toast';
 import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
-import ForgeyAssistant from './ForgeyAssistant';
 import { useTheme } from '../contexts/ThemeProvider';
 import { Moon, Sun } from 'lucide-react';
 import { checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
@@ -33,7 +30,7 @@ const navGroups = [
   {
     title: 'Практика',
     items: [
-      { to: '/review',        icon: Brain,           label: 'Повторение',           className: '' },
+      { to: '/review',        icon: Brain,           label: 'Повторение',           className: 'tour-step-desktop-review' },
     ]
   },
   {
@@ -45,17 +42,13 @@ const navGroups = [
   },
 ];
 
-const teacherNavGroups = [
-  {
-    title: 'Управление',
-    items: [
-      { to: '/teacher',   icon: Network,   label: 'Мои группы' },
-      { to: '/messages',  icon: MessageSquare, label: 'Диалоги и друзья' },
-      { to: '/library',   icon: BookOpen,  label: 'Библиотека' },
-      { to: '/analyze',   icon: Zap,       label: 'Добавить материал' },
-    ]
-  }
-];
+const teacherNavGroup = {
+  title: 'Управление',
+  items: [
+    { to: '/teacher',   icon: Network,       label: 'Мои группы' },
+    { to: '/messages',  icon: MessageSquare, label: 'Диалоги и друзья' },
+  ]
+};
 
 
 
@@ -63,7 +56,7 @@ const mobileNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Сегодня' },
   { to: '/analyze',   icon: Zap,             label: 'Добавить' },
   { to: '/library',   icon: BookOpen,         label: 'Материалы', className: 'tour-step-mobile-library' },
-  { to: '/review',    icon: Brain,           label: 'Практика' },
+  { to: '/review',    icon: Brain,           label: 'Практика', className: 'tour-step-mobile-review' },
   { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
 
@@ -75,8 +68,6 @@ export default function Layout() {
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '?';
   const initial = name ? name[0].toUpperCase() : '?';
 
-  const [xp, setXp] = useState(0);
-  const [levelInfo, setLevelInfo] = useState(calcLevel(0));
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadDMs, setUnreadDMs] = useState(0);
@@ -116,10 +107,6 @@ export default function Layout() {
 
   useEffect(() => {
     if (!user?.id) return;
-
-    const fetchXP = () => getUserXP(user.id).then(v => { setXp(v); setLevelInfo(calcLevel(v)); });
-    fetchXP();
-    window.addEventListener('xp_updated', fetchXP);
 
     const fetchProfile = () => getProfile(user.id).then(p => { if (p) setProfile(p); });
     fetchProfile();
@@ -188,7 +175,6 @@ export default function Layout() {
     // It's possible to add event listener for 'ai_usage_updated' but for now fetching on mount is fine.
 
     return () => {
-      window.removeEventListener('xp_updated', fetchXP);
       window.removeEventListener('profile_updated', fetchProfile);
       window.removeEventListener('notification_read', handleNotificationRead);
       unsub();
@@ -210,25 +196,9 @@ export default function Layout() {
     }
   };
 
-  const handleToggleRole = async () => {
-    if (!user || !profile) return;
-    const newRole = profile.role === 'teacher' ? 'student' : 'teacher';
-    const { supabase } = await import('../lib/supabase');
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', user.id);
-    if (!error) {
-      setProfile({ ...profile, role: newRole });
-      window.dispatchEvent(new Event('profile_updated'));
-      if (newRole === 'teacher') navigate('/teacher');
-      else navigate('/dashboard');
-    }
-  };
-
   const avatarUrl = profile?.avatar_url;
   const isTeacher = profile?.role === 'teacher';
-  const currentNavGroups = isTeacher ? teacherNavGroups : navGroups;
+  const currentNavGroups = isTeacher ? [...navGroups, teacherNavGroup] : navGroups;
 
   const notificationDropdown = showNotifications && (
     <>
@@ -313,7 +283,6 @@ export default function Layout() {
         isPro={profile?.is_pro}
       />
 
-      <ForgeyAssistant />
       {/* ═══ MOBILE OVERLAY ══════════════════════════════════════════════════ */}
       {isMobileMenuOpen && (
         <div 
@@ -337,79 +306,6 @@ export default function Layout() {
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* XP / Level блок */}
-        {false && (profile === null ? (
-          <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 animate-pulse h-[116px] flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="h-3 bg-slate-700/50 rounded w-16 mb-1.5"></div>
-                  <div className="h-4 bg-slate-700/50 rounded w-24"></div>
-                </div>
-                <div className="w-7 h-7 bg-slate-700/50 rounded-md"></div>
-              </div>
-              <div className="h-1.5 bg-slate-700/50 rounded-full w-full mb-4"></div>
-            </div>
-            <div className="h-8 bg-slate-700/50 rounded-xl w-full mt-auto"></div>
-          </div>
-        ) : (
-          <div className="mx-4 mt-4 mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 tour-step-xp tour-step-desktop-xp">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Level {levelInfo.level}</p>
-                <p className="text-xs font-semibold text-slate-200">{levelInfo.name}</p>
-              </div>
-              <button
-                onClick={() => navigate('/analytics')}
-                className="text-slate-500 hover:text-slate-300 transition bg-slate-800 p-1.5 rounded-md"
-                title="Аналитика"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50 mb-1.5">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all duration-700"
-                style={{ width: `${levelInfo.progress}%` }}
-              />
-            </div>
-            <div className="flex justify-between mb-4">
-              <span className="text-[10px] font-medium text-slate-500">{xp} XP</span>
-              <span className="text-[10px] font-medium text-slate-500">{levelInfo.currentXP}/{levelInfo.nextXP}</span>
-            </div>
-
-            {/* AI Tokens Bar */}
-            <div 
-              onClick={() => setIsTokenModalOpen(true)}
-              className="group cursor-pointer p-1.5 -mx-1.5 rounded-xl hover:bg-slate-700/30 transition"
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Zap className={`w-3.5 h-3.5 ${profile?.is_pro ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400 transition'}`} />
-                  <p className="text-[10px] font-bold text-slate-400 group-hover:text-slate-300 transition uppercase tracking-widest">Энергия ИИ</p>
-                </div>
-                {profile?.is_pro ? (
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(251,191,36,0.3)]">PRO</span>
-                ) : null}
-              </div>
-              {!profile?.is_pro && (
-                <>
-                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${usedTokens >= FREE_DAILY_LIMIT ? 'bg-rose-500' : 'bg-amber-400'}`}
-                      style={{ width: `${Math.max(0, ((FREE_DAILY_LIMIT - usedTokens) / FREE_DAILY_LIMIT) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-1.5">
-                    <span className="text-[10px] font-medium text-slate-500">Осталось</span>
-                    <span className="text-[10px] font-medium text-slate-500">{FREE_DAILY_LIMIT - usedTokens} / {FREE_DAILY_LIMIT}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
 
         {/* Navigation */}
         {showInstall && (
@@ -461,34 +357,6 @@ export default function Layout() {
             </div>
           ))}
         </nav>
-
-        {/* Разделитель + быстрые иконки: Сообщество и Профиль */}
-        <div className="hidden px-4 pb-3 border-t border-slate-800 pt-3 items-center gap-2">
-          <NavLink
-            to="/network"
-            title="Study Network"
-            className={({ isActive }) =>
-              `flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition ${
-                isActive ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300'
-              }`
-            }
-          >
-            <Globe className="w-4 h-4" />
-            <span>Сообщество</span>
-          </NavLink>
-          <NavLink
-            to="/profile"
-            title="Мой профиль"
-            className={({ isActive }) =>
-              `flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition ${
-                isActive ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300'
-              }`
-            }
-          >
-            <User className="w-4 h-4" />
-            <span>Профиль</span>
-          </NavLink>
-        </div>
 
         {/* User section */}
         <div className="p-4 border-t border-slate-800">

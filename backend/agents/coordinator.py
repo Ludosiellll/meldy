@@ -66,12 +66,12 @@ class CoordinatorAgent:
             agent_names = ["summarizer"]
 
         agent_labels = {
-            "summarizer": "📝 Конспект",
-            "flashcards": "🃏 Карточки",
-            "quiz": "❓ Тест",
-            "cheatsheet": "⚡ Шпаргалка",
-            "podcast": "🎙️ Подкаст",
-            "missions": "🎮 Миссии",
+            "summarizer": "Конспект",
+            "flashcards": "Карточки",
+            "quiz": "Тест",
+            "cheatsheet": "Шпаргалка",
+            "podcast": "Аудиоразговор",
+            "missions": "Миссии",
         }
 
         for name in agent_names:

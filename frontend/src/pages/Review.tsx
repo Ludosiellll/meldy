@@ -10,7 +10,7 @@ import { ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useSound } from '../hooks/useSound';
 import { getDueCards, updateCardProgress } from '../api/flashcards';
-import { updateQuestProgress, recordStudyActivity } from '../api/quests';
+import { recordStudyActivity } from '../api/quests';
 
 function CircularProgress({ value, size = 100, strokeWidth = 8, isDark = false }: { value: number; size?: number; strokeWidth?: number; isDark?: boolean }) {
   const radius = (size - strokeWidth) / 2;
@@ -103,7 +103,6 @@ export default function Review() {
       }
 
       if (user?.id) {
-        updateQuestProgress(user.id, 'review', 1).catch(err => console.error('Error updating quest progress:', err));
         recordStudyActivity(user.id, 1, 0).catch(err => console.error('Error recording study activity:', err));
       }
     } catch (error) {

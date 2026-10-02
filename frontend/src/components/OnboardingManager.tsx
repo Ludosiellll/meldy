@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, markOnboardingTourSeen } from '../api/social';
 import { supabase } from '../lib/supabase';
-import { Bot, Sparkles, BookOpen, MessageSquare, GraduationCap, Zap, Award } from 'lucide-react';
+import { Bot, BookOpen, Brain, Zap } from 'lucide-react';
 
 // ──────────────────────────────────────────────
 // DESKTOP STEPS — нацелены на элементы сайдбара
@@ -26,7 +26,7 @@ const DESKTOP_STEPS: Step[] = [
           </div>
         </div>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Покажу, где добавить материал, повторять карточки и следить за прогрессом. Это займёт меньше минуты.
+          Покажу, где добавить материал, где он хранится и где повторять карточки. Это займёт меньше минуты.
         </p>
       </div>
     ),
@@ -56,65 +56,22 @@ const DESKTOP_STEPS: Step[] = [
           <BookOpen className="w-4 h-4 text-indigo-500" /> Библиотека
         </h4>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Все загруженные материалы, конспекты и аудиоподкасты хранятся здесь — в одном удобном месте.
+          Все загруженные материалы, конспекты и аудиоразговоры хранятся здесь — в одном удобном месте.
         </p>
       </div>
     ),
   },
   {
-    target: '.tour-step-desktop-chat',
+    target: '.tour-step-desktop-review',
     placement: 'right',
     disableBeacon: true,
     content: (
       <div className="text-left space-y-1">
         <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-          <MessageSquare className="w-4 h-4 text-indigo-500" /> Чат-наставник
+          <Brain className="w-4 h-4 text-indigo-500" /> Повторение
         </h4>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Непонятна тема? Пиши мне — объясню любой вопрос простыми словами с примерами.
-        </p>
-      </div>
-    ),
-  },
-  {
-    target: '.tour-step-desktop-exam',
-    placement: 'right',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-          <Award className="w-4 h-4 text-amber-500" /> Устный экзамен
-        </h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          ИИ-Профессор задаёт вопросы по твоим конспектам. Отвечай голосом или текстом — и получи честную оценку.
-        </p>
-      </div>
-    ),
-  },
-  {
-    target: '.tour-step-desktop-gradebook',
-    placement: 'right',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-amber-500" /> Аналитика и оценки
-        </h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Загрузи фото бумажного дневника — Smart Scan распознает оценки. Видишь прогресс по всем предметам сразу.
-        </p>
-      </div>
-    ),
-  },
-  {
-    target: '.tour-step-desktop-xp',
-    placement: 'right',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Твой уровень и XP</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          За каждое действие зарабатываешь XP. Выполняй ежедневные квесты, повышай уровень и обгоняй одногруппников!
+          Здесь карточки, которые пора повторить сегодня. Они возвращаются по расписанию, чтобы материал не забывался.
         </p>
       </div>
     ),
@@ -147,19 +104,6 @@ const MOBILE_STEPS: Step[] = [
     ),
   },
   {
-    target: '.tour-step-mobile-xp',
-    placement: 'bottom',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Твой уровень и XP</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          За каждое действие зарабатываешь XP. Учись активнее — повышай уровень!
-        </p>
-      </div>
-    ),
-  },
-  {
     target: '.tour-step-mobile-library',
     placement: 'top',
     disableBeacon: true,
@@ -175,39 +119,25 @@ const MOBILE_STEPS: Step[] = [
     ),
   },
   {
-    target: '.tour-step-mobile-chat',
+    target: '.tour-step-mobile-review',
     placement: 'top',
     disableBeacon: true,
     content: (
       <div className="text-left space-y-1">
         <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-          <MessageSquare className="w-4 h-4 text-indigo-500" /> Чат с ИИ
+          <Brain className="w-4 h-4 text-indigo-500" /> Практика
         </h4>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Непонятна тема? Пиши — объясню простыми словами с примерами, как репетитор.
-        </p>
-      </div>
-    ),
-  },
-  {
-    target: '.tour-step-mobile-gradebook',
-    placement: 'top',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-          <GraduationCap className="w-4 h-4 text-amber-500" /> Оценки
-        </h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Загрузи фото дневника — Smart Scan распознает оценки. Аналитика успеваемости по всем предметам!
+          Карточки, которые пора повторить сегодня. Они возвращаются по расписанию, чтобы материал не забывался.
         </p>
       </div>
     ),
   },
 ];
 
-// Шаги второго тура (после первой загрузки материала) — одинаково для всех экранов
-const EXAM_STEPS_DESKTOP: Step[] = [
+// Второй тур (после первой загрузки материала) — один шаг, одинаковый для всех экранов.
+// Отдельного пункта меню у экзамена нет, поэтому показываем путь через «Карту знаний».
+const EXAM_STEPS: Step[] = [
   {
     target: 'body',
     placement: 'center',
@@ -216,52 +146,15 @@ const EXAM_STEPS_DESKTOP: Step[] = [
       <div className="text-left space-y-2">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Bot className="w-6 h-6 animate-bounce" />
+            <Bot className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 tracking-tight">Материалы готовы!</h3>
-            <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">ИИ-Экзаменатор</span>
+            <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 tracking-tight">Материал готов</h3>
+            <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Устный экзамен</span>
           </div>
         </div>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium pt-1">
-          Теперь тебе доступен интерактивный устный экзамен с ИИ-профессором!
-        </p>
-      </div>
-    ),
-  },
-  {
-    target: '.tour-step-desktop-exam',
-    placement: 'right',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-1">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Симуляция экзамена</h4>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Нажми, чтобы запустить экзаменатора. Отвечай голосом или текстом — профессор оценит твои знания.
-        </p>
-      </div>
-    ),
-  },
-];
-
-const EXAM_STEPS_MOBILE: Step[] = [
-  {
-    target: 'body',
-    placement: 'center',
-    disableBeacon: true,
-    content: (
-      <div className="text-left space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Bot className="w-6 h-6 animate-bounce" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 tracking-tight">Материалы готовы!</h3>
-            <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">ИИ-Экзаменатор</span>
-          </div>
-        </div>
-        <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium pt-1">
-          Теперь тебе доступен устный экзамен с ИИ-профессором! Найди его в разделе «Практика» в боковом меню.
+          Проверить себя устно можно в «Карте знаний»: выбери материал и нажми «Проверить себя». Отвечай голосом или текстом.
         </p>
       </div>
     ),
@@ -313,14 +206,9 @@ export default function OnboardingManager() {
       !status['exam_tour'] &&
       profile.total_materials > 0
     ) {
-      const tourSteps = isMobile ? EXAM_STEPS_MOBILE : EXAM_STEPS_DESKTOP;
-      const secondTarget = tourSteps[1]?.target as string;
-      const targetExists = !secondTarget || secondTarget === 'body' || document.querySelector(secondTarget);
-      if (targetExists) {
-        setSteps(tourSteps);
-        markOnboardingTourSeen(user.id, 'exam_tour');
-        setTimeout(() => setRun(true), 100);
-      }
+      setSteps(EXAM_STEPS);
+      markOnboardingTourSeen(user.id, 'exam_tour');
+      setTimeout(() => setRun(true), 100);
     }
   };
 
