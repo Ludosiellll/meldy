@@ -1,5 +1,5 @@
 import { AnalysisSettings } from '../types';
-import { FileText, Layers, HelpCircle, Zap, Headphones, CheckCircle2 } from 'lucide-react';
+import { FileText, Layers, HelpCircle, Zap, MessagesSquare, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   settings: AnalysisSettings;
@@ -36,7 +36,7 @@ export default function SettingsPanel({ settings, onChange }: Props) {
             { id: 'flashcards', label: 'Карточки', desc: 'Флеш-карточки для быстрого интервального повторения', icon: Layers, color: 'amber' },
             { id: 'quiz', label: 'Тест', desc: 'Интерактивный тест с подробным разбором ошибок', icon: HelpCircle, color: 'emerald' },
             { id: 'cheatsheet', label: 'Шпаргалка', desc: 'Самая главная выжимка лекции для быстрой проверки', icon: Zap, color: 'orange' },
-            { id: 'podcast', label: 'Аудиоразговор', desc: 'Два ведущих обсуждают материал, можно слушать', icon: Headphones, color: 'purple' },
+            { id: 'podcast', label: 'Разговор', desc: 'Два ведущих обсуждают материал, на экране — схемы и термины', icon: MessagesSquare, color: 'accent' },
           ].map(agent => {
             const isChecked = (settings.enabledAgents || []).includes(agent.id);
             const Icon = agent.icon;
@@ -55,22 +55,22 @@ export default function SettingsPanel({ settings, onChange }: Props) {
               orange: isChecked 
                 ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/15' 
                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
-              purple: isChecked 
-                ? 'border-purple-500 bg-purple-50/20 dark:bg-purple-950/15' 
+              accent: isChecked 
+                ? 'border-[var(--sf-accent)] bg-[var(--sf-accent-soft)]' 
                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
               rose: isChecked 
                 ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/15' 
                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900',
-            }[agent.color as 'indigo' | 'amber' | 'emerald' | 'orange' | 'purple' | 'rose'];
+            }[agent.color as 'indigo' | 'amber' | 'emerald' | 'orange' | 'accent' | 'rose'];
 
             const iconColors = {
               indigo: 'text-indigo-600 dark:text-indigo-400 bg-indigo-100/70 dark:bg-indigo-950/40',
               amber: 'text-amber-600 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/40',
               emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100/70 dark:bg-emerald-950/40',
               orange: 'text-orange-600 dark:text-orange-400 bg-orange-100/70 dark:bg-orange-950/40',
-              purple: 'text-purple-600 dark:text-purple-400 bg-purple-100/70 dark:bg-purple-950/40',
+              accent: 'text-[var(--sf-accent)] bg-[var(--sf-accent-soft)]',
               rose: 'text-rose-600 dark:text-rose-400 bg-rose-100/70 dark:bg-rose-950/40',
-            }[agent.color as 'indigo' | 'amber' | 'emerald' | 'orange' | 'purple' | 'rose'];
+            }[agent.color as 'indigo' | 'amber' | 'emerald' | 'orange' | 'accent' | 'rose'];
 
             return (
               <div

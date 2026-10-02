@@ -1,10 +1,10 @@
 import { Material } from '../types';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Check, X, Globe, Lock, Headphones, Zap, BookOpen } from 'lucide-react';
+import { ArrowLeft, Edit3, Check, X, Globe, Lock, MessagesSquare, Zap, BookOpen, Share2, type LucideIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
 import { getMaterialById, updateMaterialSubject, updateMaterialVisibility, updateMaterialTitle } from '../api/materials';
@@ -24,6 +24,11 @@ export default function MaterialDetail() {
       ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
       : 'full'
   );
+  // Ссылки «Повторить за 5 минут» ведут сюда и без шпаргалки: тогда вкладка «Кратко»
+  // остаётся видна, чтобы шпаргалку можно было создать.
+  const [expressRequested] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') !== 'podcast');
+  // Ссылка прямо на разговор: один раз показываем плеер целиком, дальше прокрутку не трогаем.
+  const [revealPlayer, setRevealPlayer] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') === 'podcast');
 
   useEffect(() => {
     if (!id) return;
@@ -51,6 +56,19 @@ export default function MaterialDetail() {
     setEditingTitle(false);
   };
 
+  const shareMaterial = async () => {
+    if (!id) return;
+    try {
+      await updateMaterialVisibility(id, true);
+      setMaterial((prev: Material) => ({ ...prev, is_public: true }));
+      await navigator.clipboard.writeText(`${window.location.origin}/shared/${id}`);
+      toast.success('Ссылка скопирована');
+    } catch (err) {
+      console.error(err);
+      toast.error('Не удалось создать ссылку');
+    }
+  };
+
   const togglePublic = async () => {
     if (!id || !material) return;
     const newStatus = !material.is_public;
@@ -71,23 +89,31 @@ export default function MaterialDetail() {
     </div>
   );
 
-  const hasPodcast = material.summary_json?.podcast?.length > 0;
-  const hasCheatsheet = material.summary_json?.cheatsheet && material.summary_json.cheatsheet.trim() !== '';
+  const hasCheatsheet = typeof material.summary_json?.cheatsheet === 'string' && material.summary_json.cheatsheet.trim() !== '';
+  // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
+  const showExpress = hasCheatsheet || expressRequested;
+  const modes: { id: 'full' | 'express' | 'podcast'; label: string; icon: LucideIcon }[] = [
+    { id: 'full', label: 'Материал', icon: BookOpen },
+    ...(showExpress ? [{ id: 'express' as const, label: 'Кратко', icon: Zap }] : []),
+    { id: 'podcast', label: 'Разговор', icon: MessagesSquare },
+  ];
 
-  let colCount = 1; // "Полное обучение"
-  if (hasCheatsheet) colCount++;
-  if (hasPodcast) colCount++;
-
-  const gridColsClass = colCount === 4 
-    ? 'md:grid-cols-4 sm:grid-cols-2' 
-    : colCount === 3 
-      ? 'md:grid-cols-3 sm:grid-cols-2' 
-      : colCount === 2 
-        ? 'sm:grid-cols-2' 
-        : 'grid-cols-1';
+  const updateMaterialFields = (updatedFields: any) => {
+    setMaterial((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        ...updatedFields,
+        summary_json: {
+          ...prev.summary_json,
+          ...(updatedFields.summary_json || {})
+        }
+      };
+    });
+  };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
       {/* Back */}
       <button
         onClick={() => navigate('/library')}
@@ -144,7 +170,7 @@ export default function MaterialDetail() {
             className="flex items-center gap-1.5 text-sm"
           >
             {material.subject ? (
-              <span className="px-2 py-0.5 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 rounded-md">{material.subject}</span>
+              <span className="rounded-md bg-[var(--sf-accent-soft)] px-2 py-0.5 text-[var(--sf-accent)]">{material.subject}</span>
             ) : (
               <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1"><Edit3 className="w-3 h-3" />Добавить предмет</span>
             )}
@@ -155,11 +181,7 @@ export default function MaterialDetail() {
 
         <button 
           onClick={togglePublic}
-          className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md transition ${
-            material.is_public 
-              ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-950/50' 
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-          }`}
+          className="flex items-center gap-1.5 rounded-md bg-[var(--sf-surface-soft)] px-2.5 py-1 text-xs font-medium text-[var(--sf-muted)] transition-colors hover:text-[var(--sf-ink)]"
         >
           {material.is_public ? (
             <><Globe className="w-3.5 h-3.5" /> В открытых материалах</>
@@ -169,79 +191,54 @@ export default function MaterialDetail() {
         </button>
       </div>
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
         {format(new Date(material.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
       </p>
 
-      {/* Режимы обучения */}
-      {colCount > 1 && (
-        <div className={`grid grid-cols-1 gap-1 border-y border-slate-200 dark:border-slate-800 py-1 w-full mb-7 ${gridColsClass}`}>
-          <button
-            onClick={() => setMode('full')}
-            className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 select-none ${
-              mode === 'full'
-                ? 'text-white'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            {mode === 'full' && (
-              <motion.span
-                layoutId="activeDetailMode"
-                className="absolute inset-0 bg-slate-900 dark:bg-slate-800 rounded-lg -z-10"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 sm:w-4 sm:h-4" />
-              <span>Материал</span>
-            </span>
-          </button>
-          {hasCheatsheet && (
-            <button
-              onClick={() => setMode('express')}
-              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 select-none ${
-                mode === 'express'
-                  ? 'text-white'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
-              }`}
-            >
-              {mode === 'express' && (
-                <motion.span
-                  layoutId="activeDetailMode"
-                  className="absolute inset-0 bg-slate-900 dark:bg-slate-800 rounded-lg -z-10"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                />
-              )}
-              <span className="relative z-10 flex items-center gap-2">
-                <Zap className="w-5 h-5 sm:w-4 sm:h-4" />
-                <span>Кратко</span>
-              </span>
-            </button>
-          )}
-          {hasPodcast && (
-            <button
-              onClick={() => setMode('podcast')}
-              className={`relative flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg text-sm font-semibold transition-colors duration-200 select-none ${
-                mode === 'podcast'
-                  ? 'text-slate-950'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-cyan-700 dark:hover:text-cyan-300'
-              }`}
-            >
-              {mode === 'podcast' && (
-                <motion.span
-                  layoutId="activeDetailMode"
-                  className="absolute inset-0 bg-cyan-300 rounded-lg -z-10"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                />
-              )}
-              <span className="relative z-10 flex items-center gap-2">
-                <Headphones className="w-5 h-5 sm:w-4 sm:h-4" />
-                <span>Аудио</span>
-              </span>
-            </button>
-          )}
+      {/* Режимы обучения и «Поделиться» — одна строка */}
+      <div className="mb-5 flex items-center gap-2">
+        <div
+          role="tablist"
+          aria-label="Режим"
+          className={`grid flex-1 rounded-lg border border-[var(--sf-line)] bg-[var(--sf-surface)] p-0.5 sm:inline-flex sm:flex-none ${
+            modes.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
+          }`}
+        >
+          {modes.map(item => {
+            const selected = mode === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => {
+                  setRevealPlayer(false);
+                  setMode(item.id);
+                }}
+                className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
+                  selected
+                    ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]'
+                    : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
+                }`}
+              >
+                <Icon aria-hidden="true" className="hidden h-4 w-4 sm:block" />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
-      )}
+        <button
+          type="button"
+          onClick={shareMaterial}
+          aria-label="Поделиться"
+          className="ml-auto inline-flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--sf-line)] text-sm font-medium text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)] sm:w-auto sm:px-3"
+        >
+          <Share2 aria-hidden="true" className="h-4 w-4" />
+          <span className="hidden sm:inline">Поделиться</span>
+        </button>
+      </div>
 
       {/* Контент в зависимости от выбранного режима */}
       {mode === 'full' ? (
@@ -258,48 +255,21 @@ export default function MaterialDetail() {
           materialId={material.id}
           embedded
         />
-      ) : mode === 'podcast' ? (
-        <ExpressPrepView 
-          key="podcast" 
-          materialId={material.id}
-          originalText={material.original_text || ''}
-          summaryJson={{ ...material.summary_json, _startTab: 'podcast' }} 
-          onUpdate={(updatedFields) => {
-            setMaterial((prev: any) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                ...updatedFields,
-                summary_json: {
-                  ...prev.summary_json,
-                  ...(updatedFields.summary_json || {})
-                }
-              };
-            });
-          }}
-        />
       ) : (
-        <ExpressPrepView 
-          key="express" 
+        <ExpressPrepView
           materialId={material.id}
+          materialTitle={material.title}
           originalText={material.original_text || ''}
-          summaryJson={material.summary_json} 
-          onUpdate={(updatedFields) => {
-            setMaterial((prev: any) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                ...updatedFields,
-                summary_json: {
-                  ...prev.summary_json,
-                  ...(updatedFields.summary_json || {})
-                }
-              };
-            });
-          }}
+          summaryJson={material.summary_json}
+          flashcards={Array.isArray(material.flashcards_json) ? material.flashcards_json : material.flashcards_json?.flashcards}
+          tab={mode === 'podcast' ? 'podcast' : 'cheatsheet'}
+          onTabChange={(next) => setMode(next === 'podcast' ? 'podcast' : 'express')}
+          showTabs={false}
+          revealPlayer={revealPlayer}
+          onUpdate={updateMaterialFields}
         />
       )}
 
-    </main>
+    </div>
   );
 }

@@ -522,7 +522,7 @@ export default function Gradebook() {
               {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
                 <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 p-2.5 rounded-lg text-xs font-medium flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>Средний балл ниже цели. Повторите последнюю тему: карточки, тест или аудиоразговор по материалу.</span>
+                  <span>Средний балл ниже цели. Повторите последнюю тему: карточки, тест или разговор по материалу.</span>
                 </div>
               )}
             </div>

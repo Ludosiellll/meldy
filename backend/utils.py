@@ -196,6 +196,34 @@ def find_source_ids(query: str, chunks: list[dict[str, str]], top_k: int = 2) ->
     return [source_id for _, _, source_id in scored[:top_k]]
 
 
+def annotate_podcast(lines: Any, chunks: list[dict[str, str]]) -> int:
+    """Source ids for conversation lines.
+
+    A line with a quote ("fact" visual) must point at the fragment the quote came
+    from, so its ids are matched on the quote first, then the model's own valid
+    ids, then the line text. Other lines are matched on their text.
+    """
+    if not isinstance(lines, list):
+        return 0
+    known = {chunk["id"] for chunk in chunks}
+    cited = 0
+    for item in lines:
+        if not isinstance(item, dict):
+            continue
+        ids: list[str] = []
+        visual = item.get("visual")
+        if isinstance(visual, dict) and visual.get("type") == "fact":
+            ids = find_source_ids(str(visual.get("text", "")), chunks)
+            if not ids:
+                own = item.get("source_ids")
+                ids = [sid for sid in own if isinstance(sid, str) and sid in known][:2] if isinstance(own, list) else []
+        if not ids:
+            ids = find_source_ids(str(item.get("text", "")), chunks)
+        item["source_ids"] = ids
+        cited += bool(ids)
+    return cited
+
+
 def enrich_agent_result(name: str, payload: Any, chunks: list[dict[str, str]]) -> Any:
     """Attach deterministic source ids to citable generated items."""
     if not isinstance(payload, dict) or payload.get("error"):
@@ -225,11 +253,447 @@ def enrich_agent_result(name: str, payload: Any, chunks: list[dict[str, str]]) -
     elif name == "missions":
         cited += annotate(payload.get("missions"), lambda item: f"{item.get('title', '')} {item.get('explanation', '')} {item.get('question', '')}")
     elif name == "podcast":
-        cited += annotate(payload.get("podcast"), lambda item: item.get("text", ""))
+        cited += annotate_podcast(payload.get("podcast"), chunks)
     elif name == "cheatsheet":
         payload["source_ids"] = find_source_ids(payload.get("content", ""), chunks, top_k=3)
         cited += bool(payload["source_ids"])
     return payload
+
+
+# Conversation ("Разговор") visuals ------------------------------------------
+#
+# summary_json.podcast is an array of {speaker, text, source_ids?, visual?}.
+# The model output is untrusted, so every visual is rebuilt from scratch with
+# only the keys of the shared contract; anything that does not fit the
+# contract is dropped (the line itself is kept).
+VISUAL_TITLE_MAX = 80
+VISUAL_ITEM_MAX = 120
+VISUAL_TEXT_MAX = 280
+VISUAL_LATEX_MAX = 200
+VISUAL_UNIT_MAX = 24
+VISUAL_NODE_ID_MAX = 40
+PODCAST_SPEAKER_MAX = 40
+PODCAST_TEXT_MAX = 2000
+PODCAST_MAX_LINES = 40
+PODCAST_MAX_SOURCE_IDS = 5
+
+VISUAL_TYPES = (
+    "term", "steps", "compare", "formula", "chart",
+    "timeline", "diagram", "fact", "question", "scene",
+)
+VISUAL_ICONS = (
+    "brain", "book", "atom", "dna", "globe", "calculator", "chart", "clock",
+    "lightbulb", "users", "scale", "cpu", "leaf", "flask", "landmark",
+    "music", "heart", "map",
+)
+_DEFAULT_SPEAKERS = ("Макс", "Софья")
+# The UI picks the voice by name, so transliterated host names are mapped back.
+_SPEAKER_ALIASES = {
+    "макс": "Макс", "max": "Макс", "maks": "Макс",
+    "софья": "Софья", "софия": "Софья", "sofia": "Софья", "sofya": "Софья",
+    "sophia": "Софья", "sofiya": "Софья",
+}
+
+
+def _visual_text(value: Any, limit: int) -> str:
+    """Coerce a model value to one clean line of text no longer than `limit`."""
+    if isinstance(value, bool) or value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return ""
+        value = str(value)[:limit]
+    if not isinstance(value, str):
+        return ""
+    text = " ".join(value.split())
+    if len(text) > limit:
+        text = text[: limit - 1].rstrip() + "…"
+    return text
+
+
+def _visual_list(value: Any, limit: int, max_items: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = [_visual_text(item, limit) for item in value]
+    return [item for item in items if item][:max_items]
+
+
+def _visual_number(value: Any) -> float | int | None:
+    """Accept finite numbers and plain numeric strings such as "12,5", "40%" or "12 500".
+
+    "12,500" and "1,234,567" use the comma as a thousands separator; any other
+    single comma is a decimal mark.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = value
+    elif isinstance(value, str):
+        cleaned = re.sub(r"[\s\u00a0\u202f]", "", value.strip())
+        if cleaned.endswith("%"):
+            cleaned = cleaned[:-1]
+        if re.fullmatch(r"[-+]?\d{1,3}(,\d{3})+", cleaned):
+            cleaned = cleaned.replace(",", "")
+        else:
+            cleaned = cleaned.replace(",", ".", 1)
+        if not re.fullmatch(r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?", cleaned):
+            return None
+        number = float(cleaned)
+    else:
+        return None
+    try:
+        if not math.isfinite(number) or abs(number) > 1e15:
+            return None
+    except OverflowError:
+        return None
+    if isinstance(number, float) and number.is_integer():
+        return int(number)
+    return number
+
+
+def _clean_latex(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    latex = value.strip()
+    for opener, closer in (("$$", "$$"), ("\\[", "\\]"), ("\\(", "\\)"), ("$", "$")):
+        if len(latex) >= len(opener) + len(closer) and latex.startswith(opener) and latex.endswith(closer):
+            latex = latex[len(opener): len(latex) - len(closer)].strip()
+            break
+    latex = " ".join(latex.split())
+    # An unescaped % starts a KaTeX comment and silently cuts the formula.
+    latex = re.sub(r"(?<!\\)%", r"\\%", latex)
+    # A cut formula would not render, so an over-long one is rejected instead.
+    if not latex or len(latex) > VISUAL_LATEX_MAX:
+        return ""
+    return latex
+
+
+def _visual_side(value: Any) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    label = _visual_text(value.get("label"), VISUAL_TITLE_MAX)
+    points = _visual_list(value.get("points"), VISUAL_ITEM_MAX, 4)
+    if not label or not points:
+        return None
+    return {"label": label, "points": points}
+
+
+def sanitize_visual(visual: Any) -> dict | None:
+    """Rebuild one conversation visual per the shared contract, or return None."""
+    if not isinstance(visual, dict):
+        return None
+    kind = visual.get("type")
+    kind = kind.strip().lower() if isinstance(kind, str) else ""
+    if kind not in VISUAL_TYPES:
+        return None
+
+    title = _visual_text(visual.get("title"), VISUAL_TITLE_MAX)
+
+    if kind == "term":
+        term = _visual_text(visual.get("term"), VISUAL_TITLE_MAX)
+        definition = _visual_text(visual.get("definition"), VISUAL_TEXT_MAX)
+        if not term or not definition:
+            return None
+        return {"type": "term", "term": term, "definition": definition}
+
+    if kind == "steps":
+        items = _visual_list(visual.get("items"), VISUAL_ITEM_MAX, 6)
+        if not title or len(items) < 2:
+            return None
+        return {"type": "steps", "title": title, "items": items}
+
+    if kind == "compare":
+        left = _visual_side(visual.get("left"))
+        right = _visual_side(visual.get("right"))
+        if not title or not left or not right:
+            return None
+        return {"type": "compare", "title": title, "left": left, "right": right}
+
+    if kind == "formula":
+        latex = _clean_latex(visual.get("latex"))
+        if not title or not latex:
+            return None
+        result: dict[str, Any] = {"type": "formula", "title": title, "latex": latex}
+        legend = []
+        raw_legend = visual.get("legend")
+        if isinstance(raw_legend, list):
+            for entry in raw_legend:
+                if not isinstance(entry, dict):
+                    continue
+                symbol = _visual_text(entry.get("symbol"), VISUAL_TITLE_MAX)
+                meaning = _visual_text(entry.get("meaning"), VISUAL_ITEM_MAX)
+                if symbol and meaning:
+                    legend.append({"symbol": symbol, "meaning": meaning})
+                if len(legend) == 5:
+                    break
+        if legend:
+            result["legend"] = legend
+        return result
+
+    if kind == "chart":
+        raw_data = visual.get("data")
+        if not title or not isinstance(raw_data, list):
+            return None
+        data = []
+        for point in raw_data[:8]:
+            if not isinstance(point, dict):
+                return None
+            label = _visual_text(point.get("label"), VISUAL_TITLE_MAX)
+            value = _visual_number(point.get("value"))
+            # One unreadable value makes the whole chart untrustworthy.
+            if not label or value is None:
+                return None
+            data.append({"label": label, "value": value})
+        if len(data) < 2:
+            return None
+        chart_kind = visual.get("kind")
+        chart_kind = chart_kind.strip().lower() if isinstance(chart_kind, str) else ""
+        result = {
+            "type": "chart",
+            "title": title,
+            "kind": chart_kind if chart_kind in ("bar", "line") else "bar",
+            "data": data,
+        }
+        unit = _visual_text(visual.get("unit"), VISUAL_UNIT_MAX)
+        if unit:
+            result["unit"] = unit
+        return result
+
+    if kind == "timeline":
+        events = []
+        raw_events = visual.get("events")
+        if isinstance(raw_events, list):
+            for event in raw_events:
+                if not isinstance(event, dict):
+                    continue
+                date = _visual_text(event.get("date"), VISUAL_TITLE_MAX)
+                label = _visual_text(event.get("label"), VISUAL_ITEM_MAX)
+                if date and label:
+                    events.append({"date": date, "label": label})
+                if len(events) == 6:
+                    break
+        if not title or len(events) < 2:
+            return None
+        return {"type": "timeline", "title": title, "events": events}
+
+    if kind == "diagram":
+        nodes = []
+        seen_ids: set[str] = set()
+        raw_nodes = visual.get("nodes")
+        if isinstance(raw_nodes, list):
+            for node in raw_nodes:
+                if not isinstance(node, dict):
+                    continue
+                node_id = _visual_text(node.get("id"), VISUAL_NODE_ID_MAX)
+                label = _visual_text(node.get("label"), VISUAL_TITLE_MAX)
+                if not node_id or not label or node_id in seen_ids:
+                    continue
+                seen_ids.add(node_id)
+                nodes.append({"id": node_id, "label": label})
+                if len(nodes) == 7:
+                    break
+        if not title or len(nodes) < 2:
+            return None
+        edges = []
+        seen_edges: set[tuple[str, str]] = set()
+        raw_edges = visual.get("edges")
+        if isinstance(raw_edges, list):
+            for edge in raw_edges:
+                if not isinstance(edge, dict):
+                    continue
+                source = _visual_text(edge.get("from"), VISUAL_NODE_ID_MAX)
+                target = _visual_text(edge.get("to"), VISUAL_NODE_ID_MAX)
+                if source not in seen_ids or target not in seen_ids or source == target:
+                    continue
+                if (source, target) in seen_edges:
+                    continue
+                seen_edges.add((source, target))
+                clean_edge = {"from": source, "to": target}
+                label = _visual_text(edge.get("label"), VISUAL_TITLE_MAX)
+                if label:
+                    clean_edge["label"] = label
+                edges.append(clean_edge)
+                if len(edges) == 10:
+                    break
+        if not edges:
+            return None
+        return {"type": "diagram", "title": title, "nodes": nodes, "edges": edges}
+
+    if kind == "fact":
+        text = _visual_text(visual.get("text"), VISUAL_TEXT_MAX)
+        if not title or not text:
+            return None
+        return {"type": "fact", "title": title, "text": text}
+
+    if kind == "question":
+        question = _visual_text(visual.get("question"), VISUAL_TEXT_MAX)
+        answer = _visual_text(visual.get("answer"), VISUAL_TEXT_MAX)
+        if not question or not answer:
+            return None
+        return {"type": "question", "question": question, "answer": answer}
+
+    # kind == "scene"
+    icon = visual.get("icon")
+    icon = icon.strip().lower() if isinstance(icon, str) else ""
+    caption = _visual_text(visual.get("caption"), VISUAL_TEXT_MAX)
+    if not title or icon not in VISUAL_ICONS or not caption:
+        return None
+    return {"type": "scene", "title": title, "icon": icon, "caption": caption}
+
+
+# Grounding: charts and timelines show numbers and dates as facts, so they are
+# kept only when every value and date can be found in the source text.
+_SOURCE_NUMBER_RE = re.compile(r"\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*")
+
+
+def _number_readings(token: str) -> set[float]:
+    """Every plausible value of a number written in the source ("12,5", "12 500", "1,234")."""
+    readings: set[float] = set()
+    pieces = [token] + re.split(r"[ \u00a0\u202f]", token)
+    for piece in pieces:
+        compact = re.sub(r"[ \u00a0\u202f]", "", piece)
+        if not compact:
+            continue
+        candidates = {compact.replace(",", "").replace(".", "")}
+        separators = [i for i, ch in enumerate(compact) if ch in ",."]
+        if separators:
+            last = separators[-1]
+            whole = re.sub(r"[.,]", "", compact[:last])
+            candidates.add(f"{whole}.{compact[last + 1:]}")
+            first = separators[0]
+            candidates.add(f"{compact[:first]}.{re.sub(r'[.,]', '', compact[first + 1:])}")
+        for candidate in candidates:
+            try:
+                number = float(candidate)
+            except ValueError:
+                continue
+            if math.isfinite(number):
+                readings.add(number)
+    return readings
+
+
+def _normalize_for_grounding(text: str) -> str:
+    return " ".join(re.sub(r"[^\w]+", " ", text.lower().replace("ё", "е")).split())
+
+
+class SourceFacts:
+    """Numbers and normalised text of a source, for checking chart and timeline visuals."""
+
+    def __init__(self, text: str):
+        self.numbers: set[float] = set()
+        for match in _SOURCE_NUMBER_RE.finditer(text or ""):
+            self.numbers |= _number_readings(match.group(0))
+        self.normalized = _normalize_for_grounding(text or "")
+
+    def has_number(self, value: float) -> bool:
+        target = abs(float(value))
+        return any(abs(target - number) <= 1e-9 * max(1.0, number) for number in self.numbers)
+
+    def has_date(self, date: str) -> bool:
+        normalized = _normalize_for_grounding(date)
+        if normalized and normalized in self.normalized:
+            return True
+        digits = re.findall(r"\d+", date)
+        return bool(digits) and all(self.has_number(float(part)) for part in digits)
+
+
+def visual_is_grounded(visual: dict, facts: "SourceFacts | None") -> bool:
+    """Charts and timelines need every number and date in the source; other visuals pass."""
+    kind = visual.get("type")
+    if kind == "chart":
+        return facts is not None and all(facts.has_number(point["value"]) for point in visual["data"])
+    if kind == "timeline":
+        return facts is not None and all(facts.has_date(event["date"]) for event in visual["events"])
+    return True
+
+
+def _clean_source_ids(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    ids: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        source_id = item.strip().strip("[]").strip().upper()
+        if re.fullmatch(r"S\d{1,3}", source_id) and source_id not in ids:
+            ids.append(source_id)
+        if len(ids) == PODCAST_MAX_SOURCE_IDS:
+            break
+    return ids
+
+
+def sanitize_podcast_lines(lines: Any, source_text: str | None = None) -> list[dict[str, Any]]:
+    """Normalise conversation lines; legacy {speaker, text[, source_ids]} pass through.
+
+    Charts and timelines are kept only when their numbers and dates appear in
+    source_text; without a source they are dropped (the line stays).
+    """
+    if not isinstance(lines, list):
+        return []
+    facts = SourceFacts(source_text) if source_text and source_text.strip() else None
+    clean: list[dict[str, Any]] = []
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        raw_text = line.get("text")
+        text = raw_text.strip() if isinstance(raw_text, str) else _visual_text(raw_text, PODCAST_TEXT_MAX)
+        if not text:
+            continue
+        if len(text) > PODCAST_TEXT_MAX:
+            text = text[: PODCAST_TEXT_MAX - 1].rstrip() + "…"
+
+        speaker = _visual_text(line.get("speaker"), PODCAST_SPEAKER_MAX)
+        speaker = _SPEAKER_ALIASES.get(speaker.lower(), speaker)
+        if not speaker:
+            # Keep the two voices alternating when the model forgot a name.
+            previous = clean[-1]["speaker"] if clean else _DEFAULT_SPEAKERS[1]
+            speaker = _DEFAULT_SPEAKERS[0] if previous == _DEFAULT_SPEAKERS[1] else _DEFAULT_SPEAKERS[1]
+
+        item: dict[str, Any] = {"speaker": speaker, "text": text}
+        if "source_ids" in line:
+            item["source_ids"] = _clean_source_ids(line.get("source_ids"))
+        visual = sanitize_visual(line.get("visual"))
+        if visual and visual_is_grounded(visual, facts):
+            item["visual"] = visual
+        clean.append(item)
+        if len(clean) == PODCAST_MAX_LINES:
+            break
+    return clean
+
+
+def sanitize_podcast_payload(payload: Any, source_text: str | None = None) -> Any:
+    """Sanitise a parsed podcast agent result ({"podcast": [...]}) in place of the raw one."""
+    if not isinstance(payload, dict) or payload.get("error"):
+        return payload
+    lines = sanitize_podcast_lines(payload.get("podcast"), source_text)
+    if not lines:
+        return {"error": "Ответ ИИ пришёл в неверном формате"}
+    return {"podcast": lines}
+
+
+def sanitize_podcast_visuals(items: Any, line_count: int, source_text: str | None = None) -> list[dict[str, Any]]:
+    """Keep {index, visual} pairs that point at an existing line; first one per line wins.
+
+    Charts and timelines must be grounded in source_text (see sanitize_podcast_lines).
+    """
+    if not isinstance(items, list) or line_count <= 0:
+        return []
+    facts = SourceFacts(source_text) if source_text and source_text.strip() else None
+    by_index: dict[int, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        index = item.get("index")
+        if isinstance(index, str) and index.strip().isdigit():
+            index = int(index.strip())
+        if isinstance(index, bool) or not isinstance(index, int):
+            continue
+        if index < 0 or index >= line_count or index in by_index:
+            continue
+        visual = sanitize_visual(item.get("visual"))
+        if visual and visual_is_grounded(visual, facts):
+            by_index[index] = visual
+    return [{"index": index, "visual": by_index[index]} for index in sorted(by_index)]
 
 
 from typing import List, Dict

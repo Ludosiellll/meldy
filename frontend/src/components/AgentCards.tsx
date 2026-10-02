@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, CheckCircle2, Clock, FileText, HelpCircle, BookOpen, Sparkles, Mic } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, FileText, HelpCircle, BookOpen, Sparkles, MessagesSquare } from 'lucide-react';
 import { AgentStatus } from '../types';
 
 function UnifiedProgressBar({ value }: { value: number }) {
@@ -110,16 +110,16 @@ export default function AgentCards({ agents, phase, isDemo }: { agents: AgentSta
       }
     },
     podcast: {
-      label: 'Аудиоразговор',
-      icon: Mic,
-      color: 'text-violet-600',
-      bgColor: 'bg-violet-50',
-      borderColor: 'border-violet-200',
-      glowColor: 'shadow-violet-500/5',
+      label: 'Разговор',
+      icon: MessagesSquare,
+      color: 'text-[var(--sf-accent)]',
+      bgColor: 'bg-[var(--sf-accent-soft)]',
+      borderColor: 'border-[var(--sf-line)]',
+      glowColor: '',
       desc: {
         idle: 'Ожидание генерации сценария...',
-        running: 'Пишем сценарий разговора по материалу...',
-        done: 'Аудиоразговор готов к прослушиванию'
+        running: 'Пишем разговор и подбираем схемы...',
+        done: 'Разговор готов'
       }
     }
   };

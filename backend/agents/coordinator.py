@@ -7,6 +7,7 @@ from utils import (
     build_source_context,
     enrich_agent_result,
     parse_llm_json,
+    sanitize_podcast_payload,
 )
 from .base import BaseAgent, build_summarizer_prompt, build_flashcards_prompt, build_quiz_prompt, build_cheatsheet_prompt, build_podcast_prompt, build_missions_prompt
 
@@ -45,6 +46,10 @@ class CoordinatorAgent:
             try:
                 raw = await self.base.run(prompt, text)
                 parsed = self._parse_result(name, raw)
+                if name == "podcast":
+                    # Rebuild lines and visuals to the shared contract before
+                    # enrich_agent_result assigns lexical source ids per line.
+                    parsed = sanitize_podcast_payload(parsed, source_text=text)
                 return (name, enrich_agent_result(name, parsed, source_chunks))
             except Exception as e:
                 if getattr(e, "status_code", None) == 429:
@@ -70,7 +75,7 @@ class CoordinatorAgent:
             "flashcards": "Карточки",
             "quiz": "Тест",
             "cheatsheet": "Шпаргалка",
-            "podcast": "Аудиоразговор",
+            "podcast": "Разговор",
             "missions": "Миссии",
         }
 

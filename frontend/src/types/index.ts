@@ -1,3 +1,7 @@
+import type { Visual } from '../components/conversation/types';
+
+export type { Visual } from '../components/conversation/types';
+
 export interface AgentStatus {
   id: string;
   label: string;
@@ -40,9 +44,12 @@ export interface Mission {
   source_ids?: string[];
 }
 
+/** Реплика «Разговора» (summary_json.podcast). visual — что показать на экране. */
 export interface PodcastSegment {
   speaker: string;
   text: string;
+  source_ids?: string[];
+  visual?: Visual;
 }
 
 export interface Term {

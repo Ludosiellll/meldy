@@ -1,241 +1,412 @@
 export type VoiceRole = 'professor' | 'male' | 'female';
 
+/**
+ * Звук не удалось включить: сервер не ответил, а у браузера нет синтеза речи
+ * или голосов, либо реплика так и не зазвучала за START_TIMEOUT_MS.
+ */
+export class TTSUnavailableError extends Error {
+  readonly code = 'unavailable';
+  constructor(readonly reason: 'no-synthesis' | 'no-voices' | 'timeout') {
+    super(`Speech is unavailable: ${reason}`);
+    this.name = 'TTSUnavailableError';
+  }
+}
+
+export const isTTSUnavailable = (error: unknown): error is TTSUnavailableError =>
+  error instanceof TTSUnavailableError;
+
+/** Сколько ждём начала звука, прежде чем сказать, что он недоступен. */
+const START_TIMEOUT_MS = 8000;
+/** Сколько ждём, пока браузер загрузит голоса (Chrome и Android отдают их не сразу). */
+const VOICES_TIMEOUT_MS = 2000;
+
 let currentAudio: HTMLAudioElement | null = null;
-let currentPlaybackRate: number = 1.0;
-let currentGenerationId: number = 0;
+let currentAudioUrl: string | null = null;
+let currentPlaybackRate = 1.0;
+let currentGenerationId = 0;
+let startWatchdog: ReturnType<typeof setTimeout> | null = null;
+
+const clearWatchdog = () => {
+  if (startWatchdog !== null) clearTimeout(startWatchdog);
+  startWatchdog = null;
+};
+
+// ── Озвучка с сервера и её кэш ──────────────────────────────────────────────
+// Кэш хранит до 4 готовых object URL (ключ — роль + текст). И предзагрузка
+// следующей реплики, и обычное воспроизведение идут через него, поэтому каждый
+// URL рано или поздно освобождается при вытеснении. Неудачная загрузка тоже
+// запоминается: повторно на сервер за этой репликой не ходим, пока не вызван
+// forgetTTSFailures().
+
+const PREFETCH_LIMIT = 4;
+const prefetchCache = new Map<string, string>();
+const prefetchFailed = new Set<string>();
+const prefetchPending = new Map<string, Promise<string | null>>();
+
+const prefetchKey = (text: string, role: VoiceRole) => `${role}\u0000${text}`;
+
+const evictPrefetched = () => {
+  while (prefetchCache.size > PREFETCH_LIMIT) {
+    let victim: string | null = null;
+    for (const [key, url] of prefetchCache) {
+      if (url !== currentAudioUrl) {
+        victim = key;
+        break;
+      }
+    }
+    if (!victim) return;
+    const url = prefetchCache.get(victim);
+    prefetchCache.delete(victim);
+    if (url) URL.revokeObjectURL(url);
+  }
+};
+
+/**
+ * Загружает озвучку реплики с сервера (или берёт из кэша). Возвращает object URL
+ * или null, если сервер не смог озвучить текст. Ошибки тихие.
+ */
+export const prefetchTTS = (text: string, role: VoiceRole): Promise<string | null> => {
+  const key = prefetchKey(text, role);
+  const cached = prefetchCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  if (prefetchFailed.has(key)) return Promise.resolve(null);
+  const pending = prefetchPending.get(key);
+  if (pending) return pending;
+  if (typeof fetch !== 'function' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return Promise.resolve(null);
+  }
+
+  const request = (async () => {
+    try {
+      const resp = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, role }),
+      });
+      if (!resp.ok) {
+        prefetchFailed.add(key);
+        return null;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      prefetchCache.set(key, url);
+      evictPrefetched();
+      return prefetchCache.get(key) ?? null;
+    } catch {
+      prefetchFailed.add(key);
+      return null;
+    } finally {
+      prefetchPending.delete(key);
+    }
+  })();
+  prefetchPending.set(key, request);
+  return request;
+};
+
+/** Забыть неудачные загрузки (например, перед ручным «Повторить»). */
+export const forgetTTSFailures = () => {
+  prefetchFailed.clear();
+};
+
+/** true, когда звук реально идёт (а не загружается и не стоит на паузе). */
+export const isTTSSounding = (): boolean => {
+  if (currentAudio) return !currentAudio.paused;
+  return browserLine !== null && !browserPaused;
+};
 
 export const setTTSPlaybackRate = (rate: number) => {
   currentPlaybackRate = rate;
   if (currentAudio) {
     currentAudio.playbackRate = rate;
+    return;
+  }
+  // Браузерный голос меняет скорость только у новой фразы: продолжаем с последнего слова.
+  if (browserLine && !browserPaused) {
+    browserLine.offset += browserLine.lastCharIndex;
+    browserLine.lastCharIndex = 0;
+    void speakBrowserSegment();
   }
 };
 
 export const getTTSPlaybackRate = () => currentPlaybackRate;
 
+const errorName = (error: unknown): string =>
+  typeof error === 'object' && error !== null && 'name' in error ? String((error as { name: unknown }).name) : '';
+
 /**
- * Запрашивает озвучку с бэкенда (Edge-TTS) и воспроизводит её.
- * Если недоступен — автоматически падает на браузерный синтез.
+ * Озвучивает текст голосом с сервера (Edge-TTS), а если сервер не ответил —
+ * голосом браузера. onStart вызывается, когда звук реально пошёл; onError —
+ * если звук включить не удалось (TTSUnavailableError, если его нет вовсе).
+ * Колбэки устаревшей реплики (после stopTTS или нового playTTS) не вызываются.
  */
 export const playTTS = async (
   text: string,
   role: VoiceRole,
   onEnd?: () => void,
-  onError?: (e: any) => void
+  onError?: (e: unknown) => void,
+  onStart?: () => void,
 ): Promise<void> => {
   stopTTS();
   const genId = ++currentGenerationId;
+  const isCurrent = () => genId === currentGenerationId;
+  let started = false;
+  let fellBack = false;
 
-  try {
-    const resp = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, role }),
-    });
-
-    if (genId !== currentGenerationId) return;
-
-    if (!resp.ok) {
-      throw new Error(`TTS backend error: ${resp.status}`);
+  const start = () => {
+    if (started || !isCurrent()) return;
+    started = true;
+    clearWatchdog();
+    onStart?.();
+  };
+  const finish = () => {
+    if (!isCurrent()) return;
+    clearWatchdog();
+    onEnd?.();
+  };
+  const fail = (error: unknown) => {
+    if (!isCurrent()) return;
+    stopTTS();
+    onError?.(error);
+  };
+  const fallBack = () => {
+    if (fellBack || !isCurrent()) return;
+    fellBack = true;
+    if (currentAudio) {
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      currentAudio = null;
     }
+    currentAudioUrl = null;
+    playBrowserTTS(text, role, { onEnd: finish, onError: fail, onStart: start });
+  };
 
-    const blob = await resp.blob();
-    if (genId !== currentGenerationId) return;
-    
-    const url = URL.createObjectURL(blob);
+  clearWatchdog();
+  startWatchdog = setTimeout(() => {
+    if (isCurrent() && !started) fail(new TTSUnavailableError('timeout'));
+  }, START_TIMEOUT_MS);
 
-    const audio = new Audio(url);
-    currentAudio = audio;
+  const url = await prefetchTTS(text, role);
+  if (!isCurrent()) return;
+  if (!url) {
+    fallBack();
+    return;
+  }
 
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
+  const audio = new Audio(url);
+  currentAudio = audio;
+  currentAudioUrl = url;
+  audio.playbackRate = currentPlaybackRate;
+  audio.addEventListener('playing', start);
+  audio.onended = () => {
+    if (currentAudio === audio) {
       currentAudio = null;
-      if (onEnd) onEnd();
-    };
-
-    audio.onerror = (e) => {
-      URL.revokeObjectURL(url);
-      currentAudio = null;
-      console.error('Audio playback error:', e);
-      if (onError) onError(e);
-    };
-
-    audio.playbackRate = currentPlaybackRate;
+      currentAudioUrl = null;
+    }
+    finish();
+  };
+  audio.onerror = () => {
+    if (!isCurrent()) return;
+    console.warn('Audio playback error, switching to browser speech');
+    fallBack();
+  };
+  try {
     await audio.play();
   } catch (err) {
-    console.warn('Backend TTS (Edge-TTS) failed, falling back to browser speech synthesis:', err);
-    // Fallback — браузерный синтез
-    playBrowserTTS(text, role, onEnd, onError);
+    // Пауза или остановка во время загрузки: это не ошибка и не повод включать другой голос.
+    if (!isCurrent() || errorName(err) === 'AbortError') return;
+    if (errorName(err) === 'NotAllowedError') {
+      fail(err);
+      return;
+    }
+    console.warn('Server speech failed, switching to browser speech:', err);
+    fallBack();
   }
-};
-
-// ── Браузерное character-index отслеживание для надёжной паузы ─────────────────
-
-let currentParaText = '';
-let currentParaOffset = 0;
-let currentParaLastCharIndex = 0;
-let currentRole: VoiceRole = 'female';
-let currentOnEnd: (() => void) | undefined = undefined;
-let currentOnError: ((e: any) => void) | undefined = undefined;
-let isBrowserSpeaking = false;
-let isBrowserPaused = false;
-
-export const pauseBrowserTTS = () => {
-  if (!window.speechSynthesis) return;
-  isBrowserPaused = true;
-  window.speechSynthesis.cancel();
-  currentParaOffset += currentParaLastCharIndex;
-  currentParaLastCharIndex = 0;
-};
-
-export const resumeBrowserTTS = () => {
-  if (!window.speechSynthesis || !isBrowserSpeaking) return;
-  isBrowserPaused = false;
-  speakBrowserCurrentSegment();
-};
-
-export const stopBrowserTTS = () => {
-  if (!window.speechSynthesis) return;
-  isBrowserSpeaking = false;
-  isBrowserPaused = false;
-  currentParaText = '';
-  currentParaOffset = 0;
-  currentParaLastCharIndex = 0;
-  window.speechSynthesis.cancel();
 };
 
 export const pauseTTS = () => {
-  if (currentAudio && !currentAudio.paused) {
-    currentAudio.pause();
-  } else {
-    pauseBrowserTTS();
+  if (currentAudio) {
+    if (!currentAudio.paused) currentAudio.pause();
+    return;
   }
+  pauseBrowserTTS();
 };
 
 export const resumeTTS = () => {
-  if (currentAudio && currentAudio.paused) {
-    currentAudio.play().catch(console.error);
-  } else {
-    resumeBrowserTTS();
+  if (currentAudio) {
+    if (currentAudio.paused) {
+      currentAudio.play().catch(err => {
+        if (errorName(err) !== 'AbortError') console.error(err);
+      });
+    }
+    return;
   }
+  resumeBrowserTTS();
 };
 
 export const stopTTS = () => {
   currentGenerationId++;
+  clearWatchdog();
   if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
+    const audio = currentAudio;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.pause();
+    try {
+      audio.currentTime = 0;
+    } catch {
+      /* аудио ещё не загружено */
+    }
     currentAudio = null;
   }
+  currentAudioUrl = null;
   stopBrowserTTS();
 };
 
-// ── Браузерный fallback ──────────────────────────────────────────────────────
+// ── Браузерный синтез ───────────────────────────────────────────────────────
+// Пауза в speechSynthesis ненадёжна, поэтому пауза — это cancel(), а продолжение —
+// новая фраза с последнего произнесённого слова. Каждая фраза помнит свой номер:
+// события отменённых фраз не трогают текущую реплику.
 
-const ensureVoicesLoaded = (): Promise<SpeechSynthesisVoice[]> =>
-  new Promise((resolve) => {
-    const voices = window.speechSynthesis?.getVoices() ?? [];
-    if (voices.length > 0) return resolve(voices);
-    const handler = () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', handler);
-      resolve(window.speechSynthesis.getVoices());
+interface BrowserCallbacks {
+  onEnd?: () => void;
+  onError?: (e: unknown) => void;
+  onStart?: () => void;
+}
+
+interface BrowserLine extends BrowserCallbacks {
+  text: string;
+  role: VoiceRole;
+  offset: number;
+  lastCharIndex: number;
+}
+
+let browserLine: BrowserLine | null = null;
+let browserPaused = false;
+let browserSegment = 0;
+
+const getSynth = (): SpeechSynthesis | null =>
+  typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis ? window.speechSynthesis : null;
+
+export const pauseBrowserTTS = () => {
+  const synth = getSynth();
+  if (!synth || !browserLine) return;
+  browserPaused = true;
+  browserSegment++;
+  synth.cancel();
+  browserLine.offset += browserLine.lastCharIndex;
+  browserLine.lastCharIndex = 0;
+};
+
+export const resumeBrowserTTS = () => {
+  if (!browserLine || !browserPaused) return;
+  browserPaused = false;
+  void speakBrowserSegment();
+};
+
+export const stopBrowserTTS = () => {
+  browserSegment++;
+  browserLine = null;
+  browserPaused = false;
+  getSynth()?.cancel();
+};
+
+const ensureVoicesLoaded = (synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[]> =>
+  new Promise(resolve => {
+    const voices = synth.getVoices();
+    if (voices.length > 0) {
+      resolve(voices);
+      return;
+    }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      synth.removeEventListener?.('voiceschanged', finish);
+      resolve(synth.getVoices());
     };
-    window.speechSynthesis?.addEventListener('voiceschanged', handler);
+    const timer = setTimeout(finish, VOICES_TIMEOUT_MS);
+    synth.addEventListener?.('voiceschanged', finish);
   });
 
-const speakBrowserCurrentSegment = async () => {
-  if (!window.speechSynthesis) return;
+const ROLE_VOICES: Record<VoiceRole, { names: string[]; pitch: number; rate: number }> = {
+  professor: { names: ['male', 'dmitry'], pitch: 0.85, rate: 1.15 },
+  male: { names: ['male', 'pavel'], pitch: 0.95, rate: 1.2 },
+  female: { names: ['female', 'milena', 'svetlana'], pitch: 1.15, rate: 1.25 },
+};
 
-  window.speechSynthesis.cancel();
+const speakBrowserSegment = async () => {
+  const line = browserLine;
+  if (!line) return;
+  const segment = ++browserSegment;
+  const synth = getSynth();
+  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+    browserLine = null;
+    line.onError?.(new TTSUnavailableError('no-synthesis'));
+    return;
+  }
+  synth.cancel();
 
-  // Slicing to resume exactly from the last spoken word index
-  const remainingText = currentParaText.slice(currentParaOffset + currentParaLastCharIndex);
-
-  if (remainingText.trim() === '') {
-    isBrowserSpeaking = false;
-    if (currentOnEnd) currentOnEnd();
+  const voices = await ensureVoicesLoaded(synth);
+  const isLive = () => segment === browserSegment && browserLine === line;
+  if (!isLive() || browserPaused) return;
+  if (voices.length === 0) {
+    browserLine = null;
+    line.onError?.(new TTSUnavailableError('no-voices'));
     return;
   }
 
-  const voices = await ensureVoicesLoaded();
-  const ruVoices = voices.filter(v => v.lang.startsWith('ru'));
-  const naturalVoices = ruVoices.filter(v =>
-    v.name.toLowerCase().includes('natural') ||
-    v.name.toLowerCase().includes('google') ||
-    v.name.toLowerCase().includes('siri')
-  );
+  // Продолжаем ровно с последнего произнесённого слова.
+  const remainingText = line.text.slice(line.offset);
+  if (remainingText.trim() === '') {
+    browserLine = null;
+    line.onEnd?.();
+    return;
+  }
+
+  const ruVoices = voices.filter(v => v.lang.toLowerCase().startsWith('ru'));
+  const naturalVoices = ruVoices.filter(v => /natural|google|siri/i.test(v.name));
   const pool = naturalVoices.length > 0 ? naturalVoices : ruVoices;
+  const settings = ROLE_VOICES[line.role];
 
   const utterance = new SpeechSynthesisUtterance(remainingText);
   utterance.lang = 'ru-RU';
+  const voice = pool.find(v => settings.names.some(name => v.name.toLowerCase().includes(name)));
+  if (voice) utterance.voice = voice;
+  utterance.pitch = settings.pitch;
+  utterance.rate = Math.min(2, settings.rate * currentPlaybackRate);
 
-  if (currentRole === 'professor') {
-    const voice = pool.find(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('dmitry'));
-    if (voice) utterance.voice = voice;
-    utterance.pitch = 0.85;
-    utterance.rate = 1.15; // Increased Dmitry speed (0.95 -> 1.15)
-  } else if (currentRole === 'male') {
-    const voice = pool.find(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('pavel'));
-    if (voice) utterance.voice = voice;
-    utterance.pitch = 0.95;
-    utterance.rate = 1.20; // Increased Pavel speed (1.0 -> 1.20)
-  } else {
-    const voice = pool.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('milena') || v.name.toLowerCase().includes('svetlana'));
-    if (voice) utterance.voice = voice;
-    utterance.pitch = 1.15;
-    utterance.rate = 1.25; // Increased Svetlana speed (1.05 -> 1.25)
-  }
-
-  utterance.onboundary = (e) => {
-    if (e.name === 'word') {
-      currentParaLastCharIndex = e.charIndex;
-    }
+  utterance.onstart = () => {
+    if (isLive()) line.onStart?.();
   };
-
+  utterance.onboundary = e => {
+    if (isLive() && e.name === 'word') line.lastCharIndex = e.charIndex;
+  };
   utterance.onend = () => {
-    if (!isBrowserPaused) {
-      isBrowserSpeaking = false;
-      if (currentOnEnd) currentOnEnd();
-    }
+    if (!isLive() || browserPaused) return;
+    browserLine = null;
+    line.onEnd?.();
   };
-
-  utterance.onerror = (e) => {
+  utterance.onerror = e => {
+    if (!isLive()) return;
     if (e.error === 'interrupted') {
-      // OS or browser interrupted/paused speech (e.g. screen lock, tab background, focus loss)
-      currentParaOffset += currentParaLastCharIndex;
-      currentParaLastCharIndex = 0;
-      isBrowserPaused = true;
+      // Речь прервала система (блокировка экрана, фоновая вкладка): продолжим с этого места.
+      line.offset += line.lastCharIndex;
+      line.lastCharIndex = 0;
+      browserPaused = true;
       return;
     }
-    console.error('Browser TTS error:', e);
-    isBrowserSpeaking = false;
-    if (currentOnError) currentOnError(e);
+    console.error('Browser TTS error:', e.error);
+    browserLine = null;
+    line.onError?.(e);
   };
 
-  window.speechSynthesis.speak(utterance);
+  synth.speak(utterance);
 };
 
-const playBrowserTTS = async (
-  text: string,
-  role: VoiceRole,
-  onEnd?: () => void,
-  onError?: (e: any) => void
-) => {
-  // Check if we are resuming the exact same message that was paused or interrupted
-  if (isBrowserSpeaking && isBrowserPaused && currentParaText === text) {
-    isBrowserPaused = false;
-    await speakBrowserCurrentSegment();
-    return;
-  }
-
-  currentParaText = text;
-  currentParaOffset = 0;
-  currentParaLastCharIndex = 0;
-  currentRole = role;
-  currentOnEnd = onEnd;
-  currentOnError = onError;
-  isBrowserSpeaking = true;
-  isBrowserPaused = false;
-
-  await speakBrowserCurrentSegment();
+const playBrowserTTS = (text: string, role: VoiceRole, callbacks: BrowserCallbacks) => {
+  browserSegment++;
+  browserLine = { text, role, offset: 0, lastCharIndex: 0, ...callbacks };
+  browserPaused = false;
+  void speakBrowserSegment();
 };

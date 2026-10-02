@@ -21,7 +21,7 @@ const initAgents: AgentStatus[] = [
   { id: 'flashcards', label: 'Карточки', status: 'idle', progress: 0 },
   { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
   { id: 'cheatsheet', label: 'Шпаргалка', status: 'idle', progress: 0 },
-  { id: 'podcast', label: 'Аудиоразговор', status: 'idle', progress: 0 },
+  { id: 'podcast', label: 'Разговор', status: 'idle', progress: 0 },
 ];
 
 // Миссии больше не показываются в результатах, поэтому их не генерируем при анализе.

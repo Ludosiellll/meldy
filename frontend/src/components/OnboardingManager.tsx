@@ -56,7 +56,7 @@ const DESKTOP_STEPS: Step[] = [
           <BookOpen className="w-4 h-4 text-indigo-500" /> Библиотека
         </h4>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Все загруженные материалы, конспекты и аудиоразговоры хранятся здесь — в одном удобном месте.
+          Все загруженные материалы, конспекты и разговоры по материалам хранятся здесь — в одном удобном месте.
         </p>
       </div>
     ),

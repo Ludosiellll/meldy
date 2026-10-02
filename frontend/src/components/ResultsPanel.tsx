@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, ShieldCheck, AlertTriangle, Check, X } from 'lucide-react';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, ShieldCheck, AlertTriangle, Check, X, MessagesSquare } from 'lucide-react';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
@@ -8,6 +8,7 @@ import QuizView from './QuizView';
 import toast from 'react-hot-toast';
 import { updateMaterialTitle } from '../api/materials';
 import { getResultDisplayTitle } from '../utils/resultPresentation';
+import ConversationPlayer from './conversation/ConversationPlayer';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast' | 'shorts';
 
@@ -16,7 +17,7 @@ const AGENT_LABELS: Record<string, string> = {
   flashcards: 'Карточки',
   quiz: 'Тест',
   cheatsheet: 'Шпаргалка',
-  podcast: 'Аудиоразговор',
+  podcast: 'Разговор',
 };
 
 function extractCleanContent(data: any): string {
@@ -328,6 +329,14 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
   const flashcardCount = results.flashcards?.flashcards?.length || 0;
   const quizCount = results.quiz?.quiz?.length || 0;
+  // Реплики разговора после «Добавить схемы» живут здесь, пока результат на экране.
+  const [conversationOverride, setConversationOverride] = useState<unknown[] | null>(null);
+  useEffect(() => setConversationOverride(null), [results.podcast]);
+  const conversationLines: unknown[] = conversationOverride
+    ?? (Array.isArray(results.podcast?.podcast) ? results.podcast.podcast : []);
+  const conversationCount = conversationLines.filter(
+    line => typeof line === 'object' && line !== null && typeof (line as { text?: unknown }).text === 'string',
+  ).length;
   const exerciseCount = flashcardCount + quizCount;
   const readingMinutes = textLength ? Math.max(1, Math.round(textLength / 800)) : null;
 
@@ -336,15 +345,17 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
       { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
       { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
+      { id: 'podcast', label: 'Разговор', icon: <MessagesSquare className="w-4 h-4" />, count: conversationCount },
     ];
 
     return rawTabs.filter(t => {
       if (t.id === 'summary') return !!(results.summarizer?.content || (results.summarizer as { raw?: string })?.raw);
       if (t.id === 'flashcards') return flashcardCount > 0;
       if (t.id === 'quiz') return quizCount > 0;
+      if (t.id === 'podcast') return conversationCount > 0;
       return true;
     });
-  }, [results, flashcardCount, quizCount]);
+  }, [results, flashcardCount, quizCount, conversationCount]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -387,6 +398,13 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const getContent = () => {
     if (tab === 'summary') return results.summarizer?.content || (results.summarizer as any)?.raw || '';
     if (tab === 'flashcards') return JSON.stringify(results.flashcards?.flashcards || results.flashcards, null, 2);
+    if (tab === 'podcast') {
+      return conversationLines
+        .map(line => line as { speaker?: unknown; text?: unknown })
+        .filter(line => typeof line.text === 'string')
+        .map(line => `${typeof line.speaker === 'string' && line.speaker ? `${line.speaker}: ` : ''}${line.text}`)
+        .join('\n\n');
+    }
     return JSON.stringify(results.quiz?.quiz || results.quiz, null, 2);
   };
 
@@ -602,6 +620,17 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         )}
         {tab === 'flashcards' && <FlashcardsView data={results.flashcards} sources={results.grounding?.sources} />}
         {tab === 'quiz' && <QuizView data={results.quiz} sources={results.grounding?.sources} />}
+        {tab === 'podcast' && (
+          <ConversationPlayer
+            lines={conversationLines}
+            title={currentTitle}
+            terms={results.summarizer?.terms}
+            flashcards={results.flashcards?.flashcards}
+            sources={results.grounding?.sources}
+            materialId={materialId}
+            onLinesUpdate={lines => setConversationOverride(lines)}
+          />
+        )}
       </motion.div>
     </div>
   );

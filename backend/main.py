@@ -16,7 +16,7 @@ if not os.getenv("SUPABASE_KEY"):
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 import httpx
 
@@ -2294,6 +2294,21 @@ class TTSRequest(BaseModel):
     role: str = "professor"  # professor | male | female
 
 
+TTS_TIMEOUT_SECONDS = float(os.getenv("TTS_TIMEOUT_SECONDS", "45"))
+TTS_FAILURE_DETAIL = "Не удалось озвучить текст"
+
+
+async def _synthesize_edge_tts(text: str, voice_id: str) -> bytes:
+    import edge_tts
+
+    communicate = edge_tts.Communicate(text, voice_id, rate="+20%")
+    chunks: list[bytes] = []
+    async for chunk in communicate.stream():
+        if chunk.get("type") == "audio" and chunk.get("data"):
+            chunks.append(chunk["data"])
+    return b"".join(chunks)
+
+
 @app.post("/api/tts")
 @limiter.limit("30/minute")
 async def text_to_speech(request: Request, req: TTSRequest):
@@ -2303,20 +2318,193 @@ async def text_to_speech(request: Request, req: TTSRequest):
     if not text:
         raise HTTPException(status_code=400, detail="Текст для озвучки пуст")
 
-    import edge_tts
-    from fastapi.responses import StreamingResponse
-
+    # The whole clip is synthesised before responding: a failure in the middle
+    # of the edge-tts stream (or an empty result) must become an error status,
+    # not an empty 200, so the client falls back to browser speech.
     try:
-        async def generate_audio():
-            communicate = edge_tts.Communicate(text, voice_id, rate="+20%")
-            async for chunk in communicate.stream():
-                if chunk["type"] == "audio":
-                    yield chunk["data"]
-                    
-        return StreamingResponse(generate_audio(), media_type="audio/mpeg")
+        audio = await asyncio.wait_for(_synthesize_edge_tts(text, voice_id), timeout=TTS_TIMEOUT_SECONDS)
     except Exception as e:
-        print(f"Edge-TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Edge-TTS Error: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=502, detail=TTS_FAILURE_DETAIL)
+
+    if not audio:
+        print("Edge-TTS Error: empty audio")
+        raise HTTPException(status_code=502, detail=TTS_FAILURE_DETAIL)
+
+    return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+
+# --- Разговор по материалу (summary_json.podcast) ------------------------------
+from typing import Any as _Any
+from agents.base import build_podcast_prompt, build_podcast_visuals_prompt
+from utils import (
+    build_source_chunks,
+    build_source_context,
+    enrich_agent_result,
+    sanitize_podcast_lines,
+    sanitize_podcast_visuals,
+)
+
+PODCAST_CONTEXT_MAX = 20000
+PODCAST_VISUALS_CONTEXT_MAX = 15000
+PODCAST_VISUALS_MAX_LINES = 40
+PODCAST_LINE_TEXT_MAX = 2000
+PODCAST_TITLE_MAX = 200
+PODCAST_MAX_TERMS = 30
+PODCAST_FAILURE_DETAIL = "Не удалось подготовить разговор. Попробуйте ещё раз."
+PODCAST_BUSY_DETAIL = "Сервис сейчас занят. Подождите минуту и попробуйте ещё раз."
+# Same grounding block the analysis coordinator appends to every agent prompt.
+PODCAST_GROUNDING_INSTRUCTION = (
+    "\n\nПРОВЕРЯЕМАЯ ОСНОВА:\nНиже приведены фрагменты исходного материала с идентификаторами [S01], [S02] и т.д. "
+    "Используй только информацию из исходного текста. Не добавляй факты, которых в нём нет. "
+    "Если поле поддерживает source_ids, укажи один или несколько идентификаторов наиболее подходящих фрагментов."
+    "\n\nФРАГМЕНТЫ ИСТОЧНИКА:\n"
+)
+
+
+class PodcastGenerateRequest(BaseModel):
+    context: str
+    title: Optional[str] = None
+    terms: Optional[List[_Any]] = None
+
+
+class PodcastVisualsRequest(BaseModel):
+    lines: List[_Any]
+    context: Optional[str] = None
+    terms: Optional[List[_Any]] = None
+
+
+def _podcast_plain(value: _Any, limit: int) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split())[:limit]
+
+
+def _podcast_terms_block(terms: Optional[List[_Any]]) -> str:
+    rows = []
+    for item in (terms or [])[:PODCAST_MAX_TERMS]:
+        if not isinstance(item, dict):
+            continue
+        term = _podcast_plain(item.get("term"), 120)
+        definition = _podcast_plain(item.get("definition"), 400)
+        if term:
+            rows.append(f"- {term} — {definition}" if definition else f"- {term}")
+    return "КЛЮЧЕВЫЕ ТЕРМИНЫ КОНСПЕКТА:\n" + "\n".join(rows) if rows else ""
+
+
+def _forget_cached_response(raw: _Any) -> None:
+    """Drop an unusable model answer from the agent cache so a retry asks again."""
+    cache = getattr(BaseAgent, "_run_cache", None)
+    if not isinstance(cache, dict):
+        return
+    for key in [key for key, value in cache.items() if value == raw]:
+        cache.pop(key, None)
+
+
+async def _run_podcast_model(system_prompt: str, user_text: str) -> tuple[_Any, str]:
+    agent = BaseAgent(api_key=GROQ_API_KEY)
+    try:
+        raw = await agent.run(system_prompt, user_text)
+    except Exception as exc:
+        status = getattr(exc, "status_code", None)
+        print(f"Podcast model call failed (status={status}): {type(exc).__name__}: {exc}")
+        # Provider quota: ask to wait instead of "try again" right away, which burns more quota.
+        if status == 429:
+            raise HTTPException(status_code=429, detail=PODCAST_BUSY_DETAIL)
+        raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+    try:
+        return parse_llm_json(raw), raw
+    except Exception as exc:
+        print(f"Podcast model returned invalid JSON: {type(exc).__name__}")
+        _forget_cached_response(raw)
+        raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+
+
+def _first_list(parsed: _Any, key: str) -> list:
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        if isinstance(parsed.get(key), list):
+            return parsed[key]
+        for value in parsed.values():
+            if isinstance(value, list):
+                return value
+    return []
+
+
+@app.post("/api/podcast/generate")
+@limiter.limit("5/minute")
+async def podcast_generate(request: Request, req: PodcastGenerateRequest):
+    """Create a conversation with visuals for a material that has none yet."""
+    context = (req.context or "").strip()
+    if not context:
+        raise HTTPException(status_code=400, detail="Нет текста материала для разговора.")
+    if len(context) > PODCAST_CONTEXT_MAX:
+        raise HTTPException(status_code=413, detail="Материал слишком длинный для разговора: максимум 20 000 символов.")
+
+    source_chunks = build_source_chunks(context)
+    system_prompt = build_podcast_prompt() + PODCAST_GROUNDING_INSTRUCTION + build_source_context(source_chunks)
+
+    parts = []
+    title = _podcast_plain(req.title, PODCAST_TITLE_MAX)
+    if title:
+        parts.append(f"НАЗВАНИЕ МАТЕРИАЛА: {title}")
+    terms_block = _podcast_terms_block(req.terms)
+    if terms_block:
+        parts.append(terms_block)
+    parts.append("МАТЕРИАЛ:\n" + context)
+
+    parsed, raw = await _run_podcast_model(system_prompt, "\n\n".join(parts))
+    # Charts and timelines survive only if their numbers and dates are in the material.
+    lines = sanitize_podcast_lines(_first_list(parsed, "podcast"), source_text=context)
+    if not lines:
+        _forget_cached_response(raw)
+        raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+
+    enriched = enrich_agent_result("podcast", {"podcast": lines}, source_chunks)
+    return {"podcast": enriched["podcast"]}
+
+
+@app.post("/api/podcast/visuals")
+@limiter.limit("10/minute")
+async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
+    """Suggest visuals for the lines of an existing (legacy) conversation."""
+    if len(req.lines) > PODCAST_VISUALS_MAX_LINES:
+        raise HTTPException(status_code=413, detail="Слишком много реплик: максимум 40.")
+    context = (req.context or "").strip()
+    if len(context) > PODCAST_VISUALS_CONTEXT_MAX:
+        raise HTTPException(status_code=413, detail="Материал слишком длинный: максимум 15 000 символов.")
+
+    numbered = []
+    usable_indices = set()
+    for index, line in enumerate(req.lines):
+        if not isinstance(line, dict):
+            continue
+        text = _podcast_plain(line.get("text"), PODCAST_LINE_TEXT_MAX)
+        if not text:
+            continue
+        speaker = _podcast_plain(line.get("speaker"), 40) or "Ведущий"
+        numbered.append(f"[{index}] {speaker}: {text}")
+        usable_indices.add(index)
+    if not numbered:
+        raise HTTPException(status_code=400, detail="В разговоре нет реплик.")
+
+    parts = ["РЕПЛИКИ РАЗГОВОРА:\n" + "\n".join(numbered)]
+    terms_block = _podcast_terms_block(req.terms)
+    if terms_block:
+        parts.append(terms_block)
+    if context:
+        parts.append("МАТЕРИАЛ ДЛЯ СВЕРКИ:\n" + context)
+
+    parsed, raw = await _run_podcast_model(build_podcast_visuals_prompt(), "\n\n".join(parts))
+    visuals = [
+        item for item in sanitize_podcast_visuals(_first_list(parsed, "visuals"), len(req.lines), source_text=context or None)
+        if item["index"] in usable_indices
+    ]
+    if not visuals:
+        _forget_cached_response(raw)
+        raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+    return {"visuals": visuals}
 
 
 from typing import List, Dict, Optional, Any

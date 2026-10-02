@@ -12,6 +12,8 @@
   --sf-accent: #0868b2;
   --sf-accent-hover: #075b9b;
   --sf-accent-soft: #e8f2fb;
+  /* Акцент для линий, точек и мелкого текста (на заливке кнопок — --sf-accent). */
+  --sf-accent-fg: #0868b2;
   --sf-workbench: #f0efed;
   --toast-bg: #ffffff;
   --toast-color: #0f172a;
@@ -35,6 +37,7 @@
   --sf-accent: #176dae;
   --sf-accent-hover: #125c94;
   --sf-accent-soft: #293a49;
+  --sf-accent-fg: #5aa2dc;
   --sf-workbench: #242320;
   --toast-bg: #1e293b;
   --toast-color: #f1f5f9;

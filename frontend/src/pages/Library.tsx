@@ -2,12 +2,13 @@ import { Material } from '../types';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
-  Search, BookOpen, FileText, Trash2, Plus, Headphones, Globe, Lock, EyeOff, Eye,
+  Search, BookOpen, FileText, Trash2, Plus, MessagesSquare, Globe, Lock, EyeOff, Eye,
   Folder, FolderPlus, Check, CheckSquare, Square, BarChart3, ChevronDown, ChevronUp,
   BookOpenCheck, Code2, Brain, TrendingUp, Star, Award, Flame, X, Sparkles, FolderOpen,
-  ArrowRight, ShieldCheck, ChevronRight, ChevronLeft, Volume2, Play, Pause, RefreshCw, Grab
+  ArrowRight, ShieldCheck, ChevronRight, ChevronLeft, RefreshCw, Grab
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { pluralLines, pluralRu } from '../components/conversation/visuals';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
@@ -17,7 +18,6 @@ import { getAssignedMaterials, joinGroup } from '../api/groups';
 import { CustomSelect } from '../components/CustomSelect';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import { playTTS, stopTTS, pauseTTS, resumeTTS, getTTSPlaybackRate, setTTSPlaybackRate } from '../utils/tts';
 
 interface Folder {
   id: string;
@@ -153,9 +153,6 @@ export default function Library() {
 
   // Quick peek drawer states
   const [drawerTab, setDrawerTab] = useState<'conspectus' | 'podcast' | 'flashcards'>('conspectus');
-  const [peekSpeakingIndex, setPeekSpeakingIndex] = useState<number>(-1);
-  const [peekIsPlaying, setPeekIsPlaying] = useState<boolean>(false);
-  const [, setPeekPlaybackRate] = useState<number>(1.0);
   const [cardIndex, setCardIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
@@ -233,13 +230,6 @@ export default function Library() {
   useEffect(() => {
     setDrawerTab('conspectus');
   }, [peekMaterial?.id]);
-
-  // Auto clean quick-peek audio synthesis when drawer changes/unmounts
-  useEffect(() => {
-    return () => {
-      stopTTS();
-    };
-  }, [peekMaterial]);
 
   const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
 
@@ -440,93 +430,14 @@ export default function Library() {
     setShowBatchFolderSelect(false);
   };
 
-  // Quick peek drawer player controllers
-  const playPeekPodcast = () => {
-    const lines = peekMaterial?.summary_json?.podcast || [];
-    if (lines.length === 0) return;
-
-    if (peekIsPlaying) {
-      pauseTTS();
-      setPeekIsPlaying(false);
-      return;
-    }
-
-    const nextIdx = peekSpeakingIndex === -1 || peekSpeakingIndex >= lines.length ? 0 : peekSpeakingIndex;
-    
-    const speakNextLine = (idx: number) => {
-      if (idx >= lines.length) {
-        stopTTS();
-        setPeekIsPlaying(false);
-        setPeekSpeakingIndex(-1);
-        return;
-      }
-
-      setPeekSpeakingIndex(idx);
-      const line = lines[idx];
-      const voice = line.speaker === 'Макс' ? 'male' : 'female';
-
-      playTTS(
-        line.text,
-        voice,
-        () => {
-          speakNextLine(idx + 1);
-        },
-        (err) => {
-          console.error(err);
-          setPeekIsPlaying(false);
-          setPeekSpeakingIndex(-1);
-        }
-      );
-    };
-
-    setPeekIsPlaying(true);
-    speakNextLine(nextIdx);
-  };
-
-  const stopPeekPodcast = () => {
-    stopTTS();
-    setPeekIsPlaying(false);
-    setPeekSpeakingIndex(-1);
-  };
-
-  const playFromLine = (idx: number) => {
-    stopTTS();
-    setPeekSpeakingIndex(idx);
-    const lines = peekMaterial?.summary_json?.podcast || [];
-    
-    const speakNextLine = (currentIdx: number) => {
-      if (currentIdx >= lines.length) {
-        stopTTS();
-        setPeekIsPlaying(false);
-        setPeekSpeakingIndex(-1);
-        return;
-      }
-
-      setPeekSpeakingIndex(currentIdx);
-      const line = lines[currentIdx];
-      const voice = line.speaker === 'Макс' ? 'male' : 'female';
-
-      playTTS(
-        line.text,
-        voice,
-        () => {
-          speakNextLine(currentIdx + 1);
-        },
-        (err) => {
-          console.error(err);
-          setPeekIsPlaying(false);
-          setPeekSpeakingIndex(-1);
-        }
-      );
-    };
-
-    setPeekIsPlaying(true);
-    speakNextLine(idx);
+  // «Разговор» открывается на странице материала: там плеер со схемами.
+  const openConversation = (materialId: string) => {
+    navigate(`/library/${materialId}?mode=express&tab=podcast`);
   };
 
   // Metrics computing reactively
   const totalCards = materials.reduce((acc, m) => acc + (m.flashcards_json?.flashcards?.length || 0), 0);
-  const totalPodcasts = materials.filter(m => m.summary_json?.podcast?.length > 0).length;
+  const totalConversations = materials.filter(m => m.summary_json?.podcast?.length > 0).length;
   const folderMaterialsCount = (folderId: string) => {
     return materials.filter(m => folderAssignments[m.id] === folderId).length;
   };
@@ -636,11 +547,11 @@ export default function Library() {
 
               <div className="flex items-center gap-4 px-4 py-5">
                 <div className="w-10 h-10 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 rounded-lg flex items-center justify-center">
-                  <Headphones className="w-5 h-5" />
+                  <MessagesSquare className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{totalPodcasts}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Аудиоверсий</p>
+                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{totalConversations}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Разговоров</p>
                 </div>
               </div>
 
@@ -1025,16 +936,10 @@ export default function Library() {
                 </div>
 
                 {/* Substats */}
-                <div className={`flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 my-4 ${isMultiSelectActive ? 'pl-8' : ''}`}>
-                  <span className="inline-flex items-center gap-1" title="Конспект"><FileText className="h-3.5 w-3.5" /> Конспект</span>
-                  <span className="tabular-nums" title="Карточки">{fcCount} карточек</span>
-                  <span className="tabular-nums" title="Вопросы">{qCount} вопросов</span>
-                  {hasPodcast && (
-                    <span className="ml-auto flex items-center gap-1 text-[10px] text-cyan-700 dark:text-cyan-300 font-semibold bg-cyan-50 dark:bg-cyan-950/30 px-2 py-0.5 rounded-full">
-                      <Headphones className="w-3 h-3" /> 
-                      Подкаст
-                    </span>
-                  )}
+                <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 my-4 ${isMultiSelectActive ? 'pl-8' : ''}`}>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap" title="Конспект"><FileText className="h-3.5 w-3.5" /> Конспект</span>
+                  <span className="whitespace-nowrap tabular-nums" title="Карточки">{fcCount} {pluralRu(fcCount, ['карточка', 'карточки', 'карточек'])}</span>
+                  <span className="whitespace-nowrap tabular-nums" title="Вопросы">{qCount} {pluralRu(qCount, ['вопрос', 'вопроса', 'вопросов'])}</span>
                 </div>
 
                 {/* Footer and Date */}
@@ -1052,15 +957,14 @@ export default function Library() {
                   
                   {hasPodcast && !isMultiSelectActive && (
                     <button
-                      onClick={e => { 
-                        e.stopPropagation(); 
-                        setPeekMaterial(m);
-                        setDrawerTab('podcast');
+                      onClick={e => {
+                        e.stopPropagation();
+                        openConversation(m.id);
                       }}
-                      className="flex items-center gap-1 text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 font-semibold transition-colors"
+                      className="flex items-center gap-1 text-xs font-semibold text-[var(--sf-accent)] transition-colors hover:text-[var(--sf-accent-hover)]"
                     >
-                      <Headphones className="w-3.5 h-3.5" /> 
-                      Слушать →
+                      <MessagesSquare aria-hidden="true" className="w-3.5 h-3.5" />
+                      Слушать разговор
                     </button>
                   )}
                 </div>
@@ -1302,10 +1206,7 @@ export default function Library() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-xs"
-                onClick={() => {
-                  stopTTS();
-                  setPeekMaterial(null);
-                }}
+                onClick={() => setPeekMaterial(null)}
               />
 
               {/* Drawer */}
@@ -1327,10 +1228,7 @@ export default function Library() {
                     </h3>
                   </div>
                   <button
-                    onClick={() => {
-                      stopTTS();
-                      setPeekMaterial(null);
-                    }}
+                    onClick={() => setPeekMaterial(null)}
                     className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0"
                   >
                     <X className="w-5 h-5" />
@@ -1342,27 +1240,24 @@ export default function Library() {
                   <div className="flex bg-slate-50 dark:bg-slate-900/60 p-1 border-b border-slate-200 dark:border-slate-800">
                     <button
                       onClick={() => setDrawerTab('conspectus')}
-                      className={`flex-1 py-2 text-center text-xs font-black transition-all ${
+                      className={`flex-1 py-2 text-center text-xs font-semibold transition-all ${
                         drawerTab === 'conspectus'
-                          ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
-                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                          ? 'bg-[var(--sf-surface)] text-[var(--sf-ink)] rounded-lg shadow-xs'
+                          : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
                       }`}
                     >
                       Конспект
                     </button>
                     {hasPodcast && (
                       <button
-                        onClick={() => {
-                          setDrawerTab('podcast');
-                          setPeekSpeakingIndex(-1);
-                        }}
-                        className={`flex-1 py-2 text-center text-xs font-black transition-all ${
+                        onClick={() => setDrawerTab('podcast')}
+                        className={`flex-1 py-2 text-center text-xs font-semibold transition-all ${
                           drawerTab === 'podcast'
-                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            ? 'bg-[var(--sf-surface)] text-[var(--sf-ink)] rounded-lg shadow-xs'
+                            : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
                         }`}
                       >
-                        🎙️ Подкаст
+                        Разговор
                       </button>
                     )}
                     {hasCards && (
@@ -1372,10 +1267,10 @@ export default function Library() {
                           setCardIndex(0);
                           setIsFlipped(false);
                         }}
-                        className={`flex-1 py-2 text-center text-xs font-black transition-all ${
+                        className={`flex-1 py-2 text-center text-xs font-semibold transition-all ${
                           drawerTab === 'flashcards'
-                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg shadow-xs'
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            ? 'bg-[var(--sf-surface)] text-[var(--sf-ink)] rounded-lg shadow-xs'
+                            : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
                         }`}
                       >
                         Карточки
@@ -1425,82 +1320,47 @@ export default function Library() {
                     </div>
                   )}
 
-                  {/* 2. AI PODCAST TAB */}
-                  {drawerTab === 'podcast' && (
-                    <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                      {peekMaterial.summary_json?.podcast && peekMaterial.summary_json.podcast.length > 0 && (
-                        <div className="space-y-3">
-                          
-                          {/* Audio widget player */}
-                          <div className="bg-indigo-600 dark:bg-indigo-750 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                                <Headphones className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-xs">Аудиоверсия</h4>
-                                <p className="text-[10px] text-indigo-200">Объяснение на простых примерах</p>
-                              </div>
-                            </div>
+                  {/* 2. CONVERSATION PREVIEW TAB */}
+                  {drawerTab === 'podcast' && (() => {
+                    const conversationLines: any[] = (peekMaterial.summary_json?.podcast || []).filter(
+                      (line: any) => line && typeof line.text === 'string' && line.text.trim(),
+                    );
+                    const count = conversationLines.length;
+                    return (
+                      <div className="flex-grow overflow-y-auto p-5 custom-scrollbar">
+                        <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)]">
+                          <div className="flex items-center justify-between gap-3 border-b border-[var(--sf-line)] px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  const current = getTTSPlaybackRate();
-                                  const next = current === 1.0 ? 1.25 : current === 1.25 ? 1.5 : current === 1.5 ? 2.0 : 1.0;
-                                  setTTSPlaybackRate(next);
-                                  setPeekPlaybackRate(next);
-                                }}
-                                className="px-2 py-1.5 bg-indigo-900/40 rounded-lg text-[10px] font-black text-indigo-200 hover:text-white"
-                              >
-                                {getTTSPlaybackRate()}x
-                              </button>
-                              <button
-                                onClick={playPeekPodcast}
-                                className="p-2.5 bg-white text-indigo-600 rounded-full hover:scale-105 active:scale-95 transition"
-                              >
-                                {peekIsPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                              </button>
-                              {peekSpeakingIndex !== -1 && (
-                                <button
-                                  onClick={stopPeekPodcast}
-                                  className="p-2.5 bg-indigo-900/40 text-indigo-200 rounded-full hover:scale-105 transition"
-                                >
-                                  <Square className="w-4 h-4 fill-current" />
-                                </button>
-                              )}
+                              <MessagesSquare className="h-4 w-4 text-[var(--sf-muted)]" aria-hidden="true" />
+                              <span className="text-sm font-semibold text-[var(--sf-ink)]">Разговор по материалу</span>
                             </div>
+                            <span className="text-xs tabular-nums text-[var(--sf-muted)]">{pluralLines(count)}</span>
                           </div>
-
-                          {/* Speech bubbles dialogue */}
-                          <div className="space-y-3 pt-2">
-                            {peekMaterial.summary_json.podcast.map((line: any, idx: number) => {
-                              const isMax = line.speaker === 'Макс';
-                              const isSpeaking = peekSpeakingIndex === idx;
-                              return (
-                                <div 
-                                  key={idx} 
-                                  onClick={() => playFromLine(idx)}
-                                  className={`flex ${isMax ? 'justify-start' : 'justify-end'} cursor-pointer`}
-                                >
-                                  <div className={`p-3 rounded-2xl shadow-xs border max-w-[85%] transition-all ${
-                                    isSpeaking 
-                                      ? 'border-indigo-500 ring-4 ring-indigo-500/15 scale-[1.01]' 
-                                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700'
-                                  } ${isMax ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-bl-none' : 'bg-indigo-50 dark:bg-indigo-950/20 text-slate-800 dark:text-slate-100 rounded-br-none'}`}>
-                                    <div className="flex items-center justify-between mb-1 opacity-80">
-                                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{line.speaker}</span>
-                                      {isSpeaking && <Volume2 className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />}
-                                    </div>
-                                    <p className="text-[11px] leading-relaxed font-semibold">{line.text}</p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                          <ul className="divide-y divide-[var(--sf-line)]">
+                            {conversationLines.slice(0, 2).map((line: any, idx: number) => (
+                              <li key={idx} className="px-4 py-3">
+                                <span className="block text-xs font-semibold text-[var(--sf-muted)]">{line.speaker || 'Ведущий'}</span>
+                                <p className="mt-0.5 text-sm leading-relaxed text-[var(--sf-ink)] line-clamp-3">{line.text}</p>
+                              </li>
+                            ))}
+                          </ul>
+                          {count > 2 && (
+                            <p className="border-t border-[var(--sf-line)] px-4 py-2.5 text-xs text-[var(--sf-muted)]">
+                              Ещё {pluralLines(count - 2)}
+                            </p>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <button
+                          type="button"
+                          onClick={() => openConversation(peekMaterial.id)}
+                          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--sf-line)] text-sm font-semibold text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)]"
+                        >
+                          Открыть разговор
+                          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                   {/* 3. SMART FLASHCARDS TAB */}
                   {drawerTab === 'flashcards' && (
@@ -1613,10 +1473,7 @@ export default function Library() {
                 {/* Drawer Footer Navigation button */}
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                   <button
-                    onClick={() => {
-                      stopTTS();
-                      navigate('/library/' + peekMaterial.id);
-                    }}
+                    onClick={() => navigate('/library/' + peekMaterial.id)}
                     className="w-full py-3 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                   >
                     Открыть полностью
