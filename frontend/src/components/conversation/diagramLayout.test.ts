@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  labelRect,
   layoutDiagram,
   pointInRect,
+  polylineHitsRect,
+  rectsOverlap,
   segmentIntersectsRect,
+  simpleCycleOrder,
   wrapLabel,
   type DiagramLayout,
   type LayoutBox,
@@ -52,6 +56,27 @@ function expectClean(layout: DiagramLayout) {
   }
 }
 
+/** Ни одна подпись не лежит на линии (своей или чужой), на блоке или на другой подписи. */
+function expectLabelsClear(layout: DiagramLayout) {
+  const labelled = layout.edges.filter(edge => edge.labelText);
+  const rects = labelled.map(edge =>
+    labelRect(edge.labelText as string, edge.labelX as number, edge.labelY as number, edge.labelAnchor ?? 'middle'),
+  );
+  labelled.forEach((edge, index) => {
+    const rect = rects[index];
+    const ink = { x: rect.x + 3, y: rect.y + 4, w: rect.w - 6, h: rect.h - 8 };
+    for (const other of layout.edges) {
+      expect(polylineHitsRect(other.points, ink), `label of ${edge.key} is crossed by ${other.key}`).toBe(false);
+    }
+    for (const box of layout.boxes) expect(rectsOverlap(rect, box), `label of ${edge.key} on ${box.id}`).toBe(false);
+    rects.slice(index + 1).forEach((other, offset) => {
+      expect(rectsOverlap(rect, other), `label of ${edge.key} on label of ${labelled[index + 1 + offset].key}`).toBe(false);
+    });
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.w).toBeLessThanOrEqual(layout.width);
+  });
+}
+
 const memoryNodes: DiagramNode[] = [
   { id: 'sens', label: 'Сенсорная память' },
   { id: 'short', label: 'Кратковременная' },
@@ -79,20 +104,58 @@ describe('diagram layout', () => {
     expectClean(chain);
   });
 
-  it('keeps a cycle in reading order and routes the closing edge around the boxes', () => {
+  it('draws a simple cycle as a ring that visibly closes', () => {
     const cycle = layoutDiagram(
       chainNodes,
       [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'c', to: 'a', label: 'снова' }],
       600,
     );
-    expect(cycle.kind).toBe('layered-horizontal');
-    const x = Object.fromEntries(cycle.boxes.map(box => [box.id, box.x]));
-    expect(x.a).toBeLessThan(x.b);
-    expect(x.b).toBeLessThan(x.c);
+    expect(cycle.kind).toBe('cycle');
+    // Первый узел сверху, дальше по часовой стрелке.
+    const [a, b, c] = ['a', 'b', 'c'].map(id => cycle.boxes.find(box => box.id === id) as LayoutBox);
+    expect(a.y).toBeLessThan(b.y);
+    expect(b.x).toBeGreaterThan(c.x);
     const closing = cycle.edges.find(edge => edge.from === 'c' && edge.to === 'a');
-    expect(closing?.routed).toBe(true);
+    expect(closing?.routed).toBe(false);
+    expect(closing?.d).toMatch(/A/);
     expect(closing?.labelText).toBe('снова');
     expectClean(cycle);
+    expectLabelsClear(cycle);
+  });
+
+  it('keeps the carbon cycle a ring on desktop and on a phone, with every label whole', () => {
+    const nodes = [
+      { id: 'a', label: 'Атмосфера' },
+      { id: 'p', label: 'Растения' },
+      { id: 'n', label: 'Животные' },
+      { id: 'd', label: 'Разложение' },
+    ];
+    const edges = [
+      { from: 'a', to: 'p', label: 'фотосинтез' },
+      { from: 'p', to: 'n', label: 'питание' },
+      { from: 'n', to: 'd' },
+      { from: 'd', to: 'a', label: 'дыхание' },
+    ];
+    for (const width of [587, 323]) {
+      const layout = layoutDiagram(nodes, edges, width);
+      expect(layout.kind).toBe('cycle');
+      for (const edge of layout.edges) {
+        if (edge.label) expect(edge.labelText).toBe(edge.label);
+      }
+      expectClean(layout);
+      expectLabelsClear(layout);
+    }
+  });
+
+  it('falls back to layers when a ring would cut labels or squeeze arcs', () => {
+    const nodes = Array.from({ length: 6 }, (_, index) => ({ id: `n${index}`, label: `Стадия клеточного цикла ${index + 1}` }));
+    const edges = nodes.map((node, index) => ({ from: node.id, to: nodes[(index + 1) % 6].id, label: 'переход к следующей' }));
+    const layout = layoutDiagram(nodes, edges, 306);
+    expect(layout.kind).not.toBe('cycle');
+    expectClean(layout);
+    // Цикл внутри большей схемы (модель памяти) кольцом не рисуется.
+    expect(simpleCycleOrder(memoryNodes, memoryEdges)).toBeNull();
+    expect(layoutDiagram(memoryNodes, memoryEdges, 590).kind).toBe('layered-horizontal');
   });
 
   it('draws reciprocal edges as two lines with labels on opposite sides', () => {
@@ -117,6 +180,42 @@ describe('diagram layout', () => {
     expect(forward.labelText).toBe('повторение');
     expect(reverse.labelText).toBe('извлечение');
     expectClean(layout);
+    expectLabelsClear(layout);
+  });
+
+  it('draws flows as curves from their own places on the box sides, labels off the lines', () => {
+    const nodes = [
+      { id: 'l', label: 'Свет' },
+      { id: 'w', label: 'Вода' },
+      { id: 'co2', label: 'Углекислый газ' },
+      { id: 'c', label: 'Хлоропласт' },
+      { id: 'o', label: 'Кислород' },
+      { id: 'g', label: 'Глюкоза' },
+    ];
+    const edges = [
+      { from: 'l', to: 'c', label: 'энергия' },
+      { from: 'w', to: 'c' },
+      { from: 'co2', to: 'c' },
+      { from: 'c', to: 'o', label: 'выделяется' },
+      { from: 'c', to: 'g' },
+    ];
+    for (const width of [684, 587]) {
+      const layout = layoutDiagram(nodes, edges, width);
+      expect(layout.kind).toBe('layered-horizontal');
+      const hub = layout.boxes.find(box => box.id === 'c') as LayoutBox;
+      const incoming = layout.edges.filter(edge => edge.to === 'c');
+      expect(incoming.every(edge => edge.curve && !edge.routed)).toBe(true);
+      // Три стрелки входят в левую сторону блока в разных местах, не ближе 10 px.
+      const ends = incoming.map(edge => (edge.curve as NonNullable<typeof edge.curve>)[3]).sort((p, q) => p.y - q.y);
+      ends.forEach(end => {
+        expect(end.x).toBeCloseTo(hub.x - 2, 5);
+        expect(end.y).toBeGreaterThan(hub.y);
+        expect(end.y).toBeLessThan(hub.y + hub.h);
+      });
+      for (let index = 1; index < ends.length; index += 1) expect(ends[index].y - ends[index - 1].y).toBeGreaterThanOrEqual(10);
+      expectClean(layout);
+      expectLabelsClear(layout);
+    }
   });
 
   it('switches to rows on a phone and never splits ordinary words', () => {
@@ -130,6 +229,7 @@ describe('diagram layout', () => {
       expect(box.lines.some(line => line.endsWith('-'))).toBe(false);
     }
     expectClean(layout);
+    expectLabelsClear(layout);
   });
 
   it('routes a skip-layer edge around the middle box', () => {
@@ -176,6 +276,40 @@ describe('diagram layout', () => {
     expect(wrapLabel('Очень длинная подпись для узла схемы', 12, 2)).toEqual(['Очень', 'длинная…']);
     expect(wrapLabel('Короткая', 12, 2)).toEqual(['Короткая']);
     expect(wrapLabel('Кратковременная память', 11, 3, 16)).toEqual(['Кратковременная', 'память']);
-    expect(wrapLabel('Электрофизиологический', 11, 3, 16)).toEqual(['Электрофиз-', 'иологическ-', 'ий']);
+    // Перенос — по слогам: после гласной, по три буквы с каждой стороны.
+    expect(wrapLabel('Электрофизиологический', 11, 3, 16)).toEqual(['Электрофи-', 'зиологиче-', 'ский']);
+    expect(wrapLabel('Хлоропласт', 9, 2, 0)).toEqual(['Хлоро-', 'пласт']);
+    expect(wrapLabel('Углекислый газ', 9, 2, 0)).toEqual(['Углеки-', 'слый газ']);
+    expect(wrapLabel('Сине-зелёные водоросли', 8, 4, 0)).toEqual(['Сине-', 'зелёные', 'водоро-', 'сли']);
+    // Строка не начинается с й, ь или ъ, даже когда слог не нашёлся.
+    for (const line of wrapLabel('Музейный', 5, 3, 0).slice(1)) expect(line[0]).not.toMatch(/[йьъ]/i);
+  });
+
+  it('keeps short words whole in phone rows by giving each row its own box width', () => {
+    const nodes = [
+      { id: 'l', label: 'Свет' },
+      { id: 'w', label: 'Вода' },
+      { id: 'co2', label: 'Углекислый газ' },
+      { id: 'c', label: 'Хлоропласт' },
+      { id: 'o', label: 'Кислород' },
+      { id: 'g', label: 'Глюкоза' },
+    ];
+    const edges = [
+      { from: 'l', to: 'c', label: 'энергия' },
+      { from: 'w', to: 'c' },
+      { from: 'co2', to: 'c' },
+      { from: 'c', to: 'o', label: 'выделяется' },
+      { from: 'c', to: 'g' },
+    ];
+    for (const width of [294, 309]) {
+      const layout = layoutDiagram(nodes, edges, width);
+      expect(layout.kind).toBe('layered-vertical');
+      const hub = layout.boxes.find(box => box.id === 'c') as LayoutBox;
+      const input = layout.boxes.find(box => box.id === 'l') as LayoutBox;
+      expect(hub.w).toBeGreaterThan(input.w);
+      expect(hub.lines).toEqual(['Хлоропласт']);
+      expectClean(layout);
+      expectLabelsClear(layout);
+    }
   });
 });

@@ -1,17 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignVoices,
   buildConversation,
+  cleanSourceIds,
   estimateMinutes,
+  fragmentWords,
   hasModelVisuals,
   mergeVisualsByIndex,
   normalizeForMatch,
+  normalizeLines,
+  normalizeSpeaker,
   parseGeneratedLines,
   pluralLines,
+  provenanceLead,
+  quoteSourceIds,
   sanitizeVisual,
   toFiniteNumber,
+  visualLabel,
+  voiceForSpeaker,
   VISUAL_LIMITS,
 } from './visuals';
-import { axisNotToScale } from './ChartView';
+import { axisNotToScale, chartScale } from './ChartView';
+import { splitStep } from './ConversationVisual';
 
 describe('sanitizeVisual', () => {
   it('keeps a valid chart and strips unknown keys', () => {
@@ -298,6 +308,28 @@ describe('helpers', () => {
     expect(axisNotToScale(['2019', '2021', '2022'])).toBe(true);
     expect(axisNotToScale(['Январь', 'Февраль', 'Март'])).toBe(false);
     expect(axisNotToScale(['1 этап', '2 этап', '3 этап'])).toBe(false);
+    // Время суток через полночь — ровный шаг, а не «скачок назад».
+    expect(axisNotToScale(['6:00', '9:00', '12:00', '15:00', '18:00', '21:00', '0:00'])).toBe(false);
+    expect(axisNotToScale(['22:00', '23:00', '0:00', '1:00'])).toBe(false);
+    expect(axisNotToScale(['6:00', '9:00', '18:00'])).toBe(true);
+  });
+
+  it('starts a line chart at zero unless the values sit in a narrow band or go below zero', () => {
+    // Кривая забывания: 21% не должен выглядеть как «почти ничего».
+    expect(chartScale('line', [58, 44, 36, 33, 25, 21])).toMatchObject({ min: 0, fromZero: true, grid: [] });
+    const narrow = chartScale('line', [91, 93, 95]);
+    expect(narrow.fromZero).toBe(false);
+    expect(narrow.min).toBeGreaterThan(80);
+    expect(narrow.grid).toHaveLength(2);
+    narrow.grid.forEach(value => {
+      expect(value).toBeGreaterThan(narrow.min);
+      expect(value).toBeLessThan(narrow.max);
+    });
+    const negative = chartScale('line', [-2.7, 1.5, -1.2, 3]);
+    expect(negative.min).toBeLessThan(-2.7);
+    expect(negative.fromZero).toBe(false);
+    expect(chartScale('bar', [12, 30])).toMatchObject({ min: 0, max: 30, fromZero: true });
+    expect(chartScale('bar', [-5, 30])).toMatchObject({ min: -5, max: 30 });
   });
 
   it('normalizes text for matching', () => {
@@ -360,5 +392,133 @@ describe('helpers', () => {
     expect(estimateMinutes([{ text: words }])).toBe(2);
     expect(estimateMinutes([{ text: 'коротко' }])).toBe(1);
     expect(estimateMinutes([])).toBe(0);
+  });
+});
+
+describe('line contract on stored conversations', () => {
+  it('maps host names to the two voices whatever the spelling', () => {
+    expect(['Max', 'макс', 'MAX', 'Maks', ' Макс: '].map(normalizeSpeaker)).toEqual(['Макс', 'Макс', 'Макс', 'Макс', 'Макс']);
+    expect(['Sofia', 'софия', 'Sophia:'].map(normalizeSpeaker)).toEqual(['Софья', 'Софья', 'Софья']);
+    expect(normalizeSpeaker('Гость')).toBe('Гость');
+    expect(['Max', 'MAX', 'Sofia'].map(voiceForSpeaker)).toEqual(['male', 'male', 'female']);
+    const lines = buildConversation([{ speaker: 'Max', text: 'Hi' }, { speaker: 'Sofia', text: 'Hello' }]);
+    expect(lines.map(line => line.speaker)).toEqual(['Макс', 'Софья']);
+  });
+
+  it('gives two unknown hosts different voices', () => {
+    expect(Object.fromEntries(assignVoices(['Ведущий', 'Эксперт']))).toEqual({ 'Ведущий': 'male', 'Эксперт': 'female' });
+    expect(Object.fromEntries(assignVoices(['Макс', 'Гость']))).toEqual({ 'Макс': 'male', 'Гость': 'female' });
+    expect(Object.fromEntries(assignVoices(['Софья', 'Гость']))).toEqual({ 'Софья': 'female', 'Гость': 'male' });
+  });
+
+  it('caps the number and length of lines and keeps only real fragment ids', () => {
+    const many = Array.from({ length: 4000 }, (_, index) => ({ speaker: 'Макс', text: `Реплика ${index}` }));
+    expect(normalizeLines(many)).toHaveLength(40);
+    const [long] = normalizeLines([{ speaker: 'Софья', text: 'а'.repeat(5000) }]);
+    expect(long.text.length).toBeLessThanOrEqual(2000);
+    expect(long.text.endsWith('…')).toBe(true);
+    expect(cleanSourceIds(['[s03]', 'S03', 'S1234', 'javascript:x', 7, 's7', 'S01', 'S02', 'S04', 'S05'])).toEqual(['S03', 'S7', 'S01', 'S02', 'S04']);
+  });
+});
+
+describe('provenance of pictures', () => {
+  const sources = [
+    { id: 'S01', text: 'Герман Эббингауз в 1885 году описал кривую забывания.' },
+    { id: 'S02', text: 'Каждое повторение делает след памяти прочнее,' },
+    { id: 'S03', text: 'поэтому после повторения кривая забывания становится более пологой.' },
+  ];
+
+  it('finds word-for-word quotes, across fragments and with an ellipsis', () => {
+    expect(quoteSourceIds('Каждое повторение делает след памяти прочнее…', sources)).toEqual(['S02']);
+    expect(quoteSourceIds('след памяти прочнее, поэтому после повторения кривая', sources)).toEqual(['S02', 'S03']);
+    expect(quoteSourceIds('Эббингауз… описал кривую забывания', sources)).toEqual(['S01']);
+    expect(quoteSourceIds('Эббингауз лично доказал, что сон удваивает память.', sources)).toEqual([]);
+    expect(quoteSourceIds('кривую', sources)).toEqual([]);
+    expect(quoteSourceIds('Каждое повторение делает след памяти прочнее', [])).toEqual([]);
+  });
+
+  it('claims a source only for what was checked', () => {
+    const lines = [
+      { speaker: 'Макс', text: 'Цитата.', source_ids: ['S09'], visual: { type: 'fact', title: 'Цитата', text: 'Каждое повторение делает след памяти прочнее…' } },
+      { speaker: 'Софья', text: 'Пересказ.', source_ids: ['S01'], visual: { type: 'fact', title: 'Сон', text: 'Эббингауз лично доказал, что сон удваивает память.' } },
+      { speaker: 'Макс', text: 'Формула.', source_ids: ['S01'], visual: { type: 'formula', title: 'Кривая', latex: 'R = e^{-t/S}' } },
+      { speaker: 'Софья', text: 'Числа.', source_ids: ['S03'], visual: { type: 'chart', title: 'Кривая', kind: 'line', data: [{ label: 'a', value: 1 }, { label: 'b', value: 2 }] } },
+      { speaker: 'Макс', text: 'Даты.', visual: { type: 'timeline', title: 'История', events: [{ date: '1885', label: 'Опыт' }, { date: '1968', label: 'Модель' }] } },
+      { speaker: 'Софья', text: 'Термин.', source_ids: ['S01'], visual: { type: 'term', term: 'Память', definition: 'Способность помнить.' } },
+      { speaker: 'Макс', text: 'Дальше.' },
+    ];
+    const result = buildConversation(lines, { sources });
+    expect(result.map(line => line.provenance)).toEqual([
+      { kind: 'quote', ids: ['S02'] },
+      { kind: 'none' },
+      { kind: 'none' },
+      // В S03 нет чисел 1 и 2: номер фрагмента не показываем, хотя реплика на него ссылается.
+      { kind: 'numbers', ids: [] },
+      { kind: 'dates', ids: [] },
+      { kind: 'none' },
+      { kind: 'none' },
+    ]);
+    expect(visualLabel(result[0].visual, result[0].provenance)).toBe('Цитата');
+    expect(visualLabel(result[1].visual, result[1].provenance)).toBe('Пересказ');
+    expect(result.map(line => provenanceLead(line.provenance))).toEqual([
+      'Из материала',
+      null,
+      null,
+      'Числа — из материала',
+      'Даты — из материала',
+      null,
+      null,
+    ]);
+  });
+
+  it('names where automatically picked pictures come from', () => {
+    const result = buildConversation(
+      [
+        { speaker: 'Макс', text: 'Что такое энтропия?' },
+        { speaker: 'Софья', text: 'Почему молекулы двигаются быстрее при нагревании?' },
+        { speaker: 'Макс', text: 'Пример.', source_ids: ['S01'] },
+      ],
+      {
+        terms: [{ term: 'Энтропия', definition: 'Мера беспорядка.' }],
+        flashcards: [{ question: 'Почему молекулы двигаются быстрее при нагревании?', answer: 'Растёт энергия.' }],
+        sources,
+      },
+    );
+    expect(result.map(line => provenanceLead(line.provenance))).toEqual(['Из конспекта', 'Из карточек', 'Из материала']);
+    expect(result[2].provenance).toEqual({ kind: 'quote', ids: ['S01'] });
+  });
+
+  it('words fragment numbers like a reader would', () => {
+    expect(fragmentWords(['S03'])).toBe('фрагмент 3');
+    expect(fragmentWords(['S03', 'S04'])).toBe('фрагменты 3 и 4');
+    expect(fragmentWords(['S02', 'S03', 'S10'])).toBe('фрагменты 2, 3 и 10');
+  });
+
+  it('replaces word-matched fragment ids of a line when the server sends checked ones', () => {
+    const lines = [
+      { speaker: 'Макс', text: 'Первая', source_ids: ['S01'] },
+      { speaker: 'Софья', text: 'Вторая', source_ids: ['S01'] },
+      { speaker: 'Макс', text: 'Третья', source_ids: ['S01'] },
+    ];
+    const chart = { type: 'chart', title: 'Числа', kind: 'bar', data: [{ label: 'a', value: 1 }, { label: 'b', value: 2 }] };
+    const { lines: merged } = mergeVisualsByIndex(lines, {
+      visuals: [
+        { index: 0, visual: chart, source_ids: ['s04'] },
+        { index: 1, visual: chart },
+        { index: 2, visual: { type: 'term', term: 'Атом', definition: 'Частица.' } },
+      ],
+    });
+    expect(merged[0]).toMatchObject({ source_ids: ['S04'] });
+    expect(merged[1]).not.toHaveProperty('source_ids');
+    expect(merged[2]).toMatchObject({ source_ids: ['S01'] });
+  });
+});
+
+describe('steps', () => {
+  it('splits a step into its name and explanation', () => {
+    expect(splitStep('Кодирование: превращаем впечатление в след')).toEqual({ head: 'Кодирование', tail: 'превращаем впечатление в след' });
+    expect(splitStep('Хранение — удерживаем след')).toEqual({ head: 'Хранение', tail: 'удерживаем след' });
+    expect(splitStep('Свет поглощается хлорофиллом')).toBeNull();
+    expect(splitStep('Очень длинное начало шага без двоеточия долго тянется: и только потом пояснение')).toBeNull();
   });
 });

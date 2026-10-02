@@ -155,6 +155,19 @@ export interface PodcastLine {
  */
 export type VisualOrigin = 'model' | 'auto' | 'cover';
 
+/**
+ * Что можно честно сказать об источнике изображения. Подпись «из материала»
+ * получает только то, что проверено: числа графика и даты хронологии (их сервер
+ * сверяет с исходником), цитата, найденная в исходнике слово в слово, и то, что
+ * плеер сам взял из конспекта или карточек. Термины, шаги, схемы и формулы
+ * модели ничего не утверждают об источнике.
+ */
+export type Provenance =
+  | { kind: 'none' }
+  | { kind: 'numbers' | 'dates' | 'quote'; ids: string[] }
+  | { kind: 'summary' }
+  | { kind: 'cards' };
+
 /** Реплика, готовая к показу: у каждой есть изображение для «сцены». */
 export interface ConversationLine {
   /** Индекс реплики в исходном массиве summary_json.podcast. */
@@ -173,6 +186,8 @@ export interface ConversationLine {
    * где оно появилось, или фрагмент, из которого взята цитата.
    */
   visualSourceIds: string[];
+  /** Что показать под изображением об источнике (см. Provenance). */
+  provenance: Provenance;
 }
 
 export interface ConversationTerm {

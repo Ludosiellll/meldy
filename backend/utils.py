@@ -199,27 +199,23 @@ def find_source_ids(query: str, chunks: list[dict[str, str]], top_k: int = 2) ->
 def annotate_podcast(lines: Any, chunks: list[dict[str, str]]) -> int:
     """Source ids for conversation lines.
 
-    A line with a quote ("fact" visual) must point at the fragment the quote came
-    from, so its ids are matched on the quote first, then the model's own valid
-    ids, then the line text. Other lines are matched on their text.
+    A line whose visual can be checked points at the fragments that back it: a
+    chart or timeline at the fragments holding its numbers and dates (the
+    model's own id only when it really holds them), a word-for-word quote at
+    the fragment it was copied from. Every other line, a paraphrased "fact"
+    included, is matched on its text, which is all those ids claim.
     """
     if not isinstance(lines, list):
         return 0
-    known = {chunk["id"] for chunk in chunks}
+    facts_cache: dict[str, "SourceFacts"] = {}
     cited = 0
     for item in lines:
         if not isinstance(item, dict):
             continue
-        ids: list[str] = []
-        visual = item.get("visual")
-        if isinstance(visual, dict) and visual.get("type") == "fact":
-            ids = find_source_ids(str(visual.get("text", "")), chunks)
-            if not ids:
-                own = item.get("source_ids")
-                ids = [sid for sid in own if isinstance(sid, str) and sid in known][:2] if isinstance(own, list) else []
-        if not ids:
+        ids = visual_source_ids(item.get("visual"), chunks, item.get("source_ids"), facts_cache)
+        if not ids and not (isinstance(item.get("visual"), dict) and item["visual"].get("type") in ("chart", "timeline")):
             ids = find_source_ids(str(item.get("text", "")), chunks)
-        item["source_ids"] = ids
+        item["source_ids"] = ids or []
         cited += bool(ids)
     return cited
 
@@ -543,32 +539,70 @@ def sanitize_visual(visual: Any) -> dict | None:
 
 # Grounding: charts and timelines show numbers and dates as facts, so they are
 # kept only when every value and date can be found in the source text.
-_SOURCE_NUMBER_RE = re.compile(r"\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*")
+#
+# A number in the source is a run of digits with optional thousands groups
+# ("12 500") and a decimal part ("12,5"). A leading minus counts only when it
+# stands apart from the previous token ("−40", "до -5"), so ranges such as
+# "1941-1945" stay positive.
+_SOURCE_NUMBER_RE = re.compile(
+    r"(?:(?<![\w.,)\]])[-−–](?=\d))?\d+(?:[ \u00a0\u202f]\d{3}(?!\d))*(?:[.,]\d+)*"
+)
+_NUMBER_SIGNS = "-−–"
+_GROUP_SPACE_RE = re.compile(r"[ \u00a0\u202f]")
+
+
+def _plain_readings(compact: str) -> set[float]:
+    """Values of one number written without spaces.
+
+    A comma or dot groups thousands only before groups of exactly three digits
+    ("12,500", "1.234.567"); otherwise the last one is the decimal mark: "12,5"
+    is 12.5 and never 125, "3,14" is never 314.
+    """
+    groups = re.split(r"[.,]", compact)
+    texts: set[str] = set()
+    if len(groups) == 1:
+        texts.add(compact)
+    elif groups[0]:
+        if all(len(group) == 3 for group in groups[1:]):
+            texts.add("".join(groups))
+        if groups[-1] and all(len(group) == 3 for group in groups[1:-1]):
+            texts.add("".join(groups[:-1]) + "." + groups[-1])
+    values: set[float] = set()
+    for text in texts:
+        try:
+            value = float(text)
+        except ValueError:
+            continue
+        if math.isfinite(value):
+            values.add(value)
+    return values
 
 
 def _number_readings(token: str) -> set[float]:
-    """Every plausible value of a number written in the source ("12,5", "12 500", "1,234")."""
+    """Every plausible value of a number written in the source.
+
+    "12 500" is 12500, not 12 and 500. A group of four or more digits cannot
+    open a grouped number, so "2019 150" is 2019 and 150. Three or more groups
+    ("100 200 300") may also be a row of table values, so each group counts as
+    well. A sign belongs to the first number of the run.
+    """
+    negative = token[:1] in _NUMBER_SIGNS
+    pieces = _GROUP_SPACE_RE.split(token.lstrip(_NUMBER_SIGNS))
     readings: set[float] = set()
-    pieces = [token] + re.split(r"[ \u00a0\u202f]", token)
-    for piece in pieces:
-        compact = re.sub(r"[ \u00a0\u202f]", "", piece)
-        if not compact:
-            continue
-        candidates = {compact.replace(",", "").replace(".", "")}
-        separators = [i for i, ch in enumerate(compact) if ch in ",."]
-        if separators:
-            last = separators[-1]
-            whole = re.sub(r"[.,]", "", compact[:last])
-            candidates.add(f"{whole}.{compact[last + 1:]}")
-            first = separators[0]
-            candidates.add(f"{compact[:first]}.{re.sub(r'[.,]', '', compact[first + 1:])}")
-        for candidate in candidates:
-            try:
-                number = float(candidate)
-            except ValueError:
-                continue
-            if math.isfinite(number):
-                readings.add(number)
+
+    def add(values: set[float], signed: bool) -> None:
+        for value in values:
+            readings.add(-value if signed and negative else value)
+
+    signed = True
+    while len(pieces) > 1 and len(pieces[0]) > 3:
+        add(_plain_readings(pieces[0]), signed)
+        signed = False
+        pieces = pieces[1:]
+    add(_plain_readings("".join(pieces)), signed)
+    if len(pieces) >= 3:
+        for index, piece in enumerate(pieces):
+            add(_plain_readings(piece), signed and index == 0)
     return readings
 
 
@@ -586,15 +620,24 @@ class SourceFacts:
         self.normalized = _normalize_for_grounding(text or "")
 
     def has_number(self, value: float) -> bool:
-        target = abs(float(value))
-        return any(abs(target - number) <= 1e-9 * max(1.0, number) for number in self.numbers)
+        """The exact value, sign included, is written in the source."""
+        target = float(value)
+        return any(abs(target - number) <= 1e-9 * max(1.0, abs(number)) for number in self.numbers)
 
     def has_date(self, date: str) -> bool:
+        """The date starts a word of the source and is not part of a longer number.
+
+        "XIX век" is found in "в XIX веке" and "1885 г." in "в 1885 году", but
+        "85" is not found in "1885" and "век" not in "человек". Without a literal
+        match every year of the date (three or more digits) must be a number of
+        the source: "1853–1856" matches "с 1853 по 1856 год", while "18 век"
+        never matches just because 18 appears somewhere.
+        """
         normalized = _normalize_for_grounding(date)
-        if normalized and normalized in self.normalized:
+        if normalized and re.search(r"(?<!\w)" + re.escape(normalized) + r"(?!\d)", self.normalized):
             return True
         digits = re.findall(r"\d+", date)
-        return bool(digits) and all(self.has_number(float(part)) for part in digits)
+        return bool(digits) and all(len(part) >= 3 and self.has_number(float(part)) for part in digits)
 
 
 def visual_is_grounded(visual: dict, facts: "SourceFacts | None") -> bool:
@@ -605,6 +648,117 @@ def visual_is_grounded(visual: dict, facts: "SourceFacts | None") -> bool:
     if kind == "timeline":
         return facts is not None and all(facts.has_date(event["date"]) for event in visual["events"])
     return True
+
+
+QUOTE_MIN_CHARS = 12
+
+
+def _quote_parts(text: str) -> list[str]:
+    """A quote split at ellipses into the parts that must appear in the source in order."""
+    parts = (_normalize_for_grounding(part) for part in re.split(r"…|\.\.\.", text or ""))
+    return [part for part in parts if part]
+
+
+def quote_source_ids(text: str, chunks: list[dict[str, str]]) -> list[str]:
+    """Fragments a quote was copied from word for word, or [] for a paraphrase.
+
+    Case, ё/е and punctuation are ignored and an ellipsis may skip words. A
+    quote may run across the boundary of two neighbouring fragments.
+    """
+    parts = _quote_parts(text)
+    if sum(len(part) for part in parts) < QUOTE_MIN_CHARS:
+        return []
+    spans: list[tuple[int, int, str]] = []
+    joined = ""
+    for chunk in chunks:
+        normalized = _normalize_for_grounding(chunk.get("text", ""))
+        if not normalized:
+            continue
+        if joined:
+            joined += " "
+        spans.append((len(joined), len(joined) + len(normalized), chunk["id"]))
+        joined += normalized
+    start = -1
+    position = 0
+    for part in parts:
+        found = joined.find(part, position)
+        if found < 0:
+            return []
+        if start < 0:
+            start = found
+        position = found + len(part)
+    return [source_id for begin, end, source_id in spans if begin < position and end > start]
+
+
+def _covering_source_ids(
+    checks: list,
+    chunks: list[dict[str, str]],
+    own_ids: Any,
+    facts_cache: "dict[str, SourceFacts]",
+) -> list[str]:
+    """Fragments that hold every number or date of a chart or timeline.
+
+    The model's own fragment wins when it holds them all, then the first
+    fragment that does, then the fewest fragments (up to three) that cover them
+    together. [] when they cannot be covered.
+    """
+    if not checks:
+        return []
+    everything = set(range(len(checks)))
+    order = {chunk["id"]: index for index, chunk in enumerate(chunks)}
+    covers: dict[str, set[int]] = {}
+    for chunk in chunks:
+        source_id = chunk["id"]
+        facts = facts_cache.get(source_id)
+        if facts is None:
+            facts = facts_cache[source_id] = SourceFacts(chunk.get("text", ""))
+        covered = {index for index, check in enumerate(checks) if check(facts)}
+        if covered:
+            covers[source_id] = covered
+    own = [source_id for source_id in own_ids if source_id in covers] if isinstance(own_ids, list) else []
+    for source_id in own + list(covers):
+        if covers[source_id] == everything:
+            return [source_id]
+    chosen: list[str] = []
+    done: set[int] = set()
+    while done != everything and len(chosen) < 3:
+        best = max(covers, key=lambda source_id: (len(covers[source_id] - done), source_id in own), default=None)
+        if best is None or not covers[best] - done:
+            break
+        chosen.append(best)
+        done |= covers[best]
+    if done != everything:
+        return []
+    return sorted(chosen, key=lambda source_id: order[source_id])
+
+
+def visual_source_ids(
+    visual: Any,
+    chunks: list[dict[str, str]],
+    own_ids: Any = None,
+    facts_cache: "dict[str, SourceFacts] | None" = None,
+) -> list[str] | None:
+    """Fragments behind a visual whose content can be checked, or None.
+
+    Charts and timelines point at the fragments that hold their numbers and
+    dates; a quote ("fact") at the fragment it was copied from, or [] for a
+    paraphrase. Other visuals make no checkable claim and return None.
+    """
+    if not isinstance(visual, dict):
+        return None
+    cache = facts_cache if facts_cache is not None else {}
+    kind = visual.get("type")
+    if kind == "chart":
+        checks = [lambda facts, value=point["value"]: facts.has_number(value) for point in visual.get("data", [])]
+        return _covering_source_ids(checks, chunks, own_ids, cache)
+    if kind == "timeline":
+        checks = [lambda facts, date=event["date"]: facts.has_date(date) for event in visual.get("events", [])]
+        return _covering_source_ids(checks, chunks, own_ids, cache)
+    if kind == "fact":
+        ids = quote_source_ids(str(visual.get("text", "")), chunks)
+        own = [source_id for source_id in own_ids if source_id in ids] if isinstance(own_ids, list) else []
+        return (own + [source_id for source_id in ids if source_id not in own])[:2]
+    return None
 
 
 def _clean_source_ids(value: Any) -> list[str]:

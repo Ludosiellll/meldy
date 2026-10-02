@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, ShieldCheck, AlertTriangle, Check, X, MessagesSquare } from 'lucide-react';
 import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
@@ -332,6 +332,13 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   // Реплики разговора после «Добавить схемы» живут здесь, пока результат на экране.
   const [conversationOverride, setConversationOverride] = useState<unknown[] | null>(null);
   useEffect(() => setConversationOverride(null), [results.podcast]);
+  // Схемы, подобранные для прежнего результата, не должны попасть в новый.
+  const materialIdRef = useRef(materialId);
+  materialIdRef.current = materialId;
+  const handleConversationLines = (lines: unknown[]) => {
+    if (materialIdRef.current !== materialId) return;
+    setConversationOverride(lines);
+  };
   const conversationLines: unknown[] = conversationOverride
     ?? (Array.isArray(results.podcast?.podcast) ? results.podcast.podcast : []);
   const conversationCount = conversationLines.filter(
@@ -628,7 +635,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
             flashcards={results.flashcards?.flashcards}
             sources={results.grounding?.sources}
             materialId={materialId}
-            onLinesUpdate={lines => setConversationOverride(lines)}
+            onLinesUpdate={handleConversationLines}
           />
         )}
       </motion.div>

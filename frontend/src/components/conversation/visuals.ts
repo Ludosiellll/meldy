@@ -8,11 +8,13 @@ import {
   type DiagramNode,
   type FormulaLegendItem,
   type PodcastLine,
+  type Provenance,
   type SceneIcon,
   type TimelineEvent,
   type Visual,
   type VisualOrigin,
 } from './types';
+import { chartSourceIds, timelineSourceIds } from './grounding';
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Ограничения (зеркало серверной проверки)
@@ -89,7 +91,7 @@ function cleanLatex(value: unknown): string | null {
     }
   }
   // Неэкранированный % в KaTeX начинает комментарий и молча обрезает формулу.
-  latex = latex.replace(/\s+/g, ' ').replace(/(?<!\\)%/g, '\\%');
+  latex = latex.replace(/\s+/g, ' ').replace(/\\?%/g, match => (match === '%' ? '\\%' : match));
   // Обрезанная формула превращается в бессмыслицу, поэтому длинную не показываем.
   return latex && latex.length <= VISUAL_LIMITS.latex ? latex : null;
 }
@@ -260,18 +262,68 @@ interface NormalizedLine {
   rawVisual: unknown;
 }
 
-/** Достаёт из summary_json.podcast реплики с текстом, сохраняя исходные индексы. */
+/** Те же пределы, что у сервера: старые, скопированные и чужие разговоры проходят через них же. */
+export const LINE_LIMITS = { lines: 40, text: 2000, speaker: 40, sourceIds: 5 } as const;
+
+// Голос выбирается по имени, поэтому латиница и другой регистр приводятся к именам ведущих.
+const SPEAKER_ALIASES: Record<string, string> = {
+  макс: 'Макс',
+  max: 'Макс',
+  maks: 'Макс',
+  софья: 'Софья',
+  софия: 'Софья',
+  sofia: 'Софья',
+  sofya: 'Софья',
+  sophia: 'Софья',
+  sofiya: 'Софья',
+};
+
+/** «Max», «макс:», « MAX » → «Макс»; прочие имена — как есть, без лишних пробелов. */
+export function normalizeSpeaker(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const name = value
+    .replace(CONTROL_CHARS, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[:：]+\s*$/u, '')
+    .trim()
+    .slice(0, LINE_LIMITS.speaker);
+  return SPEAKER_ALIASES[name.toLowerCase()] ?? name;
+}
+
+/** Идентификаторы фрагментов вида S01: регистр и скобки не важны, без повторов, не больше пяти. */
+export function cleanSourceIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const id = item.trim().replace(/^\[+|\]+$/g, '').trim().toUpperCase();
+    if (/^S\d{1,3}$/.test(id) && !ids.includes(id)) ids.push(id);
+    if (ids.length === LINE_LIMITS.sourceIds) break;
+  }
+  return ids;
+}
+
+function clampLineText(text: string): string {
+  return text.length > LINE_LIMITS.text ? `${text.slice(0, LINE_LIMITS.text - 1).trimEnd()}…` : text;
+}
+
+/** Достаёт из summary_json.podcast реплики с текстом (не больше 40), сохраняя исходные индексы. */
 export function normalizeLines(raw: unknown): NormalizedLine[] {
   if (!Array.isArray(raw)) return [];
   const result: NormalizedLine[] = [];
-  raw.forEach((item, index) => {
-    if (!isRecord(item) || typeof item.text !== 'string' || !item.text.trim()) return;
-    const speaker = typeof item.speaker === 'string' ? item.speaker.trim() : '';
-    const sourceIds = Array.isArray(item.source_ids)
-      ? item.source_ids.filter((id): id is string => typeof id === 'string' && id.trim() !== '').map(id => id.trim())
-      : [];
-    result.push({ index, speaker, text: item.text.trim(), sourceIds, rawVisual: item.visual });
-  });
+  for (let index = 0; index < raw.length && result.length < LINE_LIMITS.lines; index += 1) {
+    const item = raw[index];
+    if (!isRecord(item) || typeof item.text !== 'string') continue;
+    const text = item.text.replace(CONTROL_CHARS, '').trim();
+    if (!text) continue;
+    result.push({
+      index,
+      speaker: normalizeSpeaker(item.speaker),
+      text: clampLineText(text),
+      sourceIds: cleanSourceIds(item.source_ids),
+      rawVisual: item.visual,
+    });
+  }
   return result;
 }
 
@@ -406,6 +458,70 @@ function openingScene(title: string | undefined): Visual {
   return { type: 'scene', title: clean ?? 'Разговор по материалу', icon: 'book', caption: '' };
 }
 
+/** Короче этого совпадение ещё не цитата. */
+const QUOTE_MIN_CHARS = 12;
+
+/**
+ * Фрагменты исходника, из которых цитата взята слово в слово, или [] — тогда это
+ * пересказ. Регистр, ё/е и знаки препинания не важны, многоточие может пропускать
+ * слова, цитата может переходить из одного фрагмента в соседний. Та же проверка,
+ * что у сервера (quote_source_ids).
+ */
+export function quoteSourceIds(text: string, sources: ConversationContext['sources']): string[] {
+  if (!sources?.length) return [];
+  const parts = text
+    .split(/…|\.{3}/)
+    .map(normalizeForMatch)
+    .filter(Boolean);
+  if (parts.reduce((sum, part) => sum + part.length, 0) < QUOTE_MIN_CHARS) return [];
+  const spans: { start: number; end: number; id: string }[] = [];
+  let joined = '';
+  for (const source of sources) {
+    if (!isRecord(source) || typeof source.id !== 'string' || typeof source.text !== 'string') continue;
+    const normalized = normalizeForMatch(source.text);
+    if (!normalized) continue;
+    if (joined) joined += ' ';
+    spans.push({ start: joined.length, end: joined.length + normalized.length, id: source.id.trim() });
+    joined += normalized;
+  }
+  let start = -1;
+  let position = 0;
+  for (const part of parts) {
+    const found = joined.indexOf(part, position);
+    if (found < 0) return [];
+    if (start < 0) start = found;
+    position = found + part.length;
+  }
+  return spans.filter(span => span.start < position && span.end > start).map(span => span.id);
+}
+
+const NO_PROVENANCE: Provenance = { kind: 'none' };
+
+/** Что честно сказать об источнике изображения (см. Provenance в types.ts). */
+function provenanceFor(
+  visual: Visual,
+  origin: VisualOrigin,
+  sourceIds: string[],
+  sources: ConversationContext['sources'],
+): Provenance {
+  if (origin === 'cover') return NO_PROVENANCE;
+  if (origin === 'auto') {
+    if (visual.type === 'term') return { kind: 'summary' };
+    if (visual.type === 'question') return { kind: 'cards' };
+    if (visual.type === 'fact') return { kind: 'quote', ids: sourceIds };
+    return NO_PROVENANCE;
+  }
+  // Числа графиков и даты хронологий сервер сверяет с исходником, прежде чем сохранить;
+  // номер фрагмента показываем, только если числа или даты в нём действительно есть.
+  if (visual.type === 'chart') return { kind: 'numbers', ids: chartSourceIds(visual, sourceIds, sources) };
+  if (visual.type === 'timeline') return { kind: 'dates', ids: timelineSourceIds(visual, sourceIds, sources) };
+  if (visual.type === 'fact') {
+    const ids = quoteSourceIds(visual.text, sources);
+    return ids.length ? { kind: 'quote', ids } : NO_PROVENANCE;
+  }
+  return NO_PROVENANCE;
+}
+
 /**
  * Готовит реплики к показу. Для каждой реплики выбирается изображение:
  *   1. корректное изображение от модели (origin: 'model');
@@ -428,6 +544,7 @@ export function buildConversation(raw: unknown, ctx: ConversationContext = {}): 
     let carried = false;
     let visualFrom = line.index;
     let visualSourceIds: string[] = visual ? line.sourceIds : [];
+    let provenance: Provenance | null = null;
 
     if (!visual) {
       origin = 'auto';
@@ -447,6 +564,7 @@ export function buildConversation(raw: unknown, ctx: ConversationContext = {}): 
       carried = true;
       visualFrom = previous.visualFrom;
       visualSourceIds = previous.visualSourceIds;
+      provenance = previous.provenance;
     }
 
     if (!visual) {
@@ -465,6 +583,7 @@ export function buildConversation(raw: unknown, ctx: ConversationContext = {}): 
       carried,
       visualFrom,
       visualSourceIds,
+      provenance: provenance ?? provenanceFor(visual, origin, visualSourceIds, ctx.sources),
     };
     result.push(resolved);
     previous = resolved;
@@ -498,12 +617,17 @@ export function parseGeneratedLines(payload: unknown): PodcastLine[] {
 
 /**
  * Вливает изображения из ответа /api/podcast/visuals в реплики по индексу.
- * Принимает { visuals: (Visual | null)[] }, { visuals: [{ index, visual }] }
- * или { podcast | lines: [{ visual }] }. Сами реплики не меняются и не теряются.
+ * Принимает { visuals: (Visual | null)[] }, { visuals: [{ index, visual, source_ids? }] }
+ * или { podcast | lines: [{ visual }] }. Текст реплик не меняется и не теряется.
+ *
+ * Сервер присылает source_ids для графиков, хронологий и цитат — фрагменты, где
+ * он нашёл их числа, даты или текст. Они заменяют старые source_ids реплики,
+ * подобранные по словам. Если для графика или хронологии фрагментов нет, старые
+ * id убираются: иначе под числами стоял бы чужой фрагмент.
  */
 export function mergeVisualsByIndex(rawLines: unknown, payload: unknown): { lines: unknown[]; added: number } {
   const lines = Array.isArray(rawLines) ? [...rawLines] : [];
-  const byIndex = new Map<number, Visual>();
+  const byIndex = new Map<number, { visual: Visual; sourceIds?: string[] }>();
 
   const list = isRecord(payload)
     ? ([payload.visuals, payload.podcast, payload.lines].find(Array.isArray) as unknown[] | undefined)
@@ -514,24 +638,28 @@ export function mergeVisualsByIndex(rawLines: unknown, payload: unknown): { line
   (list ?? []).forEach((entry, position) => {
     if (isRecord(entry) && typeof entry.index === 'number' && Number.isInteger(entry.index) && 'visual' in entry) {
       const visual = sanitizeVisual(entry.visual);
-      if (visual) byIndex.set(entry.index, visual);
+      const sourceIds = Array.isArray(entry.source_ids) ? cleanSourceIds(entry.source_ids) : undefined;
+      if (visual) byIndex.set(entry.index, { visual, sourceIds });
       return;
     }
     if (isRecord(entry) && 'visual' in entry && typeof entry.type !== 'string') {
       const visual = sanitizeVisual(entry.visual);
-      if (visual) byIndex.set(position, visual);
+      if (visual) byIndex.set(position, { visual });
       return;
     }
     const visual = sanitizeVisual(entry);
-    if (visual) byIndex.set(position, visual);
+    if (visual) byIndex.set(position, { visual });
   });
 
   let added = 0;
   const merged = lines.map((line, index) => {
-    const visual = byIndex.get(index);
-    if (!visual || !isRecord(line)) return line;
+    const found = byIndex.get(index);
+    if (!found || !isRecord(line)) return line;
     added += 1;
-    return { ...line, visual };
+    const next: Record<string, unknown> = { ...line, visual: found.visual };
+    if (found.sourceIds) next.source_ids = found.sourceIds;
+    else if (found.visual.type === 'chart' || found.visual.type === 'timeline') delete next.source_ids;
+    return next;
   });
   return { lines: merged, added };
 }
@@ -567,8 +695,33 @@ export function pluralRu(count: number, forms: readonly [string, string, string]
   return forms[2];
 }
 
-export function voiceForSpeaker(speaker: string): 'male' | 'female' {
-  return speaker === 'Макс' ? 'male' : 'female';
+export type HostVoice = 'male' | 'female';
+
+/** Макс говорит мужским голосом, Софья и все остальные — женским. */
+export function voiceForSpeaker(speaker: string): HostVoice {
+  return normalizeSpeaker(speaker) === 'Макс' ? 'male' : 'female';
+}
+
+/**
+ * Голоса ведущих разговора: Макс — мужской, Софья — женский, остальные имена
+ * получают голоса по очереди появления, чтобы два ведущих не звучали одинаково.
+ */
+export function assignVoices(speakers: readonly string[]): Map<string, HostVoice> {
+  const voices = new Map<string, HostVoice>();
+  const others: string[] = [];
+  for (const name of speakers) {
+    const normalized = normalizeSpeaker(name);
+    if (normalized === 'Макс') voices.set(name, 'male');
+    else if (normalized === 'Софья') voices.set(name, 'female');
+    else if (!others.includes(name)) others.push(name);
+  }
+  const taken = new Set(voices.values());
+  let next: HostVoice = taken.has('male') && !taken.has('female') ? 'female' : 'male';
+  for (const name of others) {
+    voices.set(name, next);
+    next = next === 'male' ? 'female' : 'male';
+  }
+  return voices;
 }
 
 export const VISUAL_TYPE_LABELS: Record<Visual['type'], string> = {
@@ -581,8 +734,39 @@ export const VISUAL_TYPE_LABELS: Record<Visual['type'], string> = {
   diagram: 'Схема',
   fact: 'Цитата',
   question: 'Проверьте себя',
-  scene: 'Иллюстрация',
+  scene: 'Тема',
 };
+
+/** Подпись над изображением: цитатой называется только то, что найдено в исходнике слово в слово. */
+export function visualLabel(visual: Visual, provenance: Provenance): string {
+  if (visual.type === 'fact' && provenance.kind !== 'quote') return 'Пересказ';
+  return VISUAL_TYPE_LABELS[visual.type];
+}
+
+/** «фрагмент 3», «фрагменты 3 и 4», «фрагменты 2, 3 и 5» для S03, S04… */
+export function fragmentWords(ids: readonly string[]): string {
+  const numbers = ids.map(id => id.replace(/^S0*/i, '') || '0');
+  if (numbers.length === 1) return `фрагмент ${numbers[0]}`;
+  return `фрагменты ${numbers.slice(0, -1).join(', ')} и ${numbers[numbers.length - 1]}`;
+}
+
+/** Подпись под изображением о его источнике, или null, если сказать нечего. */
+export function provenanceLead(provenance: Provenance): string | null {
+  switch (provenance.kind) {
+    case 'numbers':
+      return 'Числа — из материала';
+    case 'dates':
+      return 'Даты — из материала';
+    case 'quote':
+      return 'Из материала';
+    case 'summary':
+      return 'Из конспекта';
+    case 'cards':
+      return 'Из карточек';
+    default:
+      return null;
+  }
+}
 
 /** Короткая подпись изображения для списка реплик и подсказок. */
 export function visualCaption(visual: Visual): string {

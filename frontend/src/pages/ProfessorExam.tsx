@@ -1157,7 +1157,7 @@ export default function ProfessorExam() {
                                 selectedProfId === 'elizaveta' ? 'female' : 
                                 selectedProfId === 'max' ? 'male' : 'professor';
                               if (ttsState === 'paused') { resumeTTS(); setTtsState('playing'); }
-                              else { playTTS(currentQuestion, voiceRole, () => setTtsState('stopped')); setTtsState('playing'); }
+                              else { playTTS(currentQuestion, voiceRole, () => setTtsState('stopped'), () => setTtsState('stopped')); setTtsState('playing'); }
                             }} className="p-1.5 bg-slate-100 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-slate-600 dark:text-slate-350 transition flex items-center gap-1 text-[9px] font-black uppercase px-2.5 py-1.5 border border-slate-200/40 dark:border-slate-700" title="Зачитать вопрос">
                               <Volume2 className="w-3.5 h-3.5 text-rose-500" /> Озвучить вопрос
                             </button>

@@ -137,20 +137,150 @@ describe('tts', () => {
     expect(revoked).toEqual(['blob:audio-2', 'blob:audio-3']);
   });
 
-  it('remembers a failed line and falls back to the browser voice with one server call', async () => {
+  it('gives a line whose prefetch failed one more server try when it plays, then remembers the failure', async () => {
     fetchMock.mockImplementation(async () => ({ ok: false, status: 502, blob: async () => new Blob() }));
     const tts = await loadTts();
     expect(await tts.prefetchTTS('Строка', 'female')).toBeNull();
 
     await tts.playTTS('Строка', 'female');
     await flush();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     const synth = window.speechSynthesis as unknown as ReturnType<typeof makeSynth>;
     expect(synth.speak).toHaveBeenCalledTimes(1);
 
+    // Сыграть не удалось и самой реплике: до «Повторить» сервер за ней не ходим.
+    await tts.prefetchTTS('Строка', 'female');
+    await tts.playTTS('Строка', 'female');
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
     tts.forgetTTSFailures();
     await tts.prefetchTTS('Строка', 'female');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not pin a line to the browser voice after one busy answer from the server', async () => {
+    let busy = true;
+    fetchMock.mockImplementation(async () => {
+      if (busy) {
+        busy = false;
+        return { ok: false, status: 429, headers: new Headers(), blob: async () => new Blob() };
+      }
+      return { ok: true, status: 200, blob: async () => new Blob(['mp3']) };
+    });
+    const tts = await loadTts();
+    expect(await tts.prefetchTTS('Вторая реплика.', 'female')).toBeNull();
+
+    const onStart = vi.fn();
+    await tts.playTTS('Вторая реплика.', 'female', undefined, undefined, onStart);
+    const synth = window.speechSynthesis as unknown as ReturnType<typeof makeSynth>;
+    expect(synth.speak).not.toHaveBeenCalled();
+    expect(FakeAudio.instances).toHaveLength(1);
+    FakeAudio.instances[0].emit('playing');
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('forgets temporary failures after a minute and never retries a permanent one', async () => {
+    vi.useFakeTimers();
+    const status: Record<string, number> = { 'Длинная': 413, 'Занята': 502 };
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const { text } = JSON.parse(String(init.body));
+      const code = status[text];
+      return code ? { ok: false, status: code, headers: new Headers(), blob: async () => new Blob() } : { ok: true, status: 200, blob: async () => new Blob(['mp3']) };
+    });
+    const tts = await loadTts();
+    await tts.prefetchTTS('Длинная', 'male');
+    await tts.prefetchTTS('Занята', 'male');
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await tts.prefetchTTS('Занята', 'male');
+    await tts.prefetchTTS('Длинная', 'male');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(61_000);
+    delete status['Занята'];
+    expect(await tts.prefetchTTS('Занята', 'male')).toMatch(/^blob:/);
+    expect(await tts.prefetchTTS('Длинная', 'male')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('lets the browser voice speak for half a minute when the server fails twice in a row', async () => {
+    vi.useFakeTimers();
+    let down = true;
+    fetchMock.mockImplementation(async () =>
+      down ? { ok: false, status: 502, headers: new Headers(), blob: async () => new Blob() } : { ok: true, status: 200, blob: async () => new Blob(['mp3']) },
+    );
+    const tts = await loadTts();
+    await tts.prefetchTTS('Первая', 'male');
+    await tts.prefetchTTS('Вторая', 'male');
+    expect(await tts.prefetchTTS('Третья', 'male')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    down = false;
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(await tts.prefetchTTS('Третья', 'male')).toMatch(/^blob:/);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not time out while a line is paused before its sound started', async () => {
+    vi.useFakeTimers();
+    const tts = await loadTts();
+    await tts.prefetchTTS('Следующая реплика', 'female');
+    const onError = vi.fn();
+    const onStart = vi.fn();
+    await tts.playTTS('Следующая реплика', 'female', undefined, onError, onStart);
+    const audio = FakeAudio.instances[0];
+    expect(tts.isTTSSounding()).toBe(true);
+
+    tts.pauseTTS();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(onError).not.toHaveBeenCalled();
+
+    tts.resumeTTS();
+    expect(audio.paused).toBe(false);
+    audio.emit('playing');
+    expect(onStart).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('waits for the sound again after resuming a line that never started', async () => {
+    vi.useFakeTimers();
+    const tts = await loadTts();
+    const onError = vi.fn();
+    await tts.playTTS('Тишина', 'female', undefined, onError);
+    tts.pauseTTS();
+    await vi.advanceTimersByTimeAsync(10_000);
+    tts.resumeTTS();
+    await vi.advanceTimersByTimeAsync(7_900);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0].reason).toBe('timeout');
+  });
+
+  it('does not time out while browser speech is paused before it started', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 502, headers: new Headers(), blob: async () => new Blob() }));
+    const tts = await loadTts();
+    const onError = vi.fn();
+    await tts.playTTS('Браузерный голос', 'male', undefined, onError, vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    const synth = window.speechSynthesis as unknown as ReturnType<typeof makeSynth>;
+    expect(synth.speak).toHaveBeenCalledTimes(1);
+    tts.pauseTTS();
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('ends a line through onEnd when it fails and the caller has no onError', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(() => new Promise(() => undefined));
+    const tts = await loadTts();
+    const onEnd = vi.fn();
+    void tts.playTTS('Вопрос экзамена', 'professor', onEnd);
+    await vi.advanceTimersByTimeAsync(8_100);
+    expect(onEnd).toHaveBeenCalledTimes(1);
   });
 
   it('applies the chosen speed to the browser voice', async () => {

@@ -80,6 +80,11 @@
     outline-offset: 2px;
   }
 
+  /* В тёмной теме --sf-accent на поверхности даёт только 2.7:1; светлый акцент — 5.4:1. */
+  .dark :focus-visible {
+    outline-color: var(--sf-accent-fg);
+  }
+
   /* Safe area for mobile notches */
   .pb-safe {
     padding-bottom: max(8px, env(safe-area-inset-bottom));

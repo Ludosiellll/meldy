@@ -1,5 +1,5 @@
 import { Material } from '../types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Edit3, Check, X, Globe, Lock, MessagesSquare, Zap, BookOpen, Share2, type LucideIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -7,20 +7,30 @@ import { ru } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
-import { getMaterialById, updateMaterialSubject, updateMaterialVisibility, updateMaterialTitle } from '../api/materials';
+import { useAuth } from '../hooks/useAuth';
+import { useConfirm } from '../contexts/ConfirmContext';
+import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
+
+type Mode = 'full' | 'express' | 'podcast';
+
+const PANEL_ID = 'material-mode-panel';
+const tabId = (mode: Mode) => `material-mode-${mode}`;
 
 export default function MaterialDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const { confirm } = useConfirm();
+  const tabRefs = useRef<Partial<Record<Mode, HTMLButtonElement | null>>>({});
   const [material, setMaterial] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState('');
-  const [mode, setMode] = useState<'full' | 'express' | 'podcast'>(  
-    searchParams.get('mode') === 'express' 
+  const [mode, setMode] = useState<Mode>(
+    searchParams.get('mode') === 'express'
       ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
       : 'full'
   );
@@ -56,24 +66,63 @@ export default function MaterialDetail() {
     setEditingTitle(false);
   };
 
-  const shareMaterial = async () => {
-    if (!id) return;
+  /**
+   * Открыть материал всем — заметное решение: текст, конспект и карточки смогут
+   * открыть и скопировать другие студенты. Поэтому сначала спрашиваем, а ссылку
+   * копируем и «В открытых материалах» показываем только после удачной записи.
+   */
+  const confirmPublish = () =>
+    confirm({
+      title: 'Открыть материал по ссылке?',
+      message:
+        'Материал появится в открытых материалах: его текст, конспект и карточки смогут открыть и скопировать другие студенты. Закрыть доступ можно в любой момент.',
+      confirmText: 'Открыть',
+      cancelText: 'Отмена',
+      type: 'warning',
+      icon: Globe,
+    });
+
+  const publish = async (): Promise<boolean> => {
+    if (!id) return false;
+    if (!(await confirmPublish())) return false;
     try {
-      await updateMaterialVisibility(id, true);
-      setMaterial((prev: Material) => ({ ...prev, is_public: true }));
-      await navigator.clipboard.writeText(`${window.location.origin}/shared/${id}`);
-      toast.success('Ссылка скопирована');
+      await setMaterialVisibility(id, true);
     } catch (err) {
       console.error(err);
-      toast.error('Не удалось создать ссылку');
+      toast.error('Не удалось открыть доступ. Попробуйте ещё раз.');
+      return false;
+    }
+    setMaterial((prev: Material) => ({ ...prev, is_public: true }));
+    return true;
+  };
+
+  const shareMaterial = async () => {
+    if (!id || !material) return;
+    const wasPublic = Boolean(material.is_public);
+    if (!wasPublic && !(await publish())) return;
+    const shareUrl = `${window.location.origin}/shared/${id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success(wasPublic ? 'Ссылка скопирована' : 'Доступ открыт, ссылка скопирована');
+    } catch (err) {
+      console.error(err);
+      toast(`Доступ открыт. Ссылка: ${shareUrl}`);
     }
   };
 
   const togglePublic = async () => {
     if (!id || !material) return;
-    const newStatus = !material.is_public;
-    await updateMaterialVisibility(id, newStatus);
-    setMaterial((prev: Material) => ({ ...prev, is_public: newStatus }));
+    if (!material.is_public) {
+      await publish();
+      return;
+    }
+    try {
+      await setMaterialVisibility(id, false);
+      setMaterial((prev: Material) => ({ ...prev, is_public: false }));
+    } catch (err) {
+      console.error(err);
+      toast.error('Не удалось закрыть доступ. Попробуйте ещё раз.');
+    }
   };
 
   if (loading) return (
@@ -90,17 +139,41 @@ export default function MaterialDetail() {
   );
 
   const hasCheatsheet = typeof material.summary_json?.cheatsheet === 'string' && material.summary_json.cheatsheet.trim() !== '';
+  // Менять материал (создавать шпаргалку и разговор, открывать доступ) может только автор:
+  // назначенные преподавателем и чужие открытые материалы только для чтения.
+  const canEdit = Boolean(user?.id) && material.user_id === user?.id;
   // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
   const showExpress = hasCheatsheet || expressRequested;
-  const modes: { id: 'full' | 'express' | 'podcast'; label: string; icon: LucideIcon }[] = [
+  const modes: { id: Mode; label: string; icon: LucideIcon }[] = [
     { id: 'full', label: 'Материал', icon: BookOpen },
     ...(showExpress ? [{ id: 'express' as const, label: 'Кратко', icon: Zap }] : []),
     { id: 'podcast', label: 'Разговор', icon: MessagesSquare },
   ];
 
+  const selectMode = (next: Mode) => {
+    setRevealPlayer(false);
+    setMode(next);
+  };
+
+  // Вкладки по образцу WAI-ARIA: стрелки, Home и End переключают и переносят фокус.
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next = -1;
+    if (event.key === 'ArrowRight') next = (index + 1) % modes.length;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + modes.length) % modes.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = modes.length - 1;
+    if (next < 0) return;
+    event.preventDefault();
+    const target = modes[next].id;
+    selectMode(target);
+    tabRefs.current[target]?.focus();
+  };
+
   const updateMaterialFields = (updatedFields: any) => {
     setMaterial((prev: any) => {
       if (!prev) return prev;
+      // Работа модели могла закончиться, когда на странице уже другой материал: её результат не для него.
+      if (updatedFields?.id && updatedFields.id !== prev.id) return prev;
       return {
         ...prev,
         ...updatedFields,
@@ -179,16 +252,20 @@ export default function MaterialDetail() {
 
         <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 hidden sm:block" />
 
-        <button 
-          onClick={togglePublic}
-          className="flex items-center gap-1.5 rounded-md bg-[var(--sf-surface-soft)] px-2.5 py-1 text-xs font-medium text-[var(--sf-muted)] transition-colors hover:text-[var(--sf-ink)]"
-        >
-          {material.is_public ? (
-            <><Globe className="w-3.5 h-3.5" /> В открытых материалах</>
-          ) : (
-            <><Lock className="w-3.5 h-3.5" /> Только для меня</>
-          )}
-        </button>
+        {canEdit ? (
+          <button
+            onClick={togglePublic}
+            className="flex items-center gap-1.5 rounded-md bg-[var(--sf-surface-soft)] px-2.5 py-1 text-xs font-medium text-[var(--sf-muted)] transition-colors hover:text-[var(--sf-ink)]"
+          >
+            {material.is_public ? (
+              <><Globe className="w-3.5 h-3.5" /> В открытых материалах</>
+            ) : (
+              <><Lock className="w-3.5 h-3.5" /> Только для меня</>
+            )}
+          </button>
+        ) : (
+          <span className="text-xs text-[var(--sf-muted)]">Материал другого автора</span>
+        )}
       </div>
 
       <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
@@ -204,19 +281,23 @@ export default function MaterialDetail() {
             modes.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
           }`}
         >
-          {modes.map(item => {
+          {modes.map((item, index) => {
             const selected = mode === item.id;
             const Icon = item.icon;
             return (
               <button
                 key={item.id}
+                ref={element => {
+                  tabRefs.current[item.id] = element;
+                }}
+                id={tabId(item.id)}
                 type="button"
                 role="tab"
                 aria-selected={selected}
-                onClick={() => {
-                  setRevealPlayer(false);
-                  setMode(item.id);
-                }}
+                aria-controls={PANEL_ID}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => selectMode(item.id)}
+                onKeyDown={event => handleTabKeyDown(event, index)}
                 className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
                   selected
                     ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]'
@@ -229,18 +310,21 @@ export default function MaterialDetail() {
             );
           })}
         </div>
-        <button
-          type="button"
-          onClick={shareMaterial}
-          aria-label="Поделиться"
-          className="ml-auto inline-flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--sf-line)] text-sm font-medium text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)] sm:w-auto sm:px-3"
-        >
-          <Share2 aria-hidden="true" className="h-4 w-4" />
-          <span className="hidden sm:inline">Поделиться</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={shareMaterial}
+            aria-label="Поделиться"
+            className="ml-auto inline-flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--sf-line)] text-sm font-medium text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)] sm:w-auto sm:px-3"
+          >
+            <Share2 aria-hidden="true" className="h-4 w-4" />
+            <span className="hidden sm:inline">Поделиться</span>
+          </button>
+        )}
       </div>
 
       {/* Контент в зависимости от выбранного режима */}
+      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)}>
       {mode === 'full' ? (
         <ResultsPanel
           results={{
@@ -263,12 +347,12 @@ export default function MaterialDetail() {
           summaryJson={material.summary_json}
           flashcards={Array.isArray(material.flashcards_json) ? material.flashcards_json : material.flashcards_json?.flashcards}
           tab={mode === 'podcast' ? 'podcast' : 'cheatsheet'}
-          onTabChange={(next) => setMode(next === 'podcast' ? 'podcast' : 'express')}
-          showTabs={false}
           revealPlayer={revealPlayer}
           onUpdate={updateMaterialFields}
+          canEdit={canEdit}
         />
       )}
+      </div>
 
     </div>
   );

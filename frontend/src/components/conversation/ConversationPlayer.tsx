@@ -1,17 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import {
-  AlertCircle,
-  ChevronDown,
-  LoaderCircle,
-  MessagesSquare,
-  Pause,
-  Play,
-  Shapes,
-  SkipBack,
-  SkipForward,
-} from 'lucide-react';
+import { AlertCircle, ChevronDown, LoaderCircle, Pause, Play, Shapes, SkipBack, SkipForward } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEnergyConfirm } from '../../hooks/useEnergyConfirm';
 import { incrementAIUsage } from '../../api/limits';
@@ -28,29 +18,30 @@ import {
   setTTSPlaybackRate,
   stopTTS,
 } from '../../utils/tts';
-import ConversationVisual, { visualTypeIcon, type OutlineItem } from './ConversationVisual';
+import ConversationVisual, { type OutlineItem } from './ConversationVisual';
 import {
+  assignVoices,
   buildConversation,
   estimateMinutes,
   hasModelVisuals,
   mergeVisualsByIndex,
   parseGeneratedLines,
   pluralLines,
-  VISUAL_TYPE_LABELS,
   visualCaption,
-  voiceForSpeaker,
+  visualLabel,
+  type HostVoice,
 } from './visuals';
 import {
   conversationContext,
   conversationTerms,
   ConversationError,
-  errorMessage,
   loadMaterialSnapshot,
   postJson,
   saveConversationLines,
   VISUALS_CONTEXT_LIMIT,
   VISUALS_MAX_LINES,
 } from './persistence';
+import { isJobRunning, publishLines, runJob, useJobStatus, useLinesFeed } from './jobs';
 import type {
   ConversationFlashcard,
   ConversationLine,
@@ -70,11 +61,16 @@ export interface ConversationPlayerProps {
   onLinesUpdate?: (lines: PodcastLine[]) => void;
   /** Прокрутить к плееру после открытия, если кнопка «Слушать» не видна (переход по ссылке на разговор). */
   revealOnMount?: boolean;
+  /**
+   * Можно ли менять материал: создавать разговор и добавлять схемы. Чужой
+   * материал (назначенный преподавателем, открытый) сохранить нельзя, поэтому
+   * платную работу модели для него не предлагаем.
+   */
+  canEdit?: boolean;
 }
 
 type Playback = 'idle' | 'loading' | 'playing' | 'paused';
 type AudioProblem = 'unavailable' | 'timeout' | 'failed';
-type Job = { state: 'idle' } | { state: 'working' } | { state: 'error'; message: string };
 
 const SPEEDS = [1, 1.25, 1.5, 2] as const;
 
@@ -87,69 +83,41 @@ const AUDIO_MESSAGES: Record<AudioProblem, string> = {
 /** Сколько ждём звук следующей реплики, прежде чем показать загрузку на кнопке. */
 const BUFFERING_DELAY_MS = 400;
 
+const CREATE_FAILED = 'Не удалось создать разговор. Попробуйте ещё раз.';
+const VISUALS_FAILED = 'Не удалось добавить схемы. Попробуйте ещё раз.';
+
+const NBSP = String.fromCharCode(160);
+
+/** Цвет ведущего: один и тот же у имени над субтитрами и в тексте разговора. */
+const VOICE_COLORS: Record<HostVoice, string> = {
+  male: 'var(--sf-voice-a)',
+  female: 'var(--sf-voice-b)',
+};
+
 function speedLabel(rate: number): string {
   return `${String(rate).replace('.', ',')}×`;
 }
 
-function Waveform({ active, reduceMotion }: { active: boolean; reduceMotion: boolean }) {
-  const heights = [6, 11, 15, 10, 7];
+/** Полоски голоса — только пока звук идёт; место под них занято всегда, чтобы имя не прыгало. */
+function Waveform({ speaking, reduceMotion }: { speaking: boolean; reduceMotion: boolean }) {
+  const heights = [5, 9, 12, 8, 6];
   return (
-    <span aria-hidden="true" className="flex h-4 items-center gap-[2px]">
+    <span aria-hidden="true" data-waveform={speaking ? 'on' : 'off'} className={`flex h-3 items-center gap-[2px] ${speaking ? '' : 'invisible'}`}>
       {heights.map((height, index) =>
-        active && !reduceMotion ? (
+        speaking && !reduceMotion ? (
           <motion.span
             key={index}
-            className="block w-[3px] rounded-full bg-[var(--sf-accent-fg)]"
-            style={{ height: 15 }}
-            initial={{ scaleY: height / 15 }}
-            animate={{ scaleY: [height / 15, 1, 0.4, 0.85, height / 15] }}
+            className="block w-[2px] rounded-full bg-current"
+            style={{ height: 12 }}
+            initial={{ scaleY: height / 12 }}
+            animate={{ scaleY: [height / 12, 1, 0.4, 0.85, height / 12] }}
             transition={{ duration: 0.9 + index * 0.13, repeat: Infinity, ease: 'easeInOut' }}
           />
         ) : (
-          <span
-            key={index}
-            className="block w-[3px] rounded-full bg-[var(--sf-accent-fg)] opacity-60"
-            style={{ height }}
-          />
+          <span key={index} className="block w-[2px] rounded-full bg-current" style={{ height }} />
         ),
       )}
     </span>
-  );
-}
-
-function SpeakerRow({
-  speakers,
-  activeSpeaker,
-  speaking,
-  reduceMotion,
-}: {
-  speakers: string[];
-  activeSpeaker: string;
-  speaking: boolean;
-  reduceMotion: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-      {speakers.map(name => {
-        const active = name === activeSpeaker;
-        return (
-          <div key={name} className="flex items-center gap-2" aria-current={active ? 'true' : undefined}>
-            <span
-              aria-hidden="true"
-              className={`grid h-8 w-8 place-items-center rounded-full border text-sm font-semibold transition-colors ${
-                active
-                  ? 'border-[var(--sf-accent-fg)] bg-[var(--sf-accent-soft)] text-[var(--sf-ink)]'
-                  : 'border-[var(--sf-line)] text-[var(--sf-muted)]'
-              }`}
-            >
-              {(name.trim()[0] || '?').toUpperCase()}
-            </span>
-            <span className={`text-sm ${active ? 'font-medium text-[var(--sf-ink)]' : 'text-[var(--sf-muted)]'}`}>{name}</span>
-            {active && <Waveform active={speaking} reduceMotion={reduceMotion} />}
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -183,6 +151,7 @@ export default function ConversationPlayer({
   materialId,
   onLinesUpdate,
   revealOnMount = false,
+  canEdit = true,
 }: ConversationPlayerProps) {
   const { user } = useAuth();
   const { verifyEnergy } = useEnergyConfirm();
@@ -195,7 +164,12 @@ export default function ConversationPlayer({
   useEffect(() => {
     setLocalLines(null);
   }, [propsKey]);
+  // Работа, запущенная до того, как этот плеер открылся (например, на другой вкладке), отдаёт реплики сюда.
+  useLinesFeed(materialId, next => setLocalLines(next));
   const rawLines: readonly unknown[] = localLines ?? (Array.isArray(lines) ? lines : []);
+
+  const createJob = useJobStatus('create', materialId);
+  const visualsJob = useJobStatus('visuals', materialId);
 
   const conversation = useMemo(
     () => buildConversation(rawLines, { title, terms, flashcards, sources }),
@@ -208,8 +182,10 @@ export default function ConversationPlayer({
     conversation.forEach(line => {
       if (line.speaker && !unique.includes(line.speaker)) unique.push(line.speaker);
     });
-    return unique.slice(0, 2);
+    return unique;
   }, [conversation]);
+  const voices = useMemo(() => assignVoices(speakers), [speakers]);
+  const voiceOf = (line: ConversationLine): HostVoice => voices.get(line.speaker) ?? 'female';
   // Каждое изображение один раз: по ним сцена получает высоту самого большого.
   const layers = useMemo(() => conversation.filter(line => !line.carried), [conversation]);
   // План для заставки начала: что появится на экране дальше.
@@ -219,7 +195,7 @@ export default function ConversationPlayer({
         .map((line, position) => ({ line, position }))
         .filter(({ line }) => !line.carried && line.visual.type !== 'scene')
         .slice(0, 5)
-        .map(({ line, position }) => ({ position, type: line.visual.type, caption: visualCaption(line.visual) })),
+        .map(({ line, position }) => ({ position, caption: visualCaption(line.visual) })),
     [conversation],
   );
   const openingFrom = conversation[0]?.visualFrom;
@@ -230,17 +206,19 @@ export default function ConversationPlayer({
   const [rate, setRate] = useState<number>(() => getTTSPlaybackRate());
   const [audioProblem, setAudioProblem] = useState<AudioProblem | null>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
-  const [createJob, setCreateJob] = useState<Job>({ state: 'idle' });
-  const [visualsJob, setVisualsJob] = useState<Job>({ state: 'idle' });
+  const [announcement, setAnnouncement] = useState({ text: '', flip: false });
 
   const runRef = useRef(0);
   const currentRef = useRef(0);
   const restartOnResumeRef = useRef(false);
   const questCountedRef = useRef(false);
-  const busyRef = useRef(false);
   const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesRef = useRef<ConversationLine[]>(conversation);
   linesRef.current = conversation;
+  const voicesRef = useRef(voices);
+  voicesRef.current = voices;
+  const playbackRef = useRef<Playback>(playback);
+  playbackRef.current = playback;
   const listRef = useRef<HTMLOListElement | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
@@ -256,12 +234,42 @@ export default function ConversationPlayer({
     bufferingTimerRef.current = null;
   };
 
+  /** Сообщение для программ чтения с экрана; одинаковый текст подряд тоже должен прозвучать. */
+  const announce = (text: string) => setAnnouncement(previous => ({ text, flip: !previous.flip }));
+
+  const describeLine = (index: number, withText: boolean): string => {
+    const all = linesRef.current;
+    const line = all[index];
+    if (!line) return '';
+    const parts = [`Реплика ${index + 1} из ${all.length}.`];
+    if (withText) parts.push(`${line.speaker || 'Ведущий'}: ${line.text}`);
+    if (!line.carried) parts.push(`На экране: ${visualLabel(line.visual, line.provenance)} — ${visualCaption(line.visual)}.`);
+    return parts.join(' ');
+  };
+
   useEffect(() => {
     if (current >= total && total > 0) {
       currentRef.current = 0;
       setCurrent(0);
     }
   }, [current, total]);
+
+  // Другие реплики (не только новые схемы к тем же): то, что звучало, к ним уже не относится.
+  const textsKey = useMemo(() => JSON.stringify(conversation.map(line => line.text)), [conversation]);
+  const textsKeyRef = useRef(textsKey);
+  useEffect(() => {
+    if (textsKeyRef.current === textsKey) return;
+    textsKeyRef.current = textsKey;
+    if (playbackRef.current !== 'idle') {
+      runRef.current += 1;
+      clearBuffering();
+      stopTTS();
+      setPlayback('idle');
+    }
+    setFinished(false);
+    currentRef.current = 0;
+    setCurrent(0);
+  }, [textsKey]);
 
   // Останавливаем звук, когда плеер исчезает со страницы.
   useEffect(
@@ -300,6 +308,11 @@ export default function ConversationPlayer({
     return () => window.cancelAnimationFrame(frame);
   }, [revealOnMount, total]);
 
+  const voiceAt = (index: number): HostVoice => {
+    const line = linesRef.current[index];
+    return (line && voicesRef.current.get(line.speaker)) || 'female';
+  };
+
   const speak = (index: number, continuing = false) => {
     const all = linesRef.current;
     const line = all[index];
@@ -321,13 +334,11 @@ export default function ConversationPlayer({
       setPlayback('loading');
     }
 
-    const next = all[index + 1];
-    if (next) void Promise.resolve(prefetchTTS(next.text, voiceForSpeaker(next.speaker))).catch(() => undefined);
-
+    // Сначала запрос текущей реплики, потом предзагрузка следующей.
     void Promise.resolve(
       playTTS(
         line.text,
-        voiceForSpeaker(line.speaker),
+        voiceAt(index),
         () => {
           if (run !== runRef.current) return;
           if (index + 1 < linesRef.current.length) {
@@ -338,6 +349,7 @@ export default function ConversationPlayer({
             setPlayback('idle');
             setFinished(true);
             questCountedRef.current = false;
+            announce('Разговор закончился.');
           }
         },
         error => {
@@ -359,6 +371,9 @@ export default function ConversationPlayer({
         },
       ),
     ).catch(() => undefined);
+
+    const next = all[index + 1];
+    if (next) void Promise.resolve(prefetchTTS(next.text, voiceAt(index + 1))).catch(() => undefined);
   };
 
   const stopAt = (index: number) => {
@@ -405,11 +420,24 @@ export default function ConversationPlayer({
     speak(currentRef.current);
   };
 
+  /**
+   * Переход к реплике по выбору пользователя. Пока звук идёт, голос сам прочитает
+   * реплику — программе чтения с экрана достаточно сказать, где мы и что на экране.
+   */
   const seek = (index: number, forcePlay = false) => {
     if (!total) return;
     const target = Math.max(0, Math.min(total - 1, index));
-    if (forcePlay || playback === 'playing' || playback === 'loading') speak(target);
-    else stopAt(target);
+    if (forcePlay || playback === 'playing' || playback === 'loading') {
+      speak(target);
+      announce(describeLine(target, false));
+    } else {
+      stopAt(target);
+      announce(describeLine(target, true));
+    }
+  };
+
+  const focusPlayer = () => {
+    rootRef.current?.focus({ preventScroll: true });
   };
 
   // На телефоне список реплик ниже сцены: после нажатия показываем, что сменилось на экране.
@@ -455,113 +483,128 @@ export default function ConversationPlayer({
     }
   };
 
-  const applyNewLines = (next: unknown[]) => {
-    runRef.current += 1;
-    clearBuffering();
-    stopTTS();
-    setPlayback('idle');
-    setFinished(false);
-    currentRef.current = 0;
-    setCurrent(0);
-    setLocalLines(next);
-    onLinesUpdate?.(next as PodcastLine[]);
-  };
+  /* ── Работа с моделью ───────────────────────────────────────────────────
+   * Состояние работ живёт в jobs.ts, а не в этом плеере: вкладку можно закрыть
+   * и открыть снова, а работа продолжится, не запустится второй раз и отдаст
+   * реплики тому плееру, который будет на экране. Чужой звук работа не трогает. */
+
+  const conversationJobRunning = () => isJobRunning('create', materialId) || isJobRunning('visuals', materialId);
 
   /** Проверка энергии ИИ — та же, что у шпаргалки. При отказе общее окно уже показано. */
-  const energyAllows = async (action: string) => {
-    if (!user?.id) return true;
-    return verifyEnergy(user.id, 5, action);
+  const energyAllows = async (userId: string | undefined, action: string) => {
+    if (!userId) return true;
+    return verifyEnergy(userId, 5, action);
   };
 
-  const createConversation = async () => {
-    if (!materialId || busyRef.current) return;
-    busyRef.current = true;
+  const chargeEnergy = async (userId: string | undefined) => {
+    if (!userId) return;
     try {
-      if (!(await energyAllows('Создание разговора'))) return;
-      setCreateJob({ state: 'working' });
-      const snapshot = await loadMaterialSnapshot(materialId);
-      const context = conversationContext(snapshot);
-      if (!context) throw new ConversationError('В материале слишком мало текста, чтобы составить разговор.');
-      const payload = await postJson('/api/podcast/generate', {
-        context,
-        title: title || '',
-        terms: conversationTerms(snapshot, terms),
-      });
-      const generated = parseGeneratedLines(payload);
-      if (!generated.length) throw new ConversationError('Не получилось составить разговор. Попробуйте ещё раз.');
-      await saveConversationLines(materialId, generated);
-      // Энергию списываем только после успешного сохранения.
-      if (user?.id) await incrementAIUsage(user.id, 5);
-      applyNewLines(generated);
-      setCreateJob({ state: 'idle' });
-      toast.success('Разговор готов');
+      await incrementAIUsage(userId, 5);
     } catch (error) {
-      setCreateJob({ state: 'error', message: errorMessage(error, 'Не удалось создать разговор. Попробуйте ещё раз.') });
-    } finally {
-      busyRef.current = false;
+      // Разговор уже сохранён: ошибка учёта энергии не должна выглядеть как неудача.
+      console.warn('incrementAIUsage failed', error);
     }
   };
 
-  const addVisuals = async () => {
-    if (!materialId || busyRef.current) return;
-    busyRef.current = true;
-    try {
-      if (!(await energyAllows('Подбор схем'))) return;
-      setVisualsJob({ state: 'working' });
-      const snapshot = await loadMaterialSnapshot(materialId);
-      const stored = Array.isArray(snapshot.summaryJson.podcast) ? (snapshot.summaryJson.podcast as unknown[]) : [];
-      const base = stored.length ? stored : [...rawLines];
-      const payload = await postJson('/api/podcast/visuals', {
-        // Сервер принимает до 40 реплик; индексы первых 40 совпадают с исходными.
-        lines: base.slice(0, VISUALS_MAX_LINES).map(item => {
-          const line = (typeof item === 'object' && item !== null ? item : {}) as Record<string, unknown>;
-          const out: Record<string, unknown> = {
-            speaker: typeof line.speaker === 'string' ? line.speaker : '',
-            text: typeof line.text === 'string' ? line.text : '',
-          };
-          if (Array.isArray(line.source_ids)) out.source_ids = line.source_ids;
-          return out;
-        }),
-        context: conversationContext(snapshot, VISUALS_CONTEXT_LIMIT),
-        terms: conversationTerms(snapshot, terms),
-      });
-      const { lines: merged, added } = mergeVisualsByIndex(base, payload);
-      if (!added) throw new ConversationError('Не получилось подобрать схемы. Попробуйте ещё раз.');
-      await saveConversationLines(materialId, merged);
-      if (user?.id) await incrementAIUsage(user.id, 5);
-      applyNewLines(merged);
-      setVisualsJob({ state: 'idle' });
-      toast.success('Схемы добавлены');
-    } catch (error) {
-      setVisualsJob({ state: 'error', message: errorMessage(error, 'Не удалось добавить схемы. Попробуйте ещё раз.') });
-    } finally {
-      busyRef.current = false;
-    }
+  const createConversation = () => {
+    if (!materialId || !canEdit || conversationJobRunning()) return;
+    const id = materialId;
+    const userId = user?.id;
+    const deliver = onLinesUpdate;
+    const materialTitle = title || '';
+    const fallbackTerms = terms;
+    void runJob(
+      'create',
+      id,
+      async begin => {
+        if (!(await energyAllows(userId, 'Создание разговора'))) return;
+        begin();
+        const snapshot = await loadMaterialSnapshot(id);
+        const context = conversationContext(snapshot);
+        if (!context) throw new ConversationError('В материале слишком мало текста, чтобы составить разговор.');
+        const payload = await postJson('/api/podcast/generate', {
+          context,
+          title: materialTitle,
+          terms: conversationTerms(snapshot, fallbackTerms),
+        });
+        const generated = parseGeneratedLines(payload);
+        if (!generated.length) throw new ConversationError('Не получилось составить разговор. Попробуйте ещё раз.');
+        await saveConversationLines(id, generated);
+        // Энергию списываем только после успешного сохранения.
+        await chargeEnergy(userId);
+        publishLines(id, generated);
+        deliver?.(generated);
+        toast.success('Разговор готов');
+      },
+      CREATE_FAILED,
+    );
+  };
+
+  const addVisuals = () => {
+    if (!materialId || !canEdit || conversationJobRunning()) return;
+    const id = materialId;
+    const userId = user?.id;
+    const deliver = onLinesUpdate;
+    const shownLines = [...rawLines];
+    const fallbackTerms = terms;
+    void runJob(
+      'visuals',
+      id,
+      async begin => {
+        if (!(await energyAllows(userId, 'Подбор схем'))) return;
+        begin();
+        const snapshot = await loadMaterialSnapshot(id);
+        const stored = Array.isArray(snapshot.summaryJson.podcast) ? (snapshot.summaryJson.podcast as unknown[]) : [];
+        const base = stored.length ? stored : shownLines;
+        const payload = await postJson('/api/podcast/visuals', {
+          // Сервер принимает до 40 реплик; индексы первых 40 совпадают с исходными.
+          lines: base.slice(0, VISUALS_MAX_LINES).map(item => {
+            const line = (typeof item === 'object' && item !== null ? item : {}) as Record<string, unknown>;
+            const out: Record<string, unknown> = {
+              speaker: typeof line.speaker === 'string' ? line.speaker : '',
+              text: typeof line.text === 'string' ? line.text : '',
+            };
+            if (Array.isArray(line.source_ids)) out.source_ids = line.source_ids;
+            return out;
+          }),
+          context: conversationContext(snapshot, VISUALS_CONTEXT_LIMIT),
+          terms: conversationTerms(snapshot, fallbackTerms),
+        });
+        const { lines: merged, added } = mergeVisualsByIndex(base, payload);
+        if (!added) throw new ConversationError('Не получилось подобрать схемы. Попробуйте ещё раз.');
+        await saveConversationLines(id, merged);
+        await chargeEnergy(userId);
+        publishLines(id, merged);
+        deliver?.(merged as PodcastLine[]);
+        toast.success('Схемы добавлены');
+      },
+      VISUALS_FAILED,
+    );
   };
 
   /* ── Пустое состояние ─────────────────────────────────────────────────── */
 
   if (!total || !active) {
+    const creating = createJob.state === 'working';
     return (
       <section
         aria-label="Разговор по материалу"
-        className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-10 text-center sm:px-8"
+        className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-6 py-8 text-[var(--sf-ink)]"
       >
-        <MessagesSquare aria-hidden="true" strokeWidth={1.5} className="mx-auto h-10 w-10 text-[var(--sf-muted)]" />
-        <h2 className="mt-4 text-base font-semibold text-[var(--sf-ink)]">Для этого материала разговор ещё не создан</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--sf-muted)]">
-          Два ведущих обсудят материал простыми словами, а на экране будут появляться схемы, термины и факты из
-          источника.
+        <h2 className="text-lg font-semibold leading-snug">Для этого материала разговор ещё не создан</h2>
+        <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-[var(--sf-muted)]">
+          Два ведущих, Макс и Софья, обсудят материал простыми словами, а на экране будут появляться схемы, графики и
+          термины из него.
         </p>
-        {materialId ? (
-          <div className="mt-6 flex flex-col items-center gap-4">
+        {materialId && canEdit ? (
+          <div className="mt-6 flex flex-col items-start gap-4">
             <button
               type="button"
               onClick={createConversation}
-              disabled={createJob.state === 'working'}
+              disabled={creating}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)] disabled:cursor-wait disabled:opacity-70"
             >
-              {createJob.state === 'working' ? (
+              {creating ? (
                 <>
                   <Spinner />
                   Составляем разговор…
@@ -573,7 +616,11 @@ export default function ConversationPlayer({
             {createJob.state === 'error' && <JobError message={createJob.message} onRetry={createConversation} />}
           </div>
         ) : (
-          <p className="mt-5 text-xs text-[var(--sf-muted)]">Разговор можно создать на странице материала в библиотеке.</p>
+          <p className="mt-5 text-sm text-[var(--sf-muted)]">
+            {materialId
+              ? 'Разговор может создать только автор материала.'
+              : 'Разговор можно создать на странице материала в библиотеке.'}
+          </p>
         )}
       </section>
     );
@@ -583,8 +630,17 @@ export default function ConversationPlayer({
 
   const isSpeaking = playback === 'playing';
   const isLoading = playback === 'loading';
-  const canAddVisuals = Boolean(materialId) && !modelVisuals;
+  const canAddVisuals = Boolean(materialId) && canEdit && !modelVisuals;
+  const addingVisuals = visualsJob.state === 'working';
   const playLabel = isLoading ? 'Загружаем звук' : isSpeaking ? 'Пауза' : playback === 'paused' ? 'Продолжить' : 'Слушать';
+  const activeColor = VOICE_COLORS[voiceOf(active)];
+  const meta = [
+    speakers.length ? speakers.slice(0, 3).join(' и ') : null,
+    pluralLines(total),
+    minutes ? `около ${minutes} мин` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <section
@@ -593,34 +649,34 @@ export default function ConversationPlayer({
       aria-keyshortcuts="Space K ArrowLeft ArrowRight"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="group/player scroll-mt-4 overflow-clip rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] text-[var(--sf-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--sf-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sf-canvas)]"
+      className="group/player scroll-mt-4 overflow-clip rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] text-[var(--sf-ink)] outline-none [--sf-voice-a:#0868b2] [--sf-voice-b:#a84a22] focus-visible:ring-2 focus-visible:ring-[var(--sf-accent-fg)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sf-canvas)] dark:[--sf-voice-a:#6cb0e6] dark:[--sf-voice-b:#e5936d]"
     >
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--sf-line)] px-4 py-2.5 sm:px-5">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-[var(--sf-ink)]">Разговор по материалу</h2>
-          <p className="mt-0.5 text-xs text-[var(--sf-muted)]">
-            {pluralLines(total)}
-            {minutes ? ` · около ${minutes} мин` : ''}
-          </p>
-        </div>
+        <h2 className="sr-only">Разговор по материалу</h2>
+        <p className="min-w-0 text-[13px] leading-8 text-[var(--sf-muted)]">{meta}</p>
         {canAddVisuals && (
           <button
             type="button"
             onClick={addVisuals}
-            disabled={visualsJob.state === 'working'}
+            disabled={addingVisuals}
             className={`${SECONDARY_BUTTON} disabled:cursor-wait disabled:opacity-70`}
           >
-            {visualsJob.state === 'working' ? <Spinner /> : <Shapes aria-hidden="true" className="h-4 w-4" />}
-            {visualsJob.state === 'working' ? 'Подбираем схемы…' : 'Добавить схемы'}
+            {addingVisuals ? <Spinner /> : <Shapes aria-hidden="true" className="h-4 w-4" />}
+            {addingVisuals ? 'Подбираем схемы…' : 'Добавить схемы'}
           </button>
         )}
       </header>
 
-      {visualsJob.state === 'error' && (
+      {visualsJob.state === 'error' && canAddVisuals && (
         <div className="border-b border-[var(--sf-line)] px-4 py-2.5 sm:px-5">
           <JobError message={visualsJob.message} onRetry={addVisuals} />
         </div>
       )}
+
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {announcement.text}
+        {announcement.flip ? NBSP : ''}
+      </p>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 lg:border-r lg:border-[var(--sf-line)]">
@@ -628,6 +684,7 @@ export default function ConversationPlayer({
             {/*
               Все изображения разговора лежат в одной ячейке сетки невидимыми копиями,
               поэтому сцена сразу получает высоту самого большого и не прыгает между репликами.
+              Изображения прижаты к верху: заголовок каждого стоит на одном месте.
             */}
             <div className="grid grid-cols-1 grid-rows-1">
               {layers.map(layer => (
@@ -640,7 +697,8 @@ export default function ConversationPlayer({
                   <ConversationVisual
                     visual={layer.visual}
                     origin={layer.origin}
-                    sourceIds={layer.visualSourceIds}
+                    provenance={layer.provenance}
+                    sources={sources}
                     outline={outline}
                     opening={layer.visualFrom === openingFrom}
                     measure
@@ -658,23 +716,26 @@ export default function ConversationPlayer({
                 <ConversationVisual
                   visual={active.visual}
                   origin={active.origin}
-                  sourceIds={active.visualSourceIds}
+                  provenance={active.provenance}
+                  sources={sources}
                   outline={outline}
                   opening={active.visualFrom === openingFrom}
-                  onSeek={position => seek(position)}
+                  onSeek={position => {
+                    seek(position);
+                    // Строка плана исчезает вместе со сценой: фокус остаётся в плеере, клавиши работают.
+                    focusPlayer();
+                  }}
                 />
               </motion.div>
             </div>
           </section>
 
           <section aria-label="Субтитры" className="border-t border-[var(--sf-line)] px-4 py-4 sm:px-6">
-            <SpeakerRow
-              speakers={speakers}
-              activeSpeaker={active.speaker}
-              speaking={isSpeaking}
-              reduceMotion={reduceMotion}
-            />
-            <p className="mt-3 min-h-[calc(4*1.6*1.0625rem)] max-w-[62ch] text-[17px] leading-[1.6] text-[var(--sf-ink)] sm:min-h-[calc(3*1.6*1.25rem)] sm:text-xl">
+            <p data-speaker={active.speaker || 'Ведущий'} className="flex items-center gap-2 text-[13px] font-semibold leading-5" style={{ color: activeColor }}>
+              <span>{active.speaker || 'Ведущий'}</span>
+              <Waveform speaking={isSpeaking} reduceMotion={reduceMotion} />
+            </p>
+            <p className="mt-1.5 min-h-[calc(4*1.6*1.0625rem)] max-w-[62ch] text-[17px] leading-[1.6] text-[var(--sf-ink)] sm:min-h-[calc(3*1.6*1.25rem)] sm:text-xl">
               {active.text}
             </p>
           </section>
@@ -700,8 +761,8 @@ export default function ConversationPlayer({
                       index === safeIndex
                         ? 'h-1.5 bg-[var(--sf-accent-fg)]'
                         : index < safeIndex
-                          ? 'h-1 bg-[var(--sf-muted)]'
-                          : 'h-1 bg-[color-mix(in_srgb,var(--sf-muted)_30%,var(--sf-surface))] [@media(hover:hover)]:group-hover/seg:bg-[color-mix(in_srgb,var(--sf-muted)_65%,var(--sf-surface))]'
+                          ? 'h-1 bg-[color-mix(in_srgb,var(--sf-ink)_30%,var(--sf-surface))]'
+                          : 'h-1 bg-[var(--sf-line)] [@media(hover:hover)]:group-hover/seg:bg-[color-mix(in_srgb,var(--sf-ink)_30%,var(--sf-surface))]'
                     }`}
                   />
                 </button>
@@ -718,13 +779,14 @@ export default function ConversationPlayer({
               >
                 <SkipBack aria-hidden="true" className="h-5 w-5" />
               </button>
+              {/* Главное действие плеера — с ощутимым нажатием, как у главных кнопок приложения. */}
               <button
                 ref={playRef}
                 type="button"
                 onClick={togglePlay}
                 aria-label={playLabel}
                 title="K — пауза"
-                className="grid h-12 w-12 place-items-center rounded-full bg-[var(--sf-accent)] text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_70%,#000)] transition-[transform,box-shadow,background-color] duration-100 hover:bg-[var(--sf-accent-hover)] active:translate-y-[2px] active:shadow-[0_1px_0_color-mix(in_srgb,var(--sf-accent)_70%,#000)] motion-reduce:transition-none motion-reduce:active:translate-y-0"
+                className="grid h-12 w-12 place-items-center rounded-full bg-[var(--sf-accent)] text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition-[transform,box-shadow,background-color] duration-100 hover:bg-[var(--sf-accent-hover)] active:translate-y-[2px] active:shadow-[0_1px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] motion-reduce:transition-none motion-reduce:active:translate-y-0 dark:shadow-[0_2px_0_color-mix(in_srgb,var(--sf-accent)_60%,var(--sf-canvas))] dark:active:shadow-none"
               >
                 {isLoading ? (
                   <Spinner className="h-5 w-5" />
@@ -821,7 +883,8 @@ export default function ConversationPlayer({
           >
             {conversation.map((line, index) => {
               const isActive = index === safeIndex;
-              const VisualIcon = visualTypeIcon(line.visual.type);
+              const color = VOICE_COLORS[voiceOf(line)];
+              const onScreen = line.carried ? null : `${visualLabel(line.visual, line.provenance)} — ${visualCaption(line.visual)}`;
               return (
                 <li key={line.index} data-line={index} className="border-b border-[var(--sf-line)] last:border-b-0">
                   <button
@@ -831,31 +894,19 @@ export default function ConversationPlayer({
                       revealScene();
                     }}
                     aria-current={isActive ? 'true' : undefined}
-                    className={`flex w-full items-start gap-3 border-l-2 px-4 py-3 text-left transition-colors ${
+                    title={onScreen ? `На экране: ${onScreen}` : undefined}
+                    className={`block w-full border-l-2 px-4 py-3 text-left transition-colors ${
                       isActive
-                        ? 'border-[var(--sf-accent-fg)] bg-[var(--sf-accent-soft)]'
+                        ? 'bg-[var(--sf-surface-soft)]'
                         : 'border-transparent [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]'
                     }`}
+                    style={isActive ? { borderLeftColor: color } : undefined}
                   >
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={`block text-xs font-semibold ${
-                          isActive ? 'text-[var(--sf-ink)]' : 'text-[var(--sf-muted)]'
-                        }`}
-                      >
-                        {line.speaker || 'Ведущий'}
-                      </span>
-                      <span className="mt-0.5 block text-sm leading-relaxed text-[var(--sf-ink)]">{line.text}</span>
+                    <span className="block text-xs font-semibold" style={{ color }}>
+                      {line.speaker || 'Ведущий'}
                     </span>
-                    {!line.carried && (
-                      <span
-                        className="mt-0.5 shrink-0 text-[var(--sf-muted)]"
-                        title={`На экране: ${VISUAL_TYPE_LABELS[line.visual.type]} — ${visualCaption(line.visual)}`}
-                      >
-                        <VisualIcon aria-hidden={true} className="h-4 w-4" strokeWidth={1.75} />
-                        <span className="sr-only">{`На экране: ${VISUAL_TYPE_LABELS[line.visual.type]}`}</span>
-                      </span>
-                    )}
+                    <span className="mt-0.5 block text-sm leading-relaxed text-[var(--sf-ink)]">{line.text}</span>
+                    {onScreen && <span className="sr-only">{`На экране: ${onScreen}`}</span>}
                   </button>
                 </li>
               );

@@ -1,16 +1,14 @@
-import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { FileText, LoaderCircle, Share2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { AlertCircle, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { useConfirm } from '../contexts/ConfirmContext';
-import { supabase } from '../lib/supabase';
 import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
+import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
+import { runJob, useJobStatus } from './conversation/jobs';
 import type { ConversationFlashcard, PodcastLine } from './conversation/types';
 
 export type ExpressTab = 'cheatsheet' | 'podcast';
@@ -22,29 +20,21 @@ interface ExpressPrepViewProps {
   originalText?: string;
   /** Карточки материала (flashcards_json.flashcards) — помогают подобрать вопросы к репликам. */
   flashcards?: ConversationFlashcard[] | null;
+  /**
+   * Родитель сливает summary_json сам, поэтому сюда приходят только изменённые
+   * ключи ({ id, summary_json: { cheatsheet } } или { id, summary_json: { podcast } }).
+   * id — материал, для которого работа делалась: страница могла уже показать другой.
+   */
   onUpdate?: (updatedFields: any) => void;
-  /** Начальная вкладка, если компонент управляет вкладками сам. */
-  initialTab?: ExpressTab;
-  /** Управляемая вкладка (вместе с onTabChange). */
-  tab?: ExpressTab;
-  onTabChange?: (tab: ExpressTab) => void;
-  /** Скрыть переключатель вкладок и «Поделиться», когда их показывает страница. */
-  showTabs?: boolean;
+  /** Вкладка, которую выбрала страница («Кратко» или «Разговор»). */
+  tab: ExpressTab;
   /** Прокрутить к плееру разговора после открытия (переход по ссылке на разговор). */
   revealPlayer?: boolean;
+  /** Можно ли менять материал (создавать шпаргалку и разговор): только у своего материала. */
+  canEdit?: boolean;
 }
 
-const TABS: { id: ExpressTab; label: string }[] = [
-  { id: 'cheatsheet', label: 'Шпаргалка' },
-  { id: 'podcast', label: 'Разговор' },
-];
-
-/** summary_json без служебных полей интерфейса — только то, что можно сохранять. */
-function storableSummary(summaryJson: any): Record<string, unknown> {
-  const next: Record<string, unknown> = { ...(summaryJson && typeof summaryJson === 'object' ? summaryJson : {}) };
-  delete next._startTab;
-  return next;
-}
+const CHEATSHEET_FAILED = 'Не удалось создать шпаргалку. Попробуйте ещё раз.';
 
 const MARKDOWN_CLASSES = [
   'text-[15px] leading-relaxed text-[var(--sf-ink)]',
@@ -70,15 +60,15 @@ export default function ExpressPrepView({
   originalText,
   flashcards,
   onUpdate,
-  initialTab,
-  tab: controlledTab,
-  onTabChange,
-  showTabs = true,
+  tab,
   revealPlayer = false,
+  canEdit = true,
 }: ExpressPrepViewProps) {
   const { user } = useAuth();
-  const { alert } = useConfirm();
   const { verifyEnergy } = useEnergyConfirm();
+  // Шпаргалка составляется 10–30 секунд, а вкладку можно сменить: состояние работы живёт вне компонента.
+  const cheatsheetJob = useJobStatus('cheatsheet', materialId);
+  const isGenerating = cheatsheetJob.state === 'working';
 
   const cheatsheet: string = typeof summaryJson?.cheatsheet === 'string' ? summaryJson.cheatsheet : '';
   const podcastLines: unknown[] = Array.isArray(summaryJson?.podcast) ? summaryJson.podcast : [];
@@ -88,167 +78,114 @@ export default function ExpressPrepView({
   const sources = Array.isArray(summaryJson?.grounding?.sources) ? summaryJson.grounding.sources : undefined;
   const title: string = materialTitle || summaryJson?.title || '';
 
-  const [ownTab, setOwnTab] = useState<ExpressTab>(
-    initialTab ?? (summaryJson?._startTab === 'podcast' ? 'podcast' : 'cheatsheet'),
-  );
-  const tab = controlledTab ?? ownTab;
-  const selectTab = (next: ExpressTab) => {
-    setOwnTab(next);
-    onTabChange?.(next);
-  };
-
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const handleCreateCheatsheet = async () => {
-    if (!materialId || isGenerating) return;
-    setIsGenerating(true);
-
+  const handleCreateCheatsheet = () => {
+    if (!materialId || !canEdit) return;
+    const id = materialId;
+    const userId = user?.id;
     const context = (originalText || summaryJson?.content || '').slice(0, 15000);
-    if (!context.trim()) {
-      await alert({ title: 'Ошибка', message: 'Недостаточно текста для шпаргалки.', type: 'danger' });
-      setIsGenerating(false);
-      return;
-    }
-
-    if (user?.id) {
-      const ok = await verifyEnergy(user.id, 5, 'Создание шпаргалки');
-      if (!ok) {
-        setIsGenerating(false);
-        return;
-      }
-    }
-
-    try {
-      const res = await fetch('/api/quick-prep', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context }),
-      });
-      if (!res.ok) throw new Error(`quick-prep ${res.status}`);
-      const d = await res.json();
-      if (!d.cheatsheet) throw new Error('empty cheatsheet');
-
-      const nextSummary = { ...storableSummary(summaryJson), cheatsheet: d.cheatsheet };
-      const { error } = await supabase.from('materials').update({ summary_json: nextSummary }).eq('id', materialId);
-      if (error) throw error;
-
-      // Списываем энергию только после успешного сохранения.
-      if (user?.id) await incrementAIUsage(user.id, 5);
-      onUpdate?.({ summary_json: nextSummary });
-    } catch (err) {
-      console.error(err);
-      await alert({ title: 'Ошибка', message: 'Не удалось создать шпаргалку. Попробуйте ещё раз.', type: 'danger' });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleShare = async () => {
-    if (!materialId) return;
-    try {
-      const { error } = await supabase.from('materials').update({ is_public: true }).eq('id', materialId);
-      if (error) throw error;
-      const shareUrl = `${window.location.origin}/shared/${materialId}`;
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Ссылка скопирована');
-    } catch (err) {
-      console.error(err);
-      toast.error('Не удалось создать ссылку');
-    }
+    const deliver = onUpdate;
+    void runJob(
+      'cheatsheet',
+      id,
+      async begin => {
+        if (!context.trim()) throw new ConversationError('Недостаточно текста для шпаргалки.');
+        if (userId && !(await verifyEnergy(userId, 5, 'Создание шпаргалки'))) return;
+        begin();
+        const payload = (await postJson('/api/quick-prep', { context })) as { cheatsheet?: unknown } | null;
+        const next = typeof payload?.cheatsheet === 'string' ? payload.cheatsheet.trim() : '';
+        if (!next) throw new ConversationError(CHEATSHEET_FAILED);
+        // Меняется только cheatsheet: разговор, сохранённый за это время, остаётся.
+        await saveCheatsheet(id, next);
+        // Списываем энергию только после успешного сохранения.
+        if (userId) {
+          try {
+            await incrementAIUsage(userId, 5);
+          } catch (error) {
+            console.warn('incrementAIUsage failed', error);
+          }
+        }
+        deliver?.({ id, summary_json: { cheatsheet: next } });
+      },
+      CHEATSHEET_FAILED,
+    );
   };
 
   // Родитель сливает summary_json сам, поэтому передаём только реплики: устаревшая
   // копия остальных полей не должна затереть то, что изменилось за это время.
   const handleLinesUpdate = (lines: PodcastLine[]) => {
-    onUpdate?.({ summary_json: { podcast: lines } });
+    onUpdate?.({ id: materialId, summary_json: { podcast: lines } });
   };
 
-  return (
-    <div className="space-y-5">
-      {showTabs && (
-        <div className="flex items-center justify-between gap-3">
-          <div role="tablist" aria-label="Режим" className="flex rounded-lg border border-[var(--sf-line)] p-0.5">
-            {TABS.map(item => {
-              const selected = tab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => selectTab(item.id)}
-                  className={`h-8 rounded-md px-3 text-sm font-medium transition-colors ${
-                    selected
-                      ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]'
-                      : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-          {materialId && (
-            <button
-              type="button"
-              onClick={handleShare}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--sf-line)] px-3 text-sm font-medium text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)]"
-            >
-              <Share2 aria-hidden="true" className="h-4 w-4" />
-              Поделиться
-            </button>
-          )}
-        </div>
-      )}
+  if (tab === 'podcast') {
+    return (
+      <ConversationPlayer
+        lines={podcastLines}
+        title={title}
+        terms={terms}
+        flashcards={cards}
+        sources={sources}
+        materialId={materialId}
+        onLinesUpdate={handleLinesUpdate}
+        revealOnMount={revealPlayer}
+        canEdit={canEdit}
+      />
+    );
+  }
 
-      {tab === 'cheatsheet' &&
-        (cheatsheet.trim() ? (
-          <article className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6 sm:px-8 sm:py-8">
-            <header className="mb-5 border-b border-[var(--sf-line)] pb-4">
-              <h2 className="text-lg font-semibold text-[var(--sf-ink)]">Шпаргалка</h2>
-              <p className="mt-0.5 text-xs text-[var(--sf-muted)]">Главное из материала для быстрого повторения</p>
-            </header>
-            <div className={MARKDOWN_CLASSES}>
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                {cheatsheet}
-              </ReactMarkdown>
-            </div>
-          </article>
-        ) : (
-          <section className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-10 text-center sm:px-8">
-            <FileText aria-hidden="true" strokeWidth={1.5} className="mx-auto h-10 w-10 text-[var(--sf-muted)]" />
-            <h2 className="mt-4 text-base font-semibold text-[var(--sf-ink)]">Шпаргалка ещё не создана</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--sf-muted)]">
-              Соберём главное из материала: определения, формулы и частые ошибки на экзамене.
-            </p>
-            {materialId ? (
+  if (cheatsheet.trim()) {
+    return (
+      <article className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6 sm:px-8 sm:py-8">
+        <header className="mb-5 border-b border-[var(--sf-line)] pb-4">
+          <h2 className="text-lg font-semibold text-[var(--sf-ink)]">Шпаргалка</h2>
+          <p className="mt-0.5 text-[13px] text-[var(--sf-muted)]">Главное из материала для быстрого повторения</p>
+        </header>
+        <div className={MARKDOWN_CLASSES}>
+          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+            {cheatsheet}
+          </ReactMarkdown>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <section className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-6 py-8 text-[var(--sf-ink)]">
+      <h2 className="text-lg font-semibold leading-snug">Шпаргалка ещё не создана</h2>
+      <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-[var(--sf-muted)]">
+        Соберём главное из материала: определения, формулы и частые ошибки на экзамене.
+      </p>
+      {materialId && canEdit ? (
+        <div className="mt-6 flex flex-col items-start gap-4">
+          <button
+            type="button"
+            onClick={handleCreateCheatsheet}
+            disabled={isGenerating}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)] disabled:cursor-wait disabled:opacity-70"
+          >
+            {isGenerating && <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+            {isGenerating ? 'Составляем шпаргалку…' : 'Создать шпаргалку'}
+          </button>
+          {cheatsheetJob.state === 'error' && (
+            <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[var(--sf-ink)]">
+              <span className="inline-flex items-center gap-1.5">
+                <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" />
+                {cheatsheetJob.message}
+              </span>
               <button
                 type="button"
                 onClick={handleCreateCheatsheet}
-                disabled={isGenerating}
-                className="mx-auto mt-6 inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)] disabled:cursor-wait disabled:opacity-70"
+                className="inline-flex h-8 items-center rounded-lg border border-[var(--sf-line)] px-3 text-sm font-medium text-[var(--sf-ink)] transition-colors [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]"
               >
-                {isGenerating && <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
-                {isGenerating ? 'Составляем шпаргалку…' : 'Создать шпаргалку'}
+                Повторить
               </button>
-            ) : (
-              <p className="mt-5 text-xs text-[var(--sf-muted)]">Шпаргалку можно создать на странице материала в библиотеке.</p>
-            )}
-          </section>
-        ))}
-
-      {tab === 'podcast' && (
-        <ConversationPlayer
-          lines={podcastLines}
-          title={title}
-          terms={terms}
-          flashcards={cards}
-          sources={sources}
-          materialId={materialId}
-          onLinesUpdate={handleLinesUpdate}
-          revealOnMount={revealPlayer}
-        />
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="mt-5 text-sm text-[var(--sf-muted)]">
+          {materialId ? 'Шпаргалку может создать только автор материала.' : 'Шпаргалку можно создать на странице материала в библиотеке.'}
+        </p>
       )}
-    </div>
+    </section>
   );
 }

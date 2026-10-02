@@ -3,6 +3,10 @@ import type { DiagramVisual } from './types';
 import { layoutDiagram } from './diagramLayout';
 import { useElementWidth } from './useElementWidth';
 
+/** Линии и стрелки: спокойнее текста, но не тоньше 3:1 к фону в обеих темах. */
+const EDGE_COLOR = 'color-mix(in srgb, var(--sf-ink) 52%, var(--sf-surface))';
+const BOX_STROKE = 'color-mix(in srgb, var(--sf-ink) 38%, var(--sf-surface))';
+
 export default function DiagramView({ visual }: { visual: DiagramVisual }) {
   const [ref, measured] = useElementWidth<HTMLDivElement>(560);
   const reactId = useId().replace(/:/g, '');
@@ -29,20 +33,30 @@ export default function DiagramView({ visual }: { visual: DiagramVisual }) {
         role="img"
         aria-labelledby={`${titleId} ${descId}`}
         className="block max-w-full overflow-visible"
+        data-diagram-kind={layout.kind}
       >
         <title id={titleId}>{visual.title}</title>
         <desc id={descId}>{description}</desc>
         <defs>
+          {/* Открытый шеврон: острие кончается ровно в конце линии. */}
           <marker
             id={markerId}
             viewBox="0 0 10 10"
-            refX="8"
+            refX="8.5"
             refY="5"
-            markerWidth="7"
-            markerHeight="7"
+            markerUnits="userSpaceOnUse"
+            markerWidth="9"
+            markerHeight="9"
             orient="auto-start-reverse"
           >
-            <path d="M0,1 L9,5 L0,9 Z" style={{ fill: 'var(--sf-muted)' }} />
+            <path
+              d="M2.5,1.5 L8.5,5 L2.5,8.5"
+              fill="none"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ stroke: EDGE_COLOR }}
+            />
           </marker>
         </defs>
 
@@ -52,8 +66,9 @@ export default function DiagramView({ visual }: { visual: DiagramVisual }) {
             d={edge.d}
             fill="none"
             strokeWidth={1.5}
+            strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ stroke: 'var(--sf-muted)' }}
+            style={{ stroke: EDGE_COLOR }}
             markerEnd={`url(#${markerId})`}
           />
         ))}
@@ -67,12 +82,9 @@ export default function DiagramView({ visual }: { visual: DiagramVisual }) {
                 y={box.y}
                 width={box.w}
                 height={box.h}
-                rx={8}
+                rx={4}
                 strokeWidth={1}
-                style={{
-                  fill: 'var(--sf-surface-soft)',
-                  stroke: 'color-mix(in srgb, var(--sf-ink) 18%, var(--sf-surface))',
-                }}
+                style={{ fill: 'var(--sf-surface)', stroke: BOX_STROKE }}
               />
               <text
                 x={box.x + box.w / 2}
@@ -80,7 +92,6 @@ export default function DiagramView({ visual }: { visual: DiagramVisual }) {
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontSize={13}
-                fontWeight={500}
                 style={{ fill: 'var(--sf-ink)' }}
               >
                 {box.lines.map((line, index) => (

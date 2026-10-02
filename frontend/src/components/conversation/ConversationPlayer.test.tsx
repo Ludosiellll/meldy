@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ConversationPlayer from './ConversationPlayer';
+import { resetJobsForTests } from './jobs';
 
 const tts = vi.hoisted(() => ({
   playTTS: vi.fn(),
@@ -86,6 +87,7 @@ describe('ConversationPlayer', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetJobsForTests();
     tts.getTTSPlaybackRate.mockReturnValue(1);
     tts.isTTSSounding.mockReturnValue(false);
     tts.prefetchTTS.mockResolvedValue(null);
@@ -113,13 +115,13 @@ describe('ConversationPlayer', () => {
       expect(within(transcript).getByText(line.text)).toBeInTheDocument();
     }
     expect(screen.getByText('Реплика 1 из 4')).toBeInTheDocument();
-    expect(screen.getByText('4 реплики · около 1 мин')).toBeInTheDocument();
+    expect(screen.getByText('Макс и Софья · 4 реплики · около 1 мин')).toBeInTheDocument();
 
     const scene = activeScene();
     expect(within(scene).getByText('О чём разговор')).toBeInTheDocument();
     expect(within(scene).getByText('Тепло и работа')).toBeInTheDocument();
     expect(within(scene).getByRole('button', { name: /Энтропия.*реплика 2/ })).toBeInTheDocument();
-    expect(screen.queryByText('Подобрано по словам реплики')).not.toBeInTheDocument();
+    expect(screen.queryByText('Из конспекта')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
 
     // Строка плана ведёт к своей реплике, но не включает звук сама.
@@ -138,8 +140,10 @@ describe('ConversationPlayer', () => {
     const scene = activeScene();
     expect(within(scene).getByText('График')).toBeInTheDocument();
     expect(within(scene).getByText('Температура кипения, °C')).toBeInTheDocument();
-    expect(within(scene).getByText('Числа из материала')).toBeInTheDocument();
-    expect(within(scene).getByText('S02')).toBeInTheDocument();
+    // Подпись как у рисунка: откуда числа, без моноширинных значков-фрагментов. Фрагментов
+    // здесь нет, поэтому и номера нет: «S02» из реплики проверить не по чему.
+    expect(within(scene).getByText('Числа — из материала')).toBeInTheDocument();
+    expect(within(scene).queryByText(/S02|фрагмент/)).not.toBeInTheDocument();
     expect(within(scene).getByRole('img', { name: /Температура кипения/ })).toBeInTheDocument();
     const subtitles = screen.getByRole('region', { name: 'Субтитры' });
     expect(within(subtitles).getByText('Посмотрим на цифры из лекции.')).toBeInTheDocument();
@@ -177,7 +181,9 @@ describe('ConversationPlayer', () => {
     await user.click(screen.getByRole('button', { name: 'Реплика 2' }));
     const term = activeScene();
     expect(within(term).getByText('Энтропия')).toBeInTheDocument();
-    expect(within(term).getByText('Подобрано по словам реплики')).toBeInTheDocument();
+    // Подобранный по словам реплики термин честно подписан: он из конспекта, а не от модели.
+    expect(within(term).getByText('Из конспекта')).toBeInTheDocument();
+    expect(within(term).getByText('Термин')).toBeInTheDocument();
   });
 
   it('reveals the answer of a question card', async () => {
@@ -422,5 +428,144 @@ describe('ConversationPlayer', () => {
     expect(limits.incrementAIUsage).toHaveBeenCalledWith('user-1', 5);
     await waitFor(() => expect(within(activeScene()).getByText('План')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
+  });
+  it('tells screen readers about the line the user moved to', () => {
+    render(<ConversationPlayer lines={modelLines} />);
+    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const live = player.querySelector('[aria-live="polite"][aria-atomic="true"]') as HTMLElement;
+    expect(live).toBeTruthy();
+    expect(live.textContent?.trim()).toBe('');
+
+    fireEvent.keyDown(player, { key: 'ArrowRight' });
+    expect(live).toHaveTextContent('Реплика 2 из 4. Софья: Начнём с главного понятия. На экране: Термин — Энтропия.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));
+    expect(live).toHaveTextContent('Реплика 3 из 4. Макс: А как проверить себя?');
+
+    // Пока звук идёт, голос сам читает реплику: говорим только, где мы и что на экране.
+    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
+    fireEvent.click(within(transcript).getByRole('button', { name: /Посмотрим на цифры из лекции/ }));
+    expect(live).toHaveTextContent('Реплика 4 из 4. На экране: График — Температура кипения.');
+    expect(live.textContent).not.toContain('Посмотрим на цифры');
+  });
+
+  it('keeps keyboard focus inside the player when a scene control is used', async () => {
+    const user = userEvent.setup();
+    render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
+    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+
+    // Строка плана исчезает вместе со сценой — фокус переходит на плеер, клавиши продолжают работать.
+    await user.click(within(activeScene()).getByRole('button', { name: /Энтропия/ }));
+    expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
+    expect(player).toHaveFocus();
+    fireEvent.keyDown(document.activeElement as Element, { key: 'ArrowRight' });
+    expect(screen.getByText('Реплика 3 из 4')).toBeInTheDocument();
+
+    // «Показать ответ» не пропадает: это переключатель с честным aria-expanded.
+    const reveal = within(activeScene()).getByRole('button', { name: 'Показать ответ' });
+    expect(reveal).toHaveAttribute('aria-expanded', 'false');
+    await user.click(reveal);
+    const toggle = within(activeScene()).getByRole('button', { name: 'Скрыть ответ' });
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const answer = document.getElementById(toggle.getAttribute('aria-controls') as string) as HTMLElement;
+    expect(answer).toHaveAttribute('aria-live', 'polite');
+    expect(answer).toHaveTextContent('Энтропия.');
+    fireEvent.keyDown(toggle, { key: 'ArrowLeft' });
+    expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
+  });
+
+  it('gives each host a voice and a colour, even when the names are spelled in Latin', () => {
+    const latin = [
+      { speaker: 'Max', text: 'Hi! Today we talk about entropy.' },
+      { speaker: 'sofia:', text: 'Let us start with the definition.' },
+    ];
+    render(<ConversationPlayer lines={latin} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    expect(tts.playTTS).toHaveBeenLastCalledWith('Hi! Today we talk about entropy.', 'male', expect.any(Function), expect.any(Function), expect.any(Function));
+    expect(tts.prefetchTTS).toHaveBeenCalledWith('Let us start with the definition.', 'female');
+
+    const subtitles = screen.getByRole('region', { name: 'Субтитры' });
+    const name = subtitles.querySelector('[data-speaker]') as HTMLElement;
+    expect(name).toHaveTextContent('Макс');
+    expect(name.style.color).toBe('var(--sf-voice-a)');
+    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
+    expect(within(transcript).getByText('Софья').style.color).toBe('var(--sf-voice-b)');
+    expect(screen.getByText(/^Макс и Софья · 2 реплики/)).toBeInTheDocument();
+  });
+
+  it('shows the voice bars only while the sound is actually playing', () => {
+    render(<ConversationPlayer lines={modelLines} />);
+    const bars = () => screen.getByRole('region', { name: 'Субтитры' }).querySelector('[data-waveform]') as HTMLElement;
+    expect(bars()).toHaveAttribute('data-waveform', 'off');
+    expect(bars()).toHaveClass('invisible');
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    expect(bars()).toHaveAttribute('data-waveform', 'off');
+    act(() => lastPlay()[4]());
+    expect(bars()).toHaveAttribute('data-waveform', 'on');
+  });
+
+  it('marks only verified quotes as quotes and says nothing about unchecked pictures', async () => {
+    const user = userEvent.setup();
+    const sources = [
+      { id: 'S01', text: 'Герман Эббингауз в 1885 году описал кривую забывания.' },
+      { id: 'S02', text: 'Каждое повторение делает след памяти прочнее, поэтому кривая забывания становится пологой.' },
+    ];
+    const lines = [
+      { speaker: 'Макс', text: 'Что сказано в материале?', source_ids: ['S01'], visual: { type: 'fact', title: 'Повторение', text: 'Каждое повторение делает след памяти прочнее…' } },
+      { speaker: 'Софья', text: 'А это уже выдумка.', source_ids: ['S01'], visual: { type: 'fact', title: 'Сон', text: 'Эббингауз лично доказал, что сон удваивает память.' } },
+      { speaker: 'Макс', text: 'Формула?', source_ids: ['S01'], visual: { type: 'formula', title: 'Кривая', latex: 'R = e^{-t/S}' } },
+    ];
+    render(<ConversationPlayer lines={lines} sources={sources} />);
+
+    let scene = activeScene();
+    expect(within(scene).getByText('Цитата')).toBeInTheDocument();
+    expect(scene.querySelector('blockquote')).toHaveTextContent('«Каждое повторение делает след памяти прочнее…»');
+    const fragment = within(scene).getByRole('button', { name: 'фрагмент 2' });
+    expect(scene.querySelector('[data-figure-caption]')).toHaveTextContent('Из материала, фрагмент 2');
+    await user.click(fragment);
+    expect(fragment).toHaveAttribute('aria-expanded', 'true');
+    expect(within(scene).getByText(sources[1].text)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));
+    scene = activeScene();
+    expect(within(scene).getByText('Пересказ')).toBeInTheDocument();
+    expect(scene.querySelector('blockquote')).toBeNull();
+    expect(scene.textContent).not.toContain('«');
+    expect(scene.querySelector('[data-figure-caption]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));
+    scene = activeScene();
+    expect(within(scene).getByText('Формула')).toBeInTheDocument();
+    expect(scene.querySelector('[data-figure-caption]')).toBeNull();
+    expect(scene.textContent).not.toMatch(/Из материала|S01/);
+  });
+
+  it('does not offer paid model work on a material the user cannot change', () => {
+    render(<ConversationPlayer lines={[]} materialId="material-1" canEdit={false} />);
+    expect(screen.getByText('Разговор может создать только автор материала.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
+    cleanup();
+    render(<ConversationPlayer lines={legacyLines} materialId="material-1" canEdit={false} />);
+    expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
+  });
+
+  it('stores the fragments the server found for added charts instead of the old word-matched ones', async () => {
+    const user = userEvent.setup();
+    const lines = [
+      { speaker: 'Макс', text: 'Сколько помнил Эббингауз?', source_ids: ['S01'] },
+      { speaker: 'Софья', text: 'Цифры такие.', source_ids: ['S01'] },
+    ];
+    db.snapshot = { summary_json: { content: 'Конспект', podcast: lines }, original_text: 'Текст' };
+    const chart = { type: 'chart', title: 'Кривая', kind: 'line', unit: '%', data: [{ label: '20 мин', value: 58 }, { label: '1 день', value: 33 }] };
+    fetchMock.mockImplementation(() =>
+      fetchResponse({ visuals: [{ index: 1, visual: chart, source_ids: ['S03'] }, { index: 0, visual: { type: 'term', term: 'Память', definition: 'Способность помнить.' } }] }),
+    );
+    render(<ConversationPlayer lines={lines} materialId="material-1" />);
+    await user.click(screen.getByRole('button', { name: /Добавить схемы/ }));
+    await waitFor(() => expect(db.update).toHaveBeenCalled());
+    const saved = (db.update.mock.calls[0][0] as { summary_json: { podcast: Array<Record<string, unknown>> } }).summary_json.podcast;
+    expect(saved[1]).toMatchObject({ source_ids: ['S03'], visual: { type: 'chart' } });
+    expect(saved[0]).toMatchObject({ source_ids: ['S01'], visual: { type: 'term' } });
   });
 });

@@ -706,3 +706,227 @@ def test_provider_quota_is_reported_as_busy(api):
     assert response.json() == {"detail": "Сервис сейчас занят. Подождите минуту и попробуйте ещё раз."}
     response = api.post("/api/podcast/visuals", json={"lines": [{"speaker": "Макс", "text": "Привет"}]})
     assert response.status_code == 429
+
+
+# --- grounding regressions: foreign values must not pass ----------------------------
+
+def _facts(text):
+    from utils import SourceFacts
+
+    return SourceFacts(text)
+
+
+def _bar(values):
+    return sanitize_visual({
+        "type": "chart", "title": "Числа", "kind": "bar",
+        "data": [{"label": f"P{i}", "value": value} for i, value in enumerate(values)],
+    })
+
+
+def test_decimal_comma_is_never_read_as_a_tenfold_value():
+    from utils import visual_is_grounded
+
+    facts = _facts("Инфляция составила 7,4%, ставка — 1,5 процента, число пи около 3,14. Доля ошибок 12,5 процента.")
+    for invented in (74, 15, 314, 125):
+        assert not visual_is_grounded(_bar([7.4, invented]), facts), invented
+    assert visual_is_grounded(_bar([7.4, 1.5, 3.14, 12.5]), facts)
+
+
+def test_thousands_groups_are_not_split_into_separate_numbers():
+    from utils import visual_is_grounded
+
+    facts = _facts(MEMORY_SOURCE)  # "В выборке было 12 500 слогов"
+    assert not visual_is_grounded(_bar([500, 12]), facts)
+    assert visual_is_grounded(_bar([12500, 58]), facts)
+    # A 4-digit year next to a number is two numbers; a row of 3-digit groups is a table row.
+    assert visual_is_grounded(_bar([2019, 150]), _facts("В 2019 150 человек сдали экзамен."))
+    assert visual_is_grounded(_bar([100, 200, 300]), _facts("Расход: 100 200 300 литров по годам."))
+
+
+def test_chart_sign_must_match_the_source():
+    from utils import visual_is_grounded
+
+    assert not visual_is_grounded(_bar([-58, -33]), _facts(MEMORY_SOURCE))
+    assert not visual_is_grounded(_bar([40, -40]), _facts("Температура упала до 40 градусов."))
+    facts = _facts("Ночью было −12 °C, днём -3 °C, а шкала идёт от 1-5 баллов; война 1941-1945 годов.")
+    assert visual_is_grounded(_bar([-12, -3]), facts)
+    assert not visual_is_grounded(_bar([-1, -5]), facts)
+    assert visual_is_grounded(_bar([1941, 1945]), facts)
+    assert not visual_is_grounded(_bar([-1945, 1941]), facts)
+
+
+def test_timeline_dates_must_be_whole_words_of_the_source():
+    facts = _facts("Эббингауз начал опыты в 1885 году. В опыте было 18 серий. Каждый человек учил слоги.")
+    for foreign in ("85", "88", "век", "18 век", "20 век"):
+        assert not facts.has_date(foreign), foreign
+    for date in ("1885", "1885 г.", "в 1885 году"):
+        assert facts.has_date(date), date
+    reform = _facts("Реформа 1861 года. В XIX веке. Война 1853–1856 годов, итоги подвели к 1860 году.")
+    for foreign in ("18", "61", "86"):
+        assert not reform.has_date(foreign), foreign
+    for date in ("XIX век", "1861 год", "1853–1856", "1853-1856 гг.", "1856–1860"):
+        assert reform.has_date(date), date
+
+
+def test_generate_drops_a_timeline_with_foreign_dates(api):
+    context = "Эббингауз начал опыты в 1885 году и описал кривую забывания. В опыте было 18 серий."
+    api.answer_with(json.dumps({"podcast": [
+        {"speaker": "Макс", "text": "Когда это было?", "visual": {
+            "type": "timeline", "title": "История",
+            "events": [{"date": "18 век", "label": "Начало"}, {"date": "85", "label": "Опыт"}],
+        }},
+        {"speaker": "Софья", "text": "В 1885 году.", "visual": {
+            "type": "timeline", "title": "История",
+            "events": [{"date": "1885", "label": "Опыт"}, {"date": "18 серий", "label": "Серии"}],
+        }},
+    ]}, ensure_ascii=False))
+    response = api.post("/api/podcast/generate", json={"context": context})
+    assert response.status_code == 200
+    podcast = response.json()["podcast"]
+    assert "visual" not in podcast[0]
+    assert podcast[1]["visual"]["events"][0]["date"] == "1885"
+
+
+# --- fragment ids that the player shows ---------------------------------------------
+
+def test_chart_line_points_at_the_fragment_that_holds_its_numbers():
+    from utils import build_source_chunks, enrich_agent_result
+
+    text = (
+        "Инфляция в России в 2022 году составила 11,9 процента, в 2023 году — 7,4 процента.\n\n"
+        "Центральный банк повышает ключевую ставку, чтобы охладить кредитование и замедлить рост цен в экономике."
+    )
+    chunks = build_source_chunks(text)
+    line = {
+        "speaker": "Софья",
+        "text": "Центральный банк повышает ставку, чтобы замедлить рост цен в экономике — вот как это выглядит.",
+        "source_ids": ["S02"],
+        "visual": {"type": "chart", "title": "Инфляция", "kind": "bar", "unit": "%",
+                   "data": [{"label": "2022", "value": "11,9"}, {"label": "2023", "value": "7,4"}]},
+    }
+    lines = sanitize_podcast_lines([line], source_text=text)
+    enriched = enrich_agent_result("podcast", {"podcast": lines}, chunks)
+    # The model (and the words of the line) point at S02, but the numbers live in S01.
+    assert enriched["podcast"][0]["source_ids"] == ["S01"]
+
+
+def test_chart_numbers_spread_over_fragments_cite_each_of_them():
+    from utils import build_source_chunks, visual_source_ids
+
+    chunks = build_source_chunks("Через 20 минут помнили 58%.\n\nЧерез месяц помнили 21%.\n\nЗабывание идёт быстро.")
+    chart = {"type": "chart", "title": "Кривая", "kind": "line", "data": [
+        {"label": "20 мин", "value": 58}, {"label": "Месяц", "value": 21},
+    ]}
+    assert visual_source_ids(chart, chunks) == ["S01", "S02"]
+    assert visual_source_ids({"type": "term", "term": "x", "definition": "y"}, chunks) is None
+
+
+def test_only_word_for_word_quotes_cite_a_fragment():
+    from utils import build_source_chunks, quote_source_ids, visual_source_ids
+
+    text = (
+        "Герман Эббингауз в 1885 году описал кривую забывания.\n\n"
+        "Каждое повторение делает след памяти прочнее, поэтому после повторения кривая забывания становится более пологой."
+    )
+    chunks = build_source_chunks(text)
+    verbatim = {"type": "fact", "title": "Цитата", "text": "Каждое повторение делает след памяти прочнее…"}
+    shortened = {"type": "fact", "title": "Цитата", "text": "Каждое повторение делает след памяти прочнее… кривая забывания становится более пологой."}
+    paraphrase = {"type": "fact", "title": "Факт", "text": "Эббингауз лично доказал, что сон удваивает память."}
+    assert visual_source_ids(verbatim, chunks) == ["S02"]
+    assert visual_source_ids(shortened, chunks) == ["S02"]
+    assert visual_source_ids(paraphrase, chunks) == []
+    assert quote_source_ids("Эббингауз", chunks) == []  # too short to be a quote
+
+    lines = [{"speaker": "Софья", "text": "Эббингауз и сон.", "source_ids": ["S01"], "visual": paraphrase}]
+    from utils import annotate_podcast
+
+    annotate_podcast(lines, chunks)
+    # A paraphrase keeps only word-matched ids of the line; the player does not show them as a source.
+    assert lines[0]["source_ids"] == ["S01"]
+
+
+def test_quote_across_two_fragments_cites_both():
+    from utils import build_source_chunks, quote_source_ids
+
+    chunks = build_source_chunks(
+        "Фотосинтез идёт в хлоропластах растительной клетки.\n\n"
+        "Кислород выделяется в световой фазе, когда вода расщепляется на свету.",
+        chunk_chars=60,
+    )
+    assert quote_source_ids("Кислород выделяется в световой фазе, когда вода расщепляется на свету.", chunks) == ["S02", "S03"]
+
+
+def test_visuals_endpoint_returns_checked_fragment_ids(api):
+    context = (
+        "Эббингауз в 1885 году описал кривую забывания.\n\n"
+        "Через 20 минут он помнил 58% слогов, через 1 день — 33%."
+    )
+    api.answer_with(json.dumps({"visuals": [
+        {"index": 0, "visual": VALID_VISUALS["term"]},
+        {"index": 1, "visual": _chart([58, 33])},
+        {"index": 2, "visual": {"type": "fact", "title": "Лично", "text": "Эббингауз лично доказал, что сон удваивает память."}},
+    ]}, ensure_ascii=False))
+    lines = [
+        {"speaker": "Макс", "text": "Что такое фотосинтез?"},
+        {"speaker": "Софья", "text": "Смотрим на цифры.", "source_ids": ["S01"]},
+        {"speaker": "Макс", "text": "А сон?", "source_ids": ["S01"]},
+    ]
+    response = api.post("/api/podcast/visuals", json={"lines": lines, "context": context})
+    assert response.status_code == 200
+    visuals = {item["index"]: item for item in response.json()["visuals"]}
+    assert "source_ids" not in visuals[0]  # a term makes no checkable claim
+    assert visuals[1]["source_ids"] == ["S02"]
+    assert visuals[2]["source_ids"] == []  # a paraphrase is not a quote
+
+
+def test_prompts_ask_for_word_for_word_quotes_and_mhchem():
+    for prompt in (build_podcast_prompt(), build_podcast_visuals_prompt()):
+        assert "дословная цитата" in prompt
+        assert "Пересказ — это не \"fact\"" in prompt
+        assert "\\\\ce{6CO2 + 6H2O ->[$h\\\\nu$] C6H12O6 + 6O2}" in prompt
+
+
+def test_rate_limits_are_keyed_on_the_signed_in_user():
+    import main
+    from starlette.requests import Request
+
+    def request(user=None):
+        scope = {"type": "http", "method": "POST", "path": "/api/tts", "headers": [], "client": ("10.0.0.7", 1234), "state": {}}
+        req = Request(scope)
+        if user is not None:
+            req.state.user = user
+        return req
+
+    assert main.user_or_ip_key(request({"id": "student-1"})) == "user:student-1"
+    assert main.user_or_ip_key(request({"id": "student-2"})) == "user:student-2"
+    assert main.user_or_ip_key(request()) == "10.0.0.7"
+
+
+# --- /api/quick-prep (cheatsheet) -------------------------------------------------------
+
+def test_quick_prep_returns_the_cheatsheet(api):
+    api.answer_with(json.dumps({"cheatsheet": "# Шпаргалка\n\n- Главное", "key_points": []}, ensure_ascii=False))
+    response = api.post("/api/quick-prep", json={"context": SOURCE})
+    assert response.status_code == 200
+    assert response.json()["cheatsheet"].startswith("# Шпаргалка")
+
+
+@pytest.mark.parametrize("raw", ["не JSON", json.dumps({"cheatsheet": ""}), json.dumps({"key_points": ["a"]}), json.dumps(["x"])])
+def test_quick_prep_failure_is_an_error_not_a_stand_in_cheatsheet(api, raw):
+    BaseAgent._run_cache[("quick-prompt", "quick-text")] = raw
+    api.answer_with(raw)
+    response = api.post("/api/quick-prep", json={"context": SOURCE})
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Не удалось создать шпаргалку. Попробуйте ещё раз."}
+    assert ("quick-prompt", "quick-text") not in BaseAgent._run_cache
+
+
+def test_quick_prep_reports_busy_provider_and_empty_text(api):
+    from fastapi import HTTPException
+
+    api.answer_with(HTTPException(status_code=429, detail="API_LIMIT_REACHED"))
+    assert api.post("/api/quick-prep", json={"context": SOURCE}).status_code == 429
+    api.answer_with(RuntimeError("provider down https://secret.invalid"))
+    response = api.post("/api/quick-prep", json={"context": SOURCE})
+    assert response.status_code == 502 and "secret" not in response.text
+    assert api.post("/api/quick-prep", json={"context": "   "}).status_code == 400

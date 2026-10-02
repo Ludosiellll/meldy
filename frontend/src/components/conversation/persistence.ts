@@ -49,26 +49,42 @@ export function conversationTerms(snapshot: MaterialSnapshot, fallback?: Convers
     .map(item => ({ term: item.term, definition: item.definition }));
 }
 
+export const NOT_OWNER_MESSAGE = 'Этот материал нельзя изменить: он принадлежит другому пользователю.';
+
 /**
- * Сохраняет реплики в summary_json.podcast. summary_json читается заново прямо
- * перед записью: всё, что успело измениться за время ответа модели (шпаргалка
- * из другой вкладки и т. п.), сохраняется, меняется только podcast. Служебный
- * _startTab в базу не попадает.
+ * Меняет в summary_json только ключи из patch. summary_json читается заново
+ * прямо перед записью: всё, что успело измениться за время ответа модели
+ * (разговор, шпаргалка, сохранённые в другой вкладке или другой задачей),
+ * остаётся как есть. Служебный _startTab в базу не попадает. Если запись не
+ * изменила ни одной строки (материал чужой), это ошибка: энергию за такую
+ * работу списывать нельзя.
  */
-export async function saveConversationLines(materialId: string, lines: unknown[]): Promise<Record<string, unknown>> {
+export async function patchSummaryJson(
+  materialId: string,
+  patch: Record<string, unknown>,
+  saveError = 'Не удалось сохранить изменения. Попробуйте ещё раз.',
+): Promise<Record<string, unknown>> {
   const fresh = await loadMaterialSnapshot(materialId);
-  const next: Record<string, unknown> = { ...fresh.summaryJson, podcast: lines };
+  const next: Record<string, unknown> = { ...fresh.summaryJson, ...patch };
   delete next._startTab;
   const { data, error } = await supabase
     .from('materials')
     .update({ summary_json: next })
     .eq('id', materialId)
     .select('id');
-  if (error) throw new ConversationError('Не удалось сохранить разговор. Попробуйте ещё раз.');
-  if (Array.isArray(data) && data.length === 0) {
-    throw new ConversationError('Этот материал нельзя изменить: он принадлежит другому пользователю.');
-  }
+  if (error) throw new ConversationError(saveError);
+  if (Array.isArray(data) && data.length === 0) throw new ConversationError(NOT_OWNER_MESSAGE);
   return next;
+}
+
+/** Сохраняет реплики в summary_json.podcast, остальные поля не трогает. */
+export function saveConversationLines(materialId: string, lines: unknown[]): Promise<Record<string, unknown>> {
+  return patchSummaryJson(materialId, { podcast: lines }, 'Не удалось сохранить разговор. Попробуйте ещё раз.');
+}
+
+/** Сохраняет шпаргалку в summary_json.cheatsheet, остальные поля не трогает. */
+export function saveCheatsheet(materialId: string, cheatsheet: string): Promise<Record<string, unknown>> {
+  return patchSummaryJson(materialId, { cheatsheet }, 'Не удалось сохранить шпаргалку. Попробуйте ещё раз.');
 }
 
 export async function postJson(url: string, body: unknown): Promise<unknown> {

@@ -35,6 +35,19 @@ from pywebpush import webpush, WebPushException
 app = FastAPI(title="Meldy API", version="1.0.0")
 
 limiter = Limiter(key_func=get_remote_address)
+
+
+def user_or_ip_key(request: Request) -> str:
+    """Rate-limit key: the signed-in user when the auth middleware set one, else the IP.
+
+    Students behind one school NAT or the hosting proxy share an IP, so per-IP
+    limits on audio and conversation requests would throttle the whole class.
+    """
+    user = getattr(request.state, "user", None)
+    if isinstance(user, dict) and user.get("id"):
+        return f"user:{user['id']}"
+    return get_remote_address(request)
+
 app.state.limiter = limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -721,30 +734,38 @@ class QuickPrepRequest(BaseModel):
     context: str
 
 
+QUICK_PREP_FAILURE_DETAIL = "Не удалось создать шпаргалку. Попробуйте ещё раз."
+
+
 @app.post("/api/quick-prep")
-@limiter.limit("5/minute")
+@limiter.limit("5/minute", key_func=user_or_ip_key)
 async def quick_prep(request: Request, req: QuickPrepRequest):
+    """Cheatsheet for a material. A failure is an error status, never a stand-in
+    text: the client saves whatever comes back as the user's cheatsheet and
+    charges energy for it."""
+    context = (req.context or "").strip()[:15000]
+    if not context:
+        raise HTTPException(status_code=400, detail="Недостаточно текста для шпаргалки.")
     agent = BaseAgent(api_key=GROQ_API_KEY)
-    system_prompt = build_quick_prep_prompt()
-    raw = await agent.run(system_prompt, req.context[:15000])
+    try:
+        raw = await agent.run(build_quick_prep_prompt(), context)
+    except Exception as exc:
+        status = getattr(exc, "status_code", None)
+        print(f"Quick prep model call failed (status={status}): {type(exc).__name__}: {exc}")
+        if status == 429:
+            raise HTTPException(status_code=429, detail="Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.")
+        raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
 
     try:
-        return parse_llm_json(raw)
-    except Exception as e:
-        err_str = str(e)
-        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
-            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
-        else:
-            expl_msg = "Не удалось автоматически создать шпаргалку. Обратитесь к оригинальному материалу."
-            
-        return {
-            "key_points": ["Изучите основные термины темы", "Разберитесь с ключевыми определениями", "Повторите главные выводы лекции"],
-            "cheatsheet": expl_msg,
-            "questions": [
-                {"question": "Какие главные понятия этой темы вы знаете?", "answer": "Обратитесь к тексту лекции для детального ответа."},
-                {"question": "Как вы можете применить эти знания на практике?", "answer": "Подумайте о конкретных примерах из материала."}
-            ]
-        }
+        parsed = parse_llm_json(raw)
+    except Exception as exc:
+        print(f"Quick prep returned invalid JSON: {type(exc).__name__}")
+        parsed = None
+    cheatsheet = parsed.get("cheatsheet") if isinstance(parsed, dict) else None
+    if not isinstance(cheatsheet, str) or not cheatsheet.strip():
+        _forget_cached_response(raw)
+        raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
+    return parsed
 
 
 class MistakesPracticeRequest(BaseModel):
@@ -2310,7 +2331,7 @@ async def _synthesize_edge_tts(text: str, voice_id: str) -> bytes:
 
 
 @app.post("/api/tts")
-@limiter.limit("30/minute")
+@limiter.limit("30/minute", key_func=user_or_ip_key)
 async def text_to_speech(request: Request, req: TTSRequest):
     voice_id = EDGE_TTS_VOICES.get(req.role, EDGE_TTS_VOICES["professor"])
     text = req.text.strip()[:4000]
@@ -2343,6 +2364,7 @@ from utils import (
     enrich_agent_result,
     sanitize_podcast_lines,
     sanitize_podcast_visuals,
+    visual_source_ids,
 )
 
 PODCAST_CONTEXT_MAX = 20000
@@ -2433,7 +2455,7 @@ def _first_list(parsed: _Any, key: str) -> list:
 
 
 @app.post("/api/podcast/generate")
-@limiter.limit("5/minute")
+@limiter.limit("5/minute", key_func=user_or_ip_key)
 async def podcast_generate(request: Request, req: PodcastGenerateRequest):
     """Create a conversation with visuals for a material that has none yet."""
     context = (req.context or "").strip()
@@ -2466,7 +2488,7 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
 
 
 @app.post("/api/podcast/visuals")
-@limiter.limit("10/minute")
+@limiter.limit("10/minute", key_func=user_or_ip_key)
 async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
     """Suggest visuals for the lines of an existing (legacy) conversation."""
     if len(req.lines) > PODCAST_VISUALS_MAX_LINES:
@@ -2504,6 +2526,14 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
     if not visuals:
         _forget_cached_response(raw)
         raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+    # Charts, timelines and quotes carry the fragments that really back them; the
+    # client stores these ids on the line instead of its old word-matched ones.
+    chunks = build_source_chunks(context) if context else []
+    facts_cache: dict = {}
+    for item in visuals:
+        ids = visual_source_ids(item["visual"], chunks, None, facts_cache)
+        if ids is not None:
+            item["source_ids"] = ids
     return {"visuals": visuals}
 
 

@@ -40,6 +40,17 @@ export async function updateMaterialVisibility(id: string, is_public: boolean) {
   if (error) console.error('updateMaterialVisibility error:', error);
 }
 
+/**
+ * Меняет видимость материала и сообщает о неудаче: ошибка запроса или запись,
+ * которая не изменила ни одной строки (материал чужой), — исключение. Тогда
+ * страница не показывает «В открытых материалах» и не копирует мёртвую ссылку.
+ */
+export async function setMaterialVisibility(id: string, isPublic: boolean): Promise<void> {
+  const { data, error } = await supabase.from('materials').update({ is_public: isPublic }).eq('id', id).select('id');
+  if (error) throw error;
+  if (Array.isArray(data) && data.length === 0) throw new Error('Материал не изменён: нет прав на запись');
+}
+
 export async function updateMaterialMissions(id: string, missions: any[]) {
   const { error } = await supabase
     .from('materials')
