@@ -1,167 +1,275 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowUpRight, Check } from 'lucide-react';
-import '../LandingHero.css';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { UNDERLINE_DROP, type PaperLine } from './paperTimeline';
+import { handPoints, pointBounds, smoothPath, taperedOutline, type Pt } from './handStroke';
+import { measureAscent, measureWordLines } from './usePaperGeometry';
+import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { DEMO_SHEET, QUIZ, THESES } from './lecture';
+import './PaperHero.css';
+import './InteractiveDemo.css';
 
-/** The three tabs match the numbered list next to the demo («Попробуйте сами»). */
-const TABS = ['Конспект', 'Карточка', 'Тест'] as const;
+/** The old pencil marks fade this long; the new ones start drawing this much after the click. */
+const MARK_FADE_MS = 120;
+const MARK_DRAW_DELAY_MS = 60;
+const MARK_DRAW_S = 0.35;
 
-const CAPTIONS = [
-  'Выберите тезис — в тексте подсветится фрагмент, из которого он взят.',
-  'Попробуйте вспомнить ответ, прежде чем перевернуть карточку.',
-  'Выберите вариант и прочитайте разбор.',
-];
+/* ------------------------------------------------------------------ */
+/* Pencil helpers                                                       */
+/* ------------------------------------------------------------------ */
 
-const SENTENCES = [
-  'Знакомый текст легко принять за усвоенный.',
-  'Активное вспоминание — попытка восстановить информацию по памяти, прежде чем посмотреть ответ.',
-  'Поэтому сначала объясните тему своими словами, а потом сверьтесь с текстом.',
-];
+function words(text: string) {
+  const list = text.split(' ');
+  return list.map((word, i) => (
+    <Fragment key={i}>
+      <span data-kw="">{word}</span>
+      {i < list.length - 1 ? ' ' : ''}
+    </Fragment>
+  ));
+}
 
-const SUMMARY = [
-  'Знакомый текст — ещё не выученный',
-  'Активное вспоминание: ответ до подсказки',
-  'Сначала объяснить, потом сверить',
-];
+interface Stroke { pts: Pt[]; centre: string; outline: string; len: number }
 
-const ANSWERS = ['Перечитать параграф ещё раз', 'Закрыть конспект и объяснить тему', 'Выделить определения маркером'];
+function underlineStrokes(lines: PaperLine[], fs: number, seed: number): Stroke[] {
+  return lines.map((line, i) => {
+    const last = i === lines.length - 1;
+    const pts = handPoints(line.x0 - 2, line.x1 + 2, line.baseline + UNDERLINE_DROP * fs, seed + 31 * i, { rise: 0.9 + 0.2 * (i % 2), flick: last });
+    return { pts, centre: smoothPath(pts), outline: taperedOutline(pts, 2.4, 0.6), len: line.x1 - line.x0 + 4 };
+  });
+}
+
+type MarkState = 'draw' | 'still' | 'fade';
 
 /**
- * Hands-on example under the hero: summary with source links, a flip card and a quiz.
- * Nothing plays by itself; every change comes from the visitor.
+ * Filled pencil underlines revealed through masks. 'draw' replays the stroke (0.35 s split by
+ * line length, after `delay`), 'fade' lets the pencil leave this sentence, 'still' just shows it.
  */
-export default function InteractiveDemo() {
-  const reduceMotion = useReducedMotion();
-  const [tab, setTab] = useState(0);
-  const [source, setSource] = useState(1);
-  const [flipped, setFlipped] = useState(false);
-  const [answer, setAnswer] = useState<number | null>(null);
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+function PencilMarks({ strokes, state, idPrefix, delay = 0 }: { strokes: Stroke[]; state: MarkState; idPrefix: string; delay?: number }) {
+  if (!strokes.length) return null;
+  const bounds = pointBounds(strokes.map(s => s.pts), 7.5);
+  const total = strokes.reduce((sum, s) => sum + s.len, 0) || 1;
+  let at = delay / 1000;
+  return (
+    <svg
+      className={`lp-sheet-marks is-${state}`}
+      width={bounds.w}
+      height={bounds.h}
+      style={{ left: `${bounds.x}px`, top: `${bounds.y}px` }}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        {strokes.map((stroke, i) => {
+          const duration = (MARK_DRAW_S * stroke.len) / total;
+          const style = { animationDelay: `${at.toFixed(3)}s`, animationDuration: `${duration.toFixed(3)}s` } as CSSProperties;
+          at += duration;
+          return (
+            <mask key={i} id={`${idPrefix}-${i}`} maskUnits="userSpaceOnUse" x={bounds.x} y={bounds.y} width={bounds.w} height={bounds.h}>
+              <path
+                className={state === 'draw' ? 'lp-reveal is-drawing' : 'lp-reveal'}
+                style={state === 'draw' ? style : undefined}
+                d={stroke.centre}
+                fill="none"
+                stroke="#fff"
+                strokeWidth={9}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                pathLength={1}
+                strokeDasharray="1 1"
+              />
+            </mask>
+          );
+        })}
+      </defs>
+      <g transform={`translate(${-bounds.x} ${-bounds.y})`}>
+        {strokes.map((stroke, i) => <path key={i} className="ph-ink" d={stroke.outline} mask={`url(#${idPrefix}-${i})`} />)}
+      </g>
+    </svg>
+  );
+}
 
-  const selectTab = (index: number, focus = false) => {
-    setTab(index);
-    setFlipped(false);
-    setAnswer(null);
-    if (focus) tabRefs.current[index]?.focus();
+/** Re-runs `measure` on mount, on width changes of `target` and when web fonts finish loading. */
+function useRemeasure(target: RefObject<HTMLElement>, measure: () => void) {
+  const measureRef = useRef(measure);
+  measureRef.current = measure;
+  useEffect(() => {
+    const el = target.current;
+    let alive = true;
+    document.fonts?.ready?.then(() => { if (alive) measureRef.current(); }).catch(() => {});
+    if (!el || typeof ResizeObserver === 'undefined') return () => { alive = false; };
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      measureRef.current();
+    });
+    observer.observe(el);
+    return () => {
+      alive = false;
+      observer.disconnect();
+    };
+  }, [target]);
+}
+
+/* ------------------------------------------------------------------ */
+/* «Конспект»: theses that point at their sentences                     */
+/* ------------------------------------------------------------------ */
+
+interface MarkLayer { id: number; source: number; strokes: Stroke[]; state: MarkState }
+
+function SummaryRow({ reduced }: { reduced: boolean }) {
+  const [active, setActive] = useState(1);
+  const [layers, setLayers] = useState<MarkLayer[]>([]);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const sourceRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const nextId = useRef(1);
+  const timers = useRef<number[]>([]);
+  useEffect(() => () => timers.current.forEach(id => window.clearTimeout(id)), []);
+
+  const strokesFor = useCallback((index: number) => {
+    const sheet = sheetRef.current;
+    const source = sourceRefs.current[index];
+    if (!sheet || !source) return null;
+    const origin = sheet.getBoundingClientRect();
+    const paragraph = source.parentElement ?? source;
+    const ascent = measureAscent(paragraph);
+    const { lines } = measureWordLines(Array.from(source.querySelectorAll<HTMLElement>('[data-kw]')), origin, ascent);
+    const fs = parseFloat(getComputedStyle(paragraph).fontSize) || 16;
+    return underlineStrokes(lines, fs, 200 + index * 17);
+  }, []);
+
+  /* The current marks, measured again on resize and when the fonts arrive (no animation). */
+  const remeasure = useCallback(() => {
+    const strokes = strokesFor(active);
+    if (!strokes) return;
+    setLayers(prev => {
+      const current = prev.find(l => l.state !== 'fade' && l.source === active);
+      const same = current && JSON.stringify(current.strokes.map(s => s.outline)) === JSON.stringify(strokes.map(s => s.outline));
+      if (same) return prev;
+      return [{ id: nextId.current++, source: active, strokes, state: 'still' }];
+    });
+  }, [active, strokesFor]);
+  useLayoutEffect(remeasure, [remeasure]);
+  useRemeasure(sheetRef, remeasure);
+
+  const choose = (index: number) => {
+    if (index === active) return;
+    const strokes = strokesFor(index);
+    setActive(index);
+    if (!strokes) return;
+    if (reduced) {
+      setLayers([{ id: nextId.current++, source: index, strokes, state: 'still' }]);
+      return;
+    }
+    // The pencil leaves the old sentence and moves to the new one.
+    setLayers(prev => [
+      ...prev.filter(l => l.state !== 'fade').map(l => ({ ...l, state: 'fade' as const })),
+      { id: nextId.current++, source: index, strokes, state: 'draw' },
+    ]);
+    const id = window.setTimeout(() => {
+      setLayers(prev => prev.filter(l => l.state !== 'fade'));
+    }, MARK_FADE_MS + 20);
+    timers.current.push(id);
   };
 
-  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const last = TABS.length - 1;
-    const next = event.key === 'ArrowRight' ? (tab === last ? 0 : tab + 1)
-      : event.key === 'ArrowLeft' ? (tab === 0 ? last : tab - 1)
-        : event.key === 'Home' ? 0
-          : event.key === 'End' ? last
-            : null;
-    if (next === null) return;
-    event.preventDefault();
-    selectTab(next, true);
-  };
+  const source = (index: number) => (
+    <span
+      ref={el => { sourceRefs.current[index] = el; }}
+      className={active === index ? 'lp-source is-source' : 'lp-source'}
+      data-source={active === index ? 'active' : undefined}
+    >
+      {words(DEMO_SHEET.sources[index])}
+    </span>
+  );
 
   return (
-    <div className="sf-demo-wrap" id="learning-demo">
-      <div className="sf-demo">
-        <div className="sf-demo-tabs" role="tablist" aria-label="Шаги примера">
-          {TABS.map((label, index) => (
-            <button
-              key={label}
-              ref={el => { tabRefs.current[index] = el; }}
-              type="button"
-              role="tab"
-              id={`sf-demo-tab-${index}`}
-              aria-selected={tab === index}
-              aria-controls="sf-demo-panel"
-              tabIndex={tab === index ? 0 : -1}
-              className={`sf-demo-tab${tab === index ? ' is-active' : ''}`}
-              onClick={() => selectTab(index)}
-              onKeyDown={onTabKey}
-            >
-              <span aria-hidden="true">{index + 1}</span>{label}
-            </button>
-          ))}
-        </div>
-        <div className="sf-stage" role="tabpanel" id="sf-demo-panel" aria-labelledby={`sf-demo-tab-${tab}`}>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              className="sf-scene"
-              key={tab}
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
-              transition={{ duration: reduceMotion ? 0 : 0.24 }}
-            >
-              {tab === 0 && (
-                <div className="sf-source">
-                  <div className="sf-paper">
-                    <div className="sf-paper-meta"><span>КАК РАБОТАЕТ ПАМЯТЬ</span><span>АБЗ. 2</span></div>
-                    <h3>Почему мы забываем прочитанное?</h3>
-                    <p>
-                      {SENTENCES.map((sentence, index) => (
-                        <span key={index} className={source === index ? 'sf-highlight' : undefined}>{sentence}{index < SENTENCES.length - 1 ? ' ' : ''}</span>
-                      ))}
-                    </p>
-                  </div>
-                  <div className="sf-summary-box">
-                    <p className="sf-scene-label">В конспекте</p>
-                    <ul className="sf-summary-list">
-                      {SUMMARY.map((text, index) => (
-                        <li key={text}>
-                          <button type="button" className={`sf-summary-row${source === index ? ' is-active' : ''}`} aria-pressed={source === index} onClick={() => setSource(index)}>
-                            <span className="sf-summary-text">{text}</span>
-                            <span className="sf-summary-ref">фрагмент {index + 1}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-              {tab === 1 && (
-                <div className="sf-cards">
-                  <button
-                    type="button"
-                    className={`sf-flashcard ${flipped ? 'is-flipped' : ''}`}
-                    onClick={() => setFlipped(v => !v)}
-                    aria-label={flipped ? 'Скрыть ответ на карточке' : 'Открыть ответ на карточке'}
-                    aria-pressed={flipped}
-                  >
-                    <span className="sf-card-rotator">
-                      <span className="sf-card-face sf-card-front" aria-hidden={flipped}><span className="sf-card-top">ВОПРОС</span><strong>Что такое<br />активное вспоминание?</strong><span className="sf-card-bottom">Подумайте. Затем переверните. <ArrowUpRight size={18} /></span></span>
-                      <span className="sf-card-face sf-card-back" aria-hidden={!flipped}><span className="sf-card-top"><Check size={20} /><span>ОТВЕТ</span></span><strong>Восстановить информацию по памяти до просмотра подсказки.</strong><span className="sf-card-bottom">Например, объяснить тему с закрытым конспектом.</span></span>
-                    </span>
-                  </button>
-                  <p className="sf-card-hint">Нажмите на карточку, чтобы перевернуть её.</p>
-                </div>
-              )}
-              {tab === 2 && (
-                <div className="sf-quiz">
-                  <h3>Как проверить,<br />что вы запомнили тему?</h3>
-                  <div className="sf-answers">
-                    {ANSWERS.map((text, index) => (
-                      <button
-                        key={text}
-                        type="button"
-                        className={`sf-answer ${answer === index ? (index === 1 ? 'is-correct' : 'is-wrong') : ''}`}
-                        onClick={() => setAnswer(index)}
-                        aria-pressed={answer === index}
-                      >
-                        <span>{String.fromCharCode(65 + index)}</span>{text}{answer === index && index === 1 && <Check size={16} />}
-                      </button>
-                    ))}
-                  </div>
-                  <div className={`sf-feedback ${answer !== null ? 'is-visible' : ''}`} aria-live="polite">
-                    {answer === 1
-                      ? 'Верно. Самостоятельный ответ показывает, что удалось вспомнить.'
-                      : answer !== null
-                        ? 'Перечитывание и выделение не проверяют вспоминание. Попробуйте ответить без текста.'
-                        : 'Выберите ответ — разбор появится здесь.'}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-        <div className="sf-demo-caption"><p>{CAPTIONS[tab]}</p><span>Без регистрации</span></div>
+    <div className="lp-row lp-row-summary">
+      <div className="lp-sheet" ref={sheetRef}>
+        <p className="lp-sheet-title">{DEMO_SHEET.title}</p>
+        <p className="lp-sheet-p">{source(0)} {DEMO_SHEET.aside}</p>
+        <p className="lp-sheet-p">{source(1)}</p>
+        <p className="lp-sheet-p">{source(2)}</p>
+        {layers.map(layer => (
+          <PencilMarks
+            key={layer.id}
+            strokes={layer.strokes}
+            state={layer.state}
+            idPrefix={`lp-src-${layer.id}`}
+            delay={layer.state === 'draw' ? MARK_DRAW_DELAY_MS : 0}
+          />
+        ))}
       </div>
+      <div className="lp-side">
+        <h3 className="lp-h3" id="lp-summary-h">Конспект</h3>
+        <ul className="lp-theses" aria-labelledby="lp-summary-h">
+          {THESES.map((thesis, index) => (
+            <li key={thesis}>
+              <button type="button" className={active === index ? 'lp-thesis is-active' : 'lp-thesis'} aria-pressed={active === index} onClick={() => choose(index)}>
+                {thesis}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* «Тест»                                                               */
+/* ------------------------------------------------------------------ */
+
+/** A pencil tick, drawn once the ring has filled. */
+function Tick() {
+  return (
+    <svg className="lp-tick" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M2.4 6.3 L5 8.8 L9.8 3.2" pathLength={1} />
+    </svg>
+  );
+}
+
+function QuizRow() {
+  const [answer, setAnswer] = useState<number | null>(null);
+  return (
+    <div className="lp-row lp-row-quiz">
+      <div className="lp-quiz">
+        <h3 className="lp-h3" id="lp-quiz-h">Вопрос теста</h3>
+        <p className="lp-quiz-q" id="lp-quiz-q">{QUIZ.question}</p>
+      </div>
+      <div className="lp-side">
+        <div className="lp-options" role="group" aria-labelledby="lp-quiz-q">
+          {QUIZ.options.map((text, index) => {
+            const state = answer === index ? (index === QUIZ.correct ? ' is-correct' : ' is-wrong') : '';
+            return (
+              <button key={text} type="button" className={`lp-option${state}`} aria-pressed={answer === index} onClick={() => setAnswer(index)}>
+                <span className="lp-ring" aria-hidden="true">{answer === index && index === QUIZ.correct && <Tick />}</span>
+                <span className="lp-option-text">{text}</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* Space for the explanation is kept, so answering never moves the page below. */}
+        <div className="lp-feedback-slot" aria-live="polite">
+          {answer !== null && (
+            <p key={answer === QUIZ.correct ? 'right' : `wrong-${answer}`} className="lp-feedback">
+              {answer === QUIZ.correct ? QUIZ.right : QUIZ.wrong}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Hands-on example under the hero, from the next part of the same lecture: a summary whose
+ * points underline their sentences in the source, and one quiz question. Both are always
+ * open; nothing plays by itself, every change comes from the visitor.
+ */
+export default function InteractiveDemo() {
+  const reduced = usePrefersReducedMotion();
+  return (
+    <div className="lp-demo" id="learning-demo" data-reduced={reduced ? 'true' : undefined}>
+      <SummaryRow reduced={reduced} />
+      <QuizRow />
     </div>
   );
 }

@@ -1,0 +1,202 @@
+/* «Ваша очередь»: the next page of the same lecture with its summary, and one quiz question.
+   Paper is the lecture; the summary and the quiz are Meldy's, set in sans on the canvas. */
+
+.lp-demo { min-width: 0; }
+
+.lp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr);
+  gap: 40px;
+  align-items: start;
+}
+.lp-row + .lp-row {
+  margin-top: 56px;
+  padding-top: 40px;
+  border-top: 1px solid var(--sf-line);
+}
+.lp-side { min-width: 0; }
+.lp-h3 {
+  margin: 0 0 6px;
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -.005em;
+  color: var(--sf-ink);
+}
+
+/* ---------- the lecture sheet ---------- */
+
+.lp-sheet {
+  position: relative;
+  padding: 30px 34px 34px;
+  border-radius: 2px;
+  background: var(--ph-paper);
+  color: var(--ph-paper-ink);
+  font-family: var(--ph-serif);
+  font-weight: var(--ph-body-w);
+  box-shadow:
+    0 0 0 .5px rgba(0, 0, 0, .05),
+    0 1px 1px var(--ph-sh-contact),
+    0 14px 32px -16px var(--ph-sh-soft),
+    inset 0 1px 0 var(--ph-paper-hi);
+}
+.lp-sheet-title {
+  margin: 0 0 12px;
+  font-family: var(--ph-serif);
+  font-size: 22px;
+  font-weight: var(--ph-strong-w);
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+.lp-sheet-p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.62;
+  text-indent: 1.4em;
+  font-variation-settings: 'opsz' 16;
+}
+.lp-sheet-marks {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+.lp-reveal { stroke-dashoffset: 0; }
+.lp-reveal.is-drawing { animation-name: lp-draw; animation-timing-function: cubic-bezier(.42, 0, .22, 1); animation-fill-mode: both; }
+/* The pencil leaves the old sentence: its marks fade (ease-in) while the new ones start. */
+.lp-sheet-marks.is-fade { animation: lp-marks-out 120ms cubic-bezier(.4, 0, 1, 1) both; }
+
+@keyframes lp-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes lp-marks-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ---------- the summary ---------- */
+
+.lp-theses {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--sf-line);
+}
+.lp-theses li { border-bottom: 1px solid var(--sf-line); }
+.lp-thesis {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 15px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--sf-muted);
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.lp-thesis:hover { color: var(--sf-ink); }
+.lp-thesis.is-active { color: var(--sf-ink); font-weight: 550; }
+.lp-thesis:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; border-radius: 2px; }
+
+/* ---------- the quiz ---------- */
+
+.lp-quiz { min-width: 0; }
+.lp-quiz-q {
+  max-width: 17em;
+  margin: 4px 0 0;
+  font-family: var(--ph-serif);
+  font-size: 22px;
+  font-weight: var(--ph-strong-w);
+  line-height: 1.3;
+  letter-spacing: -.01em;
+  color: var(--sf-ink);
+  text-wrap: pretty;
+}
+.lp-options { border-top: 1px solid var(--sf-line); }
+.lp-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 44px;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--sf-line);
+  background: none;
+  text-align: left;
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--sf-ink);
+  cursor: pointer;
+}
+.lp-option:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; border-radius: 2px; }
+.lp-ring {
+  display: grid;
+  flex: 0 0 18px;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--sf-muted);
+  border-radius: 50%;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.lp-option:hover .lp-ring { border-color: var(--sf-ink); }
+.lp-option.is-correct .lp-ring { border-color: var(--ph-ok); background: var(--ph-ok); }
+.lp-option.is-wrong .lp-ring { border-color: var(--ph-wrong); background: var(--ph-wrong); }
+.lp-tick { display: block; overflow: visible; }
+.lp-tick path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  /* drawn after the 150 ms ring fill */
+  animation: lp-draw 200ms cubic-bezier(.42, 0, .22, 1) 150ms both;
+}
+.dark .lp-tick path { stroke: #1f1e1c; }
+.lp-row-quiz .lp-side { padding-top: 29px; }
+.lp-feedback-slot { min-height: calc(3 * 1.6em + 16px); font-size: 16px; }
+.lp-feedback {
+  margin: 16px 0 0;
+  max-width: 30em;
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--sf-ink);
+  animation: lp-feedback-in 180ms cubic-bezier(.22, .61, .36, 1) both;
+}
+
+@keyframes lp-feedback-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 767px) {
+  .lp-row { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+  .lp-row-quiz { gap: 18px; }
+  .lp-row-quiz .lp-side { padding-top: 0; }
+  .lp-feedback-slot { min-height: calc(4 * 1.6em + 16px); }
+}
+@media (max-width: 639px) {
+  .lp-row + .lp-row { margin-top: 40px; padding-top: 32px; }
+  .lp-sheet { padding: 24px 20px 26px; }
+  .lp-quiz-q { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal.is-drawing,
+  .lp-sheet-marks.is-fade,
+  .lp-feedback { animation: none; }
+  .lp-tick path { animation: none; stroke-dashoffset: 0; }
+  .lp-thesis,
+  .lp-ring { transition: none; }
+}

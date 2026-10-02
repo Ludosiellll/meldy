@@ -1,0 +1,211 @@
+/* Landing frame: navbar, sections, footer. Hairline document layout, no icon tiles.
+   Gutters match the hero: 48 (≥1280), 40 (1024–1279), 32 (640–1023), 16 (<640). */
+
+.landing-shell.lp-root {
+  --lp-g: 48px;
+  font-family: var(--ph-sans);
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+}
+@media (max-width: 1279px) { .landing-shell.lp-root { --lp-g: 40px; } }
+@media (max-width: 1023px) { .landing-shell.lp-root { --lp-g: 32px; } }
+@media (max-width: 639px) { .landing-shell.lp-root { --lp-g: 16px; } }
+
+/* ---------- navbar: solid canvas, one hairline ---------- */
+
+.lp-root .lp-nav {
+  height: 72px;
+  border-bottom: 1px solid var(--sf-line);
+  background: var(--sf-canvas);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Specific enough to beat index.css's legacy `.landing-shell nav > div` phone padding. */
+.lp-root .lp-nav .lp-nav-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
+  max-width: 1400px;
+  height: 72px;
+  margin: 0 auto;
+  padding: 0 var(--lp-g);
+}
+.lp-wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -.03em;
+  color: var(--sf-ink);
+  cursor: pointer;
+}
+.lp-wordmark:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; border-radius: 3px; }
+.lp-nav-links { align-items: center; gap: 32px; }
+.lp-root .lp-nav-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-muted);
+  transition: color 150ms ease;
+}
+.lp-root .lp-nav-links a:hover { color: var(--sf-ink); }
+.lp-nav-right { display: flex; align-items: center; gap: 20px; }
+.lp-root .lp-login {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+}
+.lp-root .lp-login:hover { color: var(--sf-muted); }
+/* The navbar action stays flat and outlined: the hero's pill is the only pressed-style button. */
+.lp-root .sf-nav-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid color-mix(in srgb, var(--sf-accent) 55%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--sf-accent);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.lp-root .sf-nav-cta:hover { background: var(--sf-accent-soft); border-color: var(--sf-accent); }
+.dark .lp-root .sf-nav-cta { color: #8ec3ef; border-color: color-mix(in srgb, #8ec3ef 50%, transparent); }
+.dark .lp-root .sf-nav-cta:hover { border-color: #8ec3ef; }
+.lp-root .lp-nav a:focus-visible,
+.lp-root .lp-nav button:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
+@media (max-width: 639px) {
+  .lp-nav-right { gap: 16px; }
+  .lp-root .sf-nav-cta { padding: 0 16px; font-size: 14px; }
+}
+
+/* ---------- sections ---------- */
+
+.lp-section {
+  padding: 112px 0;
+  border-top: 1px solid var(--sf-line);
+  color: var(--sf-ink);
+}
+.lp-wrap {
+  max-width: calc(1304px + 2 * var(--lp-g));
+  margin: 0 auto;
+  padding: 0 var(--lp-g);
+}
+.lp-h2 {
+  max-width: 17em;
+  margin: 0;
+  font-family: var(--ph-sans);
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -.028em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+}
+.dark .lp-h2 { font-weight: 570; }
+.lp-lead {
+  max-width: 34em;
+  margin: 16px 0 0;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--sf-muted);
+  text-wrap: pretty;
+}
+/* Anchors land under the fixed navbar, on the section's hairline. */
+#try,
+#possibilities,
+#method { scroll-margin-top: 72px; }
+
+/* «Ваша очередь» */
+.lp-try-grid {
+  display: grid;
+  grid-template-columns: minmax(0, .62fr) minmax(0, 1.38fr);
+  gap: 64px;
+  align-items: start;
+}
+.lp-try-intro { min-width: 0; }
+
+/* «Подход»: the argument on the left, the card that comes back on the right. */
+.lp-method {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 72px;
+  align-items: center;
+}
+.lp-method-copy { min-width: 0; }
+.lp-method-copy p {
+  max-width: 30em;
+  margin: 18px 0 0;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--sf-muted);
+}
+
+/* Final call */
+.lp-final .lp-lead { max-width: 32em; }
+.lp-final-cta { margin-top: 30px; }
+
+/* Footer */
+.lp-footer { border-top: 1px solid var(--sf-line); }
+.lp-footer-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  font-size: 15px;
+  color: var(--sf-muted);
+}
+.lp-footer .lp-wordmark { font-size: 19px; cursor: default; }
+.lp-footer-top {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--sf-muted);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--sf-muted) 45%, transparent);
+  text-underline-offset: 4px;
+}
+.lp-footer-top:hover { color: var(--sf-ink); }
+.lp-footer-top:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; border-radius: 2px; }
+
+@media (max-width: 1023px) {
+  .lp-section { padding: 88px 0; }
+  .lp-try-grid,
+  .lp-method { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+}
+@media (max-width: 639px) {
+  .lp-section { padding: 64px 0; }
+  .lp-lead,
+  .lp-method-copy p { font-size: 16px; }
+  .lp-footer-in { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-root .lp-nav-links a,
+  .lp-root .sf-nav-cta { transition: none; }
+}

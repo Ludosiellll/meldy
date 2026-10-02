@@ -1,0 +1,128 @@
+/* «Подход»: the hero card on a hairline timeline, driven by «Знаю» and «Не помню». */
+
+.lp-sched {
+  --lp-card-w: 316px;
+  --lp-travel: 0;
+  min-width: 0;
+  margin: 0;
+}
+.lp-sched-track { position: relative; padding-top: 10px; }
+.lp-sched-card {
+  position: relative;
+  width: var(--lp-card-w);
+  aspect-ratio: 5 / 3;
+  border-radius: 6px;
+  background: var(--ph-card);
+  color: var(--ph-paper-ink);
+  /* contact shadow at rest; while it travels the card lifts a little off the line */
+  box-shadow:
+    0 0 0 .5px rgba(0, 0, 0, .06),
+    0 1.5px 0 var(--ph-card-edge),
+    0 2px 3px var(--ph-sh-contact),
+    0 calc(10px + 10px * var(--lp-travel)) calc(22px + 14px * var(--lp-travel)) -12px var(--ph-sh-soft);
+  transform-origin: 50% 100%;
+}
+.lp-sched-q {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 56%;
+  display: block;
+  max-width: 8.6em;
+  transform: translateY(-50%);
+  font-family: var(--ph-serif);
+  font-size: 26px;
+  font-weight: var(--ph-strong-w);
+  line-height: 1.12;
+  letter-spacing: -.016em;
+  text-wrap: balance;
+}
+.lp-sched-date {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  display: grid;
+  justify-items: end;
+  transform: rotate(-4deg);
+  transform-origin: 100% 0;
+}
+.lp-date { grid-area: 1 / 1; display: block; overflow: visible; }
+.lp-date path {
+  fill: none;
+  stroke: var(--ph-pencil);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+  opacity: .95;
+}
+.lp-date.is-write path { animation: lp-write 200ms cubic-bezier(.3, .1, .3, 1) both; }
+.lp-date.is-erase { animation: lp-erase 140ms cubic-bezier(.4, 0, 1, 1) both; }
+
+@keyframes lp-write {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes lp-erase {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.lp-sched-line {
+  position: relative;
+  display: block;
+  height: 1px;
+  margin-top: 26px;
+  background: color-mix(in srgb, var(--sf-ink) 22%, transparent);
+}
+.lp-sched-tick {
+  position: absolute;
+  top: -4px;
+  width: 1px;
+  height: 9px;
+  margin-left: -.5px;
+  background: color-mix(in srgb, var(--sf-ink) 28%, transparent);
+  transition: background-color 200ms ease;
+}
+.lp-sched-tick.is-past { background: color-mix(in srgb, var(--sf-ink) 70%, transparent); }
+
+.lp-sched-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin-top: 20px;
+}
+.lp-sched-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+  text-underline-offset: 5px;
+  cursor: pointer;
+  transition: text-decoration-color 150ms ease, color 150ms ease;
+}
+.lp-sched-btn:hover { text-decoration-color: currentColor; }
+.lp-sched-btn[aria-disabled='true'] { color: var(--sf-muted); text-decoration-color: transparent; cursor: default; }
+.lp-sched-btn:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; border-radius: 2px; }
+
+@media (max-width: 639px) {
+  .lp-sched { --lp-card-w: 212px; }
+  .lp-sched-q { left: 16px; right: 16px; font-size: 19px; }
+  .lp-sched-date { right: 12px; top: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-date.is-write path,
+  .lp-date.is-erase { animation: none; }
+  .lp-sched-tick,
+  .lp-sched-btn { transition: none; }
+}

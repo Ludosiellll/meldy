@@ -1,0 +1,413 @@
+/* «Строчка → карточка» hero scene.
+   Sans is Meldy speaking, serif is paper, blue pencil is Meldy's marks on a source. */
+
+/* Until Onest arrives, text is set in a local Arial-metric face scaled to Onest's widths
+   (measured on the hero copy: Onest is 3.5% wider than Arial at 400, 1.7% narrower at 600
+   than Arial Bold), so the swap does not re-break lines or move the layout. */
+@font-face {
+  font-family: 'Onest Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('LiberationSans'), local('Helvetica Neue'), local('Helvetica');
+  font-weight: 100 549;
+  size-adjust: 103.5%;
+  ascent-override: 93.7%;
+  descent-override: 30%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Onest Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('LiberationSans-Bold'), local('Helvetica Neue Bold'), local('Helvetica Bold');
+  font-weight: 550 900;
+  size-adjust: 98.3%;
+  ascent-override: 98.7%;
+  descent-override: 31.5%;
+  line-gap-override: 0%;
+}
+
+:root {
+  --ph-paper: #fffdf9;
+  --ph-paper-ink: #2a2824;
+  --ph-card: #ffffff;
+  --ph-card-edge: #e2ddd3;
+  --ph-pencil: #2c5fb3;
+  --ph-cta-edge: #06467a;
+  --ph-sh-contact: rgba(52, 40, 24, .16);
+  --ph-sh-soft: rgba(52, 40, 24, .11);
+  --ph-sh-lift: rgba(52, 40, 24, .22);
+  --ph-paper-hi: transparent;
+  --ph-ok: #16805d;
+  --ph-wrong: #bb7652;
+  --ph-focus: var(--sf-accent);
+  --ph-body-w: 420;
+  --ph-strong-w: 600;
+  --ph-serif: 'Literata Variable', Georgia, 'Times New Roman', serif;
+  --ph-sans: 'Onest Variable', 'Onest Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Dark theme: the page chrome goes dark, the paper stays paper, lit like a sheet under a lamp:
+   neutral, not khaki (b* ≈ 3, light paper ≈ 2). Ink ≈ 9.9:1, pencil ≈ 4.8:1 on the paper. */
+.dark {
+  --ph-paper: #cdcac4;
+  --ph-paper-ink: #22201c;
+  --ph-card: #d5d2cc;
+  --ph-card-edge: #a8a59f;
+  --ph-pencil: #26509a;
+  --ph-cta-edge: #0e426e;
+  --ph-sh-contact: rgba(0, 0, 0, .55);
+  --ph-sh-soft: rgba(0, 0, 0, .5);
+  --ph-sh-lift: rgba(0, 0, 0, .6);
+  --ph-paper-hi: transparent;
+  --ph-ok: #7fd1a7;
+  --ph-wrong: #d08a63;
+  --ph-focus: #8ec3ef;
+}
+
+/* ---------- fit: a fixed design canvas scaled to the column ---------- */
+
+.ph-fit {
+  --ph-opsz: 17;
+  position: relative;
+  min-width: 0;
+}
+.ph-stage { position: relative; height: 664px; }
+.ph-scene {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 760px;
+  height: 664px;
+  margin: 0;
+  transform-origin: 0 0;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Fonts still loading: keep the paper out of sight instead of reflowing it in front of the
+   visitor; when they arrive the whole visual fades in (its own opacities multiply under it). */
+.ph-fit[data-fonts='pending'] .ph-scene,
+.ph-fit[data-fonts='pending'] .ph-below { visibility: hidden; }
+.ph-fit[data-fonts='arrived'] { animation: ph-arrive 280ms cubic-bezier(.22, .61, .36, 1) backwards; }
+
+@keyframes ph-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- sheets ---------- */
+
+.ph-sheet {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 520px;
+  border-radius: 2px;
+  background: var(--ph-paper);
+  box-shadow:
+    0 0 0 .5px rgba(0, 0, 0, .05),
+    0 1px 1px var(--ph-sh-contact),
+    0 14px 32px -16px var(--ph-sh-soft),
+    inset 0 1px 0 var(--ph-paper-hi);
+  pointer-events: none;
+}
+.ph-s2, .ph-s3 { height: 567px; }
+.ph-s2 { transform: translate(1px, 3px) rotate(-.5deg); }
+.ph-s3 { transform: translate(5px, 7px) rotate(.6deg); }
+
+.ph-page-text {
+  position: relative;
+  padding: 54px 64px 132px 58px;
+  color: var(--ph-paper-ink);
+  font-family: var(--ph-serif);
+  font-weight: var(--ph-body-w);
+  text-align: left;
+  hyphens: manual;
+}
+.ph-title {
+  margin: 0 0 18px;
+  font-family: var(--ph-serif);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.012em;
+}
+.ph-p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.62;
+  text-indent: 1.4em;
+  font-variation-settings: 'opsz' var(--ph-opsz);
+}
+
+/* One wrapper per pencil line; its clip-path follows the pen (always set, so no layer churn). */
+.ph-ul {
+  position: absolute;
+  pointer-events: none;
+  clip-path: inset(0 100% 0 0);
+  visibility: hidden;
+}
+.ph-ul svg { display: block; overflow: visible; }
+.ph-marks {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+.ph-ink { fill: var(--ph-pencil); opacity: .92; transition: opacity 150ms ease; }
+/* The underlined sentence plays the take again: a pointer over it inks the pencil fully. */
+.ph-key-hit {
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.ph-page[data-hot='true'] .ph-ul .ph-ink { opacity: 1; }
+
+/* ---------- index cards: plain card stock ---------- */
+
+.ph-card,
+.ph-card-top {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 456px;
+  height: 274px;
+}
+.ph-card {
+  border-radius: 6px;
+  background: var(--ph-card);
+  box-shadow:
+    0 0 0 .5px rgba(0, 0, 0, .06),
+    0 1.5px 0 var(--ph-card-edge),
+    0 2px 3px var(--ph-sh-contact),
+    0 10px 22px -12px var(--ph-sh-soft);
+  pointer-events: none;
+}
+.ph-card-top {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.ph-card-top:focus,
+.ph-card-top:focus-visible { outline: none; }
+.ph-card-top:focus-visible .ph-flipper {
+  outline: 2px solid var(--ph-focus);
+  outline-offset: 4px;
+  border-radius: 7px;
+}
+.ph-card-base,
+.ph-card-lift,
+.ph-flipper,
+.ph-face,
+.ph-shade,
+.ph-light,
+.ph-q-in {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.ph-card-base {
+  border-radius: 6px;
+  box-shadow: 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft);
+}
+.ph-card-lift {
+  border-radius: 7px;
+  opacity: 0;
+  box-shadow: 0 28px 42px -16px var(--ph-sh-lift);
+}
+.ph-face {
+  border-radius: 6px;
+  background: var(--ph-card);
+  box-shadow:
+    0 0 0 .5px rgba(0, 0, 0, .06),
+    0 1.5px 0 var(--ph-card-edge),
+    inset 0 1px 0 var(--ph-paper-hi);
+}
+.ph-scene[data-reduced='true'] .ph-face { transition: opacity 150ms ease; }
+.ph-face-question { visibility: hidden; }
+.ph-q {
+  position: absolute;
+  left: 36px;
+  right: 36px;
+  top: 50%;
+  display: block;
+  max-width: 8.6em;
+  margin: 0;
+  transform: translateY(-58%);
+  font-family: var(--ph-serif);
+  font-size: 38px;
+  font-weight: var(--ph-strong-w);
+  line-height: 1.1;
+  letter-spacing: -.018em;
+  color: var(--ph-paper-ink);
+  text-wrap: balance;
+}
+.ph-zav {
+  position: absolute;
+  right: 26px;
+  top: 20px;
+  display: block;
+  overflow: visible;
+  transform: rotate(-4deg);
+  transform-origin: 100% 0;
+}
+.ph-zav path { stroke: var(--ph-pencil); }
+/* Flip light: one lamp on the left. A face turning away darkens a little, one turning in
+   catches the light; the card's own lift does the rest. */
+.ph-shade,
+.ph-light {
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+}
+.ph-shade { background: #000; }
+.ph-light { background: linear-gradient(100deg, #fff 0%, rgba(255, 255, 255, .55) 60%, rgba(255, 255, 255, .2) 100%); }
+
+/* ---------- the slip: it lives in the card's answer face for the whole flight ---------- */
+
+.ph-strip-pos,
+.ph-strip-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+}
+/* End-peel: the hinge sits near the left end, the far end comes up first. */
+.ph-strip {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: 8% 60%;
+}
+/* The cut edge and a hairline of contact: shown only once the slip has left the page, so
+   nothing draws a box around the sentence before it moves. */
+.ph-strip-edge {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 2px;
+  opacity: 0;
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .13), 0 .5px 1.5px rgba(0, 0, 0, .1);
+}
+.ph-strip-paper {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ph-paper);
+}
+/* Inset 18 px: an outer shadow is not painted inside its own box, so a full-size box
+   would show a light band when the shadow slides out from under the slip. */
+.ph-strip-shadow {
+  border-radius: 6px;
+  box-shadow: 0 14px 30px 10px var(--ph-sh-lift), 0 2px 8px 12px var(--ph-sh-contact);
+}
+.ph-ln {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  white-space: nowrap;
+  line-height: 1;
+  font-family: var(--ph-serif);
+  font-weight: var(--ph-body-w);
+  font-variation-settings: 'opsz' var(--ph-opsz);
+  color: var(--ph-paper-ink);
+}
+
+/* will-change only while the clock runs or the visitor is at the card (data-live, dropped
+   400 ms after the last turn, hover or press); never on the slip (it changes scale). */
+.ph-scene[data-animating='true'] .ph-card-top,
+.ph-scene[data-animating='true'] .ph-c2,
+.ph-scene[data-animating='true'] .ph-c3,
+.ph-scene[data-live='true'] .ph-card-top,
+.ph-scene[data-live='true'] .ph-flipper { will-change: transform; }
+.ph-scene[data-animating='true'] .ph-card-lift,
+.ph-scene[data-animating='true'] .ph-card-base,
+.ph-scene[data-live='true'] .ph-card-lift,
+.ph-scene[data-live='true'] .ph-card-base,
+.ph-scene[data-live='true'] .ph-shade,
+.ph-scene[data-live='true'] .ph-light { will-change: opacity; }
+
+/* ---------- under the card: one caption (and, with reduced motion, the stills) ---------- */
+
+.ph-below {
+  position: relative;
+  margin-top: 18px;
+}
+.ph-invite {
+  margin: 0;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--sf-muted);
+  opacity: 0;
+  text-wrap: pretty;
+}
+.ph-control {
+  display: block;
+  min-height: 44px;
+  margin: 2px 0 0;
+  padding: 11px 0;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--sf-muted);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--sf-muted) 45%, transparent);
+  text-underline-offset: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ph-control:hover { color: var(--sf-ink); text-decoration-color: currentColor; }
+.ph-control:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; border-radius: 2px; }
+
+/* ---------- compact canvas: 640–767 and 1024–1279 px ---------- */
+
+@media (min-width: 640px) and (max-width: 767px), (min-width: 1024px) and (max-width: 1279px) {
+  .ph-stage { height: 646px; }
+  .ph-scene { width: 640px; height: 646px; }
+  .ph-card,
+  .ph-card-top { width: 400px; height: 240px; }
+  .ph-q { left: 32px; right: 32px; }
+  .ph-zav { right: 22px; top: 18px; }
+}
+
+/* ---------- phone canvas ---------- */
+
+@media (max-width: 639px) {
+  .ph-fit { --ph-opsz: 14.5; }
+  .ph-stage { height: 403px; }
+  .ph-scene { width: 358px; height: 403px; }
+  .ph-sheet { left: 6px; top: 6px; width: 346px; }
+  .ph-s2, .ph-s3 { height: 250px; }
+  .ph-page-text { padding: 28px 30px 72px 20px; }
+  .ph-p1-more,
+  .ph-more { display: none; }
+  .ph-title { margin-bottom: 10px; font-size: 22px; }
+  .ph-p { font-size: 14.5px; line-height: 1.58; }
+  .ph-card,
+  .ph-card-top { width: 312px; height: 187px; }
+  .ph-q { left: 24px; right: 24px; font-size: 27px; line-height: 1.12; }
+  .ph-zav { right: 18px; top: 14px; }
+  .ph-below { margin-top: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ph-fit[data-fonts='arrived'] { animation-duration: 120ms; }
+  .ph-ink { transition: none; }
+}
