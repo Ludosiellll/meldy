@@ -1,28 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
   ArrowRight,
   BookOpen,
   Brain,
-  CalendarDays,
-  Check,
-  ChevronRight,
   FileText,
   GraduationCap,
   Headphones,
+  Layers,
+  ListChecks,
   MessageCircle,
   MousePointer2,
   Network,
-  Play,
   Quote,
-  Sparkles,
   Upload,
   WandSparkles,
   Zap,
 } from 'lucide-react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import LandingHero from '../components/LandingHero';
+import InteractiveDemo from '../components/landing/InteractiveDemo';
 
 const reveal = {
   hidden: { opacity: 0, y: 28 },
@@ -42,6 +40,7 @@ export default function Landing() {
       <Navbar />
       <main>
         <LandingHero />
+        <TryItSection />
         <LearningFlow />
         <FeatureGrid />
         <MethodSection />
@@ -65,7 +64,7 @@ function Navbar() {
           <span className="landing-logo-text truncate text-lg font-semibold tracking-[-0.04em]">Meldy</span>
         </button>
 
-        <div className="landing-nav-links hidden items-center gap-8 text-sm font-medium md:flex">
+        <div className="landing-nav-links hidden items-center gap-8 text-sm font-medium lg:flex">
           <a className="transition hover:text-white" href="#process">Как это работает</a>
           <a className="transition hover:text-white" href="#possibilities">Возможности</a>
           <a className="transition hover:text-white" href="#method">Подход</a>
@@ -75,7 +74,7 @@ function Navbar() {
           <button className="landing-login hidden rounded-full px-4 py-2.5 text-sm font-medium transition sm:block" onClick={() => navigate('/login')}>
             Войти
           </button>
-          <button className="landing-nav-cta landing-button-primary shrink-0 px-3 py-2.5 text-[11px] sm:px-5 sm:text-sm" onClick={() => navigate('/register')}>
+          <button className="landing-nav-cta sf-nav-cta shrink-0 px-3 py-2.5 text-[11px] sm:px-5 sm:text-sm" onClick={() => navigate('/register')}>
             Попробовать
             <ArrowRight className="h-4 w-4" />
           </button>
@@ -122,28 +121,47 @@ function SectionHeading({ eyebrow, title, text }: { eyebrow: string; title: stri
   );
 }
 
+function TryItSection() {
+  return (
+    <section id="try" className="sf-try" aria-labelledby="try-heading">
+      <div className="sf-try-inner">
+        <motion.div variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.4 }} transition={{ duration: 0.4 }} className="sf-try-intro">
+          <p className="sf-try-eyebrow">Интерактивный пример</p>
+          <h2 id="try-heading">Попробуйте сами</h2>
+          <p className="sf-try-lead">Это небольшой урок по той же лекции. Его можно пройти прямо здесь.</p>
+          <ol className="sf-try-list">
+            <li><span>1</span>Прочитайте фрагмент и посмотрите, что попало в конспект.</li>
+            <li><span>2</span>Вспомните ответ, затем переверните карточку.</li>
+            <li><span>3</span>Выберите вариант в тесте и прочитайте разбор.</li>
+          </ol>
+        </motion.div>
+        <InteractiveDemo />
+      </div>
+    </section>
+  );
+}
+
 function FeatureGrid() {
   const features = [
-    { icon: FileText, title: 'Структурный конспект', text: 'Основные идеи, термины и выводы без ручной разметки.', tone: 'cyan' },
-    { icon: Brain, title: 'Карточки для повторения', text: 'Вопросы по материалу остаются рядом с источником.', tone: 'violet' },
-    { icon: MessageCircle, title: 'Устный экзамен', text: 'Профессор задаёт открытые вопросы и разбирает ответ.', tone: 'amber' },
-    { icon: Headphones, title: 'Сценарий подкаста', text: 'Материал превращается в диалог двух ведущих.', tone: 'rose' },
-    { icon: CalendarDays, title: 'План подготовки', text: 'Темы распределяются по дням до экзамена.', tone: 'emerald' },
-    { icon: Network, title: 'Карта знаний', text: 'Материалы собираются в связанную учебную картину.', tone: 'blue' },
+    { icon: FileText, title: 'Конспект со ссылками на источник', text: 'Каждый тезис ведёт к фрагменту материала, из которого он взят.' },
+    { icon: Layers, title: 'Карточки с интервальным повторением', text: 'Карточки возвращаются на повторение, когда их пора вспомнить.' },
+    { icon: ListChecks, title: 'Тест с разбором ответов', text: 'После ответа видно, почему вариант верный или где ошибка.' },
+    { icon: Headphones, title: 'Разговор двух ведущих со схемами', text: 'Макс и Софья обсуждают тему, а рядом появляются схемы к их репликам.' },
+    { icon: Network, title: 'Карта знаний', text: 'Понятия из разных материалов связываются в одну карту.' },
+    { icon: MessageCircle, title: 'Устный экзамен', text: 'Экзаменатор задаёт открытые вопросы и разбирает ваш ответ.' },
   ];
 
   return (
     <section id="possibilities" className="landing-section relative px-5 py-24 sm:px-8">
       <div className="landing-section-rule absolute inset-x-0 top-0 mx-auto h-px max-w-6xl" />
       <div className="mx-auto max-w-6xl">
-        <SectionHeading eyebrow="Работайте с темой по-разному" title="Один источник. Шесть учебных инструментов." text="Переключайтесь между чтением, активным вспоминанием, проверкой и планированием — без потери контекста." />
-        <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SectionHeading eyebrow="Возможности" title="Один материал — весь цикл подготовки" text="Разобраться, запомнить, проверить себя и ответить вслух — по одной загруженной лекции, без переноса текста между сервисами." />
+        <div className="sf-features">
           {features.map((feature, index) => (
-            <motion.article key={feature.title} variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.25 }} transition={{ duration: 0.35, delay: (index % 3) * 0.05 }} className="landing-feature-card group">
-              <div className="landing-feature-icon"><feature.icon className="h-5 w-5" /></div>
-              <h3 className="mt-6 text-lg font-semibold tracking-tight">{feature.title}</h3>
-              <p className="landing-copy mt-2 text-sm leading-6">{feature.text}</p>
-              <div className="landing-feature-more mt-5 flex items-center gap-1 text-xs font-medium">Возможность приложения <ChevronRight className="h-3.5 w-3.5" /></div>
+            <motion.article key={feature.title} variants={reveal} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.25 }} transition={{ duration: 0.35, delay: (index % 3) * 0.05 }} className="sf-feature">
+              <span className="sf-feature-icon" aria-hidden="true"><feature.icon size={18} strokeWidth={2} /></span>
+              <h3 className="sf-feature-title">{feature.title}</h3>
+              <p className="sf-feature-text">{feature.text}</p>
             </motion.article>
           ))}
         </div>
