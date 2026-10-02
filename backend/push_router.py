@@ -63,7 +63,7 @@ async def send_notification(request: Request):
     try:
         webpush(
             subscription_info=sub_info,
-            data=json.dumps({"title": "StudyForge", "body": message, "url": "/review"}),
+            data=json.dumps({"title": "Meldy", "body": message, "url": "/review"}),
             vapid_private_key=VAPID_PRIVATE_KEY,
             vapid_claims=VAPID_CLAIMS
         )

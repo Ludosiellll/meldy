@@ -1435,7 +1435,7 @@ export default function ProfessorExam() {
                     Академическая зачетная книжка
                   </h2>
                   <p className="text-[10px] text-slate-400 dark:text-slate-550 font-bold uppercase tracking-widest mt-0.5">
-                    StudyForge Academy • Кафедра когнитивного обучения
+                    Meldy Academy • Кафедра когнитивного обучения
                   </p>
                 </div>
                 

@@ -330,7 +330,7 @@ export default function Layout() {
             <div className="app-logo-mark w-7 h-7 rounded-md flex items-center justify-center">
               <GraduationCap className="w-4 h-4" />
             </div>
-            <span className="font-semibold tracking-tight text-lg">StudyForge</span>
+            <span className="font-semibold tracking-tight text-lg">Meldy</span>
           </button>
           
               <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 -mr-2 text-slate-400 hover:text-slate-900 transition">
@@ -539,7 +539,7 @@ export default function Layout() {
             <div className="app-logo-mark w-6 h-6 rounded flex items-center justify-center">
               <GraduationCap className="w-3.5 h-3.5" />
             </div>
-            <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">StudyForge</span>
+            <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">Meldy</span>
           </button>
           <div className="flex items-center gap-1">
             <button 

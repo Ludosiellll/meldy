@@ -71,7 +71,7 @@ export default function HHCallback() {
       <div className="space-y-1.5 mt-2">
         <h3 className="text-white font-extrabold text-lg">Авторизация HeadHunter</h3>
         <p className="text-slate-400 text-xs max-w-xs leading-relaxed">
-          Безопасно сохраняем ваши токены доступа в StudyForge. Пожалуйста, не закрывайте вкладку...
+          Безопасно сохраняем ваши токены доступа в Meldy. Пожалуйста, не закрывайте вкладку...
         </p>
       </div>
     </div>

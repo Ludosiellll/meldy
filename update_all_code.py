@@ -76,7 +76,7 @@ FILES = [
 ]
 
 SUPABASE_SCHEMA = r"""================================================================================
-SUPABASE SCHEMA — Project: StudyForge (daunnytubqbzafjnpfnw)
+SUPABASE SCHEMA — Project: Meldy (daunnytubqbzafjnpfnw)
 ================================================================================
 
 -- 1. materials — Проанализированные материалы

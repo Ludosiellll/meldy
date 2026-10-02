@@ -30,7 +30,7 @@ export default function Header({ onReset }: { onReset: () => void }) {
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
             <GraduationCap className="w-4 h-4 text-white" />
           </div>
-          <span className="font-semibold text-slate-900 text-[15px]">StudyForge</span>
+          <span className="font-semibold text-slate-900 text-[15px]">Meldy</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
             Статус системы
             <span className={dotClass} title={dotTitle} />

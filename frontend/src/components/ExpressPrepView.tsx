@@ -138,7 +138,7 @@ export default function ExpressPrepView({
     setActiveSlide({
       type: 'default',
       title: summaryJson?.title || 'Разбор лекции',
-      description: 'ИИ-Подкаст StudyForge. Макс и Софья помогают вам разобраться в сложных академических терминах.'
+      description: 'Аудиоразбор от Meldy: Макс и Софья помогают разобраться в сложных терминах.'
     });
 
   }, [currentSpeakingIndex, podcastLines, terms, flashcards]);

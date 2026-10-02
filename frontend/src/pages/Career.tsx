@@ -833,7 +833,7 @@ export default function Career() {
       setChatMessages([
         {
           role: 'assistant',
-          content: 'Привет! Я Форджи, твой личный карьерный коуч. Моя цель — помочь тебе определиться с будущей IT-профессией, разобрать твои интересы и составить ультимативно подробный курс на базе вакансий реального рынка труда.\n\nРасскажи, в каком направлении ты хочешь развиваться? К чему лежит душа? У тебя уже есть опыт в программировании, дизайне, аналитике или управлении?'
+          content: 'Привет! Я Meldy, твой карьерный консультант. Помогу выбрать направление, сопоставить его с твоими интересами и составить план обучения на основе требований вакансий.\n\nВ каком направлении ты хочешь развиваться? Есть ли у тебя опыт в программировании, дизайне, аналитике или управлении?'
         }
       ]);
     }
@@ -842,7 +842,7 @@ export default function Career() {
   const handleClearCoachChat = () => {
     const welcome = [{
       role: 'assistant',
-      content: 'Привет! Я Форджи, твой личный карьерный коуч. Моя цель — помочь тебе определиться с будущей IT-профессией, разобрать твои интересы и составить ультимативно подробный курс на базе вакансий реального рынка труда.\n\nРасскажи, в каком направлении ты хочешь развиваться? К чему лежит душа? У тебя уже есть опыт в программировании, дизайне, аналитике или управлении?'
+      content: 'Привет! Я Meldy, твой карьерный консультант. Помогу выбрать направление, сопоставить его с твоими интересами и составить план обучения на основе требований вакансий.\n\nВ каком направлении ты хочешь развиваться? Есть ли у тебя опыт в программировании, дизайне, аналитике или управлении?'
     }];
     setChatMessages(welcome);
     setChatInput('');
@@ -945,7 +945,7 @@ export default function Career() {
           salary: "70 000 - 100 000 ₽",
           requirements: "Знание HTML5, CSS3, ES6+ JavaScript. Базовый опыт работы с React и state-менеджерами (Redux Toolkit, Zustand). Понимание TypeScript, адаптивной верстки, работы с REST API и Git. Стремление развиваться и писать поддерживаемый код.",
           responsibility: "Разработка новых компонентов интерфейса, верстка по макетам Figma, участие в проектировании UI/UX, оптимизация производительности веб-приложений, написание юнит-тестов.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         },
         {
           title: `React Developer (Junior+/Middle)`,
@@ -953,7 +953,7 @@ export default function Career() {
           salary: "120 000 - 160 000 ₽",
           requirements: "Опыт коммерческой веб-разработки от 1 года. Глубокие знания React, React Hooks, TypeScript. Знание CSS-in-JS или препроцессоров (Sass/Less). Базовые навыки работы с Webpack/Vite. Готовность к кросс-браузерной кросс-платформенной верстке.",
           responsibility: "Поддержка и масштабирование существующих финтех-сервисов, интеграция с внутренними микросервисами по gRPC/REST, рефакторинг и покрытие кода тестами.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         },
         {
           title: `Frontend Developer (Vue.js / Nuxt)`,
@@ -961,7 +961,7 @@ export default function Career() {
           salary: "90 000 ₽",
           requirements: "Отличные знания Vue 2/3 (Composition API), Vuex/Pinia. Понимание NuxtJS, SSR концепций. Понимание принципов семантической кроссбраузерной верстки, БЭМ, TailwindCSS. Опыт работы с REST API.",
           responsibility: "Разработка корпоративных порталов и промо-страниц, оптимизация скорости загрузки сайтов, интеграция аналитических систем, участие в код-ревью.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         }
       ];
     } else if (prof.includes('back') || prof.includes('бэк') || prof.includes('python') || prof.includes('php') || prof.includes('node') || prof.includes('django') || prof.includes('flask') || prof.includes('сервер')) {
@@ -972,7 +972,7 @@ export default function Career() {
           salary: "80 000 - 110 000 ₽",
           requirements: "Уверенное владение Python 3.9+. Базовые знания веб-фреймворков FastAPI или Django. Понимание реляционных баз данных (PostgreSQL, MySQL), написание простых SQL-запросов. Базовые навыки работы с Docker и Git.",
           responsibility: "Проектирование и разработка REST API эндпоинтов, написание бизнес-логики сервисов, интеграция с внешними API, написание автотестов (pytest).",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         },
         {
           title: `Python/Django Backend-разработчик`,
@@ -980,7 +980,7 @@ export default function Career() {
           salary: "130 000 - 170 000 ₽",
           requirements: "Опыт работы с Python от 1 года. Отличные знания Django, Django REST Framework (DRF). Опыт проектирования БД и оптимизации ORM-запросов. Навыки работы с очередями задач (Celery, Redis) и Docker.",
           responsibility: "Разработка ядра системы управления складской логистикой, оптимизация производительности медленных SQL-запросов, развертывание сервисов в Docker-контейнерах.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         },
         {
           title: `Junior Node.js / TypeScript Developer`,
@@ -988,7 +988,7 @@ export default function Career() {
           salary: "95 000 ₽",
           requirements: "Хорошие знания Node.js, Express/NestJS, TypeScript. Понимание работы протокола WebSockets. Опыт работы с NoSQL СУБД (MongoDB, Redis). Знание базовых паттернов проектирования.",
           responsibility: "Разработка бэкенда многопользовательских систем, интеграция платежных систем, создание панелей администратора, отслеживание багов через Sentry.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         }
       ];
     } else if (prof.includes('data') || prof.includes('аналитик') || prof.includes('sql') || prof.includes('pandas') || prof.includes('bi')) {
@@ -999,7 +999,7 @@ export default function Career() {
           salary: "75 000 ₽",
           requirements: "Отличные знания SQL (сложные запросы, оконные функции, джоины). Базовые знания Python (Pandas, NumPy, Matplotlib). Опыт работы с одной из BI-систем (Tableau, PowerBI, Yandex DataLens). Аналитический склад ума.",
           responsibility: "Сбор и обработка сырых данных из различных источников, создание интерактивных дашбордов для бизнеса, проверка продуктовых гипотез, подготовка регулярных отчетов.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         },
         {
           title: `Продуктовый аналитик (Product Analyst)`,
@@ -1007,7 +1007,7 @@ export default function Career() {
           salary: "140 000 - 180 000 ₽",
           requirements: "Опыт продуктовой аналитики от 1.5 лет. Знание методологии A/B тестирования и математической статистики. Глубокий SQL, навыки визуализации данных. Опыт работы с Google Analytics / AppMetrica.",
           responsibility: "Анализ пользовательских воронок и удержания (Retention, Cohort Analysis), дизайн и оценка результатов A/B тестов, поиск точек роста конверсии, выстраивание систем метрик.",
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         }
       ];
     } else {
@@ -1018,7 +1018,7 @@ export default function Career() {
           salary: "65 000 - 90 000 ₽",
           requirements: `Интерес к сфере ${profession || 'информационных технологий'}. Быстрая обучаемость, аналитический склад ума, базовое понимание процессов разработки ПО. Знание основных инструментов (Git, базовый синтаксис профильных языков).`,
           responsibility: `Выполнение базовых практических задач по профилю ${profession || 'IT-разработки'}, помощь ведущим специалистам в тестировании, документировании и отладке систем.`,
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         },
         {
           title: `${profession || 'Middle IT-специалист'}`,
@@ -1026,7 +1026,7 @@ export default function Career() {
           salary: "120 000 - 150 000 ₽",
           requirements: `Опыт работы по специальности от 1 года. Знание профессионального стека технологий в области ${profession || 'ИТ'}, опыт решения прикладных коммерческих задач, навыки работы в кросс-функциональной команде.`,
           responsibility: `Разработка архитектурных компонентов продукта, интеграция решений с внешними модулями, оптимизация бизнес-логики и повышение отказоустойчивости сервисов.`,
-          source: "StudyForge Mock API"
+          source: "Демо-данные Meldy"
         }
       ];
     }
@@ -1080,7 +1080,7 @@ export default function Career() {
         setVacancyChatMessages([
           {
             role: 'assistant',
-            content: `Привет! Я твой карьерный ИИ-консультант StudyForge. Я вижу, что ты выбрал отличную вакансию: **"${v[0].title}"** в компании **"${v[0].company}"**.\n\nЯ полностью проанализировал требования работодателя. Спроси меня о чём угодно: о каверзных вопросах на собеседовании, о том, какие технологии из списка самые критичные, или о том, как лучше презентовать твой опыт под эту позицию!`
+            content: `Привет! Я твой карьерный консультант Meldy. Ты выбрал вакансию **"${v[0].title}"** в компании **"${v[0].company}"**.\n\nМожем разобрать требования, подготовиться к вопросам на собеседовании или адаптировать рассказ о твоём опыте под эту позицию.`
           }
         ]);
       }
@@ -1095,7 +1095,7 @@ export default function Career() {
         setVacancyChatMessages([
           {
             role: 'assistant',
-            content: `Привет! Я твой карьерный ИИ-консультант StudyForge. Я вижу, что ты выбрал отличную вакансию: **"${mockV[0].title}"** в компании **"${mockV[0].company}"**.\n\nЯ полностью проанализировал требования работодателя. Спроси меня о чём угодно: о каверзных вопросах на собеседовании, о том, какие технологии из списка самые критичные, или о том, как лучше презентовать твой опыт под эту позицию!`
+            content: `Привет! Я твой карьерный консультант Meldy. Ты выбрал вакансию **"${mockV[0].title}"** в компании **"${mockV[0].company}"**.\n\nМожем разобрать требования, подготовиться к вопросам на собеседовании или адаптировать рассказ о твоём опыте под эту позицию.`
           }
         ]);
       }
@@ -1411,7 +1411,7 @@ export default function Career() {
     } else if (mod.practice_type === 'sql') {
       setSandboxCode(savedSolution !== undefined ? savedSolution : (activeTask.code_template || `SELECT -- Напишите ваш SQL-запрос здесь\n;`));
     } else if (mod.practice_type === 'web') {
-      setSandboxCode(savedSolution !== undefined ? savedSolution : (activeTask.code_template || `<!-- Напиши HTML & CSS здесь -->\n<div class="card">\n  <h2>Привет, StudyForge!</h2>\n  <p>Сделай центрирование по флексу и добавь градиентный фон.</p>\n</div>\n\n<style>\n  .card {\n    padding: 2rem;\n    text-align: center;\n  }\n</style>`));
+      setSandboxCode(savedSolution !== undefined ? savedSolution : (activeTask.code_template || `<!-- Напиши HTML & CSS здесь -->\n<div class="card">\n  <h2>Привет, Meldy!</h2>\n  <p>Сделай центрирование по флексу и добавь градиентный фон.</p>\n</div>\n\n<style>\n  .card {\n    padding: 2rem;\n    text-align: center;\n  }\n</style>`));
     } else if (mod.practice_type === 'business') {
       if (savedSolution !== undefined) {
         try {
@@ -2307,7 +2307,7 @@ export default function Career() {
             </div>
             <div className="absolute inset-0 border-4 border-indigo-500 rounded-full animate-ping opacity-25" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">StudyForge строит индивидуальный трек...</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Meldy составляет индивидуальный план...</h2>
           <p className="text-slate-500 dark:text-slate-400 max-w-md">Парсим актуальные вакансии с рынка, генерируем сложнейшие интерактивные песочницы и прорабатываем теорию.</p>
         </div>
       )}
@@ -2327,7 +2327,7 @@ export default function Career() {
                     </div>
                     <h3 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mb-4">Создайте курс, превосходящий ожидания</h3>
                     <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-                      Наш ИИ-коуч Форджи проведет с вами интервью, выкачает вакансии с HeadHunter API и построит гигантский индивидуальный курс с 7 интерактивными песочницами. Вы будете писать реальный код, делать SQL-запросы, верстать, считать приоритеты и общаться с разгневанными клиентами.
+                      Meldy поможет выбрать направление, изучит требования вакансий и составит план с практическими заданиями по коду, SQL, вёрстке и коммуникации.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-6">
                       <button
@@ -2588,7 +2588,7 @@ export default function Career() {
                             <div className="relative z-10 space-y-4 text-left">
                               <div className="flex items-center gap-2">
                                 <span className="px-3 py-1 bg-violet-500/20 border border-violet-550/40 text-violet-300 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                  🎓 ВЫПУСКНОЙ ЭТАП StudyForge
+                                  🎓 ВЫПУСКНОЙ ЭТАП MELDY
                                 </span>
                               </div>
                               
@@ -4089,7 +4089,7 @@ export default function Career() {
               <div className="space-y-2">
                 <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Создание ультимативного курса</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  ИИ StudyForge создаст масштабную программу обучения из <strong>10-14 глубоких модулей</strong>, полностью ориентированных на требования вакансии <strong>"{selectedVacancy.title}"</strong> в <strong>"{selectedVacancy.company}"</strong>.
+                  Meldy составит программу обучения из <strong>10–14 модулей</strong> с учётом требований вакансии <strong>"{selectedVacancy.title}"</strong> в компании <strong>"{selectedVacancy.company}"</strong>.
                 </p>
               </div>
 
@@ -4187,7 +4187,7 @@ export default function Career() {
                   <div className="flex justify-start">
                     <div className="bg-white dark:bg-slate-800 text-slate-400 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs shadow-sm border border-slate-200/40 dark:border-slate-800">
                       <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
-                      <span>Форджи обдумывает траекторию и печатает...</span>
+                      <span>Meldy подбирает план обучения…</span>
                     </div>
                   </div>
                 )}
@@ -4235,7 +4235,7 @@ export default function Career() {
                   </div>
                   <div>
                     <h3 className="font-extrabold text-slate-900 dark:text-slate-100">Карьерное собеседование</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">ИИ Коуч Форджи подберет ваш идеальный трек</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Meldy подберёт план обучения под выбранную профессию</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -4843,7 +4843,7 @@ export default function Career() {
                       <div className="space-y-4">
                         <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-xl text-xs text-amber-800 dark:text-amber-400 leading-relaxed border border-amber-200/40 dark:border-amber-900/30">
                           <span className="font-bold block mb-1">Оригинальный черновик (вода и канцеляризмы):</span>
-                          "Наша инновационная компания StudyForge осуществляет внедрение передовых синергетических обучающих ИИ-решений с уникальной методикой для достижения тотального лидерства на современном EdTech-рынке..."
+                          "Наша компания Meldy разрабатывает инструменты для обучения и помогает студентам работать с учебными материалами..."
                         </div>
                         <textarea
                           value={sandboxText}
@@ -5066,7 +5066,7 @@ export default function Career() {
           profile={profile}
           profession={profile.course.profession}
           vacancyTitle={selectedVacancy?.title || profile.course.profession}
-          vacancyCompany={selectedVacancy?.company || 'StudyForge'}
+          vacancyCompany={selectedVacancy?.company || 'Meldy'}
           vacancyRequirements={selectedVacancy?.requirements || 'Стек курса'}
           completedModulesTitles={profile.course.modules.filter(m => m.completed).map(m => m.title)}
           onClose={() => setShowMockInterview(false)}
@@ -5172,7 +5172,7 @@ export default function Career() {
                   Академический Сертификат Выпускника
                 </span>
                 <h2 className="text-3xl md:text-4xl font-serif font-black text-white dark:text-slate-100 tracking-wide mt-1.5 print:text-black">
-                  StudyForge Academia
+                  Meldy Academy
                 </h2>
               </div>
 
@@ -5215,7 +5215,7 @@ export default function Career() {
                   </span>
                 </div>
                 <div className="text-right space-y-1">
-                  <span className="text-[9px] uppercase tracking-wider text-slate-500 print:text-slate-500 block">ИИ-Ректор StudyForge:</span>
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 print:text-slate-500 block">ИИ-ректор Meldy:</span>
                   <span className="text-xs font-serif italic font-black text-amber-300/80 print:text-amber-700 block mt-0.5">
                     Professor Veritas
                   </span>

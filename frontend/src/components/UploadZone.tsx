@@ -75,7 +75,7 @@ export default function UploadZone({ settings, onSettingsChange, onUpload, onDem
           Один материал — полный цикл подготовки
         </h1>
         <p className="text-slate-500 dark:text-slate-400 text-lg mb-8">
-          Загрузите источник. StudyForge подготовит конспект, карточки и тест со ссылками на исходный текст.
+          Загрузите источник. Meldy подготовит конспект, карточки и тест со ссылками на исходный текст.
         </p>
         <div className="flex flex-wrap justify-center gap-6">
           <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">

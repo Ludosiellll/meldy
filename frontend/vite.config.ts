@@ -19,9 +19,10 @@ export default defineConfig({
         type: 'module',
       },
       manifest: {
-        name: 'StudyForge',
-        short_name: 'StudyForge',
-        description: 'Ваш умный ИИ-помощник для учебы',
+        name: 'Meldy — помощник для учёбы',
+        short_name: 'Meldy',
+        description: 'Конспекты, карточки и тесты из ваших учебных материалов.',
+        lang: 'ru',
         theme_color: '#4f46e5',
         background_color: '#f8fafc',
         display: 'standalone',

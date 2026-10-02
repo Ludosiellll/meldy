@@ -78,7 +78,7 @@ export default function SharedMaterial() {
             <Bot className="w-6 h-6 text-slate-950" />
           </div>
           <div>
-            <h1 className="font-black text-slate-900 dark:text-white text-lg">StudyForge</h1>
+            <h1 className="font-black text-slate-900 dark:text-white text-lg">Meldy</h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">Общий материал</p>
           </div>
         </div>

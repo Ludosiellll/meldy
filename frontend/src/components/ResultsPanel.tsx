@@ -153,7 +153,7 @@ function buildHtmlExport(results: AnalysisResults, displayTitle: string): string
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StudyForge — ${escapeHtml(displayTitle)}</title>
+<title>Meldy — ${escapeHtml(displayTitle)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -284,9 +284,9 @@ function buildHtmlExport(results: AnalysisResults, displayTitle: string): string
 </head>
 <body>
 <div class="doc-header">
-  <div class="doc-logo">SF</div>
+  <div class="doc-logo">M</div>
   <div class="doc-header-text">
-    <h1>StudyForge</h1>
+    <h1>Meldy</h1>
     <p>Материал подготовлен ${date}, ${time}</p>
   </div>
 </div>
@@ -402,7 +402,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     const u = URL.createObjectURL(b);
     const a = document.createElement('a');
     a.href = u;
-    a.download = `studyforge_${baseName}_${dateStr}.html`;
+    a.download = `meldy_${baseName}_${dateStr}.html`;
     a.click();
     URL.revokeObjectURL(u);
   };
@@ -417,7 +417,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       const a = document.createElement('a');
       a.href = u;
       const baseName = (sourceFileName || 'deck').replace(/\.[^.]+$/, '');
-      a.download = `studyforge_${baseName}.txt`;
+      a.download = `meldy_${baseName}.txt`;
       a.click();
       URL.revokeObjectURL(u);
     } catch (err) {

@@ -60,7 +60,7 @@ export default function Login() {
           <div className="app-logo-mark w-8 h-8 rounded-md flex items-center justify-center">
             <GraduationCap className="w-4 h-4" />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">Meldy</span>
         </button>
 
         <motion.div 
@@ -197,7 +197,7 @@ export default function Login() {
           transition={{ duration: 0.5 }}
           className="relative w-full max-w-lg"
         >
-          <p className="auth-showcase-eyebrow text-xs font-medium mb-5">Как работает StudyForge</p>
+          <p className="auth-showcase-eyebrow text-xs font-medium mb-5">Как работает Meldy</p>
           <h2 className="auth-showcase-title text-4xl font-semibold leading-[1.08] tracking-tight mb-8">От источника до уверенного ответа.</h2>
           <div className="auth-showcase-list border-y divide-y">
             {[

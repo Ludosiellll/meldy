@@ -117,7 +117,7 @@ export default function ForgeyAssistant() {
     if (path.startsWith('/knowledge-map')) return { title: 'Карта знаний', text: 'Визуальный граф всех твоих лекций и понятий. Видишь связи между темами? Это и есть настоящее понимание.' };
     if (path.startsWith('/quick-prep')) return { title: 'Быстрый повтор', text: 'Экспресс-шпаргалка + блиц-опрос по материалу. Идеально за 5 минут до занятия.' };
 
-    return { title: 'Помощник Форджи', text: 'Я готов помочь на любой странице StudyForge! Выбери вопрос ниже.' };
+    return { title: 'Помощник Meldy', text: 'Я помогу разобраться с учёбой. Выбери вопрос ниже.' };
   };
 
   const currentAdvice = getPageAdvice();
@@ -191,7 +191,7 @@ export default function ForgeyAssistant() {
                     <Bot className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-sm tracking-tight">Помощник Форджи</h3>
+                    <h3 className="font-extrabold text-sm tracking-tight">Помощник Meldy</h3>
                     <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Онлайн · AI наставник

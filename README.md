@@ -1,5 +1,5 @@
 ---
-title: StudyForge — AI-анализ учебных материалов
+title: Meldy — помощник для учёбы
 emoji: 🎓
 colorFrom: indigo
 colorTo: blue
@@ -8,7 +8,7 @@ app_port: 7860
 pinned: false
 ---
 
-# StudyForge — AI-анализ учебных материалов
+# Meldy — помощник для учёбы
 
 Три AI-агента параллельно создают конспект, карточки и тест из любой лекции.
 

@@ -22,6 +22,15 @@ interface Mistake {
   material_id: string | null;
 }
 
+interface MistakePracticeQuestion {
+  id: number | string;
+  mistake_id: string;
+  question: string;
+  options: string[];
+  correct: 'A' | 'B' | 'C' | 'D';
+  explanation: string;
+}
+
 export default function MistakeDiary() {
   const { user } = useAuth();
   const { confirm, alert } = useConfirm();
@@ -37,12 +46,20 @@ export default function MistakeDiary() {
   // Состояния для AI-Работы над ошибками
   const [isPracticing, setIsPracticing] = useState(false);
   const [practiceLoading, setPracticeLoading] = useState(false);
-  const [practiceQuestions, setPracticeQuestions] = useState<any[]>([]);
+  const [practiceQuestions, setPracticeQuestions] = useState<MistakePracticeQuestion[]>([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
+  const [finalCorrectCount, setFinalCorrectCount] = useState(0);
+  const [correctQuestionIndexes, setCorrectQuestionIndexes] = useState<number[]>([]);
   const [practiceFinished, setPracticeFinished] = useState(false);
+  const [finishingPractice, setFinishingPractice] = useState(false);
+  const [practiceSaveError, setPracticeSaveError] = useState(false);
+  const [practiceXpError, setPracticeXpError] = useState(false);
+  const [practiceResolvedCount, setPracticeResolvedCount] = useState(0);
+  const [practiceMistakeCount, setPracticeMistakeCount] = useState(0);
+  const [practiceXpAwarded, setPracticeXpAwarded] = useState(false);
 
   const startPractice = async () => {
     const openMistakes = mistakes.filter(m => !m.is_resolved);
@@ -66,13 +83,38 @@ export default function MistakeDiary() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setPracticeQuestions(data.practice || []);
+      const allowedMistakeIds = new Set(toPractice.map(mistake => mistake.id));
+      const questions = data?.practice;
+      const isValidPractice = Array.isArray(questions) && questions.length > 0 && questions.every((question: Partial<MistakePracticeQuestion>) =>
+        typeof question.id === 'number' || typeof question.id === 'string'
+      ) && questions.every((question: Partial<MistakePracticeQuestion>) =>
+        typeof question.mistake_id === 'string' &&
+        allowedMistakeIds.has(question.mistake_id) &&
+        typeof question.question === 'string' && question.question.trim().length > 0 &&
+        Array.isArray(question.options) && question.options.length === 4 &&
+        question.options.every(option => typeof option === 'string' && option.trim().length > 0) &&
+        ['A', 'B', 'C', 'D'].includes(question.correct ?? '') &&
+        question.options.some(option => option.startsWith(question.correct ?? '\0')) &&
+        typeof question.explanation === 'string' && question.explanation.trim().length > 0
+      );
+
+      if (!isValidPractice) throw new Error('Invalid practice response');
+
+      setPracticeQuestions(questions);
       setIsPracticing(true);
       setCurrentQIndex(0);
       setSelectedOption(null);
       setShowExplanation(false);
       setCorrectCount(0);
+      setFinalCorrectCount(0);
+      setCorrectQuestionIndexes([]);
       setPracticeFinished(false);
+      setFinishingPractice(false);
+      setPracticeSaveError(false);
+      setPracticeXpError(false);
+      setPracticeResolvedCount(0);
+      setPracticeMistakeCount(toPractice.length);
+      setPracticeXpAwarded(false);
     } catch (e) {
       await alert({ title: 'Ошибка', message: 'Не удалось запустить работу над ошибками. Попробуйте еще раз.', type: 'danger' });
     } finally {
@@ -88,6 +130,7 @@ export default function MistakeDiary() {
     if (opt.startsWith(q.correct)) {
       playFlipSound(); // Pleasant sound for correct
       setCorrectCount(prev => prev + 1);
+      setCorrectQuestionIndexes(prev => prev.includes(currentQIndex) ? prev : [...prev, currentQIndex]);
     } else {
       playErrorSound();
     }
@@ -99,40 +142,60 @@ export default function MistakeDiary() {
       setSelectedOption(null);
       setShowExplanation(false);
     } else {
-      setPracticeFinished(true);
-      
-      const openMistakes = mistakes.filter(m => !m.is_resolved);
-      const toPractice = openMistakes.slice(0, 5);
-      const successRate = (correctCount + (selectedOption?.startsWith(practiceQuestions[currentQIndex]?.correct) ? 1 : 0)) / practiceQuestions.length;
-      
-      // Считаем финальный correctCount с учётом последнего вопроса, если он правильный
-      const finalCorrect = correctCount + (selectedOption?.startsWith(practiceQuestions[currentQIndex]?.correct) ? 1 : 0);
-      const finalRate = finalCorrect / practiceQuestions.length;
+      setFinishingPractice(true);
 
-      if (finalRate >= 0.6) {
-        const ids = toPractice.map(m => m.id);
-        const resolvedAt = new Date().toISOString();
-        
-        await supabase
-          .from('mistake_diary')
-          .update({ is_resolved: true, resolved_at: resolvedAt })
-          .in('id', ids);
-          
-        setMistakes(prev => prev.map(m => ids.includes(m.id) ? { ...m, is_resolved: true } : m));
-        
-        if (user) {
-          await addXP(user.id, 50);
-        }
-        
-        playSuccessSound();
-        setTimeout(() => playXpSound(), 800);
-
-        confetti({
-          particleCount: 120,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
+      const correctIndexes = new Set(correctQuestionIndexes);
+      if (selectedOption?.startsWith(practiceQuestions[currentQIndex]?.correct)) {
+        correctIndexes.add(currentQIndex);
       }
+      const finalCorrect = correctIndexes.size;
+      const finalRate = finalCorrect / practiceQuestions.length;
+      setFinalCorrectCount(finalCorrect);
+
+      const questionIndexesByMistake = new Map<string, number[]>();
+      practiceQuestions.forEach((question, index) => {
+        const indexes = questionIndexesByMistake.get(question.mistake_id) ?? [];
+        indexes.push(index);
+        questionIndexesByMistake.set(question.mistake_id, indexes);
+      });
+      const resolvedIds = [...questionIndexesByMistake]
+        .filter(([, indexes]) => indexes.every(index => correctIndexes.has(index)))
+        .map(([mistakeId]) => mistakeId);
+
+      if (resolvedIds.length > 0) {
+        try {
+          const { error } = await supabase
+            .from('mistake_diary')
+            .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+            .in('id', resolvedIds);
+          if (error) throw error;
+        } catch {
+          setPracticeSaveError(true);
+          setPracticeFinished(true);
+          setFinishingPractice(false);
+          return;
+        }
+
+        setMistakes(prev => prev.map(mistake => resolvedIds.includes(mistake.id)
+          ? { ...mistake, is_resolved: true }
+          : mistake));
+        setPracticeResolvedCount(resolvedIds.length);
+        playSuccessSound();
+      }
+
+      if (user && resolvedIds.length > 0 && finalRate >= 0.6) {
+        try {
+          await addXP(user.id, 50);
+          setPracticeXpAwarded(true);
+          setTimeout(() => playXpSound(), 800);
+          confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        } catch {
+          setPracticeXpError(true);
+        }
+      }
+
+      setPracticeFinished(true);
+      setFinishingPractice(false);
     }
   };
 
@@ -270,14 +333,17 @@ export default function MistakeDiary() {
                   )}
 
                   {/* Кнопка далее */}
-                  {selectedOption && (
+                      {selectedOption && (
                     <motion.button
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
                       onClick={nextQuestion}
+                      disabled={finishingPractice}
                       className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-100"
                     >
-                      {currentQIndex + 1 < practiceQuestions.length ? 'Следующий вопрос' : 'Завершить практику'}
+                      {finishingPractice
+                        ? 'Сохраняем результат…'
+                        : currentQIndex + 1 < practiceQuestions.length ? 'Следующий вопрос' : 'Завершить практику'}
                     </motion.button>
                   )}
                 </div>
@@ -294,24 +360,34 @@ export default function MistakeDiary() {
                   <Zap className="w-8 h-8 text-amber-500 animate-bounce" />
                 </div>
 
-                {/* Тексты результатов */}
-                {correctCount / practiceQuestions.length >= 0.6 ? (
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">Отличная работа! 🎉</h2>
+                {/* Результат показываем только после сохранения */}
+                {practiceSaveError ? (
+                  <div role="alert" className="space-y-2">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Не удалось сохранить прогресс</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                      Вы ответили верно на {correctCount} из {practiceQuestions.length} вопросов. AI подтверждает: ваши слабые места усвоены!
+                      Изменения не сохранены. Ошибки остались открытыми, опыт не начислен.
                     </p>
-                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-full px-4 py-2 mt-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                      Ошибки исправлены &amp; Получено +50 XP
-                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Попробуйте еще раз 💔</h2>
+                    <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">Работа завершена</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                      Вы ответили верно на {correctCount} из {practiceQuestions.length} вопросов. Нужно хотя бы 2 правильных ответа, чтобы исправить ошибки в дневнике.
+                      Правильных ответов: {finalCorrectCount} из {practiceQuestions.length}.
                     </p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      Исправлено ошибок: {practiceResolvedCount} из {practiceMistakeCount}. Остальные остаются открытыми.
+                    </p>
+                    {practiceXpAwarded && (
+                      <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-full px-4 py-2 mt-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        Получено +50 XP
+                      </div>
+                    )}
+                    {practiceXpError && (
+                      <p role="status" className="text-sm text-amber-700 dark:text-amber-300">
+                        Ошибки сохранены, но XP начислить не удалось.
+                      </p>
+                    )}
                   </div>
                 )}
 

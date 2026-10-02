@@ -168,7 +168,7 @@ export default function StudySession() {
       setChatMessages([
         {
           role: 'assistant',
-          content: `Привет, ${user?.user_metadata?.full_name || 'друг'}! Я Форджи 🤖, твой персональный наставник.
+          content: `Привет, ${user?.user_metadata?.full_name || 'друг'}! Я Meldy 🤖, твой персональный наставник.
 
 Я подготовил сессию по теме **«${mat.title}»**. 
 
@@ -457,7 +457,7 @@ export default function StudySession() {
         <AlertCircle className="w-16 h-16 text-slate-300 dark:text-slate-700 mx-auto" />
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Библиотека пуста</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Загрузи свой первый конспект или лекцию, и ИИ-наставник Forgey построит индивидуальный план сессии.
+          Загрузи свой первый конспект или лекцию, и Meldy составит план учебной сессии.
         </p>
         <button
           onClick={() => navigate('/analyze')}
@@ -686,19 +686,19 @@ export default function StudySession() {
                   {summaryText ? (
                     <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{summaryText}</ReactMarkdown>
                   ) : (
-                    <p className="text-slate-400 text-sm italic">Конспект не содержит краткого содержания. Спроси Форджи ниже!</p>
+                    <p className="text-slate-400 text-sm italic">Конспект не содержит краткого содержания. Спроси Meldy ниже!</p>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Чат с наставником Форджи (Правая колонка) */}
+            {/* Чат с наставником Meldy (правая колонка) */}
             <div className="lg:col-span-6 flex flex-col space-y-4">
               <div className="card p-6 flex flex-col h-[50vh] lg:h-[470px] overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl">
                 <div className="flex items-center gap-3 border-b border-slate-800 pb-3 mb-3 shrink-0">
                   <div className="w-9 h-9 rounded-full bg-indigo-500 flex items-center justify-center text-white text-lg">🤖</div>
                   <div>
-                    <h4 className="text-sm font-black text-white leading-none">ИИ-Наставник Forgey</h4>
+                    <h4 className="text-sm font-black text-white leading-none">ИИ-наставник Meldy</h4>
                     <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1.5 mt-1">
                       <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping shrink-0" />
                       Онлайн в твоем уроке
@@ -878,7 +878,7 @@ export default function StudySession() {
                       <div className="p-3.5 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
                         <AlertCircle className="w-4.5 h-4.5 shrink-0 text-amber-500 mt-0.5" />
                         <div>
-                          <span className="font-extrabold block mb-0.5">💡 Подсказка Forgey:</span>
+                          <span className="font-extrabold block mb-0.5">💡 Подсказка Meldy:</span>
                           <div className="mb-2 markdown-content text-xs md:text-sm">
                             <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
                               {testQuestions[quizIdx].hint}
@@ -913,7 +913,7 @@ export default function StudySession() {
               <div className="card p-8 text-center space-y-4">
                 <RefreshCw className="w-10 h-10 text-indigo-500 animate-spin mx-auto" />
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Создаем проверочный тест по лекции...</h3>
-                <p className="text-xs text-slate-400">Форджи преобразует сложные термины в викторину</p>
+                <p className="text-xs text-slate-400">Meldy превратит сложные термины в короткую викторину</p>
               </div>
             )}
           </motion.div>

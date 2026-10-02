@@ -383,7 +383,7 @@ export default function Profile() {
                 {pushEnabled ? <Bell className="w-5 h-5 text-cyan-500" /> : <BellOff className="w-5 h-5 text-slate-500" />}
                 <div className="text-left">
                   <p className="font-semibold text-slate-900 dark:text-slate-200 text-sm">Напоминания о повторении</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">StudyForge сообщит, когда карточки будут готовы к повторению.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight mt-0.5">Meldy сообщит, когда карточки будут готовы к повторению.</p>
                 </div>
               </div>
               <button 

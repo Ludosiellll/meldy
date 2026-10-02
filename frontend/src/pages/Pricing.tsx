@@ -66,7 +66,7 @@ export default function Pricing() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-10 md:py-14">
       <header className="max-w-2xl mb-10 md:mb-12">
-        <p className="text-sm font-semibold tracking-wide text-cyan-700 dark:text-cyan-300 mb-3">STUDYFORGE</p>
+        <p className="text-sm font-semibold tracking-wide text-cyan-700 dark:text-cyan-300 mb-3">MELDY</p>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-950 dark:text-white mb-3">
           Тарифы
         </h1>

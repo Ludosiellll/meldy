@@ -21,12 +21,12 @@ const DESKTOP_STEPS: Step[] = [
             <Bot className="w-6 h-6 animate-bounce" />
           </div>
           <div>
-            <h3 className="font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">Привет! Я Форджи</h3>
+            <h3 className="font-extrabold text-lg text-slate-900 dark:text-slate-100 tracking-tight">Привет! Я Meldy</h3>
             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Твой AI-наставник</span>
           </div>
         </div>
         <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed font-medium">
-          Покажу ключевые фичи StudyForge — займёт меньше минуты. Учёба станет значительно продуктивнее!
+          Покажу, где добавить материал, повторять карточки и следить за прогрессом. Это займёт меньше минуты.
         </p>
       </div>
     ),
@@ -136,7 +136,7 @@ const MOBILE_STEPS: Step[] = [
             <Bot className="w-6 h-6 animate-bounce" />
           </div>
           <div>
-            <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 tracking-tight">Привет! Я Форджи</h3>
+            <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100 tracking-tight">Привет! Я Meldy</h3>
             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">AI-наставник</span>
           </div>
         </div>

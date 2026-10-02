@@ -73,7 +73,7 @@ export default function Dashboard() {
     ? {
         eyebrow: 'Первый шаг',
         title: 'Добавьте учебный материал',
-        description: 'Загрузите лекцию, конспект или запись. StudyForge подготовит конспект, карточки и тест.',
+        description: 'Загрузите лекцию, конспект или запись. Meldy подготовит конспект, карточки и тест.',
         label: 'Добавить материал',
         route: '/analyze',
         icon: Plus,

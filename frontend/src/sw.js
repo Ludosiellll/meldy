@@ -42,7 +42,7 @@ self.addEventListener('push', (event) => {
     try {
       data = event.data.json();
     } catch (e) {
-      data = { title: 'StudyForge', body: event.data.text() };
+      data = { title: 'Meldy', body: event.data.text() };
     }
   }
 

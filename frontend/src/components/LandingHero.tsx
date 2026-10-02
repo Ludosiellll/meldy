@@ -64,7 +64,7 @@ export default function LandingHero() {
         <div className="sf-intro">
           <div className="sf-eyebrow"><span /> ВАШ МАТЕРИАЛ. ВАШ ТЕМП.</div>
           <h1 id="sf-headline">Разобраться.<br />Запомнить.<br />Ответить.</h1>
-          <p className="sf-description">Загрузите лекцию — StudyForge выделит главное, соберёт карточки и составит тест. Разберитесь в теме, проверьте себя и вернитесь к тому, что пока не запомнили.</p>
+          <p className="sf-description">Загрузите лекцию — Meldy выделит главное, соберёт карточки и составит тест. Разберитесь в теме, проверьте себя и вернитесь к тому, что пока не запомнили.</p>
           <div className="sf-actions">
             <button className="sf-primary" onClick={() => navigate('/register')}>Начать с моей лекции <ArrowUpRight size={19} /></button>
             <button className="sf-watch" onClick={replay}><Play size={14} fill="currentColor" /> Смотреть демо</button>
@@ -74,7 +74,7 @@ export default function LandingHero() {
         </div>
 
         <div className="sf-demo-wrap" ref={stageRef} id="learning-demo">
-          <div className="sf-demo-heading"><span><i /> STUDYFORGE / В ДЕЙСТВИИ</span><span>ИНТЕРАКТИВНОЕ ДЕМО</span></div>
+          <div className="sf-demo-heading"><span><i /> MELDY / В ДЕЙСТВИИ</span><span>ИНТЕРАКТИВНОЕ ДЕМО</span></div>
           <div className="sf-demo">
             <div className="sf-demo-toolbar"><div><FileText size={15} /><span>Как работает память.pdf</span></div><span>Пример материала</span></div>
             <div className="sf-stage">

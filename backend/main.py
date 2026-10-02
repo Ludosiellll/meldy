@@ -146,7 +146,7 @@ async def scheduled_reminders():
             webpush(
                 subscription_info=sub_info,
                 data=json.dumps({
-                    "title": "StudyForge",
+                    "title": "Meldy",
                     "body": "Пора повторить карточки! Зайдите в приложение, чтобы закрепить знания.",
                     "url": "/review"
                 }),
@@ -996,7 +996,7 @@ async def fetch_hh_vacancies(profession: str, location: str = "", hh_access_toke
     
     url = "https://api.hh.ru/vacancies"
     headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
+        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0")
     }
     if hh_access_token:
         headers["Authorization"] = f"Bearer {hh_access_token}"
@@ -1072,7 +1072,7 @@ async def fetch_structured_vacancies(profession: str, location: str = "", hh_acc
     
     url = "https://api.hh.ru/vacancies"
     headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
+        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0")
     }
     if hh_access_token:
         headers["Authorization"] = f"Bearer {hh_access_token}"
@@ -1190,7 +1190,7 @@ async def career_vacancy_chat(request: Request, req: CareerVacancyChatRequest):
         
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
-    system_prompt = f"""Ты — Форджи, элитный карьерный коуч и технический консультант StudyForge.
+    system_prompt = f"""Ты — Meldy, карьерный консультант и технический эксперт.
 Сейчас ты консультируешь студента по конкретной выбранной им вакансии, которую он хочет получить в качестве своей карьерной цели.
 
 ИНФОРМАЦИЯ О ВАКАНСИИ:
@@ -1225,7 +1225,7 @@ async def career_chat(request: Request, req: CareerChatRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
     if req.is_expansion:
-        system_prompt = f"""Ты — Форджи, элитный карьерный коуч, эксперт по профессиональному ориентированию и HR-методист StudyForge.
+        system_prompt = f"""Ты — Meldy, карьерный консультант и HR-методист.
 Ты общаешься со студентом, который только что успешно завершил базовый курс по направлению "{req.profession or 'Разработчик'}" (уровень: {req.level or 'Junior'}, целевая зарплата: {req.salary or 'договорная'}).
 Он хочет расширить обучение и добавить новые продвинутые, сверхсложные модули.
 
@@ -1252,7 +1252,7 @@ async def career_chat(request: Request, req: CareerChatRequest):
 ВАЖНО: Если студент уже прямо выразил свой выбор (например: "размеренный темп, давай фуллстэк"), ты должен СРАЗУ сгенерировать сообщение с токеном [EXPAND_COURSE_ACTION:...] в конце, чтобы не затягивать процесс и мгновенно перейти к расширению курса!
 Не здоровайся заново в каждой реплике. Пиши ёмко, разбивай текст на абзацы для легкого чтения."""
     else:
-        system_prompt = """Ты — Форджи, элитный карьерный коуч, эксперт по профессиональному ориентированию и HR-методист StudyForge.
+        system_prompt = """Ты — Meldy, карьерный консультант и HR-методист.
 Твоя цель — провести со студентом поддерживающий, живой и глубокий диалог, чтобы помочь ему определиться с идеальной карьерной траекторией.
 
 Правила ведения диалога:
@@ -1741,7 +1741,7 @@ async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest)
 
     if req.mode == "explain":
         # Mode: give a full, rich, friendly explanation of the paragraph
-        system_prompt = f"""Ты — дружелюбный и опытный ИИ-наставник StudyForge по направлению "{req.profession}".
+        system_prompt = f"""Ты — дружелюбный и опытный ИИ-наставник Meldy по направлению "{req.profession}".
 {beginner_note}
 
 Тебе нужно объяснить студенту следующий учебный фрагмент МАКСИМАЛЬНО ПОНЯТНО и ПОДРОБНО:
@@ -1761,7 +1761,7 @@ async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest)
     else:
         # Mode: socratic dialogue (but adapt for beginners)
         if req.is_beginner:
-            system_prompt = f"""Ты — мудрый и добрый ИИ-наставник StudyForge по теме "{req.profession}".
+            system_prompt = f"""Ты — мудрый и добрый ИИ-наставник Meldy по теме "{req.profession}".
 {beginner_note}
 
 Студент изучает:
@@ -1774,7 +1774,7 @@ async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest)
 4. Пиши кратко (2-4 предложения) и дружелюбно.
 5. Не используй термины без объяснения."""
         else:
-            system_prompt = f"""Ты — Сократ, великий философ и персональный ИИ-тьютор StudyForge.
+            system_prompt = f"""Ты — Сократ, персональный ИИ-тьютор Meldy.
 Твоя цель — помочь студенту глубже понять следующий абзац учебного материала по направлению "{req.profession}":
 
 АБЗАЦ ТЕОРИИ:
@@ -1839,7 +1839,7 @@ async def career_parse_vacancy(request: Request, req: CareerVacancyParseRequest)
     # Запрашиваем через официальный API HeadHunter
     url = f"https://api.hh.ru/vacancies/{vacancy_id}"
     headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)")
+        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0")
     }
     if hh_access_token:
         headers["Authorization"] = f"Bearer {hh_access_token}"
@@ -1902,7 +1902,7 @@ async def career_diagnostic_test(request: Request, req: CareerDiagnosticTestRequ
         
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
-    system_prompt = f"""Ты — ИИ-Методист StudyForge.
+    system_prompt = f"""Ты — ИИ-методист Meldy.
 Сгенерируй входной диагностический тест из 5 вопросов множественного выбора (Multiple Choice) для проверки знаний студента перед изучением темы "{req.module_title}" по направлению "{req.profession}".
 
 Правила генерации вопросов:
@@ -1940,7 +1940,7 @@ async def career_code_diagnostics(request: Request, req: CareerCodeDiagnosticsRe
         
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
-    system_prompt = f"""Ты — ИИ-Архитектор и Технический Лид StudyForge.
+    system_prompt = f"""Ты — ИИ-архитектор и технический руководитель Meldy.
 Проанализируй черновик решения студента в песочнице для темы "{req.module_title}".
 
 ОПИСАНИЕ ЗАДАНИЯ:
@@ -2001,7 +2001,7 @@ async def career_github_readme(request: Request, req: CareerGithubReadmeRequest)
 
     system_prompt = f"""Ты — ИИ-Технический Рекрутер и Бренд-Консультант для разработчиков.
 Сгенерируй потрясающий, профессиональный файл README.md для GitHub-профиля студента, успешно окончившего полный ИИ-курс обучения по направлению "{req.profession}".
-Студент успешно освоил следующие темы в ИИ-буткемпе StudyForge: {completed_modules_str}.
+Студент успешно освоил следующие темы в ИИ-буткемпе Meldy: {completed_modules_str}.
 {capstone_part}
 
 Структура README должна включать:
@@ -2102,7 +2102,7 @@ async def career_evaluate_pet_project(request: Request, req: CareerPetProjectEva
             
         owner, repo = sub_parts[0], sub_parts[1]
         
-        headers = {"User-Agent": "StudyForge-Agent"}
+        headers = {"User-Agent": "Meldy-Agent"}
         
         async with httpx.AsyncClient() as client:
             # Check if repository exists and is public
@@ -2515,7 +2515,7 @@ async def hh_exchange(request: Request, req: HHExchangeRequest):
     # 1. Exchange code for token
     url = "https://hh.ru/oauth/token"
     headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)"),
+        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0"),
         "Content-Type": "application/x-www-form-urlencoded"
     }
     data = {
@@ -2611,7 +2611,7 @@ async def hh_resumes(request: Request):
     # Query resumes
     url = "https://api.hh.ru/resumes/mine"
     headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)"),
+        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0"),
         "Authorization": f"Bearer {hh_access_token}"
     }
     
@@ -2663,7 +2663,7 @@ async def hh_apply(request: Request, req: HHApplyRequest):
     # Send negotiation to HH
     url = "https://api.hh.ru/negotiations"
     headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "StudyForge/1.0 (contact@studyforge.edu)"),
+        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0"),
         "Authorization": f"Bearer {hh_access_token}"
     }
     

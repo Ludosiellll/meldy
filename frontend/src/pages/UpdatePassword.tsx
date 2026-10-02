@@ -65,7 +65,7 @@ export default function UpdatePassword() {
           <div className="app-logo-mark w-8 h-8 rounded-md flex items-center justify-center">
             <GraduationCap className="w-4 h-4" />
           </div>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">StudyForge</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg tracking-tight group-hover:text-[var(--sf-accent)] transition-colors">Meldy</span>
         </button>
 
         <motion.div 
@@ -169,7 +169,7 @@ export default function UpdatePassword() {
           </h2>
           
           <p className="text-slate-300 leading-relaxed text-sm mb-6">
-            После сохранения вы вернётесь в StudyForge и продолжите работу с прежними материалами.
+            После сохранения вы вернётесь в Meldy и продолжите работу с прежними материалами.
           </p>
         </motion.div>
       </div>

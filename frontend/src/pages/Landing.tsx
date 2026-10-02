@@ -62,7 +62,7 @@ function Navbar() {
           <span className="landing-mark relative grid h-9 w-9 place-items-center overflow-hidden rounded-lg">
             <GraduationCap className="relative h-5 w-5" />
           </span>
-          <span className="landing-logo-text truncate text-lg font-semibold tracking-[-0.04em]">StudyForge</span>
+          <span className="landing-logo-text truncate text-lg font-semibold tracking-[-0.04em]">Meldy</span>
         </button>
 
         <div className="landing-nav-links hidden items-center gap-8 text-sm font-medium md:flex">
@@ -201,8 +201,8 @@ function Footer() {
   return (
     <footer className="landing-footer border-t px-5 py-7 text-sm sm:px-8">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5"><span className="landing-mark grid h-8 w-8 place-items-center rounded-lg"><GraduationCap className="h-4 w-4" /></span><span className="font-semibold tracking-tight">StudyForge</span></div>
-        <span className="landing-copy text-xs">© {new Date().getFullYear()} StudyForge</span>
+        <div className="flex items-center gap-2.5"><span className="landing-mark grid h-8 w-8 place-items-center rounded-lg"><GraduationCap className="h-4 w-4" /></span><span className="font-semibold tracking-tight">Meldy</span></div>
+        <span className="landing-copy text-xs">© {new Date().getFullYear()} Meldy</span>
         <a href="#" className="landing-footer-link flex items-center gap-1 text-xs transition"><MousePointer2 className="h-3.5 w-3.5" /> Наверх</a>
       </div>
     </footer>

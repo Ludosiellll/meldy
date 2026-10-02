@@ -87,7 +87,7 @@ export default function QuizView({ data, onComplete, sources = [] }: { data: any
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-5 bg-slate-900/40 backdrop-blur-md border-b border-slate-800/80">
           <span className="text-indigo-400 font-extrabold text-base tracking-widest uppercase flex items-center gap-2">
-            StudyForge
+            Meldy
             <span className="text-slate-400 text-xs font-medium uppercase tracking-normal">| Режим презентации</span>
           </span>
           <button
