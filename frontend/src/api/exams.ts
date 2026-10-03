@@ -495,6 +495,52 @@ export async function fetchExamQuestions(examId: string, fallback: string = EXAM
   return (Array.isArray(data) ? data : []).map(normalizeQuestion).filter((row): row is ExamQuestion => row !== null);
 }
 
+/** An exam with the lectures added to it, in the order they were added (Library groups, redesign spec 5.1). */
+export interface ExamShelf {
+  id: string;
+  title: string;
+  kind: ExamKind;
+  exam_date: string | null;
+  created_at: string;
+  /** The exam's lectures in the order they were added (exam_materials.added_at), each once. */
+  materials: Array<{ id: string; addedAt: string }>;
+}
+
+/** The user's exams, newest first, each with its lectures in the order they were added. */
+export async function listExamShelves(userId: string): Promise<ExamShelf[]> {
+  const data = await run(
+    supabase.from('exams').select('id, title, kind, exam_date, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+    EXAM_MESSAGES.list,
+  );
+  const exams = (Array.isArray(data) ? data : []).map(normalizeExam).filter((row): row is ExamRow => row !== null);
+  if (exams.length === 0) return [];
+  const links = await run(
+    supabase
+      .from('exam_materials')
+      .select('exam_id, material_id, added_at')
+      .in('exam_id', exams.map((exam) => exam.id))
+      .order('added_at', { ascending: true })
+      .limit(5_000),
+    EXAM_MESSAGES.list,
+  );
+  const byExam = new Map<string, Array<{ id: string; addedAt: string }>>();
+  for (const row of Array.isArray(links) ? links : []) {
+    if (!isRecord(row) || typeof row.exam_id !== 'string' || typeof row.material_id !== 'string') continue;
+    const list = byExam.get(row.exam_id) ?? [];
+    const materialId = row.material_id;
+    if (!list.some((item) => item.id === materialId)) list.push({ id: materialId, addedAt: str(row.added_at) });
+    byExam.set(row.exam_id, list);
+  }
+  return exams.map((exam) => ({
+    id: exam.id,
+    title: exam.title,
+    kind: exam.kind,
+    exam_date: exam.exam_date,
+    created_at: exam.created_at,
+    materials: byExam.get(exam.id) ?? [],
+  }));
+}
+
 export async function fetchExamMaterialIds(examId: string, fallback: string = EXAM_MESSAGES.load): Promise<string[]> {
   const data = await run(supabase.from('exam_materials').select('material_id').eq('exam_id', examId), fallback);
   const ids = (Array.isArray(data) ? data : [])

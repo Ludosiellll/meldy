@@ -289,7 +289,8 @@ export function ticketReducer(state: TicketState, action: TicketAction): TicketS
           transcript: action.snapshot,
           live: action.live,
           input: action.input,
-          durationSeconds: Math.round(answerTime(state, action.now) / 1000),
+          // The same whole seconds as the timer in the top line (it rounds down): both stop at «Готово».
+          durationSeconds: Math.floor(answerTime(state, action.now) / 1000),
           startedAt: action.startedAt,
           restored: false,
         },

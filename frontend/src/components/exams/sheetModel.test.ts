@@ -9,6 +9,7 @@ import {
   coverageShares,
   endSentence,
   footnoteOf,
+  marginNotes,
   glue,
   layoutPhrase,
   matchesFilter,
@@ -86,9 +87,51 @@ describe('rows', () => {
           { material_id: 'm2', material_title: 'Другая', source_id: 'S09', excerpt: '' },
         ],
       }),
-    ).toEqual({ title: 'Денежный рынок', fragments: 'фрагменты 1, 5', manual: false });
-    expect(footnoteOf({ ...base, coverage_method: 'manual' })).toEqual({ title: 'отмечено вами', fragments: '', manual: true });
+    ).toEqual({ title: 'Денежный рынок', fragments: 'фрагменты 1, 5', manual: false, materialId: 'm1' });
+    expect(footnoteOf({ ...base, coverage_method: 'manual' })).toEqual({ title: 'отмечено вами', fragments: '', manual: true, materialId: '' });
     expect(footnoteOf({ ...base, coverage: 'none' })).toBeNull();
+  });
+
+  it('writes «там же» while the lecture stays the same, and names it again after a section, a hand mark or another lecture', () => {
+    const note = (materialId: string, fragments: string, title = materialId === 'm1' ? 'Нейронные сети и глубокое обучение' : 'Инфляция') => ({
+      title,
+      fragments,
+      manual: false,
+      materialId,
+    });
+    const views = marginNotes([
+      { section: 1, footnote: note('m1', 'фрагмент 3') },
+      { section: 1, footnote: note('m1', 'фрагмент 4') },
+      { section: 1, footnote: null },
+      { section: 1, footnote: note('m1', 'фрагменты 5, 6') },
+      { section: 1, footnote: { title: 'отмечено вами', fragments: '', manual: true, materialId: '' } },
+      { section: 1, footnote: note('m1', 'фрагмент 7') },
+      { section: 1, footnote: note('m2', 'фрагмент 1') },
+      { section: 2, footnote: note('m2', 'фрагмент 2') },
+      { section: 2, footnote: note('m2', 'фрагмент 9') },
+    ]);
+    const text = (index: number) => {
+      const view = views[index];
+      return view ? `${view.lead}${view.fragments ? `, ${view.fragments}` : ''}` : null;
+    };
+    expect(text(0)).toBe('Нейронные сети и глубокое обучение, фрагмент 3');
+    expect(views[0]?.named).toBe(true);
+    expect(text(1)).toBe('там же, фрагмент 4');
+    expect(views[1]?.named).toBe(false);
+    expect(text(2)).toBeNull();
+    expect(text(3)).toBe('там же, фрагменты 5, 6');
+    expect(text(4)).toBe('отмечено вами');
+    expect(text(5)).toBe('Нейронные сети и глубокое обучение, фрагмент 7');
+    expect(text(6)).toBe('Инфляция, фрагмент 1');
+    expect(text(7)).toBe('Инфляция, фрагмент 2');
+    expect(text(8)).toBe('там же, фрагмент 9');
+  });
+
+  it('cuts a long lecture title at a word so that the fragment still fits in two lines', () => {
+    const long = 'Денежно-кредитная политика центрального банка в условиях открытой экономики и плавающего курса';
+    const [view] = marginNotes([{ section: null, footnote: { title: long, fragments: 'фрагмент 12', manual: false, materialId: 'm1' } }]);
+    expect(view?.lead.endsWith('…')).toBe(true);
+    expect(`${view?.lead}, ${view?.fragments}`.length).toBeLessThanOrEqual(56);
   });
 
   it('numbers a question by the department’s label, else by position', () => {
@@ -109,12 +152,15 @@ describe('rows', () => {
 });
 
 describe('answers and confidence', () => {
-  it('says «Подтверждено ответами — 6 из 40, с 7 окт.» only after answers', () => {
-    const now = new Date(2026, 9, 20);
-    expect(plain(confirmedSentence({ total: 40, confirmed: 6, once: 2, notPassed: 1, untested: 31, since: '2026-10-07' }, now))).toBe(
-      'Подтверждено ответами — 6 из 40, с 7 окт.',
+  it('says «Подтверждено ответами — 6 из 40.» only after answers, with no date after the number', () => {
+    expect(plain(confirmedSentence({ total: 40, confirmed: 6, once: 2, notPassed: 1, untested: 31, since: '2026-10-07' }))).toBe(
+      'Подтверждено ответами — 6 из 40.',
     );
-    expect(confirmedSentence({ total: 40, confirmed: 0, once: 0, notPassed: 0, untested: 40, since: null }, now)).toBeNull();
+    // «0 из 40, с 1 окт.» read as a claim about the date; the date of a change is peak 3's.
+    expect(plain(confirmedSentence({ total: 40, confirmed: 0, once: 1, notPassed: 0, untested: 39, since: '2026-10-01' }))).toBe(
+      'Подтверждено ответами — 0 из 40.',
+    );
+    expect(confirmedSentence({ total: 40, confirmed: 0, once: 0, notPassed: 0, untested: 40, since: null })).toBeNull();
   });
 
   it('compares «знаю» with answers only with enough data', () => {

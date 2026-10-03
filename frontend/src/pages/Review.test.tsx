@@ -24,6 +24,7 @@ vi.mock('../api/quests', () => ({
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }));
+// The page has no sounds any more (redesign spec 5.13); the hook is not called.
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
@@ -52,8 +53,8 @@ function renderReview(url = '/review') {
   return render(<MemoryRouter initialEntries={[url]}><Review /></MemoryRouter>);
 }
 
-async function revealAndChoose(user: ReturnType<typeof userEvent.setup>, answer: 'Знаю' | 'С трудом' | 'Не помню' = 'Знаю') {
-  await user.click(await screen.findByRole('button', { name: 'Показать ответ' }));
+async function revealAndChoose(user: ReturnType<typeof userEvent.setup>, answer: 'Помню' | 'С трудом' | 'Не помню' = 'Помню') {
+  await user.click(await screen.findByRole('button', { name: 'Перевернуть' }));
   await user.click(screen.getByRole('button', { name: answer }));
 }
 
@@ -87,13 +88,13 @@ describe('Review answer persistence', () => {
     await revealAndChooseKnownCard();
 
     expect(api.updateCardProgress).toHaveBeenCalledWith('card-1', 5, expect.objectContaining({ clientEventId: expect.any(String) }));
-    expect(screen.getByRole('button', { name: 'Знаю' })).toBeDisabled();
-    expect(screen.queryByRole('heading', { name: 'Сессия завершена' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Помню' })).toBeDisabled();
+    expect(screen.queryByRole('heading', { name: /^Повторили/ })).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Сохраняем ответ…');
 
     save.resolve({ card_id: 'card-1', duplicate: false });
-    expect(await screen.findByRole('heading', { name: 'Сессия завершена' })).toBeInTheDocument();
-    expect(screen.getByText('Вспомнили 1 из 1.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
+    expect(screen.getByText('Помню — 1, с трудом — 0, не помню — 0.')).toBeInTheDocument();
   });
 
   it('keeps the current card available and reports a failed save', async () => {
@@ -104,8 +105,8 @@ describe('Review answer persistence', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранён');
     expect(screen.getByText('Что такое интервальное повторение?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Знаю' })).toBeEnabled();
-    expect(screen.queryByRole('heading', { name: 'Сессия завершена' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Помню' })).toBeEnabled();
+    expect(screen.queryByRole('heading', { name: /^Повторили/ })).not.toBeInTheDocument();
     expect(api.updateQuestProgress).not.toHaveBeenCalled();
     expect(api.recordStudyActivity).not.toHaveBeenCalled();
   });
@@ -129,10 +130,11 @@ describe('Review answer persistence', () => {
     const user = userEvent.setup();
     renderReview();
 
-    await revealAndChoose(user, 'Знаю');
-    await screen.findByText('Второй вопрос');
+    await revealAndChoose(user, 'Помню');
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    expect(screen.getByText('Второй вопрос')).toBeInTheDocument();
     await revealAndChoose(user, 'Не помню');
-    await screen.findByRole('heading', { name: 'Сессия завершена' });
+    await screen.findByRole('heading', { name: 'Повторили 2 карточки' });
 
     expect(api.updateCardProgress).toHaveBeenCalledTimes(2);
     const [first, second] = api.updateCardProgress.mock.calls;
@@ -143,7 +145,7 @@ describe('Review answer persistence', () => {
     expect(first[2].clientEventId).not.toBe(second[2].clientEventId);
     expect(first[2].sessionId).toBeTruthy();
     expect(second[2].sessionId).toBe(first[2].sessionId);
-    expect(screen.getByText('Вспомнили 1 из 2.')).toBeInTheDocument();
+    expect(screen.getByText('Помню — 1, с трудом — 0, не помню — 1.')).toBeInTheDocument();
   });
 
   it('retries a failed save with the same event id', async () => {
@@ -154,10 +156,10 @@ describe('Review answer persistence', () => {
     const user = userEvent.setup();
     renderReview();
 
-    await revealAndChoose(user, 'Знаю');
+    await revealAndChoose(user, 'Помню');
     expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранён');
-    await user.click(screen.getByRole('button', { name: 'Знаю' }));
-    await screen.findByRole('heading', { name: 'Сессия завершена' });
+    await user.click(screen.getByRole('button', { name: 'Помню' }));
+    await screen.findByRole('heading', { name: 'Повторили 1 карточку' });
 
     expect(api.updateCardProgress).toHaveBeenCalledTimes(2);
     const [failed, retried] = api.updateCardProgress.mock.calls;
@@ -173,10 +175,10 @@ describe('Review answer persistence', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('Сохраняем ответ…');
     expect(api.recordStudyActivity).toHaveBeenCalledWith('user-1', 1, 0);
-    expect(screen.queryByRole('heading', { name: 'Сессия завершена' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /^Повторили/ })).not.toBeInTheDocument();
 
     activity.resolve();
-    expect(await screen.findByRole('heading', { name: 'Сессия завершена' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
   });
 
   it('labels a card made from an examiner follow-up question', async () => {
@@ -190,10 +192,90 @@ describe('Review answer persistence', () => {
     expect(screen.getByText('А что будет при росте ставки?')).toBeInTheDocument();
   });
 
-  it('offers the exams sheet from the review header', async () => {
+  it('ends early with «Закончить» and offers the exam sheet', async () => {
+    api.getDueCards.mockResolvedValue([
+      { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
+      { id: 'card-2', question: 'Второй вопрос', answer: 'Второй ответ' },
+    ]);
+    const user = userEvent.setup();
     renderReview();
-    await screen.findByRole('button', { name: 'Показать ответ' });
-    expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
+    await revealAndChoose(user, 'С трудом');
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    await user.click(screen.getByRole('button', { name: 'Закончить' }));
+    expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams');
+    // The second card is still due: the queue can go on.
+    expect(screen.getByRole('button', { name: 'Продолжить' })).toBeInTheDocument();
+  });
+});
+
+describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
+  beforeEach(() => {
+    api.getDueCards.mockResolvedValue(oneCard);
+    api.recordStudyActivity.mockResolvedValue(undefined);
+  });
+
+  afterEach(cleanup);
+
+  it('grades in three plain words: no traffic-light tints, no cyan buttons, no spinner, no sounds', async () => {
+    api.updateCardProgress.mockResolvedValue({ card_id: 'card-1', interval_days: 1, duplicate: false });
+    const user = userEvent.setup();
+    const { container } = renderReview();
+    await user.click(await screen.findByRole('button', { name: 'Перевернуть' }));
+    for (const word of ['Не помню', 'С трудом', 'Помню']) expect(screen.getByRole('button', { name: word })).toBeInTheDocument();
+    expect(container.innerHTML).not.toMatch(/bg-(rose|amber|emerald|cyan)-|animate-spin|uppercase/);
+    await user.click(screen.getByRole('button', { name: 'Не помню' }));
+    expect(await screen.findByText('Не помню — вернётся завтра.')).toBeInTheDocument();
+    expect(api.playFlipSound).not.toHaveBeenCalled();
+    expect(api.playSuccessSound).not.toHaveBeenCalled();
+  });
+
+  it('writes «завтра» in pencil only when the card is due tomorrow, and types any other interval', async () => {
+    api.updateCardProgress.mockResolvedValueOnce({ card_id: 'card-1', interval_days: 1, duplicate: false });
+    const user = userEvent.setup();
+    const { container, unmount } = renderReview();
+    await revealAndChoose(user, 'Не помню');
+    await screen.findByText('Не помню — вернётся завтра.');
+    expect(container.querySelector('svg.sf-hand')).not.toBeNull();
+    unmount();
+
+    api.updateCardProgress.mockResolvedValueOnce({ card_id: 'card-1', interval_days: 9, duplicate: false });
+    const second = renderReview();
+    await revealAndChoose(user, 'Помню');
+    await screen.findByText('Помню — вернётся через 9 дней.');
+    expect(second.container.querySelector('svg.sf-hand')).toBeNull();
+    expect(screen.getByText('через 9 дней')).toBeInTheDocument();
+  });
+
+  it('turns the card with Space and grades with 1, 2 and 3', async () => {
+    api.updateCardProgress.mockResolvedValue({ card_id: 'card-1', interval_days: 6, duplicate: false });
+    const user = userEvent.setup();
+    renderReview();
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard(' ');
+    expect(await screen.findByRole('button', { name: 'Помню' })).toBeInTheDocument();
+    await user.keyboard('3');
+    expect(api.updateCardProgress).toHaveBeenCalledWith('card-1', 5, expect.objectContaining({ clientEventId: expect.any(String) }));
+    expect(await screen.findByText('Помню — вернётся через 6 дней.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
+  });
+
+  it('says how many cards come back tomorrow on the done screen', async () => {
+    api.getDueCards.mockResolvedValue([
+      { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
+      { id: 'card-2', question: 'Второй вопрос', answer: 'Второй ответ' },
+    ]);
+    api.updateCardProgress
+      .mockResolvedValueOnce({ card_id: 'card-1', interval_days: 1, duplicate: false })
+      .mockResolvedValueOnce({ card_id: 'card-2', interval_days: 6, duplicate: false });
+    const user = userEvent.setup();
+    renderReview();
+    await revealAndChoose(user, 'Не помню');
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    await revealAndChoose(user, 'Помню');
+    expect(await screen.findByRole('heading', { name: 'Повторили 2 карточки' })).toBeInTheDocument();
+    expect(screen.getByText('Помню — 1, с трудом — 0, не помню — 1. Завтра вернётся 1.')).toBeInTheDocument();
   });
 });
 
@@ -209,7 +291,7 @@ describe('Review of one material', () => {
     api.getDueCards.mockResolvedValue(oneCard);
     renderReview(`/review?material=${MATERIAL_ID}`);
 
-    await screen.findByRole('button', { name: 'Показать ответ' });
+    await screen.findByRole('button', { name: 'Перевернуть' });
     expect(api.getDueCards).toHaveBeenCalledWith('user-1', { materialId: MATERIAL_ID });
   });
 

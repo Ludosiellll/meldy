@@ -2,28 +2,36 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { BarChart2, GraduationCap } from 'lucide-react';
 import Gradebook from '../components/Gradebook';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { fetchMaterialEvents, fetchQuestionEvents, type LearningEvent } from '../api/learning';
-import { confidenceVsConfirmed, examSummary, statesByHash } from '../lib/learning/readiness';
+import { normalizeLayout, type ExamKind, type TicketLayout } from '../api/exams';
+import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState } from '../lib/learning/readiness';
 import { materialMetrics, MIN_MEASURED, type MaterialMetrics, type ProgressCard } from '../utils/progressMetrics';
 import { currentStreak, isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
 import { pluralRu } from '../components/conversation/visuals';
+import { confirmedShares } from '../components/exams/sheetModel';
+import { percent } from '../lib/exams/ticketMath';
+import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
+import { READINESS_LABELS } from '../lib/learning/readiness';
+import '../styles/paper.css';
 
 /**
- * «Прогресс»: measured counters with their formula and the time they were counted.
+ * «Прогресс» (redesign spec 5.17): measured counters, dated, in the order a student preparing for an
+ * exam needs them — the exams first (confirmed by answers and what it means for tickets), then every
+ * lecture as a row of a table, the answers per day, and the topics with open mistakes.
  *
  * Every block reads its own source and fails on its own: a failed query shows a plain line with
  * «Повторить», never zeros. Card numbers come from flashcard_progress, test numbers from the
  * journal (the first attempt of a test, never a retake), exam numbers from exam_questions and the
  * answers aloud in the journal. Old-format oral exams are only the exam_sessions rows of kind
- * 'professor'; answers to exam tickets are counted in «Экзамены», not twice.
+ * 'professor'; answers to exam tickets are counted in «Экзамены», not twice. No tabs, no spinner.
  */
 
 const PAGE_SIZE = 1000;
 const ACTIVITY_DAYS = 30;
+const LOADING_LINE_MS = 300;
 
 type Source<T> = { status: 'loading' } | { status: 'ok'; data: T } | { status: 'error' };
 
@@ -58,6 +66,7 @@ interface MistakeRow {
 interface ExamBlock {
   id: string;
   title: string;
+  kind: ExamKind;
   examDate: string | null;
   /** exams.mapped_at: the oldest mark of the current mapping, null before the first run. */
   mappedAt: string | null;
@@ -65,6 +74,11 @@ interface ExamBlock {
   coverage: { full: number; partial: number; none: number; unverified: number; unmapped: number };
   summary: ReturnType<typeof examSummary>;
   confidence: ReturnType<typeof confidenceVsConfirmed>;
+  /** Answers aloud to this exam's questions (every attempt counts). */
+  answers: number;
+  /** Share of tickets whose every question is confirmed, in percent; null when it says nothing new. */
+  confirmedTickets: number | null;
+  perTicket: number;
 }
 
 type PageResult = { data: unknown[] | null; error: unknown };
@@ -78,6 +92,20 @@ async function readAll<T>(page: (from: number, to: number) => PromiseLike<PageRe
     rows.push(...part);
     if (part.length < PAGE_SIZE) return rows;
   }
+}
+
+/** The ticket share of confirmed questions: what «подтверждено» means for tickets of this exam. */
+function confirmedTicketShare(
+  rows: Array<{ id: string; section: number | null; question_hash: string | null }>,
+  states: Map<string, QuestionState>,
+  layout: TicketLayout,
+): { pct: number | null; perTicket: number } {
+  if (rows.length === 0 || layout.per_ticket <= 1) return { pct: null, perTicket: layout.per_ticket };
+  const shares = confirmedShares(
+    rows.map((row) => ({ id: row.id, section: row.section, readiness: (row.question_hash && states.get(row.question_hash)?.readiness) || 'untested' })),
+    layout,
+  );
+  return { pct: shares.low.ok ? percent(shares.low.all) : null, perTicket: layout.per_ticket };
 }
 
 const loaders = {
@@ -135,16 +163,16 @@ const loaders = {
   exams: async (userId: string): Promise<ExamBlock[]> => {
     const { data, error } = await supabase
       .from('exams')
-      .select('id, title, exam_date, mapped_at')
+      .select('id, title, kind, exam_date, mapped_at, ticket_layout')
       .eq('user_id', userId)
       .order('exam_date', { ascending: true, nullsFirst: false });
     if (error) throw error;
-    const exams = (data || []) as Array<{ id: string; title: string; exam_date: string | null; mapped_at?: string | null }>;
+    const exams = (data || []) as Array<{ id: string; title: string; kind?: string | null; exam_date: string | null; mapped_at?: string | null; ticket_layout?: unknown }>;
     if (exams.length === 0) return [];
-    const questions = await readAll<{ exam_id: string; question_hash: string | null; coverage: string | null }>((from, to) =>
+    const questions = await readAll<{ id: string; exam_id: string; section: number | null; question_hash: string | null; coverage: string | null }>((from, to) =>
       supabase
         .from('exam_questions')
-        .select('id, exam_id, question_hash, coverage')
+        .select('id, exam_id, section, question_hash, coverage')
         .eq('user_id', userId)
         .in('exam_id', exams.map((exam) => exam.id))
         .order('id', { ascending: true })
@@ -161,15 +189,21 @@ const loaders = {
           coverage[row.coverage] += 1;
         } else coverage.unmapped += 1;
       }
+      const layout = normalizeLayout(exam.ticket_layout);
+      const tickets = confirmedTicketShare(rows, states, layout);
       return {
         id: exam.id,
         title: exam.title,
+        kind: exam.kind === 'credit' || exam.kind === 'colloquium' ? exam.kind : 'exam',
         examDate: exam.exam_date,
         mappedAt: exam.mapped_at ?? null,
         total: rows.length,
         coverage,
         summary: examSummary(examHashes, states),
         confidence: confidenceVsConfirmed(examHashes, states),
+        answers: Array.from(new Set(examHashes)).reduce((sum, hash) => sum + (states.get(hash)?.attempts ?? 0), 0),
+        confirmedTickets: tickets.pct,
+        perTicket: tickets.perTicket,
       };
     });
   },
@@ -197,24 +231,67 @@ function count(n: number, forms: readonly [string, string, string]): string {
   return `${n} ${pluralRu(n, forms)}`;
 }
 
+/** «по 1 ответу», «по 46 ответам»: the dative after «по». */
+function dative(n: number, one: string, many: string): string {
+  return `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : many}`;
+}
+
 /** Ends a sentence with one period: «… 4 окт.» already has it. */
 function sentence(text: string): string {
   return text.endsWith('.') ? text : `${text}.`;
 }
 
 /**
+ * The line under «Прогресс»: what the numbers on this page are made of and since when, e.g. «По 46
+ * ответам на билеты и 212 повторениям карточек с 27 сентября.»
+ */
+export function progressLede(input: { ticketAnswers: number; testAnswers?: number; cardReviews: number; since: string | null }): string {
+  const parts: string[] = [];
+  if (input.ticketAnswers > 0) parts.push(`${dative(input.ticketAnswers, 'ответу', 'ответам')} на билеты`);
+  // Test answers are named too: the table shows first tests, so the line must not say there were no answers.
+  const tests = input.testAnswers ?? 0;
+  if (tests > 0) parts.push(`${dative(tests, 'ответу', 'ответам')} в тестах`);
+  if (input.cardReviews > 0) parts.push(`${dative(input.cardReviews, 'повторению', 'повторениям')} карточек`);
+  if (parts.length === 0) return 'Ответов на билеты, тестов и повторений карточек пока нет.';
+  const since = input.since ? ` с ${formatDay(input.since)}` : '';
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} и ${parts[parts.length - 1]}` : parts[0];
+  return `По ${list}${since}.`;
+}
+
+export interface Cell {
+  main: string;
+  sub: string | null;
+  quiet: boolean;
+}
+
+/**
  * «Вспомнили» counts only cards that were reviewed: a new card or an examiner's follow-up card
  * waiting for its first review is not forgotten, so it is named apart, never put in the «из».
  */
-export function cardsLine(cards: MaterialMetrics['cards']): string | null {
+export function cardsCell(cards: MaterialMetrics['cards']): Cell | null {
   if (cards.total === 0) return null;
-  if (cards.reviewed === 0) return `Карточки: ${cards.total}, ещё не ${pluralRu(cards.total, ['повторялась', 'повторялись', 'повторялись'])}.`;
+  if (cards.reviewed === 0) {
+    return { main: `${count(cards.total, ['карточка', 'карточки', 'карточек'])}, ещё не ${pluralRu(cards.total, ['повторялась', 'повторялись', 'повторялись'])}`, sub: null, quiet: true };
+  }
   const waiting = cards.total - cards.reviewed;
-  const rest = waiting > 0 ? `, ещё ${waiting} ${pluralRu(waiting, ['не повторялась', 'не повторялись', 'не повторялись'])}` : '';
-  const next = cards.nextCheck ? `, следующая проверка ${dayLabel(cards.nextCheck)}` : '';
-  return sentence(
-    `Карточки: вспомнили ${cards.recalled} из ${cards.reviewed} при последнем повторе${rest}. Закреплено ${cards.consolidated} из ${cards.total}${next}`,
-  );
+  const sub = [
+    waiting > 0 ? `ещё ${waiting} ${pluralRu(waiting, ['не повторялась', 'не повторялись', 'не повторялись'])}` : '',
+    cards.consolidated > 0 ? `${cards.consolidated} ${pluralRu(cards.consolidated, ['закреплена', 'закреплены', 'закреплены'])}` : 'закреплённых пока нет',
+    cards.nextCheck ? `следующая проверка ${dayLabel(cards.nextCheck)}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return { main: `${cards.recalled} из ${cards.reviewed} вспомнили`, sub, quiet: false };
+}
+
+/** «4 из 5, 2 окт.» and, under it, «повторно 3 окт.: 5 из 5» (a retake never replaces the first). */
+export function quizCell(metrics: Pick<MaterialMetrics, 'quiz' | 'quizRepeat'>): Cell {
+  if (!metrics.quiz) return { main: 'теста не было', sub: null, quiet: true };
+  return {
+    main: `${metrics.quiz.correct} из ${metrics.quiz.total}, ${dayLabel(metrics.quiz.date)}`,
+    sub: metrics.quizRepeat ? `повторно ${dayLabel(metrics.quizRepeat.date)}: ${metrics.quizRepeat.correct} из ${metrics.quizRepeat.total}` : null,
+    quiet: false,
+  };
 }
 
 /** Names what the share is made of: the reviewed cards, the first test, or both. */
@@ -224,6 +301,15 @@ export function accuracyLabel(metrics: Pick<MaterialMetrics, 'cards' | 'quiz'>):
   return 'Верно по карточкам и первому тесту';
 }
 
+/** «10 из 13» and «77 %», or «мало данных» / «не проверялось» in this cell only. */
+export function accuracyCell(metrics: MaterialMetrics): Cell {
+  if (metrics.status === 'measured' && metrics.accuracy) {
+    return { main: `${metrics.accuracy.numerator} из ${metrics.accuracy.denominator}`, sub: `${Math.round(metrics.accuracy.value * 100)} %`, quiet: false };
+  }
+  if (metrics.status === 'few_data') return { main: 'мало данных', sub: null, quiet: true };
+  return { main: 'не проверялось', sub: null, quiet: true };
+}
+
 /** The date of the mapping in the words of the exam sheet: «Разметка от 21 января, 9:40.» */
 export function mappingDateText(mappedAt: string | null | undefined): string | null {
   if (!mappedAt) return null;
@@ -231,11 +317,31 @@ export function mappingDateText(mappedAt: string | null | undefined): string | n
   return Number.isNaN(date.getTime()) ? null : `Разметка от ${format(date, 'd MMMM, H:mm', { locale: ru })}.`;
 }
 
+/** «экзамен 15 октября, через 12 дней · ответы на билеты с 27 сентября». */
+function examLine(exam: ExamBlock): string {
+  const day = formatDay(exam.examDate);
+  const days = daysUntil(exam.examDate);
+  const when = day ? `${KIND_WORDS[exam.kind]} ${day}${days === null ? '' : days < 0 ? ', прошёл' : `, ${relativeDays(days)}`}` : KIND_WORDS[exam.kind];
+  const answers = exam.summary.since ? `ответы на билеты с ${formatDay(exam.summary.since)}` : 'ответов на билеты ещё не было';
+  return `${when} · ${answers}`;
+}
+
+/** «Есть в лекциях: 24 из 40 · частично 7 · нет 9», or that the list was not mapped yet. */
+function coverageLine(exam: ExamBlock): string {
+  if (exam.total === 0) return 'Вопросов в списке пока нет.';
+  if (exam.coverage.unmapped >= exam.total) return 'Разметки по лекциям ещё нет.';
+  const parts = [`Есть в ваших лекциях: ${exam.coverage.full} из ${exam.total}`, `частично ${exam.coverage.partial}`, `нет ${exam.coverage.none}`];
+  if (exam.coverage.unverified > 0) parts.push(`только по словам ${exam.coverage.unverified}`);
+  if (exam.coverage.unmapped > 0) parts.push(`не размечено ${exam.coverage.unmapped}`);
+  const date = mappingDateText(exam.mappedAt);
+  return `${parts.join(' · ')}.${date ? ` ${date}` : ''}`;
+}
+
 function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
   return (
-    <p role="alert" className="text-sm text-[var(--sf-ink)]">
+    <p role="alert" className="text-[15px] leading-[22px] text-[var(--sf-ink)]">
       {text}{' '}
-      <button type="button" onClick={onRetry} className="min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">
+      <button type="button" onClick={onRetry} className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
         Повторить
       </button>
     </p>
@@ -244,9 +350,9 @@ function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
 
 function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <section>
+    <section className="mt-12" style={{ maxWidth: 1040 }}>
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-xl font-semibold text-[var(--sf-ink)]">{title}</h2>
+        <h2 className="sf-h2">{title}</h2>
         {aside}
       </div>
       {children}
@@ -254,13 +360,16 @@ function Section({ title, children, aside }: { title: string; children: React.Re
   );
 }
 
+function Quiet({ children }: { children: React.ReactNode }) {
+  return <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">{children}</p>;
+}
+
 export default function Analytics() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'gradebook' ? 'gradebook' : 'platform';
-  const setActiveTab = (tab: string) => setSearchParams({ tab });
+  const gradebook = searchParams.get('tab') === 'gradebook';
   const [sources, setSources] = useState<Sources>(LOADING);
-  const [computedAt, setComputedAt] = useState<Date | null>(null);
+  const [loadingLine, setLoadingLine] = useState(false);
 
   const loadSource = useCallback(
     async (key: SourceKey) => {
@@ -273,7 +382,6 @@ export default function Analytics() {
         console.error(`Progress: loading ${key} failed`, error);
         setSources((prev) => ({ ...prev, [key]: { status: 'error' } }));
       }
-      setComputedAt(new Date());
     },
     [user?.id],
   );
@@ -285,61 +393,91 @@ export default function Analytics() {
   }, [user?.id, loadSource]);
 
   const initialLoading = SOURCE_KEYS.every((key) => sources[key].status === 'loading');
+  useEffect(() => {
+    if (!initialLoading) {
+      setLoadingLine(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadingLine(true), LOADING_LINE_MS);
+    return () => clearTimeout(timer);
+  }, [initialLoading]);
 
-  const tabs = (
-    <div className="flex w-full select-none rounded-lg border border-[var(--sf-line)] p-1 md:w-auto" role="tablist">
-      {([
-        ['platform', 'Обучение', BarChart2],
-        ['gradebook', 'Оценки', GraduationCap],
-      ] as const).map(([id, label, Icon]) => (
-        <button
-          key={id}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === id}
-          onClick={() => setActiveTab(id)}
-          className={`flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition-colors md:flex-none ${
-            activeTab === id ? 'bg-[var(--sf-accent)] text-white' : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-          }`}
-        >
-          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {label}
-        </button>
-      ))}
-    </div>
-  );
+  if (gradebook) {
+    return (
+      <div className="sf-page">
+        <header className="sf-head">
+          <div>
+            <h1 className="sf-h1">Оценки из зачётки</h1>
+            <p className="sf-lede">
+              <button type="button" className="sf-link" data-muted="" style={{ minHeight: 0 }} onClick={() => setSearchParams({})}>
+                Прогресс
+              </button>
+            </p>
+          </div>
+        </header>
+        <div className="mt-8">
+          <Gradebook />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 md:py-10">
-      <div className="flex flex-col gap-5 border-b border-[var(--sf-line)] pb-7 md:flex-row md:items-end md:justify-between">
+    <div className="sf-page">
+      <header className="sf-head">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--sf-ink)] md:text-4xl">Прогресс</h1>
-          <p className="mt-2 text-sm text-[var(--sf-muted)]">
-            {activeTab === 'gradebook'
-              ? 'Оценки из вашей зачётки.'
-              : computedAt
-                ? `Посчитано ${format(computedAt, 'd MMM, HH:mm', { locale: ru })} по вашим ответам.`
-                : 'Считаем по вашим ответам…'}
-          </p>
+          <h1 className="sf-h1">Прогресс</h1>
+          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : ledeOf(sources)}</p>
         </div>
-        {tabs}
-      </div>
-
-      {activeTab === 'gradebook' ? (
-        <Gradebook />
-      ) : initialLoading ? (
-        <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-label="Загрузка">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--sf-accent-fg)] border-t-transparent motion-reduce:animate-none" />
-        </div>
-      ) : (
-        <ProgressBody sources={sources} reload={loadSource} />
-      )}
-    </main>
+      </header>
+      {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} />}
+      <p className="mt-12">
+        <Link className="sf-link" data-muted="" to="/analytics?tab=gradebook">
+          Оценки из зачётки
+        </Link>
+      </p>
+    </div>
   );
+}
+
+/** The lede from the sources that loaded: ticket answers, test answers, card reviews and the earliest day. */
+function ledeOf(sources: Sources): string {
+  const { exams, activity, quiz } = sources;
+  if (exams.status !== 'ok' && activity.status !== 'ok' && quiz.status !== 'ok') return 'Считаем по вашим ответам…';
+  let ticketAnswers = 0;
+  let since: string | null = null;
+  const consider = (key: string | null | undefined) => {
+    const day = key ? key.slice(0, 10) : '';
+    if (isDateKey(day) && (since === null || day < since)) since = day;
+  };
+  if (exams.status === 'ok') {
+    for (const exam of exams.data) {
+      ticketAnswers += exam.answers;
+      consider(exam.summary.since);
+    }
+  }
+  let cardReviews = 0;
+  if (activity.status === 'ok') {
+    for (const row of activity.data) {
+      const value = Number(row.cards_reviewed) || 0;
+      if (value <= 0) continue;
+      cardReviews += value;
+      consider(row.date);
+    }
+  }
+  let testAnswers = 0;
+  if (quiz.status === 'ok') {
+    for (const event of quiz.data) {
+      testAnswers += 1;
+      consider(event.local_date);
+    }
+  }
+  return progressLede({ ticketAnswers, testAnswers, cardReviews, since });
 }
 
 function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: SourceKey) => void }) {
   const { materials, cards, quiz, activity, legacyExams, mistakes, exams } = sources;
+  const [howOpen, setHowOpen] = useState(false);
 
   const cardsByMaterial = useMemo(() => {
     const map = new Map<string, CardRow[]>();
@@ -383,158 +521,197 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
     });
   }, [activity, today]);
 
-  // One-sentence summary from the sources that loaded.
+  // One sentence about the last 30 days, from the sources that loaded. Only what happened is named:
+  // no «0 ответов», no «0 дней подряд»; a day with a test counts as a day of study too.
+  const cardAnswers = chartData.reduce((sum, day) => sum + day.value, 0);
   const summaryParts: string[] = [];
   if (activity.status === 'ok') {
-    const answers = chartData.reduce((sum, day) => sum + day.value, 0);
-    const activeDays = new Set(activity.data.map((row) => row.date.slice(0, 10)).filter((key) => key >= firstDay && key <= today)).size;
-    summaryParts.push(`${count(answers, ['ответ', 'ответа', 'ответов'])} на карточки`);
-    if (quiz.status === 'ok') {
-      const tests = new Set(quiz.data.filter((e) => e.local_date >= firstDay && e.session_id).map((e) => e.session_id)).size;
-      summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
-    }
-    summaryParts.push(`занятия в ${activeDays} из ${ACTIVITY_DAYS} дней`);
-    const streak = currentStreak(activity.data.map((row) => row.date));
-    summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);
+    const recentQuiz = quiz.status === 'ok' ? quiz.data.filter((e) => e.local_date >= firstDay && e.local_date <= today) : [];
+    const studyDays = new Set([
+      ...activity.data
+        .filter((row) => (Number(row.cards_reviewed) || 0) > 0)
+        .map((row) => row.date.slice(0, 10))
+        .filter((key) => key >= firstDay && key <= today),
+      ...recentQuiz.map((e) => e.local_date),
+    ]).size;
+    const tests = new Set(recentQuiz.filter((e) => e.session_id).map((e) => e.session_id)).size;
+    if (cardAnswers > 0) summaryParts.push(`${count(cardAnswers, ['ответ', 'ответа', 'ответов'])} на карточки`);
+    if (tests > 0) summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
+    if (studyDays > 0) summaryParts.push(`занятия в ${studyDays} из ${ACTIVITY_DAYS} дней`);
+    const streak = currentStreak(activity.data.filter((row) => (Number(row.cards_reviewed) || 0) > 0).map((row) => row.date));
+    if (streak > 0) summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);
   }
 
   return (
-    <div className="space-y-10">
-      {activity.status === 'ok' ? (
-        <p className="max-w-3xl text-lg leading-8 text-[var(--sf-ink)]">За {ACTIVITY_DAYS} дней: {summaryParts.join(', ')}.</p>
-      ) : activity.status === 'error' ? (
-        <ErrorLine text="Активность по дням не загрузилась." onRetry={() => reload('activity')} />
-      ) : null}
-
-      <Section title="Материалы">
-        {materials.status === 'error' ? (
-          <ErrorLine text="Материалы не загрузились." onRetry={() => reload('materials')} />
-        ) : materials.status === 'loading' ? (
-          <p role="status" className="text-sm text-[var(--sf-muted)]">Загружаем…</p>
-        ) : materials.data.length === 0 ? (
-          <p className="text-sm text-[var(--sf-muted)]">
-            Материалов пока нет. <Link to="/analyze" className="font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">Добавить материал</Link>
-          </p>
-        ) : (
-          <>
-            {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
-            {quiz.status === 'error' && <ErrorLine text="Результаты тестов не загрузились." onRetry={() => reload('quiz')} />}
-            <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
-              {materials.data.map((material) => {
-                const metrics = materialMetrics(cardsByMaterial.get(material.id) ?? [], quizByMaterial.get(material.id) ?? []);
-                const cardText = cards.status === 'ok' ? cardsLine(metrics.cards) : null;
-                const bothLoaded = cards.status === 'ok' && quiz.status === 'ok';
-                return (
-                  <li key={material.id} className="py-4">
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <Link to={`/library/${material.id}`} className="font-medium text-[var(--sf-ink)] underline-offset-4 hover:underline">
-                        {material.title || 'Без названия'}
-                      </Link>
-                      {material.subject && <span className="text-sm text-[var(--sf-muted)]">{material.subject}</span>}
-                    </div>
-                    <div className="mt-1 space-y-0.5 text-sm leading-6 text-[var(--sf-ink)]">
-                      {cardText && <p>{cardText}</p>}
-                      {quiz.status === 'ok' && metrics.quiz && (
-                        <p>Тест {dayLabel(metrics.quiz.date)}: {metrics.quiz.correct} из {metrics.quiz.total}.</p>
-                      )}
-                      {quiz.status === 'ok' && metrics.quizRepeat && (
-                        <p className="text-[var(--sf-muted)]">Повторно {dayLabel(metrics.quizRepeat.date)}: {metrics.quizRepeat.correct} из {metrics.quizRepeat.total}.</p>
-                      )}
-                      {bothLoaded && metrics.status === 'measured' && metrics.accuracy && (
-                        <p>
-                          {accuracyLabel(metrics)}: {Math.round(metrics.accuracy.value * 100)}% ({metrics.accuracy.numerator} из {metrics.accuracy.denominator}).
-                        </p>
-                      )}
-                      {bothLoaded && metrics.status === 'few_data' && <p className="text-[var(--sf-muted)]">{accuracyLabel(metrics)}: мало данных.</p>}
-                      {bothLoaded && metrics.status === 'untested' && <p className="text-[var(--sf-muted)]">Не проверялось</p>}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-[var(--sf-muted)]">
-              Как считается. «Вспомнили» — повторённые карточки, на которые при последнем повторе вы ответили «Знаю» или
-              «С трудом»; карточки, которые ещё не повторялись, в счёт не идут. «Закреплено» — карточки с двумя успешными
-              ответами в разные дни. «Тест» — первая попытка теста, повторные показаны отдельно и в счёт не идут. «Верно по
-              карточкам и первому тесту» = (вспомнили + верных ответов первого теста) ÷ (повторённых карточек + вопросов первого
-              теста); если чего-то одного нет, считаем по другому. Число показываем от {MIN_MEASURED} ответов, меньше — «мало данных».
-            </p>
-          </>
-        )}
-      </Section>
-
-      <Section title="Экзамены" aside={<Link to="/exams" className="inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">Все экзамены</Link>}>
+    <>
+      <Section title="Экзамены" aside={<Link to="/exams" className="sf-link" data-muted="">Все экзамены</Link>}>
         {exams.status === 'error' ? (
           <ErrorLine text="Экзамены не загрузились." onRetry={() => reload('exams')} />
         ) : exams.status === 'loading' ? (
-          <p role="status" className="text-sm text-[var(--sf-muted)]">Загружаем…</p>
+          <Quiet>Загружаем…</Quiet>
         ) : exams.data.length === 0 ? (
-          <p className="text-sm text-[var(--sf-muted)]">Экзаменов пока нет. Добавьте список вопросов, и здесь появится, что из него есть в ваших лекциях.</p>
+          <Quiet>Экзаменов пока нет. Добавьте список вопросов, и здесь появится, что из него подтверждено ответами.</Quiet>
         ) : (
-          <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
-            {exams.data.map((exam) => (
-              <li key={exam.id} className="py-4">
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <Link to={`/exams/${exam.id}`} className="font-medium text-[var(--sf-ink)] underline-offset-4 hover:underline">
-                    {exam.title}
-                  </Link>
-                  {exam.examDate && <span className="text-sm text-[var(--sf-muted)]">экзамен {dayLabel(exam.examDate)}</span>}
-                </div>
-                <div className="mt-1 space-y-0.5 text-sm leading-6 text-[var(--sf-ink)]">
-                  {exam.total === 0 ? (
-                    <p className="text-[var(--sf-muted)]">Вопросов в списке пока нет.</p>
-                  ) : (
-                    <>
-                      {exam.coverage.unmapped >= exam.total ? (
-                        // A list that was never mapped says so instead of «0 из N».
-                        <p>Разметки по лекциям ещё нет.</p>
-                      ) : (
-                        <>
-                          <p>
-                            Есть в ваших лекциях: {exam.coverage.full} из {exam.total}. Частично: {exam.coverage.partial}. Нет: {exam.coverage.none}.
-                            {exam.coverage.unverified > 0 && ` Проверено только по словам: ${exam.coverage.unverified}.`}
-                            {exam.coverage.unmapped > 0 && ` Не размечено: ${exam.coverage.unmapped}.`}
-                          </p>
-                          {mappingDateText(exam.mappedAt) && <p className="text-[var(--sf-muted)]">{mappingDateText(exam.mappedAt)}</p>}
-                        </>
-                      )}
-                      <p>
-                        {exam.summary.confirmed + exam.summary.once + exam.summary.notPassed > 0
-                          ? sentence(`Подтверждено ответами: ${exam.summary.confirmed} из ${exam.total}${exam.summary.since ? `, с ${dayLabel(exam.summary.since)}` : ''}`)
-                          : 'Ответов по билетам ещё не было.'}
-                      </p>
-                      {exam.confidence.enoughData ? (
-                        <p>
-                          Вы отметили «знаю» у {count(exam.confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}. Из{' '}
-                          {exam.confidence.ratedKnowAnswered} таких, на которые вы ответили вслух, зачтено {exam.confidence.ratedKnowPassed}.
-                        </p>
-                      ) : (
-                        <p className="text-[var(--sf-muted)]">Самооценка против ответов вслух: мало данных.</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
+          <ul className="sf-ledger">
+            {exams.data.map((exam) => {
+              const answered = exam.summary.confirmed + exam.summary.once + exam.summary.notPassed > 0;
+              const ticketWord = exam.perTicket === 2 ? 'оба вопроса' : exam.perTicket === 3 ? 'все три вопроса' : 'все четыре вопроса';
+              return (
+                <li key={exam.id}>
+                  <div className="sf-ledger-row">
+                    <span className="min-w-0">
+                      {/* The name is the link; the whole row answers to it (::after covers the row). */}
+                      <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
+                        {subjectOf(exam.title)}
+                      </Link>
+                      <span className="sf-ledger-meta">{examLine(exam)}</span>
+                      <span className="sf-ledger-meta">{coverageLine(exam)}</span>
+                    </span>
+                    {exam.total > 0 ? (
+                      <span className="sf-ledger-figs">
+                        <span>
+                          <span className="sf-ledger-fig">
+                            {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
+                          </span>
+                          <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
+                        </span>
+                        {exam.confirmedTickets !== null ? (
+                          <span>
+                            <span className="sf-ledger-fig">{`${exam.confirmedTickets} %`}</span>
+                            <span className="sf-ledger-cap">{`билетов, где подтверждены ${ticketWord}`}</span>
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                    {exam.total > 0 ? (
+                      <span className="sf-ledger-foot">
+                        {answered
+                          ? `${READINESS_LABELS.once[0].toUpperCase()}${READINESS_LABELS.once.slice(1)} — ${exam.summary.once}, ${READINESS_LABELS.not_passed} — ${exam.summary.notPassed}.`
+                          : 'Ответов по билетам ещё не было.'}{' '}
+                        {exam.confidence.enoughData
+                          ? `Вы отметили «знаю» у ${count(exam.confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${exam.confidence.ratedKnowAnswered} таких, на которые вы ответили вслух, зачтено ${exam.confidence.ratedKnowPassed}.`
+                          : 'Самооценка против ответов вслух: мало данных.'}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Section>
 
-      <Section title={`Ответов на карточки по дням, ${ACTIVITY_DAYS} дней`}>
-        {activity.status === 'error' ? (
-          <ErrorLine text="Активность по дням не загрузилась." onRetry={() => reload('activity')} />
-        ) : activity.status === 'loading' ? (
-          <p role="status" className="text-sm text-[var(--sf-muted)]">Загружаем…</p>
+      <Section title="По лекциям">
+        {materials.status === 'error' ? (
+          <ErrorLine text="Материалы не загрузились." onRetry={() => reload('materials')} />
+        ) : materials.status === 'loading' ? (
+          <Quiet>Загружаем…</Quiet>
+        ) : materials.data.length === 0 ? (
+          <Quiet>
+            Лекций пока нет.{' '}
+            <Link to="/analyze" className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
+              Добавить лекцию
+            </Link>
+          </Quiet>
         ) : (
-          <DayBars data={chartData} caption={`${ACTIVITY_DAYS} дней`} />
+          <>
+            {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
+            {quiz.status === 'error' && <ErrorLine text="Результаты тестов не загрузились." onRetry={() => reload('quiz')} />}
+            <table className="sf-table mt-2">
+              <thead>
+                <tr>
+                  <th scope="col" style={{ width: '34%' }}>Лекция</th>
+                  <th scope="col">Карточки</th>
+                  <th scope="col">Тест, первая попытка</th>
+                  <th scope="col">Верно при последней проверке</th>
+                </tr>
+              </thead>
+              <tbody>
+                {materials.data.map((material) => {
+                  const metrics = materialMetrics(cardsByMaterial.get(material.id) ?? [], quizByMaterial.get(material.id) ?? []);
+                  const cardCell = cards.status === 'ok' ? cardsCell(metrics.cards) : null;
+                  const testCell = quiz.status === 'ok' ? quizCell(metrics) : null;
+                  const bothLoaded = cards.status === 'ok' && quiz.status === 'ok';
+                  const share = bothLoaded ? accuracyCell(metrics) : null;
+                  return (
+                    <tr key={material.id} data-material={material.id}>
+                      <td>
+                        <Link to={`/library/${material.id}`} className="sf-cell-title">
+                          {material.title || 'Без названия'}
+                        </Link>
+                      </td>
+                      <td data-label="Карточки">
+                        {cardCell ? (
+                          <>
+                            <span className={cardCell.quiet ? 'sf-cell-quiet' : undefined}>{cardCell.main}</span>
+                            {cardCell.sub ? <span className="sf-cell-sub">{cardCell.sub}</span> : null}
+                          </>
+                        ) : cards.status === 'ok' ? (
+                          <span className="sf-cell-quiet">карточек нет</span>
+                        ) : null}
+                      </td>
+                      <td data-label="Тест, первая попытка">
+                        {testCell ? (
+                          <>
+                            <span className={testCell.quiet ? 'sf-cell-quiet' : undefined}>{testCell.main}</span>
+                            {testCell.sub ? <span className="sf-cell-sub">{testCell.sub}</span> : null}
+                          </>
+                        ) : null}
+                      </td>
+                      <td data-label="Верно при последней проверке" title={share && !share.quiet ? accuracyLabel(metrics) : undefined}>
+                        {share ? (
+                          <>
+                            <span className={share.quiet ? 'sf-cell-quiet' : undefined}>{share.main}</span>
+                            {share.sub ? <span className="sf-cell-sub">{share.sub}</span> : null}
+                          </>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="mt-3">
+              <button type="button" className="sf-link" data-muted="" aria-expanded={howOpen} aria-controls="progress-how" onClick={() => setHowOpen((open) => !open)}>
+                Как считается
+              </button>
+            </p>
+            {howOpen ? (
+              <p id="progress-how" className="max-w-[44em] text-[15px] leading-[22px] text-[var(--sf-muted)]">
+                «Вспомнили» — повторённые карточки, на которые при последнем повторе вы ответили «Помню» или «С трудом»;
+                карточки, которые ещё не повторялись, в счёт не идут. «Закреплены» — карточки с двумя успешными ответами в
+                разные дни. «Тест» — первая попытка теста, повторные показаны отдельно и в счёт не идут. «Верно при последней
+                проверке» = (вспомнили + верных ответов первого теста) ÷ (повторённых карточек + вопросов первого теста); если
+                чего-то одного нет, считаем по другому. Число показываем от {MIN_MEASURED} ответов, меньше — «мало данных».
+              </p>
+            ) : null}
+          </>
         )}
       </Section>
 
-      <Section title="Темы с открытыми ошибками" aside={<Link to="/mistakes" className="inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">Дневник ошибок</Link>}>
+      <Section title="Ответы по дням">
+        {activity.status === 'error' ? (
+          <ErrorLine text="Активность по дням не загрузилась." onRetry={() => reload('activity')} />
+        ) : activity.status === 'loading' ? (
+          <Quiet>Загружаем…</Quiet>
+        ) : (
+          <>
+            <Quiet>
+              {summaryParts.length > 0
+                ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.`
+                : `За ${ACTIVITY_DAYS} дней ответов на карточки и тестов не было.`}
+            </Quiet>
+            {/* Bars only when there is something to draw: no empty axis (spec 4.6). */}
+            {cardAnswers > 0 && <DayBars data={chartData} />}
+          </>
+        )}
+      </Section>
+
+      <Section title="Темы с открытыми ошибками" aside={<Link to="/mistakes" className="sf-link" data-muted="">Дневник ошибок</Link>}>
         {mistakes.status === 'error' ? (
           <ErrorLine text="Дневник ошибок не загрузился." onRetry={() => reload('mistakes')} />
         ) : mistakes.status === 'loading' ? (
-          <p role="status" className="text-sm text-[var(--sf-muted)]">Загружаем…</p>
+          <Quiet>Загружаем…</Quiet>
         ) : (
           <MistakeTopics rows={mistakes.data} />
         )}
@@ -549,12 +726,12 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
           ) : null}
         </Section>
       )}
-    </div>
+    </>
   );
 }
 
 function MistakeTopics({ rows }: { rows: MistakeRow[] }) {
-  if (rows.length === 0) return <p className="text-sm text-[var(--sf-muted)]">Открытых ошибок нет.</p>;
+  if (rows.length === 0) return <Quiet>Открытых ошибок нет.</Quiet>;
   const byTopic = new Map<string, number>();
   let withoutTopic = 0;
   for (const row of rows) {
@@ -565,18 +742,18 @@ function MistakeTopics({ rows }: { rows: MistakeRow[] }) {
   const top = Array.from(byTopic.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
   return (
     <div className="space-y-2">
-      <p className="text-sm text-[var(--sf-ink)]">Открытых ошибок: {rows.length}.</p>
+      <p className="text-[16px] leading-[24px] text-[var(--sf-ink)]">Открытых ошибок: {rows.length}.</p>
       {top.length > 0 && (
         <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
           {top.map(([topic, n]) => (
-            <li key={topic} className="flex items-baseline justify-between gap-4 py-3 text-sm">
+            <li key={topic} className="flex items-baseline justify-between gap-4 py-3 text-[16px] leading-[22px]">
               <span className="min-w-0 truncate text-[var(--sf-ink)]">{topic}</span>
               <span className="shrink-0 tabular-nums text-[var(--sf-muted)]">{count(n, ['ошибка', 'ошибки', 'ошибок'])}</span>
             </li>
           ))}
         </ul>
       )}
-      {withoutTopic > 0 && <p className="text-sm text-[var(--sf-muted)]">Без темы: {withoutTopic}.</p>}
+      {withoutTopic > 0 && <Quiet>Без темы: {withoutTopic}.</Quiet>}
     </div>
   );
 }
@@ -584,7 +761,7 @@ function MistakeTopics({ rows }: { rows: MistakeRow[] }) {
 function LegacyExams({ rows }: { rows: LegacyExamRow[] }) {
   const last = rows[0];
   return (
-    <div className="space-y-2 text-sm text-[var(--sf-ink)]">
+    <div className="space-y-2 text-[16px] leading-[24px] text-[var(--sf-ink)]">
       <p>
         Пройдено: {rows.length}. Последний {dayLabel(last.completed_at)}: {count(Number(last.score) || 0, ['балл', 'балла', 'баллов'])} из 100.
       </p>
@@ -608,36 +785,36 @@ function shortDay(key: string): string {
   return format(new Date(y, m - 1, d), 'd MMM', { locale: ru });
 }
 
-/** Answers per day as plain columns on the paper surface, with a table for screen readers. */
-function DayBars({ data, caption }: { data: Array<{ key: string; value: number }>; caption: string }) {
+/**
+ * Answers per day as plain columns (spec 5.17): ink at 55 %, square tops, the value over a non-zero
+ * day, a 2 px stub on a zero day, an axis from the first day to «сегодня». No hover; a table for
+ * screen readers.
+ */
+function DayBars({ data }: { data: Array<{ key: string; value: number }> }) {
   const max = Math.max(1, ...data.map((day) => day.value));
-  const total = data.reduce((sum, day) => sum + day.value, 0);
   const peak = data.reduce((best, day) => (day.value > best.value ? day : best), data[0]);
   return (
-    <figure>
-      <div className="flex h-40 items-end gap-[2px] border-b border-[var(--sf-line)]" aria-hidden="true">
+    <figure className="sf-bars mt-4">
+      <div className="sf-bars-plot" aria-hidden="true">
         {data.map((day) => (
-          <div key={day.key} className="group relative flex h-full flex-1 items-end justify-center">
-            {day.value > 0 && (
-              <div
-                className="w-full max-w-6 rounded-t-[4px] bg-[var(--sf-accent-fg)] transition-opacity group-hover:opacity-80"
-                style={{ height: `${Math.max(4, (day.value / max) * 100)}%` }}
-              />
+          <div key={day.key} className="sf-bars-day">
+            {day.value > 0 ? (
+              <>
+                <span className="sf-bars-val">{day.value}</span>
+                <span className="sf-bars-bar" style={{ height: `${Math.max(3, (day.value / max) * 100)}px` }} />
+              </>
+            ) : (
+              <span className="sf-bars-bar" data-zero="" />
             )}
-            <span className="pointer-events-none absolute bottom-full z-10 mb-1 hidden whitespace-nowrap rounded bg-[var(--sf-ink)] px-1.5 py-0.5 text-xs text-[var(--sf-canvas)] group-hover:block">
-              {shortDay(day.key)}: {day.value}
-            </span>
           </div>
         ))}
       </div>
-      <div className="mt-2 flex justify-between text-xs text-[var(--sf-muted)]" aria-hidden="true">
+      <div className="sf-bars-axis" aria-hidden="true">
         <span>{shortDay(data[0].key)}</span>
-        <span>{shortDay(data[data.length - 1].key)}</span>
+        <span>сегодня</span>
       </div>
-      <figcaption className="mt-3 text-sm text-[var(--sf-muted)]">
-        {total === 0
-          ? `За ${caption} ответов на карточки нет.`
-          : sentence(`За ${caption}: ${count(total, ['ответ', 'ответа', 'ответов'])}, больше всего ${peak.value} — ${shortDay(peak.key)}`)}
+      <figcaption className="mt-3 text-[15px] leading-[22px] text-[var(--sf-muted)]">
+        {sentence(`Ответы на карточки по дням; больше всего ${peak.value} — ${shortDay(peak.key)}`)}
       </figcaption>
       <table className="sr-only">
         <caption>Ответов на карточки по дням</caption>

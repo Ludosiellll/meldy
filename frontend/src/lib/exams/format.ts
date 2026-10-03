@@ -18,6 +18,42 @@ export const KIND_LABELS: Record<ExamKind, string> = {
   colloquium: 'Коллоквиум',
 };
 
+const KIND_PREFIX = /^\s*(экзамен|зач[её]т|коллоквиум)\s*(?::|\.|\s[—–-])\s*/i;
+const KIND_WORD = /(^|[\s«(])(экзамен|зач[её]т|коллоквиум)/i;
+
+function capitalize(text: string): string {
+  return text ? text[0].toLocaleUpperCase('ru-RU') + text.slice(1) : text;
+}
+
+/**
+ * The subject of an exam title: «Экзамен: цифровая экономика» → «Цифровая экономика». A leading
+ * «Экзамен», «Зачёт» or «Коллоквиум» followed by «:», «.» or « — » is dropped and the rest gets a
+ * capital letter, so the screens do not say «экзамен» three times in a row (the kind is shown next
+ * to it anyway). Anything else is returned as it was typed.
+ */
+export function subjectOf(title: string): string {
+  const clean = title.trim().replace(/\s+/g, ' ');
+  const rest = clean.replace(KIND_PREFIX, '').trim();
+  if (!rest || rest === clean) return clean;
+  return capitalize(rest);
+}
+
+/**
+ * «Цифровая экономика: вопросы к экзамену». When the kind is still part of the name
+ * («Экзамен по микроэкономике»), the name alone is the header: nothing is said twice.
+ */
+export function sheetHeader(title: string, kind: ExamKind): string {
+  const subject = subjectOf(title);
+  if (KIND_WORD.test(subject)) return subject;
+  return `${subject}: ${SHEET_WORDS[kind]}`;
+}
+
+const SHEET_WORDS: Record<ExamKind, string> = {
+  exam: 'вопросы к экзамену',
+  credit: 'вопросы к зачёту',
+  colloquium: 'вопросы к коллоквиуму',
+};
+
 export const GRADE_WORDS: Record<number, string> = {
   5: 'отлично',
   4: 'хорошо',

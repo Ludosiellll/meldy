@@ -108,7 +108,7 @@ describe('peakText: the five transitions', () => {
   it('untested → once asks for a pass on another day', () => {
     const text = textOf([answer(TODAY, true, 4)]);
     expect(text.because).toBe('Зачтено сегодня. Второй зачёт в другой день подтвердит вопрос.');
-    expect(text).toMatchObject({ title: 'Зачтено один раз', before: 2, after: 3, draws: true });
+    expect(text).toMatchObject({ title: 'Зачтено в один день', before: 2, after: 3, draws: true });
   });
 
   it('a second pass on the same day changes nothing visible', () => {

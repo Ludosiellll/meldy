@@ -395,7 +395,9 @@ describe('materials of other authors', () => {
     expect(await screen.findByText('Разговор может создать только автор материала.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Поделиться' })).not.toBeInTheDocument();
-    expect(screen.getByText('Материал другого автора')).toBeInTheDocument();
+    // Only the author gets «⋯» (rename, subject, sharing); the meta line says whose it is.
+    expect(screen.queryByRole('button', { name: 'Действия с лекцией' })).not.toBeInTheDocument();
+    expect(screen.getByText(/материал другого автора/)).toBeInTheDocument();
   });
 
   it('hides «Добавить схемы» on someone else’s legacy conversation', async () => {
@@ -406,40 +408,95 @@ describe('materials of other authors', () => {
   });
 });
 
+/** «Поделиться» lives in «⋯» (design critique 12): open the menu, pick the item. */
+async function chooseFromMenu(item: string) {
+  fireEvent.click(await screen.findByRole('button', { name: 'Действия с лекцией' }));
+  fireEvent.click(within(screen.getByRole('menu', { name: 'Действия с лекцией' })).getByRole('menuitem', { name: item }));
+}
+
 describe('sharing a material', () => {
   it('asks before publishing and does nothing when the user cancels', async () => {
     state.confirm = vi.fn(async () => false);
     renderPage('/library/m1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Поделиться' }));
+    await chooseFromMenu('Поделиться');
     await waitFor(() => expect(state.confirm).toHaveBeenCalledTimes(1));
     expect(state.confirm.mock.calls[0][0].message).toMatch(/смогут открыть и скопировать другие студенты/);
     expect(state.writes).toHaveLength(0);
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-    expect(screen.getByText('Только для меня')).toBeInTheDocument();
+    expect(screen.getByText(/только для меня/)).toBeInTheDocument();
   });
 
   it('does not claim success when the update fails', async () => {
     state.updateError = true;
     renderPage('/library/m1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Поделиться' }));
+    await chooseFromMenu('Поделиться');
     await waitFor(() => expect(state.toastError).toHaveBeenCalledWith('Не удалось открыть доступ. Попробуйте ещё раз.'));
     expect(state.toastSuccess).not.toHaveBeenCalled();
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-    expect(screen.getByText('Только для меня')).toBeInTheDocument();
+    expect(screen.getByText(/только для меня/)).toBeInTheDocument();
   });
 
   it('publishes, then copies the link', async () => {
     renderPage('/library/m1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Поделиться' }));
+    await chooseFromMenu('Поделиться');
     await waitFor(() => expect(state.toastSuccess).toHaveBeenCalledWith('Доступ открыт, ссылка скопирована'));
     expect(state.writes).toEqual([{ is_public: true }]);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/shared/m1`);
-    expect(screen.getByText('В открытых материалах')).toBeInTheDocument();
+    expect(screen.getByText(/в открытых материалах/)).toBeInTheDocument();
+    // The menu closed and gave the focus back to «⋯».
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toHaveFocus();
 
     // Уже открытый материал: ссылка копируется без второго вопроса.
-    fireEvent.click(screen.getByRole('button', { name: 'Поделиться' }));
+    await chooseFromMenu('Поделиться');
     await waitFor(() => expect(state.toastSuccess).toHaveBeenLastCalledWith('Ссылка скопирована'));
     expect(state.confirm).toHaveBeenCalledTimes(1);
+
+    // «Закрыть доступ» appears only for a public material and makes it private again.
+    await chooseFromMenu('Закрыть доступ');
+    await waitFor(() => expect(state.writes).toEqual([{ is_public: true }, { is_public: false }]));
+    expect(await screen.findByText(/только для меня/)).toBeInTheDocument();
+  });
+});
+
+describe('the lecture header (design critique 12)', () => {
+  it('says subject, who sees it and when it was added in one line, without chips or a numeric date', async () => {
+    renderPage('/library/m1');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
+    expect(screen.getByText(/^Физика · только для меня · 1 октября, \d{1,2}:00$/)).toBeInTheDocument();
+    expect(screen.queryByText(/\d{2}\.\d{2}\.\d{4}/)).not.toBeInTheDocument();
+  });
+
+  it('has no «Новый анализ» and no second filled button; «Экспорт» is a link with a menu', async () => {
+    renderPage('/library/m1');
+    await screen.findByText('Конспект про энтропию');
+    expect(screen.queryByRole('button', { name: /Новый анализ/ })).not.toBeInTheDocument();
+    const exportButton = screen.getByRole('button', { name: 'Экспорт' });
+    expect(exportButton).toHaveClass('sf-link');
+    fireEvent.click(exportButton);
+    expect(within(screen.getByRole('menu', { name: 'Экспорт' })).getByRole('menuitem', { name: 'Копировать' })).toBeInTheDocument();
+    fireEvent.keyDown(exportButton, { key: 'Escape' });
+    expect(screen.queryByRole('menu', { name: 'Экспорт' })).not.toBeInTheDocument();
+    expect(exportButton).toHaveFocus();
+  });
+
+  it('renames and changes the subject from «⋯»', async () => {
+    const api = await import('../api/materials');
+    renderPage('/library/m1');
+    await chooseFromMenu('Переименовать');
+    const title = screen.getByRole('textbox', { name: 'Название лекции' });
+    expect(title).toHaveFocus();
+    fireEvent.change(title, { target: { value: 'Энтропия и порядок' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Энтропия и порядок' })).toBeInTheDocument();
+    expect(api.updateMaterialTitle).toHaveBeenCalledWith('m1', 'Энтропия и порядок');
+
+    await chooseFromMenu('Изменить предмет');
+    const subject = screen.getByRole('textbox', { name: 'Предмет' });
+    fireEvent.change(subject, { target: { value: 'Термодинамика' } });
+    fireEvent.keyDown(subject, { key: 'Escape' });
+    expect(screen.getByText(/^Физика · /)).toBeInTheDocument();
+    expect(api.updateMaterialSubject).not.toHaveBeenCalled();
   });
 });
 
@@ -481,13 +538,20 @@ describe('section statuses saved with the material', () => {
       quiz_json: { quiz: [] },
     };
     renderPage('/library/m1');
+    // Сценарий 11: сохранённый {quiz: busy} — страница материала говорит, что он обработан частично.
+    expect(await screen.findByText('Обработан частично')).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
     expect(screen.getByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
     await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    // Spec 4.6: while it runs, the link says so in words; no spinner, no card around the failure.
+    expect(screen.getByRole('button', { name: 'Создаём тест…' })).toBeDisabled();
+    expect(document.querySelector('.animate-spin')).toBeNull();
+    expect(screen.getByText('Тест не получился: сервис ИИ был перегружен.').closest('.rounded-xl')).toBeNull();
     await act(async () => pending['/api/analyze/section'][0].resolve(jsonResponse({ section: 'quiz', status: 'ok', result: quizPayload })));
 
     expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
+    expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
     expect(state.material.quiz_json).toEqual(quizPayload);
     expect((state.material.summary_json.sections as Record<string, unknown>).quiz).toEqual({ status: 'ok' });
     expect(state.material.summary_json.content).toBe('Конспект про энтропию');
@@ -501,6 +565,7 @@ describe('section statuses saved with the material', () => {
     renderPage('/library/m1');
     expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
     expect(screen.queryByText(/не получил/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Тест/ })).not.toBeInTheDocument();
   });
 
@@ -633,7 +698,7 @@ describe('text-only materials and review link', () => {
     renderPage('/library/m1');
     expect(await screen.findByText('Только текст, конспекта нет. Материал участвует в разметке экзаменов.')).toBeInTheDocument();
     expect(screen.queryByText('Нет данных для отображения')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Повторить карточки этого материала' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Повторить карточки' })).not.toBeInTheDocument();
   });
 
   it('links to review for a material with cards', async () => {
@@ -642,7 +707,9 @@ describe('text-only materials and review link', () => {
       flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
     };
     renderPage('/library/m1');
-    const link = await screen.findByRole('link', { name: 'Повторить карточки этого материала' });
+    // An outlined pill, not a second filled button; no count, because review shows only the cards due today.
+    const link = await screen.findByRole('link', { name: 'Повторить карточки' });
     expect(link).toHaveAttribute('href', '/review?material=m1');
+    expect(link).toHaveClass('sf-secondary');
   });
 });

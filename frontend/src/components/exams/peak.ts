@@ -227,7 +227,7 @@ export function peakText(input: {
   if (to === 'once' && from === 'once') {
     return {
       because: 'Снова зачтено, но в тот же день. Для подтверждения нужен зачёт в другой день.',
-      title: 'Зачтено один раз',
+      title: 'Зачтено в один день',
       before: null,
       after: counts.once,
       total: null,
@@ -239,7 +239,7 @@ export function peakText(input: {
   if (to === 'once') {
     return {
       because: `Зачтено ${when}. Второй зачёт в другой день подтвердит вопрос.`,
-      title: 'Зачтено один раз',
+      title: 'Зачтено в один день',
       before: Math.max(0, counts.once - 1),
       after: counts.once,
       total: null,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, Check, X, MessagesSquare, Loader2 } from 'lucide-react';
+import { Copy, Download, RotateCcw, Edit3, Check, X } from 'lucide-react';
 import type {
   AnalysisResults,
   AnalysisSettings,
@@ -462,26 +462,21 @@ function SectionFailure({
   onRecreate?: () => void;
 }) {
   const core = section === 'summarizer' || section === 'flashcards' || section === 'quiz';
+  // Spec 4.6: the failure sits on the page, left-aligned, without a card, red or a spinner; the link says what it does.
   return (
-    <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6 text-[var(--sf-ink)]">
-      <p className="text-base leading-relaxed">{sectionFailureSentence(section, state)}</p>
+    <div className="max-w-[36em] text-[var(--sf-ink)]">
+      <p className="text-[17px] leading-[26px]">{sectionFailureSentence(section, state)}</p>
       {core && canEdit && onRecreate && (
-        <div className="mt-3 flex flex-col items-start gap-1">
-          <button
-            type="button"
-            onClick={onRecreate}
-            disabled={!materialId || !hasText || busy}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 -mx-2 text-sm font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:cursor-not-allowed disabled:text-[var(--sf-muted)]"
-          >
-            {running && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+        <div className="mt-2 flex flex-col items-start gap-1">
+          <button type="button" onClick={onRecreate} disabled={!materialId || !hasText || busy} className="sf-link">
             {running ? RECREATE_RUNNING[section as CoreSection] : RECREATE_LABEL[section as CoreSection]}
           </button>
           {!materialId && (
-            <p className="text-sm text-[var(--sf-muted)]">Станет доступно, когда материал сохранится в библиотеке.</p>
+            <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">Станет доступно, когда материал сохранится в библиотеке.</p>
           )}
-          {materialId && !hasText && <p className="text-sm text-[var(--sf-muted)]">У материала нет исходного текста.</p>}
+          {materialId && !hasText && <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">У материала нет исходного текста.</p>}
           {error && (
-            <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">
+            <p role="alert" className="text-[15px] leading-[22px] text-[var(--sf-ink)]">
               {error}
             </p>
           )}
@@ -568,6 +563,7 @@ export default function ResultsPanel({
 
   const [copied, setCopied] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const exportButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const derivedTitle = useMemo(
     () => getResultDisplayTitle(view, sourceFileName),
@@ -607,11 +603,11 @@ export default function ResultsPanel({
   const summaryHasContent = Boolean(view.summarizer?.content || (view.summarizer as { raw?: string })?.raw);
 
   const tabs = useMemo(() => {
-    const rawTabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
-      { id: 'summary', label: 'Конспект', icon: <FileText className="w-4 h-4" /> },
-      { id: 'flashcards', label: 'Карточки', icon: <Layers className="w-4 h-4" />, count: flashcardCount },
-      { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
-      { id: 'podcast', label: 'Разговор', icon: <MessagesSquare className="w-4 h-4" />, count: conversationCount },
+    const rawTabs: { id: Tab; label: string; count?: number }[] = [
+      { id: 'summary', label: 'Конспект' },
+      { id: 'flashcards', label: 'Карточки', count: flashcardCount },
+      { id: 'quiz', label: 'Тест', count: quizCount },
+      { id: 'podcast', label: 'Разговор', count: conversationCount },
     ];
     if (textOnly) return [];
     return rawTabs.filter(t => {
@@ -802,6 +798,15 @@ export default function ResultsPanel({
 
   // Попытка теста попадает в журнал этого материала (QuizView: materialId, topic, surface).
   // null — материал ещё сохраняется; в режиме просмотра журнала нет вовсе (materialId не передаётся).
+  // «Основано на 22 фрагментах исходника · у 3 пунктов есть ссылка на наиболее похожий фрагмент».
+  const sourceCount = view.grounding?.source_count ?? 0;
+  const citable = view.grounding?.citable_items ?? 0;
+  const groundingText = sourceCount
+    ? `Основано на ${sourceCount} ${sourceCount % 10 === 1 && sourceCount % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника${
+        citable > 0 ? ` · у ${citable} ${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на наиболее похожий фрагмент` : ''
+      }`
+    : '';
+
   const quizJournal: { materialId?: string | null; topic: string; surface: 'analysis' | 'material' } = {
     materialId: preview ? undefined : materialId ?? null,
     topic: view.summarizer?.subject || currentTitle,
@@ -821,171 +826,240 @@ export default function ResultsPanel({
   });
 
   return (
-    <div className="py-4 md:py-6">
+    <div className={embedded ? 'pb-6' : 'py-4 md:py-6'}>
       {/* У материала «только текст» на странице материала в шапке нечего показать. */}
-      {!(embedded && textOnly && !showPartialNotice && !notices) && (
-        <header className="border-b border-slate-200 dark:border-slate-800 pb-5 md:pb-6 no-print">
-          <div className={`flex flex-col gap-5 ${embedded ? 'sm:flex-row sm:justify-end' : 'lg:flex-row lg:items-start lg:justify-between'}`}>
-            {!embedded && (
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--sf-muted)]">
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${allRequestedOk ? 'bg-emerald-500' : 'bg-[var(--sf-muted)]'}`}
-                    aria-hidden="true"
-                  />
-                  {statusLabel}
-                </div>
-
-                {isEditing ? (
-                  <div className="flex max-w-2xl items-center gap-2">
-                    <input
-                      type="text"
-                      value={editVal}
-                      onChange={event => setEditVal(event.target.value)}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter') saveManualTitle();
-                        if (event.key === 'Escape') setIsEditing(false);
-                      }}
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      placeholder="Название материала"
-                      aria-label="Название материала"
-                      autoFocus
-                    />
-                    <button onClick={saveManualTitle} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-500" aria-label="Сохранить название">
-                      <Check className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => setIsEditing(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Отменить изменение">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="group flex min-w-0 items-start gap-2">
-                    <h1 className="max-w-3xl text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-slate-950 dark:text-slate-50 md:text-3xl">
-                      {currentTitle}
-                    </h1>
-                    {materialId && canEdit && (
-                      <button
-                        onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
-                        className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-teal-700 focus-visible:opacity-100 dark:hover:bg-slate-800 dark:hover:text-teal-300 md:opacity-0 md:group-hover:opacity-100"
-                        aria-label="Изменить название"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                  {textLength ? <span>{charactersLabel(textLength)}</span> : null}
-                  {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
-                  {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
-                  {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
-                  {exerciseCount > 0 ? <span>{exerciseCount} {pluralRu(exerciseCount, ['задание', 'задания', 'заданий'])} для практики</span> : null}
-                  {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
-                </div>
-              </div>
-            )}
-
-            {!textOnly && (
-            <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
-              <div className="relative export-menu-container">
-                <button
-                  onClick={() => setShowExport(value => !value)}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  aria-expanded={showExport}
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Экспорт</span>
-                </button>
-
-                <AnimatePresence>
-                  {showExport && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                      transition={{ duration: 0.12 }}
-                      className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-850"
-                    >
-                      <button onClick={() => { handleCopy(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                        <Copy className="h-4 w-4" />{copied ? 'Скопировано' : 'Копировать'}
-                      </button>
-                      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                        <button onClick={() => { handlePrintPdf(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                          <Download className="h-4 w-4" />Печать или PDF
-                        </button>
-                      )}
-                      {tab === 'flashcards' && flashcardCount > 0 && (
-                        <button onClick={() => { handleExportAnki(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                          <Download className="h-4 w-4" />Файл для Anki
-                        </button>
-                      )}
-                      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                        <button onClick={() => { handleDownloadHtml(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                          <Download className="h-4 w-4" />Скачать HTML
-                        </button>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <button onClick={onReset} className="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:flex-none">
-                <RotateCcw className="h-4 w-4" />Новый анализ
-              </button>
-            </div>
-            )}
-          </div>
-
-          {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
-          {!textOnly && view.grounding?.source_count ? (
-            <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-              <span>
-                Основано на {view.grounding.source_count}{' '}
-                {view.grounding.source_count % 10 === 1 && view.grounding.source_count % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника
-              </span>
-              {view.grounding.citable_items > 0 ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    у {view.grounding.citable_items} {pluralRu(view.grounding.citable_items, ['пункта', 'пунктов', 'пунктов'])} есть
-                    ссылка на наиболее похожий фрагмент
-                  </span>
-                </>
-              ) : null}
-            </p>
-          ) : null}
-
-          {(showPartialNotice || cheatsheetFailed || notices) && (
-            <div className="mt-4 space-y-1.5 text-sm leading-relaxed text-[var(--sf-muted)]">
+      {embedded ? (
+        // На странице материала (критика 12): строка о недостающем разделе, строка о фрагментах и «Экспорт»
+        // ссылкой справа. «Новый анализ» здесь не нужен: «Добавить лекцию» есть в верхней строке, а заливная
+        // кнопка на экране одна.
+        !(textOnly && !showPartialNotice && !notices) && (
+          <header className="no-print flex flex-wrap items-start justify-between gap-x-6 gap-y-1 pt-5">
+            <div className="min-w-0 flex-1 space-y-1 text-[15px] leading-[22px] text-[var(--sf-muted)]">
+              {!allRequestedOk && <p className="font-medium text-[var(--sf-ink)]">{statusLabel}</p>}
+              {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
+              {!textOnly && groundingText ? <p>{groundingText}</p> : null}
               {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
               {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
               {notices}
             </div>
-          )}
-        </header>
+            {!textOnly && (
+              <div
+                // The link keeps its 44 px tap height; the negative margin lines its text up with the first line.
+                className="export-menu-container relative -my-[11px] flex"
+                onKeyDown={event => {
+                  if (event.key === 'Escape' && showExport) {
+                    event.preventDefault();
+                    setShowExport(false);
+                    exportButtonRef.current?.focus();
+                  }
+                }}
+              >
+                <button
+                  ref={exportButtonRef}
+                  type="button"
+                  className="sf-link"
+                  data-muted=""
+                  aria-haspopup="menu"
+                  aria-expanded={showExport}
+                  onClick={() => setShowExport(value => !value)}
+                >
+                  Экспорт
+                </button>
+                {showExport && (
+                  <div className="sf-menu" role="menu" aria-label="Экспорт">
+                    <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
+                      {copied ? 'Скопировано' : 'Копировать'}
+                    </button>
+                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                      <button type="button" role="menuitem" onClick={() => { handlePrintPdf(); setShowExport(false); }}>
+                        Печать или PDF
+                      </button>
+                    )}
+                    {tab === 'flashcards' && flashcardCount > 0 && (
+                      <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
+                        Файл для Anki
+                      </button>
+                    )}
+                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                      <button type="button" role="menuitem" onClick={() => { handleDownloadHtml(); setShowExport(false); }}>
+                        Скачать HTML
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </header>
+        )
+      ) : (
+        !(embedded && textOnly && !showPartialNotice && !notices) && (
+          <header className="border-b border-slate-200 dark:border-slate-800 pb-5 md:pb-6 no-print">
+            <div className={`flex flex-col gap-5 ${embedded ? `sm:flex-row sm:items-center ${allRequestedOk ? 'sm:justify-end' : 'sm:justify-between'}` : 'lg:flex-row lg:items-start lg:justify-between'}`}>
+              {/* На странице материала названия здесь нет, но о недостающем разделе говорим и здесь:
+                  строка без значка, только когда сохранённый статус запрошенного раздела не «готово». */}
+              {embedded && !allRequestedOk && (
+                <p className="text-base font-medium text-[var(--sf-ink)]">{statusLabel}</p>
+              )}
+              {!embedded && (
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--sf-muted)]">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${allRequestedOk ? 'bg-emerald-500' : 'bg-[var(--sf-muted)]'}`}
+                      aria-hidden="true"
+                    />
+                    {statusLabel}
+                  </div>
+
+                  {isEditing ? (
+                    <div className="flex max-w-2xl items-center gap-2">
+                      <input
+                        type="text"
+                        value={editVal}
+                        onChange={event => setEditVal(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') saveManualTitle();
+                          if (event.key === 'Escape') setIsEditing(false);
+                        }}
+                        className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        placeholder="Название материала"
+                        aria-label="Название материала"
+                        autoFocus
+                      />
+                      <button onClick={saveManualTitle} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-500" aria-label="Сохранить название">
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => setIsEditing(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Отменить изменение">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="group flex min-w-0 items-start gap-2">
+                      <h1 className="max-w-3xl text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-slate-950 dark:text-slate-50 md:text-3xl">
+                        {currentTitle}
+                      </h1>
+                      {materialId && canEdit && (
+                        <button
+                          onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
+                          className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-teal-700 focus-visible:opacity-100 dark:hover:bg-slate-800 dark:hover:text-teal-300 md:opacity-0 md:group-hover:opacity-100"
+                          aria-label="Изменить название"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                    {textLength ? <span>{charactersLabel(textLength)}</span> : null}
+                    {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
+                    {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
+                    {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
+                    {exerciseCount > 0 ? <span>{exerciseCount} {pluralRu(exerciseCount, ['задание', 'задания', 'заданий'])} для практики</span> : null}
+                    {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
+                  </div>
+                </div>
+              )}
+
+              {!textOnly && (
+              <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
+                <div className="relative export-menu-container">
+                  <button
+                    onClick={() => setShowExport(value => !value)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    aria-expanded={showExport}
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Экспорт</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {showExport && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-850"
+                      >
+                        <button onClick={() => { handleCopy(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                          <Copy className="h-4 w-4" />{copied ? 'Скопировано' : 'Копировать'}
+                        </button>
+                        {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                          <button onClick={() => { handlePrintPdf(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                            <Download className="h-4 w-4" />Печать или PDF
+                          </button>
+                        )}
+                        {tab === 'flashcards' && flashcardCount > 0 && (
+                          <button onClick={() => { handleExportAnki(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                            <Download className="h-4 w-4" />Файл для Anki
+                          </button>
+                        )}
+                        {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                          <button onClick={() => { handleDownloadHtml(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                            <Download className="h-4 w-4" />Скачать HTML
+                          </button>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <button onClick={onReset} className="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:flex-none">
+                  <RotateCcw className="h-4 w-4" />Новый анализ
+                </button>
+              </div>
+              )}
+            </div>
+
+            {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
+            {!textOnly && view.grounding?.source_count ? (
+              <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                <span>
+                  Основано на {view.grounding.source_count}{' '}
+                  {view.grounding.source_count % 10 === 1 && view.grounding.source_count % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника
+                </span>
+                {view.grounding.citable_items > 0 ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      у {view.grounding.citable_items} {pluralRu(view.grounding.citable_items, ['пункта', 'пунктов', 'пунктов'])} есть
+                      ссылка на наиболее похожий фрагмент
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+
+            {(showPartialNotice || cheatsheetFailed || notices) && (
+              <div className="mt-4 space-y-1.5 text-sm leading-relaxed text-[var(--sf-muted)]">
+                {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
+                {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
+                {notices}
+              </div>
+            )}
+          </header>
+        )
       )}
 
       {textOnly ? (
-        <p className="mt-6 max-w-[60ch] rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-4 text-base leading-relaxed text-[var(--sf-ink)]">
+        <p className="mt-6 max-w-[36em] text-[17px] leading-[26px] text-[var(--sf-ink)]">
           {TEXT_ONLY_NOTICE}
         </p>
       ) : (
         <>
           {tabs.length > 1 && (
-            <nav className="no-print -mx-4 flex gap-4 overflow-x-auto border-b border-slate-200 px-4 dark:border-slate-800 md:mx-0 md:px-0" aria-label="Разделы результата">
+            <nav className={`sf-sectabs no-print ${embedded ? 'mt-2' : 'mt-4'}`} aria-label="Разделы результата">
               {tabs.map(item => {
                 const isActive = tab === item.id;
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => setTab(item.id)}
-                    className={`relative flex shrink-0 items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition ${isActive ? 'border-cyan-400 text-slate-950 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     aria-current={isActive ? 'page' : undefined}
                   >
-                    {item.icon}
-                    <span>{item.label}</span>
-                    {item.count ? <span className="text-xs tabular-nums text-slate-400">{item.count}</span> : null}
+                    <span className="sf-sectab-label">{item.label}</span>
+                    {item.count ? <span className="sf-tabs-n">{item.count}</span> : null}
                   </button>
                 );
               })}

@@ -57,7 +57,9 @@ describe('<ProtocolSheet>', () => {
     expect(p1.querySelector('svg[data-mark="tick"]')).not.toBeNull();
     expect(p1.textContent).toContain('раскрыт · фрагмент 12');
     expect(p1.textContent).toContain('Вы:«подбор весов, которые минимизируют функцию потерь»');
-    expect(p1.textContent).toContain('Лекция, фрагмент 12:');
+    // The quote names its lecture even for a covered point: an exam has many lectures (QA s35).
+    expect(p1.textContent).toContain('Лекция «Нейронные сети», фрагмент 12:');
+    expect(p1.textContent).not.toContain('Лекция, фрагмент 12:');
     // The same anchor words are underlined in the answer and in the lecture.
     expect(p1.querySelectorAll('.or-q2 [data-mark="under"]').length).toBeGreaterThanOrEqual(2);
 
@@ -80,6 +82,36 @@ describe('<ProtocolSheet>', () => {
     );
     // No general comment of the model on the sheet (redesign spec 2.2 #12).
     expect(container.textContent).not.toContain('Повторите скорость обучения.');
+  });
+
+  it('names the right lecture for each covered point when the rubric drew on two lectures', () => {
+    const twoLectures = {
+      ...DEMO_RUBRIC,
+      materials: [...DEMO_RUBRIC.materials, { key: 'M2', material_id: 'mat-2', title: 'Оптимизаторы' }],
+      points: DEMO_RUBRIC.points.map((point) => (point.id === 'p2' ? { ...point, source_ids: ['M2:S04'] } : point)),
+    };
+    const allCovered: Evaluation = { ...evaluation, points: evaluation.points.map((point) => ({ ...point, status: 'covered' as const })), errors: [] };
+    const { container } = render(
+      <ProtocolSheet heading="h" points={livePoints(twoLectures, allCovered)} followup={null} stamp="passed" seed="a" />,
+    );
+    const label = (id: string) =>
+      Array.from(container.querySelectorAll(`[data-point="${id}"] .or-q2-label`)).map((node) => node.textContent ?? '');
+    expect(label('p1')).toContain('Лекция «Нейронные сети», фрагмент 12:');
+    expect(label('p2')).toContain('Лекция «Оптимизаторы», фрагмент 4:');
+  });
+
+  it('a saved protocol names the lecture of a covered point from its saved label; an untitled one keeps the short form', () => {
+    const stored = {
+      points: [
+        { id: 'p1', title: 'Пункт', essential: true, status: 'covered', student_quote: 'вес', comment: '', source_ids: ['S04'], material_id: 'm1', source_quote: 'подбор весов', source_label: '«Нейронные сети и глубокое обучение», фрагмент 4', live: true },
+        { id: 'p2', title: 'Второй', essential: false, status: 'covered', student_quote: 'шаг', comment: '', source_ids: ['S05'], material_id: null, source_quote: 'шаг обучения', source_label: '', live: true },
+      ],
+      errors: [],
+    } as unknown as StoredProtocol;
+    const { container } = render(<ProtocolSheet heading="h" points={storedPoints(stored, {})} followup={null} stamp="none" seed="s" />);
+    const labels = Array.from(container.querySelectorAll('[data-point="p1"] .or-q2-label')).map((node) => node.textContent?.replace(/\u00a0/g, ' '));
+    expect(labels).toEqual(['Вы:', 'Лекция «Нейронные сети и глубокое обучение», фрагмент 4:']);
+    expect(container.querySelector('[data-point="p2"]')?.textContent).toContain('Лекция, фрагмент 5:');
   });
 
   it('draws «Зачтено» in the same pencil oval for the same attempt and another one for another attempt', () => {
@@ -159,14 +191,17 @@ describe('<ProtocolGrade>', () => {
       ],
       { point_id: 'p4', status: 'missing' },
     );
-    render(<ProtocolGrade result={result} previous="В прошлый раз (1 окт.): 3 из 5" />);
+    render(<ProtocolGrade result={result} previous="прошлый ответ, 1 окт.: «удовлетворительно»" />);
     expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
     expect(screen.queryByText(/\/ 9 = 67 из 100 → 4/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
     expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 4')).toBeInTheDocument();
     expect(screen.getByText('Оценка тренировочная: по пунктам эталона из ваших лекций, а не по требованиям преподавателя.')).toBeInTheDocument();
-    expect(screen.getByText('В прошлый раз (1 окт.): 3 из 5')).toBeInTheDocument();
+    // The previous answer sits on the «Как считается» row, as a grade in words (redesign critique 5).
+    const row = screen.getByRole('button', { name: 'Как считается' }).closest('.or-how-row') as HTMLElement;
+    expect(row.textContent).toBe('Как считается · прошлый ответ, 1 окт.: «удовлетворительно»');
+    expect(document.body.textContent).not.toMatch(/3 из 5/);
   });
 });
 

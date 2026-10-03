@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { answerTime, hasUnsavedAnswer, initialTicketState, protocolState, ticketReducer, type TicketAction, type TicketState } from './ticketMachine';
 import { demoRubricResponse } from './testing/fixtures';
+import { elapsedLabel } from './format';
 import type { TicketQuestion } from './ticketData';
 
 const question: TicketQuestion = {
@@ -32,6 +33,19 @@ function answering(): TicketState {
     state,
   );
 }
+
+describe('the answer clock', () => {
+  it('saves the same whole seconds the timer shows, and both stop at «Готово»', () => {
+    // 1.9 s of answering: the top line shows 0:01, so the sheet and the saved attempt say 1 s too.
+    let state = answering();
+    state = run([{ type: 'finalize', attemptId: 'a', snapshot: 'подбор весов', live: [], input: 'text', now: 2_900, startedAt: 't' }], state);
+    expect(answerTime(state, 2_900)).toBe(1_900);
+    expect(state.attempt?.durationSeconds).toBe(Math.floor(answerTime(state, 2_900) / 1000));
+    expect(state.attempt?.durationSeconds).toBe(1);
+    expect(elapsedLabel(answerTime(state, 9_000))).toBe('0:01');
+    expect(elapsedLabel((state.attempt?.durationSeconds ?? 0) * 1000)).toBe('0:01');
+  });
+});
 
 describe('ticket state machine', () => {
   it('goes loading → ready → answering → finalizing → examiner → followup → evaluating → protocol', () => {

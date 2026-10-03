@@ -6,7 +6,7 @@
 import type { ExamQuestion, TicketLayout } from '../../api/exams';
 import type { QuestionState, Readiness, SelfRating } from '../../lib/learning/readiness';
 import { layoutShares, percent, type LayoutShares, type ShareQuestion, type ShareResult } from '../../lib/exams/ticketMath';
-import { fragmentNumber, formatShortDay, questionNumber } from '../../lib/exams/format';
+import { fragmentNumber, questionNumber } from '../../lib/exams/format';
 import { pluralRu } from '../conversation/visuals';
 import { ty } from '../landing/typo';
 import type { SheetCoverage } from './marks';
@@ -55,11 +55,13 @@ export interface Footnote {
   /** «фрагмент 14» or «фрагменты 1, 4, 5»; '' for a mark made by hand. */
   fragments: string;
   manual: boolean;
+  /** The lecture the note cites ('' for a mark made by hand): «там же» compares it with the row above. */
+  materialId: string;
 }
 
 /** The right-margin note of a row: the lecture and its fragments, «отмечено вами», or nothing. */
 export function footnoteOf(question: Pick<ExamQuestion, 'coverage' | 'coverage_method' | 'evidence'>): Footnote | null {
-  if (question.coverage_method === 'manual') return { title: 'отмечено вами', fragments: '', manual: true };
+  if (question.coverage_method === 'manual') return { title: 'отмечено вами', fragments: '', manual: true, materialId: '' };
   if ((question.coverage !== 'full' && question.coverage !== 'partial') || question.evidence.length === 0) return null;
   const first = question.evidence[0];
   const sameLecture = question.evidence.filter((item) => item.material_id === first.material_id);
@@ -67,7 +69,56 @@ export function footnoteOf(question: Pick<ExamQuestion, 'coverage' | 'coverage_m
     title: first.material_title.trim() || 'Лекция',
     fragments: fragmentsPhrase(sameLecture.map((item) => item.source_id)),
     manual: false,
+    materialId: first.material_id,
   };
+}
+
+/** How a margin note reads on the sheet: the lecture on its first mention, «там же» after it. */
+export interface NoteView {
+  /** «Нейронные сети и глубокое обучение» or «там же»; «отмечено вами» for a hand mark. */
+  lead: string;
+  /** «фрагмент 4» (after a comma), '' when there is none. */
+  fragments: string;
+  /** The lecture is named here (not «там же»). */
+  named: boolean;
+}
+
+/** A long title is cut at a word so that «, фрагмент 12» still fits in the two lines of the margin. */
+const NOTE_CHARS = 54;
+
+/**
+ * Margin notes of the visible rows, in order (redesign critique 3): the lecture is named on the first
+ * row of a section and whenever it differs from the last note above; otherwise the note is one line,
+ * «там же, фрагмент 4». A hand mark interrupts the run, so the next row names its lecture again.
+ * Rows come already filtered, so after a filter change the first note names its lecture too.
+ */
+export function marginNotes(rows: Array<{ section: number | null; footnote: Footnote | null }>): Array<NoteView | null> {
+  let lastMaterial: string | null = null;
+  let lastSection: number | null | undefined;
+  return rows.map((row) => {
+    if (row.section !== null && row.section !== lastSection) lastMaterial = null;
+    if (row.section !== null) lastSection = row.section;
+    const note = row.footnote;
+    if (!note) return null;
+    if (note.manual) {
+      lastMaterial = null;
+      return { lead: note.title, fragments: '', named: false };
+    }
+    if (lastMaterial !== null && note.materialId && note.materialId === lastMaterial) {
+      return { lead: 'там же', fragments: note.fragments, named: false };
+    }
+    lastMaterial = note.materialId || null;
+    const room = Math.max(16, NOTE_CHARS - (note.fragments ? note.fragments.length + 2 : 0));
+    return { lead: shortenTitle(note.title, room), fragments: note.fragments, named: true };
+  });
+}
+
+function shortenTitle(title: string, max: number): string {
+  const clean = title.trim().replace(/\s+/g, ' ');
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,.;:–-]+$/, '')}…`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -115,7 +166,7 @@ export const FILTER_NAMES: Record<SheetFilter, string> = {
   'cov:unverified': 'найдено только по словам',
   'cov:unmapped': 'ещё не сверено',
   'rd:confirmed': 'подтверждено',
-  'rd:once': 'зачтено один раз',
+  'rd:once': 'зачтено в один день',
   'rd:not_passed': 'не зачтено',
   'rd:untested': 'не проверялось',
   'sr:know': '«знаю»',
@@ -283,11 +334,13 @@ export interface AnswerSummary {
   since: string | null;
 }
 
-/** «Подтверждено ответами — 6 из 40, с 7 окт.» or null when there were no answers yet. */
-export function confirmedSentence(summary: AnswerSummary, now: Date = new Date()): string | null {
+/**
+ * «Подтверждено ответами — 6 из 40.» or null when there were no answers yet. No date here: «с 1 окт.»
+ * after a zero read as a claim; the date of the change belongs to peak 3 («С 1 октября: 0 → 1.»).
+ */
+export function confirmedSentence(summary: AnswerSummary): string | null {
   if (summary.confirmed + summary.once + summary.notPassed === 0) return null;
-  const since = summary.since ? `, с${NBSP}${formatShortDay(summary.since, now)}` : '';
-  return endSentence(`Подтверждено ответами — ${summary.confirmed} из ${summary.total}${since}`);
+  return endSentence(`Подтверждено ответами — ${summary.confirmed} из ${summary.total}`);
 }
 
 export const NO_ANSWERS_SENTENCE = 'Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.';

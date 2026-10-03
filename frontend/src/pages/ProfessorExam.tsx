@@ -79,7 +79,7 @@ const PROFESSORS: ProfessorConfig[] = [
   {
     id: 'arkadiy',
     name: 'Проф. Аркадий Степанович',
-    avatar: '👨‍🏫',
+    avatar: 'А',
     title: 'Доктор физико-математических наук, академик',
     character: 'Строгий, академичный, ценит точность формул и логику.',
     specialties: ['Точные науки', 'Математика', 'Алгоритмы'],
@@ -93,7 +93,7 @@ const PROFESSORS: ProfessorConfig[] = [
   {
     id: 'elizaveta',
     name: 'Проф. Елизавета Петровна',
-    avatar: '👩‍🏫',
+    avatar: 'Е',
     title: 'Заслуженный преподаватель гуманитарных дисциплин',
     character: 'Вдохновляющая, приветливая, любит примеры и творческие аналогии.',
     specialties: ['История', 'Философия', 'Литература', 'Этика'],
@@ -107,7 +107,7 @@ const PROFESSORS: ProfessorConfig[] = [
   {
     id: 'max',
     name: 'ИИ-Тьютор Макс',
-    avatar: '🧑‍💻',
+    avatar: 'М',
     title: 'Практикующий Team Lead, эксперт по IT и разработке',
     character: 'Технологичный, современный, говорит на понятном IT-языке.',
     specialties: ['Программирование', 'IT-инженерия', 'Архитектура ПО'],
@@ -121,9 +121,9 @@ const PROFESSORS: ProfessorConfig[] = [
 ];
 
 const EXAM_LENGTHS = [
-  { value: 3, label: '⚡ Экспресс-блиц', cost: 1, xp: 30, desc: 'Быстрый опрос по ключевым темам лекции.' },
-  { value: 5, label: '🎓 Классический билет', cost: 2, xp: 50, desc: 'Стандартный академический зачет на прочность.' },
-  { value: 10, label: '🔥 Ультимативный зачет', cost: 4, xp: 100, desc: 'Полная строгая проверка по всем нюансам лекции.' }
+  { value: 3, label: 'Экспресс-блиц', cost: 1, xp: 30, desc: 'Быстрый опрос по ключевым темам лекции.' },
+  { value: 5, label: 'Классический билет', cost: 2, xp: 50, desc: 'Стандартный академический зачет на прочность.' },
+  { value: 10, label: 'Полный зачёт', cost: 4, xp: 100, desc: 'Полная строгая проверка по всем нюансам лекции.' }
 ];
 
 const getEnergyCost = (length: number) => {
@@ -747,28 +747,28 @@ export default function ProfessorExam() {
         text: 'text-emerald-950 dark:text-emerald-100',
         textColor: 'text-emerald-800 dark:text-emerald-300',
         sealBg: 'bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-emerald-200 dark:shadow-none border border-emerald-400',
-        label: '🏆 Отлично (5)'
+        label: 'Отлично (5)'
       };
       case '4': return {
         bg: 'bg-gradient-to-br from-indigo-50/90 to-blue-50/40 dark:from-indigo-950/40 dark:to-blue-950/20 border-indigo-200/60 dark:border-indigo-800 shadow-lg shadow-indigo-100/10 backdrop-blur-md',
         text: 'text-indigo-950 dark:text-indigo-100',
         textColor: 'text-indigo-800 dark:text-indigo-300',
         sealBg: 'bg-gradient-to-tr from-indigo-500 to-blue-500 shadow-indigo-200 dark:shadow-none border border-indigo-400',
-        label: '⭐ Хорошо (4)'
+        label: 'Хорошо (4)'
       };
       case '3': return {
         bg: 'bg-gradient-to-br from-amber-50/90 to-orange-50/40 dark:from-amber-950/40 dark:to-orange-950/20 border-amber-200/60 dark:border-amber-800 shadow-lg shadow-amber-100/10 backdrop-blur-md',
         text: 'text-amber-950 dark:text-amber-100',
         textColor: 'text-amber-800 dark:text-amber-300',
         sealBg: 'bg-gradient-to-tr from-amber-500 to-orange-500 shadow-amber-200 dark:shadow-none border border-amber-400',
-        label: '📝 Удовлетворительно (3)'
+        label: 'Удовлетворительно (3)'
       };
       default: return {
         bg: 'bg-gradient-to-br from-rose-50/90 to-red-50/40 dark:from-rose-950/40 dark:to-red-950/20 border-rose-200/60 dark:border-rose-800 shadow-lg shadow-rose-100/10 backdrop-blur-md',
         text: 'text-rose-950 dark:text-rose-100',
         textColor: 'text-rose-800 dark:text-rose-300',
         sealBg: 'bg-gradient-to-tr from-rose-500 to-red-500 shadow-rose-200 dark:shadow-none border border-rose-400',
-        label: '❌ Неудовлетворительно (2)'
+        label: 'Неудовлетворительно (2)'
       };
     }
   };
@@ -901,7 +901,7 @@ export default function ProfessorExam() {
                           )}
                           
                           <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${prof.gradient} flex items-center justify-center text-xl shadow-md shrink-0`}>
+                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${prof.gradient} flex items-center justify-center text-lg font-semibold text-white shadow-md shrink-0`} aria-hidden="true">
                               {prof.avatar}
                             </div>
                             <div className="min-w-0">
@@ -1002,8 +1002,8 @@ export default function ProfessorExam() {
                           <p className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">Ваше состояние учтено</p>
                           <p className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-0.5 leading-snug">Сложность и стиль профессора будут мягко адаптированы.</p>
                         </div>
-                        <span className="text-2xl filter drop-shadow-sm shrink-0 ml-2">
-                          {todayMood.mood === 'great' ? '🚀' : todayMood.mood === 'good' ? '😊' : todayMood.mood === 'okay' ? '😐' : todayMood.mood === 'tired' ? '😴' : '😰'}
+                        <span className="text-[15px] font-medium text-emerald-800 dark:text-emerald-300 shrink-0 ml-2">
+                          {todayMood.mood === 'great' ? 'отлично' : todayMood.mood === 'good' ? 'хорошо' : todayMood.mood === 'okay' ? 'нормально' : todayMood.mood === 'tired' ? 'устали' : 'тревожно'}
                         </span>
                       </div>
                     ) : (
@@ -1160,7 +1160,7 @@ export default function ProfessorExam() {
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Формат билета:</span>
                     <span className="text-slate-850 dark:text-slate-200 font-extrabold">
-                      {examLength === 3 ? '⚡ Блиц (3 вопр.)' : examLength === 5 ? '🎓 Классик (5 вопр.)' : '🔥 Ультимейт (10 вопр.)'}
+                      {examLength === 3 ? 'Блиц, 3 вопроса' : examLength === 5 ? 'Обычный, 5 вопросов' : 'Полный, 10 вопросов'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -1320,7 +1320,7 @@ export default function ProfessorExam() {
                     {/* Комментарий экзаменатора */}
                     <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-100/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
                       <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${activeProf.gradient} flex items-center justify-center text-lg shadow-inner shrink-0`}>
+                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${activeProf.gradient} flex items-center justify-center text-base font-semibold text-white shadow-inner shrink-0`} aria-hidden="true">
                           {activeProf.avatar}
                         </div>
                         <div className="flex-1 space-y-1 min-w-0">
@@ -1396,7 +1396,6 @@ export default function ProfessorExam() {
                 <div className="flex-1">
                   {evaluation.errors.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                      <span className="text-xl">🛡️</span>
                       <p className="text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase mt-1">Ошибок нет!</p>
                     </div>
                   ) : (
@@ -1426,7 +1425,6 @@ export default function ProfessorExam() {
                 <div className="flex-1">
                   {evaluation.missing_points.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                      <span className="text-xl">🎯</span>
                       <p className="text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase mt-1">Полный ответ!</p>
                     </div>
                   ) : (
@@ -1457,7 +1455,7 @@ export default function ProfessorExam() {
                   onClick={() => setPhase('final_gradebook')}
                   className={`flex-1 py-3.5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-2 shadow-lg border border-transparent ${profTheme.button}`}
                 >
-                  <Award className="w-4 h-4" /> Посмотреть зачетную книжку 🎓
+                  <Award className="w-4 h-4" /> Посмотреть зачётную книжку
                 </button>
               )}
             </div>
@@ -1609,7 +1607,6 @@ export default function ProfessorExam() {
                       <div className="p-3.5 max-h-40 overflow-y-auto space-y-2">
                         {examSteps.flatMap(s => s.evaluation.errors).length === 0 ? (
                           <div className="text-center py-2 flex flex-col items-center justify-center">
-                            <span className="text-lg">🛡️</span>
                             <p className="text-[10px] text-emerald-700 dark:text-emerald-450 font-black uppercase mt-1">Идеально! Ошибок нет.</p>
                           </div>
                         ) : (
@@ -1634,7 +1631,6 @@ export default function ProfessorExam() {
                       <div className="p-3.5 max-h-40 overflow-y-auto space-y-2">
                         {examSteps.flatMap(s => s.evaluation.missing_points).length === 0 ? (
                           <div className="text-center py-2 flex flex-col items-center justify-center">
-                            <span className="text-lg">🎯</span>
                             <p className="text-[10px] text-emerald-700 dark:text-emerald-450 font-black uppercase mt-1">Исчерпывающие билеты!</p>
                           </div>
                         ) : (

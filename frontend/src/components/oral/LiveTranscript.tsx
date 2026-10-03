@@ -16,6 +16,11 @@ interface LiveTranscriptProps {
   /** Said when nothing has been recognised yet. */
   emptyText?: string;
   className?: string;
+  /**
+   * Draw a new underline in (250 ms) when a point gets named. Lines already there when the
+   * transcript first appears (a restored answer) are simply there; reduced motion shows them at once.
+   */
+  drawNew?: boolean;
 }
 
 /**
@@ -28,11 +33,13 @@ interface LiveTranscriptProps {
  * arrive, unless the student has scrolled up to reread — then it stays where they are until they
  * scroll back down.
  */
-export default function LiveTranscript({ label, finalText, interimText, underlined, seed, emptyText, className = '' }: LiveTranscriptProps) {
+export default function LiveTranscript({ label, finalText, interimText, underlined, seed, emptyText, className = '', drawNew = false }: LiveTranscriptProps) {
   const windowRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLParagraphElement>(null);
   const followRef = useRef(true);
   const [overflow, setOverflow] = useState(false);
+  /** Underlines present on the first render: drawn still. */
+  const stillRef = useRef<Set<string> | null>(null);
 
   useLayoutEffect(() => {
     const frame = windowRef.current;
@@ -51,22 +58,29 @@ export default function LiveTranscript({ label, finalText, interimText, underlin
     followRef.current = frame.scrollHeight - frame.scrollTop - frame.clientHeight <= FOLLOW_SLACK_PX;
   };
 
-  const runs = finalText ? markedRuns(finalText, underlined) : [];
+  // Keys by text offset: the final text only grows, so a line keeps its key (and its shape) as words arrive.
+  let offset = 0;
+  const runs = (finalText ? markedRuns(finalText, underlined) : []).map((run) => {
+    const at = offset;
+    offset += run.text.length;
+    return { ...run, at, key: `${run.marked ? 'u' : 't'}${at}` };
+  });
+  if (stillRef.current === null) stillRef.current = new Set(runs.filter((run) => run.marked).map((run) => run.key));
+  const still = stillRef.current;
   const empty = !finalText && !interimText;
-  let marks = 0;
   return (
     <div className={`or-said ${className}`.trim()}>
       <p className="or-said-label">{label}</p>
       <div ref={windowRef} className="or-said-window" data-overflow={overflow ? '' : undefined} aria-live="off" onScroll={onScroll}>
         <p ref={textRef} className="or-said-text">
           {empty && emptyText ? <span className="or-said-empty">{emptyText}</span> : null}
-          {runs.map((run, index) =>
+          {runs.map((run) =>
             run.marked ? (
-              <PencilUnder key={index} seed={seed + (marks += 1) * 7}>
+              <PencilUnder key={run.key} seed={seed + run.at * 7} animate={drawNew && !still.has(run.key)}>
                 {run.text}
               </PencilUnder>
             ) : (
-              <span key={index}>{run.text}</span>
+              <span key={run.key}>{run.text}</span>
             ),
           )}
           {interimText ? (

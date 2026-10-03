@@ -4,7 +4,7 @@ import { EXAM_MESSAGES, examErrorMessage, listExams, type ExamListItem } from '.
 import { fetchQuestionEvents } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
 import { examSummary, statesByHash, type QuestionState } from '../lib/learning/readiness';
-import { daysUntil, formatDay, KIND_WORDS, relativeDays } from '../lib/exams/format';
+import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
 import { pluralRu } from '../components/conversation/visuals';
 import { useMapJob } from '../components/exams/mapJobs';
 import { glue } from '../components/exams/sheetModel';
@@ -42,7 +42,7 @@ function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, Que
   return (
     <li>
       <Link className="ex-row" to={`/exams/${item.id}`}>
-        <span className="ex-row-title">{item.title}</span>
+        <span className="ex-row-title">{subjectOf(item.title)}</span>
         <span className="ex-row-meta" style={{ display: 'block' }}>
           {glue(`${examDateLine(item)} · ${examCoverageLine(item, confirmed, job.phase === 'running')}`)}
         </span>

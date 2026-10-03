@@ -163,6 +163,27 @@ describe('header', () => {
     expect(screen.getByText('у 1 пункта есть ссылка на наиболее похожий фрагмент')).toBeInTheDocument();
   });
 
+  it('on the material page says «Обработан частично» as a plain line when a saved section is not ok', () => {
+    renderPanel({ embedded: true });
+    const line = screen.getByText('Обработан частично');
+    expect(line.tagName).toBe('P');
+    expect(line.children).toHaveLength(0);
+    expect(screen.queryByText('Материал обработан')).not.toBeInTheDocument();
+  });
+
+  it('on the material page says nothing about the status when every section is there or the row is legacy', () => {
+    const { unmount } = renderPanel({
+      embedded: true,
+      results: { ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } } },
+    });
+    expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
+    expect(screen.queryByText('Материал обработан')).not.toBeInTheDocument();
+    unmount();
+
+    renderPanel({ embedded: true, results: { summarizer: summary, flashcards: cards, quiz: { quiz: [] } } as AnalysisResults });
+    expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
+  });
+
   it('on the material page shows no conversation tab or line: the page has its own «Разговор»', () => {
     renderPanel({
       embedded: true,

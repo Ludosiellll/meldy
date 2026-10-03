@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type FocusEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import '../styles/paper.css';
 import '../components/oral/oral.css';
 import { useAuth } from '../hooks/useAuth';
@@ -13,6 +14,7 @@ import TicketCard, { ticketHeading } from '../components/oral/TicketCard';
 import RubricSlots from '../components/oral/RubricSlots';
 import LiveTranscript from '../components/oral/LiveTranscript';
 import ExaminerLine, { ExaminerThinking } from '../components/oral/ExaminerLine';
+import PrivacySheet from '../components/oral/PrivacySheet';
 import {
   ProtocolGrade,
   ProtocolSheet,
@@ -24,7 +26,8 @@ import {
 } from '../components/oral/OralProtocol';
 import { browserCandidate, decideFollowup } from '../lib/oral/followup';
 import { followupFallback, liveMarks, namedPoints, underlinedFinalWords, words } from '../lib/oral/rubricMatch';
-import { gradeAnswer, type GradeResult } from '../lib/oral/oralGrade';
+import { gradeAnswer, gradeWord, type GradeResult } from '../lib/oral/oralGrade';
+import { subjectOf } from '../lib/exams/format';
 import {
   CHECK_CONFIRM_TIMEOUT_MS,
   CHECK_FOLLOWUP_TIMEOUT_MS,
@@ -134,11 +137,13 @@ interface RoomBarProps {
   short: string;
   onLeave: (to: string) => void;
   right: ReactNode;
+  /** A protocol: on a phone the line is only «‹ Лист экзамена» on the left (redesign critique 11). */
+  backOnPhone?: boolean;
 }
 
-function RoomBar({ course, where, short, onLeave, right }: RoomBarProps) {
+function RoomBar({ course, where, short, onLeave, right, backOnPhone = false }: RoomBarProps) {
   return (
-    <header className="sf-room-bar">
+    <header className="sf-room-bar" data-back={backOnPhone ? '' : undefined}>
       <div className="or-bar-left">
         <button type="button" className="or-wordmark" onClick={() => onLeave('/dashboard')}>
           Meldy
@@ -253,6 +258,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   const [liveMarksOn, setLiveMarksOn] = useState(readLiveMarks);
   const [now, setNow] = useState(() => Date.now());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const draftRef = useRef<ReturnType<typeof createDraftWriter> | null>(null);
   const lastDraftRef = useRef('');
@@ -1039,7 +1045,8 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
     );
   }
 
-  const course = exam?.title ?? '';
+  // «Цифровая экономика · Билет 12, вопрос 1 из 2»: the subject, not «Экзамен: …» again.
+  const course = exam ? subjectOf(exam.title) : '';
   const answerFinalWords = state.phase === 'answering' ? underlinedFinalWords(points, named, finalText) : underlinedFinalWords(points, new Set(state.named), state.attempt?.transcript ?? '');
 
   // ── The protocol ──
@@ -1064,12 +1071,15 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
     const previous = state.history?.previous ?? null;
     // The previous answer may have been given in another exam with the same question: its protocol lives there.
     const previousPath = previous ? `/exams/${previous.examId ?? examId}/ticket?session=${encodeURIComponent(previous.sessionId)}` : '';
+    // «прошлый ответ, 2 окт.: «хорошо»» on the «Как считается» row: a grade in words, not «4 из 5»
+    // next to «Раскрыто 3 пункта из 5».
+    const previousWord = previous && previous.grade !== null ? gradeWord(previous.grade) : '';
     const previousLink =
       previous && previous.sessionId !== (state.save.status === 'saved' ? state.save.result.sessionId : '') ? (
         <>
-          {`В прошлый раз (${shortDate(previous.localDate)}): `}
+          {`прошлый ответ, ${shortDate(previous.localDate)}: `}
           <Link className="sf-ref" to={previousPath}>
-            {previous.grade !== null ? `${previous.grade} из 5` : 'протокол'}
+            {previousWord ? `«${previousWord}»` : 'протокол'}
           </Link>
         </>
       ) : null;
@@ -1080,9 +1090,9 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
     const barRight = (
       <>
         {protocol === 'saved' ? <span className="or-saved">Сохранено</span> : null}
-        <button type="button" className="sf-link" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
-          <span className="or-exit-long">Лист экзамена</span>
-          <span className="or-exit-short">Лист</span>
+        <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
+          <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
+          Лист экзамена
         </button>
       </>
     );
@@ -1091,7 +1101,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
     if (protocol === 'eval_error') {
       return (
         <div className="or-shell" ref={roomRef} onFocus={rememberFocus}>
-          <RoomBar course={course} where={`${heading.strong} · ответ не проверен`} short={short} onLeave={(to) => void leave(to)} right={barRight} />
+          <RoomBar course={course} where={`${heading.strong} · ответ не проверен`} short={short} onLeave={(to) => void leave(to)} right={barRight} backOnPhone />
           <main className="sf-page or-room" data-phase="protocol">
             {protocolTitle}
             <section className="or-left" aria-label="Предварительные отметки">
@@ -1148,6 +1158,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
           short={`${heading.strong} · протокол`}
           onLeave={(to) => void leave(to)}
           right={barRight}
+          backOnPhone
         />
         <main className="sf-page or-room" data-phase="protocol">
           {protocolTitle}
@@ -1208,6 +1219,8 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
                   Лист экзамена
                 </button>
               </div>
+              {/* Phones: the privacy paragraph is a link while answering, so it is said here in full. */}
+              <p className="or-privacy or-privacy-phone">{PRIVACY_LINE}</p>
             </ProtocolGrade>
           </section>
         </main>
@@ -1227,6 +1240,8 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   const transcriptShown = answering || state.phase === 'finalizing' || state.phase === 'examiner' || state.phase === 'followup' || state.phase === 'evaluating';
   const shownFinal = answering ? finalText : state.attempt?.transcript ?? finalText;
   const shownInterim = answering ? interimText : '';
+  // The words that named the rows: while answering, final and interim words; after it, the answer kept.
+  const saidText = answering ? answerText : state.attempt?.transcript ?? answerText;
   const seedBase = question?.id ?? examId;
 
   let leftState: ReactNode = null;
@@ -1398,7 +1413,12 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
             Сначала
           </button>
         </div>
-        <p className="or-privacy">{PRIVACY_LINE}</p>
+        <p className="or-privacy or-privacy-desk">{PRIVACY_LINE}</p>
+        {/* Phones: the paragraph would hide under the fixed bar while answering — one link instead. */}
+        <button type="button" className="sf-link or-privacy-link" data-muted="" onClick={() => setPrivacyOpen(true)}>
+          Кто видит ответ
+        </button>
+        {privacyOpen ? <PrivacySheet text={PRIVACY_LINE} onClose={() => setPrivacyOpen(false)} /> : null}
       </>
     );
   } else {
@@ -1531,7 +1551,15 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
           {leftState}
           {ready && points.length > 0 ? (
             <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''} data-empty={transcriptShown ? undefined : ''}>
-              <RubricSlots points={points} materials={rubricResponse?.rubric.materials ?? []} named={shownNamed} asked={asked} seed={seedBase} announcement={liveMarksOn ? state.announcement : ''} />
+              <RubricSlots
+                points={points}
+                materials={rubricResponse?.rubric.materials ?? []}
+                named={shownNamed}
+                asked={asked}
+                seed={seedBase}
+                announcement={liveMarksOn ? state.announcement : ''}
+                said={saidText}
+              />
               {transcriptShown ? (
                 answering && state.mode === 'text' ? (
                   <div className="or-said">
@@ -1553,6 +1581,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
                     finalText={shownFinal}
                     interimText={shownInterim}
                     underlined={liveMarksOn ? answerFinalWords : new Set()}
+                    drawNew={answering}
                     seed={seedFrom(seedBase, 'said')}
                     emptyText={answering && voiceAnswer ? (state.paused ? 'Пауза.' : 'Говорите — расшифровка появится здесь.') : undefined}
                   />
@@ -1631,11 +1660,12 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
   }, [examId, sessionId, attempt]);
 
   // The exam's title as it is now, or as it was when the answer was saved (exam_sessions.subject).
-  const course = view.status === 'ready' ? view.exam?.title || view.protocol.subject : '';
+  const course = view.status === 'ready' ? subjectOf(view.exam?.title || view.protocol.subject || '') : '';
   const date = view.status === 'ready' ? view.protocol.completedAt : null;
   const sheetPath = `/exams/${view.status === 'ready' ? view.sheetExamId : examId}`;
   const sheetLink = (
-    <button type="button" className="sf-link" data-muted="" onClick={() => navigate(sheetPath)}>
+    <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => navigate(sheetPath)}>
+      <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
       Лист экзамена
     </button>
   );
@@ -1648,6 +1678,7 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
         short="Протокол"
         onLeave={(to) => navigate(to)}
         right={sheetLink}
+        backOnPhone
       />
       {view.status === 'ready' ? (
         <main className="sf-page or-room" data-phase="protocol">

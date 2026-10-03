@@ -38,6 +38,7 @@ import {
   importTextOnlyMaterial,
   isMappingLocked,
   listExams,
+  listExamShelves,
   loadExamBundle,
   markQuestionManual,
   normalizeCoverageItem,
@@ -512,6 +513,48 @@ describe('listExams', () => {
   it('throws a plain error when the list cannot be read', async () => {
     db.respond = () => ({ data: null, error: { code: '500', message: 'boom' } });
     await expect(listExams('user-1')).rejects.toThrow('Не удалось загрузить экзамены. Проверьте связь и повторите.');
+  });
+});
+
+describe('listExamShelves', () => {
+  it('gives each exam its lectures in the order they were added, once each', async () => {
+    db.respond = (entry) => {
+      if (entry.table === 'exams') {
+        return { data: [{ id: 'e-1', title: 'Экзамен: микроэкономика', kind: 'exam', exam_date: '2026-10-15', created_at: '2026-10-01T00:00:00Z' }], error: null };
+      }
+      return {
+        data: [
+          { exam_id: 'e-1', material_id: 'm-2', added_at: '2026-10-01T09:00:00Z' },
+          { exam_id: 'e-1', material_id: 'm-1', added_at: '2026-10-01T09:01:00Z' },
+          { exam_id: 'e-1', material_id: 'm-2', added_at: '2026-10-01T09:02:00Z' },
+          { exam_id: 'e-x', material_id: 'm-9', added_at: '2026-10-01T09:03:00Z' },
+        ],
+        error: null,
+      };
+    };
+    const shelves = await listExamShelves('user-1');
+    expect(shelves).toEqual([
+      {
+        id: 'e-1',
+        title: 'Экзамен: микроэкономика',
+        kind: 'exam',
+        exam_date: '2026-10-15',
+        created_at: '2026-10-01T00:00:00Z',
+        materials: [
+          { id: 'm-2', addedAt: '2026-10-01T09:00:00Z' },
+          { id: 'm-1', addedAt: '2026-10-01T09:01:00Z' },
+        ],
+      },
+    ]);
+    const links = calls('exam_materials')[0];
+    expect(op(links, 'in')).toEqual(['exam_id', ['e-1']]);
+    expect(op(links, 'order')).toEqual(['added_at', { ascending: true }]);
+  });
+
+  it('reads nothing more when there are no exams', async () => {
+    db.respond = () => ({ data: [], error: null });
+    expect(await listExamShelves('user-1')).toEqual([]);
+    expect(calls('exam_materials')).toHaveLength(0);
   });
 });
 

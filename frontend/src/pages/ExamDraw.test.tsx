@@ -160,13 +160,29 @@ describe('ExamDraw', () => {
     expect(screen.getByRole('button', { name: 'Тянуть ещё' })).toBeInTheDocument();
   });
 
-  it('draws only from answered questions in that mode and says so', async () => {
+  it('draws only from answered questions in that mode and says so once, in the top line', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4)], { mode: 'random', per_ticket: 1 }));
     mocks.fetchQuestionEvents.mockResolvedValue([answer(3)]);
     renderDraw('/exams/exam-1/draw?mode=answered');
-    expect(await screen.findByText('Тянем из вопросов, на которые вы уже отвечали.')).toBeInTheDocument();
-    expect(await screen.findByRole('article', { name: 'Вопрос 3' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Из уже отвеченных' })).toHaveAttribute('aria-pressed', 'true');
+    const single = await screen.findByRole('article', { name: 'Вопрос 3' });
+    // One question: the card's line is the one the answer screen's card will have, said once.
+    expect(single.querySelector('.dw-no')?.textContent).toBe('Вопрос 3');
+    expect(single.querySelector('.dw-q-n')).toBeNull();
+    expect(document.querySelector('.sf-room-bar .dw-long')?.textContent).toBe('Микроэкономика · тянуть вопрос, из уже отвеченных');
+    expect(document.querySelector('.sf-room-bar .dw-short')?.textContent).toBe('Тянуть вопрос');
+    // No second choice of the mode on this page: it sits under «Тянуть билет» on the sheet.
+    expect(screen.queryByRole('list', { name: 'Как тянуть' })).toBeNull();
+  });
+
+  it('puts the card where the ticket card will be and «Отвечать» in the column next to it', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
+    renderDraw();
+    const card = await screen.findByRole('article', { name: /Случайный билет/ });
+    const room = document.querySelector('main.dw-room') as HTMLElement;
+    expect(card.closest('.dw-left-col')?.parentElement).toBe(room);
+    const answer = screen.getByRole('button', { name: 'Отвечать' });
+    expect(answer.closest('.dw-side')?.parentElement).toBe(room);
+    expect(screen.getByRole('button', { name: 'Тянуть ещё' }).closest('.dw-acts')).toBe(answer.closest('.dw-acts'));
   });
 
   it('explains an empty answered pool and offers the exam mode', async () => {
@@ -178,7 +194,7 @@ describe('ExamDraw', () => {
     expect(location).toBe('/exams/exam-1/draw');
   });
 
-  it('switches modes in the address and draws again; «Тянуть ещё» never repeats the last tickets', async () => {
+  it('«Тянуть ещё» never repeats the last three tickets', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4), question(5)], { mode: 'random', per_ticket: 1 }));
     renderDraw();
     await screen.findByRole('article', { name: /Вопрос \d/ });
@@ -193,10 +209,13 @@ describe('ExamDraw', () => {
     }
     const stored = JSON.parse(window.sessionStorage.getItem('meldy_exam_last_tickets_exam-1') ?? '[]');
     expect(stored).toHaveLength(3);
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Чаще слабые' }));
-    expect(await screen.findByText(/Чаще выпадают вопросы без ответов и не зачтённые/)).toBeInTheDocument();
-    expect(location).toBe('/exams/exam-1/draw?mode=weak');
+  it('reads the way of drawing from the address chosen on the sheet', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)]));
+    renderDraw('/exams/exam-1/draw?mode=weak');
+    await screen.findByRole('article', { name: /Случайный билет/ });
+    expect(document.querySelector('.sf-room-bar .dw-long')?.textContent).toBe('Микроэкономика · тянуть билет, чаще слабые');
   });
 
   it('voices nothing (correction 7)', async () => {
@@ -222,7 +241,8 @@ describe('ExamDraw', () => {
     );
     renderDraw();
     const card = await screen.findByRole('article', { name: /Случайный билет/ });
-    expect(card).not.toHaveAttribute('data-state');
+    // Reduced motion: no lift and no turn, only a 150 ms fade.
+    expect(card).toHaveAttribute('data-state', 'fade');
   });
 
   it('keeps the way back to the sheet in the room bar and explains a missing exam', async () => {

@@ -1,10 +1,23 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import LiveTranscript from './LiveTranscript';
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+/** jsdom has no layout: every underlined word gets one line box inside a positioned parent. */
+function layoutUnderlines() {
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.parentElement;
+  });
+  vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(
+    () => [{ left: 10, top: 10, width: 40, height: 20, right: 50, bottom: 30, x: 10, y: 10 }] as unknown as DOMRectList,
+  );
+}
 
 /** jsdom has no layout: the window gets a height, a content height and a clamped scroll position. */
 function measure(frame: HTMLElement, clientHeight: number, contentHeight: () => number) {
@@ -75,5 +88,25 @@ describe('<LiveTranscript>', () => {
     });
     view.rerender(<LiveTranscript label="Ваш ответ, 0:06" finalText="Обучение — это подбор весов" interimText="" underlined={new Set()} seed={1} />);
     expect(writes).toBe(0);
+  });
+
+  it('draws a new underline in once and keeps the lines of a restored answer still', () => {
+    layoutUnderlines();
+    const finalText = 'Обучение — это подбор весов, которые минимизируют функцию потерь. Потом прямой проход.';
+    const indexOf = (word: string) => finalText.toLowerCase().replace(/[^а-яё ]/g, ' ').split(/\s+/).filter(Boolean).indexOf(word);
+    const restored = new Set([indexOf('потерь')]);
+    const view = render(<LiveTranscript label="Ваш ответ, 0:18" finalText={finalText} interimText="" underlined={restored} seed={3} drawNew />);
+    const drawn = () =>
+      Array.from(view.container.querySelectorAll('.sf-under')).map((node) => [node.textContent, node.querySelector('svg')?.getAttribute('data-drawn')]);
+    // The restored answer: its line is simply there.
+    expect(drawn()).toEqual([['потерь', 'still']]);
+    // A point named now: its words draw in; the old line stays still.
+    view.rerender(
+      <LiveTranscript label="Ваш ответ, 0:19" finalText={finalText} interimText="" underlined={new Set([...restored, indexOf('прямой'), indexOf('проход')])} seed={3} drawNew />,
+    );
+    expect(drawn()).toEqual([
+      ['потерь', 'still'],
+      ['прямой проход', 'live'],
+    ]);
   });
 });

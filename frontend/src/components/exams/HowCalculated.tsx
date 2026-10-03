@@ -159,6 +159,8 @@ interface HowCalculatedProps {
   open: boolean;
   onToggle: () => void;
   id: string;
+  /** A sentence in front of the link, on one line with it (the compact column on phones). */
+  lead?: ReactNode;
 }
 
 /**
@@ -166,13 +168,23 @@ interface HowCalculatedProps {
  * product for one question per section, a direct count for known tickets, and the upper bound
  * when some questions were checked only by words.
  */
-export default function HowCalculated({ shares, open, onToggle, id }: HowCalculatedProps) {
+export default function HowCalculated({ shares, open, onToggle, id, lead }: HowCalculatedProps) {
   const high = shares.isRange && shares.high.ok && shares.high.mode === 'random' ? shares.high : null;
+  const toggle = (
+    <button type="button" className="sf-link" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+      Как считается
+    </button>
+  );
   return (
     <div className="ex-how">
-      <button type="button" className="sf-link" aria-expanded={open} aria-controls={id} onClick={onToggle}>
-        Как считается
-      </button>
+      {lead ? (
+        // Phones: one line «Это доля билетов, а не вероятность сдать. Как считается» (redesign critique 10).
+        <p className="ex-caveat" data-inline="">
+          {lead} {toggle}
+        </p>
+      ) : (
+        toggle
+      )}
       {open && (
         <div className="ex-calc" id={id}>
           {shares.fallbackReason && <p className="ex-fine">{shares.fallbackReason} Поэтому считаем как для случайных билетов.</p>}

@@ -34,6 +34,10 @@
   padding-top: 28px;
 }
 .sf-page .ex-crumb { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+/* On phones and tablets the menu line already says «‹ Экзамены» (spec 4.2): no second crumb. */
+@media (max-width: 1023px) {
+  .sf-shell .sf-page .ex-crumb { display: none; }
+}
 .sf-page .ex-crumb a {
   color: inherit;
   text-decoration: underline;
@@ -233,13 +237,33 @@
 .sf-page .ex-open::after { content: ''; position: absolute; inset: 0; border-radius: 2px; }
 .sf-page .ex-open:focus-visible { outline: none; }
 .sf-page .ex-open:focus-visible::after { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
-.sf-page .ex-qnote { position: relative; z-index: 1; display: block; padding-top: 3px; font-size: 15px; line-height: 20px; }
-.sf-page .ex-qnote b {
+/* The margin note: «Нейронные сети и глубокое обучение, фрагмент 3» (two lines at most, the full name
+   is in title and in «почему»), then «там же, фрагмент 4» while the lecture stays the same. */
+.sf-page .ex-qnote {
+  position: relative;
+  z-index: 1;
+  display: block;
+  padding-top: 3px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow-wrap: break-word;
+}
+/* The lecture's name on its first mention: two lines at most; its fragment always stays visible on the
+   line under it (spec 5.9: the row grows, the note is never cut). */
+.sf-page .ex-qnote-lead {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-weight: 500;
+}
+.sf-page .ex-qnote-frag { display: block; }
+.sf-page .ex-qnote[data-short] .ex-qnote-lead,
+.sf-page .ex-qnote[data-short] .ex-qnote-frag { display: inline; }
+.sf-page .ex-qnote[data-fresh] { animation: ex-note-in 150ms ease both; }
+@keyframes ex-note-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .sf-page .ex-because {
   position: relative;
@@ -310,12 +334,11 @@
 .sf-page[data-frame='m'] .ex-qnote,
 .sf-page[data-frame='s'] .ex-rate,
 .sf-page[data-frame='m'] .ex-rate { grid-column: 3; padding-top: 3px; }
-.sf-page[data-frame='s'] .ex-qnote b,
-.sf-page[data-frame='m'] .ex-qnote b { display: inline; -webkit-line-clamp: unset; }
-.sf-page[data-frame='s'] .ex-qnote b::after,
-.sf-page[data-frame='m'] .ex-qnote b::after { content: ' · '; font-weight: 400; }
-.sf-page[data-frame='s'] .ex-qnote[data-manual] b::after,
-.sf-page[data-frame='m'] .ex-qnote[data-manual] b::after { content: ''; }
+/* Under the question on a phone the note has the full width: one run of text. */
+.sf-page[data-frame='s'] .ex-qnote-lead,
+.sf-page[data-frame='m'] .ex-qnote-lead,
+.sf-page[data-frame='s'] .ex-qnote-frag,
+.sf-page[data-frame='m'] .ex-qnote-frag { display: inline; }
 .sf-page[data-frame='s'] .ex-rate button { min-height: 44px; }
 /* Touch targets: 44 px on a phone-width frame and on any touch screen (desktop keeps the compact rows). */
 .sf-page[data-frame='s'] .ex-rl button,
@@ -340,8 +363,9 @@
 /* ---------------------------------------------------------------- Meldy's column on the desk */
 .sf-page .ex-col {
   position: sticky;
-  top: 24px;
-  max-height: calc(100vh - 48px);
+  /* The window scrolls under the 56 px menu line: the column sticks 24 px below it (spec 3.4). */
+  top: calc(var(--sf-bar-h) + 24px);
+  max-height: calc(100vh - var(--sf-bar-h) - 36px);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -349,12 +373,20 @@
   margin-left: -2px;
 }
 .sf-page[data-frame='m'] .ex-col,
-.sf-page[data-frame='s'] .ex-col { position: static; max-height: none; overflow: visible; margin: 0 0 20px; padding: 0; }
+.sf-page[data-frame='s'] .ex-col { position: static; max-height: none; overflow: visible; margin: 24px 0 20px; padding: 0; }
+/* Phones: the readiness legend and the confidence line come after the sheet, above «Тянуть билет». */
+.sf-page[data-frame='m'] .ex-col-after,
+.sf-page[data-frame='s'] .ex-col-after { margin: 8px 0 0; }
+.sf-page .ex-col-after .ex-blk { margin-top: 16px; }
+.sf-page .ex-blk[data-part='head'] { margin-top: 16px; padding-top: 14px; }
+.sf-page .ex-caveat[data-inline] .sf-link { min-height: 0; font-size: 15px; }
 .sf-page .ex-pair { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; align-items: baseline; }
 .sf-page .ex-pair + .ex-pair { margin-top: 14px; }
+/* A range («35–41 %») stacks both pairs the same way: number, then its label 6 px below. */
 .sf-page .ex-pair[data-wide] { grid-template-columns: minmax(0, 1fr); }
-.sf-page .ex-pair[data-wide] .ex-lbl { margin-top: 6px; }
+.sf-page .ex-pair[data-wide] .ex-lbl { margin-top: 6px; font-size: 16px; line-height: 22px; }
 .sf-page .ex-pair[data-wide] .ex-sub { grid-column: 1; }
+.sf-page .ex-pair[data-wide] + .ex-pair[data-wide] { margin-top: 20px; }
 .sf-page .ex-big {
   font-size: 56px;
   line-height: 1;
@@ -399,12 +431,33 @@
   color: var(--sf-ink);
 }
 .sf-page .ex-rl .ex-count { font-variant-numeric: tabular-nums; }
+/* The old number is crossed out by a typeset diagonal (not pencil, spec 3.8.3): a horizontal strike
+   turned 0, 6, 8 and 9 into other figures. It appears after the new mark is drawn. */
 .sf-page .ex-peak-big .ex-was {
-  margin-right: 6px;
-  color: var(--sf-muted);
+  position: relative;
+  display: inline-block;
+  margin-right: 14px;
+  font-size: .82em;
   font-weight: 500;
-  text-decoration: line-through;
-  text-decoration-thickness: 3px;
+  color: var(--sf-muted);
+  text-decoration: none;
+}
+.sf-page .ex-peak-big .ex-was::after {
+  content: '';
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: rotate(-28deg);
+  animation: ex-strike-in 150ms ease 950ms both;
+}
+@keyframes ex-strike-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .sf-page .ex-peak-big .ex-of { font-weight: 500; }
 
@@ -706,32 +759,45 @@
 .sf-page .nx-import-row { margin-top: 4px; font-size: 15px; line-height: 21px; color: var(--sf-muted); }
 
 /* ---------------------------------------------------------------- draw (room mode) */
+/* The room's top line, as on the answer screen. «Лист экзамена» never wraps. */
 .sf-room-bar .dw-left { display: flex; align-items: baseline; gap: 18px; min-width: 0; }
-.sf-room-bar .dw-wordmark { font-size: 21px; font-weight: 650; line-height: 1; letter-spacing: -.03em; color: var(--sf-ink); white-space: nowrap; }
+.sf-room-bar .dw-wordmark { font-size: 21px; font-weight: 650; line-height: 1; letter-spacing: -.03em; color: var(--sf-ink); white-space: nowrap; text-decoration: none; }
 .sf-room-bar .dw-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; color: var(--sf-muted); }
-.sf-room-bar .sf-link { font-size: 15px; color: var(--sf-muted); }
-@media (max-width: 639px) {
-  .sf-room-bar .dw-wordmark { display: none; }
+.sf-room-bar .dw-short { display: none; }
+.sf-room-bar .sf-link { font-size: 15px; color: var(--sf-muted); white-space: nowrap; flex: none; }
+@media (max-width: 1023px) {
+  .sf-room-bar .dw-wordmark, .sf-room-bar .dw-long { display: none; }
+  .sf-room-bar .dw-short { display: inline; }
   .sf-room-bar .dw-where { color: var(--sf-ink); font-weight: 600; }
 }
-.sf-page.dw-room { padding-top: 24px; padding-bottom: 56px; }
-.sf-page .dw-modes { display: flex; flex-wrap: wrap; gap: 0 22px; margin: 0; padding: 0; list-style: none; }
-.sf-page .dw-modes button {
-  min-height: 44px;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--sf-muted);
-  cursor: pointer;
+
+/* The room has the answer screen's grid (700 + 64): the stack stands exactly where the ticket card
+   will be, «Отвечать» exactly where «Отвечать голосом» will be (redesign critique 6). */
+.sf-page.dw-room {
+  display: grid;
+  grid-template-columns: minmax(0, 700px) minmax(0, 1fr);
+  gap: 64px;
+  align-items: start;
+  padding-top: 24px;
+  padding-bottom: 56px;
 }
-.sf-page .dw-modes button:hover { color: var(--sf-ink); }
-.sf-page .dw-modes button[aria-pressed='true'] { color: var(--sf-ink); font-weight: 600; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
-.sf-page .dw-caption { margin-top: 2px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
-.sf-page .dw-stack { position: relative; max-width: 700px; margin-top: 28px; perspective: 1200px; }
+.sf-page .dw-left-col, .sf-page .dw-side { min-width: 0; }
+.sf-page .dw-stack { position: relative; perspective: 1200px; }
 .sf-page .dw-under { position: absolute; inset: 0; }
 .sf-page .dw-under[data-n='1'] { transform: translate(4px, 4px) rotate(-.8deg); }
 .sf-page .dw-under[data-n='2'] { transform: translate(8px, 9px) rotate(1.2deg); }
-.sf-page .dw-card { position: relative; min-height: 180px; padding: 18px 28px 22px; transform: rotate(-.4deg); transform-origin: 30% 50%; }
-.sf-page .dw-card[data-state='lift'] { animation: dw-lift 450ms cubic-bezier(.22, .61, .36, 1) both; }
+.sf-page .dw-card {
+  position: relative;
+  min-height: 160px;
+  padding: 18px 28px 22px;
+  transform: rotate(-.4deg);
+  transform-origin: 50% 100%;
+  backface-visibility: hidden;
+}
+/* Lift −12 px with the lift shadow (250 ms), then the card turns over around the horizontal axis and
+   settles like a spring (200/25): 600 ms at most. */
+.sf-page .dw-card[data-state='lift'] { animation: dw-lift 600ms cubic-bezier(.22, .61, .36, 1) both; }
+.sf-page .dw-card[data-state='fade'] { animation: dw-fade 150ms ease both; }
 .sf-page .dw-no { font-family: var(--ph-serif); font-size: 17px; line-height: 24px; color: var(--ph-paper-muted); }
 .sf-page .dw-no b { font-weight: 600; color: var(--ph-paper-ink); }
 .sf-page .dw-qs { margin: 6px 0 0; padding: 0; list-style: none; }
@@ -750,18 +816,39 @@
   overflow-wrap: anywhere;
 }
 .sf-page .dw-q-none { display: block; margin-top: 6px; }
-.sf-page .dw-back { display: grid; place-items: center; min-height: 180px; font-family: var(--ph-serif); font-size: 19px; color: var(--ph-paper-muted); }
-.sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-top: 32px; }
-.sf-page .dw-msg { margin-top: 24px; max-width: 34em; font-size: 17px; line-height: 26px; }
+.sf-page .dw-back { display: grid; place-items: center; min-height: 160px; font-family: var(--ph-serif); font-size: 19px; color: var(--ph-paper-muted); }
+.sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-top: 22px; }
+.sf-page .dw-msg { margin-top: 22px; max-width: 34em; font-size: 17px; line-height: 26px; }
+.sf-page .dw-msg + .dw-acts { margin-top: 18px; }
+.sf-page .dw-note { margin-top: 14px; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+@media (min-width: 1024px) and (max-height: 780px) {
+  .sf-page.dw-room { padding-top: 16px; }
+  .sf-page .dw-card { padding: 12px 24px 14px; }
+  .sf-page .dw-q-t { font-size: 25px; line-height: 31px; }
+}
+@media (max-width: 1279px) {
+  .sf-page.dw-room { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 44px; }
+}
+@media (max-width: 1023px) {
+  .sf-page.dw-room { display: block; padding-top: 16px; }
+  .sf-page .dw-acts { margin-top: 28px; }
+}
 @media (max-width: 639px) {
   .sf-page .dw-card { padding: 16px 18px 18px; transform: none; }
   .sf-page .dw-q-t { font-size: 21px; line-height: 26px; }
   .sf-page .dw-acts .sf-primary { width: 100%; }
 }
 @keyframes dw-lift {
-  0% { transform: translateY(0) rotate(-.4deg) rotateX(0); }
-  45% { transform: translateY(-12px) rotate(-.2deg) rotateX(0); }
-  100% { transform: translateY(0) rotate(-.4deg) rotateX(0); }
+  0% { transform: translateY(0) rotate(-.4deg) rotateX(0); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft); }
+  /* 250 ms: lifted, edge-on — the face turns towards the room */
+  42% { transform: translateY(-12px) rotate(-.4deg) rotateX(88deg); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 28px 42px -16px var(--ph-sh-lift); }
+  70% { transform: translateY(-8px) rotate(-.4deg) rotateX(-6deg); }
+  86% { transform: translateY(-2px) rotate(-.4deg) rotateX(2deg); }
+  100% { transform: translateY(0) rotate(-.4deg) rotateX(0); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft); }
+}
+@keyframes dw-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ---------------------------------------------------------------- low window and stage mode */
@@ -773,14 +860,16 @@
   .sf-page .ex-filter { margin-bottom: 8px; }
   .sf-page .ex-sheet { padding-top: 20px; }
   .sf-page .ex-big { font-size: 52px; }
-  .sf-page .ex-col { top: 16px; max-height: calc(100vh - 32px); }
+  .sf-page .ex-col { top: calc(var(--sf-bar-h) + 16px); max-height: calc(100vh - var(--sf-bar-h) - 24px); }
 }
 html[data-stage] .sf-page .ex-crumb,
 html[data-stage] .sf-page .ex-links,
 html[data-stage] .sf-page [data-stage-hide] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sf-page .dw-card[data-state='lift'] { animation: none; }
+  .sf-page .ex-peak-big .ex-was::after,
+  .sf-page .ex-qnote[data-fresh] { animation: none; }
+  .sf-page .dw-card[data-state='lift'] { animation: dw-fade 150ms ease both; }
   .sf-page .ex-q,
   .sf-page .ex-sec,
   .sf-page .ex-filter button,

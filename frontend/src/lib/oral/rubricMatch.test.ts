@@ -10,7 +10,11 @@ import {
   namedPoints,
   need,
   normalize,
+  openingMatch,
   partMatch,
+  quoteMarks,
+  rowQuoteGroups,
+  sharedGroups,
   probablyNamed,
   segmentText,
   underlinedFinalWords,
@@ -101,12 +105,69 @@ describe('live marks', () => {
     expect(namedPoints(points, 'прямой проход через слои; минимизируем потери весов')).toEqual(['p1', 'p2']);
   });
 
-  it('underlines only final words of named points', () => {
+  it('underlines only the words that named a point, in final words of named points', () => {
     const named = new Set(['p1']);
     const finalText = 'Подбор весов минимизирует потери, прямой проход';
     const marked = underlinedFinalWords(points, named, finalText);
     const finalWords = words(finalText);
-    expect(Array.from(marked).map((index) => finalWords[index]).sort()).toEqual(['весов', 'минимизирует', 'потери']);
+    // The notion itself (group 0) opened p1; the other key words stay plain (redesign critique 4).
+    expect(Array.from(marked).map((index) => finalWords[index])).toEqual(['потери']);
+  });
+
+  it('underlines a word said three times once', () => {
+    const gradient = [{ id: 'p1', anchors: [['градиент'], ['вес'], ['производн']] }];
+    const finalText = 'Считаем градиент по каждому весу через производную. Градиент, ещё раз градиент.';
+    const named = new Set(namedPoints(gradient, finalText));
+    expect(named.has('p1')).toBe(true);
+    const finalWords = words(finalText);
+    const marked = Array.from(underlinedFinalWords(gradient, named, finalText));
+    expect(marked).toEqual([finalWords.indexOf('градиент')]);
+    // The demo answer: one underline per named point, never a repeat.
+    const anchors = vectors.points[0].anchors as Record<string, string[][]>;
+    const demo = Object.entries(anchors).map(([id, value]) => ({ id, anchors: value }));
+    const transcript = vectors.points[0].transcript;
+    const demoWords = words(transcript);
+    const demoMarked = Array.from(underlinedFinalWords(demo, new Set(namedPoints(demo, transcript)), transcript)).map((index) => demoWords[index]);
+    expect(new Set(demoMarked).size).toBe(demoMarked.length);
+    expect(demoMarked.length).toBeLessThanOrEqual(6);
+  });
+
+  it('puts at most five underlines on the transcript, earliest first', () => {
+    const many = Array.from({ length: 6 }, (_, index) => ({ id: `p${index + 1}`, anchors: [[`слово${'абвгде'[index]}`]] }));
+    const finalText = many.map((point) => point.anchors[0][0]).join(' ');
+    const marked = underlinedFinalWords(many, new Set(many.map((point) => point.id)), finalText);
+    expect(Array.from(marked).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('finds the opening words inside a window that names the point', () => {
+    const anchors = [['потер'], ['минимиз'], ['вес']];
+    // The first «потери» stands alone, 50 words before the rest: it did not name the point.
+    const filler = Array.from({ length: 50 }, (_, index) => `слово${index}`).join(' ');
+    const textWords = words(`потери ${filler} подбор весов минимизирует потери`);
+    expect(openingMatch(anchors, textWords)).toEqual([textWords.length - 1]);
+    expect(openingMatch(anchors, words('ничего похожего'))).toBeNull();
+  });
+
+  it('underlines at most two key words in a quote, the longest of two groups, or only the shared groups', () => {
+    const anchors = [['потер', 'ошибк'], ['минимиз', 'уменьш'], ['вес']];
+    const quote = 'Обучение сети заключается в подборе весов, минимизирующих функцию потерь';
+    const quoteWords = words(quote);
+    const marked = (indexes: Set<number>) => Array.from(indexes).map((index) => quoteWords[index]).sort();
+    expect(marked(quoteMarks(anchors, quote))).toEqual(['минимизирующих', 'потерь']);
+    expect(Array.from(sharedGroups(anchors, 'подбор весов', quote))).toEqual([2]);
+    expect(marked(quoteMarks(anchors, quote, sharedGroups(anchors, 'подбор весов', quote)))).toEqual(['весов']);
+    expect(sharedGroups(anchors, '', quote).size).toBe(0);
+    expect(quoteMarks(anchors, quote, new Set()).size).toBe(0);
+  });
+
+  it('underlines one group in a named row: the notion that named it, else what the student said', () => {
+    const anchors = [['потер', 'ошибк'], ['минимиз', 'уменьш'], ['вес']];
+    const said = 'Подбираем веса, чтобы минимизировать функцию потерь';
+    // The quote has the notion: its words are the ones underlined, like in the transcript.
+    expect(Array.from(rowQuoteGroups(anchors, said, 'Обучение — подбор весов, минимизирующих функцию потерь'))).toEqual([0]);
+    // No notion in the quote: the longest group the student said too.
+    expect(Array.from(rowQuoteGroups(anchors, said, 'подбор весов, которые минимизируют сумму'))).toEqual([1]);
+    expect(rowQuoteGroups(anchors, 'совсем о другом', 'подбор весов, которые минимизируют сумму').size).toBe(0);
   });
 
   it('underlines every part of a multi-part variant', () => {

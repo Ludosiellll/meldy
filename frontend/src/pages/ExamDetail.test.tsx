@@ -296,8 +296,11 @@ describe('ExamDetail: the sheet', () => {
     expect(row('q3')).toHaveAttribute('data-readiness', 'untested');
     expect(row('q3').querySelector('.ex-qn [data-mark]')).toBeNull();
 
-    // The right margin: the lecture and its fragment, «отмечено вами», nothing for a gap.
-    expect(plain(row('q1').querySelector('.ex-qnote')?.textContent)).toBe('Денежный рынокфрагмент 1');
+    // The right margin: the lecture and its fragment, then «там же» for the same lecture,
+    // «отмечено вами», nothing for a gap.
+    expect(plain(row('q1').querySelector('.ex-qnote')?.textContent)).toBe('Денежный рынок, фрагмент 1');
+    expect(plain(row('q2').querySelector('.ex-qnote')?.textContent)).toBe('там же, фрагмент 2');
+    expect(row('q2').querySelector('.ex-qnote')).toHaveAttribute('title', 'Денежный рынок, фрагмент 2');
     expect(plain(row('q6').querySelector('.ex-qnote')?.textContent)).toBe('отмечено вами');
     expect(row('q3').querySelector('.ex-qnote')).toBeNull();
   });
@@ -321,7 +324,7 @@ describe('ExamDetail: the sheet', () => {
     expect(within(side).getAllByRole('math')[0]).toHaveAccessibleName(/^Сочетания из 24 по 2, делённые на сочетания из 40 по 2: 276 из 780, примерно 35\s%$/);
   });
 
-  it('counts confirmed questions from the journal, with the date they started', async () => {
+  it('counts confirmed questions from the journal, with no date after the number', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue(
       [1, 2, 3, 4, 5, 6].flatMap((n) => [answer(n, dayKey(-9), true, `s${n}a`), answer(n, dayKey(-2), true, `s${n}b`)]),
@@ -330,7 +333,8 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const since = formatShortDay(dayKey(-9));
     const statement = await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
-    expect(plain(statement.textContent)).toBe(`Подтверждено ответами — 6 из 40, с ${since}${since.endsWith('.') ? '' : '.'}`);
+    expect(plain(statement.textContent)).toBe('Подтверждено ответами — 6 из 40.');
+    expect(plain(column().textContent)).not.toContain(since);
     expect(within(column()).getByText('Подтверждено — значит, зачтено дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 2 %.')).toBeInTheDocument();
 
     const legend = within(column()).getByRole('list', { name: 'Показать вопросы по ответам' });
@@ -360,6 +364,64 @@ describe('ExamDetail: the sheet', () => {
     fireEvent.click(none);
     expect(none).toHaveAttribute('aria-pressed', 'false');
     expect(document.querySelectorAll('.ex-q')).toHaveLength(6);
+  });
+
+  it('names the lecture again after a section heading and after a filter change, «там же» in between', async () => {
+    const list = [
+      question(1, 'full', { section: 1 }),
+      question(2, 'full', { section: 1 }),
+      question(3, 'none', { section: 1 }),
+      question(4, 'partial', { section: 1 }),
+      question(5, 'full', { section: 2 }),
+      question(6, 'full', {
+        section: 2,
+        evidence: [{ material_id: 'm2', material_title: 'Инфляция', source_id: 'S03', excerpt: 'Фрагмент.' }],
+      }),
+      question(7, 'full', { section: 2 }),
+    ];
+    mocks.loadExamBundle.mockResolvedValue(bundle(list, { ticket_layout: { mode: 'random', per_ticket: 2, section_titles: ['Деньги', 'Цены'] } }));
+    renderDetail();
+    await opened();
+    const note = (id: string) => plain(row(id).querySelector('.ex-qnote')?.textContent);
+    expect(note('q1')).toBe('Денежный рынок, фрагмент 1');
+    expect(note('q2')).toBe('там же, фрагмент 2');
+    // A gap in between does not break «там же»: the note above it is still the same lecture.
+    expect(note('q4')).toBe('там же, фрагмент 4');
+    // A new section names the lecture again; another lecture is named; back to the first — named.
+    expect(note('q5')).toBe('Денежный рынок, фрагмент 5');
+    expect(note('q6')).toBe('Инфляция, фрагмент 3');
+    expect(note('q7')).toBe('Денежный рынок, фрагмент 7');
+
+    fireEvent.click(within(screen.getByRole('list', { name: 'Показать вопросы' })).getByRole('button', { name: 'частично 1' }));
+    expect(note('q4')).toBe('Денежный рынок, фрагмент 4');
+  });
+
+  it('keeps the fragment of a long lecture name on its own line, so the two-line name never cuts it off', async () => {
+    const long = 'Нейронные сети и глубокое обучение';
+    const list = [
+      question(1, 'full', { section: 1, evidence: [{ material_id: 'm9', material_title: long, source_id: 'S03', excerpt: 'Фрагмент.' }] }),
+      question(2, 'full', { section: 1, evidence: [{ material_id: 'm9', material_title: long, source_id: 'S04', excerpt: 'Фрагмент.' }] }),
+      question(3, 'full', { section: 1, evidence: [{ material_id: 'm2', material_title: 'Инфляция', source_id: 'S01', excerpt: 'Фрагмент.' }] }),
+    ];
+    mocks.loadExamBundle.mockResolvedValue(bundle(list));
+    renderDetail();
+    await opened();
+    const first = row('q1').querySelector('.ex-qnote') as HTMLElement;
+    expect(plain(first.textContent)).toBe(`${long}, фрагмент 3`);
+    expect(first.querySelector('.ex-qnote-lead')?.textContent).toBe(`${long},`);
+    expect(first.querySelector('.ex-qnote-frag')?.textContent).toBe('фрагмент 3');
+    expect(first).not.toHaveAttribute('data-short');
+    // «там же» is one line; a short first mention stays on one line too.
+    expect(row('q2').querySelector('.ex-qnote-frag')).toBeNull();
+    expect(plain(row('q2').querySelector('.ex-qnote')?.textContent)).toBe('там же, фрагмент 4');
+    expect(row('q3').querySelector('.ex-qnote')).toHaveAttribute('data-short');
+  });
+
+  it('heads the sheet with the subject, not «Экзамен: … : вопросы к экзамену»', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(mixed(), { title: 'Экзамен: цифровая экономика' }));
+    renderDetail();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Цифровая экономика' })).toHaveAttribute('title', 'Экзамен: цифровая экономика');
+    expect(screen.getByRole('heading', { level: 2, name: 'Цифровая экономика: вопросы к экзамену' })).toBeInTheDocument();
   });
 
   it('dates the mapping by exams.mapped_at and says when lectures changed after it', async () => {
@@ -784,10 +846,16 @@ describe('ExamDetail: mapping by lectures', () => {
     const fetchMock = vi.fn(async () => stream.response);
     vi.stubGlobal('fetch', fetchMock);
     const old = new Date(Date.now() - 10 * 60_000).toISOString();
-    mocks.loadExamBundle.mockResolvedValue(bundle([question(1, 'full'), question(2, null), question(3, null)], { mapping_state: 'running', mapping_started_at: old }));
+    mocks.loadExamBundle.mockResolvedValue(
+      bundle([question(1, 'full'), question(2, null), question(3, null)], { mapping_state: 'running', mapping_started_at: old, mapped_at: null }),
+    );
     renderDetail();
     await opened();
     expect(notes()).toContain('Разметка прервалась: проверено 1 из 3.Продолжить');
+    // The meta line agrees with the note: how far the run got, never «разметки ещё нет».
+    const meta = plain(document.querySelector('.ex-head .ex-meta')?.textContent);
+    expect(meta).toContain('проверено 1 из 3, разметка прервалась');
+    expect(meta).not.toContain('разметки ещё нет');
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     stream.close();
@@ -918,6 +986,22 @@ describe('ExamDetail: the draw button', () => {
 });
 
 describe('ExamDetail on a phone', () => {
+  it('lists the readiness legend after the sheet, above «Тянуть билет»', async () => {
+    setWidth(390);
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
+    renderDetail();
+    await opened();
+    const legend = await screen.findByRole('list', { name: 'Показать вопросы по ответам' });
+    const sheet = document.querySelector('.ex-sheet') as HTMLElement;
+    expect(sheet.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(legend.closest('.ex-rl')).not.toBeNull();
+    const statement = screen.getByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    expect(statement.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const cta = document.querySelector('.ex-cta') as HTMLElement;
+    expect(legend.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('puts the summary above the sheet, the draw button at the bottom and «почему» in a bottom sheet', async () => {
     setWidth(390);
     mocks.loadExamBundle.mockResolvedValue(bundle(mixed()));
@@ -928,6 +1012,14 @@ describe('ExamDetail on a phone', () => {
     const cta = document.querySelector('.ex-cta') as HTMLElement;
     expect(within(cta).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
     expect(within(cta).getByText('Как на экзамене')).toBeInTheDocument();
+
+    // The paper comes first: only the pair, the short caveat and the confirmed line are above it;
+    // the readiness legend and the confidence line are under the sheet.
+    expect(await screen.findByText('Это доля билетов, а не вероятность сдать.', { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText(/считаем, что билет — два случайных вопроса/)).toBeNull();
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    expect(within(summary).getByRole('button', { name: 'Как считается' })).toBeInTheDocument();
+    expect(within(summary).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Вопрос 3 о денежном рынке' }));
     const dialog = screen.getByRole('dialog', { name: named('Ни в одной из 2 лекций нет фрагмента об этом') });

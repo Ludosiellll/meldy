@@ -127,6 +127,14 @@ afterEach(() => {
 });
 
 describe('starting an old-format oral exam', () => {
+  it('labels the professors and formats in words, without emoji (QA round 1)', async () => {
+    saveState({});
+    const { container } = renderExam();
+    await screen.findByRole('button', { name: /Войти в аудиторию/ });
+    expect(container.textContent).toContain('Экспресс-блиц');
+    expect(container.textContent).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}]/u);
+  });
+
   it('charges nothing when the first question fails', async () => {
     saveState({});
     fetchMock.mockResolvedValue(jsonResponse(502, { detail: 'ИИ-сервис сейчас не ответил. Попробуйте ещё раз.', code: 'ai_failed' }));

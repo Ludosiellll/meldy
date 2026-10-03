@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Analytics, { accuracyLabel, cardsLine, mappingDateText } from './Analytics';
+import Analytics, { accuracyLabel, cardsCell, mappingDateText, progressLede } from './Analytics';
 
 const db = vi.hoisted(() => {
   const state = {
@@ -97,28 +97,47 @@ beforeEach(() => {
   db.fetchMaterialEvents.mockReset().mockResolvedValue(demoQuiz);
   db.fetchQuestionEvents.mockReset().mockResolvedValue([]);
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  // The demo data is dated 1–3 October 2026; only Date is faked, so timers and waitFor stay real.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-03T12:00:00'));
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
-describe('Progress per material', () => {
-  it('shows measured counters for the demo run instead of a mastery percentage', async () => {
+/** The table row of a lecture. */
+async function lectureRow(title: string) {
+  return (await screen.findByRole('link', { name: title })).closest('tr') as HTMLElement;
+}
+
+function todayKey() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+}
+
+describe('Progress per lecture', () => {
+  it('shows measured counters for the demo run as a table instead of a mastery percentage', async () => {
     renderProgress();
 
-    expect(await screen.findByText('Карточки: вспомнили 5 из 6 при последнем повторе. Закреплено 0 из 6, следующая проверка 4 окт.')).toBeInTheDocument();
-    expect(screen.getByText('Тест 2 окт.: 4 из 5.')).toBeInTheDocument();
-    expect(screen.getByText('Повторно 3 окт.: 5 из 5.')).toBeInTheDocument();
-    expect(screen.getByText('Верно по карточкам и первому тесту: 82% (9 из 11).')).toBeInTheDocument();
-    expect(screen.getByText(/Посчитано .* по вашим ответам\./)).toBeInTheDocument();
-    expect(screen.getByText(/Как считается/)).toBeInTheDocument();
+    const row = await lectureRow('Энтропия');
+    expect(within(row).getByText('5 из 6 вспомнили')).toBeInTheDocument();
+    expect(within(row).getByText('закреплённых пока нет, следующая проверка 4 окт.')).toBeInTheDocument();
+    expect(within(row).getByText('4 из 5, 2 окт.')).toBeInTheDocument();
+    expect(within(row).getByText('повторно 3 окт.: 5 из 5')).toBeInTheDocument();
+    expect(within(row).getByText('9 из 11')).toBeInTheDocument();
+    expect(within(row).getByText('82 %')).toBeInTheDocument();
+    expect(within(row.closest('table')!).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Лекция', 'Карточки', 'Тест, первая попытка', 'Верно при последней проверке']);
+    expect(screen.getByRole('button', { name: 'Как считается' })).toHaveAttribute('aria-expanded', 'false');
     expect(db.fetchMaterialEvents).toHaveBeenCalledWith({ kinds: ['quiz_answer'] });
   });
 
-  it('marks an untouched material as not checked, never as a red 0%', async () => {
+  it('marks an untouched lecture as not checked, never as a red 0%', async () => {
     renderProgress();
 
-    const row = (await screen.findByRole('link', { name: 'Новая лекция' })).closest('li')!;
-    expect(within(row).getByText('Не проверялось')).toBeInTheDocument();
+    const row = await lectureRow('Новая лекция');
+    expect(within(row).getByText('не проверялось')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/(^|\s)0%/);
     expect(screen.queryByText('Профиль навыков')).not.toBeInTheDocument();
     expect(screen.queryByText(/Освоено|освоения/)).not.toBeInTheDocument();
@@ -129,8 +148,9 @@ describe('Progress per material', () => {
     db.fetchMaterialEvents.mockResolvedValue([]);
     renderProgress();
 
-    const row = (await screen.findByRole('link', { name: 'Энтропия' })).closest('li')!;
-    expect(within(row).getByText('Верно по карточкам: мало данных.')).toBeInTheDocument();
+    const row = await lectureRow('Энтропия');
+    expect(within(row).getByText('мало данных')).toBeInTheDocument();
+    expect(within(row).getByText('теста не было')).toBeInTheDocument();
   });
 
   it('shows an error line instead of zeros when the cards cannot be read, and retries', async () => {
@@ -139,27 +159,31 @@ describe('Progress per material', () => {
     renderProgress();
 
     const alert = await screen.findByText(/Карточки не загрузились/);
-    expect(screen.queryByText(/вспомнили 0 из/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Верно по/)).not.toBeInTheDocument();
-    expect(screen.getByText('Тест 2 окт.: 4 из 5.')).toBeInTheDocument();
+    expect(screen.queryByText(/вспомнили/)).not.toBeInTheDocument();
+    expect(screen.queryByText('9 из 11')).not.toBeInTheDocument();
+    expect(screen.getByText('4 из 5, 2 окт.')).toBeInTheDocument();
 
     await user.click(within(alert.closest('p')!).getByRole('button', { name: 'Повторить' }));
-    expect(await screen.findByText(/вспомнили 5 из 6/)).toBeInTheDocument();
+    expect(await screen.findByText('5 из 6 вспомнили')).toBeInTheDocument();
   });
 
-  it('formats card lines for cards that were never reviewed', () => {
-    expect(cardsLine({ total: 6, reviewed: 0, recalled: 0, consolidated: 0, nextCheck: null })).toBe('Карточки: 6, ещё не повторялись.');
-    expect(cardsLine({ total: 1, reviewed: 0, recalled: 0, consolidated: 0, nextCheck: null })).toBe('Карточки: 1, ещё не повторялась.');
-    expect(cardsLine({ total: 0, reviewed: 0, recalled: 0, consolidated: 0, nextCheck: null })).toBeNull();
+  it('words the card cell for cards that were never reviewed', () => {
+    expect(cardsCell({ total: 6, reviewed: 0, recalled: 0, consolidated: 0, nextCheck: null })).toEqual({ main: '6 карточек, ещё не повторялись', sub: null, quiet: true });
+    expect(cardsCell({ total: 1, reviewed: 0, recalled: 0, consolidated: 0, nextCheck: null })?.main).toBe('1 карточка, ещё не повторялась');
+    expect(cardsCell({ total: 0, reviewed: 0, recalled: 0, consolidated: 0, nextCheck: null })).toBeNull();
   });
 
   it('counts «вспомнили» among reviewed cards and names the ones still waiting for review', () => {
-    expect(cardsLine({ total: 20, reviewed: 3, recalled: 3, consolidated: 0, nextCheck: null })).toBe(
-      'Карточки: вспомнили 3 из 3 при последнем повторе, ещё 17 не повторялись. Закреплено 0 из 20.',
-    );
-    expect(cardsLine({ total: 6, reviewed: 6, recalled: 5, consolidated: 0, nextCheck: null })).toBe(
-      'Карточки: вспомнили 5 из 6 при последнем повторе. Закреплено 0 из 6.',
-    );
+    expect(cardsCell({ total: 20, reviewed: 3, recalled: 3, consolidated: 0, nextCheck: null })).toEqual({
+      main: '3 из 3 вспомнили',
+      sub: 'ещё 17 не повторялись, закреплённых пока нет',
+      quiet: false,
+    });
+    expect(cardsCell({ total: 8, reviewed: 8, recalled: 6, consolidated: 2, nextCheck: '2026-10-05T09:00:00Z' })).toEqual({
+      main: '6 из 8 вспомнили',
+      sub: '2 закреплены, следующая проверка 5 окт.',
+      quiet: false,
+    });
   });
 
   it('does not count an examiner follow-up card waiting for its first review as forgotten', async () => {
@@ -168,11 +192,12 @@ describe('Progress per material', () => {
     setTable('flashcard_progress', () => ({ data: [...recalledCards, followUp] }));
     renderProgress();
 
-    expect(
-      await screen.findByText('Карточки: вспомнили 5 из 5 при последнем повторе, ещё 1 не повторялась. Закреплено 0 из 6, следующая проверка 4 окт.'),
-    ).toBeInTheDocument();
+    const row = await lectureRow('Энтропия');
+    expect(within(row).getByText('5 из 5 вспомнили')).toBeInTheDocument();
+    expect(within(row).getByText('ещё 1 не повторялась, закреплённых пока нет, следующая проверка 4 окт.')).toBeInTheDocument();
     // The share counts the same reviewed cards: (5 + 4) / (5 + 5).
-    expect(screen.getByText('Верно по карточкам и первому тесту: 90% (9 из 10).')).toBeInTheDocument();
+    expect(within(row).getByText('9 из 10')).toBeInTheDocument();
+    expect(within(row).getByText('90 %')).toBeInTheDocument();
   });
 
   it('names the share after what it is made of', () => {
@@ -181,6 +206,39 @@ describe('Progress per material', () => {
     expect(accuracyLabel({ cards: cards(6), quiz })).toBe('Верно по карточкам и первому тесту');
     expect(accuracyLabel({ cards: cards(6), quiz: null })).toBe('Верно по карточкам');
     expect(accuracyLabel({ cards: cards(0), quiz })).toBe('Верно в первом тесте');
+  });
+});
+
+describe('Progress page (redesign spec 5.17)', () => {
+  it('puts «Экзамены» first, with no tabs and no spinner', async () => {
+    const { container } = renderProgress();
+    expect(container.querySelector('[role="tablist"], .animate-spin')).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'По лекциям' })).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(headings.slice(0, 4)).toEqual(['Экзамены', 'По лекциям', 'Ответы по дням', 'Темы с открытыми ошибками']);
+    expect(screen.getByRole('link', { name: 'Оценки из зачётки' })).toHaveAttribute('href', '/analytics?tab=gradebook');
+  });
+
+  it('says what the numbers are made of and since when', async () => {
+    setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 6 }] }));
+    renderProgress();
+    // Ten answers in the two demo tests (2 and 3 October) and six card reviews today.
+    expect(await screen.findByText('По 10 ответам в тестах и 6 повторениям карточек с 2 октября.')).toBeInTheDocument();
+    expect(progressLede({ ticketAnswers: 46, cardReviews: 212, since: '2026-09-27' })).toBe('По 46 ответам на билеты и 212 повторениям карточек с 27 сентября.');
+    expect(progressLede({ ticketAnswers: 1, cardReviews: 0, since: '2026-09-27' })).toBe('По 1 ответу на билеты с 27 сентября.');
+    expect(progressLede({ ticketAnswers: 0, cardReviews: 0, since: null })).toBe('Ответов на билеты, тестов и повторений карточек пока нет.');
+    // Test answers are named as well, so the line never says «nothing yet» above a table with test results.
+    expect(progressLede({ ticketAnswers: 0, testAnswers: 5, cardReviews: 0, since: '2026-10-03' })).toBe('По 5 ответам в тестах с 3 октября.');
+    expect(progressLede({ ticketAnswers: 2, testAnswers: 21, cardReviews: 5, since: '2026-10-01' })).toBe(
+      'По 2 ответам на билеты, 21 ответу в тестах и 5 повторениям карточек с 1 октября.',
+    );
+  });
+
+  it('opens the gradebook from the link at the end', async () => {
+    renderProgress('/analytics?tab=gradebook');
+    expect(await screen.findByText('Зачётка на экране')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Оценки из зачётки' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 });
 
@@ -211,47 +269,56 @@ describe('Progress sources', () => {
   });
 
   it('sums the activity of a day and labels the chart', async () => {
-    const today = new Date();
-    const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const key = todayKey();
     setTable('study_sessions', () => ({ data: [{ date: key, cards_reviewed: 3 }, { date: key, cards_reviewed: 4 }] }));
     renderProgress();
 
-    expect(await screen.findByRole('heading', { name: 'Ответов на карточки по дням, 30 дней' })).toBeInTheDocument();
-    expect(screen.getByText(/За 30 дней: 7 ответов, больше всего 7/)).toBeInTheDocument();
-    expect(screen.getByText(/За 30 дней: 7 ответов на карточки, 2 теста, занятия в 1 из 30 дней, сейчас 1 день подряд\./)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Ответы по дням' })).toBeInTheDocument();
+    expect(screen.getByText(/^Ответы на карточки по дням; больше всего 7 — /)).toBeInTheDocument();
+    // Today's cards (3 October) and the two demo tests (2 and 3 October): two days of study.
+    expect(screen.getByText('За 30 дней: 7 ответов на карточки, 2 теста, занятия в 2 из 30 дней, сейчас 1 день подряд.')).toBeInTheDocument();
+    expect(screen.getByText('сегодня')).toBeInTheDocument();
+  });
+
+  it('names only what happened in 30 days and draws no empty axis', async () => {
+    db.fetchMaterialEvents.mockResolvedValue([]);
+    setTable('flashcard_progress', () => ({ data: [] }));
+    renderProgress();
+
+    expect(await screen.findByText('За 30 дней ответов на карточки и тестов не было.')).toBeInTheDocument();
+    expect(screen.queryByText('сегодня')).toBeNull();
+    expect(screen.queryByText(/0 ответов|0 дней подряд|занятия в 0/)).toBeNull();
   });
 
   it('says that an exam list was not mapped yet instead of «0 из N»', async () => {
     setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', exam_date: '2026-10-15', mapped_at: null }] }));
     setTable('exam_questions', () => ({
-      data: ['a', 'b', 'c'].map((ch) => ({ exam_id: 'e1', question_hash: ch.repeat(32), coverage: null })),
+      data: ['a', 'b', 'c'].map((ch, index) => ({ id: `q${index}`, exam_id: 'e1', section: null, question_hash: ch.repeat(32), coverage: null })),
     }));
     renderProgress();
 
     const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li')!;
     expect(within(row).getByText('Разметки по лекциям ещё нет.')).toBeInTheDocument();
     expect(within(row).queryByText(/Есть в ваших лекциях/)).not.toBeInTheDocument();
-    expect(within(row).queryByText(/Не размечено/)).not.toBeInTheDocument();
-    expect(within(row).queryByText(/^Разметка от/)).not.toBeInTheDocument();
-    expect(args('exams', 'select')).toEqual([['id, title, exam_date, mapped_at']]);
+    expect(within(row).queryByText(/Разметка от/)).not.toBeInTheDocument();
+    expect(args('exams', 'select')).toEqual([['id, title, kind, exam_date, mapped_at, ticket_layout']]);
   });
 
   it('names unmapped and word-only questions of an interrupted mapping and dates the mapping', async () => {
     setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', exam_date: '2026-10-15', mapped_at: '2026-09-30T12:40:00Z' }] }));
     setTable('exam_questions', () => ({
       data: [
-        { exam_id: 'e1', question_hash: 'a'.repeat(32), coverage: 'full' },
-        { exam_id: 'e1', question_hash: 'b'.repeat(32), coverage: 'unverified' },
-        { exam_id: 'e1', question_hash: 'c'.repeat(32), coverage: null },
+        { id: 'q1', exam_id: 'e1', section: null, question_hash: 'a'.repeat(32), coverage: 'full' },
+        { id: 'q2', exam_id: 'e1', section: null, question_hash: 'b'.repeat(32), coverage: 'unverified' },
+        { id: 'q3', exam_id: 'e1', section: null, question_hash: 'c'.repeat(32), coverage: null },
       ],
     }));
     renderProgress();
 
     const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li')!;
     expect(
-      within(row).getByText('Есть в ваших лекциях: 1 из 3. Частично: 0. Нет: 0. Проверено только по словам: 1. Не размечено: 1.'),
+      within(row).getByText(/^Есть в ваших лекциях: 1 из 3 · частично 0 · нет 0 · только по словам 1 · не размечено 1\. Разметка от 30 сентября, \d{1,2}:\d{2}\.$/),
     ).toBeInTheDocument();
-    expect(within(row).getByText(/^Разметка от 30 сентября, \d{1,2}:\d{2}\.$/)).toBeInTheDocument();
   });
 
   it('dates a mapping in the words of the exam sheet', () => {
@@ -260,14 +327,14 @@ describe('Progress sources', () => {
     expect(mappingDateText('2026-01-21T12:40:00Z')).toMatch(/^Разметка от 21 января, \d{1,2}:\d{2}\.$/);
   });
 
-  it('shows the exam block from coverage, answers aloud and self-ratings', async () => {
+  it('shows the exam ledger row: confirmed questions, what it means for tickets, answers since', async () => {
     const [a, b, c] = ['a', 'b', 'c'].map((ch) => ch.repeat(32));
-    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Макроэкономика', exam_date: '2026-10-15' }] }));
+    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Экзамен: макроэкономика', kind: 'exam', exam_date: '2026-10-15', ticket_layout: { mode: 'random', per_ticket: 2 } }] }));
     setTable('exam_questions', () => ({
       data: [
-        { exam_id: 'e1', question_hash: a, coverage: 'full' },
-        { exam_id: 'e1', question_hash: b, coverage: 'partial' },
-        { exam_id: 'e1', question_hash: c, coverage: 'none' },
+        { id: 'q1', exam_id: 'e1', section: null, question_hash: a, coverage: 'full' },
+        { id: 'q2', exam_id: 'e1', section: null, question_hash: b, coverage: 'partial' },
+        { id: 'q3', exam_id: 'e1', section: null, question_hash: c, coverage: 'none' },
       ],
     }));
     db.fetchQuestionEvents.mockResolvedValue([
@@ -277,10 +344,19 @@ describe('Progress sources', () => {
     ]);
     renderProgress();
 
-    expect(await screen.findByRole('link', { name: 'Макроэкономика' })).toHaveAttribute('href', '/exams/e1');
-    expect(screen.getByText('Есть в ваших лекциях: 1 из 3. Частично: 1. Нет: 1.')).toBeInTheDocument();
-    expect(screen.getByText('Подтверждено ответами: 1 из 3, с 1 окт.')).toBeInTheDocument();
-    expect(screen.getByText('Самооценка против ответов вслух: мало данных.')).toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: 'Макроэкономика' });
+    expect(link).toHaveAttribute('href', '/exams/e1');
+    const row = link.closest('li') as HTMLElement;
+    expect(within(row).getByText(/ответы на билеты с 1 октября$/)).toBeInTheDocument();
+    expect(within(row).getByText('Есть в ваших лекциях: 1 из 3 · частично 1 · нет 1.')).toBeInTheDocument();
+    expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
+    expect(within(row).getByText('вопросов подтверждено ответами')).toBeInTheDocument();
+    // C(1, 2) / C(3, 2): no ticket has both questions confirmed yet.
+    expect(within(row).getByText('0 %')).toBeInTheDocument();
+    expect(within(row).getByText('билетов, где подтверждены оба вопроса')).toBeInTheDocument();
+    expect(within(row).getByText(/Зачтено в один день — 0, не зачтено — 1\. Самооценка против ответов вслух: мало данных\./)).toBeInTheDocument();
+    // Three answers aloud in the lede, next to the ten test answers of the demo tests.
+    expect(screen.getByText(/^По 3 ответам на билеты и 10 ответам в тестах с 1 октября\.$/)).toBeInTheDocument();
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith([a, b, c]);
   });
 
@@ -289,12 +365,6 @@ describe('Progress sources', () => {
     renderProgress();
 
     expect(await screen.findByText(/Экзамены не загрузились/)).toBeInTheDocument();
-    expect(screen.getByText('Тест 2 окт.: 4 из 5.')).toBeInTheDocument();
-  });
-
-  it('keeps the gradebook tab as it was', async () => {
-    renderProgress('/analytics?tab=gradebook');
-    expect(await screen.findByText('Зачётка на экране')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Оценки' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('4 из 5, 2 окт.')).toBeInTheDocument();
   });
 });

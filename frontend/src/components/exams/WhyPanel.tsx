@@ -186,11 +186,10 @@ export default function WhyPanel(props: WhyPanelProps) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // A bottom sheet holds the page still while it is open (the shell scrolls inside <main>).
+  // A bottom sheet holds the page still while it is open (the window is the scroller).
   useEffect(() => {
     if (!sheet || !rootRef.current) return;
-    const scroller = rootRef.current.closest('main') as HTMLElement | null;
-    const targets = [scroller, document.body].filter((item): item is HTMLElement => Boolean(item));
+    const targets = [document.documentElement, document.body];
     const previous = targets.map((element) => element.style.overflow);
     targets.forEach((element) => {
       element.style.overflow = 'hidden';

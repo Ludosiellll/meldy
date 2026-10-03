@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 import type { ExamQuestion } from '../../api/exams';
 import type { SelfRating as Rating } from '../../api/learning';
 import { READINESS_LABELS, type Readiness } from '../../lib/learning/readiness';
@@ -13,7 +13,7 @@ import {
   selectionSeed,
   type SheetCoverage,
 } from './marks';
-import { glue, type Footnote } from './sheetModel';
+import { glue, marginNotes, type Footnote, type NoteView } from './sheetModel';
 import SelfRating from './SelfRating';
 import type { FrameSize } from './useFrame';
 
@@ -115,9 +115,43 @@ function NumberCell({ examId, row, drawIn }: { examId: string; row: SheetRowView
  * fragments on the right margin (or «знаю · плаваю · не знаю» in self-rating mode). A row opens
  * «почему»; the selected row gets a pencil stroke down the margin, never a tint.
  */
+/** A first mention this short stays on one line: «Инфляция, фрагмент 1». */
+const ONE_LINE_NOTE = 22;
+
+/**
+ * The right-margin note. The first mention of a lecture names it (at most two lines, the full name is
+ * in title and in «почему») and gives its fragment on the line under it, so a long name never cuts
+ * the fragment off; while the lecture stays the same the note is one line, «там же, фрагмент 4».
+ */
+function MarginNote({ footnote, note, appearance }: { footnote: Footnote; note: NoteView; appearance: MarkAppearanceView | null }) {
+  const full = footnote.fragments ? `${footnote.title}, ${footnote.fragments}` : footnote.title;
+  const short = `${note.lead}, ${note.fragments}`.length <= ONE_LINE_NOTE;
+  return (
+    <span
+      className="ex-qnote sf-pnote"
+      style={{ pointerEvents: 'none', animationDelay: appearance?.animate ? `${appearance.delayMs}ms` : undefined }}
+      data-manual={footnote.manual ? '' : undefined}
+      data-same={!note.named && !footnote.manual ? '' : undefined}
+      data-short={note.named && short ? '' : undefined}
+      data-fresh={appearance?.animate ? '' : undefined}
+      title={full}
+    >
+      {note.named && note.fragments ? (
+        <>
+          <span className="ex-qnote-lead">{`${note.lead},`}</span> <span className="ex-qnote-frag">{note.fragments}</span>
+        </>
+      ) : (
+        `${note.lead}${note.fragments ? `, ${note.fragments}` : ''}`
+      )}
+    </span>
+  );
+}
+
 export default function ExamSheet(props: ExamSheetProps) {
   const { examId, rows, rateMode, peak, selectedId } = props;
   let previousSection: number | null = null;
+  // «Нейронные сети и глубокое обучение, фрагмент 3» on the first mention, «там же, фрагмент 4» after.
+  const notes = useMemo(() => marginNotes(rows.map((row) => ({ section: row.question.section, footnote: row.footnote }))), [rows]);
 
   return (
     <article
@@ -139,7 +173,8 @@ export default function ExamSheet(props: ExamSheetProps) {
       )}
       {rows.length === 0 && props.emptyText && <p className="ex-rate-intro">{props.emptyText}</p>}
       <ol className="ex-qs">
-        {rows.map((row) => {
+        {rows.map((row, index) => {
+          const note = notes[index];
           const { question } = row;
           const section = question.section;
           const heading =
@@ -190,17 +225,7 @@ export default function ExamSheet(props: ExamSheetProps) {
                     onChange={(rating) => props.onRate(row, rating)}
                   />
                 ) : (
-                  row.footnote && (
-                    <span
-                      className="ex-qnote sf-pnote"
-                      style={{ pointerEvents: 'none' }}
-                      data-manual={row.footnote.manual ? '' : undefined}
-                      title={row.footnote.title}
-                    >
-                      <b>{row.footnote.title}</b>
-                      {row.footnote.fragments}
-                    </span>
-                  )
+                  row.footnote && note && <MarginNote footnote={row.footnote} note={note} appearance={row.appearance} />
                 )}
                 {isPeak && peak?.because && <span className="ex-because">{glue(peak.because)}</span>}
                 {(selected || isPeak) && <MarginStroke seed={selectionSeed(examId, question.position)} animate={isPeak} />}

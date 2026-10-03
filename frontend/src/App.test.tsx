@@ -26,9 +26,12 @@ vi.mock('./pages/MoodTracker', () => ({ default: () => <h1>Настроение<
 vi.mock('./api/materials', () => ({
   getMaterials: vi.fn(async () => materials.list),
   deleteMaterial: vi.fn(),
+  updateMaterialTitle: vi.fn(),
   updateMaterialVisibility: vi.fn(),
 }));
 vi.mock('./api/groups', () => ({ getAssignedMaterials: vi.fn(async () => []), joinGroup: vi.fn() }));
+const shelves = vi.hoisted(() => ({ list: [] as unknown[] }));
+vi.mock('./api/exams', () => ({ listExamShelves: vi.fn(async () => shelves.list) }));
 vi.mock('./contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => false) }));
 
 import App from './App';
@@ -41,6 +44,7 @@ function openAt(path: string) {
 beforeEach(() => {
   auth.value = { user: { id: 'user-1', email: 'student@example.com', user_metadata: {} }, loading: false };
   materials.list = [];
+  shelves.list = [];
   window.localStorage.clear();
 });
 
@@ -121,8 +125,37 @@ describe('library', () => {
       },
     ];
     openAt('/library');
-    expect(await screen.findByText('Только текст, конспекта нет')).toBeInTheDocument();
-    expect(screen.getAllByText('Только текст, конспекта нет')).toHaveLength(1);
-    expect(screen.getByText('1 карточка')).toBeInTheDocument();
+    expect(await screen.findByText('только текст, конспекта нет')).toBeInTheDocument();
+    expect(screen.getAllByText('только текст, конспекта нет')).toHaveLength(1);
+    expect(screen.getByText('конспект · 1 карточка')).toBeInTheDocument();
+  });
+
+  it('is the course’s table of contents: one exam is the page, lectures in the order they were added, no chips or capitals', async () => {
+    materials.list = [
+      { id: 'm-1', title: 'Спрос и предложение', subject: 'Экономика', created_at: '2026-09-08T09:00:00Z', summary_json: { content: 'Конспект', podcast: [{ text: 'Реплика' }] }, flashcards_json: { flashcards: [{}, {}] }, quiz_json: { quiz: [{}] } },
+      { id: 'm-2', title: 'Эластичность спроса', subject: 'Экономика', created_at: '2026-09-15T09:00:00Z', summary_json: { text_only: true }, flashcards_json: { flashcards: [] }, quiz_json: { quiz: [] } },
+    ];
+    shelves.list = [
+      {
+        id: 'exam-1',
+        title: 'Экзамен: микроэкономика',
+        kind: 'exam',
+        exam_date: '2026-10-15',
+        created_at: '2026-10-01T00:00:00Z',
+        materials: [
+          { id: 'm-1', addedAt: '2026-10-01T09:00:00Z' },
+          { id: 'm-2', addedAt: '2026-10-01T09:00:00Z' },
+        ],
+      },
+    ];
+    const { container } = openAt('/library');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Микроэкономика' })).toBeInTheDocument();
+    expect(screen.getByText('Экзамен 15 октября · 2 лекции: 1 разобрана, 1 загружена только текстом · 2 карточки')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-1');
+    const rows = screen.getAllByRole('listitem');
+    expect(rows.map((row) => within(row).getByRole('link').getAttribute('href'))).toEqual(['/library/m-1', '/library/m-2']);
+    expect(within(rows[0]).getByText('конспект · 2 карточки · тест · разговор')).toBeInTheDocument();
+    expect(container.innerHTML).not.toMatch(/uppercase|tracking-wider|Только для меня|Пакетный выбор|Статистика/);
+    expect(screen.queryByText('Экономика')).toBeNull();
   });
 });

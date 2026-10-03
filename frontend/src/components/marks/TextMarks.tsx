@@ -73,7 +73,7 @@ const DEFAULT_PAD: Record<TextMarkKind, { x: number; y: number }> = {
 
 /**
  * A one-line piece of text with a pencil mark on it: a ring around a question number
- * (подтверждено), a line under it (зачтено один раз), a wavy line (не зачтено), an oval around a
+ * (подтверждено), a line under it (зачтено в один день), a wavy line (не зачтено), an oval around a
  * word («Зачтено»). The text keeps its place in the line; the mark is aria-hidden, so say its
  * meaning next to it in words.
  */

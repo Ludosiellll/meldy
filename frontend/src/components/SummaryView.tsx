@@ -33,28 +33,36 @@ function extractCleanContent(data: any): string {
     }
   }
 
-  // Обрезаем JSON-хвост с terms/терминами, если он приклеился к концу
+  // Обрезаем JSON-хвост с терминами, если он приклеился к концу
   const jsonTailIdx = raw.search(/\s*[,"]?\s*"terms"\s*:/);
   if (jsonTailIdx > 0) raw = raw.slice(0, jsonTailIdx);
 
-  return raw.trim();
+  return stripSourceMarkers(raw).trim();
+}
+
+/**
+ * Модель иногда повторяет в тексте метки фрагментов «[S02]», которые видела во входе. На экране они выглядят
+ * как сырой вывод машины; фрагменты конспекта и так названы ссылками «фрагмент N».
+ */
+export function stripSourceMarkers(text: string): string {
+  return text.replace(/[ \t]*\[S\d{1,3}\](?:[ \t]*,?[ \t]*\[S\d{1,3}\])*/g, '');
 }
 
 function extractTerms(data: any): { term: string; definition: string }[] {
   return data?.terms || data?.summary_json?.terms || [];
 }
 
-function SectionBlock({ index, title, children }: { index: number; title: string; children: React.ReactNode }) {
+/**
+ * A section of the summary (redesign spec 5.3): its heading in Onest 600 22/28 and the text in a
+ * reading column. No «01» numbering: a tiny monospace counter is a template tell, and the headings
+ * already order the text.
+ */
+function SectionBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="grid gap-2 border-b border-slate-200 py-6 first:pt-0 last:border-b-0 dark:border-slate-800 sm:grid-cols-[2.5rem_minmax(0,1fr)] sm:gap-4">
-      <span className="pt-1 font-mono text-[11px] font-medium tabular-nums tracking-wider text-slate-400 dark:text-slate-500" aria-hidden="true">
-        {String(index + 1).padStart(2, '0')}
-      </span>
-      <div className="min-w-0">
-        <h2 className="mb-3 text-lg font-semibold leading-snug tracking-[-0.01em] text-slate-950 dark:text-slate-50 md:text-xl">{title}</h2>
-        <div className="text-[15px] leading-7 text-slate-700 dark:text-slate-300 md:text-base">
-          {children}
-        </div>
+    <section className="border-b border-[var(--sf-line)] py-8 first:pt-0 last:border-b-0">
+      <h2 className="mb-3 text-[20px] font-semibold leading-[26px] tracking-[-0.01em] text-[var(--sf-ink)] md:text-[22px] md:leading-[28px]">{title}</h2>
+      <div className="max-w-[36em] text-[16px] leading-6 text-[var(--sf-ink)] md:text-[17px] md:leading-7">
+        {children}
       </div>
     </section>
   );
@@ -65,7 +73,7 @@ export default function SummaryView({ data, sources = [] }: { data: SummaryInfo;
   const terms = extractTerms(data);
 
   if (!content && terms.length === 0) {
-    return <p className="text-slate-400">Нет данных для отображения</p>;
+    return <p className="text-[var(--sf-muted)]">Нет данных для отображения</p>;
   }
 
   // Разбиваем по заголовкам уровня 2 (## Название)
@@ -73,15 +81,19 @@ export default function SummaryView({ data, sources = [] }: { data: SummaryInfo;
 
   return (
     <div>
-      <div className="mb-6">
-        <SourceReferences ids={data?.source_ids} sources={sources} />
-      </div>
+      {/* Fragments of the whole summary (it keeps no per-section links): only when there are some. */}
+      {data?.source_ids?.length ? (
+        <div className="mb-4">
+          <SourceReferences ids={data.source_ids} sources={sources} />
+        </div>
+      ) : null}
+      <div>
       {sections.map((sec: string, i: number) => {
         const match = sec.match(/^## (.+)/);
         if (!match) {
           // Первый блок без заголовка — обычный абзац
           return (
-            <div key={i} className="markdown-content mb-6 max-w-[70ch] text-[15px] leading-7 text-slate-700 dark:text-slate-300 md:text-base">
+            <div key={i} className="markdown-content mb-6 max-w-[36em] text-[16px] leading-6 text-[var(--sf-ink)] md:text-[17px] md:leading-7">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{sec.trim()}</ReactMarkdown>
             </div>
           );
@@ -89,31 +101,28 @@ export default function SummaryView({ data, sources = [] }: { data: SummaryInfo;
         const title = match[1].trim();
         const body = sec.replace(/^## .+\n?/, '').trim();
         const cleanTitle = title.replace(/[📌🔑📖📚💡🏁🗂️]/g, '').trim();
-        const headingIndex = sections
-          .slice(0, i + 1)
-          .filter(section => /^## /m.test(section)).length - 1;
-
         return (
-          <SectionBlock key={i} index={headingIndex} title={cleanTitle}>
+          <SectionBlock key={i} title={cleanTitle}>
             <div className="markdown-content">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{body}</ReactMarkdown>
             </div>
           </SectionBlock>
         );
       })}
+      </div>
 
       {/* Словарь терминов */}
       {terms.length > 0 && (
-        <section className="mt-8 border-t border-slate-300 pt-7 dark:border-slate-700">
+        <section className="mt-8 border-t border-[var(--sf-line)] pt-7">
           <div className="mb-4 flex items-baseline justify-between gap-4">
-            <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">Термины</h2>
-            <span className="text-xs tabular-nums text-slate-400">{terms.length}</span>
+            <h2 className="text-[20px] font-semibold leading-[26px] text-[var(--sf-ink)] md:text-[22px] md:leading-[28px]">Термины</h2>
+            <span className="text-[15px] tabular-nums text-[var(--sf-muted)]">{terms.length}</span>
           </div>
-          <dl className="divide-y divide-slate-200 border-y border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+          <dl className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
             {terms.map((t: any, i: number) => (
               <div key={i} className="grid gap-1 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-6">
-                <dt className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.term}</dt>
-                <dd className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+                <dt className="text-[16px] font-semibold leading-6 text-[var(--sf-ink)]">{t.term}</dt>
+                <dd className="text-[16px] leading-6 text-[var(--sf-muted)]">
                   {t.definition}
                   <SourceReferences ids={t.source_ids} sources={sources} compact />
                 </dd>

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Mark, PencilBrace, PencilUnder, seedFrom } from '../marks';
-import { anchorWordIndexes, markedRuns, words } from '../../lib/oral/rubricMatch';
+import { markedRuns, quoteMarks, rowQuoteGroups } from '../../lib/oral/rubricMatch';
 import { pointSource } from '../../lib/oral/oralPersistence';
 import type { RubricMaterial, RubricPoint } from '../../lib/oral/oralApi';
 
@@ -12,9 +12,23 @@ export function quoteText(quote: string): string {
   return midSentence && !text.startsWith('…') ? `…${text}` : text;
 }
 
-/** A piece of text with the anchor words of a point underlined in pencil (redesign spec 4). */
-export function UnderlinedText({ text, anchors, seed }: { text: string; anchors: string[][]; seed: number }) {
-  const marked = anchors.length > 0 ? anchorWordIndexes(anchors, words(text)) : new Set<number>();
+interface UnderlinedTextProps {
+  text: string;
+  anchors: string[][];
+  seed: number;
+  /** Only these anchor groups (the protocol underlines the same groups in the answer and the lecture). */
+  groups?: ReadonlySet<number>;
+  /** Draw the lines in (a row that has just opened, a fresh judgement); otherwise they are simply there. */
+  animate?: boolean;
+  delayMs?: number;
+}
+
+/**
+ * A piece of text with a point's key words underlined in pencil (redesign spec 4): at most two lines,
+ * the longest matches of two different groups first (redesign critique 4), never one under every word.
+ */
+export function UnderlinedText({ text, anchors, seed, groups, animate = false, delayMs = 0 }: UnderlinedTextProps) {
+  const marked = anchors.length > 0 ? quoteMarks(anchors, text, groups) : new Set<number>();
   if (marked.size === 0) return <>{text}</>;
   const runs = markedRuns(text, marked);
   let index = 0;
@@ -22,7 +36,7 @@ export function UnderlinedText({ text, anchors, seed }: { text: string; anchors:
     <>
       {runs.map((run, position) =>
         run.marked ? (
-          <PencilUnder key={position} seed={seed + (index += 1) * 7}>
+          <PencilUnder key={position} seed={seed + (index += 1) * 7} animate={animate} delayMs={delayMs}>
             {run.text}
           </PencilUnder>
         ) : (
@@ -44,6 +58,11 @@ interface RubricSlotsProps {
   seed: string;
   /** Said by screen readers: «Пункт 2 назван: прямой проход». */
   announcement: string;
+  /**
+   * What the student said (final and interim words): a named row underlines only the words of the
+   * group that named it, the same notion the transcript underlines — one pencil line per row.
+   */
+  said?: string;
 }
 
 /**
@@ -53,7 +72,7 @@ interface RubricSlotsProps {
  * code), with the words that matched underlined. Marks only add. The examiner's row gets a brace
  * and keeps its title hidden: the question already says what it is about.
  */
-export default function RubricSlots({ points, materials, named, asked, seed, announcement }: RubricSlotsProps) {
+export default function RubricSlots({ points, materials, named, asked, seed, announcement, said }: RubricSlotsProps) {
   // Rows named before this sheet appeared (a restored answer) are drawn still; new ones are drawn in.
   const initial = useRef<ReadonlySet<string> | null>(null);
   if (initial.current === null) initial.current = new Set(named);
@@ -92,6 +111,8 @@ export default function RubricSlots({ points, materials, named, asked, seed, ann
             );
           }
           const source = pointSource(point, { materials });
+          const quote = quoteText(point.source_quote);
+          const groups = said === undefined ? undefined : rowQuoteGroups(point.anchors, said, quote);
           return (
             <li key={point.id} className="or-pt" data-point={point.id} data-named="" data-fresh={fresh ? '' : undefined}>
               <span className="or-pt-m">
@@ -102,7 +123,7 @@ export default function RubricSlots({ points, materials, named, asked, seed, ann
                 {number}
               </span>
               <span className="or-pt-t">
-                «<UnderlinedText text={quoteText(point.source_quote)} anchors={point.anchors} seed={markSeed + 11} />»
+                «<UnderlinedText text={quote} anchors={point.anchors} groups={groups} seed={markSeed + 11} animate={fresh} />»
               </span>
               {isAsked ? (
                 <span className="or-pt-src or-pt-asked">

@@ -58,3 +58,16 @@
   .sf-mark-draw { animation: none; stroke-dashoffset: 0; }
   .sf-mark-fade { animation: none; }
 }
+
+/* A handwritten phrase (HandPhrase.tsx): the landing's hand in blue pencil, laid on the card. */
+.sf-hand path {
+  fill: none;
+  stroke: var(--ph-pencil, #2c5fb3);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .95;
+}
+.sf-hand { animation: sf-mark-fade 150ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .sf-hand { animation: none; }
+}

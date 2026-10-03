@@ -3,7 +3,6 @@ import type { TicketLayout } from '../../api/exams';
 import type { Readiness } from '../../lib/learning/readiness';
 import { READINESS_LABELS } from '../../lib/learning/readiness';
 import { percent, type LayoutShares } from '../../lib/exams/ticketMath';
-import { formatShortDay } from '../../lib/exams/format';
 import { pluralRu } from '../conversation/visuals';
 import { TextMark } from '../marks';
 import HowCalculated from './HowCalculated';
@@ -11,7 +10,6 @@ import { READINESS_MARK } from './marks';
 import {
   CONFIRMED_MEANING,
   NBSP,
-  endSentence,
   glue,
   NO_ANSWERS_SENTENCE,
   allQuestionsWord,
@@ -66,7 +64,15 @@ interface CoverageSummaryProps {
   onHow: () => void;
   howId: string;
   onRecheck: (() => void) | null;
+  /**
+   * Phones and tablets: only the pair, one line «Это доля билетов, а не вероятность сдать. Как
+   * считается» and nothing else above the sheet, so the paper starts on the first screen.
+   */
+  compact?: boolean;
 }
+
+/** The short caveat of the compact column; the full assumption is in «Как считается». */
+export const SHORT_CAVEAT = 'Это доля билетов, а не вероятность сдать.';
 
 function questionsSub(counts: CoverageCounts): string {
   const parts = [`частично — ${counts.partial}`, `нет ни в одной — ${counts.none}`];
@@ -77,7 +83,7 @@ function questionsSub(counts: CoverageCounts): string {
 }
 
 /** The pair «60 % вопросов → 35 % билетов», the caveat, «Как считается» and the unverified range. */
-export function CoverageSummary({ counts, checking, shares, layout, howOpen, onHow, howId, onRecheck }: CoverageSummaryProps) {
+export function CoverageSummary({ counts, checking, shares, layout, howOpen, onHow, howId, onRecheck, compact = false }: CoverageSummaryProps) {
   const mapped = counts.full + counts.partial + counts.none + counts.unverified;
   if (counts.total === 0) return null;
   if (checking || counts.checking > 0) {
@@ -104,15 +110,17 @@ export function CoverageSummary({ counts, checking, shares, layout, howOpen, onH
   const q = perTicketOf(low, layout.per_ticket);
   const all = shareText(shares, 'all');
   const any = shareText(shares, 'atLeastOne');
+  // A range («35–41 %») does not fit beside its label: then both pairs stack the same way.
+  const stacked = (all ?? '').length > 5 ? '' : undefined;
   return (
     <div className="ex-summary">
-      <div className="ex-pair" data-first="">
+      <div className="ex-pair" data-first="" data-wide={stacked}>
         <p className="ex-big">{questionShare}</p>
         <p className="ex-lbl">вопросов есть в ваших лекциях</p>
         <p className="ex-sub">{glue(questionsSub(counts))}</p>
       </div>
       {low.ok && !single && (
-        <div className="ex-pair" data-wide={(all ?? '').length > 5 ? '' : undefined}>
+        <div className="ex-pair" data-wide={stacked}>
           <p className="ex-big">{all}</p>
           {low.mode === 'fixed' ? (
             <>
@@ -129,7 +137,7 @@ export function CoverageSummary({ counts, checking, shares, layout, howOpen, onH
       )}
       {single && <p className="ex-fine">Билет — один вопрос, поэтому доля билетов та же.</p>}
       {!low.ok && <p className="ex-fine">{low.reason}</p>}
-      <p className="ex-caveat">{glue(caveatSentence(shares, counts.total))}</p>
+      {!compact && <p className="ex-caveat">{glue(caveatSentence(shares, counts.total))}</p>}
       {counts.unmapped > 0 && <p className="ex-fine">{glue(unmappedSentence(counts.unmapped, shares))}</p>}
       {counts.unverified > 0 && (
         <p className="ex-fine">
@@ -144,7 +152,7 @@ export function CoverageSummary({ counts, checking, shares, layout, howOpen, onH
           )}
         </p>
       )}
-      <HowCalculated shares={shares} open={howOpen} onToggle={onHow} id={howId} />
+      <HowCalculated shares={shares} open={howOpen} onToggle={onHow} id={howId} lead={compact ? SHORT_CAVEAT : undefined} />
     </div>
   );
 }
@@ -159,6 +167,12 @@ interface ReadinessBlockProps {
   filter: SheetFilter;
   onFilter: (filter: SheetFilter) => void;
   onRateMode: () => void;
+  /**
+   * 'all' in the column next to the sheet. On phones the column is split: 'head' («Подтверждено
+   * ответами — 6 из 40.») stays above the sheet, 'rest' (what it means, the readiness legend and
+   * confidence vs answers) goes under it.
+   */
+  part?: 'all' | 'head' | 'rest';
 }
 
 const READINESS_ORDER: Readiness[] = ['confirmed', 'once', 'not_passed', 'untested'];
@@ -186,8 +200,10 @@ function LegendNumber({ readiness }: { readiness: Readiness }) {
  * было», no confidence sentence; when it cannot be read, only why.
  */
 export function ReadinessBlock(props: ReadinessBlockProps) {
+  const part = props.part ?? 'all';
   const showLoading = useShownAfter(props.answers === 'loading');
   if (props.answers === 'loading') {
+    if (part === 'rest') return null;
     return showLoading ? (
       <div className="ex-blk">
         <p className="ex-fine" role="status">
@@ -197,16 +213,17 @@ export function ReadinessBlock(props: ReadinessBlockProps) {
     ) : null;
   }
   if (props.answers === 'error') {
+    if (part === 'rest') return null;
     return (
       <div className="ex-blk">
         <p className="ex-fine">{props.answersError ?? 'Не удалось загрузить историю ответов.'}</p>
       </div>
     );
   }
-  return <ReadinessSummary {...props} />;
+  return <ReadinessSummary {...props} part={part} />;
 }
 
-function ReadinessSummary({ summary, confirmedShares, perTicket, confidence, filter, onFilter, onRateMode }: ReadinessBlockProps) {
+function ReadinessSummary({ summary, confirmedShares, perTicket, confidence, filter, onFilter, onRateMode, part = 'all' }: ReadinessBlockProps) {
   const counts: Record<Readiness, number> = {
     confirmed: summary.confirmed,
     once: summary.once,
@@ -214,24 +231,31 @@ function ReadinessSummary({ summary, confirmedShares, perTicket, confidence, fil
     untested: summary.untested,
   };
   const sentence = confirmedSentence(summary);
-  const since = summary.since ? `, с${NBSP}${formatShortDay(summary.since)}` : '';
   const confirmedTickets =
     summary.confirmed > 0 && confirmedShares.low.ok && confirmedShares.low.mode !== 'fixed' && perTicket > 1
       ? `Билетов, где подтверждены ${perTicket === 2 ? 'оба вопроса' : 'все вопросы'}, — ${pct(percent(confirmedShares.low.all))}.`
       : null;
+  const head = part !== 'rest';
+  const rest = part !== 'head';
+  // «Подтверждено ответами — 6 из 40.» (17/25, the figure at 600): no date after the number.
+  const statement = sentence ? (
+    <p className="ex-stmt">
+      Подтверждено ответами{NBSP}—{' '}
+      <b>
+        {summary.confirmed}
+        {NBSP}из{NBSP}
+        {summary.total}
+      </b>
+      .
+    </p>
+  ) : (
+    <p className="ex-fine">{NO_ANSWERS_SENTENCE}</p>
+  );
   return (
-    <div className="ex-blk">
-      {sentence ? (
+    <div className="ex-blk" data-part={part === 'all' ? undefined : part}>
+      {head && statement}
+      {rest && sentence ? (
         <>
-          <p className="ex-stmt">
-            Подтверждено ответами{NBSP}—{' '}
-            <b>
-              {summary.confirmed}
-              {NBSP}из{NBSP}
-              {summary.total}
-            </b>
-            {glue(endSentence(since))}
-          </p>
           <p className="ex-fine">
             {CONFIRMED_MEANING}
             {confirmedTickets ? ` ${confirmedTickets}` : ''}
@@ -252,15 +276,15 @@ function ReadinessSummary({ summary, confirmedShares, perTicket, confidence, fil
             })}
           </ul>
         </>
-      ) : (
-        <p className="ex-fine">{NO_ANSWERS_SENTENCE}</p>
+      ) : null}
+      {rest && (
+        <p className="ex-fine" style={{ marginTop: part === 'rest' && !sentence ? 0 : 12 }}>
+          {glue(confidenceSentence(confidence))}{' '}
+          <button type="button" className="sf-link" data-stage-hide="" onClick={onRateMode}>
+            Самооценка
+          </button>
+        </p>
       )}
-      <p className="ex-fine" style={{ marginTop: 12 }}>
-        {glue(confidenceSentence(confidence))}{' '}
-        <button type="button" className="sf-link" data-stage-hide="" onClick={onRateMode}>
-          Самооценка
-        </button>
-      </p>
     </div>
   );
 }

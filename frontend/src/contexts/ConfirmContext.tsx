@@ -1,13 +1,14 @@
-import { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useState, useRef, ReactNode, type KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Check, X } from 'lucide-react';
 
 interface ConfirmOptions {
   title: string;
   message: string;
   confirmText?: string;
   cancelText?: string;
+  /** Kept for callers; the dialog no longer paints danger or warning colours (redesign spec 3.6). */
   type?: 'danger' | 'warning' | 'info';
+  /** Kept for callers; the dialog shows no icon tile. */
   icon?: React.ElementType;
   checkboxLabel?: string;
   onCheckboxChange?: (checked: boolean) => void;
@@ -20,55 +21,116 @@ interface ConfirmContextType {
 
 const ConfirmContext = createContext<ConfirmContextType | null>(null);
 
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+
+/** Returns focus to whatever opened the dialog, if it is still on the page. */
+function restoreFocus(target: HTMLElement | null) {
+  if (!target || !target.isConnected || typeof target.focus !== 'function') return;
+  try {
+    target.focus({ preventScroll: true });
+  } catch {
+    target.focus();
+  }
+}
+
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isAlert, setIsAlert] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const resolvePromiseRef = useRef<((value: boolean) => void) | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const messageId = useId();
 
-  const confirm = (opts: ConfirmOptions) => {
+  const open = (opts: ConfirmOptions, alertMode: boolean) => {
+    // The element that had focus before the dialog gets it back on close.
+    if (!isOpen) {
+      const active = typeof document !== 'undefined' ? document.activeElement : null;
+      openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
     setOptions(opts);
-    setIsAlert(false);
+    setIsAlert(alertMode);
     setIsChecked(false);
     setIsOpen(true);
+  };
+
+  const confirm = (opts: ConfirmOptions) => {
+    open(opts, false);
     return new Promise<boolean>((resolve) => {
       resolvePromiseRef.current = resolve;
     });
   };
 
   const alert = (opts: Omit<ConfirmOptions, 'cancelText'>) => {
-    setOptions(opts);
-    setIsAlert(true);
-    setIsOpen(true);
+    open(opts, true);
     return new Promise<void>((resolve) => {
       resolvePromiseRef.current = resolve as any;
     });
   };
 
-  const handleConfirm = () => {
+  const close = (value: boolean) => {
     setIsOpen(false);
-    if (options?.onCheckboxChange) {
-      options.onCheckboxChange(isChecked);
-    }
+    const opener = openerRef.current;
+    openerRef.current = null;
+    // Focus goes back first; the caller's continuation runs after and may move it elsewhere.
+    restoreFocus(opener);
     if (resolvePromiseRef.current) {
-      resolvePromiseRef.current(true);
+      resolvePromiseRef.current(value);
       resolvePromiseRef.current = null;
     }
   };
 
-  const handleCancel = () => {
-    setIsOpen(false);
-    if (resolvePromiseRef.current) {
-      resolvePromiseRef.current(false);
-      resolvePromiseRef.current = null;
+  const handleConfirm = () => {
+    if (options?.onCheckboxChange) {
+      options.onCheckboxChange(isChecked);
+    }
+    close(true);
+  };
+
+  const handleCancel = () => close(false);
+
+  // Focus moves into the dialog: the safe choice for a question («Отмена»), the only button for a notice.
+  useEffect(() => {
+    if (!isOpen) return;
+    const node = dialogRef.current;
+    if (!node) return;
+    const target = node.querySelector<HTMLElement>('[data-autofocus]') ?? node;
+    target.focus();
+  }, [isOpen, options]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCancel();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const node = dialogRef.current;
+    if (!node) return;
+    const focusable = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === node)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
     }
   };
 
   return (
     <ConfirmContext.Provider value={{ confirm, alert }}>
       {children}
-      
+
       <AnimatePresence>
         {isOpen && options && (
           <div key="confirm-modal-container" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -76,62 +138,62 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               onClick={handleCancel}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              aria-hidden="true"
+              className="absolute inset-0 bg-black/30"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-[calc(100%-32px)] md:w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800"
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              aria-describedby={messageId}
+              tabIndex={-1}
+              onKeyDown={handleKeyDown}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="relative w-full max-w-[440px] rounded-lg bg-[var(--sf-surface)] p-6 text-left text-[var(--sf-ink)] outline-none"
+              style={{ boxShadow: 'var(--sf-pop-shadow, 0 0 0 1px var(--sf-line), 0 18px 36px -22px rgba(30, 24, 16, .32))' }}
             >
-              <div className="flex flex-col items-center text-center">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-                  options.type === 'danger' ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-450' :
-                  options.type === 'info' ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400' :
-                  'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
-                }`}>
-                  {options.icon ? <options.icon className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">{options.title}</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">
-                  {options.message}
-                </p>
-                {options.checkboxLabel && !isAlert && (
-                  <label className="flex items-center gap-3 w-full text-left bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl cursor-pointer mb-6 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                    <input 
-                      type="checkbox" 
-                      className="w-5 h-5 rounded text-indigo-600 bg-white border-slate-300 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700" 
-                      checked={isChecked}
-                      onChange={(e) => setIsChecked(e.target.checked)}
-                    />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 select-none">
-                      {options.checkboxLabel}
-                    </span>
-                  </label>
-                )}
-                <div className="flex w-full gap-3">
-                  {!isAlert && (
-                    <button
-                      onClick={handleCancel}
-                      className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition flex items-center justify-center gap-2"
-                    >
-                      <X className="w-4 h-4" />
-                      {options.cancelText || 'Отмена'}
-                    </button>
-                  )}
+              <h2 id={titleId} className="text-xl font-semibold leading-[1.3] text-[var(--sf-ink)]">
+                {options.title}
+              </h2>
+              <p id={messageId} className="mt-2 text-base leading-relaxed text-[var(--sf-muted)]">
+                {options.message}
+              </p>
+              {options.checkboxLabel && !isAlert && (
+                <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 text-left">
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 shrink-0 accent-[var(--sf-ink)]"
+                    checked={isChecked}
+                    onChange={(e) => setIsChecked(e.target.checked)}
+                  />
+                  <span className="select-none text-[15px] text-[var(--sf-ink)]">{options.checkboxLabel}</span>
+                </label>
+              )}
+              <div className="mt-6 flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
+                {!isAlert && (
                   <button
-                    onClick={handleConfirm}
-                    className={`flex-1 py-3 px-4 rounded-xl font-bold transition flex items-center justify-center gap-2 text-white shadow-lg ${
-                      options.type === 'danger' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-200 dark:shadow-none' :
-                      options.type === 'info' ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 dark:shadow-none' :
-                      'bg-amber-600 hover:bg-amber-700 shadow-amber-200 dark:shadow-none'
-                    }`}
+                    type="button"
+                    data-autofocus
+                    onClick={handleCancel}
+                    className="inline-flex min-h-11 items-center text-base font-medium text-[var(--sf-ink)] underline decoration-1 underline-offset-[5px] [text-decoration-color:color-mix(in_srgb,currentColor_32%,transparent)] hover:[text-decoration-color:currentColor]"
                   >
-                    <Check className="w-4 h-4" />
-                    {options.confirmText || 'ОК'}
+                    {options.cancelText || 'Отмена'}
                   </button>
-                </div>
+                )}
+                <button
+                  type="button"
+                  data-autofocus={isAlert ? true : undefined}
+                  onClick={handleConfirm}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--sf-accent)] px-6 text-base font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)]"
+                >
+                  {options.confirmText || 'ОК'}
+                </button>
               </div>
             </motion.div>
           </div>

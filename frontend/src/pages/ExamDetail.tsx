@@ -20,7 +20,7 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState, type Readiness } from '../lib/learning/readiness';
 import { percent } from '../lib/exams/ticketMath';
 import type { DrawMode } from '../lib/exams/draw';
-import { daysUntil, formatClock, formatDay, formatMappedAt, KIND_LABELS, relativeDays } from '../lib/exams/format';
+import { daysUntil, formatClock, formatDay, formatMappedAt, KIND_LABELS, relativeDays, sheetHeader, subjectOf } from '../lib/exams/format';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { Mark } from '../components/marks';
 import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exams/ExamSheet';
@@ -64,12 +64,6 @@ const DRAW_HINTS: Record<DrawMode, string> = {
   exam: 'Случайные вопросы; известные билеты — целиком.',
   weak: 'Чаще не проверявшиеся и не зачтённые; вопросов без материала не будет.',
   answered: 'Только вопросы, на которые вы уже отвечали вслух.',
-};
-
-const SHEET_TITLES: Record<string, string> = {
-  exam: 'вопросы к экзамену',
-  credit: 'вопросы к зачёту',
-  colloquium: 'вопросы к коллоквиуму',
 };
 
 interface PeakRun {
@@ -558,6 +552,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const progress = checkedCount(job);
   const staleRun = examFresh && !live && exam.mapping_state === 'running' && !isMappingLocked(exam);
   const mappedCount = questions.filter((question) => question.coverage !== null).length;
+  // Marks a mapping run wrote (a mark made by hand is not a run).
+  const runMarks = questions.filter((question) => question.coverage !== null && question.coverage_method !== 'manual').length;
   const neverMapped = mappedCount === 0 && !live && questions.length > 0;
   // What happened to this tab's run on this visit (the database says the rest).
   const outcome = ownRun && !running ? job.phase : null;
@@ -569,6 +565,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   if (running) mappingMeta = progress ? `проверено ${progress.checked} из ${progress.total}` : 'разметка идёт';
   else if (job.phase === 'waiting') mappingMeta = 'разметка ещё идёт';
   else if (mappedAt) mappingMeta = `разметка от ${formatMappedAt(mappedAt)}`;
+  // A run that stopped half-way left marks but no date: say how far it got, never «разметки ещё нет».
+  else if (runMarks > 0) mappingMeta = `проверено ${runMarks} из ${questions.length}, разметка прервалась`;
   else mappingMeta = 'разметки ещё нет';
 
   const metaParts = [
@@ -590,7 +588,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   const notes: Array<{ key: string; text: string; action?: { label: string; run: () => void }; quiet?: boolean }> = [];
   if (outcome === 'interrupted') notes.push({ key: 'int', text: job.message ?? interruptedMessage(job), action: { label: 'Продолжить', run: () => startRun(null) } });
-  if (staleRun) notes.push({ key: 'stale', text: `Разметка прервалась: проверено ${mappedCount} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null) } });
+  if (staleRun) notes.push({ key: 'stale', text: `Разметка прервалась: проверено ${runMarks} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null) } });
   if (job.phase === 'waiting') notes.push({ key: 'wait', text: 'Разметка ещё идёт. Лист обновится, когда она закончится.', quiet: true });
   if (outcome === 'failed' && job.message) notes.push({ key: 'fail', text: job.message, action: { label: 'Повторить', run: () => startRun(null) } });
   if (job.failedMessage && running) notes.push({ key: 'batch', text: `${job.failedMessage}.`, quiet: true });
@@ -618,23 +616,48 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const whyId = `exam-why-${exam.id}`;
   const showPeak = Boolean(peak) && !rateMode && !selectedRow;
 
+  const readiness = (part: 'all' | 'head' | 'rest') => (
+    <ReadinessBlock
+      part={part}
+      summary={summary}
+      confirmedShares={confirmed}
+      perTicket={perTicket}
+      confidence={confidence}
+      answers={eventsState}
+      answersError={eventsState === 'error' ? eventsError : null}
+      filter={filter}
+      onFilter={setFilter}
+      onRateMode={() => {
+        setSelectedId(null);
+        setRateMode(true);
+      }}
+    />
+  );
+  const coverage = (compact: boolean) => (
+    <CoverageSummary
+      compact={compact}
+      counts={counts}
+      checking={running ? progress ?? { checked: 0, total: questions.length } : null}
+      shares={shares}
+      layout={exam.ticket_layout}
+      howOpen={howOpen}
+      onHow={() => setHowOpen((open) => !open)}
+      howId={`${whyId}-how`}
+      onRecheck={recheck}
+    />
+  );
   const summaryColumn = (
     <>
-      <CoverageSummary counts={counts} checking={running ? progress ?? { checked: 0, total: questions.length } : null} shares={shares} layout={exam.ticket_layout} howOpen={howOpen} onHow={() => setHowOpen((open) => !open)} howId={`${whyId}-how`} onRecheck={recheck} />
-      <ReadinessBlock
-        summary={summary}
-        confirmedShares={confirmed}
-        perTicket={perTicket}
-        confidence={confidence}
-        answers={eventsState}
-        answersError={eventsState === 'error' ? eventsError : null}
-        filter={filter}
-        onFilter={setFilter}
-        onRateMode={() => {
-          setSelectedId(null);
-          setRateMode(true);
-        }}
-      />
+      {coverage(false)}
+      {readiness('all')}
+    </>
+  );
+  // Phones and tablets: only the pair, the short caveat and «Подтверждено ответами» above the sheet,
+  // so the paper starts on the first screen; the legend and the confidence line go under it.
+  const compactColumn = (
+    <>
+      {coverage(true)}
+      {readiness('head')}
     </>
   );
   const rateColumn = (
@@ -684,7 +707,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     { value: 'cov:unverified', coverage: 'unverified', word: 'только по словам', count: counts.unverified },
     { value: 'cov:unmapped', coverage: 'unmapped', word: 'не сверено', count: counts.unmapped + counts.checking },
   ];
-  const sheetTitle = `${exam.title}: ${SHEET_TITLES[exam.kind] ?? 'вопросы'}`;
+  const sheetTitle = sheetHeader(exam.title, exam.kind);
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
 
   return (
@@ -694,7 +717,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
           <p className="ex-crumb">
             <Link to="/exams">Экзамены</Link>
           </p>
-          <h1 className="ex-h1">{exam.title}</h1>
+          <h1 className="ex-h1" title={exam.title}>
+            {subjectOf(exam.title)}
+          </h1>
           <p className="ex-meta">{glue(metaParts.join(' · '))}</p>
           <div className="ex-links">
             {editLocked ? (
@@ -772,7 +797,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         </div>
       )}
 
-      {!frame.side && <section className="ex-col" aria-label="Сводка">{rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn}</section>}
+      {!frame.side && <section className="ex-col" aria-label="Сводка">{rateMode ? rateColumn : showPeak ? peakColumn : compactColumn}</section>}
 
       <div className="ex-body">
         <div style={{ minWidth: 0 }}>
@@ -837,6 +862,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
           </aside>
         )}
       </div>
+
+      {!frame.side && !rateMode && !showPeak && (
+        <section className="ex-col ex-col-after" aria-label="Ответы по билетам">
+          {readiness('rest')}
+        </section>
+      )}
 
       {!frame.side && selectedRow && <div id={whyId}>{whyPanel('sheet')}</div>}
 

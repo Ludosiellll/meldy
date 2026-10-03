@@ -1,7 +1,7 @@
 import type { AnalysisResults, CoreSectionName, Material, SectionStates } from '../types';
-import { useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, Check, X, Globe, Lock, MessagesSquare, Zap, BookOpen, Share2, type LucideIcon } from 'lucide-react';
+import { Globe, MoreHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import toast from 'react-hot-toast';
@@ -11,11 +11,36 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
 import { parseSections, sectionHasContent } from '../utils/analysisSections';
+import '../styles/paper.css';
 
 type Mode = 'full' | 'express' | 'podcast';
 
 const PANEL_ID = 'material-mode-panel';
 const tabId = (mode: Mode) => `material-mode-${mode}`;
+const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Разговор' };
+/** Spec 4.6: nothing for the first 300 ms, then one quiet line instead of a spinner. */
+const LOADING_LINE_MS = 300;
+
+/** «13 сентября, 23:16»: when the lecture was added, in words. */
+export function addedAt(iso: string | null | undefined): string {
+  const date = iso ? new Date(iso) : null;
+  return date && !Number.isNaN(date.getTime()) ? format(date, 'd MMMM, H:mm', { locale: ru }) : '';
+}
+
+/**
+ * One meta line under the title (design critique 12, spec 5.2) instead of chips and «13.09.2026, 23:16»:
+ * «Экономика · только для меня · 3 октября, 20:35».
+ */
+export function materialMeta(input: { subject?: string | null; isPublic: boolean; own: boolean; createdAt: string | null | undefined }): string {
+  const line = [
+    typeof input.subject === 'string' ? input.subject.trim() : '',
+    input.own ? (input.isPublic ? 'в открытых материалах' : 'только для меня') : 'материал другого автора',
+    addedAt(input.createdAt),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
 
 function hasSavedCheatsheet(summary: Record<string, unknown>): boolean {
   return sectionHasContent('cheatsheet', { content: summary.cheatsheet });
@@ -54,6 +79,95 @@ function recreatedFields(materialId: string, next: AnalysisResults, section: Cor
   return { id: materialId, quiz_json: next.quiz, summary_json: summaryJson };
 }
 
+interface MaterialMenuProps {
+  open: boolean;
+  isPublic: boolean;
+  hasSubject: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onRename: () => void;
+  onSubject: () => void;
+  onShare: () => void;
+  onCloseAccess: () => void;
+}
+
+/**
+ * «⋯» of the lecture (spec 5.2): rename, subject, share, close access. Only the author sees it.
+ * Arrows move between items, Escape closes and returns focus to «⋯».
+ */
+function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename, onSubject, onShare, onCloseAccess }: MaterialMenuProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    rootRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const onPointer = (event: MouseEvent) => {
+      if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) onClose();
+    };
+    document.addEventListener('mousedown', onPointer);
+    return () => document.removeEventListener('mousedown', onPointer);
+  }, [open, onClose]);
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && open) {
+      event.preventDefault();
+      onClose();
+      buttonRef.current?.focus();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+    if (items.length === 0) return;
+    event.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'ArrowDown' ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+    items[next].focus();
+  };
+
+  // A field opens for rename and subject and takes the focus; other actions give it back to «⋯».
+  const pick = (action: () => void, refocus: boolean) => () => {
+    onClose();
+    if (refocus) buttonRef.current?.focus();
+    action();
+  };
+
+  return (
+    <div className="sf-head-more" ref={rootRef} onKeyDown={onKeyDown}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="sf-more"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Действия с лекцией"
+        onClick={onToggle}
+      >
+        <MoreHorizontal aria-hidden="true" strokeWidth={1.75} />
+      </button>
+      {open ? (
+        <div className="sf-menu" role="menu" aria-label="Действия с лекцией">
+          <button type="button" role="menuitem" onClick={pick(onRename, false)}>
+            Переименовать
+          </button>
+          <button type="button" role="menuitem" onClick={pick(onSubject, false)}>
+            {hasSubject ? 'Изменить предмет' : 'Указать предмет'}
+          </button>
+          <div className="sf-menu-sep" role="separator" />
+          <button type="button" role="menuitem" onClick={pick(onShare, true)}>
+            Поделиться
+          </button>
+          {isPublic ? (
+            <button type="button" role="menuitem" onClick={pick(onCloseAccess, true)}>
+              Закрыть доступ
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function MaterialDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -63,10 +177,12 @@ export default function MaterialDetail() {
   const tabRefs = useRef<Partial<Record<Mode, HTMLButtonElement | null>>>({});
   const [material, setMaterial] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingLine, setLoadingLine] = useState(false);
   const [editingSubject, setEditingSubject] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [mode, setMode] = useState<Mode>(
     searchParams.get('mode') === 'express'
       ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
@@ -77,6 +193,7 @@ export default function MaterialDetail() {
   const [expressRequested] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') !== 'podcast');
   // Ссылка прямо на разговор: один раз показываем плеер целиком, дальше прокрутку не трогаем.
   const [revealPlayer, setRevealPlayer] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') === 'podcast');
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
     if (!id) return;
@@ -90,18 +207,46 @@ export default function MaterialDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => setLoadingLine(true), LOADING_LINE_MS);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
+
   const saveSubject = async () => {
     if (!id) return;
-    await updateMaterialSubject(id, subjectInput);
+    try {
+      await updateMaterialSubject(id, subjectInput);
+    } catch (err) {
+      console.error(err);
+      toast.error('Не удалось сохранить предмет. Попробуйте ещё раз.');
+      return;
+    }
     setMaterial((prev: Material) => ({ ...prev, subject: subjectInput }));
     setEditingSubject(false);
   };
 
   const saveTitle = async () => {
     if (!id || !titleInput.trim()) return;
-    await updateMaterialTitle(id, titleInput.trim());
+    try {
+      await updateMaterialTitle(id, titleInput.trim());
+    } catch (err) {
+      console.error(err);
+      toast.error('Не удалось сохранить название. Попробуйте ещё раз.');
+      return;
+    }
     setMaterial((prev: Material) => ({ ...prev, title: titleInput.trim() }));
     setEditingTitle(false);
+  };
+
+  const cancelTitle = () => {
+    setEditingTitle(false);
+    setTitleInput(material?.title || '');
+  };
+
+  const cancelSubject = () => {
+    setEditingSubject(false);
+    setSubjectInput(material?.subject || '');
   };
 
   /**
@@ -148,12 +293,8 @@ export default function MaterialDetail() {
     }
   };
 
-  const togglePublic = async () => {
-    if (!id || !material) return;
-    if (!material.is_public) {
-      await publish();
-      return;
-    }
+  const closeAccess = async () => {
+    if (!id || !material?.is_public) return;
     try {
       await setMaterialVisibility(id, false);
       setMaterial((prev: Material) => ({ ...prev, is_public: false }));
@@ -180,18 +321,31 @@ export default function MaterialDetail() {
     };
   }, [material]);
 
-  if (loading) return (
-    <div className="p-6 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-cyan-300 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="sf-page">
+        <p className="sf-lede sf-loading-line" aria-live="polite">
+          {loadingLine ? 'Загружаем лекцию…' : ' '}
+        </p>
+      </div>
+    );
+  }
 
-  if (!material) return (
-    <div className="p-6 text-center">
-      <p className="text-slate-400">Материал не найден</p>
-      <button onClick={() => navigate('/library')} className="mt-4 text-cyan-700 dark:text-cyan-300 text-sm hover:underline">← Библиотека</button>
-    </div>
-  );
+  if (!material) {
+    return (
+      <div className="sf-page">
+        <div className="sf-state">
+          <h1 className="sf-h2">Лекция не найдена</h1>
+          <p className="sf-state-text">Возможно, её удалили или ссылка неполная.</p>
+          <p className="mt-3">
+            <Link className="sf-link" to="/library">
+              Библиотека
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const summaryJson: Record<string, unknown> =
     material.summary_json && typeof material.summary_json === 'object' ? material.summary_json : {};
@@ -208,11 +362,7 @@ export default function MaterialDetail() {
       : 0;
   // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
   const showExpress = hasCheatsheet || expressRequested || cheatsheetMissing;
-  const modes: { id: Mode; label: string; icon: LucideIcon }[] = [
-    { id: 'full', label: 'Материал', icon: BookOpen },
-    ...(showExpress ? [{ id: 'express' as const, label: 'Кратко', icon: Zap }] : []),
-    { id: 'podcast', label: 'Разговор', icon: MessagesSquare },
-  ];
+  const modes: Mode[] = ['full', ...(showExpress ? (['express'] as const) : []), 'podcast'];
 
   const selectMode = (next: Mode) => {
     setRevealPlayer(false);
@@ -228,7 +378,7 @@ export default function MaterialDetail() {
     else if (event.key === 'End') next = modes.length - 1;
     if (next < 0) return;
     event.preventDefault();
-    const target = modes[next].id;
+    const target = modes[next];
     selectMode(target);
     tabRefs.current[target]?.focus();
   };
@@ -250,152 +400,127 @@ export default function MaterialDetail() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
-      {/* Back */}
-      <button
-        onClick={() => navigate('/library')}
-        className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-sm mb-4 transition"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Библиотека
-      </button>
-
-      {/* Title & Subject */}
-      <div className="mb-2 group relative flex items-start justify-between">
-        {editingTitle ? (
-          <div className="flex items-center gap-2 w-full pr-8">
-            <input
-              value={titleInput}
-              onChange={e => setTitleInput(e.target.value)}
-              className="flex-1 px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-xl font-semibold outline-none focus:ring-2 focus:ring-cyan-400"
-              placeholder="Название материала"
-              autoFocus
-            />
-            <button onClick={saveTitle} className="text-emerald-600 hover:text-emerald-700 shrink-0"><Check className="w-5 h-5" /></button>
-            <button onClick={() => { setEditingTitle(false); setTitleInput(material.title || ''); }} className="text-slate-400 hover:text-slate-600 shrink-0"><X className="w-5 h-5" /></button>
-          </div>
-        ) : (
-          <div className="flex items-start gap-2 pr-8">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 break-words">{material.title}</h1>
-            <button 
-              onClick={() => setEditingTitle(true)}
-              className="opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity mt-1.5 text-slate-400 hover:text-cyan-600"
-              title="Переименовать материал"
-            >
-              <Edit3 className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 mb-2">
-        {editingSubject ? (
-          <div className="flex items-center gap-2">
-            <input
-              value={subjectInput}
-              onChange={e => setSubjectInput(e.target.value)}
-              className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-cyan-400"
-              placeholder="Предмет"
-              autoFocus
-            />
-            <button onClick={saveSubject} className="text-emerald-600 hover:text-emerald-700"><Check className="w-4 h-4" /></button>
-            <button onClick={() => { setEditingSubject(false); setSubjectInput(material.subject || ''); }} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setEditingSubject(true)}
-            className="flex items-center gap-1.5 text-sm"
-          >
-            {material.subject ? (
-              <span className="rounded-md bg-[var(--sf-accent-soft)] px-2 py-0.5 text-[var(--sf-accent)]">{material.subject}</span>
-            ) : (
-              <span className="text-slate-400 dark:text-slate-500 flex items-center gap-1"><Edit3 className="w-3 h-3" />Добавить предмет</span>
-            )}
-          </button>
-        )}
-
-        <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 hidden sm:block" />
-
-        {canEdit ? (
-          <button
-            onClick={togglePublic}
-            className="flex items-center gap-1.5 rounded-md bg-[var(--sf-surface-soft)] px-2.5 py-1 text-xs font-medium text-[var(--sf-muted)] transition-colors hover:text-[var(--sf-ink)]"
-          >
-            {material.is_public ? (
-              <><Globe className="w-3.5 h-3.5" /> В открытых материалах</>
-            ) : (
-              <><Lock className="w-3.5 h-3.5" /> Только для меня</>
-            )}
-          </button>
-        ) : (
-          <span className="text-xs text-[var(--sf-muted)]">Материал другого автора</span>
-        )}
-      </div>
-
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-        {format(new Date(material.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
-      </p>
-
-      {cardCount > 0 && (
-        <p className="-mt-2 mb-4">
-          <Link
-            to={`/review?material=${encodeURIComponent(material.id)}`}
-            className="inline-flex min-h-[44px] items-center text-sm font-medium text-[var(--sf-accent-fg)] underline-offset-4 hover:underline"
-          >
-            Повторить карточки этого материала
+    <div className="sf-page">
+      {/* Spec 5.2 and design critique 12: crumb, the title in Literata, one meta line; «Повторить карточки» and «⋯»
+          on the right. No chips, no icon buttons and no second filled button. */}
+      <header className="sf-head sf-detail-head">
+        <div className="sf-detail-main">
+          <Link to="/library" className="sf-link sf-crumb" data-muted="">
+            Библиотека
           </Link>
-        </p>
-      )}
-
-      {/* Режимы обучения и «Поделиться» — одна строка */}
-      <div className="mb-5 flex items-center gap-2">
-        <div
-          role="tablist"
-          aria-label="Режим"
-          className={`grid flex-1 rounded-lg border border-[var(--sf-line)] bg-[var(--sf-surface)] p-0.5 sm:inline-flex sm:flex-none ${
-            modes.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
-          }`}
-        >
-          {modes.map((item, index) => {
-            const selected = mode === item.id;
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                ref={element => {
-                  tabRefs.current[item.id] = element;
+          {editingTitle ? (
+            <form
+              className="sf-inline-edit"
+              onSubmit={event => {
+                event.preventDefault();
+                void saveTitle();
+              }}
+            >
+              <input
+                className="sf-input sf-inline-title"
+                aria-label="Название лекции"
+                value={titleInput}
+                onChange={event => setTitleInput(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Escape') cancelTitle();
                 }}
-                id={tabId(item.id)}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                aria-controls={PANEL_ID}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => selectMode(item.id)}
-                onKeyDown={event => handleTabKeyDown(event, index)}
-                className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
-                  selected
-                    ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]'
-                    : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-                }`}
-              >
-                <Icon aria-hidden="true" className="hidden h-4 w-4 sm:block" />
-                {item.label}
+                autoFocus
+              />
+              <button type="submit" className="sf-link">
+                Сохранить
               </button>
-            );
-          })}
+              <button type="button" className="sf-link" data-muted="" onClick={cancelTitle}>
+                Отмена
+              </button>
+            </form>
+          ) : (
+            <h1 className="sf-h1 sf-h1-serif">{material.title}</h1>
+          )}
+          {editingSubject ? (
+            <form
+              className="sf-inline-edit"
+              onSubmit={event => {
+                event.preventDefault();
+                void saveSubject();
+              }}
+            >
+              <input
+                className="sf-input"
+                aria-label="Предмет"
+                placeholder="Предмет"
+                value={subjectInput}
+                onChange={event => setSubjectInput(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Escape') cancelSubject();
+                }}
+                autoFocus
+              />
+              <button type="submit" className="sf-link">
+                Сохранить
+              </button>
+              <button type="button" className="sf-link" data-muted="" onClick={cancelSubject}>
+                Отмена
+              </button>
+            </form>
+          ) : (
+            <p className="sf-lede">
+              {materialMeta({ subject: material.subject, isPublic: Boolean(material.is_public), own: canEdit, createdAt: material.created_at })}
+            </p>
+          )}
         </div>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={shareMaterial}
-            aria-label="Поделиться"
-            className="ml-auto inline-flex h-8 w-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--sf-line)] text-sm font-medium text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)] sm:w-auto sm:px-3"
-          >
-            <Share2 aria-hidden="true" className="h-4 w-4" />
-            <span className="hidden sm:inline">Поделиться</span>
-          </button>
-        )}
+        {cardCount > 0 || canEdit ? (
+          <div className="sf-head-actions">
+            {cardCount > 0 && (
+              <Link className="sf-secondary" to={`/review?material=${encodeURIComponent(material.id)}`}>
+                Повторить карточки
+              </Link>
+            )}
+            {canEdit && (
+              <MaterialMenu
+                open={menuOpen}
+                isPublic={Boolean(material.is_public)}
+                hasSubject={Boolean(material.subject)}
+                onToggle={() => setMenuOpen(value => !value)}
+                onClose={closeMenu}
+                onRename={() => {
+                  setTitleInput(material.title || '');
+                  setEditingTitle(true);
+                }}
+                onSubject={() => {
+                  setSubjectInput(material.subject || '');
+                  setEditingSubject(true);
+                }}
+                onShare={() => void shareMaterial()}
+                onCloseAccess={() => void closeAccess()}
+              />
+            )}
+          </div>
+        ) : null}
+      </header>
+
+      {/* Режимы: текстовые вкладки, текущая — чернилами 600 с чертой 2 px (без значков и плашек). */}
+      <div role="tablist" aria-label="Режим" className="sf-viewtabs">
+        {modes.map((item, index) => {
+          const selected = mode === item;
+          return (
+            <button
+              key={item}
+              ref={element => {
+                tabRefs.current[item] = element;
+              }}
+              id={tabId(item)}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={PANEL_ID}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => selectMode(item)}
+              onKeyDown={event => handleTabKeyDown(event, index)}
+            >
+              {MODE_LABELS[item]}
+            </button>
+          );
+        })}
       </div>
 
       {/* Контент в зависимости от выбранного режима */}
@@ -426,7 +551,6 @@ export default function MaterialDetail() {
         />
       )}
       </div>
-
     </div>
   );
 }

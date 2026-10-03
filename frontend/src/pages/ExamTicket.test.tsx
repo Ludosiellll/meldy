@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
-import { SAVE_WAIT_MS } from './ExamTicket';
+import { PRIVACY_LINE, SAVE_WAIT_MS } from './ExamTicket';
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown as ReturnType<typeof import('../lib/oral/testing/fakeSupabase').createFakeSupabase>['client'],
@@ -603,10 +603,11 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem('meldy_oral_attempt')).toBeNull();
-    // Redesign spec 5.12: «В прошлый раз (6 окт.): 4 из 5», the grade leads to that protocol.
-    const before = screen.getByRole('link', { name: '4 из 5' });
+    // The previous answer is on the «Как считается» row, its grade in words leads to that protocol
+    // («4 из 5» next to «Раскрыто 3 пункта из 5» read as points; redesign critique 5).
+    const before = screen.getByRole('link', { name: '«хорошо»' });
     expect(before).toHaveAttribute('href', `/exams/${EXAM}/ticket?session=${PREVIOUS_SESSION}`);
-    expect(before.parentElement?.textContent).toMatch(/^В прошлый раз \(6\sокт\.\): 4 из 5$/);
+    expect(before.closest('.or-how-row')?.textContent?.replace(/\s/g, ' ')).toBe('Как считается · прошлый ответ, 6 окт.: «хорошо»');
   });
 
   it('links the previous answer’s protocol under the exam it was given in', async () => {
@@ -637,7 +638,7 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     await screen.findByText(/Сохранено в историю и/);
-    expect(screen.getByRole('link', { name: '4 из 5' })).toHaveAttribute('href', `/exams/${OTHER}/ticket?session=${PREVIOUS_SESSION}`);
+    expect(screen.getByRole('link', { name: '«хорошо»' })).toHaveAttribute('href', `/exams/${OTHER}/ticket?session=${PREVIOUS_SESSION}`);
   });
 
   it('says «Результат не сохранён», retries with the same attempt id and charges once', async () => {
@@ -703,7 +704,8 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Лист экзамена' }));
+    // The way back in the top line («‹ Лист экзамена» on a phone); the protocol has its own link too.
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Лист экзамена' }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SAVE_WAIT_MS + 100);
     });
@@ -896,6 +898,39 @@ describe('ExamTicket: answering by text', () => {
     expect(callsTo('/api/oral/check')).toHaveLength(0);
     expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
   });
+
+  it('keeps the privacy line one tap away while answering on a phone and says it in full in the protocol', async () => {
+    const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+    seedDatabase({ rpc });
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(DEMO_ANSWER);
+    // The paragraph for wide screens and the link for phones and tablets (oral.css shows one of them).
+    expect(document.querySelector('.or-privacy-desk')?.textContent).toBe(PRIVACY_LINE);
+    const link = screen.getByRole('button', { name: 'Кто видит ответ' });
+    link.focus();
+    fireEvent.click(link);
+    const sheet = screen.getByRole('dialog', { name: 'Кто видит ответ' });
+    expect(sheet).toHaveAttribute('aria-modal', 'true');
+    expect(within(sheet).getByText(PRIVACY_LINE)).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Закрыть' })).toHaveFocus();
+    // The page under the sheet holds still while it is open.
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Кто видит ответ' })).toBeNull();
+    expect(document.documentElement.style.overflow).toBe('');
+    expect(link).toHaveFocus();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+    await screen.findByText(/Сохранено в историю и/);
+    // The protocol says it in full for phones; its top line there is only «‹ Лист экзамена».
+    expect(document.querySelector('.or-privacy-phone')?.textContent).toBe(PRIVACY_LINE);
+    const bar = screen.getByRole('banner');
+    expect(bar).toHaveAttribute('data-back');
+    expect(within(bar).getByRole('button', { name: 'Лист экзамена' }).querySelector('svg')).not.toBeNull();
+  });
 });
 
 describe('ExamTicket: answering aloud', () => {
@@ -920,10 +955,13 @@ describe('ExamTicket: answering aloud', () => {
     const rec = recognition();
     expect(rec.starts).toBe(1);
     act(() => rec.say([['Обучение — это подбор весов,', true], [' которые минимизируют функцию потерь', false]]));
-    // A matching interim result opens the row in this very render; only final words are underlined.
+    // A matching interim result opens the row in this very render. Only final words are underlined,
+    // and only the words that named the point («потерь» is still interim): nothing yet.
     expect(container.querySelector('[data-point="p1"]')).toHaveAttribute('data-named');
-    const underlined = Array.from(container.querySelectorAll('.or-said-text .sf-under')).map((node) => node.textContent);
-    expect(underlined).toEqual(['весов']);
+    const underlinedNow = () => Array.from(container.querySelectorAll('.or-said-text .sf-under')).map((node) => node.textContent);
+    expect(underlinedNow()).toEqual([]);
+    act(() => rec.say([['Обучение — это подбор весов,', true], [' которые минимизируют функцию потерь', true]]));
+    expect(underlinedNow()).toEqual(['потерь']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(rec.stops).toBe(1);
@@ -1240,6 +1278,14 @@ describe('ExamTicket: a saved protocol, read only', () => {
     expect(links).toHaveLength(2);
     fireEvent.click(links[1]);
     await waitFor(() => expect(location).toBe(`/exams/${OTHER}`));
+  });
+
+  it('says the subject in the top line, not «Экзамен: …» once more', async () => {
+    const fake = seedDatabase({ sessions: [{ ...sessionRow }] });
+    fake.tables.exams[0].title = 'Экзамен: цифровая экономика';
+    const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
+    expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
+    expect(container.querySelector('.or-course')?.textContent?.replace(/\s+/g, ' ')).toBe('Цифровая экономика · ');
   });
 
   it('falls back to the saved title and the address’s sheet when the answer’s exam is gone', async () => {

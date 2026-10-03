@@ -5,6 +5,9 @@ import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import PWAUpdater from './components/PWAUpdater';
 import RouteLoading from './components/RouteLoading';
+// Fonts and paper tokens for every route (Onest for the interface, Literata for paper): the app no
+// longer loads Inter from a third-party host, which the production CSP blocks.
+import './styles/paper.css';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
@@ -83,9 +86,9 @@ export default function App() {
             borderRadius: '16px',
             boxShadow: 'var(--toast-shadow)',
             padding: '12px 16px',
-            fontSize: '13px',
-            fontWeight: 600,
-            fontFamily: "'Inter', sans-serif",
+            fontSize: '15px',
+            fontWeight: 500,
+            fontFamily: 'var(--ph-sans)',
           }
         }} 
       />

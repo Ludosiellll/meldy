@@ -67,7 +67,8 @@ describe('<LiveTranscript>', () => {
     );
     expect(screen.getByText('Ваш ответ, 0:18')).toBeInTheDocument();
     const underlined = Array.from(container.querySelectorAll('.sf-under')).map((node) => node.textContent);
-    expect(underlined).toEqual(['весов', 'минимизируют', 'потерь']);
+    // Only the words that opened the point, not every key word (redesign critique 4).
+    expect(underlined).toEqual(['потерь']);
     expect(container.querySelector('.or-interim')).toHaveTextContent('сначала прямой проход');
     expect(container.querySelector('.or-said-window')).toHaveAttribute('aria-live', 'off');
   });

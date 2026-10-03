@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import RubricSlots, { quoteText } from './RubricSlots';
-import { DEMO_RUBRIC } from '../../lib/oral/testing/fixtures';
+import { DEMO_ANSWER, DEMO_RUBRIC } from '../../lib/oral/testing/fixtures';
 
 afterEach(() => {
   cleanup();
@@ -61,6 +61,27 @@ describe('<RubricSlots>', () => {
     expect(container.querySelector('[data-point="p2"]')).toHaveAttribute('data-fresh');
     expect(container.querySelector('[data-point="p2"] svg[data-mark="tick"]')).toHaveAttribute('data-drawn', 'live');
     expect(container.querySelector('[data-point="p1"]')).not.toHaveAttribute('data-fresh');
+  });
+
+  it('underlines one notion per named row, the one the answer named it by (redesign critique 4)', () => {
+    const { container } = render(
+      <RubricSlots
+        points={DEMO_RUBRIC.points}
+        materials={DEMO_RUBRIC.materials}
+        named={new Set(['p1', 'p2', 'p3', 'p5'])}
+        asked={null}
+        seed="question-1"
+        announcement=""
+        said={DEMO_ANSWER}
+      />,
+    );
+    const underlined = (id: string) => Array.from(container.querySelectorAll(`[data-point="${id}"] .sf-under`)).map((node) => node.textContent);
+    expect(underlined('p1')).toEqual(['потерь']);
+    expect(underlined('p2')).toEqual(['прямом проходе']);
+    expect(underlined('p3')).toEqual(['обратное распространение']);
+    expect(underlined('p5')).toEqual(['Adam']);
+    // Four rows, four lines: never one under every key word.
+    expect(container.querySelectorAll('.sf-under')).toHaveLength(4);
   });
 
   it('marks only add: a row stays open while it stays in the set', () => {

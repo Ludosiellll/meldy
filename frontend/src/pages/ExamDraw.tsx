@@ -15,15 +15,18 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import DrawStack, { ticketTitle, type DrawnCardQuestion } from '../components/exams/DrawStack';
 import { preloadTicketScreen, whenIdle } from '../components/exams/preload';
 import { numberOf } from '../components/exams/sheetModel';
+import { subjectOf } from '../lib/exams/format';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
-const MODES: DrawMode[] = ['exam', 'weak', 'answered'];
-
-const MODE_LABELS: Record<DrawMode, string> = {
-  exam: 'Как на экзамене',
-  weak: 'Чаще слабые',
-  answered: 'Из уже отвеченных',
+/**
+ * How the ticket is drawn, said once in the top line (the choice itself sits under «Тянуть билет»
+ * on the sheet): «Цифровая экономика · тянуть билет, из уже отвеченных».
+ */
+export const MODE_WORDS: Record<DrawMode, string> = {
+  exam: 'как на экзамене',
+  weak: 'чаще слабые',
+  answered: 'из уже отвеченных',
 };
 
 /** «Отвечать будете на один вопрос: вопроса 36 нет в ваших лекциях.» */
@@ -37,23 +40,16 @@ function modeOf(value: string | null): DrawMode {
   return value === 'weak' || value === 'answered' ? value : 'exam';
 }
 
-function modeCaption(mode: DrawMode, layoutMode: string): string {
-  if (mode === 'answered') return 'Тянем из вопросов, на которые вы уже отвечали.';
-  if (mode === 'weak') return 'Чаще выпадают вопросы без ответов и не зачтённые. Вопросов, которых нет в лекциях, не будет.';
-  if (layoutMode === 'fixed') return 'Как на экзамене: билеты кафедры целиком, каждый с равной вероятностью.';
-  if (layoutMode === 'sections') return 'Как на экзамене: по одному случайному вопросу из каждого раздела.';
-  return 'Как на экзамене: любые вопросы списка, с равной вероятностью.';
-}
-
 interface Drawn {
   key: number;
   result: DrawResult;
 }
 
 /**
- * «Тянуть билет» (room mode, no menu): a static stack of three cards; the top one lifts with the
- * drawn ticket. «Отвечать» opens the answer screen with the questions that can be checked against
- * the lectures; the answer keys are requested while the card lifts. Nothing is voiced.
+ * «Тянуть билет» (room mode, no menu): a stack of three cards in the very box the ticket card has on
+ * the answer screen, so the card does not jump when «Отвечать» opens it (redesign critique 6). The
+ * top one lifts and turns over with the drawn ticket; «Отвечать» stands where «Отвечать голосом»
+ * will be. The answer keys are requested while the card lifts. Nothing is voiced.
  */
 export default function ExamDraw() {
   const { id: examId = '' } = useParams();
@@ -145,7 +141,7 @@ export default function ExamDraw() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, mode]);
 
-  const title = bundle?.exam.title ?? '';
+  const title = bundle ? subjectOf(bundle.exam.title) : '';
   const exitHref = `/exams/${examId}`;
 
   const card: { number: number | null; questions: DrawnCardQuestion[] } | null = useMemo(() => {
@@ -166,15 +162,19 @@ export default function ExamDraw() {
         }`
       : null;
 
+  const drawWord = bundle && bundle.exam.ticket_layout.per_ticket <= 1 && bundle.exam.ticket_layout.mode !== 'fixed' ? 'вопрос' : 'билет';
   const bar = (
     <header className="sf-room-bar">
       <div className="dw-left">
         <Link className="dw-wordmark" to="/dashboard">
           Meldy
         </Link>
-        <span className="dw-where">{title ? `${title} · тянуть билет` : 'Тянуть билет'}</span>
+        <span className="dw-where">
+          <span className="dw-long">{title ? `${title} · тянуть ${drawWord}, ${MODE_WORDS[mode]}` : `Тянуть ${drawWord}`}</span>
+          <span className="dw-short">{`Тянуть ${drawWord}`}</span>
+        </span>
       </div>
-      <Link className="sf-link" to={exitHref}>
+      <Link className="sf-link dw-exit" to={exitHref}>
         Лист экзамена
       </Link>
     </header>
@@ -211,27 +211,10 @@ export default function ExamDraw() {
     <>
       {bar}
       <main className="sf-page dw-room">
-        <ul className="dw-modes" aria-label="Как тянуть">
-          {MODES.map((item) => (
-            <li key={item}>
-              <button
-                type="button"
-                aria-pressed={mode === item}
-                onClick={() => {
-                  if (item === mode) return;
-                  setParams(item === 'exam' ? {} : { mode: item }, { replace: true });
-                }}
-              >
-                {MODE_LABELS[item]}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <p className="dw-caption">{modeCaption(mode, bundle.exam.ticket_layout.mode)}</p>
-        {historyFailed && <p className="ex-note">История ответов не загрузилась: тянем без неё.</p>}
-
-        <DrawStack drawKey={drawn?.key ?? 0} ticketNumber={card?.number ?? null} questions={card?.questions ?? null} animate={!reduced} />
-
+        <section className="dw-left-col" aria-label="Билет">
+          <DrawStack drawKey={drawn?.key ?? 0} ticketNumber={card?.number ?? null} questions={card?.questions ?? null} animate={!reduced} />
+        </section>
+        <section className="dw-side" aria-label="Что дальше">
         {failure && <p className="dw-msg">{failure.message}</p>}
 
         <div className="dw-acts">
@@ -273,8 +256,10 @@ export default function ExamDraw() {
           </p>
         )}
         {card && answerable.length > 0 && answerable.length < card.questions.length && (
-          <p className="ex-note">{skippedNote(answerable.length, card.questions.filter((question) => question.none).map((question) => question.number))}</p>
+          <p className="dw-note">{skippedNote(answerable.length, card.questions.filter((question) => question.none).map((question) => question.number))}</p>
         )}
+        {historyFailed && <p className="dw-note">История ответов не загрузилась: тянем без неё.</p>}
+        </section>
       </main>
     </>
   );

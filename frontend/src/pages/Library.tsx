@@ -1,1500 +1,821 @@
-import { Material } from '../types';
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { 
-  Search, BookOpen, FileText, Trash2, Plus, MessagesSquare, Globe, Lock, EyeOff, Eye,
-  Folder, FolderPlus, Check, CheckSquare, Square, BarChart3, ChevronDown, ChevronUp,
-  BookOpenCheck, Code2, Brain, TrendingUp, Star, Award, Flame, X, Sparkles, FolderOpen,
-  ArrowRight, ShieldCheck, ChevronRight, ChevronLeft, RefreshCw, Grab
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { MoreHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { pluralLines, pluralRu } from '../components/conversation/visuals';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { getMaterials, deleteMaterial, updateMaterialVisibility } from '../api/materials';
+import { deleteMaterial, getMaterials, updateMaterialTitle } from '../api/materials';
 import { getAssignedMaterials, joinGroup } from '../api/groups';
-import { CustomSelect } from '../components/CustomSelect';
-import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
+import { listExamShelves, type ExamShelf } from '../api/exams';
+import { pluralRu } from '../components/conversation/visuals';
+import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
+import '../styles/paper.css';
+
+/**
+ * The Library as the course's table of contents (redesign spec 5.1): the lectures grouped by the
+ * exam they were added to, in the order they were uploaded; one line per lecture with what it has
+ * («конспект · 8 карточек · тест · разговор» or «только текст, конспекта нет») and its date. No
+ * cards grid, chips, capitals, statistics tiles or quick-view drawer: a click opens the lecture.
+ * Folders and search appear only when they help (a folder the student made, 13+ lectures).
+ */
+
+/** One lecture as the list shows it (a light view of the materials row; cached on this device). */
+export interface LibraryEntry {
+  id: string;
+  title: string;
+  created_at: string;
+  textOnly: boolean;
+  summary: boolean;
+  cards: number;
+  quiz: boolean;
+  talk: boolean;
+  /** Given by a teacher of the student's group (cannot be deleted, only hidden). */
+  assigned: boolean;
+  deadline: string | null;
+}
 
 interface Folder {
   id: string;
   name: string;
-  color: string;
-  icon: string;
+  color?: string;
+  icon?: string;
 }
 
-const colorSchemes: Record<string, { bg: string; text: string; border: string; activeBg: string; activeBorder: string; dot: string; hoverRing: string }> = {
-  indigo: {
-    bg: 'bg-cyan-50 dark:bg-cyan-950/30',
-    text: 'text-cyan-700 dark:text-cyan-300',
-    border: 'border-cyan-100 dark:border-cyan-900/30',
-    activeBg: 'bg-cyan-300 text-slate-950',
-    activeBorder: 'border-cyan-300',
-    dot: '#22d3ee',
-    hoverRing: 'ring-cyan-400/30 dark:ring-cyan-400/20'
-  },
-  rose: {
-    bg: 'bg-rose-50 dark:bg-rose-950/30',
-    text: 'text-rose-600 dark:text-rose-400',
-    border: 'border-rose-100 dark:border-rose-900/30',
-    activeBg: 'bg-rose-600 text-white',
-    activeBorder: 'border-rose-600',
-    dot: '#e11d48',
-    hoverRing: 'ring-rose-500/30 dark:ring-rose-500/20'
-  },
-  amber: {
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-    text: 'text-amber-600 dark:text-amber-400',
-    border: 'border-amber-100 dark:border-amber-900/30',
-    activeBg: 'bg-amber-600 text-white',
-    activeBorder: 'border-amber-600',
-    dot: '#d97706',
-    hoverRing: 'ring-amber-500/30 dark:ring-amber-500/20'
-  },
-  emerald: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    border: 'border-emerald-100 dark:border-emerald-900/30',
-    activeBg: 'bg-emerald-600 text-white',
-    activeBorder: 'border-emerald-600',
-    dot: '#059669',
-    hoverRing: 'ring-emerald-500/30 dark:ring-emerald-500/20'
-  },
-  sky: {
-    bg: 'bg-sky-50 dark:bg-sky-950/30',
-    text: 'text-sky-600 dark:text-sky-400',
-    border: 'border-sky-100 dark:border-sky-900/30',
-    activeBg: 'bg-sky-600 text-white',
-    activeBorder: 'border-sky-600',
-    dot: '#0284c7',
-    hoverRing: 'ring-sky-500/30 dark:ring-sky-500/20'
-  },
-  violet: {
-    bg: 'bg-sky-50 dark:bg-sky-950/30',
-    text: 'text-sky-700 dark:text-sky-300',
-    border: 'border-sky-100 dark:border-sky-900/30',
-    activeBg: 'bg-sky-600 text-white',
-    activeBorder: 'border-sky-600',
-    dot: '#0284c7',
-    hoverRing: 'ring-sky-500/30 dark:ring-sky-500/20'
-  },
-  orange: {
-    bg: 'bg-orange-50 dark:bg-orange-950/30',
-    text: 'text-orange-600 dark:text-orange-400',
-    border: 'border-orange-100 dark:border-orange-900/30',
-    activeBg: 'bg-orange-600 text-white',
-    activeBorder: 'border-orange-600',
-    dot: '#ea580c',
-    hoverRing: 'ring-orange-500/30 dark:ring-orange-500/20'
-  },
-  teal: {
-    bg: 'bg-teal-50 dark:bg-teal-950/30',
-    text: 'text-teal-600 dark:text-teal-400',
-    border: 'border-teal-100 dark:border-teal-900/30',
-    activeBg: 'bg-teal-600 text-white',
-    activeBorder: 'border-teal-600',
-    dot: '#0d9488',
-    hoverRing: 'ring-teal-500/30 dark:ring-teal-500/20'
+/** Folders the app once created for everyone: only folders the student made or filled are shown. */
+const DEFAULT_FOLDER_IDS = new Set(['folder_1', 'folder_2', 'folder_3']);
+/** A search field appears from this many lectures (spec 5.1). */
+export const SEARCH_FROM = 13;
+const LOADING_LINE_MS = 300;
+const CACHE_VERSION = 2;
+/**
+ * The light entries live under their own key. `library_cache_<id>` keeps the full rows the deployed older
+ * client writes and reads without checking their shape: writing anything else there would break the Library
+ * in an old tab (or after a rollback). It is only read here, as a fallback.
+ */
+const cacheKey = (userId: string) => `library_entries_${userId}`;
+const legacyCacheKey = (userId: string) => `library_cache_${userId}`;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A materials row (or an entry cached by this page) → what the list shows. */
+export function toEntry(raw: unknown): LibraryEntry | null {
+  if (!isRecord(raw) || typeof raw.id !== 'string') return null;
+  if (typeof raw.textOnly === 'boolean') {
+    return {
+      id: raw.id,
+      title: typeof raw.title === 'string' ? raw.title : '',
+      created_at: typeof raw.created_at === 'string' ? raw.created_at : '',
+      textOnly: raw.textOnly,
+      summary: raw.summary === true,
+      cards: typeof raw.cards === 'number' ? raw.cards : 0,
+      quiz: raw.quiz === true,
+      talk: raw.talk === true,
+      assigned: raw.assigned === true,
+      deadline: typeof raw.deadline === 'string' ? raw.deadline : null,
+    };
   }
-};
+  const summary = isRecord(raw.summary_json) ? raw.summary_json : {};
+  const cards = isRecord(raw.flashcards_json) && Array.isArray(raw.flashcards_json.flashcards) ? raw.flashcards_json.flashcards.length : 0;
+  const quiz = isRecord(raw.quiz_json) && Array.isArray(raw.quiz_json.quiz) ? raw.quiz_json.quiz.length : 0;
+  return {
+    id: raw.id,
+    title: typeof raw.title === 'string' ? raw.title : '',
+    created_at: typeof raw.created_at === 'string' ? raw.created_at : '',
+    textOnly: summary.text_only === true,
+    summary: typeof summary.content === 'string' && summary.content.trim() !== '',
+    cards,
+    quiz: quiz > 0,
+    talk: Array.isArray(summary.podcast) && summary.podcast.length > 0,
+    assigned: raw.is_assigned === true,
+    deadline: typeof raw.assigned_deadline === 'string' ? raw.assigned_deadline : null,
+  };
+}
 
-const iconMap: Record<string, any> = {
-  Folder, BookOpen, Code2, Brain, TrendingUp, Star, Award, Flame, Sparkles
-};
+function cardsWord(count: number): string {
+  return `${count} ${pluralRu(count, ['карточка', 'карточки', 'карточек'])}`;
+}
 
-const defaultFolders: Folder[] = [
-  { id: 'folder_1', name: 'Гуманитарные науки', color: 'rose', icon: 'Brain' },
-  { id: 'folder_2', name: 'Технические науки', color: 'indigo', icon: 'Code2' },
-  { id: 'folder_3', name: 'Избранное', color: 'amber', icon: 'Star' }
-];
+/** «конспект · 8 карточек · тест · разговор» (only what exists) or «только текст, конспекта нет». */
+export function lectureMeta(entry: LibraryEntry): string {
+  if (entry.textOnly) return 'только текст, конспекта нет';
+  const parts: string[] = [];
+  if (entry.summary) parts.push('конспект');
+  if (entry.cards > 0) parts.push(cardsWord(entry.cards));
+  if (entry.quiz) parts.push('тест');
+  if (entry.talk) parts.push('разговор');
+  if (entry.assigned) parts.push('от преподавателя');
+  return parts.join(' · ');
+}
+
+/** «15 сент.», with the year when it is not this year. */
+export function shortDate(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (!iso || Number.isNaN(date.getTime())) return '';
+  return format(date, date.getFullYear() === now.getFullYear() ? 'd MMM' : 'd MMM yyyy', { locale: ru });
+}
+
+/** «9 лекций: 3 разобраны, 6 загружены только текстом». */
+export function lecturesLine(entries: LibraryEntry[]): string {
+  const total = entries.length;
+  const textOnly = entries.filter((entry) => entry.textOnly).length;
+  const analyzed = total - textOnly;
+  const head = `${total} ${lecturesWord(total)}`;
+  if (textOnly === 0) return head;
+  const loaded = `${pluralRu(textOnly, ['загружена', 'загружены', 'загружены'])} только текстом`;
+  if (analyzed === 0) return `${head}, ${loaded}`;
+  return `${head}: ${analyzed} ${pluralRu(analyzed, ['разобрана', 'разобраны', 'разобраны'])}, ${textOnly} ${loaded}`;
+}
+
+function cardsLine(entries: LibraryEntry[]): string {
+  const cards = entries.reduce((sum, entry) => sum + entry.cards, 0);
+  return cards > 0 ? cardsWord(cards) : '';
+}
+
+/** «Экзамен 15 октября» / «экзамен 15 октября»; without a date just the kind. */
+function examWhen(exam: ExamShelf, capital: boolean): string {
+  const kind = capital ? KIND_LABELS[exam.kind] : KIND_WORDS[exam.kind];
+  const day = formatDay(exam.exam_date);
+  return day ? `${kind} ${day}` : kind;
+}
+
+export interface LibraryGroup {
+  key: string;
+  exam: ExamShelf | null;
+  entries: LibraryEntry[];
+}
+
+export type LibraryLayout =
+  | { mode: 'plain'; entries: LibraryEntry[] }
+  | { mode: 'single'; exam: ExamShelf; entries: LibraryEntry[] }
+  | { mode: 'sections'; groups: LibraryGroup[] };
+
+function time(entry: LibraryEntry): number {
+  const value = new Date(entry.created_at).getTime();
+  return Number.isNaN(value) ? 0 : value;
+}
+
+/**
+ * How the lectures are grouped (spec 5.1): by exam (exam_materials), in the order they were added to
+ * it and then uploaded; lectures in no exam under «Другие материалы», newest first. All lectures in
+ * one exam: the exam is the page. No exams: one list, newest first. A lecture in two exams is shown
+ * in both.
+ */
+export function libraryLayout(entries: LibraryEntry[], shelves: ExamShelf[]): LibraryLayout {
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const placed = new Set<string>();
+  const groups: LibraryGroup[] = [];
+  for (const shelf of shelves) {
+    const items = shelf.materials
+      .map((link, index) => ({ entry: byId.get(link.id), addedAt: link.addedAt, index }))
+      .filter((item): item is { entry: LibraryEntry; addedAt: string; index: number } => Boolean(item.entry))
+      .sort((a, b) => (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : time(a.entry) - time(b.entry) || a.index - b.index))
+      .map((item) => item.entry);
+    if (items.length === 0) continue;
+    for (const item of items) placed.add(item.id);
+    groups.push({ key: shelf.id, exam: shelf, entries: items });
+  }
+  const newestFirst = (list: LibraryEntry[]) => [...list].sort((a, b) => time(b) - time(a));
+  if (groups.length === 0) return { mode: 'plain', entries: newestFirst(entries) };
+  const rest = newestFirst(entries.filter((entry) => !placed.has(entry.id)));
+  if (groups.length === 1 && rest.length === 0) return { mode: 'single', exam: groups[0].exam as ExamShelf, entries: groups[0].entries };
+  if (rest.length > 0) groups.push({ key: 'other', exam: null, entries: rest });
+  return { mode: 'sections', groups };
+}
+
+function normalizeQuery(text: string): string {
+  return text.toLocaleLowerCase('ru-RU').replace(/ё/g, 'е').trim();
+}
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage full or blocked: the page works without it.
+  }
+}
+
+/** The cached list of this device: the new light entries, or the full rows an older version stored. */
+export function readCache(userId: string): LibraryEntry[] | null {
+  const raw = readJson<unknown>(cacheKey(userId), null);
+  const legacy = raw === null ? readJson<unknown>(legacyCacheKey(userId), null) : null;
+  const list = isRecord(raw) && raw.v === CACHE_VERSION && Array.isArray(raw.items) ? raw.items : Array.isArray(legacy) ? legacy : null;
+  if (!list) return null;
+  return list.map(toEntry).filter((entry): entry is LibraryEntry => entry !== null);
+}
+
+interface RowMenuProps {
+  entry: LibraryEntry;
+  folders: Folder[];
+  folderId: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onRename: () => void;
+  onMove: (folderId: string) => void;
+  onNewFolder: (name: string) => void;
+  onDelete: () => void;
+  onHide: () => void;
+}
+
+/** «⋯» of a lecture row: rename, folder, delete (a teacher's material can only be hidden). */
+function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, onMove, onNewFolder, onDelete, onHide }: RowMenuProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setNaming(false);
+      setName('');
+      return;
+    }
+    rootRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]')?.focus();
+    const onPointer = (event: MouseEvent) => {
+      if (rootRef.current && event.target instanceof Node && !rootRef.current.contains(event.target)) onClose();
+    };
+    document.addEventListener('mousedown', onPointer);
+    return () => document.removeEventListener('mousedown', onPointer);
+  }, [open, onClose]);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      buttonRef.current?.focus();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]') ?? []);
+    if (items.length === 0) return;
+    event.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'ArrowDown' ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+    items[next].focus();
+  };
+
+  const submitFolder = (event: FormEvent) => {
+    event.preventDefault();
+    const clean = name.trim();
+    if (!clean) return;
+    onNewFolder(clean);
+  };
+
+  return (
+    <div className="sf-toc-more" ref={rootRef} onKeyDown={onKeyDown}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="sf-more"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Действия: ${entry.title}`}
+        onClick={onToggle}
+      >
+        <MoreHorizontal aria-hidden="true" strokeWidth={1.75} />
+      </button>
+      {open ? (
+        <div className="sf-menu" role="menu" aria-label={entry.title}>
+          {entry.assigned ? (
+            <button type="button" role="menuitem" onClick={onHide}>
+              Скрыть из библиотеки
+            </button>
+          ) : (
+            <>
+              <button type="button" role="menuitem" onClick={onRename}>
+                Переименовать
+              </button>
+              <div className="sf-menu-sep" role="separator" />
+              <p className="sf-menu-label">Папка</p>
+              {folders.map((folder) => (
+                <button key={folder.id} type="button" role="menuitemradio" aria-checked={folderId === folder.id} onClick={() => onMove(folder.id)}>
+                  {folder.name}
+                </button>
+              ))}
+              {folderId ? (
+                <button type="button" role="menuitemradio" aria-checked={false} onClick={() => onMove('')}>
+                  Без папки
+                </button>
+              ) : null}
+              {naming ? (
+                <form onSubmit={submitFolder}>
+                  <input
+                    className="sf-input"
+                    style={{ flex: 1, minWidth: 0, height: 40 }}
+                    aria-label="Название папки"
+                    placeholder="Название папки"
+                    maxLength={60}
+                    autoFocus
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                  <button type="submit" className="sf-link" style={{ width: 'auto', minHeight: 40, padding: 0 }}>
+                    Создать
+                  </button>
+                </form>
+              ) : (
+                <button type="button" role="menuitem" onClick={() => setNaming(true)}>
+                  Новая папка…
+                </button>
+              )}
+              <div className="sf-menu-sep" role="separator" />
+              <button type="button" role="menuitem" onClick={onDelete}>
+                Удалить
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface LectureListProps {
+  entries: LibraryEntry[];
+  folders: Folder[];
+  assignments: Record<string, string>;
+  openMenu: string | null;
+  setOpenMenu: (key: string | null) => void;
+  renaming: string | null;
+  setRenaming: (id: string | null) => void;
+  listKey: string;
+  actions: {
+    rename: (entry: LibraryEntry, title: string) => Promise<void>;
+    move: (entry: LibraryEntry, folderId: string) => void;
+    newFolder: (entry: LibraryEntry, name: string) => void;
+    remove: (entry: LibraryEntry) => Promise<void>;
+    hide: (entry: LibraryEntry) => void;
+  };
+}
+
+function RenameRow({ entry, onSave, onCancel }: { entry: LibraryEntry; onSave: (title: string) => Promise<void>; onCancel: () => void }) {
+  const [title, setTitle] = useState(entry.title);
+  const [saving, setSaving] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const clean = title.trim();
+    if (!clean || clean === entry.title) {
+      onCancel();
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(clean);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <form className="sf-toc-edit" onSubmit={(event) => void submit(event)}>
+      <input
+        className="sf-input"
+        aria-label="Название лекции"
+        maxLength={200}
+        autoFocus
+        value={title}
+        disabled={saving}
+        onChange={(event) => setTitle(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
+      />
+      <button type="submit" className="sf-link" disabled={saving}>
+        {saving ? 'Сохраняем…' : 'Сохранить'}
+      </button>
+      <button type="button" className="sf-link" data-muted="" onClick={onCancel} disabled={saving}>
+        Отмена
+      </button>
+    </form>
+  );
+}
+
+function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, listKey, actions }: LectureListProps) {
+  return (
+    <ol className="sf-toc">
+      {entries.map((entry, index) => {
+        const menuKey = `${listKey}:${entry.id}`;
+        const meta = lectureMeta(entry);
+        const date = shortDate(entry.created_at);
+        const due = entry.deadline ? shortDate(entry.deadline) : '';
+        return (
+          <li key={entry.id} className="sf-toc-row">
+            {renaming === menuKey ? (
+              <RenameRow
+                entry={entry}
+                onCancel={() => setRenaming(null)}
+                onSave={async (title) => {
+                  await actions.rename(entry, title);
+                  setRenaming(null);
+                }}
+              />
+            ) : (
+              <>
+                <Link className="sf-toc-link" to={`/library/${entry.id}`}>
+                  <span className="sf-toc-n" aria-hidden="true">
+                    {index + 1}
+                  </span>
+                  <span>
+                    <span className="sf-toc-title">{entry.title || 'Без названия'}</span>
+                    {meta || date ? (
+                      <span className="sf-toc-meta">
+                        {meta}
+                        {due ? `${meta ? ' · ' : ''}сдать до ${due}` : ''}
+                        {date ? <span className="sf-toc-date-inline">{`${meta || due ? ' · ' : ''}${date}`}</span> : null}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="sf-toc-date">{date}</span>
+                </Link>
+                <RowMenu
+                  entry={entry}
+                  folders={folders}
+                  folderId={assignments[entry.id] ?? ''}
+                  open={openMenu === menuKey}
+                  onToggle={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
+                  onClose={() => setOpenMenu(null)}
+                  onRename={() => {
+                    setOpenMenu(null);
+                    setRenaming(menuKey);
+                  }}
+                  onMove={(folderId) => {
+                    setOpenMenu(null);
+                    actions.move(entry, folderId);
+                  }}
+                  onNewFolder={(name) => {
+                    setOpenMenu(null);
+                    actions.newFolder(entry, name);
+                  }}
+                  onDelete={() => {
+                    setOpenMenu(null);
+                    void actions.remove(entry);
+                  }}
+                  onHide={() => {
+                    setOpenMenu(null);
+                    actions.hide(entry);
+                  }}
+                />
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export default function Library() {
   const { user } = useAuth();
   const { confirm } = useConfirm();
   const navigate = useNavigate();
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [subjectFilter, setSubjectFilter] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const userId = user?.id ?? '';
 
-  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [entries, setEntries] = useState<LibraryEntry[] | null>(() => (userId ? readCache(userId) : null));
+  const [shelves, setShelves] = useState<ExamShelf[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingLine, setLoadingLine] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [search, setSearch] = useState('');
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [folderFilter, setFolderFilter] = useState('');
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+
+  const [joinOpen, setJoinOpen] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [classNickname, setClassNickname] = useState('');
   const [joinError, setJoinError] = useState('');
-  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Folder states
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<string>(''); // "" means all
-  const [folderAssignments, setFolderAssignments] = useState<Record<string, string>>({}); // { materialId: folderId }
-  const [peekMaterial, setPeekMaterial] = useState<any | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isMultiSelectActive, setIsMultiSelectActive] = useState(false);
-  const [showStats, setShowStats] = useState(false);
-  
-  // Drag & Drop visual states
-  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
-  const [draggedOverFolderId, setDraggedOverFolderId] = useState<string | null>(null);
-
-  // Folder Creation Modal States
-  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [newFolderColor, setNewFolderColor] = useState('indigo');
-  const [newFolderIcon, setNewFolderIcon] = useState('Folder');
-
-  // Single card folder dropdown control
-  const [activeFolderDropdownId, setActiveFolderDropdownId] = useState<string | null>(null);
-
-  // Batch actions folder selection dropdown
-  const [showBatchFolderSelect, setShowBatchFolderSelect] = useState(false);
-
-  // Quick peek drawer states
-  const [drawerTab, setDrawerTab] = useState<'conspectus' | 'podcast' | 'flashcards'>('conspectus');
-  const [cardIndex, setCardIndex] = useState<number>(0);
-  const [isFlipped, setIsFlipped] = useState<boolean>(false);
-
-  // Handle ?join=CODE parameter
+  // ?join=CODE (a teacher's invite) opens the join dialog with the code; bare ?join opens it empty.
   useEffect(() => {
-    // ?join=CODE opens the join modal with the code; bare ?join opens it empty.
     if (searchParams.has('join')) {
       setInviteCode((searchParams.get('join') || '').toUpperCase());
-      setShowJoinModal(true);
+      setJoinOpen(true);
       setSearchParams({});
     }
   }, [searchParams, setSearchParams]);
 
-  // Load Main Data
-  const loadData = async () => {
-    if (!user) return;
-    
-    const cached = localStorage.getItem(`library_cache_${user.id}`);
-    if (cached) {
-      try {
-        setMaterials(JSON.parse(cached));
-        setLoading(false);
-      } catch (e) {}
-    } else {
-      setLoading(true);
+  const load = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
     }
-    
+    setLoading(true);
+    setFailed(false);
+    const shelvesRequest = listExamShelves(userId).catch(() => null);
     try {
-      const [myMats, assignedMats] = await Promise.all([
-        getMaterials(user.id),
-        getAssignedMaterials(user.id)
-      ]);
-      const all = [...myMats, ...assignedMats];
-      const unique = Array.from(new Map(all.map(m => [m.id, m])).values());
-      
-      const hidden = JSON.parse(localStorage.getItem(`hidden_assignments_${user.id}`) || '[]');
-      const visible = unique.filter(m => !hidden.includes(m.id));
-      
-      setMaterials(visible);
-      localStorage.setItem(`library_cache_${user.id}`, JSON.stringify(visible));
-    } catch (e) {
-      console.error(e);
+      const [mine, assigned] = await Promise.all([getMaterials(userId), getAssignedMaterials(userId).catch(() => [])]);
+      const hidden = readJson<string[]>(`hidden_assignments_${userId}`, []);
+      const unique = Array.from(new Map([...(mine ?? []), ...(assigned ?? [])].map((row) => [(row as { id: string }).id, row])).values());
+      const next = unique
+        .map(toEntry)
+        .filter((entry): entry is LibraryEntry => entry !== null && !hidden.includes(entry.id));
+      setEntries(next);
+      writeJson(cacheKey(userId), { v: CACHE_VERSION, items: next });
+    } catch (error) {
+      console.error(error);
+      setFailed(true);
     }
+    const loadedShelves = await shelvesRequest;
+    if (loadedShelves) setShelves(loadedShelves);
     setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingLine(false);
+      return;
+    }
+    const timer = setTimeout(() => setLoadingLine(true), LOADING_LINE_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  // Folders of this device (the app no longer creates default ones).
+  useEffect(() => {
+    const key = userId || 'default_user';
+    setFolders(readJson<Folder[]>(`library_folders_${key}`, []).filter((folder) => isRecord(folder) && typeof folder.id === 'string'));
+    setAssignments(readJson<Record<string, string>>(`library_folder_assignments_${key}`, {}));
+  }, [userId]);
+
+  const storageKey = userId || 'default_user';
+  const saveAssignments = (next: Record<string, string>) => {
+    setAssignments(next);
+    writeJson(`library_folder_assignments_${storageKey}`, next);
+  };
+  const saveFolders = (next: Folder[]) => {
+    setFolders(next);
+    writeJson(`library_folders_${storageKey}`, next);
   };
 
-  useEffect(() => {
-    loadData();
-  }, [user?.id]);
+  const list = entries ?? [];
+  const folderCount = (folderId: string) => list.filter((entry) => assignments[entry.id] === folderId).length;
+  const visibleFolders = folders.filter((folder) => !DEFAULT_FOLDER_IDS.has(folder.id) || folderCount(folder.id) > 0);
 
-  // Load Folders Data (Always loading immediately with default fallback to avoid blank sections)
-  useEffect(() => {
-    const userId = user?.id || 'default_user';
-    const storedFolders = localStorage.getItem(`library_folders_${userId}`);
-    if (storedFolders) {
+  const query = normalizeQuery(search);
+  const shown = list.filter(
+    (entry) => (!folderFilter || assignments[entry.id] === folderFilter) && (!query || normalizeQuery(entry.title).includes(query)),
+  );
+  const filtering = Boolean(folderFilter || query);
+  const layout = useMemo(() => libraryLayout(shown, shelves), [shown, shelves]);
+  // The page's own heading follows the whole library, not a search: one exam stays the title while filtering.
+  const whole = useMemo(() => libraryLayout(list, shelves), [list, shelves]);
+
+  const actions: LectureListProps['actions'] = {
+    rename: async (entry, title) => {
       try {
-        setFolders(JSON.parse(storedFolders));
-      } catch (e) {
-        setFolders(defaultFolders);
+        await updateMaterialTitle(entry.id, title);
+        setEntries((previous) => (previous ?? []).map((item) => (item.id === entry.id ? { ...item, title } : item)));
+      } catch {
+        toast.error('Не удалось переименовать. Повторите через минуту.');
       }
-    } else {
-      setFolders(defaultFolders);
-      localStorage.setItem(`library_folders_${userId}`, JSON.stringify(defaultFolders));
-    }
-
-    const storedAssignments = localStorage.getItem(`library_folder_assignments_${userId}`);
-    if (storedAssignments) {
+    },
+    move: (entry, folderId) => {
+      const next = { ...assignments };
+      if (folderId) next[entry.id] = folderId;
+      else delete next[entry.id];
+      saveAssignments(next);
+    },
+    newFolder: (entry, name) => {
+      const folder: Folder = { id: `folder_${Date.now()}`, name };
+      saveFolders([...folders, folder]);
+      saveAssignments({ ...assignments, [entry.id]: folder.id });
+    },
+    remove: async (entry) => {
+      const ok = await confirm({
+        title: 'Удалить лекцию?',
+        message: `«${entry.title}» исчезнет из библиотеки вместе с конспектом, карточками и тестом. Это нельзя отменить.`,
+        confirmText: 'Удалить',
+        cancelText: 'Оставить',
+      });
+      if (!ok) return;
       try {
-        setFolderAssignments(JSON.parse(storedAssignments));
-      } catch (e) {}
-    }
-  }, [user?.id]);
-
-  // Reset tab to conspectus on changing material
-  useEffect(() => {
-    setDrawerTab('conspectus');
-  }, [peekMaterial?.id]);
-
-  const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
-
-  // Filtering materials by subject, search bar AND selected folder
-  const filtered = materials.filter(m => {
-    const matchSearch = m.title.toLowerCase().includes(search.toLowerCase());
-    const matchSubject = !subjectFilter || m.subject === subjectFilter;
-    const matchFolder = !selectedFolderId || folderAssignments[m.id] === selectedFolderId;
-    return matchSearch && matchSubject && matchFolder;
-  });
-
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (!(await confirm({ title: 'Удаление', message: 'Удалить этот материал навсегда?', type: 'danger' }))) return;
-    await deleteMaterial(id);
-    setMaterials(prev => prev.filter(m => m.id !== id));
-    
-    // Clean assignment
-    if (folderAssignments[id]) {
-      const copy = { ...folderAssignments };
-      delete copy[id];
-      setFolderAssignments(copy);
-      const userId = user?.id || 'default_user';
-      localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(copy));
-    }
+        await deleteMaterial(entry.id);
+      } catch {
+        toast.error('Не удалось удалить лекцию. Повторите через минуту.');
+        return;
+      }
+      setEntries((previous) => (previous ?? []).filter((item) => item.id !== entry.id));
+      if (assignments[entry.id]) {
+        const next = { ...assignments };
+        delete next[entry.id];
+        saveAssignments(next);
+      }
+    },
+    hide: (entry) => {
+      if (!userId) return;
+      const hidden = readJson<string[]>(`hidden_assignments_${userId}`, []);
+      writeJson(`hidden_assignments_${userId}`, Array.from(new Set([...hidden, entry.id])));
+      setEntries((previous) => (previous ?? []).filter((item) => item.id !== entry.id));
+    },
   };
 
-  const handleHideAssignment = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (!user) return;
-    const hidden = JSON.parse(localStorage.getItem(`hidden_assignments_${user.id}`) || '[]');
-    hidden.push(id);
-    localStorage.setItem(`hidden_assignments_${user.id}`, JSON.stringify(hidden));
-    
-    const newMaterials = materials.filter(m => m.id !== id);
-    setMaterials(newMaterials);
-    localStorage.setItem(`library_cache_${user.id}`, JSON.stringify(newMaterials));
-    toast.success('Задание скрыто из библиотеки');
-  };
-
-  const handleTogglePublic = async (e: React.MouseEvent, material: any) => {
-    e.stopPropagation();
-    const newStatus = !material.is_public;
-    await updateMaterialVisibility(material.id, newStatus);
-    setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_public: newStatus } : m));
-  };
-
-  const handleJoinGroup = async () => {
-    if (!user || !inviteCode.trim() || !classNickname.trim()) return;
+  const handleJoin = async () => {
+    if (!userId || !inviteCode.trim() || !classNickname.trim()) return;
     setJoinError('');
     const ok = await joinGroup(inviteCode.trim(), classNickname.trim());
     if (ok) {
-      setShowJoinModal(false);
+      setJoinOpen(false);
       setInviteCode('');
       setClassNickname('');
-      loadData();
-      toast.success('Успешно присоединились к классу!');
+      void load();
       navigate('/teacher');
     } else {
       setJoinError('Неверный код или вы уже состоите в группе.');
     }
   };
 
-  // Folder actions
-  const handleCreateFolder = () => {
-    if (!newFolderName.trim()) return;
-    const userId = user?.id || 'default_user';
-    const newFolder: Folder = {
-      id: 'folder_' + Date.now(),
-      name: newFolderName.trim(),
-      color: newFolderColor,
-      icon: newFolderIcon
-    };
-    const updated = [...folders, newFolder];
-    setFolders(updated);
-    localStorage.setItem(`library_folders_${userId}`, JSON.stringify(updated));
-    toast.success('Папка создана!');
-    setNewFolderName('');
-    setShowCreateFolderModal(false);
-  };
+  const listProps = { folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions };
 
-  const assignMaterialToFolder = (materialId: string, folderId: string) => {
-    const newAssignments = { ...folderAssignments };
-    if (folderId) {
-      newAssignments[materialId] = folderId;
-    } else {
-      delete newAssignments[materialId];
-    }
-    setFolderAssignments(newAssignments);
-    const userId = user?.id || 'default_user';
-    localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(newAssignments));
+  // ── The heading: the exam when every lecture belongs to it, else «Библиотека» ──
+  let heading = 'Библиотека';
+  let lede = '';
+  let sheetLink: string | null = null;
+  if (whole.mode === 'single') {
+    heading = subjectOf(whole.exam.title) || 'Библиотека';
+    lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries)].filter(Boolean).join(' · ');
+    sheetLink = `/exams/${whole.exam.id}`;
+  } else if (list.length > 0) {
+    lede = [`${list.length} ${lecturesWord(list.length)}`, cardsLine(list)].filter(Boolean).join(' · ');
+  }
 
-    const mat = materials.find(m => m.id === materialId);
-    const folder = folders.find(f => f.id === folderId);
-    if (folder && mat) {
-      toast.success(`Материал «${mat.title}» перенесен в папку «${folder.name}»!`);
-    } else {
-      toast.success('Материал убран из папки');
-    }
-  };
+  const joinDialog = joinOpen ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="library-join-title" className="w-full max-w-sm rounded-lg bg-[var(--sf-surface)] p-6 text-[var(--sf-ink)]" style={{ boxShadow: 'var(--sf-pop-shadow)' }}>
+        <h2 id="library-join-title" className="text-[20px] font-semibold leading-[26px]">
+          Вступить в учебную группу
+        </h2>
+        <p className="mt-2 text-[15px] leading-[22px] text-[var(--sf-muted)]">Код группы и ваше имя и фамилия — их увидит преподаватель.</p>
+        <input
+          className="sf-input mt-4 w-full"
+          aria-label="Код группы"
+          autoFocus
+          value={inviteCode}
+          onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+          placeholder="Код, например A7B-9X2"
+        />
+        <input
+          className="sf-input mt-3 w-full"
+          aria-label="Имя и фамилия"
+          value={classNickname}
+          onChange={(event) => setClassNickname(event.target.value)}
+          placeholder="Имя и фамилия"
+        />
+        {joinError ? <p className="mt-3 text-[15px] leading-[22px] text-[var(--sf-ink)]">{joinError}</p> : null}
+        <div className="mt-5 flex items-center justify-end gap-6">
+          <button type="button" className="sf-link" data-muted="" onClick={() => setJoinOpen(false)}>
+            Отмена
+          </button>
+          <button type="button" className="sf-primary" onClick={() => void handleJoin()} disabled={!inviteCode.trim() || !classNickname.trim()}>
+            Вступить
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
-  // Native HTML5 Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent, cardId: string) => {
-    setDraggingCardId(cardId);
-    e.dataTransfer.setData('text/plain', cardId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragEnd = () => {
-    setDraggingCardId(null);
-    setDraggedOverFolderId(null);
-  };
-
-  const handleDragEnter = (e: React.DragEvent, folderId: string) => {
-    e.preventDefault();
-    setDraggedOverFolderId(folderId);
-  };
-
-  const handleDragLeave = () => {
-    setDraggedOverFolderId(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, folderId: string) => {
-    e.preventDefault();
-    const cardId = e.dataTransfer.getData('text/plain') || draggingCardId;
-    if (cardId) {
-      assignMaterialToFolder(cardId, folderId);
-    }
-    setDraggedOverFolderId(null);
-    setDraggingCardId(null);
-  };
-
-  // Multiple selection handlers
-  const toggleSelectId = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  if (entries === null && loading) {
+    return (
+      <div className="sf-page">
+        <div className="sf-head" role="status" aria-label="Загружаем библиотеку">
+          {loadingLine ? <p className="text-[17px] text-[var(--sf-muted)]">Загружаем библиотеку…</p> : null}
+        </div>
+        {joinDialog}
+      </div>
     );
-  };
+  }
 
-  const handleBatchDelete = async () => {
-    if (selectedIds.length === 0) return;
-    if (!(await confirm({ 
-      title: 'Массовое удаление', 
-      message: `Вы действительно хотите навсегда удалить выбранные материалы (${selectedIds.length} шт.)?`, 
-      type: 'danger' 
-    }))) return;
+  if (entries === null && failed) {
+    return (
+      <div className="sf-page">
+        <div className="sf-head" style={{ display: 'block' }}>
+          <h1 className="sf-h2">Не удалось загрузить библиотеку</h1>
+          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">Лекции на месте — повторите через минуту.</p>
+          <button type="button" className="sf-link mt-2" onClick={() => void load()}>
+            Повторить
+          </button>
+        </div>
+        {joinDialog}
+      </div>
+    );
+  }
 
-    try {
-      await Promise.all(selectedIds.map(id => deleteMaterial(id)));
-      setMaterials(prev => prev.filter(m => !selectedIds.includes(m.id)));
-      
-      // Clear folder assignments
-      const copy = { ...folderAssignments };
-      selectedIds.forEach(id => delete copy[id]);
-      setFolderAssignments(copy);
-      const userId = user?.id || 'default_user';
-      localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(copy));
-
-      toast.success('Выбранные материалы удалены!');
-      setSelectedIds([]);
-      setIsMultiSelectActive(false);
-    } catch (e) {
-      toast.error('Произошла ошибка при массовом удалении');
-    }
-  };
-
-  const handleBatchPublish = async () => {
-    if (selectedIds.length === 0) return;
-    try {
-      await Promise.all(selectedIds.map(id => updateMaterialVisibility(id, true)));
-      setMaterials(prev => prev.map(m => selectedIds.includes(m.id) ? { ...m, is_public: true } : m));
-      toast.success('Материалы стали открытыми: по ссылке их смогут открыть и скопировать другие студенты.');
-      setSelectedIds([]);
-      setIsMultiSelectActive(false);
-    } catch (e) {
-      toast.error('Ошибка при публикации');
-    }
-  };
-
-  const handleBatchMoveToFolder = (folderId: string) => {
-    if (selectedIds.length === 0) return;
-    const newAssignments = { ...folderAssignments };
-    
-    selectedIds.forEach(id => {
-      if (folderId) {
-        newAssignments[id] = folderId;
-      } else {
-        delete newAssignments[id];
-      }
-    });
-
-    setFolderAssignments(newAssignments);
-    const userId = user?.id || 'default_user';
-    localStorage.setItem(`library_folder_assignments_${userId}`, JSON.stringify(newAssignments));
-    toast.success(folderId ? 'Материалы перемещены в папку' : 'Материалы убраны из папок');
-    setSelectedIds([]);
-    setIsMultiSelectActive(false);
-    setShowBatchFolderSelect(false);
-  };
-
-  // «Разговор» открывается на странице материала: там плеер со схемами.
-  const openConversation = (materialId: string) => {
-    navigate(`/library/${materialId}?mode=express&tab=podcast`);
-  };
-
-  // Metrics computing reactively
-  const totalCards = materials.reduce((acc, m) => acc + (m.flashcards_json?.flashcards?.length || 0), 0);
-  const totalConversations = materials.filter(m => m.summary_json?.podcast?.length > 0).length;
-  const folderMaterialsCount = (folderId: string) => {
-    return materials.filter(m => folderAssignments[m.id] === folderId).length;
-  };
+  if (list.length === 0) {
+    return (
+      <div className="sf-page">
+        <div className="mx-auto max-w-[480px] pt-16 text-center">
+          <h1 className="sf-h2">Здесь будут ваши лекции</h1>
+          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">
+            Загрузите первую — Meldy сделает конспект, карточки и тест и сошлётся на её фрагменты.
+          </p>
+          <Link className="sf-primary mt-6 inline-flex" to="/analyze">
+            Добавить лекцию
+          </Link>
+        </div>
+        {joinDialog}
+      </div>
+    );
+  }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-7 px-4 py-6 sm:px-6 md:py-10">
-      
-      {/* Header */}
-      <div className="flex flex-col gap-5 border-b border-slate-200 pb-7 dark:border-slate-800 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700 dark:text-cyan-300">Материалы</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 md:text-4xl">
-            Библиотека
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Лекции, конспекты и материалы для повторения.</p>
+    <div className="sf-page">
+      <header className="sf-head" style={{ maxWidth: 1040 }}>
+        <div className="min-w-0">
+          <h1 className="sf-h1">{heading}</h1>
+          {lede ? <p className="sf-lede">{lede}</p> : null}
         </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setShowStats(!showStats)}
-            className={`flex min-h-11 items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
-              showStats 
-                ? 'bg-cyan-50 border-cyan-200 text-cyan-800 dark:bg-cyan-950/20 dark:border-cyan-900 dark:text-cyan-300'
-                : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Статистика
-            {showStats ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
+        {sheetLink ? (
+          <Link className="sf-link" to={sheetLink}>
+            Лист экзамена
+          </Link>
+        ) : null}
+      </header>
 
-          <button
-            onClick={() => setShowJoinModal(true)}
-            className="flex min-h-11 items-center px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
-          >
-            Вступить в класс
-          </button>
+      {failed ? <p className="mt-2 text-[15px] leading-[22px] text-[var(--sf-muted)]">Нет связи. Показываем сохранённое на этом устройстве.</p> : null}
 
-          <button
-            onClick={() => navigate('/analyze')}
-            className="flex min-h-11 items-center gap-2 px-4 py-2 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Добавить материал
-          </button>
-        </div>
-      </div>
-
-      {/* Joint Group Modal */}
-      {showJoinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800">
-            <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100 mb-2">Вступить в класс</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">Введите код класса и ваши настоящие имя и фамилию (для преподавателя).</p>
-            <input 
-              autoFocus
-              value={inviteCode} 
-              onChange={e => setInviteCode(e.target.value.toUpperCase())}
-              placeholder="Код: A7B-9X2" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg mb-3 font-mono text-center text-xl uppercase tracking-widest focus:ring-2 focus:ring-cyan-400 outline-none text-slate-900 dark:text-slate-100"
-            />
-            <input 
-              value={classNickname} 
-              onChange={e => setClassNickname(e.target.value)}
-              placeholder="Ваши Имя и Фамилия" 
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg mb-2 text-center text-lg focus:ring-2 focus:ring-cyan-400 outline-none text-slate-900 dark:text-slate-100"
-            />
-            {joinError && <p className="text-rose-500 text-sm mb-4 text-center">{joinError}</p>}
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowJoinModal(false)} className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">Отмена</button>
-              <button onClick={handleJoinGroup} disabled={!inviteCode.trim() || !classNickname.trim()} className="flex-1 py-2.5 bg-cyan-300 text-slate-950 font-semibold rounded-lg hover:bg-cyan-200 disabled:opacity-50 transition-colors">Вступить</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Smart Insights Collapsible Dashboard */}
-      <AnimatePresence>
-        {showStats && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="grid grid-cols-1 gap-0 border-y border-slate-200 dark:border-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-slate-200 sm:dark:divide-slate-800">
-              
-              <div className="flex items-center gap-4 px-4 py-5">
-                <div className="w-10 h-10 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{materials.length}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Материалов</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 px-4 py-5">
-                <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center">
-                  <Brain className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{totalCards}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Карточек</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 px-4 py-5">
-                <div className="w-10 h-10 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 rounded-lg flex items-center justify-center">
-                  <MessagesSquare className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">{totalConversations}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Разговоров</p>
-                </div>
-              </div>
-
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Folders and Collections bar */}
-      <div className="space-y-3 border-y border-slate-200 py-4 dark:border-slate-800">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-[0.1em] flex items-center gap-1.5">
-              <FolderOpen className="w-4 h-4 text-cyan-600 dark:text-cyan-300" />
-              Папки
-            </h3>
-            <span className="text-xs text-slate-400 hidden md:inline ml-2">
-              Перетащите материал, чтобы изменить папку
-            </span>
-          </div>
-          <button 
-            onClick={() => setShowCreateFolderModal(true)}
-            className="flex items-center gap-1 text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-600 font-semibold transition-colors"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            Создать папку
-          </button>
-        </div>
-
-        {/* Horizontal folders scroll panel */}
-        <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none pb-2 gap-2.5 scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
-          
-          {/* Virtual "All folders" target */}
-          <button
-            onDragOver={(e) => e.preventDefault()}
-            onDragEnter={(e) => handleDragEnter(e, 'all')}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, '')}
-            onClick={() => setSelectedFolderId('')}
-            className={`px-4 py-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-2 relative ${
-              selectedFolderId === ''
-                ? 'bg-cyan-300 border-cyan-300 text-slate-950'
-                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-            } ${
-              draggedOverFolderId === 'all'
-                ? 'ring-2 ring-offset-2 dark:ring-offset-slate-900 ring-cyan-400 border-cyan-400'
-                : draggingCardId !== null
-                  ? 'border-dashed border-cyan-400 dark:border-cyan-500'
-                  : ''
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            Все материалы
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${selectedFolderId === '' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-              {materials.length}
-            </span>
-          </button>
-
-          {folders.map(f => {
-            const scheme = colorSchemes[f.color] || colorSchemes.indigo;
-            const FolderIcon = iconMap[f.icon] || Folder;
-            const active = selectedFolderId === f.id;
-            const isDraggedOver = draggedOverFolderId === f.id;
-            const isAnyCardDragging = draggingCardId !== null;
-            const count = folderMaterialsCount(f.id);
-
-            return (
-              <button
-                key={f.id}
-                onDragOver={(e) => e.preventDefault()}
-                onDragEnter={(e) => handleDragEnter(e, f.id)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, f.id)}
-                onClick={() => setSelectedFolderId(f.id)}
-                className={`px-4 py-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-2 relative ${
-                  active
-                    ? `${scheme.activeBg} ${scheme.activeBorder} shadow-md`
-                    : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800`
-                } ${
-                  isDraggedOver 
-                    ? `scale-105 ring-4 ring-offset-2 dark:ring-offset-slate-900 ${scheme.hoverRing} ${scheme.activeBorder} shadow-lg`
-                    : isAnyCardDragging
-                      ? `border-dashed ${scheme.activeBorder} animate-pulse`
-                      : ''
-                }`}
-              >
-                <FolderIcon className={`w-4 h-4 ${active ? 'text-white' : scheme.text}`} />
-                {f.name}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${active ? 'bg-white/20 text-white' : `${scheme.bg} ${scheme.text}`}`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-
-          <button
-            onClick={() => setShowCreateFolderModal(true)}
-            className="px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-800 text-slate-400 hover:text-slate-600 hover:border-slate-400 dark:hover:border-slate-700 transition flex items-center gap-1.5 text-xs font-bold"
-          >
-            <Plus className="w-4 h-4" />
-            Добавить папку
-          </button>
-        </div>
-      </div>
-
-      {/* Filters & Actions bar */}
-      <div className="flex flex-col sm:flex-row gap-3 relative z-20 items-stretch sm:items-center">
-        <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Поиск по названию..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-cyan-400 transition text-slate-900 dark:text-slate-100"
-          />
-        </div>
-
-        {/* Constraining wrapper container to ensure selection dropdown matches desktop layout size */}
-        {subjects.length > 0 && (
-          <div className="w-full sm:w-56 shrink-0">
-            <CustomSelect
-              value={subjectFilter}
-              onChange={val => setSubjectFilter(val)}
-              options={[
-                { value: '', label: 'Все предметы' },
-                ...subjects.map(s => ({ value: s, label: s }))
-              ]}
-              className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-cyan-400"
-            />
-          </div>
-        )}
-
-        <button
-          onClick={() => {
-            setIsMultiSelectActive(!isMultiSelectActive);
-            setSelectedIds([]);
-          }}
-          className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-            isMultiSelectActive 
-              ? 'bg-cyan-300 border-cyan-300 text-slate-950'
-              : 'bg-white border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}
-        >
-          {isMultiSelectActive ? (
-            <>
-              <Check className="w-4 h-4" />
-              Готово
-            </>
-          ) : (
-            <>
-              <CheckSquare className="w-4 h-4" />
-              Пакетный выбор
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Loading Skeleton */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 animate-pulse">
-              <div className="flex gap-2 mb-3">
-                <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
-                <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
-              </div>
-              <div className="h-6 w-3/4 bg-slate-200 dark:bg-slate-800 rounded mb-4"></div>
-              <div className="flex gap-3 mb-6">
-                <div className="h-4 w-10 bg-slate-200 dark:bg-slate-800 rounded"></div>
-                <div className="h-4 w-10 bg-slate-200 dark:bg-slate-800 rounded"></div>
-                <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded ml-auto"></div>
-              </div>
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between">
-                <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
-                <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && materials.length === 0 && (
-        <div className="text-center py-20 border-y border-dashed border-slate-300 dark:border-slate-700 p-8">
-          <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-650 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">Материалов пока нет</h2>
-          <p className="text-slate-400 dark:text-slate-500 text-sm mb-6 max-w-sm mx-auto">Добавьте лекцию или конспект, чтобы получить карточки и тест.</p>
-          <button
-            onClick={() => navigate('/analyze')}
-            className="px-6 py-2.5 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Добавить материал →
-          </button>
-        </div>
-      )}
-
-      {/* Materials Grid */}
-      {!loading && filtered.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(m => {
-            const fcCount = m.flashcards_json?.flashcards?.length || 0;
-            const qCount = m.quiz_json?.quiz?.length || 0;
-            // Imported for an exam as plain text (/api/extract): no summary, cards or test were made.
-            const textOnly = m.summary_json?.text_only === true;
-            const hasPodcast = m.summary_json?.podcast?.length > 0;
-            const isSelected = selectedIds.includes(m.id);
-            const isAssigned = (m as any).is_assigned;
-            
-            return (
-              <div
-                key={m.id}
-                draggable={!isMultiSelectActive}
-                onDragStart={(e) => handleDragStart(e, m.id)}
-                onDragEnd={handleDragEnd}
-                onClick={() => {
-                  if (isMultiSelectActive) {
-                    toggleSelectId(m.id);
-                  } else {
-                    navigate('/library/' + m.id);
-                  }
-                }}
-                className={`p-5 cursor-pointer relative transition-colors group overflow-visible border rounded-xl flex flex-col justify-between ${
-                  isSelected 
-                    ? 'border-cyan-400 dark:border-cyan-500 bg-cyan-50/20 dark:bg-cyan-950/15'
-                    : 'border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 hover:border-cyan-300 dark:hover:border-cyan-700'
-                } ${draggingCardId === m.id ? 'opacity-50 scale-95 border-dashed border-cyan-400' : ''}`}
-              >
-                {/* Drag handle helper icon visible on card hover */}
-                {!isMultiSelectActive && (
-                  <div className="absolute top-4 right-12 z-10 opacity-0 group-hover:opacity-100 transition p-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-400 dark:text-slate-500 cursor-grab" title="Потяните для переноса в папку">
-                    <Grab className="w-3.5 h-3.5" />
-                  </div>
-                )}
-
-                {/* Checkbox overlay when multi-select mode is active */}
-                {isMultiSelectActive && (
-                  <div 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelectId(m.id);
-                    }}
-                    className="absolute top-4 left-4 z-10 p-0.5 bg-white dark:bg-slate-900 rounded-lg shadow-sm"
-                  >
-                    {isSelected ? (
-                      <CheckSquare className="w-5 h-5 text-cyan-700 dark:text-cyan-300" />
-                    ) : (
-                      <Square className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-                    )}
-                  </div>
-                )}
-
-                {/* Main Card Content */}
-                <div className={`space-y-3 ${isMultiSelectActive ? 'pl-8' : ''}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {isAssigned && (
-                          <span className="inline-block px-2 py-0.5 bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-400 text-[10px] font-bold rounded uppercase tracking-wider">
-                            Преподаватель
-                          </span>
-                        )}
-                        {m.subject && (
-                          <span className="inline-block px-2 py-0.5 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-300 text-[10px] font-semibold rounded uppercase tracking-wider truncate max-w-[140px]">
-                            {m.subject}
-                          </span>
-                        )}
-                        {!isAssigned && (
-                          <button
-                            onClick={e => handleTogglePublic(e, m)}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider transition ${
-                              m.is_public
-                                ? 'bg-emerald-150 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 border border-slate-200 dark:border-slate-700'
-                            }`}
-                            title={m.is_public ? 'Виден всем в открытых материалах. Нажмите, чтобы оставить только для себя' : 'Виден только вам. Нажмите, чтобы добавить в открытые материалы'}
-                          >
-                            {m.is_public ? <Globe className="w-3 h-3 text-emerald-600" /> : <Lock className="w-3 h-3 text-slate-400" />}
-                            {m.is_public ? 'В открытых материалах' : 'Только для меня'}
-                          </button>
-                        )}
-                      </div>
-                      
-                      <h3 className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 break-words group-hover:text-cyan-700 dark:group-hover:text-cyan-300 transition-colors">
-                        {m.title}
-                      </h3>
-                    </div>
-
-                    {/* Actions toolbar */}
-                    <div className="flex items-center gap-1 shrink-0 relative z-30">
-                      {/* Folder assignment dropdown trigger */}
-                      {!isMultiSelectActive && !isAssigned && (
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveFolderDropdownId(activeFolderDropdownId === m.id ? null : m.id);
-                            }}
-                            className={`p-1.5 rounded-lg border transition ${
-                              folderAssignments[m.id]
-                                ? 'bg-cyan-50 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-900'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-cyan-700'
-                            }`}
-                            title="Положить в папку"
-                          >
-                            <Folder className="w-3.5 h-3.5" />
-                          </button>
-                          
-                          {activeFolderDropdownId === m.id && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -8 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                              transition={{ duration: 0.12 }}
-                              className="absolute right-0 mt-2 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 w-52 flex flex-col gap-1 text-slate-800 dark:text-slate-100"
-                            >
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  assignMaterialToFolder(m.id, '');
-                                  setActiveFolderDropdownId(null);
-                                }}
-                                className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap transition-colors"
-                              >
-                                Без папки (убрать)
-                              </button>
-                              <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
-                              {folders.map(f => (
-                                <button
-                                  key={f.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    assignMaterialToFolder(m.id, f.id);
-                                    setActiveFolderDropdownId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl text-xs font-semibold flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
-                                >
-                                  <div 
-                                    className="w-2.5 h-2.5 rounded-full shrink-0" 
-                                    style={{ backgroundColor: colorSchemes[f.color]?.dot || '#4f46e5' }} 
-                                  />
-                                  <span>{f.name}</span>
-                                </button>
-                              ))}
-                            </motion.div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Quick peek trigger */}
-                      {!isMultiSelectActive && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPeekMaterial(m);
-                          }}
-                          className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 rounded-lg transition-colors"
-                          title="Быстрый просмотр"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      {!isMultiSelectActive && !isAssigned && (
-                        <button
-                          onClick={e => handleDelete(e, m.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition opacity-0 group-hover:opacity-100"
-                          title="Удалить"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      {!isMultiSelectActive && isAssigned && (
-                        <button
-                          onClick={e => handleHideAssignment(e, m.id)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition opacity-0 group-hover:opacity-100"
-                          title="Скрыть"
-                        >
-                          <EyeOff className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Substats */}
-                <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 my-4 ${isMultiSelectActive ? 'pl-8' : ''}`}>
-                  {textOnly ? (
-                    <span className="whitespace-nowrap">Только текст, конспекта нет</span>
-                  ) : (
-                    <>
-                      <span className="inline-flex items-center gap-1 whitespace-nowrap" title="Конспект"><FileText className="h-3.5 w-3.5" /> Конспект</span>
-                      <span className="whitespace-nowrap tabular-nums" title="Карточки">{fcCount} {pluralRu(fcCount, ['карточка', 'карточки', 'карточек'])}</span>
-                      <span className="whitespace-nowrap tabular-nums" title="Вопросы">{qCount} {pluralRu(qCount, ['вопрос', 'вопроса', 'вопросов'])}</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Footer and Date */}
-                <div className={`flex items-center justify-between mt-auto pt-2.5 border-t border-slate-150 dark:border-slate-800/60 ${isMultiSelectActive ? 'pl-8' : ''}`}>
-                  <div className="flex flex-col">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
-                      {format(new Date(m.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
-                    </p>
-                    {(m as any).assigned_deadline && (
-                      <p className="text-[10px] font-black text-rose-500 mt-0.5">
-                        Дедлайн: {format(new Date((m as any).assigned_deadline), 'dd.MM, HH:mm', { locale: ru })}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {hasPodcast && !isMultiSelectActive && (
-                    <button
-                      onClick={e => {
-                        e.stopPropagation();
-                        openConversation(m.id);
-                      }}
-                      className="flex items-center gap-1 text-xs font-semibold text-[var(--sf-accent)] transition-colors hover:text-[var(--sf-accent-hover)]"
-                    >
-                      <MessagesSquare aria-hidden="true" className="w-3.5 h-3.5" />
-                      Слушать разговор
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Empty filter results */}
-      {!loading && materials.length > 0 && filtered.length === 0 && (
-        <div className="text-center py-16 bg-slate-50/50 dark:bg-slate-900/10 rounded-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
-          <FolderOpen className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3 animate-pulse" />
-          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">В этой папке пока пусто</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Перетащите сюда материалы мышкой или выберите другой раздел</p>
-        </div>
-      )}
-
-      {/* Floating Multi-select Batch Actions Panel */}
-      <AnimatePresence>
-        {isMultiSelectActive && selectedIds.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl border border-slate-200 dark:border-slate-800 px-6 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 w-[calc(100%-2rem)] md:w-auto md:min-w-[680px]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-cyan-300 text-slate-950 rounded-lg flex items-center justify-center font-semibold text-sm">
-                {selectedIds.length}
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-black text-slate-800 dark:text-slate-100">Выбрано материалов</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">Примените пакетные действия</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap justify-center items-center gap-2 w-full md:w-auto relative">
-              {/* Move to folder trigger */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowBatchFolderSelect(!showBatchFolderSelect)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 rounded-lg text-xs font-semibold transition-colors border border-cyan-100 dark:border-cyan-900/35"
-                >
-                  <Folder className="w-3.5 h-3.5" />
-                  <span>В папку</span>
-                  <ChevronDown className="w-3 h-3" />
+      {visibleFolders.length > 0 || list.length >= SEARCH_FROM ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2" style={{ maxWidth: 1040 }}>
+          {visibleFolders.length > 0 ? (
+            <ul className="sf-tabs" aria-label="Папки">
+              <li>
+                <button type="button" aria-pressed={folderFilter === ''} onClick={() => setFolderFilter('')}>
+                  Все<span className="sf-tabs-n">{list.length}</span>
                 </button>
-                
-                {showBatchFolderSelect && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 8 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute bottom-full mb-2 left-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-2 min-w-[200px] flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar"
-                  >
-                    <button
-                      onClick={() => handleBatchMoveToFolder('')}
-                      className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 transition-colors"
-                    >
-                      Без папки (убрать)
-                    </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
-                    {folders.map(f => (
-                      <button
-                        key={f.id}
-                        onClick={() => handleBatchMoveToFolder(f.id)}
-                        className="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg text-xs font-semibold flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
-                      >
-                        <div 
-                          className="w-2.5 h-2.5 rounded-full shrink-0" 
-                          style={{ backgroundColor: colorSchemes[f.color]?.dot || '#4f46e5' }} 
-                        />
-                        <span>{f.name}</span>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </div>
-
-              {/* Publish */}
-              <button
-                onClick={handleBatchPublish}
-                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 rounded-xl text-xs font-black transition border border-emerald-100 dark:border-indigo-900/35"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>В открытые материалы</span>
-              </button>
-
-              {/* Delete */}
-              <button
-                onClick={handleBatchDelete}
-                className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-955/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-xl text-xs font-black transition border border-rose-100 dark:border-rose-900/35"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Удалить</span>
-              </button>
-
-              <div className="w-px h-6 bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block" />
-
-              {/* Cancel */}
-              <button
-                onClick={() => {
-                  setSelectedIds([]);
-                  setShowBatchFolderSelect(false);
-                  setIsMultiSelectActive(false);
-                }}
-                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-xs font-bold transition"
-              >
-                Отмена
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Folder Creation Modal */}
-      {showCreateFolderModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-extrabold text-xl text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <FolderPlus className="w-5 h-5 text-cyan-700 dark:text-cyan-300" />
-                Создать новую папку
-              </h3>
-              <button 
-                onClick={() => setShowCreateFolderModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Название папки</label>
-                <input 
-                  autoFocus
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  placeholder="Напр. Математика, Программирование"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-cyan-400 outline-none text-slate-900 dark:text-slate-100 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Цвет подложки</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {Object.keys(colorSchemes).map(col => {
-                    const scheme = colorSchemes[col];
-                    return (
-                      <button
-                        key={col}
-                        onClick={() => setNewFolderColor(col)}
-                        className={`flex items-center justify-center p-3 rounded-xl border-2 transition ${
-                          newFolderColor === col 
-                            ? 'border-cyan-400 dark:border-cyan-500 ring-2 ring-cyan-400/20'
-                            : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
-                        } ${scheme.bg}`}
-                      >
-                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: scheme.dot }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Иконка папки</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {Object.keys(iconMap).map(ic => {
-                    const IconComp = iconMap[ic];
-                    return (
-                      <button
-                        key={ic}
-                        onClick={() => setNewFolderIcon(ic)}
-                        className={`flex items-center justify-center p-3 rounded-xl border-2 transition ${
-                          newFolderIcon === ic 
-                            ? 'bg-cyan-50 dark:bg-cyan-950/20 border-cyan-400 dark:border-cyan-500 text-cyan-700 dark:text-cyan-300'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <IconComp className="w-5 h-5" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button 
-                onClick={() => setShowCreateFolderModal(false)} 
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-              >
-                Отмена
-              </button>
-              <button 
-                onClick={handleCreateFolder} 
-                disabled={!newFolderName.trim()} 
-                className="flex-1 py-2.5 bg-cyan-300 text-slate-950 font-semibold rounded-lg hover:bg-cyan-200 disabled:opacity-50 transition-colors"
-              >
-                Создать
-              </button>
-            </div>
-          </div>
+              </li>
+              {visibleFolders.map((folder) => (
+                <li key={folder.id}>
+                  <button type="button" aria-pressed={folderFilter === folder.id} onClick={() => setFolderFilter(folderFilter === folder.id ? '' : folder.id)}>
+                    {folder.name}
+                    <span className="sf-tabs-n">{folderCount(folder.id)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {list.length >= SEARCH_FROM ? (
+            <input
+              className="sf-input ml-auto w-full sm:w-72"
+              type="search"
+              aria-label="Найти лекцию"
+              placeholder="Найти лекцию"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      {/* Premium Side-Drawer / Bottom-Sheet (Quick Peek) */}
-      <AnimatePresence>
-        {peekMaterial && (() => {
-          const drawerCards = peekMaterial.flashcards_json?.flashcards || peekMaterial.summary_json?.flashcards?.flashcards || [];
-          const hasPodcast = peekMaterial.summary_json?.podcast && peekMaterial.summary_json.podcast.length > 0;
-          const hasCards = drawerCards.length > 0;
-
-          return (
-            <>
-              <style>{`
-                .perspective-1000 {
-                  perspective: 1000px;
-                }
-                .transform-style-3d {
-                  transform-style: preserve-3d;
-                }
-                .backface-hidden {
-                  backface-visibility: hidden;
-                  -webkit-backface-visibility: hidden;
-                }
-                .rotate-y-180 {
-                  transform: rotateY(180deg);
-                }
-              `}</style>
-
-              {/* Backdrop */}
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-xs"
-                onClick={() => setPeekMaterial(null)}
-              />
-
-              {/* Drawer */}
-              <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                className="fixed bottom-0 right-0 z-50 w-full md:w-[480px] h-[85vh] md:h-full bg-white dark:bg-slate-900 shadow-2xl border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 rounded-t-3xl md:rounded-t-none flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
-              >
-                {/* Drawer Header */}
-                <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <span className="inline-block px-2 py-0.5 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 text-[10px] font-semibold rounded uppercase tracking-wider mb-1">
-                      {peekMaterial.subject || 'Без предмета'}
-                    </span>
-                    <h3 className="font-extrabold text-base leading-snug truncate text-slate-900 dark:text-slate-100" title={peekMaterial.title}>
-                      {peekMaterial.title}
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setPeekMaterial(null)}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+      <div className="mt-5">
+        {shown.length === 0 ? (
+          <p className="text-[17px] leading-[26px] text-[var(--sf-muted)]">{filtering ? 'Таких лекций нет.' : 'Лекций пока нет.'}</p>
+        ) : layout.mode === 'sections' ? (
+          layout.groups.map((group) => (
+            <section key={group.key} className="mt-8 first:mt-0" aria-labelledby={`library-group-${group.key}`} style={{ maxWidth: 1040 }}>
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+                <div className="min-w-0">
+                  <h2 id={`library-group-${group.key}`} className="sf-h2">
+                    {group.exam ? subjectOf(group.exam.title) : 'Другие материалы'}
+                  </h2>
+                  <p className="sf-lede">
+                    {group.exam
+                      ? `${examWhen(group.exam, false)} · ${group.entries.length} ${lecturesWord(group.entries.length)}`
+                      : `${group.entries.length} ${lecturesWord(group.entries.length)}, новые сверху`}
+                  </p>
                 </div>
-
-                {/* Slider / Sheet Tabs - ONLY render tabs when their content is actually present */}
-                {(hasPodcast || hasCards) && (
-                  <div className="flex bg-slate-50 dark:bg-slate-900/60 p-1 border-b border-slate-200 dark:border-slate-800">
-                    <button
-                      onClick={() => setDrawerTab('conspectus')}
-                      className={`flex-1 py-2 text-center text-xs font-semibold transition-all ${
-                        drawerTab === 'conspectus'
-                          ? 'bg-[var(--sf-surface)] text-[var(--sf-ink)] rounded-lg shadow-xs'
-                          : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-                      }`}
-                    >
-                      Конспект
-                    </button>
-                    {hasPodcast && (
-                      <button
-                        onClick={() => setDrawerTab('podcast')}
-                        className={`flex-1 py-2 text-center text-xs font-semibold transition-all ${
-                          drawerTab === 'podcast'
-                            ? 'bg-[var(--sf-surface)] text-[var(--sf-ink)] rounded-lg shadow-xs'
-                            : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-                        }`}
-                      >
-                        Разговор
-                      </button>
-                    )}
-                    {hasCards && (
-                      <button
-                        onClick={() => {
-                          setDrawerTab('flashcards');
-                          setCardIndex(0);
-                          setIsFlipped(false);
-                        }}
-                        className={`flex-1 py-2 text-center text-xs font-semibold transition-all ${
-                          drawerTab === 'flashcards'
-                            ? 'bg-[var(--sf-surface)] text-[var(--sf-ink)] rounded-lg shadow-xs'
-                            : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-                        }`}
-                      >
-                        Карточки
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Drawer Content Area */}
-                <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/30 dark:bg-slate-900/30">
-                  
-                  {/* 1. CONSPECTUS TAB */}
-                  {drawerTab === 'conspectus' && (
-                    <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
-                      <div className="flex items-center gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/60 dark:border-indigo-900/35 rounded-xl">
-                        <BookOpenCheck className="w-5 h-5 text-indigo-500" />
-                        <span className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">Краткий обзор</span>
-                      </div>
-
-                      {peekMaterial.summary_json?.cheatsheet ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-slate-700 dark:text-slate-300 font-semibold font-sans">
-                          <ReactMarkdown>{peekMaterial.summary_json.cheatsheet}</ReactMarkdown>
-                        </div>
-                      ) : peekMaterial.summary_json?.content ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-slate-700 dark:text-slate-300 font-semibold font-sans">
-                          <ReactMarkdown>
-                            {peekMaterial.summary_json.content.slice(0, 1000) + (peekMaterial.summary_json.content.length > 1000 ? '...' : '')}
-                          </ReactMarkdown>
-                        </div>
-                      ) : peekMaterial.summary_json?.text_only === true ? (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Только текст, конспекта нет. Лекция загружена для экзамена: её текст участвует в разметке вопросов.</p>
-                      ) : (
-                        <p className="text-xs text-slate-400 dark:text-slate-500 italic">Сводка или шпаргалка не создана для этого файла.</p>
-                      )}
-
-                      {peekMaterial.summary_json?.terms && peekMaterial.summary_json.terms.length > 0 && (
-                        <div className="space-y-3 pt-3 border-t border-slate-200/60 dark:border-slate-800">
-                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">📚 Ключевые термины ({peekMaterial.summary_json.terms.length})</h4>
-                          <div className="space-y-2">
-                            {peekMaterial.summary_json.terms.slice(0, 10).map((t: any, idx: number) => (
-                              <div key={idx} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
-                                <span className="block text-xs font-black text-indigo-600 dark:text-indigo-400">{t.term}</span>
-                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-semibold leading-relaxed">{t.definition}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 2. CONVERSATION PREVIEW TAB */}
-                  {drawerTab === 'podcast' && (() => {
-                    const conversationLines: any[] = (peekMaterial.summary_json?.podcast || []).filter(
-                      (line: any) => line && typeof line.text === 'string' && line.text.trim(),
-                    );
-                    const count = conversationLines.length;
-                    return (
-                      <div className="flex-grow overflow-y-auto p-5 custom-scrollbar">
-                        <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)]">
-                          <div className="flex items-center justify-between gap-3 border-b border-[var(--sf-line)] px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <MessagesSquare className="h-4 w-4 text-[var(--sf-muted)]" aria-hidden="true" />
-                              <span className="text-sm font-semibold text-[var(--sf-ink)]">Разговор по материалу</span>
-                            </div>
-                            <span className="text-xs tabular-nums text-[var(--sf-muted)]">{pluralLines(count)}</span>
-                          </div>
-                          <ul className="divide-y divide-[var(--sf-line)]">
-                            {conversationLines.slice(0, 2).map((line: any, idx: number) => (
-                              <li key={idx} className="px-4 py-3">
-                                <span className="block text-xs font-semibold text-[var(--sf-muted)]">{line.speaker || 'Ведущий'}</span>
-                                <p className="mt-0.5 text-sm leading-relaxed text-[var(--sf-ink)] line-clamp-3">{line.text}</p>
-                              </li>
-                            ))}
-                          </ul>
-                          {count > 2 && (
-                            <p className="border-t border-[var(--sf-line)] px-4 py-2.5 text-xs text-[var(--sf-muted)]">
-                              Ещё {pluralLines(count - 2)}
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => openConversation(peekMaterial.id)}
-                          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--sf-line)] text-sm font-semibold text-[var(--sf-ink)] transition-colors hover:bg-[var(--sf-surface-soft)]"
-                        >
-                          Открыть разговор
-                          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                        </button>
-                      </div>
-                    );
-                  })()}
-
-                  {/* 3. SMART FLASHCARDS TAB */}
-                  {drawerTab === 'flashcards' && (
-                    <div className="flex-1 overflow-y-auto p-5 flex flex-col justify-between">
-                      {(() => {
-                        if (drawerCards.length === 0) return null;
-                        const currentCard = drawerCards[cardIndex];
-
-                        return (
-                          <div className="flex-grow flex flex-col justify-between space-y-6">
-                            {/* Top metadata counter */}
-                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                              <span>Повторение карточек</span>
-                              <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full font-black">
-                                {cardIndex + 1} из {drawerCards.length}
-                              </span>
-                            </div>
-
-                            {/* Flip Card Container */}
-                            <div 
-                              onClick={() => setIsFlipped(!isFlipped)}
-                              className="w-full h-64 cursor-pointer select-none perspective-1000 relative"
-                            >
-                              <div className={`w-full h-full duration-500 transform-style-3d relative transition-transform ${isFlipped ? 'rotate-y-180' : ''}`}>
-                                
-                                {/* Front Question Face */}
-                                <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/15 dark:to-slate-900 border-2 border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-6 flex flex-col justify-between shadow-md">
-                                  <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Вопрос</div>
-                                  <div className="flex-grow flex items-center justify-center text-center">
-                                    <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-150 line-clamp-4 leading-snug">
-                                      {currentCard.question}
-                                    </h3>
-                                  </div>
-                                  <div className="text-[10px] text-slate-450 dark:text-slate-500 text-center font-bold">Нажмите, чтобы перевернуть 🔄</div>
-                                </div>
-
-                                {/* Back Answer Face */}
-                                <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-slate-900 border-2 border-indigo-500/25 rounded-2xl p-6 flex flex-col justify-between shadow-lg">
-                                  <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Ответ</div>
-                                  <div className="flex-grow flex items-center justify-center text-center overflow-y-auto custom-scrollbar">
-                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                      {currentCard.answer}
-                                    </p>
-                                  </div>
-                                  <div className="text-[10px] text-slate-450 dark:text-slate-500 text-center font-bold">Нажмите, чтобы перевернуть 🔄</div>
-                                </div>
-
-                              </div>
-                            </div>
-
-                            {/* Control arrows and CTA */}
-                            <div className="flex items-center justify-between gap-3 pt-2">
-                              <button
-                                disabled={cardIndex === 0}
-                                onClick={() => {
-                                  setIsFlipped(false);
-                                  setCardIndex(cardIndex - 1);
-                                }}
-                                className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-40 transition text-slate-600 dark:text-slate-350 shrink-0 animate-scale-up"
-                              >
-                                <ChevronLeft className="w-5 h-5" />
-                              </button>
-
-                              <div className="flex-1 flex gap-2">
-                                <button
-                                  onClick={() => {
-                                    toast.success('Запомнил!');
-                                    setIsFlipped(false);
-                                    if (cardIndex < drawerCards.length - 1) {
-                                      setCardIndex(cardIndex + 1);
-                                    }
-                                  }}
-                                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition active:scale-95 shadow-sm"
-                                >
-                                  Знаю 👍
-                                </button>
-                                  <button
-                                    onClick={() => {
-                                      toast.success('Повторим позже');
-                                      setIsFlipped(false);
-                                      if (cardIndex < drawerCards.length - 1) {
-                                        setCardIndex(cardIndex + 1);
-                                      }
-                                    }}
-                                    className="flex-1 py-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-xs font-black hover:bg-indigo-100 transition"
-                                  >
-                                    Повторить 🔁
-                                  </button>
-                                </div>
-
-                                <button
-                                  disabled={cardIndex === drawerCards.length - 1}
-                                  onClick={() => {
-                                    setIsFlipped(false);
-                                    setCardIndex(cardIndex + 1);
-                                  }}
-                                  className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl disabled:opacity-40 transition text-slate-600 dark:text-slate-350 shrink-0"
-                                >
-                                  <ChevronRight className="w-5 h-5" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                </div>
-
-                {/* Drawer Footer Navigation button */}
-                <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <button
-                    onClick={() => navigate('/library/' + peekMaterial.id)}
-                    className="w-full py-3 bg-cyan-300 hover:bg-cyan-200 text-slate-950 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
-                    Открыть полностью
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </motion.div>
-            </>
-          );
-        })()}
-      </AnimatePresence>
-    </main>
+                {group.exam ? (
+                  <Link className="sf-link" to={`/exams/${group.exam.id}`}>
+                    Лист экзамена
+                  </Link>
+                ) : null}
+              </div>
+              <LectureList {...listProps} entries={group.entries} listKey={group.key} />
+            </section>
+          ))
+        ) : (
+          <LectureList {...listProps} entries={layout.entries} listKey={layout.mode === 'single' ? layout.exam.id : 'all'} />
+        )}
+      </div>
+      {joinDialog}
+    </div>
   );
 }

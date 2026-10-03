@@ -22,7 +22,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { KIND_WORDS } from '../lib/exams/format';
+import { KIND_WORDS, subjectOf } from '../lib/exams/format';
 import { pluralRu } from '../components/conversation/visuals';
 import QuestionPreview from '../components/exams/QuestionPreview';
 import MaterialPicker, { type ImportStatus } from '../components/exams/MaterialPicker';
@@ -416,7 +416,7 @@ export default function ExamEditor() {
           {bundle && (
             <>
               {' · '}
-              <Link to={`/exams/${bundle.exam.id}`}>{bundle.exam.title}</Link>
+              <Link to={`/exams/${bundle.exam.id}`}>{subjectOf(bundle.exam.title)}</Link>
             </>
           )}
         </p>
@@ -538,7 +538,8 @@ export default function ExamEditor() {
               <span className="nx-sel nx-sel-title">
                 <input
                   aria-label="Название экзамена"
-                  placeholder="Название"
+                  aria-describedby="exam-title-hint"
+                  placeholder="Микроэкономика"
                   value={title}
                   maxLength={200}
                   list="exam-subjects"
@@ -560,6 +561,9 @@ export default function ExamEditor() {
                 <input type="date" aria-label="Дата, необязательно" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
               </span>
             </div>
+            <p className="ex-meta" id="exam-title-hint">
+              Только предмет — вид экзамена выбирается рядом
+            </p>
             <datalist id="exam-subjects">
               {subjects.map((subject) => (
                 <option key={subject} value={subject} />

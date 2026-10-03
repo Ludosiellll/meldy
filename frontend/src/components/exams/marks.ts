@@ -25,7 +25,7 @@ export const COVERAGE_MARK: Record<SheetCoverage, CoverageMarkKind | null> = {
   unmapped: null,
 };
 
-/** Readiness on the number: ring (подтверждено), line (зачтено один раз), wavy line (не зачтено). */
+/** Readiness on the number: ring (подтверждено), line (зачтено в один день), wavy line (не зачтено). */
 export const READINESS_MARK: Record<Readiness, TextMarkKind | null> = {
   confirmed: 'ring',
   once: 'under',

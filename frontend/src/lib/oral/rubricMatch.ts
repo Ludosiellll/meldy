@@ -171,19 +171,123 @@ export function anchorWordIndexes(anchors: Anchors, textWords: readonly string[]
   return indexes;
 }
 
-/** The final words to underline: the words that matched an anchor of a point that is named. */
+/**
+ * The words that named a point: the earliest match of its notion (group 0) that lies in a window
+ * of NAMED_WINDOW words naming the point (the same windows as probablyNamed). Null when this text
+ * does not name the point.
+ */
+export function openingMatch(anchors: Anchors, textWords: readonly string[]): number[] | null {
+  if (!Array.isArray(anchors) || anchors.length === 0) return null;
+  const candidates: number[][] = [];
+  for (const variant of anchors[0]) candidates.push(...variantMatches(variant, textWords));
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => a[0] - b[0] || b.length - a.length);
+  const positions = anchors.map((group) => groupPositions(group, textWords));
+  const required = need(anchors.length);
+  const total = textWords.length;
+  const size = Math.min(NAMED_WINDOW, total);
+  for (const match of candidates) {
+    const position = match[0];
+    const lowest = Math.max(0, position - size + 1);
+    const highest = Math.min(position, total - size);
+    for (let start = lowest; start <= highest; start += 1) {
+      const end = start + size;
+      let groups = 0;
+      for (const group of positions) if (group.some((index) => index >= start && index < end)) groups += 1;
+      if (groups >= required) return match;
+    }
+  }
+  return null;
+}
+
+/** At most this many underlines in the transcript on the answer sheet (redesign critique 4). */
+export const MAX_TRANSCRIPT_UNDERLINES = 5;
+
+/**
+ * The final words to underline: for every named point only the words that named it (its opening
+ * match), at most five on the sheet, earliest first. A word said again stays plain, so the
+ * transcript does not look like a spell-check.
+ */
 export function underlinedFinalWords(
   points: readonly MatchablePoint[],
   named: ReadonlySet<string>,
   finalText: string,
 ): Set<number> {
   const textWords = words(finalText);
-  const indexes = new Set<number>();
+  const openings: number[][] = [];
   for (const point of points) {
     if (!named.has(point.id)) continue;
-    for (const index of anchorWordIndexes(point.anchors, textWords)) indexes.add(index);
+    const match = openingMatch(point.anchors, textWords);
+    if (match) openings.push(match);
   }
+  openings.sort((a, b) => a[0] - b[0]);
+  const indexes = new Set<number>();
+  for (const match of openings.slice(0, MAX_TRANSCRIPT_UNDERLINES)) for (const index of match) indexes.add(index);
   return indexes;
+}
+
+/** A group's longest match in a text (by the letters of the matched words). */
+export interface GroupMatch {
+  group: number;
+  indexes: number[];
+  length: number;
+}
+
+/** Each group's longest match in the text, longest first. */
+export function bestGroupMatches(anchors: Anchors, textWords: readonly string[]): GroupMatch[] {
+  const best: GroupMatch[] = [];
+  if (!Array.isArray(anchors)) return best;
+  anchors.forEach((group, groupIndex) => {
+    let top: GroupMatch | null = null;
+    for (const variant of group) {
+      for (const match of variantMatches(variant, textWords)) {
+        const length = match.reduce((sum, index) => sum + letters(textWords[index]), 0);
+        if (!top || length > top.length || (length === top.length && match[0] < top.indexes[0])) top = { group: groupIndex, indexes: match, length };
+      }
+    }
+    if (top) best.push(top);
+  });
+  return best.sort((a, b) => b.length - a.length || a.indexes[0] - b.indexes[0]);
+}
+
+/** At most this many underlines in a lecture quote of one point. */
+export const MAX_QUOTE_UNDERLINES = 2;
+
+/**
+ * Words to underline in a quote: the longest matches of at most two different groups (or only of
+ * the given groups), so a quote carries one or two pencil lines, not one under every keyword.
+ */
+export function quoteMarks(anchors: Anchors, text: string, onlyGroups?: ReadonlySet<number>, max = MAX_QUOTE_UNDERLINES): Set<number> {
+  const picked = bestGroupMatches(anchors, words(text))
+    .filter((match) => !onlyGroups || onlyGroups.has(match.group))
+    .slice(0, max);
+  return new Set(picked.flatMap((match) => match.indexes));
+}
+
+/**
+ * The one group underlined in a named row's lecture quote on the answer sheet: the notion that named
+ * the point (group 0, the same words the transcript underlines) when the quote has it, else the group
+ * the student said that the quote matches longest. One pencil line per named row and one per point in
+ * the answer: the sheet stays calm on a projector (redesign critique 4: at most 6 lines in the frame).
+ */
+export function rowQuoteGroups(anchors: Anchors, said: string, quote: string): Set<number> {
+  if (bestGroupMatches(anchors, words(quote)).some((match) => match.group === 0)) return new Set([0]);
+  return sharedGroups(anchors, said, quote, 1);
+}
+
+/**
+ * The groups underlined in both the student's words and the lecture quote of a protocol row: those
+ * present in both, ranked by the lecture's longest match — the same words in both show what the
+ * point was counted for.
+ */
+export function sharedGroups(anchors: Anchors, answer: string, lecture: string, max = MAX_QUOTE_UNDERLINES): Set<number> {
+  const inAnswer = new Set(bestGroupMatches(anchors, words(answer)).map((match) => match.group));
+  return new Set(
+    bestGroupMatches(anchors, words(lecture))
+      .filter((match) => inAnswer.has(match.group))
+      .slice(0, max)
+      .map((match) => match.group),
+  );
 }
 
 /** A piece of displayed text: a word run (with the normalised word indexes it yields) or a separator. */

@@ -160,6 +160,9 @@ describe('ExamEditor: a new exam', () => {
     await pasteAndParse();
     expect(mocks.parseQuestionList).toHaveBeenCalledWith({ text: PARSE.source_text });
     expect(screen.getByLabelText('Название экзамена')).toHaveValue('Макроэкономика');
+    // Only the subject goes here; the kind of exam is chosen next to it.
+    expect(screen.getByLabelText('Название экзамена')).toHaveAttribute('placeholder', 'Микроэкономика');
+    expect(screen.getByLabelText('Название экзамена')).toHaveAccessibleDescription('Только предмет — вид экзамена выбирается рядом');
     expect(screen.getByRole('combobox', { name: 'Как составлены билеты' })).toHaveValue('fixed');
     expect(screen.getByText(/2 билета из списка кафедры/)).toBeInTheDocument();
     expect(screen.getByText('Раздел 1. Введение')).toBeInTheDocument();

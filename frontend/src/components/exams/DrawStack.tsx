@@ -18,7 +18,7 @@ interface DrawStackProps {
   /** The department's ticket number for a known ticket; null for a random combination. */
   ticketNumber: number | null;
   questions: DrawnCardQuestion[] | null;
-  /** False under prefers-reduced-motion: the result is simply there. */
+  /** False under prefers-reduced-motion: the card only fades in (150 ms). */
   animate: boolean;
 }
 
@@ -36,11 +36,13 @@ export function ticketTitle(ticketNumber: number | null, questions: DrawnCardQue
 }
 
 /**
- * A static stack of three ticket cards; the top one lifts (450 ms, no shuffling) and shows the
- * drawn ticket: its number when the department's tickets are known, the questions with their
- * numbers and texts. Nothing is voiced (correction 7).
+ * A static stack of three ticket cards; the top one lifts and turns over (600 ms at most, no
+ * shuffling; a 150 ms fade under reduced motion) and shows the drawn ticket: its number when the
+ * department's tickets are known, the questions with their numbers and texts. Nothing is voiced
+ * (correction 7).
  */
 export default function DrawStack({ drawKey, ticketNumber, questions, animate }: DrawStackProps) {
+  const single = ticketNumber === null && questions?.length === 1;
   return (
     <div className="dw-stack">
       <div className="sf-index-card dw-under" data-n="2" aria-hidden="true" />
@@ -48,7 +50,7 @@ export default function DrawStack({ drawKey, ticketNumber, questions, animate }:
       <article
         key={drawKey}
         className="sf-index-card dw-card"
-        data-state={animate && questions ? 'lift' : undefined}
+        data-state={questions ? (animate ? 'lift' : 'fade') : undefined}
         data-lifted={questions ? '' : undefined}
         aria-live="polite"
         aria-label={questions ? ticketTitle(ticketNumber, questions) : 'Стопка билетов'}
@@ -56,13 +58,18 @@ export default function DrawStack({ drawKey, ticketNumber, questions, animate }:
         {questions ? (
           <>
             <p className="dw-no">
-              {ticketNumber !== null ? <b>Билет {ticketNumber}</b> : <b>{questions.length === 1 ? 'Вопрос' : 'Случайный билет'}</b>}
+              {ticketNumber !== null ? (
+                <b>Билет {ticketNumber}</b>
+              ) : (
+                // One question: the same line the answer screen's card will have, «Вопрос 12».
+                <b>{single ? `Вопрос ${questions[0].number}` : 'Случайный билет'}</b>
+              )}
               {questions.length > 1 && glue(` · ${questions.length} ${pluralRu(questions.length, ['вопрос', 'вопроса', 'вопросов'])}`)}
             </p>
             <ol className="dw-qs">
               {questions.map((question) => (
                 <li key={question.id} className="dw-q">
-                  <span className="dw-q-n">Вопрос {question.number}</span>
+                  {!single && <span className="dw-q-n">Вопрос {question.number}</span>}
                   <span className="dw-q-t">{question.text}</span>
                   {question.none && <span className="dw-q-none sf-pnote">{NONE_QUESTION_MESSAGE}</span>}
                 </li>

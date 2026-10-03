@@ -103,6 +103,14 @@ describe('Exams', () => {
     expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/new');
   });
 
+  it('names an exam by its subject: «Экзамен: цифровая экономика» reads «Цифровая экономика» next to «экзамен ·»', async () => {
+    mocks.listExams.mockResolvedValue([item({ title: 'Экзамен: цифровая экономика' })]);
+    renderList();
+    const list = await screen.findByRole('list', { name: 'Ваши экзамены' });
+    const title = list.querySelector('.ex-row-title');
+    expect(title?.textContent).toBe('Цифровая экономика');
+  });
+
   it('still lists the exams when the answer history cannot be read', async () => {
     mocks.listExams.mockResolvedValue([item()]);
     mocks.fetchQuestionEvents.mockRejectedValue(new Error('offline'));

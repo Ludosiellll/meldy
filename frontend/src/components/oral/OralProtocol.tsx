@@ -16,6 +16,7 @@ import { fragmentsLabel, pointSource } from '../../lib/oral/oralPersistence';
 import type { Evaluation, Rubric } from '../../lib/oral/oralApi';
 import type { StoredProtocol } from '../../lib/oral/ticketData';
 import { glue } from '../../lib/oral/format';
+import { sharedGroups } from '../../lib/oral/rubricMatch';
 
 /** Redesign spec 5.12, word for word. */
 export const TRAINING_NOTE = 'Оценка тренировочная: по пунктам эталона из ваших лекций, а не по требованиям преподавателя.';
@@ -127,6 +128,17 @@ function lectureCaption(label: string): string {
   return label.startsWith('«') ? `Лекция ${label}` : label || 'Лекция';
 }
 
+/**
+ * The label in front of a lecture quote: «Лекция «Нейронные сети», фрагмент 12:». An exam has many
+ * lectures, so the quote always names its own (QA s35); only a rubric that knows no lecture title
+ * falls back to «Лекция, фрагмент 12:».
+ */
+export function quoteLabel(point: Pick<ProtocolPoint, 'sourceLabel' | 'fragments'>): string {
+  const label = point.sourceLabel.trim();
+  if (label) return `${lectureCaption(label)}:`;
+  return `Лекция${point.fragments ? `, ${point.fragments}` : ''}:`;
+}
+
 function PointRow({
   point,
   followup,
@@ -154,7 +166,7 @@ function PointRow({
           <p className="or-ppt-st">{point.live ? 'по ключевым словам назван' : 'по ключевым словам не назван'}</p>
           {point.sourceQuote ? (
             <p className="or-q2">
-              <span className="or-q2-label">{glue(`Лекция${point.fragments ? `, ${point.fragments}` : ''}:`)}</span>
+              <span className="or-q2-label">{glue(quoteLabel(point))}</span>
               «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} seed={markSeed + 31} />»
             </p>
           ) : null}
@@ -164,6 +176,9 @@ function PointRow({
   }
   const kind = MARKS[point.status];
   const word = STATUS_WORDS[point.status];
+  // The same words are underlined in «Вы» and in the lecture: what the point was counted for.
+  const shared = sharedGroups(point.anchors, point.studentQuote, point.sourceQuote);
+  const underDelay = (point.number - 1) * 60;
   const statusLine = asked ? (
     <>{`${word}; ${askedLine(asked)}`}</>
   ) : point.fragments && (point.status === 'covered' || point.status === 'partial') ? (
@@ -196,7 +211,7 @@ function PointRow({
           <span className="or-q2-label">Вы:</span>
           {point.studentQuote ? (
             <>
-              «<UnderlinedText text={point.studentQuote} anchors={point.anchors} seed={markSeed + 17} />»
+              «<UnderlinedText text={point.studentQuote} anchors={point.anchors} groups={shared} seed={markSeed + 17} animate={animate} delayMs={underDelay} />»
             </>
           ) : (
             <span className="or-q2-none">в ответе не прозвучало</span>
@@ -205,14 +220,14 @@ function PointRow({
         {point.sourceQuote ? (
           point.status === 'covered' ? (
             <p className="or-q2">
-              <span className="or-q2-label">{glue(`Лекция${point.fragments ? `, ${point.fragments}` : ''}:`)}</span>
-              «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} seed={markSeed + 31} />»
+              <span className="or-q2-label">{glue(quoteLabel(point))}</span>
+              «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} groups={shared} seed={markSeed + 31} animate={animate} delayMs={underDelay} />»
             </p>
           ) : (
             <blockquote className="sf-slip or-pslip">
               <span className="or-slip-cap">{lectureCaption(point.sourceLabel)}</span>
               <span className="or-pslip-quote">
-                «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} seed={markSeed + 31} />»
+                «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} groups={shared} seed={markSeed + 31} animate={animate} delayMs={underDelay} />»
               </span>
             </blockquote>
           )
@@ -295,7 +310,10 @@ export function HowGraded({ result }: { result: GradeResult }) {
 
 interface ProtocolGradeProps {
   result: GradeResult;
-  /** A previous answer to the same question: «В прошлый раз (1 окт.): 3 из 5» (redesign spec 5.12). */
+  /**
+   * A previous answer to the same question, on the «Как считается» row: «прошлый ответ, 2 окт.:
+   * «хорошо»» (redesign critique 5: «4 из 5» next to «Раскрыто 3 пункта из 5» read as points).
+   */
   previous?: ReactNode;
   children?: ReactNode;
 }
@@ -322,16 +340,23 @@ export function ProtocolGrade({ result, previous, children }: ProtocolGradeProps
         ) : null}
       </p>
       <p className="or-grade-why">{glue(countsSentence(result.counts))}</p>
-      <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
-        Как считается
-      </button>
+      <p className="or-how-row">
+        <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
+          Как считается
+        </button>
+        {previous ? (
+          <span className="or-previous">
+            <span aria-hidden="true"> · </span>
+            {previous}
+          </span>
+        ) : null}
+      </p>
       {open ? (
         <div id={howId}>
           <HowGraded result={result} />
         </div>
       ) : null}
       <p className="or-grade-fine">{TRAINING_NOTE}</p>
-      {previous ? <p className="or-previous">{previous}</p> : null}
       {children}
     </div>
   );
