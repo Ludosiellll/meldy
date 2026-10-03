@@ -754,6 +754,8 @@ export default function Library() {
           {filtered.map(m => {
             const fcCount = m.flashcards_json?.flashcards?.length || 0;
             const qCount = m.quiz_json?.quiz?.length || 0;
+            // Imported for an exam as plain text (/api/extract): no summary, cards or test were made.
+            const textOnly = m.summary_json?.text_only === true;
             const hasPodcast = m.summary_json?.podcast?.length > 0;
             const isSelected = selectedIds.includes(m.id);
             const isAssigned = (m as any).is_assigned;
@@ -937,9 +939,15 @@ export default function Library() {
 
                 {/* Substats */}
                 <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 my-4 ${isMultiSelectActive ? 'pl-8' : ''}`}>
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap" title="Конспект"><FileText className="h-3.5 w-3.5" /> Конспект</span>
-                  <span className="whitespace-nowrap tabular-nums" title="Карточки">{fcCount} {pluralRu(fcCount, ['карточка', 'карточки', 'карточек'])}</span>
-                  <span className="whitespace-nowrap tabular-nums" title="Вопросы">{qCount} {pluralRu(qCount, ['вопрос', 'вопроса', 'вопросов'])}</span>
+                  {textOnly ? (
+                    <span className="whitespace-nowrap">Только текст, конспекта нет</span>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap" title="Конспект"><FileText className="h-3.5 w-3.5" /> Конспект</span>
+                      <span className="whitespace-nowrap tabular-nums" title="Карточки">{fcCount} {pluralRu(fcCount, ['карточка', 'карточки', 'карточек'])}</span>
+                      <span className="whitespace-nowrap tabular-nums" title="Вопросы">{qCount} {pluralRu(qCount, ['вопрос', 'вопроса', 'вопросов'])}</span>
+                    </>
+                  )}
                 </div>
 
                 {/* Footer and Date */}
@@ -1300,6 +1308,8 @@ export default function Library() {
                             {peekMaterial.summary_json.content.slice(0, 1000) + (peekMaterial.summary_json.content.length > 1000 ? '...' : '')}
                           </ReactMarkdown>
                         </div>
+                      ) : peekMaterial.summary_json?.text_only === true ? (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Только текст, конспекта нет. Лекция загружена для экзамена: её текст участвует в разметке вопросов.</p>
                       ) : (
                         <p className="text-xs text-slate-400 dark:text-slate-500 italic">Сводка или шпаргалка не создана для этого файла.</p>
                       )}

@@ -1,0 +1,219 @@
+/* Paper kit of the interior («Бумажный стол», redesign spec 3 and 6.1).
+ *
+ * The canvas is the desk; paper is only what you could hold: the department's list, a lecture
+ * fragment, the ticket, the answer sheet, the index card. Meldy speaks in Onest on the desk and
+ * marks paper with a blue pencil (components/marks); the student's own hand is graphite.
+ *
+ * How to use it (wave-2 screens):
+ * - the root of a screen carries .sf-page (a page frame with gutters) or, in room mode, the top line
+ *   is .sf-room-bar and the room's body is .sf-page too: the new tokens live on these roots, so
+ *   nothing outside them changes;
+ * - paper is .sf-sheet (radius 2), .sf-index-card (radius 6) or .sf-slip (a cut-out fragment); inside
+ *   them the desk tokens point at the paper ones, so --sf-ink, --sf-muted, --sf-line, focus rings and
+ *   --ph-pencil-desk stay readable on paper in both themes;
+ * - .sf-pnote is Meldy's typeset note on paper (pencil blue), .sf-ref a reference on the desk,
+ *   .sf-link the underlined word (add data-muted for the quiet version);
+ * - the one primary pill is .sf-primary (from LandingHero.css, imported below).
+ *
+ * Only new class names and imports: no element selectors and no :root overrides of existing tokens.
+ * index.css, components/landing/** and ConfirmContext stay untouched (contracts §0). */
+
+@import '../components/landing/PaperHero.css';
+@import '../components/LandingHero.css';
+@import '@fontsource-variable/onest/wght.css';
+@import '@fontsource-variable/literata/opsz.css';
+
+/* ---------------------------------------------------------------- tokens (spec 3.2), on the roots */
+.sf-page,
+.sf-room-bar {
+  --sf-muted: #62615b;
+  --sf-line-strong: #cfcac2;
+  --sf-control-edge: #8f8a82;
+  --sf-tint: rgba(32, 32, 30, .06);
+  --sf-pop-shadow: 0 0 0 1px var(--sf-line), 0 18px 36px -22px rgba(30, 24, 16, .32);
+  --ph-paper-muted: #6b665e;
+  --ph-paper-rule: #d6d0c5;
+  --ph-edge: rgba(60, 46, 26, .18);
+  --ph-pencil-desk: #2c5fb3;
+  --ph-graphite: #625e57;
+  --ph-graphite-desk: #625e57;
+  --sf-g: 48px;
+  --sf-page: 1304px;
+  --sf-bar-h: 56px;
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+}
+@media (max-width: 1279px) {
+  .sf-page, .sf-room-bar { --sf-g: 40px; }
+}
+@media (max-width: 1023px) {
+  .sf-page, .sf-room-bar { --sf-g: 32px; --sf-bar-h: 52px; }
+}
+@media (max-width: 639px) {
+  .sf-page, .sf-room-bar { --sf-g: 16px; }
+}
+
+/* The desk goes dark, the paper stays paper: a sheet under a lamp. */
+.dark .sf-page,
+.dark .sf-room-bar {
+  --sf-muted: #b0ada6;
+  --sf-line: #3a3835;
+  --sf-line-strong: #504d48;
+  --sf-control-edge: #75716a;
+  --sf-tint: rgba(242, 240, 236, .075);
+  --sf-pop-shadow: 0 0 0 1px var(--sf-line), 0 18px 36px -18px rgba(0, 0, 0, .7);
+  --ph-paper-muted: #524e47;
+  --ph-paper-rule: #a39e94;
+  --ph-edge: rgba(0, 0, 0, .4);
+  --ph-pencil-desk: #7ea8e6;
+  --ph-graphite: #4c4a45;
+  --ph-graphite-desk: #a9a59d;
+}
+
+/* Stage mode (html[data-stage], switched on by the speaker): the projector washes the paper into
+   the desk, so the sheet ring gets darker. Nothing else changes here. */
+html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(60, 46, 26, .34); }
+
+/* Focus: the desk ring on the desk, the pencil on paper (4.76:1 on the dark paper). */
+.sf-page :focus-visible,
+.dark .sf-page :focus-visible,
+.sf-room-bar :focus-visible,
+.dark .sf-room-bar :focus-visible {
+  outline: 2px solid var(--ph-focus);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------- page frame */
+.sf-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--sf-page) + 2 * var(--sf-g));
+  margin: 0 auto;
+  padding: 0 var(--sf-g) 96px;
+}
+
+/* ---------------------------------------------------------------- paper */
+/* Inside paper the desk tokens point at the paper ones: dark desk tokens on dark paper were
+   1.15–1.68:1. */
+.sf-sheet,
+.sf-index-card,
+.sf-slip {
+  color-scheme: light;
+  --sf-ink: var(--ph-paper-ink);
+  --sf-muted: var(--ph-paper-muted);
+  --sf-line: var(--ph-paper-rule);
+  --sf-accent-fg: var(--ph-pencil);
+  --ph-pencil-desk: var(--ph-pencil);
+  --ph-graphite-desk: var(--ph-graphite);
+  --ph-focus: var(--ph-pencil);
+  color: var(--ph-paper-ink);
+}
+
+.sf-sheet {
+  position: relative;
+  border-radius: 2px;
+  background: var(--ph-paper);
+  box-shadow: 0 0 0 1px var(--ph-edge), 0 1px 1px var(--ph-sh-contact), 0 14px 32px -16px var(--ph-sh-soft);
+}
+
+.sf-index-card {
+  position: relative;
+  border-radius: 6px;
+  background: var(--ph-card);
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft);
+}
+.sf-index-card[data-lifted] {
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 28px 42px -16px var(--ph-sh-lift);
+}
+
+/* A slip: a cut-out fragment of a lecture. */
+.sf-slip {
+  position: relative;
+  padding: 16px 20px 18px;
+  border-radius: 2px;
+  background: var(--ph-paper);
+  font-family: var(--ph-serif);
+  font-size: 17px;
+  line-height: 27px;
+  font-variation-settings: 'opsz' 16;
+  overflow-wrap: anywhere;
+  box-shadow: 0 0 0 1px var(--ph-edge), 0 1px 1px var(--ph-sh-contact), 0 10px 22px -14px var(--ph-sh-soft);
+}
+@media (max-width: 639px) {
+  .sf-slip { font-size: 16px; line-height: 25px; padding: 14px 16px 16px; }
+}
+
+/* Meldy's note on paper: typeset in the pencil's blue (the pencil itself never writes letters). */
+.sf-pnote {
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ph-pencil-desk);
+}
+
+/* A reference on the desk: the same blue, desk-safe in the dark theme. */
+.sf-ref {
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--ph-pencil-desk);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 4px;
+}
+
+/* Everything that is not the one primary action: an underlined word (= .sf-watch of the landing). */
+.sf-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--sf-ink);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+  text-underline-offset: 5px;
+  cursor: pointer;
+  transition: text-decoration-color 150ms ease, color 150ms ease;
+}
+.sf-link:hover { text-decoration-color: currentColor; }
+.sf-link[data-muted] { color: var(--sf-muted); font-size: 15px; }
+.sf-link[data-muted]:hover { color: var(--sf-ink); }
+.sf-link:disabled,
+.sf-link[aria-disabled='true'] { cursor: not-allowed; color: var(--sf-muted); text-decoration-color: transparent; }
+
+/* ---------------------------------------------------------------- room mode (draw, ticket) */
+/* The top line of a room: wordmark, where you are, a timer and the way out; no menu. */
+.sf-room-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  padding: 0 var(--sf-g);
+  border-bottom: 1px solid var(--sf-line);
+  background: var(--sf-canvas);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-link { transition: none; }
+}

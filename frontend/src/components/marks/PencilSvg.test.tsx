@@ -1,0 +1,138 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { shape } from './geometry';
+import { MarginStroke, Mark, PencilBrace } from './PencilSvg';
+import { PencilOval, PencilUnder, TextMark } from './TextMarks';
+
+function stubReducedMotion(reduce: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: reduce && query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe('<Mark>', () => {
+  it('renders an aria-hidden SVG with the deterministic path of its seed', () => {
+    stubReducedMotion(false);
+    const { container, rerender } = render(<Mark kind="tick" seed={41} />);
+    const svg = container.querySelector('svg')!;
+    expect(svg).toHaveAttribute('aria-hidden', 'true');
+    expect(svg).toHaveAttribute('focusable', 'false');
+    expect(svg).toHaveAttribute('data-mark', 'tick');
+    const d = svg.querySelector('path')!.getAttribute('d');
+    expect(d).toBe(shape('tick', 25, 21, 41)[0].d);
+
+    rerender(<Mark kind="tick" seed={41} />);
+    expect(container.querySelector('path')!.getAttribute('d')).toBe(d);
+    rerender(<Mark kind="tick" seed={42} />);
+    expect(container.querySelector('path')!.getAttribute('d')).not.toBe(d);
+  });
+
+  it('draws a new judgement in through a mask and leaves old marks still', () => {
+    stubReducedMotion(false);
+    const { container, rerender } = render(<Mark kind="dash" seed={3} animate delayMs={120} />);
+    let svg = container.querySelector('svg')!;
+    expect(svg).toHaveAttribute('data-drawn', 'live');
+    const stroke = svg.querySelector('mask path')!;
+    expect(stroke).toHaveClass('sf-mark-draw');
+    expect(stroke).toHaveAttribute('pathLength', '1');
+    expect((stroke as SVGPathElement).style.animationDelay).toBe('120ms');
+
+    rerender(<Mark kind="dash" seed={3} />);
+    svg = container.querySelector('svg')!;
+    expect(svg).toHaveAttribute('data-drawn', 'still');
+    expect(svg.querySelector('mask')).toBeNull();
+  });
+
+  it('never animates under prefers-reduced-motion', () => {
+    stubReducedMotion(true);
+    const { container } = render(<Mark kind="tick" seed={3} animate />);
+    expect(container.querySelector('svg')).toHaveAttribute('data-drawn', 'still');
+    expect(container.querySelector('mask')).toBeNull();
+  });
+
+  it('uses graphite for the student’s own hand', () => {
+    stubReducedMotion(false);
+    const { container } = render(<Mark kind="under" seed={3} width={40} height={6} hand="graphite" />);
+    expect(container.querySelector('svg')).toHaveClass('sf-mark-graphite');
+  });
+
+  it('draws the examiner brace and the margin stroke', () => {
+    stubReducedMotion(false);
+    const { container } = render(
+      <div>
+        <PencilBrace seed={8} />
+        <MarginStroke seed={9} />
+      </div>,
+    );
+    expect(container.querySelector('[data-mark="brace"]')).not.toBeNull();
+    expect(container.querySelector('.sf-margin-stroke [data-mark="vline"]')).not.toBeNull();
+  });
+});
+
+describe('text marks', () => {
+  it('rings a number and keeps the number as text', () => {
+    stubReducedMotion(false);
+    const { container } = render(
+      <TextMark kind="ring" seed={12}>
+        12
+      </TextMark>,
+    );
+    expect(screen.getByText('12')).toBeInTheDocument();
+    const wrapper = container.querySelector('.sf-textmark')!;
+    expect(wrapper).toHaveAttribute('data-mark', 'ring');
+    expect(wrapper.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('gives the same oval for the same seed', () => {
+    stubReducedMotion(false);
+    const first = render(<PencilOval seed={5}>Зачтено</PencilOval>);
+    const d1 = first.container.querySelector('path')!.getAttribute('d');
+    first.unmount();
+    const second = render(<PencilOval seed={5}>Зачтено</PencilOval>);
+    expect(second.container.querySelector('path')!.getAttribute('d')).toBe(d1);
+  });
+
+  it('underlines every line the words occupy, one stroke per line', () => {
+    stubReducedMotion(false);
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const offsetParent = vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+      return host;
+    });
+    const rects = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (this: HTMLElement) {
+      const list = [
+        { left: 10, top: 20, width: 60, height: 24, right: 70, bottom: 44, x: 10, y: 20 },
+        { left: 0, top: 48, width: 30, height: 24, right: 30, bottom: 72, x: 0, y: 48 },
+      ];
+      return Object.assign(list, { item: (index: number) => list[index] }) as unknown as DOMRectList;
+    });
+    const { container } = render(<PencilUnder seed={7}>процентного изменения цены</PencilUnder>, { container: host });
+    expect(screen.getByText('процентного изменения цены')).toBeInTheDocument();
+    expect(container.querySelectorAll('.sf-under-ink')).toHaveLength(2);
+    offsetParent.mockRestore();
+    rects.mockRestore();
+    host.remove();
+  });
+
+  it('draws nothing where there is no layout (and keeps the words)', () => {
+    stubReducedMotion(false);
+    const { container } = render(<PencilUnder seed={7}>выбор</PencilUnder>);
+    expect(screen.getByText('выбор')).toBeInTheDocument();
+    expect(container.querySelectorAll('svg')).toHaveLength(0);
+  });
+});

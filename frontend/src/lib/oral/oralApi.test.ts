@@ -1,0 +1,203 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  AI_UNAVAILABLE_MESSAGE,
+  CHECK_CONFIRM_TIMEOUT_MS,
+  CHECK_FOLLOWUP_TIMEOUT_MS,
+  NETWORK_MESSAGE,
+  OralApiError,
+  RATE_LIMITED_MESSAGE,
+  checkAnswer,
+  evaluateAnswer,
+  fetchRubric,
+  parseRubricResponse,
+} from './oralApi';
+
+function json(status: number, body: unknown, headers: Record<string, string> = { 'content-type': 'application/json' }): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(headers),
+    text: async () => JSON.stringify(body),
+    json: async () => body,
+  } as unknown as Response;
+}
+
+const rubricBody = {
+  rubric_id: '11111111-1111-4111-8111-111111111111',
+  cached: true,
+  saved: true,
+  question_hash: 'a'.repeat(32),
+  question: 'Как обучается нейронная сеть?',
+  rubric: {
+    v: 1,
+    question: 'Как обучается нейронная сеть?',
+    coverage: 'full',
+    coverage_note: '',
+    fragments_considered: 12,
+    fragments_total: 30,
+    materials: [{ key: 'M1', material_id: 'mat-1', title: 'Нейронные сети' }],
+    points: [
+      {
+        id: 'p1',
+        title: 'Обучение — подбор весов',
+        essential: true,
+        source_quote: 'Обучение сети заключается в подборе весов',
+        source_ids: ['M1:S12'],
+        anchors: [['потер', 'ошибк'], ['вес']],
+        followup: { question: 'А что сеть минимизирует?', expected: 'Функцию потерь.' },
+      },
+      { id: 'x9', title: 'мусор' },
+    ],
+    nearest: [],
+  },
+};
+
+describe('oral API', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the rubric of an exam question and keeps only valid points', async () => {
+    fetchMock.mockResolvedValue(json(200, rubricBody));
+    const result = await fetchRubric({ examId: 'exam-1', questionId: 'q-1' });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/oral/rubric');
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ exam_id: 'exam-1', question_id: 'q-1', force: false });
+    expect(result.cached).toBe(true);
+    expect(result.rubric.points.map((point) => point.id)).toEqual(['p1']);
+    expect(result.rubric.points[0].followup.question).toBe('А что сеть минимизирует?');
+  });
+
+  it('shows the server’s detail for 409 and 422 and keeps status and code', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(409, { detail: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.', code: 'not_in_lectures' }),
+    );
+    const notInLectures = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((error) => error);
+    expect(notInLectures).toBeInstanceOf(OralApiError);
+    expect(notInLectures).toMatchObject({ status: 409, code: 'not_in_lectures', outage: false });
+    expect(notInLectures.message).toBe('Этого вопроса нет в ваших лекциях — оценить ответ не по чему.');
+
+    fetchMock.mockResolvedValueOnce(json(422, { detail: 'Не получилось составить эталон.', code: 'rubric_unverifiable' }));
+    const unverifiable = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((error) => error);
+    expect(unverifiable).toMatchObject({ status: 422, code: 'rubric_unverifiable', message: 'Не получилось составить эталон.' });
+  });
+
+  it('never blames the lectures for an outage', async () => {
+    for (const [status, body] of [
+      [502, { detail: 'ИИ-сервис сейчас не ответил. Попробуйте ещё раз.', code: 'ai_failed' }],
+      [504, { detail: 'ИИ-сервис не ответил вовремя. Попробуйте ещё раз.', code: 'ai_timeout' }],
+      [429, { detail: 'Сервис ИИ сейчас занят.', code: 'ai_busy' }],
+      [503, { detail: 'ИИ-сервис временно недоступен.', code: 'ai_unconfigured' }],
+    ] as const) {
+      fetchMock.mockResolvedValueOnce(json(status, body));
+      const error = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((caught) => caught);
+      expect(error).toMatchObject({ status, message: AI_UNAVAILABLE_MESSAGE, outage: true });
+    }
+  });
+
+  it('tells the limiter apart from a busy model', async () => {
+    fetchMock.mockResolvedValueOnce(json(429, { detail: 'Слишком много запросов. Подождите минуту и повторите.' }));
+    const error = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((caught) => caught);
+    expect(error).toMatchObject({ status: 429, message: RATE_LIMITED_MESSAGE });
+  });
+
+  it('reports a dropped connection as network', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const error = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((caught) => caught);
+    expect(error).toMatchObject({ kind: 'network', message: NETWORK_MESSAGE, outage: true });
+  });
+
+  const hang = (_url: string, init: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    });
+
+  it('gives the «Готово» check 1.5 s and the follow-up check 2.5 s', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(hang);
+    const points = [{ id: 'p1', title: 'Пункт', essential: true }];
+    const quick = checkAnswer({ question: 'Вопрос', points, transcript: 'ответ' }).catch((error) => error);
+    await vi.advanceTimersByTimeAsync(CHECK_CONFIRM_TIMEOUT_MS - 10);
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await quick).toMatchObject({ kind: 'timeout', message: AI_UNAVAILABLE_MESSAGE });
+
+    const followup = checkAnswer({ question: 'Вопрос', points, transcript: 'ответ', only: 'p1', followupQuestion: 'А почему?' }).catch(
+      (error) => error,
+    );
+    await vi.advanceTimersByTimeAsync(CHECK_CONFIRM_TIMEOUT_MS + 100);
+    expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS - CHECK_CONFIRM_TIMEOUT_MS);
+    expect(await followup).toMatchObject({ kind: 'timeout' });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toMatchObject({ only: 'p1', followup_question: 'А почему?' });
+  });
+
+  it('reads statuses and ask of the quick check', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { statuses: { p1: 'covered', p2: 'missing', p7: 'wrong', p3: 'great' }, ask: 'p2' }));
+    const result = await checkAnswer({
+      question: 'Вопрос',
+      points: [
+        { id: 'p1', title: 'А', essential: true },
+        { id: 'p2', title: 'Б', essential: true },
+        { id: 'p3', title: 'В', essential: false },
+      ],
+      transcript: 'ответ',
+    });
+    expect(result).toEqual({ statuses: { p1: 'covered', p2: 'missing' }, ask: 'p2' });
+  });
+
+  it('reads the evaluation: every point once, unknown errors dropped', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(200, {
+        points: [
+          { id: 'p1', status: 'covered', student_quote: 'подбор весов', comment: 'Сказано.' },
+          { id: 'p1', status: 'missing' },
+          { id: 'p5', status: 'covered' },
+        ],
+        errors: [
+          { point_id: 'p1', student_quote: 'x', correction: 'Как в лекции.' },
+          { point_id: 'p9', student_quote: 'y', correction: 'z' },
+        ],
+        verdict: 'Хороший ответ.',
+      }),
+    );
+    const result = await evaluateAnswer({
+      question: 'Вопрос',
+      points: [
+        { id: 'p1', title: 'А', essential: true, source_quote: 'цитата' },
+        { id: 'p2', title: 'Б', essential: false, source_quote: 'цитата' },
+      ],
+      transcript: 'подбор весов',
+    });
+    expect(result.points).toEqual([
+      { id: 'p1', status: 'covered', student_quote: 'подбор весов', comment: 'Сказано.' },
+      { id: 'p2', status: 'unrated', student_quote: '', comment: '' },
+    ]);
+    expect(result.errors).toEqual([{ point_id: 'p1', student_quote: 'x', correction: 'Как в лекции.' }]);
+  });
+
+  it('treats an evaluation with no known point as unusable', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { points: [], errors: [], verdict: '' }));
+    const error = await evaluateAnswer({ question: 'В', points: [{ id: 'p1', title: 'А', essential: true, source_quote: '' }], transcript: 'а' }).catch(
+      (caught) => caught,
+    );
+    expect(error).toMatchObject({ kind: 'invalid', message: AI_UNAVAILABLE_MESSAGE });
+  });
+
+  it('empties the points of a rubric that says the lectures do not cover the question', () => {
+    const parsed = parseRubricResponse({
+      ...rubricBody,
+      rubric: { ...rubricBody.rubric, coverage: 'none', nearest: [{ source_id: 'M1:S07', material_id: 'mat-1', text: 'Похожее место' }] },
+    });
+    expect(parsed.rubric.points).toEqual([]);
+    expect(parsed.rubric.nearest).toHaveLength(1);
+  });
+});

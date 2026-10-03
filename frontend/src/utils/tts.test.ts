@@ -126,15 +126,18 @@ describe('tts', () => {
     expect(onEnd).toHaveBeenCalledTimes(1);
   });
 
-  it('revokes evicted audio but never the one that is playing', async () => {
+  it('keeps ten clips and revokes evicted audio but never the one that is playing', async () => {
     const tts = await loadTts();
+    expect(tts.PREFETCH_LIMIT).toBe(10);
     await tts.playTTS('Первая', 'female');
-    for (const text of ['Вторая', 'Третья', 'Четвёртая', 'Пятая', 'Шестая']) {
-      await tts.prefetchTTS(text, 'female');
+    for (let i = 2; i <= 12; i += 1) {
+      await tts.prefetchTTS(`Реплика ${i}`, 'female');
     }
     const revoked = (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mock.calls.map(call => call[0]);
     expect(revoked).not.toContain('blob:audio-1');
     expect(revoked).toEqual(['blob:audio-2', 'blob:audio-3']);
+    expect(await tts.isTTSReady('Реплика 2', 'female')).toBe(false);
+    expect(await tts.isTTSReady('Реплика 12', 'female')).toBe(true);
   });
 
   it('gives a line whose prefetch failed one more server try when it plays, then remembers the failure', async () => {
@@ -362,6 +365,106 @@ describe('tts', () => {
     await vi.advanceTimersByTimeAsync(200);
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls[0][0].reason).toBe('no-voices');
+  });
+
+  describe('persisted examiner lines (Cache API meldy-tts-v1)', () => {
+    /** A Cache API stand-in that survives vi.resetModules(): the store lives in the test. */
+    class FakeResponse {
+      constructor(private readonly body: Blob) {}
+      async blob() {
+        return this.body;
+      }
+    }
+    let stored: Map<string, FakeResponse>;
+    let openCache: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      stored = new Map();
+      const cache = {
+        match: vi.fn(async (url: string) => stored.get(String(url))),
+        put: vi.fn(async (url: string, response: FakeResponse) => {
+          stored.set(String(url), response);
+        }),
+      };
+      openCache = vi.fn(async () => cache);
+      vi.stubGlobal('caches', { open: openCache });
+      vi.stubGlobal('Response', FakeResponse);
+    });
+
+    const spoken = () => fetchMock.mock.calls.map(call => JSON.parse(String((call[1] as RequestInit).body)).text);
+
+    it('stores a persisted clip under /__tts/<role>/<sha256> and finds it after a module reset', async () => {
+      let tts = await loadTts();
+      expect(await tts.isTTSReady('Так…', 'professor')).toBe(false);
+      await tts.prefetchTTS('Так…', 'professor', { persist: true });
+      expect(openCache).toHaveBeenCalledWith('meldy-tts-v1');
+      const [key] = Array.from(stored.keys());
+      expect(key).toMatch(/^\/__tts\/professor\/[0-9a-f]{64}$/);
+
+      tts = await loadTts();
+      expect(await tts.isTTSReady('Так…', 'professor')).toBe(true);
+      await tts.playTTS('Так…', 'professor');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(FakeAudio.instances).toHaveLength(1);
+    });
+
+    it('runs persisted prefetches one at a time in call order and skips ready clips', async () => {
+      const release: Array<() => void> = [];
+      fetchMock.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            release.push(() => resolve({ ok: true, status: 200, blob: async () => new Blob(['mp3']) }));
+          }),
+      );
+      let tts = await loadTts();
+      // «Хорошо, по существу всё» is ready from an earlier visit.
+      const ready = tts.prefetchTTS('Хорошо, по существу всё', 'professor', { persist: true });
+      await vi.waitFor(() => expect(release).toHaveLength(1));
+      release.shift()?.();
+      await ready;
+      fetchMock.mockClear();
+
+      tts = await loadTts();
+      const lines = ['Так…', 'А что будет, если?', 'Почему так?', 'Хорошо, по существу всё', 'Не расслышал ответ'];
+      const all = Promise.all(lines.map(line => tts.prefetchTTS(line, 'professor', { persist: true })));
+      for (let served = 0; served < 4; served += 1) {
+        await vi.waitFor(() => expect(release).toHaveLength(1));
+        expect(fetchMock).toHaveBeenCalledTimes(served + 1);
+        release.shift()?.();
+      }
+      await all;
+      expect(spoken()).toEqual(['Так…', 'А что будет, если?', 'Почему так?', 'Не расслышал ответ']);
+    });
+
+    it('plays a persisted clip without the network even after the memory cache dropped it', async () => {
+      const tts = await loadTts();
+      await tts.prefetchTTS('А что будет, если?', 'professor', { persist: true });
+      for (let i = 0; i < 12; i += 1) await tts.prefetchTTS(`Другая ${i}`, 'male');
+      const calls = fetchMock.mock.calls.length;
+      expect(await tts.isTTSReady('А что будет, если?', 'professor')).toBe(true);
+      await tts.playTTS('А что будет, если?', 'professor');
+      expect(fetchMock).toHaveBeenCalledTimes(calls);
+      expect(FakeAudio.instances).toHaveLength(1);
+    });
+
+    it('keeps persisted clips in memory when the Cache API is unavailable', async () => {
+      vi.stubGlobal('caches', undefined);
+      const tts = await loadTts();
+      await tts.prefetchTTS('Так…', 'professor', { persist: true });
+      for (let i = 0; i < 12; i += 1) await tts.prefetchTTS(`Другая ${i}`, 'male');
+      const calls = fetchMock.mock.calls.length;
+      expect(await tts.isTTSReady('Так…', 'professor')).toBe(true);
+      await tts.playTTS('Так…', 'professor');
+      expect(fetchMock).toHaveBeenCalledTimes(calls);
+    });
+
+    it('does not persist a clip the server could not voice', async () => {
+      fetchMock.mockImplementation(async () => ({ ok: false, status: 502, headers: new Headers(), blob: async () => new Blob() }));
+      const tts = await loadTts();
+      expect(await tts.prefetchTTS('Так…', 'professor', { persist: true })).toBeNull();
+      expect(stored.size).toBe(0);
+      expect(await tts.isTTSReady('Так…', 'professor')).toBe(false);
+    });
   });
 
   it('gives up when sound does not start in eight seconds', async () => {

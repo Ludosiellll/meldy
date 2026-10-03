@@ -1,0 +1,60 @@
+/* Pencil marks (components/marks). Blue pencil is Meldy, graphite is the student's own hand.
+   --ph-pencil-desk is the desk-safe blue; inside paper (.sf-sheet, .sf-index-card, .sf-slip) the
+   paper kit points it at the paper pencil, so one rule serves the legend and the sheet. */
+
+.sf-mark {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.sf-ink {
+  fill: var(--ph-pencil-desk, var(--ph-pencil, #2c5fb3));
+  opacity: .93;
+}
+.sf-mark-graphite .sf-ink {
+  fill: var(--ph-graphite-desk, var(--ph-graphite, #625e57));
+  opacity: .95;
+}
+.sf-ink-shade { opacity: .72; }
+
+/* Drawn in: the pencil's path reveals the filled stroke (250 ms, spec 3.7). */
+@keyframes sf-mark-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.sf-mark-draw {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: sf-mark-draw 250ms cubic-bezier(.42, 0, .22, 1) forwards;
+}
+@keyframes sf-mark-fade {
+  from { opacity: 0; }
+}
+.sf-mark-fade { animation: sf-mark-fade 150ms ease-out both; }
+
+/* A mark on a piece of text keeps the text in its line. */
+.sf-textmark {
+  position: relative;
+  display: inline-block;
+}
+.sf-textmark-ink,
+.sf-under-ink {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The stroke down the left margin of a selected line. */
+.sf-margin-stroke {
+  position: absolute;
+  left: -13px;
+  top: 3px;
+  bottom: 3px;
+  width: 8px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-mark-draw { animation: none; stroke-dashoffset: 0; }
+  .sf-mark-fade { animation: none; }
+}

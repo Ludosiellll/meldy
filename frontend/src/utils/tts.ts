@@ -59,20 +59,36 @@ const armWatchdog = () => {
 };
 
 // ── Озвучка с сервера и её кэш ──────────────────────────────────────────────
-// Кэш хранит до 4 готовых object URL (ключ — роль + текст). И предзагрузка
-// следующей реплики, и обычное воспроизведение идут через него, поэтому каждый
-// URL рано или поздно освобождается при вытеснении.
+// Кэш в памяти хранит до PREFETCH_LIMIT готовых object URL (ключ — роль + текст).
+// И предзагрузка следующей реплики, и обычное воспроизведение идут через него,
+// поэтому каждый URL рано или поздно освобождается при вытеснении.
 //
 // Неудачная загрузка запоминается ненадолго: временная ошибка (429 от
 // ограничителя, 502, обрыв сети) — на минуту, а реплика, которую надо сыграть
 // сейчас, получает ещё одну попытку, если не удалась только её предзагрузка.
 // Если сервер отказал несколько раз подряд, полминуты звучит голос браузера.
 // forgetTTSFailures() («Повторить») забывает всё это сразу.
+//
+// Сохранённая озвучка (persist, контракт §6.9): реплики экзаменатора лежат в
+// Cache API 'meldy-tts-v1' под ключом /__tts/<роль>/<sha256(текст)> и
+// переживают перезагрузку страницы; без Cache API — в памяти до закрытия
+// вкладки. Такие предзагрузки идут по одной, в порядке вызова. Готовая реплика
+// (в памяти или сохранённая) играет без запроса к серверу.
 
-const PREFETCH_LIMIT = 4;
+export const PREFETCH_LIMIT = 10;
+export const TTS_PERSIST_CACHE = 'meldy-tts-v1';
+/** Сколько ждём ответа /api/tts: зависший запрос не должен держать очередь предзагрузки. */
+const FETCH_TIMEOUT_MS = 20_000;
+/** Запасное хранилище без Cache API: не больше стольких реплик. */
+const MEMORY_PERSIST_LIMIT = 48;
+
 const prefetchCache = new Map<string, string>();
+/** Звук тех же реплик, что в prefetchCache: его можно сохранить, не скачивая заново. */
+const clipBlobs = new Map<string, Blob>();
 const failedLines = new Map<string, { until: number; byPlayback: boolean }>();
 const prefetchPending = new Map<string, Promise<string | null>>();
+const memoryPersisted = new Map<string, Blob>();
+let persistQueue: Promise<unknown> = Promise.resolve();
 let serverFailuresInRow = 0;
 let serverPausedUntil = 0;
 
@@ -90,7 +106,97 @@ const evictPrefetched = () => {
     if (!victim) return;
     const url = prefetchCache.get(victim);
     prefetchCache.delete(victim);
+    clipBlobs.delete(victim);
     if (url) URL.revokeObjectURL(url);
+  }
+};
+
+/** Кладёт звук в кэш памяти и возвращает его object URL (или null, если вытеснен сразу). */
+const rememberClip = (key: string, blob: Blob): string | null => {
+  const existing = prefetchCache.get(key);
+  if (existing) return existing;
+  const url = URL.createObjectURL(blob);
+  prefetchCache.set(key, url);
+  clipBlobs.set(key, blob);
+  evictPrefetched();
+  return prefetchCache.get(key) ?? null;
+};
+
+const sha256Hex = async (text: string): Promise<string | null> => {
+  const subtle = (globalThis as { crypto?: Crypto }).crypto?.subtle;
+  if (!subtle || typeof TextEncoder === 'undefined') return null;
+  try {
+    const digest = await subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
+};
+
+const persistedUrl = async (text: string, role: VoiceRole): Promise<string | null> => {
+  const hash = await sha256Hex(text);
+  return hash ? `/__tts/${role}/${hash}` : null;
+};
+
+const openPersistStore = async (): Promise<Cache | null> => {
+  try {
+    const storage = (globalThis as { caches?: CacheStorage }).caches;
+    if (!storage || typeof storage.open !== 'function') return null;
+    return await storage.open(TTS_PERSIST_CACHE);
+  } catch {
+    // Закрытый режим, заблокированное хранилище: остаётся память.
+    return null;
+  }
+};
+
+/** Сохранённый звук реплики: из памяти вкладки или из Cache API. */
+const readPersisted = async (key: string, text: string, role: VoiceRole): Promise<Blob | null> => {
+  const inMemory = memoryPersisted.get(key);
+  if (inMemory) return inMemory;
+  const store = await openPersistStore();
+  if (!store) return null;
+  const url = await persistedUrl(text, role);
+  if (!url) return null;
+  try {
+    const response = await store.match(url);
+    if (!response) return null;
+    const blob = await response.blob();
+    return blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+};
+
+const hasPersisted = async (key: string, text: string, role: VoiceRole): Promise<boolean> => {
+  if (memoryPersisted.has(key)) return true;
+  const store = await openPersistStore();
+  if (!store) return false;
+  const url = await persistedUrl(text, role);
+  if (!url) return false;
+  try {
+    return Boolean(await store.match(url));
+  } catch {
+    return false;
+  }
+};
+
+const writePersisted = async (key: string, text: string, role: VoiceRole, blob: Blob): Promise<void> => {
+  const store = await openPersistStore();
+  const url = store ? await persistedUrl(text, role) : null;
+  if (store && url) {
+    try {
+      await store.put(url, new Response(blob, { headers: { 'Content-Type': blob.type || 'audio/mpeg' } }));
+      return;
+    } catch {
+      // Квота или запрет записи: сохраним в памяти вкладки.
+    }
+  }
+  memoryPersisted.delete(key);
+  memoryPersisted.set(key, blob);
+  while (memoryPersisted.size > MEMORY_PERSIST_LIMIT) {
+    const oldest = memoryPersisted.keys().next().value;
+    if (oldest === undefined) break;
+    memoryPersisted.delete(oldest);
   }
 };
 
@@ -123,41 +229,49 @@ const skipServer = (key: string, forPlayback: boolean): boolean => {
  * Загружает озвучку реплики с сервера (или берёт из кэша). Возвращает object URL
  * или null, если сервер не смог озвучить текст. Ошибки тихие. forPlayback —
  * реплику играют прямо сейчас: неудачная предзагрузка не мешает попробовать ещё раз.
+ * persist — сохранить звук надолго (Cache API, иначе память вкладки); такие
+ * предзагрузки идут по одной в порядке вызова, а уже сохранённая реплика сервер
+ * не трогает.
  */
 export const prefetchTTS = (
   text: string,
   role: VoiceRole,
-  options: { forPlayback?: boolean } = {},
+  options: { forPlayback?: boolean; persist?: boolean } = {},
 ): Promise<string | null> => {
+  if (options.persist) return queuePersisted(text, role);
   const key = prefetchKey(text, role);
   const forPlayback = Boolean(options.forPlayback);
   const cached = prefetchCache.get(key);
   if (cached) return Promise.resolve(cached);
   const pending = prefetchPending.get(key);
   if (pending) return pending;
-  if (skipServer(key, forPlayback)) return Promise.resolve(null);
-  if (typeof fetch !== 'function' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    return Promise.resolve(null);
-  }
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return Promise.resolve(null);
 
   const request = (async () => {
     try {
-      const resp = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, role }),
-      });
-      if (!resp.ok) {
-        rememberFailure(key, retryDelay(resp), forPlayback);
-        return null;
+      const stored = await readPersisted(key, text, role);
+      if (stored) return rememberClip(key, stored);
+      if (skipServer(key, forPlayback) || typeof fetch !== 'function') return null;
+      const controller = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS) : null;
+      try {
+        const resp = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, role }),
+          ...(controller ? { signal: controller.signal } : {}),
+        });
+        if (!resp.ok) {
+          rememberFailure(key, retryDelay(resp), forPlayback);
+          return null;
+        }
+        const blob = await resp.blob();
+        failedLines.delete(key);
+        serverFailuresInRow = 0;
+        return rememberClip(key, blob);
+      } finally {
+        if (timer !== null) clearTimeout(timer);
       }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      failedLines.delete(key);
-      serverFailuresInRow = 0;
-      prefetchCache.set(key, url);
-      evictPrefetched();
-      return prefetchCache.get(key) ?? null;
     } catch {
       rememberFailure(key, LINE_RETRY_MS, forPlayback);
       return null;
@@ -167,6 +281,38 @@ export const prefetchTTS = (
   })();
   prefetchPending.set(key, request);
   return request;
+};
+
+/** Одна сохраняемая предзагрузка за раз, в порядке вызова (контракт §6.9). */
+const queuePersisted = (text: string, role: VoiceRole): Promise<string | null> => {
+  const key = prefetchKey(text, role);
+  const run = async (): Promise<string | null> => {
+    const inMemory = prefetchCache.get(key);
+    const memoryBlob = clipBlobs.get(key);
+    if (inMemory && memoryBlob) {
+      if (!(await hasPersisted(key, text, role))) await writePersisted(key, text, role, memoryBlob);
+      return inMemory;
+    }
+    const stored = await readPersisted(key, text, role);
+    if (stored) return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' ? rememberClip(key, stored) : null;
+    const url = await prefetchTTS(text, role);
+    const blob = clipBlobs.get(key);
+    if (url && blob) await writePersisted(key, text, role, blob);
+    return url;
+  };
+  const next = persistQueue.then(run, run);
+  persistQueue = next.catch(() => null);
+  return next;
+};
+
+/**
+ * Готова ли реплика: звук уже в памяти или сохранён. Готовую реплику playTTS
+ * играет без запроса к серверу; неготовую экран может не играть вовсе («Так…»).
+ */
+export const isTTSReady = async (text: string, role: VoiceRole): Promise<boolean> => {
+  const key = prefetchKey(text, role);
+  if (prefetchCache.has(key)) return true;
+  return hasPersisted(key, text, role);
 };
 
 /** Забыть неудачные загрузки (например, перед ручным «Повторить»). */

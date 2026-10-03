@@ -1,0 +1,214 @@
+import { Fragment } from 'react';
+import type { ExamQuestion } from '../../api/exams';
+import type { SelfRating as Rating } from '../../api/learning';
+import { READINESS_LABELS, type Readiness } from '../../lib/learning/readiness';
+import { MarginStroke, Mark, TextMark } from '../marks';
+import {
+  COVERAGE_MARK,
+  COVERAGE_MARK_SIZE,
+  COVERAGE_WORDS,
+  READINESS_MARK,
+  markSeed,
+  readinessSeed,
+  selectionSeed,
+  type SheetCoverage,
+} from './marks';
+import { glue, type Footnote } from './sheetModel';
+import SelfRating from './SelfRating';
+import type { FrameSize } from './useFrame';
+
+export interface MarkAppearanceView {
+  /** Draw the stroke in (a live result of the current run); stored marks appear at once. */
+  animate: boolean;
+  delayMs: number;
+}
+
+export interface SheetRowView {
+  question: ExamQuestion;
+  number: string;
+  coverage: SheetCoverage;
+  readiness: Readiness;
+  selfRating: Rating | null;
+  footnote: Footnote | null;
+  appearance: MarkAppearanceView | null;
+}
+
+export interface SheetPeak {
+  questionId: string;
+  /** Draw the new readiness mark in. */
+  animate: boolean;
+  because: string;
+}
+
+interface ExamSheetProps {
+  examId: string;
+  /** «Микроэкономика: вопросы к экзамену» — from the exam's title and kind, nothing invented. */
+  title: string;
+  rows: SheetRowView[];
+  sectionTitles: string[];
+  selectedId: string | null;
+  rateMode: boolean;
+  frame: FrameSize;
+  whyId: string;
+  onOpen: (questionId: string) => void;
+  onRate: (row: SheetRowView, rating: Rating) => void;
+  onRateDone: () => void;
+  ratingPending: ReadonlySet<string>;
+  ratingErrors: Readonly<Record<string, string>>;
+  peak: SheetPeak | null;
+  dim: boolean;
+  emptyText: string | null;
+}
+
+const PHONE_SCALE = 0.88;
+
+function CoverageCell({ examId, row, frame }: { examId: string; row: SheetRowView; frame: FrameSize }) {
+  const kind = COVERAGE_MARK[row.coverage];
+  const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
+  const scale = frame === 's' ? PHONE_SCALE : 1;
+  return (
+    <span className="ex-cov" data-mark={kind ?? undefined}>
+      {kind && size && (
+        <Mark
+          kind={kind}
+          seed={markSeed(examId, row.question.position)}
+          width={Math.round(size.width * scale)}
+          height={Math.round(size.height * scale)}
+          weight={size.weight}
+          animate={row.appearance?.animate ?? false}
+          delayMs={row.appearance?.delayMs ?? 0}
+        />
+      )}
+      <span className="ex-sr">{COVERAGE_WORDS[row.coverage]}</span>
+    </span>
+  );
+}
+
+function NumberCell({ examId, row, drawIn }: { examId: string; row: SheetRowView; drawIn: boolean }) {
+  const kind = READINESS_MARK[row.readiness];
+  const seed = readinessSeed(examId, row.question.position);
+  return (
+    <span className="ex-qn">
+      {kind ? (
+        <TextMark
+          kind={kind}
+          seed={seed}
+          className="ex-qn-box"
+          animate={drawIn}
+          padX={kind === 'ring' ? 7 : undefined}
+          padY={kind === 'ring' ? 3 : undefined}
+          weight={kind === 'wave' ? 2.4 : undefined}
+        >
+          {row.number}
+        </TextMark>
+      ) : (
+        <span className="ex-qn-box">{row.number}</span>
+      )}
+      {row.readiness !== 'untested' && <span className="ex-sr">, {READINESS_LABELS[row.readiness]}</span>}
+    </span>
+  );
+}
+
+/**
+ * The department's list as a sheet of paper: an ordered list with the department's numbering in
+ * Literata, coverage marks on the left margin, readiness marks on the numbers, the lecture and its
+ * fragments on the right margin (or «знаю · плаваю · не знаю» in self-rating mode). A row opens
+ * «почему»; the selected row gets a pencil stroke down the margin, never a tint.
+ */
+export default function ExamSheet(props: ExamSheetProps) {
+  const { examId, rows, rateMode, peak, selectedId } = props;
+  let previousSection: number | null = null;
+
+  return (
+    <article
+      className="sf-sheet ex-sheet"
+      aria-label="Список вопросов кафедры с пометками"
+      data-dim={props.dim ? '' : undefined}
+      data-rate={rateMode ? '' : undefined}
+    >
+      <header className="ex-sheet-h">
+        <h2>{props.title}</h2>
+      </header>
+      {rateMode && (
+        <p className="ex-rate-intro">
+          <span>Отметьте, насколько уверенно вы ответили бы на каждый вопрос.</span>
+          <button type="button" className="sf-link" onClick={props.onRateDone}>
+            Готово
+          </button>
+        </p>
+      )}
+      {rows.length === 0 && props.emptyText && <p className="ex-rate-intro">{props.emptyText}</p>}
+      <ol className="ex-qs">
+        {rows.map((row) => {
+          const { question } = row;
+          const section = question.section;
+          const heading =
+            section !== null && section !== previousSection
+              ? props.sectionTitles[section - 1]?.trim() || `Раздел ${section}`
+              : null;
+          if (section !== null) previousSection = section;
+          const selected = selectedId === question.id;
+          const isPeak = peak?.questionId === question.id;
+          const label = `вопрос ${row.number}`;
+          return (
+            <Fragment key={question.id}>
+              {heading && (
+                <li className="ex-sec">{heading}</li>
+              )}
+              <li
+                className="ex-q"
+                id={`exam-q-${question.id}`}
+                data-selected={selected ? '' : undefined}
+                data-peak={isPeak ? '' : undefined}
+                data-coverage={row.coverage}
+                data-readiness={row.readiness}
+              >
+                <CoverageCell examId={examId} row={row} frame={props.frame} />
+                <NumberCell examId={examId} row={row} drawIn={Boolean(isPeak && peak?.animate)} />
+                {rateMode ? (
+                  <span className="ex-open" style={{ cursor: 'default' }}>
+                    {question.text}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="ex-open"
+                    aria-expanded={selected}
+                    aria-controls={selected ? props.whyId : undefined}
+                    onClick={() => props.onOpen(question.id)}
+                  >
+                    {question.text}
+                  </button>
+                )}
+                {rateMode ? (
+                  <SelfRating
+                    value={row.selfRating}
+                    questionLabel={label}
+                    seedKey={`${examId}:${question.position}`}
+                    pending={props.ratingPending.has(question.id)}
+                    error={props.ratingErrors[question.id] ?? null}
+                    onChange={(rating) => props.onRate(row, rating)}
+                  />
+                ) : (
+                  row.footnote && (
+                    <span
+                      className="ex-qnote sf-pnote"
+                      style={{ pointerEvents: 'none' }}
+                      data-manual={row.footnote.manual ? '' : undefined}
+                      title={row.footnote.title}
+                    >
+                      <b>{row.footnote.title}</b>
+                      {row.footnote.fragments}
+                    </span>
+                  )
+                )}
+                {isPeak && peak?.because && <span className="ex-because">{glue(peak.because)}</span>}
+                {(selected || isPeak) && <MarginStroke seed={selectionSeed(examId, question.position)} animate={isPeak} />}
+              </li>
+            </Fragment>
+          );
+        })}
+      </ol>
+    </article>
+  );
+}

@@ -1,9 +1,9 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import {
   GraduationCap, LayoutDashboard, Zap, BookOpen, Brain,
   MessageSquare, LogOut, BarChart2, Network,
-  User, Bell, Menu, X
+  User, Bell, Menu, X, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, UserProfile } from '../api/social';
@@ -13,8 +13,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 import OnboardingManager from './OnboardingManager';
 import { useTheme } from '../contexts/ThemeProvider';
 import { Moon, Sun } from 'lucide-react';
-import { checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
+import { AI_USAGE_EVENT, checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
 import TokenInfoModal from './TokenInfoModal';
+import RouteLoading from './RouteLoading';
 import { useInstallPWA } from '../hooks/useInstallPWA';
 import { Download } from 'lucide-react';
 
@@ -31,6 +32,7 @@ const navGroups = [
     title: 'Практика',
     items: [
       { to: '/review',        icon: Brain,           label: 'Повторение',           className: 'tour-step-desktop-review' },
+      { to: '/exams',         icon: ClipboardList,   label: 'Экзамены',             className: '' },
     ]
   },
   {
@@ -57,8 +59,56 @@ const mobileNavItems = [
   { to: '/analyze',   icon: Zap,             label: 'Добавить' },
   { to: '/library',   icon: BookOpen,         label: 'Материалы', className: 'tour-step-mobile-library' },
   { to: '/review',    icon: Brain,           label: 'Практика', className: 'tour-step-mobile-review' },
+  { to: '/exams',     icon: ClipboardList,   label: 'Экзамены' },
   { to: '/profile',   icon: User,             label: 'Профиль' },
 ];
+
+/** «Тянуть билет» and the answer screen are a room: the page draws its own top line, no menu (spec 4.3). */
+export function isRoomPath(pathname: string): boolean {
+  return /^\/exams\/[^/]+\/(draw|ticket)\/?$/.test(pathname);
+}
+
+/** Exam detail pages keep their one action at the bottom of the screen on phones, so the tab bar steps aside (spec 4.2). */
+export function hidesBottomNav(pathname: string): boolean {
+  return /^\/exams\/(new|[^/]+(\/edit)?)\/?$/.test(pathname);
+}
+
+/** What the quota line shows: never below zero; unknown when the counter could not be read. */
+export function quotaRemaining(used: number | null): number | null {
+  if (used === null || !Number.isFinite(used)) return null;
+  return Math.max(0, FREE_DAILY_LIMIT - Math.max(0, used));
+}
+
+const STAGE_KEY = 'meldy_stage';
+
+function readStage(): boolean {
+  try {
+    return window.localStorage.getItem(STAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** «Показ на проекторе» (spec 4.7): an explicit switch kept in localStorage, applied as html[data-stage]. */
+function useStageMode(): [boolean, () => void] {
+  const [stage, setStage] = useState(readStage);
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-stage', stage);
+  }, [stage]);
+  const toggle = useCallback(() => {
+    setStage((previous) => {
+      const next = !previous;
+      try {
+        if (next) window.localStorage.setItem(STAGE_KEY, '1');
+        else window.localStorage.removeItem(STAGE_KEY);
+      } catch {
+        // Private mode: the switch lasts for this page only.
+      }
+      return next;
+    });
+  }, []);
+  return [stage, toggle];
+}
 
 export default function Layout() {
   const { user, signOut } = useAuth();
@@ -73,8 +123,27 @@ export default function Layout() {
   const [unreadDMs, setUnreadDMs] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [usedTokens, setUsedTokens] = useState(0);
+  /** Units used today; null while unknown (not read yet, or the counter could not be read). */
+  const [usedTokens, setUsedTokens] = useState<number | null>(null);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+  const roomMode = isRoomPath(location.pathname);
+  const roomModeRef = useRef(roomMode);
+  roomModeRef.current = roomMode;
+  const [stageMode, toggleStageMode] = useStageMode();
+  const refetchTokensRef = useRef<(() => void) | null>(null);
+  const remainingUnits = quotaRemaining(usedTokens);
+  const quotaLabel = profile?.is_pro
+    ? 'Дневной лимит к аккаунту PRO не применяется'
+    : remainingUnits === null
+      ? 'Дневной лимит: остаток не удалось загрузить. Нажмите, чтобы проверить ещё раз'
+      : `Дневной лимит: осталось ${remainingUnits} из ${FREE_DAILY_LIMIT}`;
+  const openQuota = () => {
+    if (!profile?.is_pro && usedTokens === null) {
+      refetchTokensRef.current?.();
+      return;
+    }
+    setIsTokenModalOpen(true);
+  };
   
   const { theme, setTheme } = useTheme();
   const isDarkActive = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -91,11 +160,13 @@ export default function Layout() {
   }, [location.pathname]);
 
   useEffect(() => {
+    // The shell scrolls inside <main>; a room page scrolls the window itself.
+    if (roomMode) return;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, []);
+  }, [roomMode]);
 
   const fetchUnreadDMs = () => {
     if (!user?.id) return;
@@ -126,7 +197,7 @@ export default function Layout() {
       fetchUnreadDMs();
       
       const newNotif = payload?.new;
-      if (newNotif) {
+      if (newNotif && !roomModeRef.current) {
         // If it's a message and we are already on the messages page, let's not show a duplicate toast
         if (newNotif.type === 'message' && location.pathname.startsWith('/messages')) return;
         
@@ -170,13 +241,27 @@ export default function Layout() {
       }
     });
 
-    const fetchTokens = () => checkAILimit(user.id, 0).then(res => setUsedTokens(res.count));
+    let tokensRequest = 0;
+    const fetchTokens = () => {
+      const request = ++tokensRequest;
+      checkAILimit(user.id, 0)
+        .then((res) => {
+          if (request === tokensRequest) setUsedTokens(res.ok ? res.count : null);
+        })
+        .catch(() => {
+          if (request === tokensRequest) setUsedTokens(null);
+        });
+    };
     fetchTokens();
-    // It's possible to add event listener for 'ai_usage_updated' but for now fetching on mount is fine.
+    refetchTokensRef.current = fetchTokens;
+    window.addEventListener(AI_USAGE_EVENT, fetchTokens);
 
     return () => {
+      tokensRequest += 1;
+      refetchTokensRef.current = null;
       window.removeEventListener('profile_updated', fetchProfile);
       window.removeEventListener('notification_read', handleNotificationRead);
+      window.removeEventListener(AI_USAGE_EVENT, fetchTokens);
       unsub();
     };
   }, [user?.id]);
@@ -271,6 +356,18 @@ export default function Layout() {
     </>
   );
 
+  if (roomMode) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<RouteLoading />}>
+          <Outlet />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  const bottomNavHidden = hidesBottomNav(location.pathname);
+
   return (
     <div className="app-shell fixed inset-0 flex overflow-hidden">
       <OnboardingManager />
@@ -279,7 +376,7 @@ export default function Layout() {
       <TokenInfoModal 
         isOpen={isTokenModalOpen} 
         onClose={() => setIsTokenModalOpen(false)} 
-        usedTokens={usedTokens} 
+        usedTokens={usedTokens ?? 0}
         isPro={profile?.is_pro}
       />
 
@@ -358,6 +455,19 @@ export default function Layout() {
           ))}
         </nav>
 
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={stageMode}
+            onClick={toggleStageMode}
+            className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-[13px] font-medium app-nav-idle"
+          >
+            <span>Показ на проекторе</span>
+            <span className="text-[var(--sf-muted)]">{stageMode ? 'вкл' : 'выкл'}</span>
+          </button>
+        </div>
+
         {/* User section */}
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3">
@@ -410,21 +520,14 @@ export default function Layout() {
             <span className="font-bold tracking-tight text-slate-800 dark:text-slate-100 text-base">Meldy</span>
           </button>
           <div className="flex items-center gap-1">
-            <button 
-              onClick={() => setIsTokenModalOpen(true)}
-              className="mr-1 flex items-center hover:scale-105 transition"
+            <button
+              type="button"
+              onClick={openQuota}
+              aria-label={quotaLabel}
+              data-testid="quota-meter"
+              className="mr-1 inline-flex min-h-11 items-center rounded-lg px-2 text-[13px] font-medium text-[var(--sf-muted)] transition-colors hover:text-[var(--sf-ink)]"
             >
-              {profile?.is_pro ? (
-                <div className="flex items-center gap-1 text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 shadow-[0_0_8px_rgba(251,191,36,0.2)]">
-                  <Zap className="w-4 h-4" />
-                  <span className="text-[10px] font-black tracking-wider uppercase">PRO</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700 transition">
-                  <Zap className={`w-4 h-4 ${usedTokens >= FREE_DAILY_LIMIT ? 'text-rose-500' : 'text-amber-500'}`} />
-                  <span className={`text-[11px] font-bold ${usedTokens >= FREE_DAILY_LIMIT ? 'text-rose-500' : ''}`}>{FREE_DAILY_LIMIT - usedTokens}</span>
-                </div>
-              )}
+              {profile?.is_pro ? 'Без лимита' : remainingUnits === null ? 'Лимит' : `Лимит: ${remainingUnits}`}
             </button>
             <button onClick={() => setTheme(isDarkActive ? 'light' : 'dark')} className="p-2 text-slate-500 hover:text-[var(--sf-accent)] transition" title="Переключить тему">
               {isDarkActive ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -446,14 +549,16 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className={`flex-1 overflow-x-hidden ${location.pathname.startsWith('/messages') ? 'overflow-y-hidden pb-[56px] md:pb-0' : 'overflow-y-auto pb-[70px] md:pb-0'} custom-scrollbar relative scroll-smooth`}>
+        <main className={`flex-1 overflow-x-hidden ${location.pathname.startsWith('/messages') ? 'overflow-y-hidden pb-[56px] md:pb-0' : bottomNavHidden ? 'overflow-y-auto pb-0' : 'overflow-y-auto pb-[70px] md:pb-0'} custom-scrollbar relative scroll-smooth`}>
           <ErrorBoundary>
-            <Outlet />
+            <Suspense fallback={<RouteLoading fullScreen={false} />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
 
         {/* ═══ MOBILE BOTTOM NAV ════════════════════════════════════════════════ */}
-        <nav className="app-mobile-nav fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t flex md:hidden pb-safe">
+        <nav aria-label="Разделы" className={`app-mobile-nav fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t md:hidden pb-safe ${bottomNavHidden ? 'hidden' : 'flex'}`}>
           {mobileNavItems.map(item => (
             <NavLink
               key={item.to}

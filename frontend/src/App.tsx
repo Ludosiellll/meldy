@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
+import { Toaster } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import PWAUpdater from './components/PWAUpdater';
+import RouteLoading from './components/RouteLoading';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
@@ -35,18 +37,36 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const ShortsPlayer = lazy(() => import('./pages/ShortsPlayer'));
 const SharedMaterial = lazy(() => import('./pages/SharedMaterial'));
 const AssignmentView = lazy(() => import('./pages/AssignmentView'));
+const Exams = lazy(() => import('./pages/Exams'));
+const ExamEditor = lazy(() => import('./pages/ExamEditor'));
+const ExamDetail = lazy(() => import('./pages/ExamDetail'));
+const ExamDraw = lazy(() => import('./pages/ExamDraw'));
+const ExamTicket = lazy(loadExamTicket);
+
+/**
+ * The answer screen («Ответ вслух», /exams/:id/ticket) is built by its own package. The glob keeps
+ * this file building in a checkout where that page has not landed yet; once it exists it is an
+ * ordinary lazy chunk.
+ */
+function loadExamTicket(): Promise<{ default: ComponentType }> {
+  const pages = import.meta.glob<{ default: ComponentType }>('./pages/ExamTicket.tsx');
+  const load = pages['./pages/ExamTicket.tsx'];
+  return load ? load() : Promise.resolve({ default: TicketUnavailable });
+}
+
+function TicketUnavailable() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--sf-canvas)] px-6 text-center text-[var(--sf-ink)]">
+      <p className="max-w-md text-base">Экран ответа пока недоступен в этой сборке. Вернитесь к листу экзамена.</p>
+    </div>
+  );
+}
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) return <RouteLoading />;
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
-
-import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   return (
@@ -92,6 +112,12 @@ export default function App() {
           <Route path="assignment/:id" element={<AssignmentView />} />
           <Route path="co-study/:id" element={<CoStudy />} />
           <Route path="review" element={<Review />} />
+          <Route path="exams" element={<Exams />} />
+          <Route path="exams/new" element={<ExamEditor />} />
+          <Route path="exams/:id" element={<ExamDetail />} />
+          <Route path="exams/:id/edit" element={<ExamEditor />} />
+          <Route path="exams/:id/draw" element={<ExamDraw />} />
+          <Route path="exams/:id/ticket" element={<ExamTicket />} />
           <Route path="study-session" element={<StudySession />} />
           <Route path="planner" element={<Navigate to="/courses" replace />} />
           <Route path="courses" element={<Courses />} />
@@ -116,16 +142,5 @@ export default function App() {
       </Routes>
       </Suspense>
     </BrowserRouter>
-  );
-}
-
-function RouteLoading() {
-  return (
-    <div className="min-h-screen bg-[#07111f] flex items-center justify-center text-slate-300">
-      <div className="flex flex-col items-center gap-3" role="status" aria-label="Загрузка страницы">
-        <div className="h-8 w-8 rounded-full border-2 border-cyan-300 border-t-transparent animate-spin" />
-        <span className="text-xs tracking-wide">Загружаем страницу…</span>
-      </div>
-    </div>
   );
 }

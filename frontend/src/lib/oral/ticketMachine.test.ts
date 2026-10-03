@@ -1,0 +1,151 @@
+import { describe, expect, it } from 'vitest';
+import { answerTime, hasUnsavedAnswer, initialTicketState, protocolState, ticketReducer, type TicketAction, type TicketState } from './ticketMachine';
+import { demoRubricResponse } from './testing/fixtures';
+import type { TicketQuestion } from './ticketData';
+
+const question: TicketQuestion = {
+  id: 'q1',
+  exam_id: 'e1',
+  position: 7,
+  label: '7',
+  text: 'Как обучается нейронная сеть?',
+  question_hash: 'c'.repeat(32),
+  coverage: 'full',
+  evidence: [],
+  nearest: [],
+};
+
+function run(actions: TicketAction[], from: TicketState = initialTicketState()): TicketState {
+  return actions.reduce(ticketReducer, from);
+}
+
+const loaded = (): TicketState => run([{ type: 'loaded', exam: { id: 'e1', title: 'Нейросети', kind: 'exam' }, questions: [question, { ...question, id: 'q2' }] }]);
+
+function answering(): TicketState {
+  const state = loaded();
+  return run(
+    [
+      { type: 'rubric', run: state.run, rubric: { status: 'ready', response: demoRubricResponse() } },
+      { type: 'start', mode: 'text', now: 1_000 },
+      { type: 'typed', text: 'подбор весов' },
+    ],
+    state,
+  );
+}
+
+describe('ticket state machine', () => {
+  it('goes loading → ready → answering → finalizing → examiner → followup → evaluating → protocol', () => {
+    let state = answering();
+    expect(state.phase).toBe('answering');
+    state = run([{ type: 'finalize', attemptId: 'attempt-1', snapshot: 'подбор весов', live: ['p1'], input: 'text', now: 19_000, startedAt: 't' }], state);
+    expect(state.phase).toBe('finalizing');
+    expect(state.attempt).toMatchObject({ attemptId: 'attempt-1', durationSeconds: 18, live: ['p1'] });
+    expect(state.evaluation.status).toBe('running');
+    state = run([{ type: 'examiner' }, { type: 'followup', pointId: 'p4', question: 'А что?', expected: 'Это.', chosenBy: 'check', mode: 'voice' }], state);
+    expect(state.phase).toBe('followup');
+    expect(state.followup).toMatchObject({ stage: 'asking', mode: 'voice' });
+    state = run([{ type: 'followup_listen' }, { type: 'followup_result', status: 'missing', answer: 'не знаю' }], state);
+    expect(state.phase).toBe('evaluating');
+    state = run([{ type: 'protocol' }], state);
+    expect(state.phase).toBe('evaluating');
+    state = run([{ type: 'evaluation_done', run: state.run, result: { points: [], errors: [], verdict: '' } }, { type: 'protocol' }], state);
+    expect(state.phase).toBe('protocol');
+    expect(protocolState(state)).toBe('saving');
+    state = run([{ type: 'save_failed' }], state);
+    expect(protocolState(state)).toBe('save_error');
+    state = run([{ type: 'save_retry' }], state);
+    expect(state.save.status).toBe('idle');
+  });
+
+  it('opens a typed follow-up field at once', () => {
+    const state = run(
+      [
+        { type: 'finalize', attemptId: 'a', snapshot: 's', live: [], input: 'text', now: 2_000, startedAt: 't' },
+        { type: 'examiner' },
+        { type: 'followup', pointId: 'p4', question: 'А что?', expected: '', chosenBy: 'client', mode: 'text' },
+      ],
+      answering(),
+    );
+    expect(state.followup).toMatchObject({ stage: 'answering', mode: 'text', judgedBy: null });
+  });
+
+  it('remembers whether the follow-up was judged by the check or by key words', () => {
+    const asked = run(
+      [
+        { type: 'finalize', attemptId: 'a', snapshot: 's', live: [], input: 'text', now: 2_000, startedAt: 't' },
+        { type: 'examiner' },
+        { type: 'followup', pointId: 'p4', question: 'А что?', expected: '', chosenBy: 'check', mode: 'text' },
+      ],
+      answering(),
+    );
+    expect(run([{ type: 'followup_result', status: 'partial', answer: 'колебания', judgedBy: 'keywords' }], asked).followup).toMatchObject({
+      status: 'partial',
+      judgedBy: 'keywords',
+    });
+    expect(run([{ type: 'followup_result', status: 'covered', answer: 'колебания', judgedBy: 'check' }], asked).followup?.judgedBy).toBe('check');
+    // «Не знаю» needs no judgement.
+    expect(run([{ type: 'followup_result', status: 'missing', answer: 'не знаю' }], asked).followup?.judgedBy).toBeNull();
+  });
+
+  it('ignores results of an older question', () => {
+    const state = loaded();
+    const next = run([{ type: 'question', index: 1 }], state);
+    expect(next.run).toBe(state.run + 1);
+    const stale = run([{ type: 'rubric', run: state.run, rubric: { status: 'failed', message: 'x' } }], next);
+    expect(stale.rubric.status).toBe('loading');
+    const staleEval = run([{ type: 'evaluation_failed', run: state.run, message: 'x' }], next);
+    expect(staleEval.evaluation.status).toBe('idle');
+  });
+
+  it('counts the answer time without pauses', () => {
+    let state = answering();
+    state = run([{ type: 'pause', now: 5_000 }], state);
+    expect(answerTime(state, 60_000)).toBe(4_000);
+    state = run([{ type: 'resume', now: 10_000 }], state);
+    expect(answerTime(state, 12_000)).toBe(6_000);
+  });
+
+  it('restores a draft as a typed answer and keeps an evaluation failure for «Проверить снова»', () => {
+    const state = loaded();
+    const restored = run([{ type: 'draft_restored', text: 'черновик', savedAt: 't', input: 'speech', now: 0 }], state);
+    expect(restored).toMatchObject({ phase: 'answering', mode: 'text', typed: 'черновик', draftAt: 't', usedSpeech: true });
+    const stashed = run(
+      [
+        {
+          type: 'stash_restored',
+          message: 'Не удалось проверить ответ',
+          followup: null,
+          attempt: { attemptId: 'a', snapshot: 's', transcript: 's', live: ['p1'], input: 'text', durationSeconds: 3, startedAt: 't', restored: true },
+        },
+      ],
+      state,
+    );
+    expect(protocolState(stashed)).toBe('eval_error');
+    const retried = run([{ type: 'evaluation_retry', run: stashed.run }], stashed);
+    expect(retried).toMatchObject({ phase: 'evaluating', evaluation: { status: 'running' } });
+  });
+
+  it('knows when leaving would lose an answer', () => {
+    expect(hasUnsavedAnswer(loaded(), '')).toBe(false);
+    const state = answering();
+    expect(hasUnsavedAnswer(state, '')).toBe(false);
+    expect(hasUnsavedAnswer(state, 'подбор весов')).toBe(true);
+    const saved = run(
+      [
+        { type: 'finalize', attemptId: 'a', snapshot: 's', live: [], input: 'text', now: 2_000, startedAt: 't' },
+        { type: 'no_followup' },
+        { type: 'evaluation_done', run: state.run, result: { points: [], errors: [], verdict: '' } },
+        { type: 'protocol' },
+      ],
+      state,
+    );
+    expect(hasUnsavedAnswer(saved, '')).toBe(true);
+    expect(hasUnsavedAnswer(run([{ type: 'save_done', at: 't', result: { sessionId: 's', duplicate: false, events: 1, mistakesAdded: 0, mistakesExisting: 0, cardAdded: false } }], saved), '')).toBe(false);
+  });
+
+  it('starts over without reloading the rubric', () => {
+    const state = run([{ type: 'restart' }], answering());
+    expect(state).toMatchObject({ phase: 'ready', typed: '', named: [] });
+    expect(state.rubric.status).toBe('ready');
+  });
+});

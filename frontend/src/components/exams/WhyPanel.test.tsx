@@ -1,0 +1,227 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ExamQuestion } from '../../api/exams';
+import type { LearningEvent } from '../../api/learning';
+import WhyPanel, { attemptLabel, nearestSentence, type WhyPanelProps } from './WhyPanel';
+import type { SheetCoverage } from './marks';
+
+const EXCERPT = 'Потребитель делает выбор между наборами благ, сравнивая их полезность при заданном бюджете.';
+
+function question(overrides: Partial<ExamQuestion> = {}): ExamQuestion {
+  return {
+    id: 'q17',
+    exam_id: 'exam-1',
+    position: 17,
+    label: '17',
+    section: 2,
+    text: 'Выбор в условиях неопределённости. Отношение к риску.',
+    question_hash: 'a'.repeat(32),
+    coverage: 'none',
+    coverage_method: 'llm',
+    coverage_reason: 'Во фрагментах нет выбора при риске',
+    missing_note: '',
+    evidence: [],
+    nearest: [{ material_id: 'm3', material_title: 'Поведение потребителя', source_id: 'S12', excerpt: EXCERPT, matched: ['выбор'] }],
+    materials_fingerprint: 'fp',
+    mapping_version: 1,
+    mapped_at: '2026-10-03T06:40:00Z',
+    created_at: '2026-10-01T06:40:00Z',
+    ...overrides,
+  };
+}
+
+function answer(id: string, day: string, grade: number, session: string | null): LearningEvent {
+  return {
+    id,
+    created_at: `${day}T10:00:00Z`,
+    local_date: day,
+    material_id: null,
+    kind: 'exam_answer',
+    item_key: `q:${'a'.repeat(32)}`,
+    correct: grade >= 4,
+    score: grade / 5,
+    confidence: null,
+    source_ids: [],
+    session_id: session,
+    payload: { grade },
+  };
+}
+
+/** Accessible names keep the no-break spaces of Russian typesetting; compare them as plain spaces. */
+const named = (text: string) => (name: string) => name.replace(/\u00a0/g, ' ') === text;
+
+function renderPanel(overrides: Partial<WhyPanelProps> = {}, coverage: SheetCoverage = 'none') {
+  const props: WhyPanelProps = {
+    examId: 'exam-1',
+    question: question(),
+    number: '17',
+    coverage,
+    lectureCount: 9,
+    examMaterialIds: new Set(['m1', 'm3']),
+    answers: [],
+    answersError: null,
+    variant: 'column',
+    headingId: 'why-title',
+    onClose: vi.fn(),
+    onManualMark: vi.fn(),
+    manualPending: false,
+    manualError: null,
+    onRecheck: null,
+    ...overrides,
+  };
+  render(
+    <MemoryRouter>
+      <WhyPanel {...props} />
+    </MemoryRouter>,
+  );
+  return props;
+}
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('WhyPanel: a question that is not in the lectures', () => {
+  it('names the gap, the nearest fragment and the word that matched, and offers the manual mark', () => {
+    const props = renderPanel();
+    expect(screen.getByRole('heading', { name: named('Ни в одной из 9 лекций нет фрагмента об этом') })).toBeInTheDocument();
+    expect(screen.getByText(/Ближе всего — «Поведение потребителя», фрагмент.12: совпало только слово «выбор»/)).toBeInTheDocument();
+    expect(screen.getByText(/Лекция «Поведение потребителя», фрагмент.12/)).toBeInTheDocument();
+    expect(screen.getByText('выбор')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Добавить материал к вопросу' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Это есть в лекции…' }));
+    expect(props.onManualMark).toHaveBeenCalledTimes(1);
+  });
+
+  it('says when no fragment shares a word with the question', () => {
+    renderPanel({ question: question({ coverage_method: 'lexical', coverage_reason: 'Ни одного фрагмента с этими словами', nearest: [] }) });
+    expect(screen.getByRole('heading', { name: named('Ни в одной из 9 лекций нет фрагмента с этими словами') })).toBeInTheDocument();
+    expect(screen.getByText('Похожих фрагментов не нашлось.')).toBeInTheDocument();
+  });
+
+  it('explains a «yes» without a valid fragment', () => {
+    renderPanel({ question: question({ coverage_reason: 'Нет подтверждающего фрагмента' }) });
+    expect(screen.getByRole('heading', { name: named('Нет фрагмента, который подтверждает ответ') })).toBeInTheDocument();
+    expect(screen.getByText(/без ссылки на конкретный фрагмент засчитать нельзя/)).toBeInTheDocument();
+  });
+
+  it('uses the singular after one lecture', () => {
+    renderPanel({ lectureCount: 1 });
+    expect(screen.getByRole('heading', { name: named('Ни в одной из 1 лекции нет фрагмента об этом') })).toBeInTheDocument();
+  });
+
+  it('shows a failed manual mark', () => {
+    renderPanel({ manualError: 'Отметка не сохранена. Проверьте связь и повторите.' });
+    expect(screen.getByRole('alert')).toHaveTextContent('Отметка не сохранена');
+  });
+});
+
+describe('WhyPanel: a question that is in the lectures', () => {
+  const evidence = [
+    { material_id: 'm1', material_title: 'Денежный рынок', source_id: 'S14', excerpt: 'Инфляция — это устойчивый рост общего уровня цен.' },
+    { material_id: 'm9', material_title: 'Старая лекция', source_id: 'S03', excerpt: 'Фрагмент из лекции, которую убрали.' },
+  ];
+
+  it('shows the verdict, the whole fragment with its lecture and number, and what to do next', () => {
+    renderPanel(
+      { question: question({ id: 'q7', coverage: 'full', coverage_reason: 'Во фрагменте есть определение и виды', evidence, nearest: [] }) },
+      'full',
+    );
+    expect(screen.getByRole('heading', { name: named('Есть в ваших лекциях') })).toBeInTheDocument();
+    expect(screen.getByText('Во фрагменте есть определение и виды')).toBeInTheDocument();
+    expect(screen.getByText(/Лекция «Денежный рынок», фрагмент.14/)).toBeInTheDocument();
+    expect(screen.getByText('Инфляция — это устойчивый рост общего уровня цен.')).toBeInTheDocument();
+    expect(screen.getByText(/Лекция «Старая лекция», фрагмент.3 — лекция убрана из экзамена/)).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Открыть материал' })[0]).toHaveAttribute('href', '/library/m1');
+    expect(screen.getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/exams/exam-1/ticket?q=q7');
+    expect(screen.getByRole('link', { name: 'Повторить карточки этой лекции' })).toHaveAttribute('href', '/review?material=m1');
+    expect(screen.queryByRole('button', { name: 'Это есть в лекции…' })).toBeNull();
+  });
+
+  it('names what is missing for a partial question', () => {
+    renderPanel(
+      { question: question({ coverage: 'partial', coverage_reason: 'Есть определение', missing_note: 'нет классификации видов инфляции', evidence: evidence.slice(0, 1), nearest: [] }) },
+      'partial',
+    );
+    expect(screen.getByRole('heading', { name: named('Есть частично') })).toBeInTheDocument();
+    expect(screen.getByText('Не хватает: нет классификации видов инфляции')).toBeInTheDocument();
+  });
+
+  it('says «Отмечено вами» for a manual mark', () => {
+    renderPanel({ question: question({ coverage: 'full', coverage_method: 'manual', coverage_reason: 'Отмечено вами', evidence: [], nearest: [] }) }, 'full');
+    expect(screen.getByRole('heading', { name: named('Отмечено вами') })).toBeInTheDocument();
+    expect(screen.getByText(/Meldy этого не проверял/)).toBeInTheDocument();
+  });
+
+  it('offers «Проверить снова» for a question checked only by words', () => {
+    const onRecheck = vi.fn();
+    renderPanel({ question: question({ coverage: 'unverified', coverage_method: 'lexical' }), onRecheck }, 'unverified');
+    expect(screen.getByRole('heading', { name: named('Проверено только по словам') })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить снова' }));
+    expect(onRecheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('cuts a long fragment at 600 characters and opens it whole on demand', () => {
+    const long = `${'Слово '.repeat(150)}конец.`;
+    renderPanel({ question: question({ coverage: 'full', evidence: [{ material_id: 'm1', material_title: 'Лекция', source_id: 'S01', excerpt: long }], nearest: [] }) }, 'full');
+    expect(screen.queryByText(/конец\./)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Показать фрагмент целиком' }));
+    expect(screen.getByText(/конец\./)).toBeInTheDocument();
+  });
+});
+
+describe('WhyPanel: answers aloud', () => {
+  it('lists every attempt with its date and grade, newest first, each opening its protocol', () => {
+    renderPanel({
+      question: question({ coverage: 'full', evidence: [], nearest: [] }),
+      coverage: 'full',
+      answers: [answer('e1', '2026-09-29', 4, 'session-1'), answer('e2', '2026-10-07', 3, 'session-2'), answer('e3', '2026-10-08', 5, null)],
+    });
+    const list = screen.getByRole('list');
+    const items = within(list).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual(['8 окт. · 5 · отлично', '7 окт. · 3 · удовлетворительно', '29 сент. · 4 · хорошо']);
+    expect(within(list).getByRole('link', { name: '7 окт. · 3 · удовлетворительно' })).toHaveAttribute('href', '/exams/exam-1/ticket?session=session-2');
+    expect(within(list).getByRole('link', { name: '29 сент. · 4 · хорошо' })).toHaveAttribute('href', '/exams/exam-1/ticket?session=session-1');
+    expect(within(list).queryByRole('link', { name: '8 окт. · 5 · отлично' })).toBeNull();
+  });
+
+  it('says when the history could not be read', () => {
+    renderPanel({ answersError: 'Не удалось загрузить историю ответов. Повторите попытку.' });
+    expect(screen.getByText('Не удалось загрузить историю ответов. Повторите попытку.')).toBeInTheDocument();
+  });
+
+  it('formats an attempt without a grade honestly', () => {
+    expect(attemptLabel({ ...answer('e9', '2026-10-07', 4, 's'), payload: {} })).toBe('7 окт. · без оценки');
+  });
+});
+
+describe('WhyPanel on a phone', () => {
+  it('is a modal bottom sheet: focus on «Закрыть», Esc closes, Tab stays inside', () => {
+    const onClose = vi.fn();
+    renderPanel({ variant: 'sheet', onClose, frameBox: { left: 0, right: 0 } });
+    const dialog = screen.getByRole('dialog', { name: named('Ни в одной из 9 лекций нет фрагмента об этом') });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const close = within(dialog).getByRole('button', { name: 'Закрыть' });
+    expect(close).toHaveFocus();
+
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'));
+    focusable[focusable.length - 1].focus();
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(focusable[0]).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(focusable[focusable.length - 1]).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('nearestSentence', () => {
+  it('names several matched words', () => {
+    expect(
+      nearestSentence({ material_id: 'm', material_title: 'Деньги', source_id: 'M1:S07', excerpt: '', matched: ['ставка', 'кредит'] }),
+    ).toBe('Ближе всего — «Деньги», фрагмент 7: совпали слова «ставка», «кредит».');
+  });
+});
