@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BookMarked, CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, ChevronDown, Zap, CircleDot } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -8,7 +8,6 @@ import { useSound } from '../hooks/useSound';
 import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
 import { incrementAIUsage } from '../api/limits';
-import { useNavigate } from 'react-router-dom';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface Mistake {
@@ -20,6 +19,18 @@ interface Mistake {
   is_resolved: boolean;
   created_at: string;
   material_id: string | null;
+  /** 'quiz' (a test), 'oral_ticket' (an answer aloud to an exam ticket), 'professor' (the old oral exam). */
+  origin?: string | null;
+}
+
+const PRACTICE_BUSY = 'Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.';
+const PRACTICE_FAILED = 'Не удалось подготовить задания. Попробуйте ещё раз.';
+
+/** Where a mistake came from, in the words of the screens that made it. */
+export function mistakeOriginLabel(origin: string | null | undefined): string {
+  if (origin === 'quiz') return 'Тест';
+  if (origin === 'oral_ticket') return 'Ответ вслух';
+  return 'Устный экзамен';
 }
 
 interface MistakePracticeQuestion {
@@ -33,8 +44,7 @@ interface MistakePracticeQuestion {
 
 export default function MistakeDiary() {
   const { user } = useAuth();
-  const { confirm, alert } = useConfirm();
-  const navigate = useNavigate();
+  const { confirm } = useConfirm();
   const { verifyEnergy } = useEnergyConfirm();
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,28 +70,41 @@ export default function MistakeDiary() {
   const [practiceResolvedCount, setPracticeResolvedCount] = useState(0);
   const [practiceMistakeCount, setPracticeMistakeCount] = useState(0);
   const [practiceXpAwarded, setPracticeXpAwarded] = useState(false);
+  const [practiceError, setPracticeError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  /**
+   * Set before the first await: the limit check takes two reads, and a second press in that time
+   * must not start a second request and a second charge.
+   */
+  const startingRef = useRef(false);
 
   const startPractice = async () => {
+    if (startingRef.current) return;
     const openMistakes = mistakes.filter(m => !m.is_resolved);
     if (openMistakes.length === 0) return;
-    
+
     // Берём до 5 неисправленных ошибок
     const toPractice = openMistakes.slice(0, 5);
-    
-    if (user?.id) {
-      const ok = await verifyEnergy(user.id, 2, 'Работа над ошибками');
-      if (!ok) return;
-      await incrementAIUsage(user.id, 2);
-    }
 
+    startingRef.current = true;
     setPracticeLoading(true);
+    setPracticeError(null);
     try {
+      if (user?.id) {
+        const ok = await verifyEnergy(user.id, 2, 'Работа над ошибками');
+        if (!ok) return;
+      }
+
       const res = await fetch('/api/mistakes/practice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mistakes: toPractice }),
       });
-      if (!res.ok) throw new Error();
+      if (res.status === 429) {
+        setPracticeError(PRACTICE_BUSY);
+        return;
+      }
+      if (!res.ok) throw new Error(`practice ${res.status}`);
       const data = await res.json();
       const allowedMistakeIds = new Set(toPractice.map(mistake => mistake.id));
       const questions = data?.practice;
@@ -100,6 +123,9 @@ export default function MistakeDiary() {
 
       if (!isValidPractice) throw new Error('Invalid practice response');
 
+      // Энергия списывается только за задания, которые действительно можно пройти.
+      if (user?.id) await incrementAIUsage(user.id, 2);
+
       setPracticeQuestions(questions);
       setIsPracticing(true);
       setCurrentQIndex(0);
@@ -116,8 +142,10 @@ export default function MistakeDiary() {
       setPracticeMistakeCount(toPractice.length);
       setPracticeXpAwarded(false);
     } catch (e) {
-      await alert({ title: 'Ошибка', message: 'Не удалось запустить работу над ошибками. Попробуйте еще раз.', type: 'danger' });
+      console.error('Mistakes practice failed:', e);
+      setPracticeError(PRACTICE_FAILED);
     } finally {
+      startingRef.current = false;
       setPracticeLoading(false);
     }
   };
@@ -202,14 +230,21 @@ export default function MistakeDiary() {
   const fetchMistakes = async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('mistake_diary')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) setMistakes(data);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const { data, error } = await supabase
+        .from('mistake_diary')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setMistakes(data || []);
+    } catch (e) {
+      console.error('Loading the mistake diary failed:', e);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -255,7 +290,7 @@ export default function MistakeDiary() {
                 {/* Хедер прогресса */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg">
+                    <span className="text-sm font-medium text-[var(--sf-ink)]">
                       Вопрос {currentQIndex + 1} из {practiceQuestions.length}
                     </span>
                     <span className="text-xs text-slate-400">
@@ -307,10 +342,10 @@ export default function MistakeDiary() {
                         >
                           <span>{opt}</span>
                           {hasAnswered && isCorrect && (
-                            <span className="text-[10px] uppercase font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md shrink-0">Верно</span>
+                            <span className="text-xs font-medium shrink-0">верный ответ</span>
                           )}
                           {hasAnswered && isSelected && !isCorrect && (
-                            <span className="text-[10px] uppercase font-bold bg-rose-600 text-white px-2 py-0.5 rounded-md shrink-0">Ошибка</span>
+                            <span className="text-xs font-medium shrink-0">ваш ответ</span>
                           )}
                         </button>
                       );
@@ -323,9 +358,9 @@ export default function MistakeDiary() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       style={{ overflow: 'hidden' }}
-                      className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 rounded-xl space-y-1"
+                      className="p-4 bg-[var(--sf-surface-soft)] border border-[var(--sf-line)] rounded-xl space-y-1"
                     >
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">Разбор и пояснение</h4>
+                      <h4 className="text-sm font-medium text-[var(--sf-ink)]">Пояснение</h4>
                       <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                         {practiceQuestions[currentQIndex]?.explanation}
                       </p>
@@ -355,11 +390,6 @@ export default function MistakeDiary() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="card p-8 md:p-10 text-center space-y-6"
               >
-                {/* Иконка */}
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto bg-gradient-to-br from-amber-100 to-rose-100">
-                  <Zap className="w-8 h-8 text-amber-500 animate-bounce" />
-                </div>
-
                 {/* Результат показываем только после сохранения */}
                 {practiceSaveError ? (
                   <div role="alert" className="space-y-2">
@@ -410,213 +440,168 @@ export default function MistakeDiary() {
         /* ═══ ОБЫЧНЫЙ РЕЖИМ ДНЕВНИКА ═══════════════════════════════════════════ */
         <>
           {/* Заголовок */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-              <BookMarked className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Дневник ошибок</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Все слабые места после AI-Экзаменатора</p>
-            </div>
-          </div>
+          <header className="mb-6 border-b border-[var(--sf-line)] pb-4">
+            <h1 className="text-xl font-semibold text-[var(--sf-ink)]">Дневник ошибок</h1>
+            <p className="mt-1 text-sm text-[var(--sf-muted)]">
+              Ошибки из тестов, ответов вслух и устных экзаменов. Правильный ответ открывается по нажатию.
+            </p>
+            {!loading && !loadError && mistakes.length > 0 && (
+              <p className="mt-2 text-sm text-[var(--sf-ink)]">
+                Открыто: {openCount}. Исправлено: {resolvedCount}.
+              </p>
+            )}
+          </header>
 
-          {/* Кнопка работы над ошибками */}
+          {/* Работа над ошибками */}
           {openCount > 0 && (
-            <button
-              onClick={startPractice}
-              disabled={practiceLoading}
-              className="w-full mb-6 py-4 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white rounded-2xl font-black text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-rose-100"
-            >
-              {practiceLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  AI анализирует ошибки и готовит тест...
-                </>
-              ) : (
-                <>
-                  ⚡ Запустить AI-работу над ошибками
-                </>
+            <div className="mb-6">
+              <button
+                onClick={startPractice}
+                disabled={practiceLoading}
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-accent)] px-6 text-sm font-semibold text-white shadow-[0_2px_0_rgba(0,0,0,0.18)] transition hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+              >
+                {practiceLoading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
+                    Готовим задания…
+                  </>
+                ) : (
+                  'Начать работу над ошибками'
+                )}
+              </button>
+              <p className="mt-2 text-sm text-[var(--sf-muted)]">
+                Задания по {Math.min(openCount, 5)} {Math.min(openCount, 5) === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует 2 единицы дневного лимита ИИ, если задания получились.
+              </p>
+              {practiceError && (
+                <p role="alert" className="mt-2 text-sm text-[var(--sf-ink)]">
+                  {practiceError}
+                </p>
               )}
-            </button>
+            </div>
           )}
-
-          {/* Статистика */}
-          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
-            <div className="card p-2 md:p-4 text-center">
-              <p className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100">{mistakes.length}</p>
-              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Всего ошибок</p>
-            </div>
-            <div className="card p-2 md:p-4 text-center border-l-4 border-l-rose-400">
-              <p className="text-xl md:text-2xl font-black text-rose-600">{openCount}</p>
-              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Внимания</p>
-            </div>
-            <div className="card p-2 md:p-4 text-center border-l-4 border-l-emerald-400">
-              <p className="text-xl md:text-2xl font-black text-emerald-600">{resolvedCount}</p>
-              <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 mt-1">Исправлено</p>
-            </div>
-          </div>
 
           {/* Фильтры */}
           <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-4 h-4 text-slate-400" />
+            <Filter className="w-4 h-4 text-[var(--sf-muted)]" aria-hidden="true" />
             {(['all', 'open', 'resolved'] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                aria-pressed={filter === f}
+                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-sm transition ${
                   filter === f
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    ? 'bg-[var(--sf-ink)] text-[var(--sf-canvas)]'
+                    : 'text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]'
                 }`}
               >
-                <span className="flex items-center gap-1.5">
-                  {f === 'all' && 'Все'}
-                  {f === 'open' && <><CircleDot className={`w-3.5 h-3.5 ${filter === 'open' ? 'text-rose-300' : 'text-rose-500'}`} /> Открытые</>}
-                  {f === 'resolved' && <><CheckCircle2 className={`w-3.5 h-3.5 ${filter === 'resolved' ? 'text-emerald-300' : 'text-emerald-500'}`} /> Исправленные</>}
-                </span>
+                {f === 'all' && 'Все'}
+                {f === 'open' && 'Открытые'}
+                {f === 'resolved' && 'Исправленные'}
               </button>
             ))}
             <button
               onClick={fetchMistakes}
-              className="ml-auto p-1.5 text-slate-400 hover:text-slate-700 transition"
+              className="ml-auto inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--sf-muted)] hover:text-[var(--sf-ink)] transition"
               title="Обновить"
+              aria-label="Обновить"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
           {/* Список ошибок */}
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center justify-center py-20" role="status" aria-label="Загружаем дневник ошибок">
+              <div className="w-8 h-8 border-2 border-[var(--sf-accent-fg)] border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
+            </div>
+          ) : loadError ? (
+            <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-6">
+              <p role="alert" className="text-sm text-[var(--sf-ink)]">Не удалось загрузить дневник ошибок.</p>
+              <button
+                onClick={fetchMistakes}
+                className="mt-2 min-h-[44px] text-sm font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline"
+              >
+                Повторить
+              </button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="card p-10 text-center">
-              <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle2 className="w-7 h-7 text-emerald-500" />
-              </div>
-              <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-1">
-                {filter === 'open' ? 'Отличная работа!' : 'Пока пусто'}
+            <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-10 text-center">
+              <h3 className="font-semibold text-[var(--sf-ink)] mb-1">
+                {filter === 'open' ? 'Открытых ошибок нет' : 'Пока пусто'}
               </h3>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[var(--sf-muted)]">
                 {filter === 'open'
-                  ? 'Все ошибки исправлены. Продолжайте в том же духе!'
-                  : 'Пройдите AI-Экзамен, и ваши ошибки появятся здесь.'}
+                  ? 'Все ошибки отмечены как исправленные.'
+                  : 'Ошибки из тестов и ответов на билеты появятся здесь.'}
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <AnimatePresence>
-                {filtered.map(mistake => (
-                  <motion.div
-                    key={mistake.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, height: 0, margin: 0 }}
-                    className={`card overflow-hidden ${
-                      mistake.is_resolved ? 'opacity-60' : ''
-                    }`}
-                  >
-                    {/* Заголовок карточки */}
-                    <div
-                      className="p-4 cursor-pointer flex items-start gap-3"
-                      onClick={() => setExpandedId(expandedId === mistake.id ? null : mistake.id)}
+            <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
+              {filtered.map(mistake => {
+                const expanded = expandedId === mistake.id;
+                const fromQuiz = mistake.origin === 'quiz';
+                return (
+                  <li key={mistake.id} className={mistake.is_resolved ? 'opacity-70' : ''}>
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      onClick={() => setExpandedId(expanded ? null : mistake.id)}
+                      className="flex w-full items-start gap-3 py-4 text-left"
                     >
-                      <div className={`mt-0.5 shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                        mistake.is_resolved ? 'bg-emerald-100' : 'bg-rose-100'
-                      }`}>
+                      <span className="mt-0.5 shrink-0" aria-hidden="true">
                         {mistake.is_resolved
-                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          : <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2">
-                          {mistake.correct_answer}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {mistake.topic && (
-                            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">
-                              {mistake.topic}
-                            </span>
+                          ? <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          : <AlertCircle className="w-4 h-4 text-[var(--sf-muted)]" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium leading-snug text-[var(--sf-ink)] line-clamp-2">
+                          {mistake.question}
+                        </span>
+                        <span className="mt-1 block text-xs text-[var(--sf-muted)]">
+                          {mistakeOriginLabel(mistake.origin)}
+                          {mistake.topic ? ` · ${mistake.topic}` : ''}
+                          {' · '}
+                          {new Date(mistake.created_at).toLocaleDateString('ru-RU')}
+                          {mistake.is_resolved ? ' · исправлена' : ''}
+                        </span>
+                      </span>
+                      <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--sf-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+
+                    {expanded && (
+                      <div className="space-y-3 pb-4 pl-7">
+                        <div>
+                          <p className="text-xs text-[var(--sf-muted)]">Ваш ответ</p>
+                          <p className="text-sm leading-relaxed text-[var(--sf-ink)]">{mistake.student_answer || '(пусто)'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--sf-muted)]">{fromQuiz ? 'Правильный ответ' : 'Что нужно было сказать'}</p>
+                          <p className="text-sm leading-relaxed text-[var(--sf-ink)]">{mistake.correct_answer}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {!mistake.is_resolved && (
+                            <button
+                              onClick={() => markResolved(mistake.id)}
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[var(--sf-line)] bg-[var(--sf-surface)] px-3 text-sm font-medium text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)] transition"
+                            >
+                              <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                              Отметить как исправленную
+                            </button>
                           )}
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                            {new Date(mistake.created_at).toLocaleDateString('ru-RU')}
-                          </span>
+                          <button
+                            onClick={() => deleteMistake(mistake.id)}
+                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 text-sm text-[var(--sf-muted)] hover:text-rose-700 dark:hover:text-rose-300 transition"
+                          >
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
+                            Удалить
+                          </button>
                         </div>
                       </div>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
-                        expandedId === mistake.id ? 'rotate-180' : ''
-                      }`} />
-                    </div>
-
-                    {/* Раскрытое содержимое */}
-                    <AnimatePresence>
-                      {expandedId === mistake.id && (
-                        <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: 'auto' }}
-                          exit={{ height: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-800 pt-3 space-y-3">
-                            {/* Контекст (Вопрос) */}
-                            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 rounded-xl">
-                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                Контекст / Вопрос
-                              </p>
-                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic">
-                                "{mistake.question}"
-                              </p>
-                            </div>
-
-                            {/* Ответ студента */}
-                            <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-xl">
-                              <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">
-                                Мой ответ
-                              </p>
-                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                                {mistake.student_answer || '— (пусто)'}
-                              </p>
-                            </div>
-
-                            {/* Суть ошибки / Правильный ответ */}
-                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-xl">
-                              <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
-                                Суть ошибки / Что нужно было сказать
-                              </p>
-                              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                                {mistake.correct_answer}
-                              </p>
-                            </div>
-
-                            {/* Действия */}
-                            <div className="flex gap-2 pt-1">
-                              {!mistake.is_resolved && (
-                                <button
-                                  onClick={() => markResolved(mistake.id)}
-                                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  Отметить как исправленную
-                                </button>
-                              )}
-                              <button
-                                onClick={() => deleteMistake(mistake.id)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 text-slate-500 dark:text-slate-400 text-xs font-bold rounded-lg transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Удалить
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </>
       )}

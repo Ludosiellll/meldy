@@ -469,3 +469,180 @@ describe('mode switcher', () => {
     expect(screen.getByRole('tab', { name: /Разговор/ })).toHaveAttribute('aria-selected', 'true');
   });
 });
+
+describe('section statuses saved with the material', () => {
+  const quizPayload = {
+    quiz: [{ id: 1, question: 'Убывает ли энтропия изолированной системы?', options: ['A) Нет', 'B) Да'], correct: 'A', explanation: 'Не убывает.', source_ids: [] }],
+  };
+
+  it('shows a failed section from summary_json.sections and recreates it for free', async () => {
+    state.material = {
+      ...makeMaterial({ sections: { summarizer: { status: 'ok' }, quiz: { status: 'busy', message: 'Сервис ИИ был перегружен' } } }),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    expect(screen.getByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    await act(async () => pending['/api/analyze/section'][0].resolve(jsonResponse({ section: 'quiz', status: 'ok', result: quizPayload })));
+
+    expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
+    expect(state.material.quiz_json).toEqual(quizPayload);
+    expect((state.material.summary_json.sections as Record<string, unknown>).quiz).toEqual({ status: 'ok' });
+    expect(state.material.summary_json.content).toBe('Конспект про энтропию');
+    expect(state.increment).not.toHaveBeenCalled();
+    const body = JSON.parse(String((globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(call => call[0] === '/api/analyze/section')?.[1]?.body));
+    expect(body).toMatchObject({ section: 'quiz', text: state.material.original_text });
+  });
+
+  it('a legacy material without sections shows no failure lines', async () => {
+    state.material = { ...makeMaterial(), quiz_json: { quiz: [] } };
+    renderPage('/library/m1');
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.queryByText(/не получил/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Тест/ })).not.toBeInTheDocument();
+  });
+
+  it('offers no recreate button on someone else’s material', async () => {
+    state.material = {
+      ...makeMaterial({ sections: { quiz: { status: 'failed', message: 'Модель не ответила' } } }, 'teacher-1'),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    expect(screen.getByText('Тест не получился: модель не ответила.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать тест заново' })).not.toBeInTheDocument();
+  });
+
+  // Анализ записал «не получилось», а шпаргалку и разговор потом создали в «Кратко» и «Разговоре».
+  const madeLater = () =>
+    makeMaterial({
+      cheatsheet: '# Шпаргалка',
+      podcast: legacyLines,
+      sections: {
+        summarizer: { status: 'ok' },
+        cheatsheet: { status: 'failed', message: 'Модель не ответила' },
+        podcast: { status: 'busy', message: 'Сервис ИИ был перегружен' },
+      },
+    });
+
+  it('a cheat sheet and a conversation made after the analysis are not reported as failed', async () => {
+    state.material = madeLater();
+    renderPage('/library/m1');
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.queryByText(/не получил/)).not.toBeInTheDocument();
+    // У разговора здесь свой режим: внутри «Материала» второй вкладки «Разговор» нет.
+    expect(screen.queryByRole('button', { name: /Разговор/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab', { name: /Разговор/ })).toHaveLength(1);
+    expect(state.writes).toHaveLength(0);
+  });
+
+  it('a conversation that failed and was never made has no tab inside «Материал»; the page mode offers it', async () => {
+    state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' }, podcast: { status: 'busy' } } });
+    renderPage('/library/m1');
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.queryByText(/Разговор не получился/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Разговор/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать разговор' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
+    expect(await screen.findByRole('button', { name: 'Создать разговор' })).toBeInTheDocument();
+  });
+
+  it('a cheat sheet that failed and is still missing: the line stays and «Кратко» offers to make it', async () => {
+    state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' }, cheatsheet: { status: 'failed', message: 'Модель не ответила' } } });
+    renderPage('/library/m1');
+    expect(await screen.findByText('Шпаргалка не получилась: модель не ответила.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать шпаргалку' }));
+    await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
+    await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
+    expect(await screen.findByRole('heading', { name: 'Главное' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Материал/ }));
+    expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
+    expect(screen.queryByText(/Шпаргалка не получилась/)).not.toBeInTheDocument();
+  });
+
+  it('«Создать тест заново» keeps the saved conversation and records the sections that exist', async () => {
+    state.material = {
+      ...madeLater(),
+      quiz_json: { quiz: [] },
+    };
+    (state.material.summary_json.sections as Record<string, unknown>).quiz = { status: 'busy' };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+    await act(async () => pending['/api/analyze/section'][0].resolve(jsonResponse({ section: 'quiz', status: 'ok', result: quizPayload })));
+    expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
+    expect(state.material.summary_json.sections).toEqual({
+      summarizer: { status: 'ok' },
+      quiz: { status: 'ok' },
+      cheatsheet: { status: 'ok' },
+      podcast: { status: 'ok' },
+    });
+    expect(savedPodcast()).toEqual(legacyLines);
+    expect(state.material.summary_json.cheatsheet).toBe('# Шпаргалка');
+  });
+
+  it('a conversation saved while a section was being re-created stays on the page', async () => {
+    state.material = {
+      ...makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' }, quiz: { status: 'busy' } } }),
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    await waitFor(() => expect(pending['/api/analyze/section']).toHaveLength(1));
+
+    // Пока тест создаётся, пользователь делает разговор в соседнем режиме.
+    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать разговор' }));
+    await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
+    await act(async () => pending['/api/podcast/generate'][0].resolve(jsonResponse(generated)));
+    await waitFor(() => expect(savedPodcast()).toHaveLength(2));
+    expect(screen.getByText('Что такое энтропия?', { selector: 'section[aria-label="Субтитры"] p' })).toBeInTheDocument();
+
+    // Тест готов позже: он сохраняется и виден в «Материале», а разговор остаётся на странице.
+    await act(async () => pending['/api/analyze/section'][0].resolve(jsonResponse({ section: 'quiz', status: 'ok', result: quizPayload })));
+    await waitFor(() => expect(state.material.quiz_json).toEqual(quizPayload));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    });
+    expect(savedPodcast()).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Материал/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Тест/ }));
+    expect(await screen.findByText(/Убывает ли энтропия изолированной системы\?/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));
+    expect(await screen.findByText('Что такое энтропия?', { selector: 'section[aria-label="Субтитры"] p' })).toBeInTheDocument();
+    expect(screen.queryByText('Для этого материала разговор ещё не создан')).not.toBeInTheDocument();
+    expect(state.increment).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('text-only materials and review link', () => {
+  it('shows the text-only notice', async () => {
+    state.material = {
+      ...makeMaterial({ content: '', terms: [], text_only: true }),
+      flashcards_json: { flashcards: [] },
+      quiz_json: { quiz: [] },
+    };
+    renderPage('/library/m1');
+    expect(await screen.findByText('Только текст, конспекта нет. Материал участвует в разметке экзаменов.')).toBeInTheDocument();
+    expect(screen.queryByText('Нет данных для отображения')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Повторить карточки этого материала' })).not.toBeInTheDocument();
+  });
+
+  it('links to review for a material with cards', async () => {
+    state.material = {
+      ...makeMaterial(),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
+    renderPage('/library/m1');
+    const link = await screen.findByRole('link', { name: 'Повторить карточки этого материала' });
+    expect(link).toHaveAttribute('href', '/review?material=m1');
+  });
+});

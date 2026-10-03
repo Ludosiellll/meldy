@@ -8,6 +8,26 @@ from google import genai
 from google.genai import types
 import random
 
+from agents.base import AIError, classify_error
+
+
+MEDIA_PROCESSING_TIMEOUT_MESSAGE = "Расшифровка заняла слишком много времени. Попробуйте файл короче."
+
+
+class MediaProcessingTimeout(Exception):
+    """Google kept the uploaded file in PROCESSING longer than MEDIA_PROCESSING_POLL_SECONDS."""
+
+    def __init__(self, message: str = MEDIA_PROCESSING_TIMEOUT_MESSAGE):
+        super().__init__(message)
+
+
+def media_processing_poll_seconds() -> float:
+    try:
+        value = float(os.getenv("MEDIA_PROCESSING_POLL_SECONDS", "120") or 120)
+    except ValueError:
+        return 120.0
+    return value if value > 0 else 120.0
+
 
 async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None) -> str:
     api_key = os.getenv("GROQ_API_KEY", "").strip()
@@ -135,8 +155,9 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
     shuffled_keys = list(keys)
     random.shuffle(shuffled_keys)
     
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     last_error = None
+    rate_limited = False
     
     gemini_models = [
         model.strip() for model in os.getenv(
@@ -158,8 +179,12 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
             )
             
             try:
-                # Ожидаем завершения процессинга на стороне Google
+                # Ожидаем завершения процессинга на стороне Google, но не дольше
+                # MEDIA_PROCESSING_POLL_SECONDS: другой ключ обработал бы файл не быстрее.
+                poll_deadline = loop.time() + media_processing_poll_seconds()
                 while myfile.state.name == "PROCESSING":
+                    if loop.time() >= poll_deadline:
+                        raise MediaProcessingTimeout()
                     await asyncio.sleep(2)
                     myfile = await loop.run_in_executor(None, lambda: client.files.get(name=myfile.name))
                     
@@ -182,6 +207,8 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
                         if response and getattr(response, "text", None):
                             break
                     except Exception as model_err:
+                        if classify_error(model_err) == "rate_limited":
+                            rate_limited = True
                         continue
                         
                 if not response or not getattr(response, "text", None):
@@ -194,8 +221,14 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
                     await loop.run_in_executor(None, lambda: client.files.delete(name=myfile.name))
                 except:
                     pass
+        except MediaProcessingTimeout:
+            raise
         except Exception as e:
+            if classify_error(e) == "rate_limited":
+                rate_limited = True
             last_error = str(e)
             continue
-            
+
+    if rate_limited:
+        raise AIError.busy()
     raise ValueError(f"Не удалось расшифровать медиа. Убедитесь, что ключи активны. Последняя ошибка: {last_error}")

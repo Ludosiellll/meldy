@@ -1,286 +1,633 @@
-import { QuizQuestion, QuizInfo } from '../types';
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
+import { CheckCircle2, Maximize2, RotateCcw, X, XCircle } from 'lucide-react';
 import SourceReferences from './SourceReferences';
+import { pluralRu } from './conversation/visuals';
+import {
+  LearningSaveError,
+  SAVE_FAILED_MESSAGE,
+  newEventId,
+  recordQuizAttempt,
+  type QuizAttemptAnswer,
+} from '../api/learning';
 
-export default function QuizView({ data, onComplete, sources = [] }: { data: any, onComplete?: (scorePct: number) => void, sources?: { id: string; text: string }[] }) {
-  const quiz = data?.quiz;
+/**
+ * The test of a material («Тест» after analysis and on the material page).
+ *
+ * Correctness is decided by option index: `correct` may be a letter (A–D or А–Г, with or without
+ * «)»), a letter with the option text («A) Да»), or the exact option text. An empty or unmatched
+ * `correct` leaves the question unscored: it is never counted as right or wrong.
+ *
+ * With `materialId` every checked attempt goes to the learning journal (record_quiz_attempt): one
+ * new session per «Проверить ответы», «Пройти снова» starts a new session marked as a retake, and a
+ * failed save is retried with the same session (the RPC is idempotent). `materialId === null`
+ * means the material is not in the library yet; the attempt is saved as soon as an id arrives.
+ * Without the prop (teacher assignments) the host saves the result itself through `onComplete`.
+ * The presentation mode is for an audience and is never recorded.
+ */
 
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+export interface QuizViewProps {
+  data: any;
+  onComplete?: (scorePct: number) => void;
+  sources?: { id: string; text: string }[];
+  materialId?: string | null;
+  topic?: string;
+  surface?: 'analysis' | 'material';
+}
+
+interface NormalizedQuestion {
+  question: string;
+  options: string[];
+  labels: (string | null)[];
+  correctIndex: number | null;
+  explanation: string;
+  sourceIds: string[];
+}
+
+const LABEL_RE = /^\s*([A-Za-zА-ЯЁа-яё])\s*[).:]\s*/;
+const LATIN_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const CYRILLIC_LETTERS = 'АБВГДЕЖЗИКЛМН';
+/** Cyrillic capitals that look like Latin ones («В» typed for «B»). */
+const LATIN_GLYPH: Record<string, string> = {
+  А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X', У: 'Y',
+};
+
+function normalizeText(value: string): string {
+  return value.normalize('NFC').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+}
+
+/** Own labels of the options («A) …», «б. …») when every option has one and they are distinct. */
+export function optionLabels(options: string[]): (string | null)[] {
+  const labels = options.map((option) => LABEL_RE.exec(option)?.[1] ?? null);
+  const distinct = new Set(labels.map((label) => (label ? label.toUpperCase() : '')));
+  const usable = labels.length > 0 && labels.every((label) => label !== null) && distinct.size === labels.length;
+  return usable ? labels : options.map(() => null);
+}
+
+function optionBody(option: string, label: string | null): string {
+  return label ? option.replace(LABEL_RE, '') : option;
+}
+
+function letterIndex(letter: string, labels: (string | null)[], count: number): number | null {
+  const upper = letter.toUpperCase();
+  if (labels.length > 0 && labels.every((label) => label !== null)) {
+    const exact = labels.findIndex((label) => label!.toUpperCase() === upper);
+    if (exact >= 0) return exact;
+    const glyph = LATIN_GLYPH[upper] ?? upper;
+    const similar = labels.findIndex((label) => {
+      const own = label!.toUpperCase();
+      return (LATIN_GLYPH[own] ?? own) === glyph;
+    });
+    if (similar >= 0) return similar;
+  }
+  let position = LATIN_LETTERS.indexOf(upper);
+  if (position < 0) position = CYRILLIC_LETTERS.indexOf(upper === 'Ё' ? 'Е' : upper);
+  return position >= 0 && position < count ? position : null;
+}
+
+function uniqueMatch(values: string[], wanted: string): number | null {
+  if (!wanted) return null;
+  const matches: number[] = [];
+  values.forEach((value, index) => {
+    if (normalizeText(value) === wanted) matches.push(index);
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/**
+ * Index of the right option, or null when the question cannot be scored (no options, an empty
+ * `correct`, or a `correct` that matches no option or matches several).
+ */
+export function correctOptionIndex(options: unknown, correct: unknown): number | null {
+  if (!Array.isArray(options) || options.length === 0) return null;
+  const texts = options.map((option) => (typeof option === 'string' ? option : String(option ?? '')));
+  const raw = typeof correct === 'string' ? correct.trim() : '';
+  if (!raw) return null;
+
+  const labels = optionLabels(texts);
+  const bodies = texts.map((text, index) => optionBody(text, labels[index]));
+  const wanted = normalizeText(raw);
+
+  const byText = uniqueMatch(texts, wanted);
+  if (byText !== null) return byText;
+  const byBody = uniqueMatch(bodies, wanted);
+  if (byBody !== null) return byBody;
+
+  const letter = /^([A-Za-zА-ЯЁа-яё])\s*(?:[).:]\s*(.*))?$/su.exec(raw);
+  if (!letter) return null;
+  const index = letterIndex(letter[1], labels, texts.length);
+  if (index === null) return null;
+  const rest = normalizeText(letter[2] ?? '');
+  if (rest) {
+    // «B) Нет» must not point at the option whose text is «Нет» under another letter.
+    const other = uniqueMatch(bodies, rest);
+    if (other !== null && other !== index) return null;
+  }
+  return index;
+}
+
+function displayLetter(labels: (string | null)[], index: number): string {
+  return labels[index] ?? LATIN_LETTERS[index] ?? String(index + 1);
+}
+
+function normalizeQuestions(quiz: unknown[]): NormalizedQuestion[] {
+  return quiz.map((item) => {
+    const q = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const options = Array.isArray(q.options)
+      ? q.options.map((option) => (typeof option === 'string' ? option : String(option ?? '')))
+      : [];
+    return {
+      question: typeof q.question === 'string' ? q.question : '',
+      options,
+      labels: optionLabels(options),
+      correctIndex: correctOptionIndex(options, q.correct),
+      explanation: typeof q.explanation === 'string' ? q.explanation : '',
+      sourceIds: Array.isArray(q.source_ids) ? q.source_ids.filter((id): id is string => typeof id === 'string') : [],
+    };
+  });
+}
+
+function score(questions: NormalizedQuestion[], answers: Record<number, number>) {
+  let correct = 0;
+  let scored = 0;
+  questions.forEach((q, i) => {
+    if (q.correctIndex === null) return;
+    scored += 1;
+    if (answers[i] === q.correctIndex) correct += 1;
+  });
+  return { correct, scored, unscored: questions.length - scored };
+}
+
+function gradeLabel(pct: number): string {
+  if (pct >= 90) return 'Отлично';
+  if (pct >= 70) return 'Хорошо';
+  if (pct >= 50) return 'Удовлетворительно';
+  return 'Нужно подтянуть';
+}
+
+function attemptAnswers(questions: NormalizedQuestion[], answers: Record<number, number>): QuizAttemptAnswer[] {
+  return questions.map((q, index) => {
+    const chosen = answers[index];
+    const hasChoice = typeof chosen === 'number' && chosen >= 0 && chosen < q.options.length;
+    const expected = q.correctIndex;
+    return {
+      index,
+      question: q.question,
+      chosen: hasChoice ? displayLetter(q.labels, chosen) : null,
+      chosenText: hasChoice ? optionBody(q.options[chosen], q.labels[chosen]).trim() : '',
+      expected: expected === null ? null : displayLetter(q.labels, expected),
+      expectedText: expected === null ? '' : optionBody(q.options[expected], q.labels[expected]).trim(),
+      correct: expected === null || !hasChoice ? null : chosen === expected,
+      explanation: q.explanation,
+      sourceIds: q.sourceIds,
+      options: q.options.length,
+    };
+  });
+}
+
+interface Attempt {
+  sessionId: string;
+  retake: boolean;
+  answers: QuizAttemptAnswer[];
+}
+
+type SaveState =
+  | { status: 'off' }
+  | { status: 'no_material' }
+  | { status: 'saving' }
+  | { status: 'saved'; retake: boolean; mistakesAdded: number; mistakesExisting: number }
+  | { status: 'failed'; message: string };
+
+function addedLine(added: number): string {
+  return `${added} ${pluralRu(added, ['ошибка добавлена', 'ошибки добавлены', 'ошибок добавлены'])} в дневник ошибок`;
+}
+
+function existingLine(existing: number, afterAdded: boolean): string {
+  return afterAdded
+    ? `ещё ${existing} ${pluralRu(existing, ['уже была', 'уже были', 'уже были'])} там`
+    : `${existing} ${pluralRu(existing, ['ошибка уже есть', 'ошибки уже есть', 'ошибок уже есть'])} в дневнике ошибок`;
+}
+
+function JournalLine({ state, onRetry }: { state: SaveState; onRetry: () => void }) {
+  if (state.status === 'off') return null;
+  if (state.status === 'no_material') {
+    return (
+      <p role="status" className="text-sm text-[var(--sf-muted)]">
+        Результат не сохранён: материал ещё не в библиотеке
+      </p>
+    );
+  }
+  if (state.status === 'saving') {
+    return (
+      <p role="status" aria-live="polite" className="text-sm text-[var(--sf-muted)]">
+        Сохраняем результат…
+      </p>
+    );
+  }
+  if (state.status === 'failed') {
+    return (
+      <div role="alert" className="flex flex-wrap items-center gap-x-3 text-sm text-[var(--sf-ink)]">
+        <span>{state.message === SAVE_FAILED_MESSAGE ? 'Результат не сохранён.' : state.message}</span>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline"
+        >
+          Повторить
+        </button>
+      </div>
+    );
+  }
+  const { mistakesAdded: added, mistakesExisting: existing } = state;
+  return (
+    <div role="status" className="space-y-1 text-sm text-[var(--sf-muted)]">
+      <p>Результат сохранён</p>
+      {state.retake && <p>Повторная попытка: в «Прогрессе» считается первая</p>}
+      {(added > 0 || existing > 0) && (
+        <p>
+          {added > 0 && (
+            <Link to="/mistakes" className="font-semibold text-[var(--sf-accent-fg)] underline underline-offset-4">
+              {addedLine(added)}
+            </Link>
+          )}
+          {existing > 0 && (
+            <>
+              {added > 0 ? ', ' : ''}
+              {added > 0 ? existingLine(existing, true) : (
+                <Link to="/mistakes" className="font-semibold text-[var(--sf-accent-fg)] underline underline-offset-4">
+                  {existingLine(existing, false)}
+                </Link>
+              )}
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion[]; onExit: () => void }) {
+  const [index, setIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [finished, setFinished] = useState(false);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onExit();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onExit]);
+
+  const total = questions.length;
+  const q = questions[index];
+  const { correct, scored } = score(questions, answers);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Режим презентации"
+      className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-[var(--sf-canvas)] text-[var(--sf-ink)]"
+    >
+      <div className="flex items-center justify-between gap-4 border-b border-[var(--sf-line)] px-5 py-3 sm:px-8">
+        <p className="text-sm text-[var(--sf-muted)]">Режим презентации · ответы зрителей не сохраняются</p>
+        <button
+          type="button"
+          onClick={onExit}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+          Выйти
+        </button>
+      </div>
+
+      {!finished ? (
+        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-5 py-10 sm:px-8">
+          <p className="mb-3 text-base text-[var(--sf-muted)]">Вопрос {index + 1} из {total}</p>
+          <h2 className="mb-8 text-2xl font-semibold leading-snug sm:text-3xl lg:text-4xl">{q.question}</h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {q.options.map((option, j) => {
+              const selected = answers[index] === j;
+              return (
+                <button
+                  type="button"
+                  key={j}
+                  aria-pressed={selected}
+                  onClick={() => setAnswers((prev) => ({ ...prev, [index]: j }))}
+                  className={`flex min-h-[64px] items-center gap-4 rounded-xl border px-5 py-4 text-left text-lg transition-colors lg:text-xl ${
+                    selected
+                      ? 'border-[var(--sf-accent)] bg-[var(--sf-accent-soft)]'
+                      : 'border-[var(--sf-line)] bg-[var(--sf-surface)] hover:border-[var(--sf-muted)]'
+                  }`}
+                >
+                  <span className="w-6 shrink-0 font-semibold text-[var(--sf-muted)]">{displayLetter(q.labels, j)}</span>
+                  <span className="leading-snug">{optionBody(option, q.labels[j])}</span>
+                </button>
+              );
+            })}
+          </div>
+          {answers[index] !== undefined && (
+            <button
+              type="button"
+              onClick={() => (index + 1 < total ? setIndex(index + 1) : setFinished(true))}
+              className="mt-8 min-h-[52px] self-start rounded-xl bg-[var(--sf-accent)] px-8 text-base font-semibold text-white transition active:translate-y-px hover:bg-[var(--sf-accent-hover)]"
+            >
+              {index + 1 < total ? 'Следующий вопрос' : 'Завершить тест'}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="mx-auto w-full max-w-2xl flex-1 px-5 py-10 sm:px-8">
+          <p className="text-4xl font-semibold tabular-nums">
+            {correct} из {scored}
+          </p>
+          <p className="mt-1 text-base text-[var(--sf-muted)]">верных ответов</p>
+          <ol className="mt-8 divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
+            {questions.map((item, i) => {
+              const right = item.correctIndex !== null && answers[i] === item.correctIndex;
+              return (
+                <li key={i} className="flex items-start gap-3 py-4">
+                  {item.correctIndex === null ? (
+                    <span className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                  ) : right ? (
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                  ) : (
+                    <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium leading-snug">
+                      {i + 1}. {item.question}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--sf-muted)]">
+                      {item.correctIndex === null
+                        ? 'Правильный ответ не указан, вопрос не учитывается.'
+                        : right
+                          ? 'Верно.'
+                          : `Правильный ответ: ${displayLetter(item.labels, item.correctIndex)}) ${optionBody(item.options[item.correctIndex], item.labels[item.correctIndex])}`}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <button
+            type="button"
+            onClick={onExit}
+            className="mt-8 min-h-[48px] rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-6 text-sm font-semibold hover:bg-[var(--sf-surface-soft)]"
+          >
+            Закрыть презентацию
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function QuizView({ data, onComplete, sources = [], materialId, topic = '', surface = 'analysis' }: QuizViewProps) {
+  const reduceMotion = useReducedMotion();
+  const quiz: unknown = data?.quiz;
+  const questions = Array.isArray(quiz) ? normalizeQuestions(quiz) : [];
+
+  const [answers, setAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  const [save, setSave] = useState<SaveState>({ status: 'off' });
 
-  // Fullscreen mode state (separate from normal)
-  const [fsOpen, setFsOpen] = useState(false);
-  const [fsIdx, setFsIdx] = useState(0);
-  const [fsAnswers, setFsAnswers] = useState<Record<number, string>>({});
-  const [fsSubmitted, setFsSubmitted] = useState(false);
+  const attemptRef = useRef<Attempt | null>(null);
+  const retakeRef = useRef(false);
+  const journal = materialId !== undefined;
 
-  const handleSelect = (qi: number, option: string) => {
+  const latest = useRef({ materialId, topic, surface });
+  latest.current = { materialId, topic, surface };
+
+  const saveAttempt = useCallback(async (attempt: Attempt) => {
+    const { materialId: id, topic: currentTopic, surface: currentSurface } = latest.current;
+    if (!id) {
+      setSave({ status: 'no_material' });
+      return;
+    }
+    setSave({ status: 'saving' });
+    try {
+      const result = await recordQuizAttempt({
+        sessionId: attempt.sessionId,
+        materialId: id,
+        retake: attempt.retake,
+        surface: currentSurface,
+        topic: currentTopic,
+        answers: attempt.answers,
+      });
+      if (attemptRef.current !== attempt) return;
+      setSave({
+        status: 'saved',
+        retake: result.retake,
+        mistakesAdded: result.mistakesAdded,
+        mistakesExisting: result.mistakesExisting,
+      });
+    } catch (error) {
+      if (attemptRef.current !== attempt) return;
+      console.error('Quiz attempt was not saved:', error);
+      setSave({
+        status: 'failed',
+        message: error instanceof LearningSaveError ? error.message : SAVE_FAILED_MESSAGE,
+      });
+    }
+  }, []);
+
+  // The material may reach the library after the test was checked (the insert runs in parallel).
+  useEffect(() => {
+    if (save.status === 'no_material' && materialId && attemptRef.current) {
+      void saveAttempt(attemptRef.current);
+    }
+  }, [materialId, save.status, saveAttempt]);
+
+  const exitPresentation = useCallback(() => setPresenting(false), []);
+
+  if (questions.length === 0) {
+    return (
+      <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6">
+        <p className="font-medium text-[var(--sf-ink)]">Теста нет</p>
+        <p className="mt-1 text-sm text-[var(--sf-muted)]">В этом результате нет ни одного вопроса.</p>
+      </div>
+    );
+  }
+
+  if (presenting) return <PresentationMode questions={questions} onExit={exitPresentation} />;
+
+  const total = questions.length;
+  const answeredCount = Object.keys(answers).length;
+  const { correct, scored, unscored } = score(questions, answers);
+  const pct = scored > 0 ? Math.round((correct / scored) * 100) : 0;
+
+  const handleSelect = (qi: number, optionIndex: number) => {
     if (submitted) return;
-    setAnswers({ ...answers, [qi]: option });
+    setAnswers((prev) => ({ ...prev, [qi]: optionIndex }));
   };
 
   const handleSubmit = () => {
+    if (submitted || answeredCount < total) return;
     setSubmitted(true);
-    const score = quiz.filter((q: QuizQuestion, i: number) => answers[i]?.startsWith(q.correct)).length;
-    const pct = Math.round((score / quiz.length) * 100);
-    
-    if (onComplete) {
-      onComplete(pct);
-    }
+    if (onComplete && scored > 0) onComplete(pct);
+    if (!journal) return;
+    const attempt: Attempt = {
+      sessionId: newEventId(),
+      retake: retakeRef.current,
+      answers: attemptAnswers(questions, answers),
+    };
+    attemptRef.current = attempt;
+    void saveAttempt(attempt);
   };
-  const handleRetry = () => { setAnswers({}); setSubmitted(false); };
 
-  if (!quiz || !Array.isArray(quiz)) {
-    return (
-      <div className="card p-6 bg-slate-50 border-slate-200">
-        <p className="text-slate-500 mb-2 font-medium">Тест не удалось сгенерировать корректно</p>
-        {data?.error && <p className="text-rose-500 text-xs mb-3">Ошибка: {data.error}</p>}
-        {data?.raw && (
-          <details className="text-xs">
-            <summary className="text-indigo-600 cursor-pointer hover:underline mb-2">Показать технические данные</summary>
-            <pre className="p-3 bg-slate-900 text-slate-300 rounded overflow-x-auto whitespace-pre-wrap max-h-64">
-              {data.raw}
-            </pre>
-          </details>
-        )}
-        {!data?.raw && !data?.error && <p className="text-slate-400 text-sm">Нет данных для отображения</p>}
-      </div>
-    );
-  }
+  const handleRetry = () => {
+    retakeRef.current = true;
+    attemptRef.current = null;
+    setAnswers({});
+    setSubmitted(false);
+    setSave({ status: 'off' });
+  };
 
-  const correct = quiz.filter((q: QuizQuestion, i: number) => answers[i]?.startsWith(q.correct)).length;
-  const total = quiz.length;
-  const pct = Math.round((correct / total) * 100);
-
-  const gradeInfo = pct >= 90 ? { label: 'Отлично', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' }
-    : pct >= 70 ? { label: 'Хорошо', color: 'text-brand-600 dark:text-indigo-400', bg: 'bg-brand-50 dark:bg-indigo-950/20 border-brand-200 dark:border-indigo-900/30' }
-    : pct >= 50 ? { label: 'Удовлетворительно', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30' }
-    : { label: 'Нужно подтянуть', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/30' };
-
-  // Fullscreen mode
-  if (fsOpen && quiz) {
-    const fsQ = quiz[fsIdx];
-    const fsTotal = quiz.length;
-    const fsCorrect = quiz.filter((q: QuizQuestion, i: number) => fsAnswers[i]?.startsWith(q.correct)).length;
-
-    const fsSelect = (opt: string) => {
-      if (fsSubmitted) return;
-      setFsAnswers({ ...fsAnswers, [fsIdx]: opt });
-    };
-
-    const fsNext = () => {
-      if (fsIdx + 1 < fsTotal) setFsIdx(fsIdx + 1);
-      else setFsSubmitted(true);
-    };
-
-    const fsExit = () => { setFsOpen(false); setFsIdx(0); setFsAnswers({}); setFsSubmitted(false); };
-
-    return (
-      <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 overflow-y-auto flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-5 bg-slate-900/40 backdrop-blur-md border-b border-slate-800/80">
-          <span className="text-indigo-400 font-extrabold text-base tracking-widest uppercase flex items-center gap-2">
-            Meldy
-            <span className="text-slate-400 text-xs font-medium uppercase tracking-normal">| Режим презентации</span>
-          </span>
-          <button
-            onClick={fsExit}
-            className="flex items-center gap-1.5 px-4 py-2 bg-slate-800/50 hover:bg-rose-600 hover:text-white text-slate-300 transition duration-200 rounded-xl text-xs font-black border border-slate-700/50 cursor-pointer shadow-sm"
-          >
-            <Minimize2 className="w-3.5 h-3.5" />
-            <span>Выйти</span>
-          </button>
-        </div>
-
-        {!fsSubmitted ? (
-          <div className="flex flex-col items-center justify-center flex-1 px-8 py-12">
-            <div className="w-full max-w-4xl text-center mb-10 bg-slate-900/40 p-8 sm:p-10 rounded-3xl border border-slate-800/60 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-              <p className="text-indigo-400 text-xs font-black uppercase tracking-widest mb-3">Вопрос {fsIdx + 1} из {fsTotal}</p>
-              <h2 className="text-white text-2xl sm:text-3xl font-extrabold leading-snug">{fsQ.question}</h2>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl w-full mx-auto">
-              {fsQ.options?.map((opt: string, j: number) => {
-                const selected = fsAnswers[fsIdx] === opt;
-                return (
-                  <div
-                    key={j}
-                    onClick={() => fsSelect(opt)}
-                    className={`rounded-2xl p-5 sm:p-6 text-base sm:text-lg font-bold cursor-pointer transition-all duration-200 border flex items-center justify-between select-none ${
-                      selected
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/10'
-                        : 'bg-slate-900/50 border-slate-850 text-slate-300 hover:bg-slate-800/60 hover:text-white hover:border-slate-700'
-                    }`}
-                  >
-                    <span className="pr-4 leading-normal">{opt.replace(/^[A-D]\)\s*/, '')}</span>
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                      selected
-                        ? 'bg-white text-indigo-600 shadow'
-                        : 'bg-slate-800 border border-slate-700 text-slate-400'
-                    }`}>
-                      {['A', 'B', 'C', 'D'][j]}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {fsAnswers[fsIdx] && (
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={fsNext}
-                className="mt-10 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-base font-black transition shadow-lg shadow-indigo-600/20 duration-150 active:scale-[0.98] cursor-pointer"
-              >
-                {fsIdx + 1 < fsTotal ? 'Следующий вопрос →' : 'Завершить тест'}
-              </motion.button>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center flex-1 px-8 py-12">
-            <div className="w-full max-w-2xl text-center bg-slate-900/40 p-8 sm:p-10 rounded-3xl border border-slate-800/60 shadow-xl mb-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
-              <p className="text-5xl font-black text-white mb-2 tabular-nums">{fsCorrect} из {fsTotal}</p>
-              <p className="text-indigo-400 font-extrabold text-xs uppercase tracking-wider mb-4">Верных ответов</p>
-              
-              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mb-6 p-[2px]">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-                  style={{ width: `${Math.round((fsCorrect / fsTotal) * 100)}%` }}
-                />
-              </div>
-              <p className="text-slate-400 text-sm font-medium">Тест завершён. Правильных ответов: {Math.round((fsCorrect / fsTotal) * 100)}%.</p>
-            </div>
-
-            <div className="max-w-2xl w-full mx-auto space-y-4 pr-1">
-              {quiz.map((q: QuizQuestion, i: number) => {
-                const isCorrect = fsAnswers[i]?.startsWith(q.correct);
-                return (
-                  <div key={i} className={`rounded-2xl p-5 border flex items-start gap-4 transition-all ${
-                    isCorrect 
-                      ? 'bg-emerald-950/20 border-emerald-900/60 text-slate-200' 
-                      : 'bg-rose-950/15 border-rose-900/60 text-slate-200'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                      isCorrect ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-                    }`}>
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white mb-1.5 leading-snug break-words">{q.question}</p>
-                      <p className={`text-sm font-bold flex items-center gap-1.5 ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isCorrect
-                          ? '✓ Верно'
-                          : `✗ Правильный ответ: ${q.correct}) ${q.options?.find((o: string) => o.startsWith(q.correct))?.replace(/^[A-D]\)\s*/, '') || q.correct}`
-                        }
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={fsExit}
-              className="mt-8 px-8 py-3.5 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black text-sm active:scale-[0.98] transition shadow-md cursor-pointer"
-            >
-              Закрыть презентацию
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const retrySave = () => {
+    if (attemptRef.current) void saveAttempt(attemptRef.current);
+  };
 
   return (
-    <div className="relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80">
+    <div className="relative text-[var(--sf-ink)]">
+      <div className="mb-6 flex flex-col gap-3 border-b border-[var(--sf-line)] pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">Проверочное тестирование</h3>
-          <p className="text-xs text-slate-400 dark:text-slate-500">Ответьте на {total} вопросов для проверки знаний по материалу</p>
+          <h3 className="text-base font-semibold">Проверочный тест</h3>
+          <p className="text-sm text-[var(--sf-muted)]">
+            {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по материалу
+          </p>
         </div>
         {!submitted && (
           <button
-            onClick={() => setFsOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-100/70 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 border border-indigo-250 dark:border-indigo-850/40 shadow-sm transition active:scale-[0.98] duration-150 cursor-pointer shrink-0"
+            type="button"
+            onClick={() => setPresenting(true)}
+            className="inline-flex min-h-[44px] items-center gap-2 self-start rounded-lg px-2 -mx-2 text-sm font-medium text-[var(--sf-muted)] hover:text-[var(--sf-ink)] sm:self-auto"
           >
-            <Maximize2 className="w-4 h-4" />
-            <span>Режим презентации для аудитории</span>
+            <Maximize2 className="h-4 w-4" aria-hidden="true" />
+            Режим презентации для аудитории
           </button>
         )}
       </div>
 
       {submitted && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className={'card p-5 mb-6 flex items-center justify-between border ' + gradeInfo.bg}>
-          <div>
-            <p className={'font-bold text-lg ' + gradeInfo.color}>{correct} из {total} — {gradeInfo.label}</p>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">{pct}% правильных ответов</p>
+        <motion.section
+          aria-label="Результат теста"
+          initial={reduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+          className="mb-6 rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-4"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              {scored > 0 ? (
+                <>
+                  <p className="text-lg font-semibold">
+                    {correct} из {scored} — {gradeLabel(pct)}
+                  </p>
+                  <p className="text-sm text-[var(--sf-muted)]">{pct}% правильных ответов</p>
+                </>
+              ) : (
+                <p className="text-lg font-semibold">Проверить ответы не по чему</p>
+              )}
+              {unscored > 0 && (
+                <p className="text-sm text-[var(--sf-muted)]">
+                  {unscored === total
+                    ? 'Ни у одного вопроса не указан правильный ответ.'
+                    : `Без правильного ответа: ${unscored} ${pluralRu(unscored, ['вопрос', 'вопроса', 'вопросов'])}, в результат не входят.`}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 self-start rounded-lg border border-[var(--sf-line)] bg-[var(--sf-surface)] px-4 text-sm font-medium hover:bg-[var(--sf-surface-soft)]"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              Пройти снова
+            </button>
           </div>
-          <button onClick={handleRetry}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-700">
-            <RotateCcw className="w-3.5 h-3.5" />Пройти снова
-          </button>
-        </motion.div>
+          {journal && (
+            <div className="mt-3 border-t border-[var(--sf-line)] pt-3">
+              <JournalLine state={save} onRetry={retrySave} />
+            </div>
+          )}
+        </motion.section>
       )}
 
-      <div className="space-y-4">
-        {quiz.map((q: QuizQuestion, i: number) => {
+      <ol className="space-y-4">
+        {questions.map((q, i) => {
           const selected = answers[i];
-          const isCorrect = selected?.startsWith(q.correct);
-          const isWrong = submitted && selected && !isCorrect;
-
+          const unscoredQuestion = q.correctIndex === null;
           return (
-            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="card p-5">
-              <p className="font-medium text-slate-900 dark:text-slate-100 mb-3">{i+1}. {q.question}</p>
-              <div className="space-y-2">
-                {q.options?.map((opt: string, j: number) => {
-                  const isSelected = selected === opt;
-                  const isCorrectOpt = submitted && opt.startsWith(q.correct);
-                  const isWrongOpt = submitted && isSelected && !isCorrect;
-
-                  let cls = 'p-3 rounded-lg text-sm cursor-pointer transition border ';
+            <li key={i} className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-5">
+              <p id={`quiz-q-${i}`} className="mb-3 font-medium leading-snug">
+                {i + 1}. {q.question}
+              </p>
+              <div role="group" aria-labelledby={`quiz-q-${i}`} className="space-y-2">
+                {q.options.map((option, j) => {
+                  const isSelected = selected === j;
+                  const isRight = submitted && !unscoredQuestion && q.correctIndex === j;
+                  const isWrongChoice = submitted && isSelected && !unscoredQuestion && q.correctIndex !== j;
+                  let tone = 'border-[var(--sf-line)] bg-[var(--sf-canvas)] text-[var(--sf-ink)]';
                   if (!submitted) {
-                    cls += isSelected ? 'bg-brand-50 dark:bg-indigo-950/30 border-brand-300 dark:border-indigo-800 text-slate-900 dark:text-indigo-200' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700';
-                  } else if (isCorrectOpt) {
-                    cls += 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300';
-                  } else if (isWrongOpt) {
-                    cls += 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 line-through';
+                    tone = isSelected
+                      ? 'border-[var(--sf-accent)] bg-[var(--sf-accent-soft)] text-[var(--sf-ink)]'
+                      : 'border-[var(--sf-line)] bg-[var(--sf-canvas)] text-[var(--sf-ink)] hover:border-[var(--sf-muted)]';
+                  } else if (isRight) {
+                    tone = 'border-emerald-600/50 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-200';
+                  } else if (isWrongChoice) {
+                    tone = 'border-rose-600/50 bg-rose-50 text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/30 dark:text-rose-200';
+                  } else if (isSelected) {
+                    tone = 'border-[var(--sf-muted)] bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]';
                   } else {
-                    cls += 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800/60 text-slate-400 dark:text-slate-500';
+                    tone = 'border-[var(--sf-line)] bg-[var(--sf-canvas)] text-[var(--sf-muted)]';
                   }
-
                   return (
-                    <div key={j} className={'flex items-center gap-2 ' + cls}
-                      onClick={() => handleSelect(i, opt)}>
-                      {isCorrectOpt && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
-                      {isWrongOpt && <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
-                      <span>{opt}</span>
-                    </div>
+                    <button
+                      type="button"
+                      key={j}
+                      aria-pressed={isSelected}
+                      disabled={submitted}
+                      onClick={() => handleSelect(i, j)}
+                      className={`flex min-h-[44px] w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors disabled:cursor-default ${tone}`}
+                    >
+                      {isRight && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />}
+                      {isWrongChoice && <XCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />}
+                      <span>{option}</span>
+                      {isRight && <span className="sr-only"> — правильный ответ</span>}
+                      {isWrongChoice && <span className="sr-only"> — ваш ответ, неверный</span>}
+                    </button>
                   );
                 })}
               </div>
-              {submitted && q.explanation && (
-                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-3"><span className="font-medium text-slate-700 dark:text-slate-300">Пояснение:</span> {q.explanation}</p>
+              {submitted && unscoredQuestion && (
+                <p className="mt-3 text-sm text-[var(--sf-muted)]">Правильный ответ не указан, вопрос не учитывается.</p>
               )}
-              <SourceReferences ids={q.source_ids} sources={sources} compact />
-            </motion.div>
+              {submitted && q.explanation && (
+                <p className="mt-3 border-t border-[var(--sf-line)] pt-3 text-sm text-[var(--sf-muted)]">
+                  <span className="font-medium text-[var(--sf-ink)]">Пояснение:</span> {q.explanation}
+                </p>
+              )}
+              <SourceReferences ids={q.sourceIds} sources={sources} compact />
+            </li>
           );
         })}
-      </div>
+      </ol>
 
       {!submitted && (
-        <div className="mt-6 text-center">
-          <p className="text-sm text-slate-400 mb-2">
-            Отвечено {Object.keys(answers).length} из {total} вопросов
+        <div className="mt-6 flex flex-col items-center gap-3 text-center">
+          <p className="text-sm text-[var(--sf-muted)]">
+            Отвечено {answeredCount} из {total}
           </p>
-          {Object.keys(answers).length === total && (
-            <button onClick={handleSubmit}
-              className="px-8 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition">
+          {answeredCount === total && (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="min-h-[48px] rounded-xl bg-[var(--sf-accent)] px-8 text-base font-semibold text-white shadow-[0_2px_0_rgba(0,0,0,0.18)] transition hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none"
+            >
               Проверить ответы
             </button>
           )}

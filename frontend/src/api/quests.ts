@@ -1,5 +1,7 @@
+import { format } from 'date-fns';
 import { ExamResult, StudySession } from '../types';
 import { supabase } from '../lib/supabase';
+import { currentStreak } from '../utils/streak';
 
 export type QuestType = 'daily' | 'weekly';
 export type TargetType = 'analyze' | 'quiz' | 'chat' | 'mood' | 'exam' | 'review' | 'podcast' | 'grade';
@@ -55,9 +57,30 @@ export async function addXP(userId: string, amount: number): Promise<number> {
   return newXP;
 }
 
-export async function recordStudyActivity(userId: string, cardsReviewed: number = 0, materialsAdded: number = 0) {
-  const today = new Date().toISOString().split('T')[0];
-  
+/** The pending activity writes of this tab, one after another (see recordStudyActivity). */
+let activityQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Adds today's activity to `study_sessions` (one row per user and day). The day is the viewer's
+ * local calendar day, the same key «Сегодня» and «Прогресс» read; a UTC date would file activity
+ * between midnight and 03:00 Moscow time under yesterday. The day is taken when the call is made,
+ * so a write that waits in the queue past midnight still lands on the day of the answer.
+ *
+ * A write reads the day row and then stores the sum, so two overlapping writes would both read
+ * the same count and one answer would be lost. Calls in this tab therefore run one after another,
+ * whichever screen makes them; the returned promise settles when this call's write is done.
+ * Never throws: activity is a counter, a failed write must not break the screen that called it.
+ */
+export function recordStudyActivity(userId: string, cardsReviewed: number = 0, materialsAdded: number = 0): Promise<void> {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const write = activityQueue
+    .then(() => writeStudyActivity(userId, today, cardsReviewed, materialsAdded))
+    .catch((error) => console.error('Error recording study activity:', error));
+  activityQueue = write;
+  return write;
+}
+
+async function writeStudyActivity(userId: string, today: string, cardsReviewed: number, materialsAdded: number) {
   try {
     const { data: existing } = await supabase
       .from('study_sessions')
@@ -154,7 +177,8 @@ export async function checkAndAwardAchievements(userId: string): Promise<Achieve
 
   // Собираем статистику
   const [examsRes, sessRes, matsRes, mistakesRes, xp] = await Promise.all([
-    supabase.from('exam_sessions').select('score').eq('user_id', userId).eq('status', 'completed'),
+    // Answers to exam tickets (kind 'oral_ticket') are not «AI exams» of the old format.
+    supabase.from('exam_sessions').select('score').eq('user_id', userId).eq('status', 'completed').eq('kind', 'professor'),
     supabase.from('study_sessions').select('date, cards_reviewed').eq('user_id', userId).order('date', { ascending: false }),
     supabase.from('materials').select('id').eq('user_id', userId),
     supabase.from('mistake_diary').select('is_resolved').eq('user_id', userId).eq('is_resolved', true),
@@ -165,14 +189,8 @@ export async function checkAndAwardAchievements(userId: string): Promise<Achieve
   const sessions = sessRes.data ?? [];
   const materials = matsRes.data ?? [];
 
-  // Считаем стрик
-  const dates = new Set(sessions.map((s: StudySession) => s.date));
-  let streak = 0;
-  let d = new Date();
-  while (dates.has(d.toISOString().split('T')[0])) {
-    streak++;
-    d.setDate(d.getDate() - 1);
-  }
+  // Дни подряд по локальным датам (тот же расчёт, что на «Сегодня» и в «Прогрессе»).
+  const streak = currentStreak(sessions.map((s: StudySession) => s.date));
 
   const stats: UserStats = {
     totalExams: exams.length,

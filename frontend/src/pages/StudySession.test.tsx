@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import StudySession from './StudySession';
+import Missions from './Missions';
 
 const api = vi.hoisted(() => ({
   getDueCards: vi.fn(),
@@ -37,6 +38,8 @@ vi.mock('../api/limits', () => ({
   incrementAIUsage: api.incrementAIUsage,
 }));
 
+vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }));
+
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', user_metadata: { full_name: 'Ученик' } } }),
 }));
@@ -50,6 +53,8 @@ vi.mock('../hooks/useSound', () => ({
   }),
 }));
 
+vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: vi.fn(), alert: vi.fn() }) }));
+vi.mock('../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: vi.fn() }) }));
 vi.mock('../components/ConfettiCelebration', () => ({ default: () => null }));
 vi.mock('../components/AchievementToast', () => ({ default: () => null }));
 
@@ -126,7 +131,7 @@ describe('Study session card persistence', () => {
 
     await renderCardSession();
 
-    expect(api.updateCardProgress).toHaveBeenCalledWith('card-1', 5);
+    expect(api.updateCardProgress).toHaveBeenCalledWith('card-1', 5, expect.objectContaining({ clientEventId: expect.any(String) }));
     expect(screen.getByRole('button', { name: /Знал/ })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('Сохраняем ответ…');
     expect(screen.getByText('Шаг 1 из 3 · Повторение карточек')).toBeInTheDocument();
@@ -171,5 +176,117 @@ describe('Study session card persistence', () => {
     expect(screen.getByText('Шаг 1 из 3 · Повторение карточек')).toBeInTheDocument();
     expect(api.updateQuestProgress).not.toHaveBeenCalled();
     expect(api.recordStudyActivity).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed card save with the same event id', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    api.updateCardProgress.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(undefined);
+
+    const user = await renderCardSession();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранён');
+    await user.click(screen.getByRole('button', { name: /Знал/ }));
+    expect(await screen.findByText(/Шаг 2 из 3/)).toBeInTheDocument();
+
+    const [failed, retried] = api.updateCardProgress.mock.calls;
+    expect(retried[2].clientEventId).toBe(failed[2].clientEventId);
+  });
+});
+
+describe('Study session activity counters', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    api.getMaterials.mockResolvedValue([material]);
+    api.getDueCards.mockResolvedValue([]);
+    api.updateCardProgress.mockResolvedValue(undefined);
+    api.recordStudyActivity.mockResolvedValue(undefined);
+    api.addXP.mockResolvedValue(undefined);
+    api.incrementAIUsage.mockResolvedValue(undefined);
+    api.updateMaterialMissions.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  function cardsCounted() {
+    return api.recordStudyActivity.mock.calls.reduce((sum, call) => sum + Number(call[1] ?? 0), 0);
+  }
+
+  it('counts one answered card once, also after the session is finished', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    // No cached quiz and the quiz generator is unreachable, so the session finishes right away.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    const user = await renderCardSession();
+
+    await user.click(await screen.findByRole('button', { name: /к мини-тесту/ }));
+    expect(await screen.findByText(/Дневная сессия завершена/)).toBeInTheDocument();
+
+    expect(api.updateCardProgress).toHaveBeenCalledTimes(1);
+    expect(cardsCounted()).toBe(1);
+  });
+
+  it('does not count practice cards that have no saved progress', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    const user = userEvent.setup();
+    api.getMaterials.mockResolvedValue([{ ...material, flashcards_json: { flashcards: [
+      { question: 'Что такое кривая забывания?', answer: 'Падение удержания памяти.' },
+      { question: 'Зачем увеличивать интервалы?', answer: 'Чтобы повторять перед забыванием.' },
+    ] } }]);
+
+    render(<MemoryRouter><StudySession /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /Поехали/ }));
+    for (let i = 0; i < 2; i += 1) {
+      await user.click(await screen.findByRole('button', { name: 'Показать ответ' }));
+      await user.click(screen.getByRole('button', { name: /Знал/ }));
+    }
+    await user.click(await screen.findByRole('button', { name: /к мини-тесту/ }));
+    expect(await screen.findByText(/Дневная сессия завершена/)).toBeInTheDocument();
+
+    expect(api.updateCardProgress).not.toHaveBeenCalled();
+    expect(cardsCounted()).toBe(0);
+  });
+});
+
+describe('Missions activity counters', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    api.getMaterials.mockResolvedValue([material]);
+    api.updateQuestProgress.mockResolvedValue(false);
+    api.recordStudyActivity.mockResolvedValue(undefined);
+    api.checkAndAwardAchievements.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+    sessionStorage.clear();
+  });
+
+  it('records the day without inventing review cards', async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem('studyforge_missions_state', JSON.stringify({
+      selectedMaterialId: material.id,
+      phase: 'game',
+      missions: [{
+        id: 1,
+        title: 'Миссия',
+        explanation: 'Пояснение',
+        question: 'Что такое интервальное повторение?',
+        options: ['A) Повторение с растущими интервалами', 'B) Зубрёжка'],
+        correct: 'A',
+        hint: 'Подсказка',
+      }],
+      activeStep: 0,
+      selectedOption: 'A) Повторение с растущими интервалами',
+      isCorrect: true,
+      showHint: false,
+    }));
+
+    render(<MemoryRouter initialEntries={['/play']}><Missions /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: /Завершить обучение/ }));
+
+    expect(api.recordStudyActivity).toHaveBeenCalledTimes(1);
+    expect(api.recordStudyActivity).toHaveBeenCalledWith('user-1', 0, 0);
   });
 });

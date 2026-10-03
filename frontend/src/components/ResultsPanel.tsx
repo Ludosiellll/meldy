@@ -1,24 +1,43 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, ShieldCheck, AlertTriangle, Check, X, MessagesSquare } from 'lucide-react';
-import { AnalysisResults, QuizQuestion, Flashcard } from '../types';
+import { Copy, Download, RotateCcw, FileText, Layers, HelpCircle, Edit3, Check, X, MessagesSquare, Loader2 } from 'lucide-react';
+import type {
+  AnalysisResults,
+  AnalysisSettings,
+  CoreSectionName,
+  Flashcard,
+  GroundingInfo,
+  QuizQuestion,
+  SectionName,
+  SectionState,
+  SectionStates,
+  SummaryInfo,
+} from '../types';
 import SummaryView from './SummaryView';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
 import { updateMaterialTitle } from '../api/materials';
+import { syncFlashcards } from '../api/flashcards';
+import { httpErrorFromResponse, StreamError, STREAM_MESSAGES } from '../api/sseStream';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
 import { getResultDisplayTitle } from '../utils/resultPresentation';
+import {
+  PARTIAL_NOTICE,
+  SECTION_LABELS,
+  flashcardsOf,
+  parseGrounding,
+  sectionFailureSentence,
+  sectionHasContent,
+  sectionPayload,
+} from '../utils/analysisSections';
+import { charactersLabel } from '../utils/pastedText';
+import { pluralRu } from './conversation/visuals';
 import ConversationPlayer from './conversation/ConversationPlayer';
+import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast' | 'shorts';
-
-const AGENT_LABELS: Record<string, string> = {
-  summarizer: 'Конспект',
-  flashcards: 'Карточки',
-  quiz: 'Тест',
-  cheatsheet: 'Шпаргалка',
-  podcast: 'Разговор',
-};
 
 function extractCleanContent(data: any): string {
   let raw = data?.content || (data as any)?.raw || '';
@@ -312,26 +331,257 @@ ${quizHtml}
 </html>`;
 }
 
-export default function ResultsPanel({ results, onReset, textLength, analysisDuration, sourceFileName, materialId, embedded = false }: {
-  results: AnalysisResults; onReset: () => void; textLength?: number; analysisDuration?: number; sourceFileName?: string; materialId?: string; embedded?: boolean;
+type CoreSection = CoreSectionName;
+
+const RECREATE_LABEL: Record<CoreSection, string> = {
+  summarizer: 'Создать конспект заново',
+  flashcards: 'Создать карточки заново',
+  quiz: 'Создать тест заново',
+};
+
+const RECREATE_RUNNING: Record<CoreSection, string> = {
+  summarizer: 'Создаём конспект…',
+  flashcards: 'Создаём карточки…',
+  quiz: 'Создаём тест…',
+};
+
+/** Сервер принимает до 300 000 символов: столько же видел и сам анализ. */
+const SECTION_TEXT_LIMIT = 300_000;
+const SECTION_SAVE_ERROR = 'Раздел создан, но сохранить его не удалось. Попробуйте ещё раз.';
+const TEXT_ONLY_NOTICE = 'Только текст, конспекта нет. Материал участвует в разметке экзаменов.';
+const CARDS_SYNC_FAILED = 'Карточки не добавлены в повторение.';
+
+/** Ответы ИИ-сервиса с кодом (AIError): 5xx-тексты сервера не показываются, но код говорит, что случилось. */
+const AI_ERROR_MESSAGES: Record<string, string> = {
+  ai_busy: 'Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.',
+  ai_failed: 'ИИ-сервис сейчас не ответил. Попробуйте ещё раз.',
+  ai_timeout: 'ИИ-сервис не ответил вовремя. Попробуйте ещё раз.',
+  ai_unconfigured: 'ИИ-сервис временно недоступен.',
+};
+
+function sectionErrorMessage(error: unknown): string {
+  if (error instanceof StreamError && error.code && AI_ERROR_MESSAGES[error.code]) return AI_ERROR_MESSAGES[error.code];
+  if (error instanceof StreamError || error instanceof ConversationError || error instanceof Error) return error.message;
+  return 'Не удалось создать раздел. Попробуйте ещё раз.';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function settingsBody(settings?: AnalysisSettings) {
+  if (!settings) return undefined;
+  return {
+    summary_detail: settings.summaryDetail,
+    flashcard_count: settings.flashcardCount,
+    quiz_count: settings.quizCount,
+    quiz_difficulty: settings.quizDifficulty,
+    quiz_type: settings.quizType,
+  };
+}
+
+/** POST /api/analyze/section: один раздел по исходному тексту, без списания энергии. */
+async function requestSection(section: CoreSection, text: string, settings?: AnalysisSettings) {
+  let response: Response;
+  try {
+    response = await fetch('/api/analyze/section', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ section, text: text.slice(0, SECTION_TEXT_LIMIT), settings: settingsBody(settings) }),
+    });
+  } catch {
+    throw new Error(STREAM_MESSAGES.network);
+  }
+  if (!response.ok) throw await httpErrorFromResponse(response);
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error('Сервер вернул непонятный ответ. Попробуйте ещё раз.');
+  }
+  if (!isRecord(data) || !sectionHasContent(section, data.result)) {
+    throw new Error('Модель вернула пустой ответ. Попробуйте ещё раз.');
+  }
+  return { result: data.result as Record<string, unknown>, grounding: parseGrounding(data.grounding) };
+}
+
+/** Запись раздела в materials: сначала содержимое, затем статус в summary_json.sections. */
+async function persistSection(
+  materialId: string,
+  section: CoreSection,
+  result: Record<string, unknown>,
+  sections: SectionStates,
+  grounding?: GroundingInfo,
+) {
+  const extra: Record<string, unknown> = grounding ? { grounding } : {};
+  if (section === 'summarizer') {
+    await patchSummaryJson(
+      materialId,
+      {
+        content: typeof result.content === 'string' ? result.content : '',
+        terms: Array.isArray(result.terms) ? result.terms : [],
+        source_ids: Array.isArray(result.source_ids) ? result.source_ids : [],
+        sections,
+        ...extra,
+      },
+      SECTION_SAVE_ERROR,
+    );
+    return;
+  }
+  const column = section === 'flashcards' ? 'flashcards_json' : 'quiz_json';
+  const { data, error } = await supabase.from('materials').update({ [column]: result }).eq('id', materialId).select('id');
+  if (error) throw new Error(SECTION_SAVE_ERROR);
+  if (Array.isArray(data) && data.length === 0) throw new Error(NOT_OWNER_MESSAGE);
+  try {
+    await patchSummaryJson(materialId, { sections, ...extra }, SECTION_SAVE_ERROR);
+  } catch (statusError) {
+    // Содержимое уже сохранено и показывается; статус раздела обновится при следующей записи.
+    console.warn('Не удалось обновить статус раздела', statusError);
+  }
+}
+
+function SectionFailure({
+  section,
+  state,
+  canEdit,
+  materialId,
+  hasText,
+  running,
+  busy,
+  error,
+  onRecreate,
+}: {
+  section: SectionName;
+  state?: SectionState;
+  canEdit: boolean;
+  materialId?: string;
+  hasText: boolean;
+  running: boolean;
+  busy: boolean;
+  error?: string;
+  onRecreate?: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>('summary');
+  const core = section === 'summarizer' || section === 'flashcards' || section === 'quiz';
+  return (
+    <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6 text-[var(--sf-ink)]">
+      <p className="text-base leading-relaxed">{sectionFailureSentence(section, state)}</p>
+      {core && canEdit && onRecreate && (
+        <div className="mt-3 flex flex-col items-start gap-1">
+          <button
+            type="button"
+            onClick={onRecreate}
+            disabled={!materialId || !hasText || busy}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 -mx-2 text-sm font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:cursor-not-allowed disabled:text-[var(--sf-muted)]"
+          >
+            {running && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+            {running ? RECREATE_RUNNING[section as CoreSection] : RECREATE_LABEL[section as CoreSection]}
+          </button>
+          {!materialId && (
+            <p className="text-sm text-[var(--sf-muted)]">Станет доступно, когда материал сохранится в библиотеке.</p>
+          )}
+          {materialId && !hasText && <p className="text-sm text-[var(--sf-muted)]">У материала нет исходного текста.</p>}
+          {error && (
+            <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ResultsPanel({
+  results,
+  onReset,
+  textLength,
+  analysisDuration,
+  sourceFileName,
+  materialId: savedMaterialId,
+  embedded = false,
+  originalText,
+  canEdit: ownerCanEdit = true,
+  preview = false,
+  partial = false,
+  onResultsChange,
+  analysisSettings,
+  notices,
+}: {
+  results: AnalysisResults;
+  onReset: () => void;
+  textLength?: number;
+  analysisDuration?: number;
+  sourceFileName?: string;
+  materialId?: string;
+  /**
+   * Панель на странице материала: шапка без названия, а у разговора там свой режим
+   * «Разговор», поэтому своей вкладки «Разговор» и строки о нём панель не показывает.
+   */
+  embedded?: boolean;
+  /** Исходный текст материала: по нему «Создать … заново» просит раздел у сервера. */
+  originalText?: string;
+  /** Менять материал может только автор; иначе кнопки «заново» не показываются. */
+  canEdit?: boolean;
+  /**
+   * Результат не сохранён и не будет сохранён (повторный демо-запуск: демо-материал уже
+   * в библиотеке). Панель ничего никуда не пишет: ни разделы, ни название, ни попытки теста.
+   */
+  preview?: boolean;
+  /** Связь прервалась: показаны только разделы, которые успели прийти. */
+  partial?: boolean;
+  /**
+   * Раздел section создан заново и сохранён: родитель обновляет свои данные. Вызывается и
+   * после ухода с панели; в results у остальных разделов то, что было на экране при нажатии.
+   */
+  onResultsChange?: (results: AnalysisResults, section: CoreSectionName) => void;
+  /** Настройки запуска для повторного запроса раздела (если известны). */
+  analysisSettings?: AnalysisSettings;
+  /** Строки о сохранении под заголовком (их показывает страница анализа). */
+  notices?: ReactNode;
+}) {
+  const { user } = useAuth();
+  // В режиме просмотра у результата нет материала, в который можно писать.
+  const materialId = preview ? undefined : savedMaterialId;
+  const canEdit = ownerCanEdit && !preview;
+  // На странице материала разговор живёт в своём режиме «Разговор».
+  const showConversation = !embedded;
+  // Раздел, созданный заново, показывается сразу, даже если родитель не обновил результат.
+  const [override, setOverride] = useState<AnalysisResults | null>(null);
+  useEffect(() => setOverride(null), [results]);
+  const view = override ?? results;
+  const sections = view.sections;
+  const textOnly = view.text_only === true;
+  // Ответ модели может прийти, когда панели уже нет на экране: тогда без её состояния и тостов.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const [running, setRunning] = useState<CoreSection | null>(null);
+  const runningRef = useRef(false);
+  const [sectionErrors, setSectionErrors] = useState<Partial<Record<CoreSection, string>>>({});
+  const [cardSync, setCardSync] = useState<{ materialId: string; cards: Flashcard[] } | null>(null);
+  const [cardSyncRunning, setCardSyncRunning] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
   const derivedTitle = useMemo(
-    () => getResultDisplayTitle(results, sourceFileName),
-    [results, sourceFileName],
+    () => getResultDisplayTitle(view, sourceFileName),
+    [view, sourceFileName],
   );
   const [currentTitle, setCurrentTitle] = useState(derivedTitle);
   const [isEditing, setIsEditing] = useState(false);
   const [editVal, setEditVal] = useState(derivedTitle);
 
-  const flashcardCount = results.flashcards?.flashcards?.length || 0;
-  const quizCount = results.quiz?.quiz?.length || 0;
+  const flashcardCount = view.flashcards?.flashcards?.length || 0;
+  const quizCount = view.quiz?.quiz?.length || 0;
   // Реплики разговора после «Добавить схемы» живут здесь, пока результат на экране.
   const [conversationOverride, setConversationOverride] = useState<unknown[] | null>(null);
-  useEffect(() => setConversationOverride(null), [results.podcast]);
+  useEffect(() => setConversationOverride(null), [view.podcast]);
   // Схемы, подобранные для прежнего результата, не должны попасть в новый.
   const materialIdRef = useRef(materialId);
   materialIdRef.current = materialId;
@@ -340,12 +590,21 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     setConversationOverride(lines);
   };
   const conversationLines: unknown[] = conversationOverride
-    ?? (Array.isArray(results.podcast?.podcast) ? results.podcast.podcast : []);
+    ?? (Array.isArray(view.podcast?.podcast) ? view.podcast.podcast : []);
   const conversationCount = conversationLines.filter(
     line => typeof line === 'object' && line !== null && typeof (line as { text?: unknown }).text === 'string',
   ).length;
   const exerciseCount = flashcardCount + quizCount;
   const readingMinutes = textLength ? Math.max(1, Math.round(textLength / 800)) : null;
+
+  /** Раздел запрошен, не получился и содержимого нет — показываем строку о сбое. */
+  const isFailed = (name: SectionName): boolean => {
+    const state = sections?.[name];
+    if (!state || state.status === 'ok') return false;
+    if (name === 'podcast') return showConversation && conversationCount === 0;
+    return !sectionHasContent(name, sectionPayload(view, name));
+  };
+  const summaryHasContent = Boolean(view.summarizer?.content || (view.summarizer as { raw?: string })?.raw);
 
   const tabs = useMemo(() => {
     const rawTabs: { id: Tab; label: string; icon: JSX.Element; count?: number }[] = [
@@ -354,15 +613,24 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
       { id: 'quiz', label: 'Тест', icon: <HelpCircle className="w-4 h-4" />, count: quizCount },
       { id: 'podcast', label: 'Разговор', icon: <MessagesSquare className="w-4 h-4" />, count: conversationCount },
     ];
-
+    if (textOnly) return [];
     return rawTabs.filter(t => {
-      if (t.id === 'summary') return !!(results.summarizer?.content || (results.summarizer as { raw?: string })?.raw);
-      if (t.id === 'flashcards') return flashcardCount > 0;
-      if (t.id === 'quiz') return quizCount > 0;
-      if (t.id === 'podcast') return conversationCount > 0;
+      if (t.id === 'summary') return summaryHasContent || isFailed('summarizer');
+      if (t.id === 'flashcards') return flashcardCount > 0 || isFailed('flashcards');
+      if (t.id === 'quiz') return quizCount > 0 || isFailed('quiz');
+      if (t.id === 'podcast') return showConversation && (conversationCount > 0 || isFailed('podcast'));
       return true;
     });
-  }, [results, flashcardCount, quizCount, conversationCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, flashcardCount, quizCount, conversationCount, summaryHasContent, textOnly, showConversation]);
+
+  // Первой открывается вкладка с содержимым, а не строка о сбое.
+  const [tab, setTab] = useState<Tab>(() => {
+    const withContent = tabs.find(t =>
+      t.id === 'summary' ? summaryHasContent : t.id === 'flashcards' ? flashcardCount > 0 : t.id === 'quiz' ? quizCount > 0 : conversationCount > 0,
+    );
+    return withContent?.id ?? tabs[0]?.id ?? 'summary';
+  });
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -397,14 +665,79 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     }
   };
 
+  const syncCards = async (targetId: string, cards: Flashcard[]) => {
+    if (!user?.id || cards.length === 0) return;
+    setCardSyncRunning(true);
+    try {
+      await syncFlashcards(user.id, targetId, cards);
+      setCardSync(null);
+    } catch (syncError) {
+      console.error(syncError);
+      setCardSync({ materialId: targetId, cards });
+    } finally {
+      setCardSyncRunning(false);
+    }
+  };
 
+  /** «Создать … заново»: раздел по исходному тексту, сохранение в материал, без списания. */
+  const recreateSection = async (section: CoreSection) => {
+    const targetId = materialId;
+    if (!targetId || runningRef.current || !canEdit || !originalText?.trim()) return;
+    runningRef.current = true;
+    setRunning(section);
+    setSectionErrors(prev => ({ ...prev, [section]: undefined }));
+    try {
+      const { result, grounding } = await requestSection(section, originalText, analysisSettings);
+      const nextSections: SectionStates = { ...(view.sections ?? {}), [section]: { status: 'ok' } };
+      const missingGrounding = !view.grounding && grounding ? grounding : undefined;
+      await persistSection(targetId, section, result, nextSections, missingGrounding);
+      // Панель уже показывает другой материал: этот раздел сохранён в своём, здесь его не показываем.
+      if (materialIdRef.current !== targetId) return;
 
-  // Миссии больше не показываются во вкладках, поэтому и предупреждение о них не нужно.
-  const visibleWarnings = (results.warnings || []).filter(w => w.agent !== 'missions');
+      const merged: AnalysisResults = { ...view, sections: nextSections };
+      if (missingGrounding) merged.grounding = missingGrounding;
+      if (section === 'summarizer') {
+        merged.summarizer = {
+          ...view.summarizer,
+          content: typeof result.content === 'string' ? result.content : '',
+          terms: Array.isArray(result.terms) ? (result.terms as SummaryInfo['terms']) : [],
+          source_ids: Array.isArray(result.source_ids) ? (result.source_ids as string[]) : [],
+          subject: view.summarizer?.subject || (typeof result.subject === 'string' ? result.subject : ''),
+        };
+      } else if (section === 'flashcards') {
+        merged.flashcards = result as unknown as AnalysisResults['flashcards'];
+      } else {
+        merged.quiz = result as unknown as AnalysisResults['quiz'];
+      }
+      if (mountedRef.current) {
+        setOverride(merged);
+        setTab(section === 'summarizer' ? 'summary' : section);
+        toast.success(`${SECTION_LABELS[section]} ${section === 'flashcards' ? 'готовы' : 'готов'}`);
+      }
+      // Родитель решает сам, относится ли результат к тому, что он сейчас показывает.
+      onResultsChange?.(merged, section);
+
+      // Карточки сохранённого раздела попадают в повторение, даже если панель уже закрыта.
+      if (section === 'flashcards') await syncCards(targetId, flashcardsOf(merged));
+    } catch (sectionError) {
+      setSectionErrors(prev => ({ ...prev, [section]: sectionErrorMessage(sectionError) }));
+    } finally {
+      runningRef.current = false;
+      setRunning(null);
+    }
+  };
+
+  const allRequestedOk = !sections || (Object.keys(sections) as SectionName[]).every(name => !isFailed(name));
+  const statusLabel = allRequestedOk ? 'Материал обработан' : 'Обработан частично';
+  // Строка об обрыве связи нужна, пока какого-то раздела не хватает.
+  const showPartialNotice = partial && !allRequestedOk;
+  // У шпаргалки нет вкладки здесь: о сбое говорит строка под заголовком.
+  const cheatsheetFailed = isFailed('cheatsheet');
+  const hasText = Boolean(originalText?.trim());
 
   const getContent = () => {
-    if (tab === 'summary') return results.summarizer?.content || (results.summarizer as any)?.raw || '';
-    if (tab === 'flashcards') return JSON.stringify(results.flashcards?.flashcards || results.flashcards, null, 2);
+    if (tab === 'summary') return view.summarizer?.content || (view.summarizer as any)?.raw || '';
+    if (tab === 'flashcards') return JSON.stringify(view.flashcards?.flashcards || view.flashcards, null, 2);
     if (tab === 'podcast') {
       return conversationLines
         .map(line => line as { speaker?: unknown; text?: unknown })
@@ -412,7 +745,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
         .map(line => `${typeof line.speaker === 'string' && line.speaker ? `${line.speaker}: ` : ''}${line.text}`)
         .join('\n\n');
     }
-    return JSON.stringify(results.quiz?.quiz || results.quiz, null, 2);
+    return JSON.stringify(view.quiz?.quiz || view.quiz, null, 2);
   };
 
   const handleCopy = () => { navigator.clipboard.writeText(getContent()); setCopied(true); setTimeout(() => setCopied(false), 2000); };
@@ -420,7 +753,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const handleDownloadHtml = () => {
     const baseName = currentTitle.replace(/[\\/:*?"<>|]+/g, '_');
     const dateStr = new Date().toISOString().slice(0, 10);
-    const html = buildHtmlExport(results, currentTitle);
+    const html = buildHtmlExport(view, currentTitle);
     const b = new Blob([html], { type: 'text/html' });
     const u = URL.createObjectURL(b);
     const a = document.createElement('a');
@@ -432,7 +765,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
 
   const handleExportAnki = () => {
     try {
-      const cards = results.flashcards?.flashcards || results.flashcards || [];
+      const cards = view.flashcards?.flashcards || view.flashcards || [];
       const tsv = cards.map((c: any) => `${c.question.replace(/\n/g, ' ')}\t${c.answer.replace(/\n/g, '<br>')}`).join('\n');
       
       const b = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8' });
@@ -452,7 +785,7 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
   const handlePrintPdf = () => {
     // Build a standalone printable HTML page in isolation so that none of the
     // app's UI (sidebar, header, audio players, etc.) leaks into the PDF.
-    const html = buildHtmlExport(results, currentTitle);
+    const html = buildHtmlExport(view, currentTitle);
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) {
       toast.error('Разрешите открытие всплывающих окон в браузере для печати.');
@@ -467,178 +800,257 @@ export default function ResultsPanel({ results, onReset, textLength, analysisDur
     }, 600);
   };
 
+  // Попытка теста попадает в журнал этого материала (QuizView: materialId, topic, surface).
+  // null — материал ещё сохраняется; в режиме просмотра журнала нет вовсе (materialId не передаётся).
+  const quizJournal: { materialId?: string | null; topic: string; surface: 'analysis' | 'material' } = {
+    materialId: preview ? undefined : materialId ?? null,
+    topic: view.summarizer?.subject || currentTitle,
+    surface: embedded ? 'material' : 'analysis',
+  };
+
+  const failureProps = (section: CoreSection) => ({
+    section,
+    state: sections?.[section],
+    canEdit,
+    materialId,
+    hasText,
+    running: running === section,
+    busy: running !== null,
+    error: sectionErrors[section],
+    onRecreate: () => void recreateSection(section),
+  });
+
   return (
     <div className="py-4 md:py-6">
-      <header className="border-b border-slate-200 dark:border-slate-800 pb-5 md:pb-6 no-print">
-        <div className={`flex flex-col gap-5 ${embedded ? 'sm:flex-row sm:justify-end' : 'lg:flex-row lg:items-start lg:justify-between'}`}>
-          {!embedded && (
-            <div className="min-w-0 flex-1">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                Материал обработан
-              </div>
-
-              {isEditing ? (
-                <div className="flex max-w-2xl items-center gap-2">
-                  <input
-                    type="text"
-                    value={editVal}
-                    onChange={event => setEditVal(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key === 'Enter') saveManualTitle();
-                      if (event.key === 'Escape') setIsEditing(false);
-                    }}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    placeholder="Название материала"
-                    aria-label="Название материала"
-                    autoFocus
+      {/* У материала «только текст» на странице материала в шапке нечего показать. */}
+      {!(embedded && textOnly && !showPartialNotice && !notices) && (
+        <header className="border-b border-slate-200 dark:border-slate-800 pb-5 md:pb-6 no-print">
+          <div className={`flex flex-col gap-5 ${embedded ? 'sm:flex-row sm:justify-end' : 'lg:flex-row lg:items-start lg:justify-between'}`}>
+            {!embedded && (
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--sf-muted)]">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${allRequestedOk ? 'bg-emerald-500' : 'bg-[var(--sf-muted)]'}`}
+                    aria-hidden="true"
                   />
-                  <button onClick={saveManualTitle} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-500" aria-label="Сохранить название">
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setIsEditing(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Отменить изменение">
-                    <X className="h-4 w-4" />
-                  </button>
+                  {statusLabel}
                 </div>
-              ) : (
-                <div className="group flex min-w-0 items-start gap-2">
-                  <h1 className="max-w-3xl text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-slate-950 dark:text-slate-50 md:text-3xl">
-                    {currentTitle}
-                  </h1>
-                  {materialId && (
-                    <button
-                      onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
-                      className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-teal-700 focus-visible:opacity-100 dark:hover:bg-slate-800 dark:hover:text-teal-300 md:opacity-0 md:group-hover:opacity-100"
-                      aria-label="Изменить название"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              )}
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                {textLength ? <span>{textLength.toLocaleString('ru-RU')} символов</span> : null}
-                {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
-                {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
-                {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
-                {exerciseCount > 0 ? <span>{exerciseCount} заданий для практики</span> : null}
-                {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
+                {isEditing ? (
+                  <div className="flex max-w-2xl items-center gap-2">
+                    <input
+                      type="text"
+                      value={editVal}
+                      onChange={event => setEditVal(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter') saveManualTitle();
+                        if (event.key === 'Escape') setIsEditing(false);
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      placeholder="Название материала"
+                      aria-label="Название материала"
+                      autoFocus
+                    />
+                    <button onClick={saveManualTitle} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-500" aria-label="Сохранить название">
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => setIsEditing(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Отменить изменение">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="group flex min-w-0 items-start gap-2">
+                    <h1 className="max-w-3xl text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-slate-950 dark:text-slate-50 md:text-3xl">
+                      {currentTitle}
+                    </h1>
+                    {materialId && canEdit && (
+                      <button
+                        onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
+                        className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-teal-700 focus-visible:opacity-100 dark:hover:bg-slate-800 dark:hover:text-teal-300 md:opacity-0 md:group-hover:opacity-100"
+                        aria-label="Изменить название"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                  {textLength ? <span>{charactersLabel(textLength)}</span> : null}
+                  {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
+                  {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
+                  {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
+                  {exerciseCount > 0 ? <span>{exerciseCount} {pluralRu(exerciseCount, ['задание', 'задания', 'заданий'])} для практики</span> : null}
+                  {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
+                </div>
               </div>
+            )}
+
+            {!textOnly && (
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
+              <div className="relative export-menu-container">
+                <button
+                  onClick={() => setShowExport(value => !value)}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  aria-expanded={showExport}
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Экспорт</span>
+                </button>
+
+                <AnimatePresence>
+                  {showExport && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-850"
+                    >
+                      <button onClick={() => { handleCopy(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <Copy className="h-4 w-4" />{copied ? 'Скопировано' : 'Копировать'}
+                      </button>
+                      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                        <button onClick={() => { handlePrintPdf(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                          <Download className="h-4 w-4" />Печать или PDF
+                        </button>
+                      )}
+                      {tab === 'flashcards' && flashcardCount > 0 && (
+                        <button onClick={() => { handleExportAnki(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                          <Download className="h-4 w-4" />Файл для Anki
+                        </button>
+                      )}
+                      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+                        <button onClick={() => { handleDownloadHtml(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                          <Download className="h-4 w-4" />Скачать HTML
+                        </button>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <button onClick={onReset} className="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:flex-none">
+                <RotateCcw className="h-4 w-4" />Новый анализ
+              </button>
+            </div>
+            )}
+          </div>
+
+          {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
+          {!textOnly && view.grounding?.source_count ? (
+            <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+              <span>
+                Основано на {view.grounding.source_count}{' '}
+                {view.grounding.source_count % 10 === 1 && view.grounding.source_count % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника
+              </span>
+              {view.grounding.citable_items > 0 ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    у {view.grounding.citable_items} {pluralRu(view.grounding.citable_items, ['пункта', 'пунктов', 'пунктов'])} есть
+                    ссылка на наиболее похожий фрагмент
+                  </span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+
+          {(showPartialNotice || cheatsheetFailed || notices) && (
+            <div className="mt-4 space-y-1.5 text-sm leading-relaxed text-[var(--sf-muted)]">
+              {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
+              {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
+              {notices}
             </div>
           )}
-
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
-            <div className="relative export-menu-container">
-              <button
-                onClick={() => setShowExport(value => !value)}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                aria-expanded={showExport}
-              >
-                <Download className="h-4 w-4" />
-                <span>Экспорт</span>
-              </button>
-
-              <AnimatePresence>
-                {showExport && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 6 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-850"
-                  >
-                    <button onClick={() => { handleCopy(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                      <Copy className="h-4 w-4" />{copied ? 'Скопировано' : 'Копировать'}
-                    </button>
-                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                      <button onClick={() => { handlePrintPdf(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                        <Download className="h-4 w-4" />Печать или PDF
-                      </button>
-                    )}
-                    {tab === 'flashcards' && (
-                      <button onClick={() => { handleExportAnki(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                        <Download className="h-4 w-4" />Файл для Anki
-                      </button>
-                    )}
-                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                      <button onClick={() => { handleDownloadHtml(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                        <Download className="h-4 w-4" />Скачать HTML
-                      </button>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <button onClick={onReset} className="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:flex-none">
-              <RotateCcw className="h-4 w-4" />Новый анализ
-            </button>
-          </div>
-        </div>
-
-        {results.grounding?.source_count ? (
-          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-            <ShieldCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            <span>Основано на {results.grounding.source_count} фрагментах исходника</span>
-            {results.grounding.citable_items > 0 ? (
-              <><span aria-hidden="true">·</span><span>{results.grounding.citable_items} подтверждённых связей</span></>
-            ) : null}
-          </div>
-        ) : null}
-
-        {visibleWarnings.length > 0 && (
-          <div className="mt-4 space-y-2" role="status">
-            {visibleWarnings.map(warning => (
-              <p key={warning.agent} className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Раздел «{AGENT_LABELS[warning.agent] || warning.agent}» не создан. Остальные результаты доступны.
-              </p>
-            ))}
-          </div>
-        )}
-      </header>
-
-      {tabs.length > 1 && (
-        <nav className="no-print -mx-4 flex overflow-x-auto border-b border-slate-200 px-4 dark:border-slate-800 md:mx-0 md:px-0" aria-label="Разделы результата">
-          {tabs.map(item => {
-            const isActive = tab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab(item.id)}
-                className={`relative flex shrink-0 items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition ${isActive ? 'border-cyan-400 text-slate-950 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-                {item.count !== undefined ? <span className="text-xs tabular-nums text-slate-400">{item.count}</span> : null}
-              </button>
-            );
-          })}
-        </nav>
+        </header>
       )}
 
-      <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${tabs.length > 1 ? 'pt-6' : 'pt-7'} min-h-[260px] printable-section`}>
-        {tab === 'summary' && (
-          <article className="max-w-[820px]">
-            <SummaryView data={results.summarizer} sources={results.grounding?.sources} />
-          </article>
-        )}
-        {tab === 'flashcards' && <FlashcardsView data={results.flashcards} sources={results.grounding?.sources} />}
-        {tab === 'quiz' && <QuizView data={results.quiz} sources={results.grounding?.sources} />}
-        {tab === 'podcast' && (
-          <ConversationPlayer
-            lines={conversationLines}
-            title={currentTitle}
-            terms={results.summarizer?.terms}
-            flashcards={results.flashcards?.flashcards}
-            sources={results.grounding?.sources}
-            materialId={materialId}
-            onLinesUpdate={handleConversationLines}
-          />
-        )}
-      </motion.div>
+      {textOnly ? (
+        <p className="mt-6 max-w-[60ch] rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-4 text-base leading-relaxed text-[var(--sf-ink)]">
+          {TEXT_ONLY_NOTICE}
+        </p>
+      ) : (
+        <>
+          {tabs.length > 1 && (
+            <nav className="no-print -mx-4 flex gap-4 overflow-x-auto border-b border-slate-200 px-4 dark:border-slate-800 md:mx-0 md:px-0" aria-label="Разделы результата">
+              {tabs.map(item => {
+                const isActive = tab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setTab(item.id)}
+                    className={`relative flex shrink-0 items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition ${isActive ? 'border-cyan-400 text-slate-950 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {item.count ? <span className="text-xs tabular-nums text-slate-400">{item.count}</span> : null}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
+          <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${tabs.length > 1 ? 'pt-6' : 'pt-7'} min-h-[260px] printable-section`}>
+            {tab === 'summary' && (
+              isFailed('summarizer') ? (
+                <SectionFailure {...failureProps('summarizer')} />
+              ) : (
+                <article className="max-w-[820px]">
+                  <SummaryView data={view.summarizer} sources={view.grounding?.sources} />
+                </article>
+              )
+            )}
+            {tab === 'flashcards' && (
+              isFailed('flashcards') ? (
+                <SectionFailure {...failureProps('flashcards')} />
+              ) : (
+                <>
+                  {cardSync && cardSync.materialId === materialId && (
+                    <p className="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-[var(--sf-muted)]" role="status">
+                      {CARDS_SYNC_FAILED}
+                      <button
+                        type="button"
+                        disabled={cardSyncRunning}
+                        onClick={() => void syncCards(cardSync.materialId, cardSync.cards)}
+                        className="min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60"
+                      >
+                        Повторить
+                      </button>
+                    </p>
+                  )}
+                  <FlashcardsView data={view.flashcards} sources={view.grounding?.sources} />
+                </>
+              )
+            )}
+            {tab === 'quiz' && (
+              isFailed('quiz') ? (
+                <SectionFailure {...failureProps('quiz')} />
+              ) : (
+                <QuizView data={view.quiz} sources={view.grounding?.sources} {...quizJournal} />
+              )
+            )}
+            {tab === 'podcast' && (
+              <>
+                {isFailed('podcast') && (
+                  <p className="mb-4 text-base text-[var(--sf-ink)]">{sectionFailureSentence('podcast', sections?.podcast)}</p>
+                )}
+                <ConversationPlayer
+                  lines={conversationLines}
+                  title={currentTitle}
+                  terms={view.summarizer?.terms}
+                  flashcards={view.flashcards?.flashcards}
+                  sources={view.grounding?.sources}
+                  materialId={materialId}
+                  onLinesUpdate={handleConversationLines}
+                  canEdit={canEdit}
+                />
+              </>
+            )}
+          </motion.div>
+        </>
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { getDueCards, updateCardProgress } from '../api/flashcards';
 import { getMaterials, updateMaterialMissions } from '../api/materials';
 import { addXP, recordStudyActivity } from '../api/quests';
 import { incrementAIUsage } from '../api/limits';
+import { newEventId } from '../api/learning';
 
 interface Flashcard {
   id?: string;
@@ -78,6 +79,9 @@ export default function StudySession() {
   const [cardProcessing, setCardProcessing] = useState(false);
   const [cardSaveError, setCardSaveError] = useState<string | null>(null);
   const cardProcessingRef = useRef(false);
+  const [reviewSessionId] = useState(() => newEventId());
+  /** client_event_id of an answer whose save has not succeeded yet: a retry reuses it. */
+  const pendingEventIds = useRef(new Map<string, string>());
 
   // Шаг 2: Чтение + Чат
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -275,9 +279,14 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
     setCardProcessing(true);
     setCardSaveError(null);
 
+    // Only a card with a progress row is a review; practice cards from the material are not saved.
+    const savesProgress = Boolean(card.id && !card.isMock);
     try {
-      if (card.id && !card.isMock) {
-        await updateCardProgress(card.id, quality);
+      if (savesProgress && card.id) {
+        const eventId = pendingEventIds.current.get(card.id) ?? newEventId();
+        pendingEventIds.current.set(card.id, eventId);
+        await updateCardProgress(card.id, quality, { clientEventId: eventId, sessionId: reviewSessionId });
+        pendingEventIds.current.delete(card.id);
       } else if (!card.isMock) {
         throw new Error('Study card is missing its database id.');
       }
@@ -296,7 +305,7 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
         setCardRevealed(false);
       }
 
-      if (user?.id) {
+      if (user?.id && savesProgress) {
         recordStudyActivity(user.id, 1, 0).catch(err => console.error('Error recording study activity:', err));
       }
     } catch (error) {
@@ -420,9 +429,7 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
         setXpGained(earnedXP);
         await addXP(user.id, earnedXP);
         playXpSound();
-
-        // Записываем учебную активность
-        await recordStudyActivity(user.id, sessionCards.length, 0);
+        // Карточки уже записаны в активность по одной, при каждом сохранённом ответе.
       } catch (err) {
         console.error(err);
       }

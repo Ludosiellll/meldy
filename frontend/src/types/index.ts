@@ -5,8 +5,49 @@ export type { Visual } from '../components/conversation/types';
 export interface AgentStatus {
   id: string;
   label: string;
-  status: 'idle' | 'running' | 'done';
+  /** failed — раздел пришёл со статусом не «ok» (пусто, занято, сбой, не успел). */
+  status: 'idle' | 'running' | 'done' | 'failed';
   progress: number;
+}
+
+/** Разделы анализа, как их называет сервер. */
+export type SectionName = 'summarizer' | 'flashcards' | 'quiz' | 'cheatsheet' | 'podcast';
+
+/** Основные разделы: только их можно создать заново («Создать … заново»). */
+export type CoreSectionName = 'summarizer' | 'flashcards' | 'quiz';
+
+/**
+ * Итог одного раздела. ok — есть годное содержимое; empty — модель ответила пустым;
+ * busy — сервис ИИ был перегружен (429); failed — модель не ответила; timeout — не успела;
+ * missing — связь прервалась до этого раздела (только клиент).
+ */
+export type SectionStatus = 'ok' | 'empty' | 'busy' | 'failed' | 'timeout' | 'missing';
+
+export interface SectionState {
+  status: SectionStatus;
+  message?: string;
+}
+
+/** Статусы только запрошенных разделов (results.sections, summary_json.sections). */
+export type SectionStates = Partial<Record<SectionName, SectionState>>;
+
+export type AnalysisErrorKind =
+  | 'incomplete'
+  | 'network'
+  | 'timeout'
+  | 'server'
+  | 'busy'
+  | 'empty'
+  | 'rate_limited'
+  | 'too_large'
+  | 'unavailable'
+  | 'auth'
+  | 'bad_request';
+
+export interface AnalysisError {
+  kind: AnalysisErrorKind;
+  message: string;
+  retryable: boolean;
 }
 
 export interface AnalysisSettings {
@@ -71,6 +112,13 @@ export interface SummaryInfo {
   terms?: Term[];
   source_ids?: string[];
   grounding?: GroundingInfo;
+  /** summary_json.sections: статусы запрошенных разделов (нет у старых материалов). */
+  sections?: SectionStates;
+  /** summary_json.text_only: материал импортирован только текстом, без конспекта. */
+  text_only?: boolean;
+  /** summary_json.origin = 'demo' и demo_text_id — результат анализа встроенного демо-текста. */
+  origin?: string;
+  demo_text_id?: string;
 }
 
 export interface CheatsheetInfo {
@@ -102,8 +150,14 @@ export interface AnalysisState {
 
   analysisDuration?: number;
   sourceFileName?: string;
-  error?: string;
+  error?: AnalysisError;
   savedMaterialId?: string;
+  /** Связь прервалась: показаны только разделы, которые успели прийти. */
+  partial?: boolean;
+  /** Запуск на встроенном демо-тексте: без списания энергии, с настройками по умолчанию. */
+  isDemo?: boolean;
+  /** Демо-материал, который уже был в библиотеке (повторный демо-запуск ничего не добавляет). */
+  demoMaterialId?: string;
 }
 
 export interface AnalysisResults {
@@ -115,6 +169,10 @@ export interface AnalysisResults {
   missions?: MissionsInfo;
   warnings?: { agent: string; message: string }[];
   grounding?: GroundingInfo;
+  /** Статусы запрошенных разделов. Нет у старых материалов — тогда строк о сбоях нет. */
+  sections?: SectionStates;
+  /** Материал импортирован только текстом (summary_json.text_only). */
+  text_only?: boolean;
 }
 
 export interface HistoryItem {

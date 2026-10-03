@@ -1,6 +1,6 @@
-import { Material } from '../types';
-import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import type { AnalysisResults, CoreSectionName, Material, SectionStates } from '../types';
+import { useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Edit3, Check, X, Globe, Lock, MessagesSquare, Zap, BookOpen, Share2, type LucideIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -10,11 +10,49 @@ import ExpressPrepView from '../components/ExpressPrepView';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
+import { parseSections, sectionHasContent } from '../utils/analysisSections';
 
 type Mode = 'full' | 'express' | 'podcast';
 
 const PANEL_ID = 'material-mode-panel';
 const tabId = (mode: Mode) => `material-mode-${mode}`;
+
+function hasSavedCheatsheet(summary: Record<string, unknown>): boolean {
+  return sectionHasContent('cheatsheet', { content: summary.cheatsheet });
+}
+
+/**
+ * Статусы разделов для панели. Анализ записал их в момент запуска, а шпаргалку и
+ * разговор могли создать позже в «Кратко» и «Разговоре»: если они сохранены, раздел есть,
+ * что бы ни было записано тогда. Так панель не пишет о сбое того, что уже создано.
+ */
+function panelSections(summary: Record<string, unknown>): SectionStates | undefined {
+  const saved = parseSections(summary.sections);
+  if (!saved) return undefined;
+  const next: SectionStates = { ...saved };
+  if (next.cheatsheet && hasSavedCheatsheet(summary)) next.cheatsheet = { status: 'ok' };
+  if (next.podcast && sectionHasContent('podcast', { podcast: summary.podcast })) next.podcast = { status: 'ok' };
+  return next;
+}
+
+/**
+ * Поля, которые «Создать … заново» записало в материал (ResultsPanel, persistSection):
+ * созданный раздел, статусы и фрагменты. Остальное (другие разделы, шпаргалка, разговор)
+ * могло измениться, пока раздел создавался, поэтому в состояние страницы попадает только это.
+ */
+function recreatedFields(materialId: string, next: AnalysisResults, section: CoreSectionName) {
+  const summaryJson: Record<string, unknown> = { sections: next.sections };
+  if (next.grounding) summaryJson.grounding = next.grounding;
+  if (section === 'summarizer') {
+    const summary = (next.summarizer ?? {}) as unknown as Record<string, unknown>;
+    summaryJson.content = summary.content;
+    summaryJson.terms = summary.terms;
+    summaryJson.source_ids = summary.source_ids;
+    return { id: materialId, summary_json: summaryJson };
+  }
+  if (section === 'flashcards') return { id: materialId, flashcards_json: next.flashcards, summary_json: summaryJson };
+  return { id: materialId, quiz_json: next.quiz, summary_json: summaryJson };
+}
 
 export default function MaterialDetail() {
   const { id } = useParams();
@@ -125,6 +163,23 @@ export default function MaterialDetail() {
     }
   };
 
+  // Результат для панели: статусы разделов и «только текст» берутся из summary_json.
+  // Шпаргалка передаётся, чтобы строка о её сбое смотрела на сохранённый текст; разговор
+  // панель здесь не показывает (у него свой режим), поэтому его реплики не передаются.
+  const panelResults = useMemo<AnalysisResults | null>(() => {
+    if (!material) return null;
+    const summary = material.summary_json && typeof material.summary_json === 'object' ? material.summary_json : {};
+    return {
+      summarizer: summary,
+      flashcards: material.flashcards_json,
+      quiz: material.quiz_json,
+      cheatsheet: { content: typeof summary.cheatsheet === 'string' ? summary.cheatsheet : '' },
+      grounding: summary.grounding,
+      sections: panelSections(summary),
+      text_only: summary.text_only === true,
+    };
+  }, [material]);
+
   if (loading) return (
     <div className="p-6 flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-cyan-300 border-t-transparent rounded-full animate-spin" />
@@ -138,12 +193,21 @@ export default function MaterialDetail() {
     </div>
   );
 
-  const hasCheatsheet = typeof material.summary_json?.cheatsheet === 'string' && material.summary_json.cheatsheet.trim() !== '';
+  const summaryJson: Record<string, unknown> =
+    material.summary_json && typeof material.summary_json === 'object' ? material.summary_json : {};
+  const hasCheatsheet = hasSavedCheatsheet(summaryJson);
+  // Шпаргалку просили при анализе, а её нет: «Материал» пишет о сбое, «Кратко» предлагает создать.
+  const cheatsheetMissing = Boolean(parseSections(summaryJson.sections)?.cheatsheet) && !hasCheatsheet;
   // Менять материал (создавать шпаргалку и разговор, открывать доступ) может только автор:
   // назначенные преподавателем и чужие открытые материалы только для чтения.
   const canEdit = Boolean(user?.id) && material.user_id === user?.id;
+  const cardCount = Array.isArray(material.flashcards_json)
+    ? material.flashcards_json.length
+    : Array.isArray(material.flashcards_json?.flashcards)
+      ? material.flashcards_json.flashcards.length
+      : 0;
   // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
-  const showExpress = hasCheatsheet || expressRequested;
+  const showExpress = hasCheatsheet || expressRequested || cheatsheetMissing;
   const modes: { id: Mode; label: string; icon: LucideIcon }[] = [
     { id: 'full', label: 'Материал', icon: BookOpen },
     ...(showExpress ? [{ id: 'express' as const, label: 'Кратко', icon: Zap }] : []),
@@ -272,6 +336,17 @@ export default function MaterialDetail() {
         {format(new Date(material.created_at), 'dd.MM.yyyy, HH:mm', { locale: ru })}
       </p>
 
+      {cardCount > 0 && (
+        <p className="-mt-2 mb-4">
+          <Link
+            to={`/review?material=${encodeURIComponent(material.id)}`}
+            className="inline-flex min-h-[44px] items-center text-sm font-medium text-[var(--sf-accent-fg)] underline-offset-4 hover:underline"
+          >
+            Повторить карточки этого материала
+          </Link>
+        </p>
+      )}
+
       {/* Режимы обучения и «Поделиться» — одна строка */}
       <div className="mb-5 flex items-center gap-2">
         <div
@@ -327,16 +402,14 @@ export default function MaterialDetail() {
       <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)}>
       {mode === 'full' ? (
         <ResultsPanel
-          results={{
-            summarizer: material.summary_json,
-            flashcards: material.flashcards_json,
-            quiz: material.quiz_json,
-            grounding: (material.summary_json as any)?.grounding,
-          }}
+          results={panelResults as AnalysisResults}
           onReset={() => navigate('/analyze')}
           textLength={material.original_text?.length || material.summary_json?.content?.length || 0}
           sourceFileName={material.title}
           materialId={material.id}
+          originalText={material.original_text || ''}
+          canEdit={canEdit}
+          onResultsChange={(next, section) => updateMaterialFields(recreatedFields(material.id, next, section))}
           embedded
         />
       ) : (

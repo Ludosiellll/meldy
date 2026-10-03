@@ -351,7 +351,7 @@ def test_coordinator_sanitizes_podcast_and_keeps_lexical_source_ids(monkeypatch)
         ]
     }, ensure_ascii=False)
 
-    async def fake_run(self, system_prompt, user_text):
+    async def fake_run(self, system_prompt, user_text, **kwargs):
         assert "ФРАГМЕНТЫ ИСТОЧНИКА" in system_prompt
         return model_answer
 
@@ -365,7 +365,9 @@ def test_coordinator_sanitizes_podcast_and_keeps_lexical_source_ids(monkeypatch)
         return events
 
     events = asyncio.run(collect())
-    assert events[0]["label"] == "Разговор"
+    # The grounding event comes first; then the agent starts.
+    assert events[0]["type"] == "grounding"
+    assert events[1]["label"] == "Разговор"
     podcast = events[-1]["podcast"]["podcast"]
     assert len(podcast) == 2
     assert podcast[0]["visual"] == VALID_VISUALS["scene"]
@@ -389,7 +391,7 @@ def api(monkeypatch):
     calls = []
 
     def answer_with(raw):
-        async def fake_run(self, system_prompt, user_text):
+        async def fake_run(self, system_prompt, user_text, **kwargs):
             calls.append({"system": system_prompt, "user": user_text})
             if isinstance(raw, Exception):
                 raise raw
@@ -909,6 +911,27 @@ def test_quick_prep_returns_the_cheatsheet(api):
     response = api.post("/api/quick-prep", json={"context": SOURCE})
     assert response.status_code == 200
     assert response.json()["cheatsheet"].startswith("# Шпаргалка")
+
+
+def test_quick_prep_keeps_a_cheatsheet_with_code_blocks(api):
+    cheatsheet = "# Шпаргалка\n\n```python\nfor i in range(3):\n    print(i)\n```\n\n- range(3) даёт 0, 1, 2"
+    raw = json.dumps({"cheatsheet": cheatsheet, "key_points": []}, ensure_ascii=False)
+    for answer in (raw, f"```json\n{raw}\n```"):
+        api.answer_with(answer)
+        response = api.post("/api/quick-prep", json={"context": SOURCE})
+        assert response.status_code == 200, response.text
+        assert response.json()["cheatsheet"] == cheatsheet
+
+
+def test_generate_keeps_lines_that_quote_code(api):
+    api.answer_with(json.dumps({"podcast": [
+        {"speaker": "Макс", "text": "Что делает ```print(1)``` в этом примере?"},
+        {"speaker": "Софья", "text": "Выводит единицу: ```python\nprint(1)\n```"},
+    ]}, ensure_ascii=False))
+    response = api.post("/api/podcast/generate", json={"context": SOURCE})
+    assert response.status_code == 200, response.text
+    podcast = response.json()["podcast"]
+    assert len(podcast) == 2 and all("print(1)" in line["text"] for line in podcast)
 
 
 @pytest.mark.parametrize("raw", ["не JSON", json.dumps({"cheatsheet": ""}), json.dumps({"key_points": ["a"]}), json.dumps(["x"])])

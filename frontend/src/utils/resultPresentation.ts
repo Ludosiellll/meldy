@@ -10,6 +10,9 @@ const GENERIC_TITLES = new Set([
   'новый материал',
   'результат анализа',
   'учебный материал',
+  'вставленный текст',
+  'pasted text',
+  'pasted-text',
   'unknown',
 ]);
 

@@ -55,14 +55,27 @@ export default function AuthCallback() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-4">
-      <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--sf-canvas)] px-4 text-center">
       {error ? (
-        <>
-          <p className="text-rose-400 text-sm text-center max-w-sm">{error}</p>
-          <button onClick={() => navigate('/login', { replace: true })} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">Вернуться ко входу</button>
-        </>
-      ) : <p className="text-slate-400 text-sm">Выполняем вход...</p>}
-    </div>
+        <div role="alert" className="flex max-w-sm flex-col items-center gap-4">
+          <p className="text-sm leading-relaxed text-rose-700 dark:text-rose-400">{error}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/login', { replace: true })}
+            className="min-h-[44px] rounded-lg bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)]"
+          >
+            Вернуться ко входу
+          </button>
+        </div>
+      ) : (
+        <div role="status" className="flex flex-col items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="h-8 w-8 rounded-full border-2 border-[var(--sf-line)] border-t-[var(--sf-accent-fg)] animate-spin motion-reduce:animate-none"
+          />
+          <p className="text-sm text-[var(--sf-muted)]">Выполняем вход…</p>
+        </div>
+      )}
+    </main>
   );
 }

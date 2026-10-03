@@ -132,6 +132,51 @@ const getEnergyCost = (length: number) => {
   return 2;
 };
 
+const EVALUATE_FAILED = 'Не удалось оценить ответ. Попробуйте ещё раз.';
+const QUESTION_FAILED = 'Не удалось задать вопрос. Попробуйте ещё раз.';
+const SERVICE_BUSY = 'Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.';
+
+/** The server's own Russian `detail` when it has one; otherwise a plain message by status. */
+async function failureMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = JSON.parse(await res.text());
+    const detail = typeof body?.detail === 'string' ? body.detail.trim() : '';
+    if (detail && detail.length <= 200 && /[А-Яа-яЁё]/.test(detail)) return detail;
+  } catch {
+    // An HTML or empty error page: fall through to the message by status.
+  }
+  return res.status === 429 ? SERVICE_BUSY : fallback;
+}
+
+/** A usable evaluation: a 0..100 score, a grade «2»..«5» and lists (the old client's shape). */
+function usableEvaluation(raw: unknown): EvaluationResult | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const score = typeof data.score === 'number' ? data.score : Number.NaN;
+  const grade = typeof data.grade === 'string' ? data.grade.trim() : typeof data.grade === 'number' ? String(data.grade) : '';
+  if (!Number.isFinite(score) || score < 0 || score > 100 || !/^[2-5]$/.test(grade)) return null;
+  const list = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+  return {
+    score,
+    grade,
+    verdict: typeof data.verdict === 'string' ? data.verdict : '',
+    correct_points: list(data.correct_points),
+    errors: list(data.errors),
+    missing_points: list(data.missing_points),
+  };
+}
+
+/** A ticket counts as passed from «3» up. */
+export function ticketPassed(grade: string): boolean {
+  const value = Number(grade);
+  return Number.isFinite(value) && value >= 3;
+}
+
+/** Old oral exams only: answers to exam tickets (kind 'oral_ticket') are not part of this history. */
+function professorRows<T extends { kind?: unknown }>(rows: T[]): T[] {
+  return rows.filter((row) => row.kind === undefined || row.kind === null || row.kind === 'professor');
+}
+
 const getProfTheme = (id: string) => {
   if (id === 'elizaveta') {
     return {
@@ -341,19 +386,26 @@ export default function ProfessorExam() {
     if (!user) return;
     const cacheKey = `prof_history_${user.id}`;
     const cached = localStorage.getItem(cacheKey);
-    if (cached) { try { setExamHistory(JSON.parse(cached)); } catch(e){} }
-    
+    if (cached) {
+      try {
+        const rows = JSON.parse(cached);
+        if (Array.isArray(rows)) setExamHistory(professorRows(rows));
+      } catch (e) {}
+    }
+
     const { data } = await supabase
       .from('exam_sessions')
       .select('*')
       .eq('user_id', user.id)
       .eq('status', 'completed')
+      .eq('kind', 'professor')
       .order('completed_at', { ascending: false })
       .limit(10);
-      
+
     if (data) {
-      setExamHistory(data);
-      localStorage.setItem(cacheKey, JSON.stringify(data));
+      const rows = professorRows(data);
+      setExamHistory(rows);
+      localStorage.setItem(cacheKey, JSON.stringify(rows));
     }
   };
 
@@ -499,22 +551,22 @@ export default function ProfessorExam() {
 
     // Загрузка недавних экзаменов и ошибок для адаптивности сложности
     const [examHistoryRes, mistakesRes] = await Promise.all([
-      supabase.from('exam_sessions').select('score, grade').eq('user_id', user!.id).eq('status', 'completed').order('completed_at', { ascending: false }).limit(5),
+      supabase.from('exam_sessions').select('score').eq('user_id', user!.id).eq('status', 'completed').eq('kind', 'professor').order('completed_at', { ascending: false }).limit(5),
       supabase.from('mistake_diary').select('topic').eq('user_id', user!.id).eq('is_resolved', false).limit(5)
     ]);
 
     const examHistory = examHistoryRes.data || [];
     const recentMistakes = (mistakesRes.data || []).map(m => m.topic).filter(Boolean);
 
-    // Списание энергии происходит ОДИН раз при старте нового экзамена
+    // Энергия проверяется перед новым экзаменом, а списывается один раз и только после того,
+    // как первый вопрос действительно пришёл: неудачный старт ничего не стоит.
+    const cost = getEnergyCost(examLength);
     if (clearHistory && user?.id) {
-      const cost = getEnergyCost(examLength);
       const ok = await verifyEnergy(user.id, cost, 'AI-Экзаменатор');
       if (!ok) {
         setPhase('select');
         return;
       }
-      await incrementAIUsage(user.id, cost);
     }
 
     try {
@@ -532,13 +584,17 @@ export default function ProfessorExam() {
         })
       });
 
-      if (!res.ok) throw new Error('Ошибка связи с сервером');
-      const data = await res.json();
-      setCurrentQuestion(data.question);
+      if (!res.ok) throw new Error(await failureMessage(res, QUESTION_FAILED));
+      const data = await res.json().catch(() => null);
+      const question = typeof data?.question === 'string' ? data.question.trim() : '';
+      if (!question) throw new Error(QUESTION_FAILED);
+      setCurrentQuestion(question);
       setPhase('question');
+      if (clearHistory && user?.id) await incrementAIUsage(user.id, cost);
     } catch (err) {
       console.error(err);
-      await alert({ title: 'Ошибка', message: 'Не удалось задать вопрос. Попробуйте еще раз.', type: 'danger' });
+      const message = err instanceof Error && /[А-Яа-яЁё]/.test(err.message) ? err.message : QUESTION_FAILED;
+      await alert({ title: 'Ошибка', message, type: 'danger' });
       setPhase(clearHistory ? 'select' : 'step_feedback');
     }
   };
@@ -577,8 +633,9 @@ export default function ProfessorExam() {
         })
       });
 
-      if (!res.ok) throw new Error('Ошибка оценки');
-      const evalData: EvaluationResult = await res.json();
+      if (!res.ok) throw new Error(await failureMessage(res, EVALUATE_FAILED));
+      const evalData = usableEvaluation(await res.json().catch(() => null));
+      if (!evalData) throw new Error(EVALUATE_FAILED);
       
       setEvaluation(evalData);
       
@@ -625,7 +682,9 @@ export default function ProfessorExam() {
             await updateQuestProgress(user.id, 'exam', 1);
           }
 
-          await recordStudyActivity(user.id, 1, 0);
+          // День засчитывается в серию; карточек экзамен не добавляет.
+          await recordStudyActivity(user.id, 0, 0);
+          const examSessionId: string | null = (sessionData as { id?: string } | null)?.id ?? null;
 
           // Сохраняем все накопившиеся ошибки и упущения в дневник ошибок
           const mistakesToSave: any[] = [];
@@ -634,6 +693,7 @@ export default function ProfessorExam() {
               mistakesToSave.push({
                 user_id: user.id,
                 material_id: selectedMaterial?.id ?? null,
+                exam_session_id: examSessionId,
                 question: step.question,
                 correct_answer: err,
                 student_answer: step.studentAnswer,
@@ -645,6 +705,7 @@ export default function ProfessorExam() {
               mistakesToSave.push({
                 user_id: user.id,
                 material_id: selectedMaterial?.id ?? null,
+                exam_session_id: examSessionId,
                 question: step.question,
                 correct_answer: miss,
                 student_answer: '(не упомянуто)',
@@ -663,7 +724,9 @@ export default function ProfessorExam() {
       setPhase('step_feedback');
     } catch (err) {
       console.error(err);
-      await alert({ title: 'Ошибка', message: 'Ошибка при оценке ответа. Пожалуйста, попробуйте отправить заново.', type: 'danger' });
+      // Ответ остаётся в поле: его можно отправить ещё раз.
+      const message = err instanceof Error && /[А-Яа-яЁё]/.test(err.message) ? err.message : EVALUATE_FAILED;
+      await alert({ title: 'Ответ не оценён', message, type: 'danger' });
       setPhase('question');
     }
   };
@@ -885,8 +948,8 @@ export default function ProfessorExam() {
                               <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight block mt-0.5">{opt.desc}</span>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              <span className="px-2 py-0.5 rounded-lg bg-yellow-500/10 text-yellow-600 dark:bg-yellow-500/20 dark:text-yellow-400 text-[10px] font-black flex items-center gap-0.5 border border-yellow-500/20">
-                                <Zap className="w-3 h-3 fill-yellow-500" /> {opt.cost} ⚡
+                              <span className="text-xs text-slate-500 dark:text-slate-400" title="Расход дневного лимита ИИ">
+                                {opt.cost} ед.
                               </span>
                               <span className={`px-1.5 py-0.5 rounded-lg text-[9px] font-black ${
                                 isSelected ? 'bg-indigo-650 text-white dark:bg-indigo-500' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
@@ -968,7 +1031,7 @@ export default function ProfessorExam() {
                   }`}
                 >
                   <ArrowRight className="w-5 h-5" /> 
-                  Войти в аудиторию ({getEnergyCost(examLength)} ⚡)
+                  Войти в аудиторию
                 </button>
               </div>
             </div>
@@ -1244,7 +1307,7 @@ export default function ProfessorExam() {
                       <div className="absolute inset-1 bg-transparent rounded-full border border-dashed border-white/20 scale-95" />
                       {evaluation.grade}
                     </div>
-                    <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 mt-2 tracking-wider uppercase bg-white/80 dark:bg-slate-900/80 border border-slate-150/40 dark:border-slate-800 px-2 py-0.5 rounded-full shadow-sm">Билет сдан</span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-2">{ticketPassed(evaluation.grade) ? 'Билет сдан' : 'Не сдан'}</span>
                   </div>
 
                   <div className="flex-1 space-y-4 w-full">

@@ -24,6 +24,28 @@ class TextPipelineTests(unittest.TestCase):
             "Привет, конспект",
         )
 
+    def test_pasted_utf8_text_round_trips(self):
+        # Вставленный текст браузер отправляет как Blob 'pasted-text.txt': UTF-8 без BOM.
+        pasted = (
+            "  Лекция 3. Эластичность спроса\r\n\r\n"
+            "Цена\tКоличество\r\n"
+            "Рост цены на 10 % снижает спрос 📉 — «ёлка» и naïve.  \r\n"
+            "\r\n\r\n\r\n"
+            "Итог: спрос эластичен.\r\n"
+        )
+        self.assertEqual(
+            extract_text(pasted.encode("utf-8"), "pasted-text.txt"),
+            "Лекция 3. Эластичность спроса\n\n"
+            "Цена\tКоличество\n"
+            "Рост цены на 10 % снижает спрос 📉 — «ёлка» и naïve.\n\n"
+            "Итог: спрос эластичен.",
+        )
+
+    def test_demo_lecture_round_trips_unchanged(self):
+        demo = (Path(__file__).resolve().parent / "fixtures" / "demo_lecture_v0.txt").read_text(encoding="utf-8")
+        self.assertEqual(len(demo), 5364)
+        self.assertEqual(extract_text(demo.encode("utf-8"), "pasted-text.txt"), demo)
+
     def test_url_analyzer_rejects_private_and_non_http_targets(self):
         rejected = [
             "http://127.0.0.1:8000/docs",

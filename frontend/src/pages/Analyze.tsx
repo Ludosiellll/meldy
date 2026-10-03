@@ -1,309 +1,619 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import UploadZone from '../components/UploadZone';
-import { Mic, Zap, BookOpen, AlertTriangle } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
+import UploadZone, { type UploadOptions, type UploadTab } from '../components/UploadZone';
 import AgentCards from '../components/AgentCards';
 import ResultsPanel from '../components/ResultsPanel';
-import { AnalysisState, AgentStatus, DEFAULT_SETTINGS } from '../types';
-import { DEMO_TEXT } from '../demo';
+import { DEFAULT_SETTINGS } from '../types';
+import type { AgentStatus, AnalysisResults, AnalysisSettings, AnalysisState, Flashcard, SectionName } from '../types';
+import { DEMO_SETTINGS, DEMO_TEXT, DEMO_TEXT_ID, DEMO_TITLE, isDemoText } from '../data/demo';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
 import { recordStudyActivity } from '../api/quests';
 import { hasBadWords } from '../utils/moderation';
-import toast from 'react-hot-toast';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, incrementAIUsage, nextLimitReset } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
+import {
+  SECTION_LABELS,
+  SECTION_NAMES,
+  buildMaterialRow,
+  flashcardsOf,
+  isSectionName,
+  requestedSections,
+} from '../utils/analysisSections';
 
-const initAgents: AgentStatus[] = [
-  { id: 'summarizer', label: 'Конспект', status: 'idle', progress: 0 },
-  { id: 'flashcards', label: 'Карточки', status: 'idle', progress: 0 },
-  { id: 'quiz', label: 'Тест', status: 'idle', progress: 0 },
-  { id: 'cheatsheet', label: 'Шпаргалка', status: 'idle', progress: 0 },
-  { id: 'podcast', label: 'Разговор', status: 'idle', progress: 0 },
-];
+const ANALYSIS_COST = 20;
 
-// Миссии больше не показываются в результатах, поэтому их не генерируем при анализе.
-const SELECTABLE_AGENT_IDS = new Set(initAgents.map(a => a.id));
+const initAgents: AgentStatus[] = SECTION_NAMES.map(id => ({ id, label: SECTION_LABELS[id], status: 'idle', progress: 0 }));
 
-interface Toast {
-  id: number;
-  text: string;
+/** Что запускали: этим же «Повторить» отправит запрос ещё раз. */
+interface RunRequest {
+  file: File | null;
+  url?: string;
+  /** Имя источника для названия материала, если модель не предложит своё. */
+  sourceName: string;
+  /** Вставленный текст: по нему решается, демо ли это. */
+  text?: string;
+  /** Настройки панели на момент запуска (для демо не используются). */
+  settings: AnalysisSettings;
 }
+
+interface SaveContext {
+  results: AnalysisResults;
+  extractedText: string;
+  sourceName: string;
+  demo: boolean;
+}
+
+interface SaveInfo {
+  status: 'idle' | 'saving' | 'saved' | 'failed' | 'existing';
+  materialId?: string;
+  /** Карточки не дошли до повторения: их можно отправить ещё раз. */
+  cardsFailed?: { materialId: string; cards: Flashcard[] };
+}
+
+const IDLE_SAVE: SaveInfo = { status: 'idle' };
+
+function enabledSections(settings: AnalysisSettings): SectionName[] {
+  // Пустой список бэкенд понимает как «все агенты», включая миссии, поэтому подставляем набор по умолчанию.
+  const selected = requestedSections(settings.enabledAgents || []);
+  return selected.length > 0 ? selected : requestedSections(DEFAULT_SETTINGS.enabledAgents);
+}
+
+function endpointFor(request: RunRequest): AnalyzeEndpoint {
+  if (request.url) return '/api/analyze/url';
+  const type = request.file?.type || '';
+  const isMedia = type.startsWith('video/') || type.startsWith('audio/') || type.startsWith('image/');
+  return isMedia ? '/api/analyze/media' : '/api/analyze';
+}
+
+function buildFormData(request: RunRequest, settings: AnalysisSettings, requested: SectionName[]): FormData {
+  const fd = new FormData();
+  if (request.file) fd.append('file', request.file);
+  if (request.url) fd.append('url', request.url);
+  fd.append('summary_detail', settings.summaryDetail);
+  fd.append('flashcard_count', String(settings.flashcardCount));
+  fd.append('quiz_count', String(settings.quizCount));
+  fd.append('quiz_difficulty', settings.quizDifficulty);
+  fd.append('quiz_type', settings.quizType);
+  fd.append('enabled_agents', JSON.stringify(requested));
+  return fd;
+}
+
+interface QuotaState {
+  ok: boolean;
+  isPro: boolean;
+  count: number;
+}
+
+/**
+ * Строка о расходе дневного лимита под кнопкой запуска. Читается при открытии
+ * страницы и после каждого списания (событие AI_USAGE_EVENT). Если прочитать не
+ * удалось, число не показываем; у PRO строки нет.
+ */
+function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?: string; startDisabledReason?: string } {
+  const [quota, setQuota] = useState<QuotaState | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setQuota(null);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      checkAILimit(userId, 0)
+        .then(result => {
+          if (!cancelled) setQuota({ ok: result.ok !== false, isPro: Boolean(result.isPro), count: Number(result.count) || 0 });
+        })
+        .catch(() => {
+          if (!cancelled) setQuota({ ok: false, isPro: false, count: 0 });
+        });
+    };
+    load();
+    window.addEventListener(AI_USAGE_EVENT, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(AI_USAGE_EVENT, load);
+    };
+  }, [userId]);
+
+  if (!quota || quota.isPro) return {};
+  if (!quota.ok) return { costNote: `Анализ расходует ${cost} единиц дневного лимита (${FREE_DAILY_LIMIT} в сутки).` };
+  const remaining = Math.max(0, FREE_DAILY_LIMIT - quota.count);
+  const resetAt = formatLimitReset(nextLimitReset());
+  if (remaining < cost) {
+    return { startDisabledReason: `На сегодня лимит исчерпан, он обновится в ${resetAt}. Демо-текст доступен без лимита.` };
+  }
+  return {
+    costNote: `Анализ расходует ${cost} из ${FREE_DAILY_LIMIT} единиц дневного лимита. Осталось ${remaining}, лимит обновится в ${resetAt}.`,
+  };
+}
+
+const PRIMARY_BUTTON =
+  'inline-flex min-h-[48px] items-center justify-center rounded-xl bg-[var(--sf-accent)] px-6 text-base font-semibold text-white ' +
+  'shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition-[transform,box-shadow,background-color] duration-100 ' +
+  'hover:bg-[var(--sf-accent-hover)] active:translate-y-[2px] active:shadow-[0_1px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] ' +
+  'motion-reduce:transition-none motion-reduce:active:translate-y-0 dark:shadow-[0_2px_0_color-mix(in_srgb,var(--sf-accent)_60%,var(--sf-canvas))] dark:active:shadow-none';
+const TEXT_BUTTON =
+  'inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-[var(--sf-muted)] transition-colors hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]';
+const INLINE_ACTION =
+  'min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60';
 
 export default function Analyze() {
   const [state, setState] = useState<AnalysisState>({
     phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS,
   });
-  const [isDemo, setIsDemo] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const toastId = useRef(0);
-  const analysisStartRef = useRef<number>(0);
-  const sourceFileNameRef = useRef<string>('');
-  const textLengthRef = useRef<number>(0);
+  // Источник управляется здесь: ошибка и «Повторить» не теряют вкладку, текст и ссылку.
+  const [uploadTab, setUploadTab] = useState<UploadTab>('file');
+  const [pastedText, setPastedText] = useState('');
+  // Текст пользователя, который заменил демо-текст: его можно вернуть одной кнопкой.
+  const [replacedText, setReplacedText] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [starting, setStarting] = useState(false);
+  // Сообщение сервера о долгом шаге (расшифровка медиа, загрузка страницы).
+  const [statusNote, setStatusNote] = useState<string | undefined>(undefined);
+  const [save, setSave] = useState<SaveInfo>(IDLE_SAVE);
+  const [saveBusy, setSaveBusy] = useState(false);
+
   const { user } = useAuth();
   const navigate = useNavigate();
   const { verifyEnergy } = useEnergyConfirm();
 
-  const addToast = (text: string) => {
-    const id = ++toastId.current;
-    setToasts(prev => [...prev, { id, text }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
-  };
+  const inFlightRef = useRef(false);
+  // Номер нажатия «Запустить»/«Повторить»: «Назад» и «Отменить» отзывают запуск, который ещё ждёт проверки лимита.
+  const startTicketRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef(0);
+  const mountedRef = useRef(true);
+  const lastRequestRef = useRef<RunRequest | null>(null);
+  const lastSaveRef = useRef<{ runId: number; context: SaveContext } | null>(null);
+  const savedRunsRef = useRef(new Set<number>());
+  // Сохранение идёт по своему запуску: долгое сохранение прошлого запуска не мешает новому.
+  const savingRunsRef = useRef(new Set<number>());
 
-  const handleUpload = async (file: File | null, url?: string) => {
-    // ПРОВЕРКА ЛИМИТОВ ИИ перед сменой интерфейса
-    if (user?.id) {
-      const ok = await verifyEnergy(user.id, 20, 'Анализ материала');
-      if (!ok) {
-        return; // остаемся на экране загрузки
-      }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      // Уход со страницы останавливает запрос: ничего не сохраняется и не списывается в фоне.
+      mountedRef.current = false;
+      runIdRef.current += 1;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      inFlightRef.current = false;
+    };
+  }, []);
+
+  const demoReady = uploadTab === 'text' && isDemoText(pastedText);
+  const quota = useAnalysisQuota(user?.id, ANALYSIS_COST);
+
+  const isCurrent = (runId: number) => mountedRef.current && runIdRef.current === runId;
+
+  /** Сохраняет годный результат один раз: материал, затем списание, карточки и активность. */
+  const saveRun = async (runId: number, context: SaveContext) => {
+    const userId = user?.id;
+    if (!userId || savedRunsRef.current.has(runId) || savingRunsRef.current.has(runId)) return;
+    savingRunsRef.current.add(runId);
+    if (isCurrent(runId)) {
+      setSaveBusy(true);
+      setSave({ status: 'saving' });
     }
-
-    analysisStartRef.current = Date.now();
-    sourceFileNameRef.current = file ? file.name : (url ? url : 'Unknown');
-    // Пустой список бэкенд понимает как «все агенты», включая миссии, поэтому подставляем набор по умолчанию.
-    const selectedAgents = (state.settings.enabledAgents || []).filter(id => SELECTABLE_AGENT_IDS.has(id));
-    const enabledAgents = selectedAgents.length > 0 ? selectedAgents : DEFAULT_SETTINGS.enabledAgents;
-    const activeAgents = initAgents.filter(a => enabledAgents.includes(a.id));
-    setState({ phase: 'extracting', agents: activeAgents.map(a => ({ ...a, status: 'idle' as const })), results: null, settings: state.settings, sourceFileName: sourceFileNameRef.current });
-    
-    const fd = new FormData();
-    if (file) fd.append('file', file);
-    if (url) fd.append('url', url);
-    
-    fd.append('summary_detail', state.settings.summaryDetail);
-    fd.append('flashcard_count', String(state.settings.flashcardCount));
-    fd.append('quiz_count', String(state.settings.quizCount));
-    fd.append('quiz_difficulty', state.settings.quizDifficulty);
-    fd.append('quiz_type', state.settings.quizType);
-    fd.append('enabled_agents', JSON.stringify(enabledAgents));
-    
-    // Определяем эндпоинт в зависимости от типа
-    const isMedia = file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/'));
-    const endpoint = url ? '/api/analyze/url' : (isMedia ? '/api/analyze/media' : '/api/analyze');
-
     try {
-      const abortController = new AbortController();
-      (window as any)._analyzeAbort = abortController;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('Сессия истекла. Войдите снова и повторите анализ.');
-      }
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        body: fd,
-        signal: abortController.signal,
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Ошибка сервера'); }
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('No body');
-      const dec = new TextDecoder('utf-8'); let buf = '';
-      const consumeSSE = (chunk: string) => {
-        buf += chunk;
-        const lines = buf.split('\n');
-        buf = lines.pop() || '';
-        for (const line of lines) {
-          const trimmed = line.endsWith('\r') ? line.slice(0, -1) : line;
-          if (!trimmed.startsWith('data:')) continue;
-          const payload = trimmed.slice(5).trim();
-          if (!payload) continue;
-          try { handleSSE(JSON.parse(payload)); }
-          catch (error) { console.warn('Пропущено повреждённое SSE-событие', error); }
+      if (context.demo) {
+        const { data: existing, error: lookupError } = await supabase
+          .from('materials')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('summary_json->>demo_text_id', DEMO_TEXT_ID)
+          .limit(1);
+        const existingId = !lookupError && Array.isArray(existing) ? (existing[0] as { id?: string } | undefined)?.id : undefined;
+        if (existingId) {
+          savedRunsRef.current.add(runId);
+          // На экране результат этого запуска, а в библиотеке прежний материал: экран в него не пишет
+          // (savedMaterialId не ставится, панель в режиме просмотра).
+          if (isCurrent(runId)) {
+            setState(prev => ({ ...prev, demoMaterialId: existingId }));
+            setSave({ status: 'existing', materialId: existingId });
+          }
+          return;
         }
-      };
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        consumeSSE(dec.decode(value, { stream: true }));
       }
-      consumeSSE(dec.decode());
-      if (buf.trim().startsWith('data:')) consumeSSE('\n');
-    } catch (err: Error | any) { 
-      if (err.name === 'AbortError') return;
-      setState(p => ({ ...p, phase: 'error', error: err.message })); 
-    }
-  };
 
-  const handleSSE = (d: Record<string, any>) => {
-    if (d.type === 'text_extracted') { 
-      if (hasBadWords(d.text)) {
-        if ((window as any)._analyzeAbort) {
-          (window as any)._analyzeAbort.abort();
-        }
-        setState(p => ({ ...p, phase: 'error', error: 'Текст содержит недопустимые материалы (мат или неприемлемый контент).' }));
+      const row = buildMaterialRow({
+        userId,
+        results: context.results,
+        extractedText: context.extractedText,
+        sourceName: context.sourceName,
+        demoTextId: context.demo ? DEMO_TEXT_ID : null,
+      });
+      const { data: inserted, error } = await supabase.from('materials').insert(row).select('id').single();
+      const materialId = (inserted as { id?: string } | null)?.id;
+      if (error || !materialId) {
+        console.error('Supabase insert error:', error);
+        if (isCurrent(runId)) setSave({ status: 'failed' });
         return;
       }
-      setState(p => ({ ...p, phase: 'analyzing', textLength: d.length })); 
-      textLengthRef.current = d.length;
-      (window as any)._lastExtractedText = d.text;
-    }
-    else if (d.type === 'status') {
-    }
-    else if (d.type === 'agent_start') setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'running' } : a) }));
-    else if (d.type === 'agent_done') {
-      setState(p => ({ ...p, agents: p.agents.map(a => a.id === d.agent ? { ...a, status: 'done', progress: d.progress / d.total } : a) }));
-    }
-    else if (d.type === 'results') {
-      const results = {
-        summarizer: d.summarizer,
-        flashcards: d.flashcards,
-        quiz: d.quiz,
-        cheatsheet: d.cheatsheet,
-        podcast: d.podcast,
-        missions: d.missions,
-        warnings: d.warnings || [],
-        grounding: d.grounding,
-      };
-      const dur = analysisStartRef.current
-        ? Math.round((Date.now() - analysisStartRef.current) / 1000)
-        : 0;
+      savedRunsRef.current.add(runId);
+      if (isCurrent(runId)) setState(prev => ({ ...prev, savedMaterialId: materialId }));
 
-      if (user) {
+      // Энергия списывается только после сохранения и никогда за демо-текст.
+      if (!context.demo) await incrementAIUsage(userId, ANALYSIS_COST);
 
-        (async () => {
-          try {
-            const title = results.summarizer?.title || (sourceFileNameRef.current
-              ? sourceFileNameRef.current.replace(/\.[^/.]+$/, '')
-              : 'Без названия');
-
-            const { data: inserted, error } = await supabase
-              .from('materials')
-              .insert({
-                user_id: user.id,
-                title,
-                subject: results.summarizer?.subject || '',
-                original_text: textLengthRef.current > 0 ? (window as any)._lastExtractedText || '' : '',
-                summary_json: {
-                  content: results.summarizer?.content || '',
-                  terms: results.summarizer?.terms || [],
-                  cheatsheet: results.cheatsheet?.content || '',
-                  podcast: results.podcast?.podcast || [],
-                  source_ids: results.summarizer?.source_ids || [],
-                  grounding: results.grounding,
-                },
-                missions_json: results.missions,
-                flashcards_json: results.flashcards,
-                quiz_json: results.quiz,
-              })
-              .select('id')
-              .single();
-
-            if (error) {
-              console.error('Supabase insert error:', error);
-              toast.error('Результат получен, но сохранить его не удалось. Попробуйте ещё раз.');
-              return;
-            }
-
-            // Списываем лимит только после успешного сохранения материала.
-            await incrementAIUsage(user.id, 20);
-
-            if (inserted?.id) {
-              setState(p => ({ ...p, savedMaterialId: inserted.id }));
-            }
-
-            const cards = results.flashcards?.flashcards || [];
-            if (cards.length > 0 && inserted?.id) {
-              await syncFlashcards(user.id, inserted.id, cards);
-            }
-            await recordStudyActivity(user.id, 0, 1);
-          } catch (err) {
-            console.error('AI Usage or DB error:', err);
-            toast.error('Не удалось завершить сохранение результата.');
-          }
-        })();
+      const cards = flashcardsOf(context.results);
+      let cardsFailed: SaveInfo['cardsFailed'];
+      if (cards.length > 0) {
+        try {
+          await syncFlashcards(userId, materialId, cards);
+        } catch (syncError) {
+          console.error('Flashcards sync error:', syncError);
+          cardsFailed = { materialId, cards };
+        }
       }
-      
-      setState(p => ({ ...p, results, analysisDuration: dur || undefined }));
+      await recordStudyActivity(userId, 0, 1);
+      if (isCurrent(runId)) setSave({ status: 'saved', materialId, cardsFailed });
+    } catch (saveError) {
+      console.error('Save error:', saveError);
+      if (isCurrent(runId) && !savedRunsRef.current.has(runId)) setSave({ status: 'failed' });
+    } finally {
+      savingRunsRef.current.delete(runId);
+      if (isCurrent(runId)) setSaveBusy(false);
     }
-    else if (d.type === 'done') setState(p => ({ ...p, phase: 'done' }));
-    else if (d.type === 'error') setState(p => ({ ...p, phase: 'error', error: d.message }));
   };
 
-  const reset = () => { setState({ phase: 'upload', agents: initAgents, results: null, settings: DEFAULT_SETTINGS }); setIsDemo(false); };
+  const retrySave = () => {
+    const last = lastSaveRef.current;
+    if (last) void saveRun(last.runId, last.context);
+  };
+
+  const retryCardSync = async () => {
+    const pending = save.cardsFailed;
+    const userId = user?.id;
+    if (!pending || !userId || saveBusy) return;
+    setSaveBusy(true);
+    try {
+      await syncFlashcards(userId, pending.materialId, pending.cards);
+      setSave(prev => ({ ...prev, cardsFailed: undefined }));
+    } catch (syncError) {
+      console.error('Flashcards sync error:', syncError);
+    } finally {
+      if (mountedRef.current) setSaveBusy(false);
+    }
+  };
+
+  const handleStreamEvent = (runId: number, event: Record<string, unknown>) => {
+    if (runIdRef.current !== runId) return;
+    if (event.type === 'status') {
+      const message = typeof event.message === 'string' ? event.message.trim() : '';
+      if (message && message.length <= 160 && /[А-Яа-яЁё]/.test(message)) setStatusNote(message);
+    } else if (event.type === 'text_extracted') {
+      if (typeof event.text === 'string' && hasBadWords(event.text)) {
+        throw new AnalyzeError('bad_request', 'Текст содержит недопустимые материалы (мат или неприемлемый контент).', false);
+      }
+      const length = typeof event.length === 'number' ? event.length : undefined;
+      setState(prev => ({ ...prev, phase: 'analyzing', textLength: length ?? prev.textLength }));
+    } else if (event.type === 'agent_start' && isSectionName(event.agent)) {
+      setState(prev => ({
+        ...prev,
+        phase: prev.phase === 'extracting' ? 'analyzing' : prev.phase,
+        agents: prev.agents.map(agent => (agent.id === event.agent ? { ...agent, status: 'running' } : agent)),
+      }));
+    } else if (event.type === 'agent_done' && isSectionName(event.agent)) {
+      const ok = event.status === undefined || event.status === 'ok';
+      const progress =
+        typeof event.progress === 'number' && typeof event.total === 'number' && event.total > 0 ? event.progress / event.total : 1;
+      setState(prev => ({
+        ...prev,
+        agents: prev.agents.map(agent => (agent.id === event.agent ? { ...agent, status: ok ? 'done' : 'failed', progress } : agent)),
+      }));
+    }
+  };
+
+  const startRun = async (request: RunRequest) => {
+    // Защита от двойного запуска ставится до проверки лимита.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    const ticket = ++startTicketRef.current;
+    setStarting(true);
+
+    const demo = request.text !== undefined && isDemoText(request.text);
+    const settings = demo ? DEMO_SETTINGS : request.settings;
+
+    if (!demo && user?.id) {
+      let allowed = true;
+      try {
+        allowed = await verifyEnergy(user.id, ANALYSIS_COST, 'Анализ материала');
+      } catch {
+        allowed = true;
+      }
+      // Пока шла проверка, пользователь ушёл со страницы или вернулся к выбору источника:
+      // этот запуск отозван, флаги уже сброшены тем, кто его отозвал.
+      if (!mountedRef.current || startTicketRef.current !== ticket) return;
+      if (!allowed) {
+        inFlightRef.current = false;
+        setStarting(false);
+        return;
+      }
+    }
+
+    lastRequestRef.current = request;
+    lastSaveRef.current = null;
+    const runId = ++runIdRef.current;
+    const controller = new AbortController();
+    // Прежний запрос, если он почему-то ещё идёт, не должен продолжаться в фоне.
+    controllerRef.current?.abort();
+    controllerRef.current = controller;
+    const requested = enabledSections(settings);
+    const startedAt = Date.now();
+
+    setSave(IDLE_SAVE);
+    setSaveBusy(false);
+    setStarting(false);
+    setStatusNote(undefined);
+    setState(prev => ({
+      phase: 'extracting',
+      agents: initAgents.filter(agent => requested.includes(agent.id as SectionName)),
+      results: null,
+      settings: prev.settings,
+      sourceFileName: request.sourceName,
+      isDemo: demo,
+    }));
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!isCurrent(runId)) return;
+      if (!session?.access_token) throw new AnalyzeError('auth', 'Сессия истекла. Войдите снова.', false);
+
+      const outcome = await runAnalyzeStream({
+        endpoint: endpointFor(request),
+        body: buildFormData(request, settings, requested),
+        token: session.access_token,
+        requested,
+        onEvent: event => handleStreamEvent(runId, event),
+        signal: controller.signal,
+      });
+      if (outcome.kind === 'aborted' || !isCurrent(runId)) return;
+
+      const duration = Math.round((Date.now() - startedAt) / 1000);
+      const context: SaveContext = {
+        results: outcome.results,
+        extractedText: outcome.extractedText,
+        sourceName: request.sourceName,
+        demo,
+      };
+      lastSaveRef.current = { runId, context };
+      setState(prev => ({
+        ...prev,
+        phase: 'done',
+        results: outcome.results,
+        partial: outcome.kind === 'partial',
+        textLength: outcome.textLength || prev.textLength,
+        analysisDuration: duration || undefined,
+      }));
+      inFlightRef.current = false;
+      controllerRef.current = null;
+      // Сохраняется только годный результат и только один раз (saveRun сам ловит свои ошибки).
+      void saveRun(runId, context);
+    } catch (error) {
+      controller.abort();
+      if (!isCurrent(runId)) return;
+      if (!(error instanceof AnalyzeError)) console.error('Analyze error:', error);
+      const failure = error instanceof AnalyzeError ? error : new AnalyzeError('server', ANALYZE_MESSAGES.server, true);
+      setState(prev => ({
+        ...prev,
+        phase: 'error',
+        error: { kind: failure.kind, message: failure.message, retryable: failure.retryable },
+      }));
+    } finally {
+      if (runIdRef.current === runId) {
+        inFlightRef.current = false;
+        if (controllerRef.current === controller) controllerRef.current = null;
+      }
+    }
+  };
+
+  const handleUpload = (file: File | null, url?: string, options?: UploadOptions) => {
+    const text = options?.text;
+    const demo = text !== undefined && isDemoText(text);
+    const sourceName = demo ? `${DEMO_TITLE}.txt` : options?.sourceName || file?.name || url || 'Без названия';
+    void startRun({ file, url, sourceName, text, settings: state.settings });
+  };
 
   const handleDemo = () => {
-    setIsDemo(true);
-    const file = new File([DEMO_TEXT], 'demo_lecture.txt', { type: 'text/plain' });
-    handleUpload(file);
+    if (pastedText.trim() && !isDemoText(pastedText)) setReplacedText(pastedText);
+    setUploadTab('text');
+    setPastedText(DEMO_TEXT);
   };
+
+  const restoreText = () => {
+    if (replacedText === null) return;
+    setPastedText(replacedText);
+    setReplacedText(null);
+  };
+
+  /** Остановить анализ: назад к загрузке, без ошибки, без сохранения. */
+  const handleCancel = () => {
+    runIdRef.current += 1;
+    startTicketRef.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    inFlightRef.current = false;
+    setStarting(false);
+    setState(prev => ({ phase: 'upload', agents: initAgents, results: null, settings: prev.settings }));
+  };
+
+  /** Назад к выбору источника: настройки, вкладка, текст и ссылка остаются; ждущий запуск отзывается. */
+  const backToUpload = () => {
+    runIdRef.current += 1;
+    startTicketRef.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    inFlightRef.current = false;
+    setStarting(false);
+    setSave(IDLE_SAVE);
+    setState(prev => ({ phase: 'upload', agents: initAgents, results: null, settings: prev.settings }));
+  };
+
+  /** «Новый анализ» после результата: чистый лист, настройки остаются. */
+  const startOver = () => {
+    setPastedText('');
+    setReplacedText(null);
+    setSourceUrl('');
+    backToUpload();
+  };
+
+  const handleRetry = () => {
+    const last = lastRequestRef.current;
+    if (last) void startRun(last);
+  };
+
+  /**
+   * Раздел, созданный заново, относится к запуску, на результатах которого его создали.
+   * Если на экране уже другой запуск (или страница загрузки), его результат не трогаем:
+   * раздел уже сохранён в свой материал.
+   */
+  const handleResultsChange = (runId: number | undefined, next: AnalysisResults) => {
+    const last = lastSaveRef.current;
+    if (runId === undefined || !last || last.runId !== runId || !isCurrent(runId)) return;
+    setState(prev => ({ ...prev, results: next }));
+    lastSaveRef.current = { ...last, context: { ...last.context, results: next } };
+  };
+
+  const lastRequest = lastRequestRef.current;
+  const chooseAnotherLabel = lastRequest?.text !== undefined
+    ? 'Изменить текст'
+    : lastRequest?.url
+      ? 'Изменить ссылку'
+      : 'Выбрать другой файл';
+
+  const notices = (
+    <>
+      {state.isDemo && save.status === 'saved' && <p>Демо-текст: энергия не списана.</p>}
+      {save.status === 'existing' && save.materialId && (
+        <p>
+          Этот результат не сохранён: демо-материал уже есть в библиотеке.{' '}
+          <Link to={`/library/${save.materialId}`} className="font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">
+            Открыть его
+          </Link>
+        </p>
+      )}
+      {save.status === 'failed' && (
+        <p role="alert" className="flex flex-wrap items-center gap-x-3">
+          Результат не сохранён в библиотеку.
+          <button type="button" onClick={retrySave} disabled={saveBusy} className={INLINE_ACTION}>
+            Сохранить ещё раз
+          </button>
+        </p>
+      )}
+      {save.cardsFailed && (
+        <p role="status" className="flex flex-wrap items-center gap-x-3">
+          Карточки не добавлены в повторение.
+          <button type="button" onClick={() => void retryCardSync()} disabled={saveBusy} className={INLINE_ACTION}>
+            Повторить
+          </button>
+        </p>
+      )}
+    </>
+  );
+  const hasNotices = (state.isDemo && save.status === 'saved') || save.status === 'existing' || save.status === 'failed' || Boolean(save.cardsFailed);
+  // Результаты на экране принадлежат этому запуску: «Создать … заново» вернёт раздел только ему.
+  const shownRunId = lastSaveRef.current?.runId;
 
   return (
     <div className={`mx-auto p-4 md:p-6 ${state.phase === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}>
       <AnimatePresence mode="wait">
         {state.phase === 'upload' && (
-          <motion.div key="upload" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-            <UploadZone settings={state.settings} onSettingsChange={s => setState(p => ({ ...p, settings: s }))} onUpload={handleUpload} onDemo={handleDemo} />
+          <motion.div key="upload" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+            <UploadZone
+              settings={state.settings}
+              onSettingsChange={settings => setState(prev => ({ ...prev, settings }))}
+              onUpload={handleUpload}
+              onDemo={handleDemo}
+              onRestoreText={replacedText !== null ? restoreText : undefined}
+              tab={uploadTab}
+              onTabChange={setUploadTab}
+              text={pastedText}
+              onTextChange={setPastedText}
+              url={sourceUrl}
+              onUrlChange={setSourceUrl}
+              costNote={demoReady ? undefined : quota.costNote}
+              startDisabledReason={demoReady ? undefined : quota.startDisabledReason}
+              busy={starting}
+            />
           </motion.div>
         )}
         {(state.phase === 'extracting' || state.phase === 'analyzing') && (
-          <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <AgentCards agents={state.agents} phase={state.phase} isDemo={isDemo} />
+          <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <AgentCards agents={state.agents} phase={state.phase} isDemo={state.isDemo} onCancel={handleCancel} statusNote={statusNote} />
           </motion.div>
         )}
         {state.phase === 'done' && state.results && (
-          <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <ResultsPanel 
-              results={state.results} 
-              onReset={reset} 
-              textLength={state.textLength} 
-              analysisDuration={state.analysisDuration} 
-              sourceFileName={state.sourceFileName} 
-              materialId={state.savedMaterialId} 
+          <motion.div key="results" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <ResultsPanel
+              results={state.results}
+              onReset={startOver}
+              textLength={state.textLength}
+              analysisDuration={state.analysisDuration}
+              sourceFileName={state.sourceFileName}
+              materialId={state.savedMaterialId}
+              originalText={lastSaveRef.current?.context.extractedText}
+              canEdit
+              preview={save.status === 'existing'}
+              partial={state.partial}
+              onResultsChange={next => handleResultsChange(shownRunId, next)}
+              analysisSettings={state.isDemo ? DEMO_SETTINGS : lastRequest?.settings}
+              notices={hasNotices ? notices : undefined}
             />
-            <div className="mt-2 border-t border-slate-200 pt-5 text-left dark:border-slate-800">
+            <div className="mt-2 border-t border-[var(--sf-line)] pt-5 text-left">
               <button
+                type="button"
                 onClick={() => navigate('/library')}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-lg px-3 text-sm font-medium text-[var(--sf-muted)] transition hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"
               >
-                <BookOpen className="w-4 h-4" /> Открыть библиотеку
+                <BookOpen aria-hidden="true" className="h-4 w-4" /> Открыть библиотеку
               </button>
             </div>
           </motion.div>
         )}
-        {state.phase === 'error' && (
-          <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-            {state.error?.includes('429') || state.error?.includes('API_LIMIT_REACHED') ? (
-              <>
-                <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle className="w-8 h-8 text-amber-500" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Сервис временно занят</h2>
-                <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm max-w-sm mx-auto leading-relaxed">
-                  Сейчас одновременно обрабатывается слишком много материалов. Подождите несколько минут и повторите попытку.
-                </p>
-                <button onClick={reset} className="px-6 py-2.5 bg-amber-500 text-white font-bold rounded-xl text-sm hover:bg-amber-600 transition shadow-lg shadow-amber-500/20">
-                  Попробовать снова
+        {state.phase === 'error' && state.error && (
+          <motion.section
+            key="error"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            aria-labelledby="analysis-error-heading"
+            className="mx-auto max-w-xl py-16 text-[var(--sf-ink)]"
+          >
+            <h2 id="analysis-error-heading" className="text-2xl font-semibold leading-tight">
+              Анализ не завершён
+            </h2>
+            <p role="alert" className="mt-3 text-base leading-relaxed text-[var(--sf-muted)]">
+              {state.error.message}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {state.error.kind === 'auth' ? (
+                <Link to="/login" className={PRIMARY_BUTTON}>
+                  Войти
+                </Link>
+              ) : state.error.retryable ? (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={starting}
+                  aria-busy={starting || undefined}
+                  className={`${PRIMARY_BUTTON} disabled:cursor-wait disabled:opacity-70`}
+                >
+                  Повторить
                 </button>
-              </>
-            ) : (
-              <>
-                <AlertTriangle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Ошибка</h2>
-                <p className="text-slate-500 dark:text-slate-400 mb-4 text-sm">{state.error}</p>
-                <button onClick={reset} className="rounded-lg bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300">Попробовать снова</button>
-              </>
-            )}
-          </motion.div>
+              ) : null}
+              <button type="button" onClick={backToUpload} className={TEXT_BUTTON}>
+                {chooseAnotherLabel}
+              </button>
+            </div>
+          </motion.section>
         )}
       </AnimatePresence>
-
-      {/* Toasts */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-        <AnimatePresence>
-          {toasts.map(t => (
-            <motion.div key={t.id}
-              initial={{ opacity: 0, x: 40, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 40, scale: 0.95 }}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-lg px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 font-medium">
-              {t.text}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
     </div>
   );
 }

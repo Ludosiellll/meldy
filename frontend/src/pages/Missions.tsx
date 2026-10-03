@@ -233,7 +233,8 @@ export default function Missions() {
       // Запись сессии в Supabase для начисления XP и активности
       if (user) {
         await updateQuestProgress(user.id, 'quiz', 1);
-        await recordStudyActivity(user.id, 3, 0);
+        // The day counts for the streak; missions are not review cards, so no cards are added.
+        await recordStudyActivity(user.id, 0, 0);
         // Проверяем достижения
         const newAchs = await checkAndAwardAchievements(user.id);
         if (newAchs.length > 0) {
