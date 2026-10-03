@@ -1,0 +1,80 @@
+name: Deploy to Hugging Face Space
+
+# One reviewed release = one commit that changes deploy/hf-release.md on the working branch.
+# The Space receives a new commit on top of its live main (fast-forward, no force push):
+# the tree of the released GitHub commit without QA screenshots. The live main is tagged first.
+on:
+  push:
+    branches: [claude/relaxed-hypatia-1tpmq5]
+    paths: [deploy/hf-release.md]
+
+concurrency:
+  group: hf-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SPACE: ludosiel/StudyForge
+  SPACE_HOST: ludosiel-studyforge.hf.space
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the token secret
+        run: test -n "$HF_TOKEN" || { echo "::error::Repository secret HF_TOKEN is not set"; exit 1; }
+
+      - name: Build the release commit on top of the live Space
+        run: |
+          set -euo pipefail
+          git config user.name "Meldy release"
+          git config user.email "release@users.noreply.github.com"
+          git remote add hf "https://user:${HF_TOKEN}@huggingface.co/spaces/${SPACE}"
+          git fetch --no-tags hf main
+          LIVE=$(git rev-parse FETCH_HEAD)
+          git rm -r -q --cached --ignore-unmatch qa-screens
+          TREE=$(git write-tree)
+          REL=$(git commit-tree "$TREE" -p "$LIVE" -m "Release ${GITHUB_SHA::7} from ${GITHUB_REPOSITORY}@${GITHUB_REF_NAME}")
+          echo "LIVE=$LIVE" >> "$GITHUB_ENV"
+          echo "REL=$REL" >> "$GITHUB_ENV"
+          echo "Live Space main: $LIVE"
+          echo "Release commit:  $REL (tree of ${GITHUB_SHA})"
+
+      - name: Tag the live version and push the release
+        run: |
+          set -euo pipefail
+          TAG="hf-backup-$(date -u +%Y-%m-%d-%H%M)-pre-push"
+          git tag -a "$TAG" "$LIVE" -m "Live Space main before release of ${GITHUB_SHA::7}"
+          git push hf "refs/tags/$TAG"
+          git push hf "$REL:refs/heads/main"
+          echo "Backup tag: $TAG -> $LIVE"
+
+      - name: Wait until the Space runs the release
+        run: |
+          set -uo pipefail
+          STAGE=""; SHA=""
+          for i in $(seq 1 100); do
+            J=$(curl -fsS -H "Authorization: Bearer $HF_TOKEN" "https://huggingface.co/api/spaces/${SPACE}" || echo '{}')
+            STAGE=$(echo "$J" | jq -r '.runtime.stage // empty')
+            SHA=$(echo "$J" | jq -r '.runtime.sha // .sha // empty')
+            echo "[$i] stage=$STAGE sha=$SHA"
+            if [ "$SHA" = "$REL" ] && [ "$STAGE" = "RUNNING" ]; then exit 0; fi
+            case "$STAGE" in BUILD_ERROR|RUNTIME_ERROR|CONFIG_ERROR) echo "::error::Space stage $STAGE"; exit 1;; esac
+            sleep 20
+          done
+          echo "::error::Space did not reach RUNNING on $REL (last stage=$STAGE sha=$SHA)"; exit 1
+
+      - name: Smoke check
+        run: |
+          set -euo pipefail
+          curl -fsS -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/"
+          curl -fsS "https://${SPACE_HOST}/api/health" | jq .
