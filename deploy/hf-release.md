@@ -30,6 +30,9 @@ Verified before release: tsc -b, Vitest 1502/1502, production build; screenshots
 release 9, no overflow, no console errors, contrast ≥ 4.5:1); reduced-motion still frames; both loops exported
 frame by frame to MP4 and the scene seams checked.
 
+Retry: the first run stopped at fetching the Space (the HF git server broke the fetch negotiation in both protocol
+versions; reproduced outside GitHub). The workflow now fetches with `fetch.negotiationAlgorithm=noop`.
+
 ## 2026-10-04 — sign-in and sign-up fit the screen and stay alive (from e538623)
 
 Adds to 0c13253 (tree of 972453b). The owner, on /login and /register at ~1534×732: «не все помещается, да и
