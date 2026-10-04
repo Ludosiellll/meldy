@@ -4,6 +4,27 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — Ticket: always a way to answer, by voice or text (from 91ba451)
+
+Adds to 6a1339a (tree of e558107). The owner, with a screenshot of a ticket that said «Эталона нет — В лекциях этого
+экзамена нет текста» and nothing else: «и что тут делать? ничего не появилось чтобы отвечать … а вдруг я захочу
+отвечать вручную, а не голосом? продумай все».
+
+- Voice and text are two equal choices on every ticket; the one used last time comes first.
+- Without a reference (the question is not in the lectures, the exam has no lectures or no lecture text, the
+  reference did not come together or did not come back) or with the day's checks spent, the student still answers —
+  by voice or text — and is told first that there is nothing to check against. After «Готово»: «Ответ не
+  проверялся», the reason, the answer itself and «Как вы ответили? знаю · плаваю · не знаю» (saved to the journal
+  like the sheet's self-rating). No model, no grade, no charge. With the checks spent the reference's points open for
+  comparison; for a question the lectures do not cover, their nearest fragments come back after the answer.
+- «Добавить лекции» / «Выбрать лекции» right there lead to the exam's lectures.
+- Backend: an exam without lectures says so («К экзамену не выбраны лекции», `no_lectures`), apart from lectures
+  without text (`no_text`).
+
+No migration. Verified before release: tsc -b, Vitest 1518/1518, pytest 703, production build; the ticket in
+Chromium on mocked Supabase/API at 1440×900 and 390×844 in both themes — with a reference (the choice), without
+lecture text (answer by text → «Ответ не проверялся» → «плаваю» saved), no horizontal overflow.
+
 ## 2026-10-04 — «Новый экзамен»: nothing pinned to the window (from 7ad65fe)
 
 Adds to 091bd4e (tree of 4efc0fc). The owner, with a screenshot of the pinned foot over the lecture checklist:
