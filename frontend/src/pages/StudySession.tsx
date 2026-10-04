@@ -447,7 +447,7 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
       <div className="sf-page ss">
         <div className="ss-wrap ss-state">
           <section className="ss-card ss-empty">
-            <h2 className="ss-h2">Библиотека пуста</h2>
+            <h2 className="ss-h2">Лекций пока нет</h2>
             <p className="ss-text">Загрузи свой первый конспект или лекцию, и Meldy составит план учебной сессии.</p>
             <button type="button" onClick={() => navigate('/analyze')} className="sf-primary ss-gap">
               Загрузить первый материал

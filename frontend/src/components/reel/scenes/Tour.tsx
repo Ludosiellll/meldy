@@ -3,7 +3,7 @@ import { blur, flag, opacity, put, useEls, useFrame } from '../engine';
 import { Kinetic, Pill, Status } from '../parts';
 import { ease, mix, seg } from '../timeline';
 
-const LINKS = ['Сегодня', 'Экзамены', 'Библиотека', 'Повторение', 'Прогресс'];
+const LINKS = ['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс'];
 
 /** Which link is lit when: the tour goes Сегодня → Повторение → Экзамены. */
 const STOPS = [

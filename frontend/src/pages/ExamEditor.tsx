@@ -595,7 +595,7 @@ export default function ExamEditor() {
             {/* A phone has nothing to drag a file from: there the formats go into this line instead. */}
             <p className="nx-start-sub">
               {frame.size === 's'
-                ? 'Скопируйте его из файла кафедры как есть — или выберите сам файл: DOCX, PDF, TXT или MD.'
+                ? 'Скопируйте его из файла кафедры как есть — или выберите сам файл: DOCX, PDF (сканы тоже), TXT или MD.'
                 : 'Скопируйте его из файла кафедры как есть — или перетащите сюда сам файл.'}
             </p>
             <div className="nx-field">
@@ -623,7 +623,7 @@ export default function ExamEditor() {
               <button type="button" className="ex-secondary" disabled={parsing || lockedByMapping} onClick={() => fileRef.current?.click()}>
                 Выбрать файл
               </button>
-              {frame.size !== 's' && <span className="nx-start-fmt">DOCX, PDF, TXT или MD</span>}
+              {frame.size !== 's' && <span className="nx-start-fmt">DOCX, PDF, TXT или MD · сканы тоже</span>}
               <input
                 ref={fileRef}
                 type="file"

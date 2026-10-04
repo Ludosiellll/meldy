@@ -1419,7 +1419,7 @@ function Lectures({
               +
             </span>
             <span className="td-add-t">Добавить лекцию</span>
-            <span className="td-add-f">PDF, DOCX, TXT, MD или аудио</span>
+            <span className="td-add-f">PDF, DOCX, PPTX, TXT, MD или аудио</span>
           </Link>
         </div>
       ) : (

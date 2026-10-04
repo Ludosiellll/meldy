@@ -8,7 +8,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { useTheme } from '../contexts/ThemeProvider';
 import { AI_USAGE_EVENT, checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
 import { countDueCards } from '../api/flashcards';
-import { openProWindow } from '../lib/plans';
+import { openProWindow, PRO_DAILY_UNITS } from '../lib/plans';
 import TokenInfoModal from './TokenInfoModal';
 import RouteLoading from './RouteLoading';
 import { useInstallPWA } from '../hooks/useInstallPWA';
@@ -246,12 +246,12 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const menuId = useId();
   const remainingUnits = quotaRemaining(usedTokens);
   const quotaLabel = profile?.is_pro
-    ? 'Дневной лимит к аккаунту PRO не применяется'
+    ? `Дневной лимит PRO: до ${PRO_DAILY_UNITS} единиц ИИ в день`
     : remainingUnits === null
       ? 'Дневной лимит: остаток не удалось загрузить. Нажмите, чтобы проверить ещё раз'
       : `Дневной лимит: осталось ${remainingUnits} из ${FREE_DAILY_LIMIT}`;
   const quotaState = profile?.is_pro
-    ? 'без лимита'
+    ? `PRO · до ${PRO_DAILY_UNITS}`
     : remainingUnits === null
       ? 'проверить'
       : `осталось ${remainingUnits} из ${FREE_DAILY_LIMIT}`;

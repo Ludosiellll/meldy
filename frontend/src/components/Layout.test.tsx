@@ -377,7 +377,7 @@ describe('daily limit line', () => {
     await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
     await act(async () => undefined);
     openMenu();
-    expect(screen.getByTestId('quota-meter')).toHaveTextContent('без лимита');
+    expect(screen.getByTestId('quota-meter')).toHaveTextContent('PRO · до 1000');
     expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
   });
 

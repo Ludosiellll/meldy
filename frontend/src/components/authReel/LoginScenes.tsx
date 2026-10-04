@@ -62,7 +62,7 @@ function Source() {
           <span className="fm-bar-nav">
             <span>Сегодня</span>
             <span>Экзамены</span>
-            <span>Библиотека</span>
+            <span>Лекции</span>
             <span>Повторение</span>
           </span>
           <span className="fm-bar-cta">Добавить лекцию</span>
@@ -119,7 +119,7 @@ function Summary() {
     <div ref={root} className="mr-scene">
       <div data-a="page" className="fm-win ln-page" style={{ opacity: 0 }}>
         <div className="ln-page-in">
-          <p className="ln-crumb fm-muted">Библиотека</p>
+          <p className="ln-crumb fm-muted">Лекции</p>
           <p className="fm-h1 ln-page-h">Эластичность спроса</p>
           <div className="ln-tabs">
             <span className="is-on">Конспект</span>

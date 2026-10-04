@@ -654,11 +654,11 @@ export default function Library() {
   const listProps = { folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions };
 
   // ── The heading: the exam when every lecture belongs to it, else «Библиотека» ──
-  let heading = 'Библиотека';
+  let heading = 'Лекции';
   let lede = '';
   let sheetLink: string | null = null;
   if (whole.mode === 'single') {
-    heading = subjectOf(whole.exam.title) || 'Библиотека';
+    heading = subjectOf(whole.exam.title) || 'Лекции';
     lede = [examWhen(whole.exam, true), lecturesLine(whole.entries), cardsLine(whole.entries)].filter(Boolean).join(' · ');
     sheetLink = `/exams/${whole.exam.id}`;
   } else if (list.length > 0) {

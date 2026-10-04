@@ -29,8 +29,8 @@ export function examCoverageLine(item: ExamListItem, confirmed: number | null, m
   if (total === 0) return 'вопросов пока нет';
   const mapped = total - item.coverage.unmapped;
   let line: string;
-  if (mappingNow || item.mapping_state === 'running') line = `${questions} · идёт разметка`;
-  else if (mapped === 0) line = `${questions}, разметки ещё нет`;
+  if (mappingNow || item.mapping_state === 'running') line = `${questions} · идёт сверка с лекциями`;
+  else if (mapped === 0) line = `${questions}, со своими лекциями ещё не сверены`;
   else line = `${item.coverage.full} из ${total} ${pluralRu(total, ['вопроса', 'вопросов', 'вопросов'])} есть в лекциях`;
   if (confirmed !== null && confirmed > 0) line += ` · подтверждено ${confirmed}`;
   return line;

@@ -251,7 +251,7 @@ function HowSection() {
             <div className="hm-win">
               <div className="hm-win-h">
                 <span>Цифровая экономика · 40 вопросов</span>
-                <span>разметка по лекциям</span>
+                <span>сверка с лекциями</span>
               </div>
               {[
                 [1, 'Что такое нейронная сеть и из каких слоёв она состоит?', 'ok', 'есть в лекциях'],
@@ -273,7 +273,7 @@ function HowSection() {
           <div className="hm-card-body">
             <span className="hm-flag hm-flag--g">Билеты</span>
             <h3 className="hm-h3">Где в лекциях ответ на каждый вопрос</h3>
-            <p className="hm-p">{ty('Meldy размечает список кафедры по вашим лекциям: что в них есть, чего нет и какую долю билетов они закрывают.')}</p>
+            <p className="hm-p">{ty('Meldy сверяет список кафедры с вашими лекциями: что в них есть, чего нет и какую долю билетов они закрывают.')}</p>
             <More chapter="tickets" />
           </div>
         </article>
@@ -407,7 +407,7 @@ function FinalCall() {
           Начните со списка вопросов
         </h2>
         <p className="hm-lead">
-          {ty('Список вопросов кафедры — текстом или файлом. Лекции — PDF, DOCX, TXT, MD или аудио. Списка пока нет — начните с лекции: карточки и тест Meldy сделает и по ней.')}
+          {ty('Список вопросов кафедры — текстом или файлом. Лекции — PDF, DOCX, PPTX, TXT, MD или аудио, сканы тоже. Списка пока нет — начните с лекции: карточки и тест Meldy сделает и по ней.')}
         </p>
         <div className="hm-acts">
           <Pill tone="white" onClick={() => navigate('/register')}>

@@ -101,7 +101,7 @@ describe('Exams', () => {
     expect(draws[0]).toHaveAccessibleName('Тянуть билет: Микроэкономика');
     await waitFor(() => expect(plain(links[0].textContent)).toContain('24 из 40 вопросов есть в лекциях · подтверждено 6'));
     expect(plain(links[0].textContent)).toMatch(/экзамен · \d+ [а-я]+, через 12 дней/);
-    expect(plain(links[1].textContent)).toContain('зачёт, дата не указана · 25 вопросов, разметки ещё нет');
+    expect(plain(links[1].textContent)).toContain('зачёт, дата не указана · 25 вопросов, со своими лекциями ещё не сверены');
     expect(plain(links[2].textContent)).toMatch(/коллоквиум · прошёл \d+ [а-я]+ · 8 из 12 вопросов есть в лекциях/);
     expect(mocks.fetchQuestionEvents).toHaveBeenCalledWith(expect.arrayContaining([hash(1)]), ['exam_answer']);
     expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/new');
@@ -157,7 +157,7 @@ describe('Exams', () => {
     const list = await screen.findByRole('list', { name: 'Ваши экзамены' });
     await waitFor(() => expect(list.querySelector('.ex-bar[data-running]')).not.toBeNull());
     expect(within(list).queryByRole('link', { name: /^Тянуть билет/ })).toBeNull();
-    expect(plain(within(list).getAllByRole('link')[0].textContent)).toContain('идёт разметка');
+    expect(plain(within(list).getAllByRole('link')[0].textContent)).toContain('идёт сверка с лекциями');
   });
 
   it('starts empty with the department’s list as the one action', async () => {
@@ -194,7 +194,7 @@ describe('row texts', () => {
     expect(examCoverageLine(item({ total: 21, coverage: { full: 3, partial: 0, none: 18, unverified: 0, unmapped: 0 } }), 0, false)).toBe(
       '3 из 21 вопроса есть в лекциях',
     );
-    expect(examCoverageLine(item(), null, true)).toBe('40 вопросов · идёт разметка');
+    expect(examCoverageLine(item(), null, true)).toBe('40 вопросов · идёт сверка с лекциями');
     expect(examCoverageLine(item({ total: 0 }), null, false)).toBe('вопросов пока нет');
   });
 });

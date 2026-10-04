@@ -363,7 +363,7 @@ export default function MaterialDetail() {
               <span className="md-dot" aria-hidden="true">
                 <ArrowLeft strokeWidth={2} />
               </span>
-              Библиотека
+              Лекции
             </Link>
           </p>
         </div>
@@ -434,7 +434,7 @@ export default function MaterialDetail() {
         <div className="sf-detail-main">
           <Link to="/library" className="sf-crumb md-crumb">
             <ArrowLeft aria-hidden="true" strokeWidth={2} />
-            Библиотека
+            Лекции
           </Link>
           {editingTitle ? (
             <form

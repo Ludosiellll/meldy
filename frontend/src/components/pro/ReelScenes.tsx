@@ -59,7 +59,7 @@ function Win({ start, children }: { start: number; children: ReactNode }) {
         <span className="fm-bar-nav pr-nav">
           <span>Сегодня</span>
           <span className="is-on">Экзамены</span>
-          <span>Библиотека</span>
+          <span>Лекции</span>
         </span>
         <span className="pr-meter">
           <span className="pr-meter-l">Лимит ИИ</span>

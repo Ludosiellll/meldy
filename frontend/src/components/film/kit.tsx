@@ -47,10 +47,20 @@ export function slideIn(el: Element | null | undefined, l: number, at: number, {
   blur(el, p > 0 && p < 1 ? smear * speed * speed : 0);
 }
 
-/** Leaves towards an offset, accelerating, with motion blur. */
+/**
+ * Leaves towards an offset, accelerating, with motion blur. It owns the element's transform, opacity
+ * and filter: before the exit it writes the resting state, so a looping reel shows the element again
+ * on its next pass (it stayed hidden from the second loop on). Don't combine it with slideIn on the
+ * same element.
+ */
 export function slideOut(el: Element | null | undefined, l: number, at: number, { dx = 0, dy = 0, dur = 520, smear = 18, scale = 1 }: Slide = {}) {
   const p = seg(l, at, dur);
-  if (p <= 0) return;
+  if (p <= 0) {
+    put(el, 'transform', 'none');
+    opacity(el, 1);
+    blur(el, 0);
+    return;
+  }
   const e = ease.in(p);
   put(el, 'transform', `translate3d(${(dx * e).toFixed(1)}px,${(dy * e).toFixed(1)}px,0) scale(${mix(1, scale, e).toFixed(4)})`);
   opacity(el, 1 - clamp((p - 0.55) / 0.45));
