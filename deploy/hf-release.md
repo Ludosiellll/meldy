@@ -4,6 +4,35 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Прогресс» reworked (from 1d4fff5)
+
+Adds to 6cd8316 (tree of 4ea342b). The owner: «может стоит переработать этот раздел "Прогресс" … читать тяжело и не
+сильно понятно, да и не функционально» and «я разрешаю полностью переработать эту страницу». The page now answers three
+questions, and every block has one action:
+
+- Three tiles at the top:
+  - «Карточки»: закреплены / учатся / новые;
+  - «Вспомнили»: the share of «Помню» and «С трудом» answers from the journal, shown from 10 answers;
+  - «Повторения на неделю»: by the cards' schedule, with «Повторить».
+- «Что подтянуть», each line with one button:
+  - lectures recalled under 70 %;
+  - open mistakes;
+  - cards that never reached review («Добавить»);
+  - exam questions found in no lecture;
+  - untaken tests, as one line.
+- Exams as before. Each lecture is a row: test and mistakes, card states, its recall, and one next step («Повторить N»,
+  «В повторение», «Пройти тест», or the date of the next review). Text-only lectures are folded away.
+- New links: `/review?material=<id>` and `/library/<id>?section=quiz` (the material opens on its test tab).
+- The answer journal starts on 2026-10-03, so until 30 days fit after it the share says «с 3 октября», and
+  «Как считается» explains it.
+
+No migration and no backend change; the page reads the same tables as before.
+
+Verified before release: tsc -b and Vitest 1492/1492, production build, Playwright screenshots of «Прогресс» on
+three data sets (like the owner's account, a rich one, an empty one) at 1440/390 in both themes — no overflow, no
+console errors, text contrast ≥ 4.5:1 — and the «Пройти тест» and «Повторить N» links in the browser. Not verified:
+the owner's live data on this page.
+
 ## 2026-10-04 — the whole site in the new language (from bc3e70b)
 
 Adds to 0a11c46 (tree of 31e3694). The owner approved the new visual language («адаптируй полностью весь сайт
