@@ -137,6 +137,12 @@
 :is(button, a, [role="button"])[class~="bg-cyan-400"],
 :is(button, a, [role="button"])[class~="bg-cyan-300"] { color: #fff !important; }
 
+/* The fill blue reads only 3.2–3.8:1 as text on the dark surfaces; text and links that borrow it take
+   the light accent there (light theme: #2869dd on white or the canvas stays above 4.5:1). */
+.dark [class~="text-[var(--sf-accent)]"],
+.dark [class~="hover:text-[var(--sf-accent)]"]:hover,
+.dark .group:hover [class~="group-hover:text-[var(--sf-accent)]"] { color: var(--sf-accent-fg); }
+
 /* Reuse the paper palette for the common neutral utility colors. */
 .bg-slate-50 { background-color: var(--sf-canvas) !important; }
 .bg-slate-100 { background-color: var(--sf-surface-soft) !important; }
@@ -310,23 +316,23 @@ h1, h2, h3 { text-wrap: balance; }
 .auth-showcase > .absolute { display: none; }
 .auth-showcase [class~="text-white"] { color: var(--sf-ink) !important; }
 .auth-showcase [class~="text-slate-300"], .auth-showcase [class~="text-slate-400"] { color: var(--sf-muted) !important; }
-.auth-showcase [class~="text-cyan-300"] { color: var(--sf-accent) !important; }
+.auth-showcase [class~="text-cyan-300"] { color: var(--sf-accent-fg) !important; }
 .auth-showcase [class~="border-white/10"], .auth-showcase [class~="border-white/20"] { border-color: var(--sf-line) !important; }
 .auth-showcase [class~="bg-white/5"], .auth-showcase [class~="bg-white/20"] { background: var(--sf-surface); }
 .auth-showcase [class~="bg-cyan-300/10"] { background: var(--sf-accent-soft); border-color: var(--sf-line); }
 .auth-showcase-list { border-color: var(--sf-line); --tw-divide-opacity: 1; --tw-divide-color: var(--sf-line); }
 .auth-showcase-note { background: var(--sf-surface); border-color: var(--sf-line); }
-.auth-showcase-eyebrow, .auth-showcase-number { color: var(--sf-accent); }
+.auth-showcase-eyebrow, .auth-showcase-number { color: var(--sf-accent-fg); }
 .auth-showcase-title { color: var(--sf-ink); }
-.app-logo-mark { background: var(--sf-accent-soft); color: var(--sf-accent); }
+.app-logo-mark { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
 .app-sidebar { background: var(--sf-surface); border-color: var(--sf-line); color: var(--sf-ink); }
 .app-sidebar > div:first-child { border-color: var(--sf-line); }
-.app-sidebar .app-logo-mark { background: var(--sf-accent-soft); color: var(--sf-accent); }
+.app-sidebar .app-logo-mark { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
 .app-sidebar [class~="text-white"], .app-sidebar [class~="text-slate-200"], .app-sidebar [class~="text-slate-300"] { color: var(--sf-ink) !important; }
 .app-sidebar [class~="text-slate-400"], .app-sidebar [class~="text-slate-500"] { color: var(--sf-muted) !important; }
 .app-sidebar [class~="border-slate-800"] { border-color: var(--sf-line); }
 .app-nav-group-title { color: var(--sf-muted); }
-.app-nav-active { color: var(--sf-accent) !important; background: var(--sf-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-accent) 14%, transparent); }
+.app-nav-active { color: var(--sf-accent-fg) !important; background: var(--sf-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-accent) 14%, transparent); }
 .app-nav-idle { color: var(--sf-muted); }
 .app-nav-idle:hover { color: var(--sf-ink); background: var(--sf-surface-soft); }
 .app-mobile-header, .app-mobile-nav { color: var(--sf-ink); background: color-mix(in srgb, var(--sf-surface) 94%, transparent); border-color: var(--sf-line); }
