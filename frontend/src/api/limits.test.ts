@@ -1,317 +1,224 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Result = { data?: unknown; error: unknown };
-type UsageRow = { id: string; user_id: string; date: string; requests_count: number | null };
-type Filter = ['eq' | 'is', string, unknown];
-type UpdateCall = { values: Record<string, unknown>; filters: Filter[]; matched: number };
 
 /**
- * Таблица ai_usage в памяти, как её видит supabase-js: чтение снимает значения в момент
- * вызова, UPDATE применяется по фильтрам и возвращает изменённые строки через .select().
- * Так два параллельных списания действительно читают один и тот же счётчик.
+ * supabase-js в памяти: RPC ai_quota_status (сервер) и запасной путь через таблицы profiles и
+ * ai_usage. Любая запись в ai_usage — ошибка теста: с 2026-10-04 браузер её не пишет.
  */
 const db = vi.hoisted(() => ({
+  rpc: { data: null, error: null } as Result,
+  rpcThrows: false,
+  rpcCalls: [] as Array<[string, unknown]>,
   profile: { data: null, error: null } as Result,
-  rows: [] as UsageRow[],
-  readOverrides: [] as Result[],
-  updateErrors: [] as unknown[],
-  insertErrors: [] as unknown[],
-  denyUpdates: false,
-  updates: [] as UpdateCall[],
-  inserts: [] as unknown[],
+  usage: { data: null, error: null } as Result,
   usageFilters: [] as Array<Array<[string, unknown]>>,
-  profileFilters: [] as Array<Array<[string, unknown]>>,
-  throwOnFrom: false,
-  nextId: 1,
+  writes: [] as string[],
 }));
 
-vi.mock('../lib/supabase', () => {
-  const field = (row: UsageRow, column: string) => (row as unknown as Record<string, unknown>)[column];
-  const runUpdate = (values: Record<string, unknown>, filters: Filter[]) => {
-    const forced = db.updateErrors.shift();
-    if (forced) {
-      db.updates.push({ values, filters, matched: 0 });
-      return { data: null, error: forced };
-    }
-    const hit = db.denyUpdates ? [] : db.rows.filter(row => filters.every(([, column, value]) => field(row, column) === value));
-    for (const row of hit) Object.assign(row, values);
-    db.updates.push({ values, filters, matched: hit.length });
-    return { data: hit.map(row => ({ id: row.id })), error: null };
-  };
-  return {
-    supabase: {
-      from: (table: string) => {
-        if (db.throwOnFrom) throw new Error('offline');
-        return {
-          select: () => {
-            const filters: Array<[string, unknown]> = [];
-            const chain = {
-              eq(column: string, value: unknown) {
-                filters.push([column, value]);
-                return chain;
-              },
-              maybeSingle: async () => {
-                if (table === 'profiles') {
-                  db.profileFilters.push(filters);
-                  return db.profile;
-                }
-                db.usageFilters.push(filters);
-                const forced = db.readOverrides.shift();
-                if (forced) return forced;
-                const found = db.rows.filter(row => filters.every(([column, value]) => field(row, column) === value));
-                if (found.length > 1) return { data: null, error: { code: 'PGRST116', message: 'multiple rows' } };
-                return { data: found[0] ? { id: found[0].id, requests_count: found[0].requests_count } : null, error: null };
-              },
-            };
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    rpc: async (fn: string, args?: unknown) => {
+      db.rpcCalls.push([fn, args]);
+      if (db.rpcThrows) throw new Error('offline');
+      return db.rpc;
+    },
+    from: (table: string) => ({
+      select: () => {
+        const filters: Array<[string, unknown]> = [];
+        const chain = {
+          eq(column: string, value: unknown) {
+            filters.push([column, value]);
             return chain;
           },
-          update: (values: Record<string, unknown>) => {
-            const filters: Filter[] = [];
-            const builder = {
-              eq(column: string, value: unknown) {
-                filters.push(['eq', column, value]);
-                return builder;
-              },
-              is(column: string, value: unknown) {
-                filters.push(['is', column, value]);
-                return builder;
-              },
-              select: async () => runUpdate(values, filters),
-              // Без .select() supabase-js тоже выполняет запрос, но строк не возвращает.
-              then(resolve: (value: Result) => unknown) {
-                const { error } = runUpdate(values, filters);
-                return Promise.resolve(resolve({ data: null, error }));
-              },
-            };
-            return builder;
-          },
-          insert: async (row: Omit<UsageRow, 'id'>) => {
-            db.inserts.push(row);
-            const forced = db.insertErrors.shift();
-            if (forced) return { error: forced };
-            if (db.rows.some(other => other.user_id === row.user_id && other.date === row.date)) {
-              return { error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
-            }
-            db.rows.push({ id: `row-${db.nextId++}`, ...row });
-            return { error: null };
+          maybeSingle: async () => {
+            if (table === 'profiles') return db.profile;
+            db.usageFilters.push(filters);
+            return db.usage;
           },
         };
+        return chain;
       },
-    },
-  };
-});
+      insert: async () => {
+        db.writes.push(`insert ${table}`);
+        return { error: null };
+      },
+      update: () => {
+        db.writes.push(`update ${table}`);
+        return { eq: () => ({ select: async () => ({ data: [], error: null }) }) };
+      },
+    }),
+  },
+}));
 
 import {
+  AI_LIMIT_EVENT,
+  AI_LIMIT_MESSAGE,
   AI_USAGE_EVENT,
   FREE_DAILY_LIMIT,
+  PRO_DAILY_LIMIT,
+  aiLimitFromBody,
   checkAILimit,
   formatLimitReset,
   incrementAIUsage,
   nextLimitReset,
+  notifyAIUsageChanged,
+  remainingUnits,
+  reportAILimit,
+  resetAILimitReportsForTests,
+  type AILimitInfo,
 } from './limits';
-
-let events = 0;
-const onEvent = () => {
-  events += 1;
-};
+import { FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../lib/plans';
 
 const TODAY = '2026-10-02';
+const RESET = new Date('2026-10-03T00:00:00Z');
 
-function usageRow(requestsCount: number | null, id = 'row-1'): UsageRow {
-  return { id, user_id: 'user-1', date: TODAY, requests_count: requestsCount };
+let usageEvents = 0;
+let limitEvents: AILimitInfo[] = [];
+const onUsage = () => {
+  usageEvents += 1;
+};
+const onLimit = (event: Event) => {
+  limitEvents.push((event as CustomEvent<AILimitInfo>).detail);
+};
+
+function serverStatus(used: number, pro = false) {
+  return { data: { pro, used, limit: pro ? 1000 : 100, day: TODAY, resets_at: `${'2026-10-03'}T00:00:00Z` }, error: null };
 }
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(`${TODAY}T12:00:00Z`));
+  db.rpc = serverStatus(0);
+  db.rpcThrows = false;
+  db.rpcCalls = [];
   db.profile = { data: { is_pro: false }, error: null };
-  db.rows = [];
-  db.readOverrides = [];
-  db.updateErrors = [];
-  db.insertErrors = [];
-  db.denyUpdates = false;
-  db.updates = [];
-  db.inserts = [];
+  db.usage = { data: null, error: null };
   db.usageFilters = [];
-  db.profileFilters = [];
-  db.throwOnFrom = false;
-  db.nextId = 1;
-  events = 0;
-  window.addEventListener(AI_USAGE_EVENT, onEvent);
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  db.writes = [];
+  usageEvents = 0;
+  limitEvents = [];
+  resetAILimitReportsForTests();
+  window.addEventListener(AI_USAGE_EVENT, onUsage);
+  window.addEventListener(AI_LIMIT_EVENT, onLimit);
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
 afterEach(() => {
-  window.removeEventListener(AI_USAGE_EVENT, onEvent);
+  window.removeEventListener(AI_USAGE_EVENT, onUsage);
+  window.removeEventListener(AI_LIMIT_EVENT, onLimit);
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe('constants', () => {
-  it('keeps the daily limit and the event name', () => {
-    expect(FREE_DAILY_LIMIT).toBe(100);
+  it('takes the limits from lib/plans and keeps the event name', () => {
+    expect(FREE_DAILY_LIMIT).toBe(FREE_DAILY_UNITS);
+    expect(PRO_DAILY_LIMIT).toBe(PRO_DAILY_UNITS);
+    expect([FREE_DAILY_LIMIT, PRO_DAILY_LIMIT]).toEqual([100, 1000]);
     expect(AI_USAGE_EVENT).toBe('ai_usage_updated');
   });
 });
 
 describe('checkAILimit', () => {
-  it('reads today’s UTC row and allows when the cost fits', async () => {
-    vi.setSystemTime(new Date('2026-10-02T22:30:00Z'));
-    db.rows = [usageRow(80)];
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: true, isPro: false, count: 80, ok: true });
-    expect(db.profileFilters[0]).toEqual([['id', 'user-1']]);
-    expect(db.usageFilters[0]).toEqual([
-      ['user_id', 'user-1'],
-      ['date', '2026-10-02'],
-    ]);
+  it('reads the server status and allows when the cost fits', async () => {
+    db.rpc = serverStatus(80);
+    await expect(checkAILimit('user-1', 20)).resolves.toEqual({
+      allowed: true, isPro: false, count: 80, ok: true, limit: 100, resetsAt: RESET,
+    });
+    expect(db.rpcCalls).toEqual([['ai_quota_status', undefined]]);
+    expect(db.usageFilters).toEqual([]);
   });
 
   it('refuses when the cost does not fit', async () => {
-    db.rows = [usageRow(90)];
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: false, isPro: false, count: 90, ok: true });
+    db.rpc = serverStatus(90);
+    const status = await checkAILimit('user-1', 20);
+    expect(status.allowed).toBe(false);
+    expect(status.count).toBe(90);
+  });
+
+  it('limits PRO at 1000 units a day instead of letting everything through', async () => {
+    db.rpc = serverStatus(990, true);
+    await expect(checkAILimit('user-1', 10)).resolves.toMatchObject({ allowed: true, isPro: true, count: 990, limit: 1000 });
+    await expect(checkAILimit('user-1', 11)).resolves.toMatchObject({ allowed: false, isPro: true });
+  });
+
+  it('falls back to today’s UTC row when the server function is not there yet', async () => {
+    db.rpc = { data: null, error: { code: 'PGRST202', message: 'function not found' } };
+    db.usage = { data: { requests_count: 70 }, error: null };
+    await expect(checkAILimit('user-1', 20)).resolves.toEqual({
+      allowed: true, isPro: false, count: 70, ok: true, limit: 100, resetsAt: RESET,
+    });
+    expect(db.usageFilters).toEqual([[['user_id', 'user-1'], ['date', TODAY]]]);
+  });
+
+  it('uses the PRO limit from the profile on the fallback path', async () => {
+    db.rpcThrows = true;
+    db.profile = { data: { is_pro: true }, error: null };
+    db.usage = { data: { requests_count: 400 }, error: null };
+    await expect(checkAILimit('user-1', 20)).resolves.toMatchObject({ allowed: true, isPro: true, count: 400, limit: 1000 });
   });
 
   it('treats a missing row as zero used', async () => {
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: true, isPro: false, count: 0, ok: true });
+    db.rpc = { data: null, error: { message: 'no function' } };
+    await expect(checkAILimit('user-1', 20)).resolves.toMatchObject({ allowed: true, count: 0, ok: true });
   });
 
-  it('lets PRO through without reading the counter', async () => {
-    db.profile = { data: { is_pro: true }, error: null };
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: true, isPro: true, count: 0, ok: true });
-    expect(db.usageFilters).toHaveLength(0);
+  it('reports ok: false (and does not block) when nothing can be read', async () => {
+    db.rpc = { data: null, error: { message: 'no function' } };
+    db.profile = { data: null, error: { message: 'down' } };
+    await expect(checkAILimit('user-1', 20)).resolves.toMatchObject({ allowed: true, isPro: false, count: 0, ok: false, limit: 100 });
+    db.profile = { data: { is_pro: false }, error: null };
+    db.usage = { data: null, error: { code: 'PGRST116', message: 'multiple rows' } };
+    await expect(checkAILimit('user-1', 20)).resolves.toMatchObject({ allowed: true, ok: false });
   });
 
-  it('reports ok: false on a profile read error', async () => {
-    db.profile = { data: null, error: { code: '500', message: 'boom' } };
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: true, isPro: false, count: 0, ok: false });
-  });
-
-  it('reports ok: false when the counter cannot be read (e.g. two rows for one day)', async () => {
-    db.rows = [usageRow(10, 'row-1'), usageRow(30, 'row-2')];
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: true, isPro: false, count: 0, ok: false });
-  });
-
-  it('reports ok: false when Supabase throws', async () => {
-    db.throwOnFrom = true;
-    await expect(checkAILimit('user-1', 20)).resolves.toEqual({ allowed: true, isPro: false, count: 0, ok: false });
+  it('ignores a server answer it cannot read and falls back', async () => {
+    db.rpc = { data: { used: 'many' }, error: null };
+    db.usage = { data: { requests_count: 5 }, error: null };
+    await expect(checkAILimit('user-1', 0)).resolves.toMatchObject({ ok: true, count: 5, limit: 100 });
   });
 });
 
-describe('incrementAIUsage', () => {
-  it('adds the cost to today’s row only if the counter is still the one it read, and broadcasts', async () => {
-    db.rows = [usageRow(40)];
+describe('after an AI action', () => {
+  it('notifyAIUsageChanged only broadcasts: the server charged the units', () => {
+    notifyAIUsageChanged();
+    expect(usageEvents).toBe(1);
+    expect(db.writes).toEqual([]);
+  });
+
+  it('the old incrementAIUsage writes nothing any more, it only broadcasts', async () => {
     await incrementAIUsage('user-1', 20);
-    expect(db.rows[0].requests_count).toBe(60);
-    expect(db.updates).toEqual([
-      {
-        values: { requests_count: 60 },
-        filters: [
-          ['eq', 'id', 'row-1'],
-          ['eq', 'requests_count', 40],
-        ],
-        matched: 1,
-      },
-    ]);
-    expect(db.inserts).toHaveLength(0);
-    expect(events).toBe(1);
-  });
-
-  it('matches a row with an empty counter by IS NULL', async () => {
-    db.rows = [usageRow(null)];
-    await incrementAIUsage('user-1', 5);
-    expect(db.rows[0].requests_count).toBe(5);
-    expect(db.updates[0].filters).toEqual([
-      ['eq', 'id', 'row-1'],
-      ['is', 'requests_count', null],
-    ]);
-    expect(events).toBe(1);
-  });
-
-  it('creates today’s row and broadcasts the change', async () => {
-    vi.setSystemTime(new Date('2026-10-02T23:59:00Z'));
-    await incrementAIUsage('user-1', 20);
-    expect(db.inserts).toEqual([{ user_id: 'user-1', date: '2026-10-02', requests_count: 20 }]);
-    expect(db.rows).toEqual([{ id: 'row-1', user_id: 'user-1', date: '2026-10-02', requests_count: 20 }]);
-    expect(events).toBe(1);
-  });
-
-  it('keeps both of two overlapping charges (background mapping 10 + oral answer 1)', async () => {
-    db.rows = [usageRow(40)];
-    await Promise.all([incrementAIUsage('user-1', 10), incrementAIUsage('user-1', 1)]);
-    expect(db.rows[0].requests_count).toBe(51);
-    // Второе списание прочитало 40, его UPDATE не нашёл строку с 40 — перечитали 50 и записали 51.
-    expect(db.updates.map(update => [update.values.requests_count, update.matched])).toEqual([
-      [50, 1],
-      [41, 0],
-      [51, 1],
-    ]);
-    expect(events).toBe(2);
-  });
-
-  it('keeps both charges when they race to create the day’s row', async () => {
-    await Promise.all([incrementAIUsage('user-1', 10), incrementAIUsage('user-1', 1)]);
-    expect(db.rows).toHaveLength(1);
-    expect(db.rows[0].requests_count).toBe(11);
-    expect(db.inserts).toHaveLength(2); // второй INSERT получил 23505 и стал UPDATE
-    expect(events).toBe(2);
-  });
-
-  it('retries as an update when a parallel charge created the row', async () => {
-    db.rows = [usageRow(20, 'row-9')];
-    db.readOverrides = [{ data: null, error: null }]; // строку создали сразу после нашего чтения
-    await incrementAIUsage('user-1', 5);
-    expect(db.inserts).toHaveLength(1);
-    expect(db.rows[0].requests_count).toBe(25);
-    expect(db.updates).toHaveLength(1);
-    expect(events).toBe(1);
-  });
-
-  it('does not report an update that changed no row as written', async () => {
-    db.rows = [usageRow(40)];
-    db.denyUpdates = true; // например, политика RLS не пустила UPDATE: PostgREST вернул 0 строк
-    await expect(incrementAIUsage('user-1', 20)).resolves.toBeUndefined();
-    expect(db.updates).toHaveLength(3); // ограниченное число попыток, без бесконечного цикла
-    expect(db.updates.every(update => update.matched === 0)).toBe(true);
-    expect(db.rows[0].requests_count).toBe(40);
-    expect(events).toBe(0);
-    expect(console.error).toHaveBeenCalled();
-  });
-
-  it('does not broadcast after a failed update or insert, and never throws', async () => {
-    db.rows = [usageRow(40)];
-    db.updateErrors = [{ code: '42501', message: 'denied' }];
-    await expect(incrementAIUsage('user-1', 20)).resolves.toBeUndefined();
-    expect(events).toBe(0);
-    expect(db.rows[0].requests_count).toBe(40);
-
-    db.rows = [];
-    db.insertErrors = [{ code: '42501', message: 'denied' }];
-    await expect(incrementAIUsage('user-1', 20)).resolves.toBeUndefined();
-    expect(events).toBe(0);
-    expect(db.rows).toHaveLength(0);
-  });
-
-  it('does not write or broadcast when the read fails', async () => {
-    db.rows = [usageRow(10, 'row-1'), usageRow(30, 'row-2')];
-    await incrementAIUsage('user-1', 20);
-    expect(db.updates).toHaveLength(0);
-    expect(db.inserts).toHaveLength(0);
-    expect(events).toBe(0);
-  });
-
-  it('writes nothing for a free action', async () => {
-    db.rows = [usageRow(40)];
     await incrementAIUsage('user-1', 0);
-    expect(db.usageFilters).toHaveLength(0);
-    expect(db.updates).toHaveLength(0);
-    expect(db.inserts).toHaveLength(0);
-    expect(events).toBe(0);
+    expect(db.writes).toEqual([]);
+    expect(usageEvents).toBe(1);
+  });
+});
+
+describe('the server refused by the daily limit', () => {
+  it('reads used, limit, units, the reset time and PRO from a 429 ai_limit body', () => {
+    const info = aiLimitFromBody({
+      detail: AI_LIMIT_MESSAGE, code: 'ai_limit', used: 95, limit: 100, units: 20, resets_at: '2026-10-03T00:00:00Z', pro: false,
+    });
+    expect(info).toEqual({ used: 95, limit: 100, units: 20, resetsAt: RESET, pro: false });
+    expect(remainingUnits(info!)).toBe(5);
+    expect(aiLimitFromBody({ detail: 'Сервис занят', code: 'ai_busy' })).toBeNull();
+    expect(aiLimitFromBody('nope')).toBeNull();
+    const bare = aiLimitFromBody({ code: 'ai_limit' })!;
+    expect([bare.used, bare.limit, bare.units, bare.pro]).toEqual([null, null, null, false]);
+    expect(bare.resetsAt).toEqual(nextLimitReset());
+    expect(remainingUnits(bare)).toBe(0);
   });
 
-  it('swallows thrown errors', async () => {
-    db.throwOnFrom = true;
-    await expect(incrementAIUsage('user-1', 20)).resolves.toBeUndefined();
-    expect(events).toBe(0);
+  it('opens one dialog for refusals that come together and refreshes the meter', () => {
+    const info: AILimitInfo = { used: 100, limit: 100, units: 4, resetsAt: RESET, pro: false };
+    reportAILimit(info);
+    reportAILimit(info);
+    expect(limitEvents).toEqual([info]);
+    expect(usageEvents).toBe(1);
+    vi.setSystemTime(new Date(`${TODAY}T12:00:05Z`));
+    reportAILimit(info);
+    expect(limitEvents).toHaveLength(2);
   });
 });
 

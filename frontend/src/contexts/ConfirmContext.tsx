@@ -12,6 +12,13 @@ interface ConfirmOptions {
   icon?: React.ElementType;
   checkboxLabel?: string;
   onCheckboxChange?: (checked: boolean) => void;
+  /**
+   * A notice (alert) with a second, quieter button left of the main one (e.g. «Что даёт PRO»):
+   * it closes the dialog like the main button and then runs onSecondary. Escape and the backdrop
+   * only close.
+   */
+  secondaryText?: string;
+  onSecondary?: () => void;
 }
 
 interface ConfirmContextType {
@@ -90,6 +97,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   };
 
   const handleCancel = () => close(false);
+
+  const handleSecondary = () => {
+    const action = options?.onSecondary;
+    close(false);
+    action?.();
+  };
 
   // Focus moves into the dialog: the safe choice for a question («Отмена»), the only button for a notice.
   useEffect(() => {
@@ -176,6 +189,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 </label>
               )}
               <div className="mt-6 flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
+                {isAlert && options.secondaryText && (
+                  <button
+                    type="button"
+                    onClick={handleSecondary}
+                    className="inline-flex min-h-11 items-center text-base font-medium text-[var(--sf-ink)] underline decoration-1 underline-offset-[5px] [text-decoration-color:color-mix(in_srgb,currentColor_32%,transparent)] hover:[text-decoration-color:currentColor]"
+                  >
+                    {options.secondaryText}
+                  </button>
+                )}
                 {!isAlert && (
                   <button
                     type="button"

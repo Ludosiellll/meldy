@@ -11,7 +11,8 @@ import { supabase } from '../lib/supabase';
 import { CustomSelect } from '../components/CustomSelect';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterials } from '../api/materials';
-import { incrementAIUsage } from '../api/limits';
+import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import toast from 'react-hot-toast';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
@@ -100,8 +101,8 @@ export default function Chat() {
     
     setLoading(true);
 
-    // Проверка лимитов (1 токен за сообщение)
-    const ok = await verifyEnergy(user.id, 1, 'Отправка сообщения');
+    // Проверка дневного лимита (списывает сервер — AI_COSTS.chatMessage за сообщение)
+    const ok = await verifyEnergy(user.id, AI_COSTS.chatMessage, 'Отправка сообщения');
     if (!ok) {
       setLoading(false);
       return;
@@ -111,8 +112,6 @@ export default function Chat() {
     setInput('');
 
     try {
-      await incrementAIUsage(user.id, 1);
-      
       const userMsg = { role: 'user', content: currentInput };
       setMessages(prev => [...prev, userMsg]);
       // 1. Сохраняем сообщение пользователя в БД
@@ -144,7 +143,11 @@ export default function Chat() {
         }),
       });
       
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || typeof data?.reply !== 'string') {
+        throw new Error(data?.code === 'ai_limit' ? AI_LIMIT_MESSAGE : 'Ошибка чата');
+      }
+      notifyAIUsageChanged(); // единицу списал сервер до модели
       const assistantMsg = { role: 'assistant', content: data.reply };
       
       setMessages(prev => [...prev, assistantMsg]);
@@ -159,7 +162,11 @@ export default function Chat() {
 
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Ошибка при обращении к AI. Попробуйте снова.' }]);
+      const limitSpent = err instanceof Error && err.message === AI_LIMIT_MESSAGE;
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: limitSpent ? AI_LIMIT_MESSAGE : 'Ошибка при обращении к AI. Попробуйте снова.',
+      }]);
     } finally {
       setLoading(false);
     }

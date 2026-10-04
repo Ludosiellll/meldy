@@ -469,7 +469,8 @@ def test_a_client_that_leaves_at_once_never_leaves_the_lock_behind(api):
         scope, receive, request = _map_request(exam_id)
         response = await exams_api.map_exam(exam_id=exam_id, request=request)
         assert api.fake.row("exams", exam_id)["mapping_state"] == "running"
-        assert response.background is not None and response.background.func is exams_map.release_unstarted
+        # The background releases a lock the stream never took and waits for a refund in flight.
+        assert response.background is not None and response.background.func is exams_api._after_mapping
 
         async def send(message):
             return None

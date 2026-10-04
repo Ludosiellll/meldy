@@ -12,7 +12,7 @@ import { useSound } from '../hooks/useSound';
 import { getDueCards, updateCardProgress } from '../api/flashcards';
 import { getMaterials, updateMaterialMissions } from '../api/materials';
 import { addXP, recordStudyActivity } from '../api/quests';
-import { incrementAIUsage } from '../api/limits';
+import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
 import { newEventId } from '../api/learning';
 import '../styles/paper.css';
 import './StudySession.css';
@@ -241,9 +241,7 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
         const sliced = data.missions.slice(0, 3);
         setTestQuestions(sliced);
         updateMaterialMissions(mat.id, data.missions);
-        if (user?.id) {
-          await incrementAIUsage(user.id, 2);
-        }
+        notifyAIUsageChanged(); // единицы списал сервер до модели
         return true;
       }
     } catch (e) {
@@ -333,10 +331,6 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
     const context = (activeMaterial.original_text || summary || '').slice(0, 15000);
 
     try {
-      if (user?.id) {
-        await incrementAIUsage(user.id, 1);
-      }
-
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -347,13 +341,18 @@ ${preparedCards.length > 0 ? `Сначала повторим карточки (
         })
       });
 
-      if (!res.ok) throw new Error('Ошибка чата');
-      const data = await res.json();
-      
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.code === 'ai_limit' ? AI_LIMIT_MESSAGE : 'Ошибка чата');
+      notifyAIUsageChanged(); // единицу списал сервер до модели
+
       setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (err) {
       console.error(err);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Ой, что-то пошло не так с сервером ИИ. Давай я подготовлю квест!' }]);
+      const limitSpent = err instanceof Error && err.message === AI_LIMIT_MESSAGE;
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: limitSpent ? AI_LIMIT_MESSAGE : 'Ой, что-то пошло не так с сервером ИИ. Давай я подготовлю квест!',
+      }]);
     } finally {
       setChatLoading(false);
     }

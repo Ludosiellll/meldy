@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AI_LIMIT_MESSAGE,
   AI_UNAVAILABLE_MESSAGE,
   CHECK_CONFIRM_TIMEOUT_MS,
   CHECK_FOLLOWUP_TIMEOUT_MS,
@@ -107,6 +108,16 @@ describe('oral API', () => {
     fetchMock.mockResolvedValueOnce(json(429, { detail: 'Слишком много запросов. Подождите минуту и повторите.' }));
     const error = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((caught) => caught);
     expect(error).toMatchObject({ status: 429, message: RATE_LIMITED_MESSAGE });
+  });
+
+  it('the daily AI limit is not an outage: its own words, no «Повторить» today', async () => {
+    fetchMock.mockResolvedValueOnce(json(429, { detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 }));
+    const error = await evaluateAnswer({ question: 'В?', points: [], transcript: 'ответ' }).catch((caught) => caught);
+    expect(error).toBeInstanceOf(OralApiError);
+    expect(error).toMatchObject({ status: 429, code: 'ai_limit', message: AI_LIMIT_MESSAGE, outage: false, limitReached: true });
+    fetchMock.mockResolvedValueOnce(json(429, { detail: 'Сервис ИИ сейчас занят.', code: 'ai_busy' }));
+    const busy = await fetchRubric({ examId: 'e', questionId: 'q' }).catch((caught) => caught);
+    expect(busy).toMatchObject({ outage: true, limitReached: false });
   });
 
   it('reports a dropped connection as network', async () => {

@@ -4,7 +4,8 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { AlertCircle, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { incrementAIUsage } from '../api/limits';
+import { notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
 import { stripSourceMarkers } from './summary/fragmentModel';
@@ -74,21 +75,15 @@ export default function ExpressPrepView({
       id,
       async begin => {
         if (!context.trim()) throw new ConversationError('Недостаточно текста для шпаргалки.');
-        if (userId && !(await verifyEnergy(userId, 5, 'Создание шпаргалки'))) return;
+        if (userId && !(await verifyEnergy(userId, AI_COSTS.cheatsheet, 'Создание шпаргалки'))) return;
         begin();
         const payload = (await postJson('/api/quick-prep', { context })) as { cheatsheet?: unknown } | null;
         const next = typeof payload?.cheatsheet === 'string' ? payload.cheatsheet.trim() : '';
         if (!next) throw new ConversationError(CHEATSHEET_FAILED);
         // Меняется только cheatsheet: разговор, сохранённый за это время, остаётся.
         await saveCheatsheet(id, next);
-        // Списываем энергию только после успешного сохранения.
-        if (userId) {
-          try {
-            await incrementAIUsage(userId, 5);
-          } catch (error) {
-            console.warn('incrementAIUsage failed', error);
-          }
-        }
+        // Единицы списал сервер до модели (и вернул бы при сбое): обновляем остаток на экране.
+        notifyAIUsageChanged();
         deliver?.({ id, summary_json: { cheatsheet: next } });
       },
       CHEATSHEET_FAILED,

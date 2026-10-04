@@ -15,7 +15,8 @@ import { updateQuestProgress, checkAndAwardAchievements, recordStudyActivity } f
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import AchievementToast from '../components/AchievementToast';
 import type { Achievement } from '../components/AchievementToast';
-import { incrementAIUsage } from '../api/limits';
+import { notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface Mission {
@@ -106,12 +107,11 @@ export default function Missions() {
               const context = (found.original_text || summary || '').slice(0, 15000);
 
               if (user?.id) {
-                const ok = await verifyEnergy(user.id, 2, 'Генерация игры');
+                const ok = await verifyEnergy(user.id, AI_COSTS.missions, 'Генерация игры');
                 if (!ok) {
                   setPhase('select');
                   return;
                 }
-                await incrementAIUsage(user.id, 2);
               }
 
               try {
@@ -125,6 +125,7 @@ export default function Missions() {
                 const gData = await res.json();
                 
                 if (gData.missions && gData.missions.length > 0) {
+                  notifyAIUsageChanged(); // единицы списал сервер до модели
                   setMissions(gData.missions);
                   setPhase('game');
                   updateMaterialMissions(found.id, gData.missions);
@@ -167,12 +168,11 @@ export default function Missions() {
     const context = (selectedMaterial.original_text || summary || '').slice(0, 15000);
 
     if (user?.id) {
-      const ok = await verifyEnergy(user.id, 2, 'Генерация игры');
+      const ok = await verifyEnergy(user.id, AI_COSTS.missions, 'Генерация игры');
       if (!ok) {
         setPhase('select');
         return;
       }
-      await incrementAIUsage(user.id, 2);
     }
 
     try {
@@ -182,10 +182,18 @@ export default function Missions() {
         body: JSON.stringify({ context })
       });
 
-      if (!res.ok) throw new Error('Ошибка генерации игры');
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        if (body?.code === 'ai_limit') {
+          setPhase('select'); // окно дневного лимита уже открыто
+          return;
+        }
+        throw new Error('Ошибка генерации игры');
+      }
       const data = await res.json();
       
       if (data.missions && data.missions.length > 0) {
+        notifyAIUsageChanged(); // единицы списал сервер до модели
         setMissions(data.missions);
         setPhase('game');
         updateMaterialMissions(selectedMaterial.id, data.missions);

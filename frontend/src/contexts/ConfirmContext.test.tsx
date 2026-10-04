@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ConfirmProvider, useConfirm } from './ConfirmContext';
 
@@ -86,5 +86,63 @@ describe('confirm dialog semantics', () => {
       fireEvent.click(ok);
     });
     expect(closed).toBe(true);
+  });
+
+  it('a notice may carry a second, quieter button: it closes and then runs its action', async () => {
+    const host = renderHost();
+    const onSecondary = vi.fn();
+    let closed = false;
+    act(() => {
+      void host.api
+        .alert({
+          title: 'Дневной лимит исчерпан',
+          message: 'Лимит обновится в 3:00.',
+          confirmText: 'Понятно',
+          secondaryText: 'Что даёт PRO',
+          onSecondary,
+        })
+        .then(() => {
+          closed = true;
+        });
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Дневной лимит исчерпан' });
+    const ok = screen.getByRole('button', { name: 'Понятно' });
+    const second = screen.getByRole('button', { name: 'Что даёт PRO' });
+    expect(ok).toHaveFocus(); // the main button keeps the focus
+    // The quieter one stands first (left) and is a link-like button, not a second pill.
+    const buttons: HTMLElement[] = Array.from(dialog.querySelectorAll('button'));
+    expect(buttons.indexOf(second)).toBeLessThan(buttons.indexOf(ok));
+    expect(second.className).toContain('underline');
+    expect(second.className).toContain('min-h-11');
+    // Tab moves between the two and stays inside.
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    await act(async () => {
+      fireEvent.click(second);
+    });
+    expect(closed).toBe(true);
+    expect(onSecondary).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape closes a notice with a second button without running its action', async () => {
+    const host = renderHost();
+    const onSecondary = vi.fn();
+    act(() => {
+      void host.api.alert({ title: 'Дневной лимит исчерпан', message: '…', secondaryText: 'Что даёт PRO', onSecondary });
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Дневной лимит исчерпан' });
+    await act(async () => {
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+    });
+    expect(onSecondary).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('a question (confirm) ignores secondaryText: two buttons as before', async () => {
+    const host = renderHost();
+    act(() => {
+      void host.api.confirm({ title: 'Удалить?', message: '…', confirmText: 'Удалить', secondaryText: 'Ещё' } as never);
+    });
+    await screen.findByRole('dialog', { name: 'Удалить?' });
+    expect(screen.queryByRole('button', { name: 'Ещё' })).toBeNull();
   });
 });

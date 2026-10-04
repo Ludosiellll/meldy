@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -21,10 +21,11 @@ vi.mock('../api/limits', async importOriginal => {
   return { ...actual, checkAILimit: (...args: unknown[]) => h.check(...args) };
 });
 
-import { useEnergyConfirm, unitsWord } from './useEnergyConfirm';
+import { AILimitDialogHost, refusalMessage, useEnergyConfirm, unitsWord } from './useEnergyConfirm';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import TokenInfoModal from '../components/TokenInfoModal';
-import { formatLimitReset, nextLimitReset } from '../api/limits';
+import { formatLimitReset, nextLimitReset, reportAILimit, resetAILimitReportsForTests } from '../api/limits';
+import { OPEN_PRO_EVENT } from '../lib/plans';
 
 type Verify = ReturnType<typeof useEnergyConfirm>['verifyEnergy'];
 
@@ -39,7 +40,13 @@ function renderHookHost(withProvider = false) {
   return holder as { verify: Verify };
 }
 
+let proOpened: unknown[] = [];
+const onOpenPro = (event: Event) => proOpened.push((event as CustomEvent).detail);
+
 beforeEach(() => {
+  proOpened = [];
+  window.addEventListener(OPEN_PRO_EVENT, onOpenPro);
+  resetAILimitReportsForTests();
   h.realConfirm = false;
   h.confirm.mockResolvedValue(true);
   h.alert.mockResolvedValue(undefined);
@@ -48,6 +55,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.removeEventListener(OPEN_PRO_EVENT, onOpenPro);
   cleanup();
   try {
     window.localStorage.clear();
@@ -66,12 +74,22 @@ describe('verifyEnergy', () => {
     expect(h.alert).not.toHaveBeenCalled();
   });
 
-  it('lets PRO through', async () => {
-    h.check.mockResolvedValue({ allowed: true, isPro: true, count: 0, ok: true });
+  it('lets PRO through while its 1000 units a day cover the action', async () => {
+    h.check.mockResolvedValue({ allowed: true, isPro: true, count: 0, ok: true, limit: 1000 });
     const host = renderHookHost();
     await expect(host.verify('user-1', 20)).resolves.toBe(true);
     expect(h.confirm).not.toHaveBeenCalled();
     expect(h.alert).not.toHaveBeenCalled();
+  });
+
+  it('stops PRO at its daily 1000 too, without offering PRO', async () => {
+    h.check.mockResolvedValue({ allowed: false, isPro: true, count: 995, ok: true, limit: 1000 });
+    const host = renderHookHost();
+    await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
+    const options = h.alert.mock.calls[0][0];
+    expect(options.title).toBe('Не хватает дневного лимита');
+    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 5\./);
+    expect(options.secondaryText).toBeUndefined();
   });
 
   it('lets the action through when the balance could not be read', async () => {
@@ -96,7 +114,11 @@ describe('verifyEnergy', () => {
     expect(options.title).toBe('Не хватает дневного лимита');
     expect(options.message).toBe(`Анализ материала расходует 20 единиц, а на сегодня осталось 10. Лимит обновится в ${resetAt}.`);
     expect(options.confirmText).toBe('Понятно');
-    const everything = JSON.stringify({ ...options, icon: undefined });
+    // The second, quieter button opens the «Что даёт PRO» window (no payment on this screen).
+    expect(options.secondaryText).toBe('Что даёт PRO');
+    options.onSecondary();
+    expect(proOpened).toEqual([{ reason: 'limit' }]);
+    const everything = JSON.stringify({ ...options, icon: undefined, secondaryText: undefined });
     expect(everything).not.toMatch(/PRO|⚡|тариф|энерги/i);
   });
 
@@ -136,7 +158,7 @@ describe('verifyEnergy', () => {
     expect(window.localStorage.getItem('studyforge_hide_energy_confirm')).toBe('true');
   });
 
-  it('with the real dialog: one «Понятно» button, no cancel, resolves false', async () => {
+  it('with the real dialog: «Понятно» and «Что даёт PRO», no cancel, resolves false', async () => {
     h.realConfirm = true;
     h.check.mockResolvedValue({ allowed: false, isPro: false, count: 95, ok: true });
     const host = renderHookHost(true);
@@ -149,11 +171,32 @@ describe('verifyEnergy', () => {
     expect(await screen.findByText('Не хватает дневного лимита')).toBeInTheDocument();
     expect(screen.queryByText('Дневной лимит исчерпан')).not.toBeInTheDocument();
     expect(screen.getByText(/Разметка по лекциям расходует 10 единиц, а на сегодня осталось 5\. Лимит обновится в \d{1,2}:\d{2}\./)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Отмена|PRO/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Отмена/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Понятно' })).toHaveFocus();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Понятно' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Что даёт PRO' }));
     });
     expect(result).toBe(false);
+    expect(proOpened).toEqual([{ reason: 'limit' }]);
+    await waitFor(() => expect(screen.queryByText('Не хватает дневного лимита')).not.toBeInTheDocument());
+  });
+
+  it('with the real dialog: Escape only closes, it never opens PRO', async () => {
+    h.realConfirm = true;
+    h.check.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
+    const host = renderHookHost(true);
+    let result: boolean | undefined;
+    await act(async () => {
+      void host.verify('user-1', 4, 'Ответ на билет').then(value => {
+        result = value;
+      });
+    });
+    const dialog = await screen.findByRole('dialog');
+    await act(async () => {
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+    });
+    expect(result).toBe(false);
+    expect(proOpened).toEqual([]);
   });
 });
 
@@ -185,9 +228,9 @@ describe('TokenInfoModal', () => {
     expect(screen.getByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeInTheDocument();
     expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 80 из 100 единиц.');
     expect(screen.getByText(new RegExp(`Лимит обновится в ${formatLimitReset(nextLimitReset())}\\.`))).toBeInTheDocument();
-    // Список трат — примеры, а не полный перечень: единицы уходят и на разметку, и на ответ на билет.
+    // Цены — из lib/plans.ts; списывает сервер, при сбое ИИ единицы возвращаются.
     expect(container.textContent).toContain(
-      'Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, разметка экзамена по лекциям, ответ на билет, разговор, шпаргалка.',
+      'Единицы списываются, когда Meldy обращается к ИИ: анализ материала — 20, сверка списка с лекциями — 10 за каждые 40 новых вопросов, ответ на билет — 4, разговор — 5, шпаргалка — 5. Если ИИ не справился, единицы возвращаются.',
     );
     expect(container.textContent).not.toMatch(/⚡|PRO|тариф|Энергия/);
     expect(container.querySelector('.animate-pulse, [class*="gradient"], [class*="shadow-[0_0"]')).toBeNull();
@@ -202,10 +245,12 @@ describe('TokenInfoModal', () => {
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '0%' });
   });
 
-  it('keeps the honest PRO line', () => {
-    render(<TokenInfoModal isOpen isPro onClose={() => {}} usedTokens={0} />);
-    expect(screen.getByText('У вашего аккаунта PRO: дневной лимит к нему не применяется.')).toBeInTheDocument();
-    expect(screen.queryByText(/Осталось на сегодня/)).not.toBeInTheDocument();
+  it('tells PRO the truth: up to 1000 units a day, counted like everyone else', () => {
+    const { container } = render(<TokenInfoModal isOpen isPro onClose={() => {}} usedTokens={250} />);
+    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 750 из 1000 единиц.');
+    expect(container.textContent).toContain('У аккаунта PRO — до 1000 единиц в день.');
+    expect(container.textContent).not.toMatch(/не применяется/);
+    expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '75%' });
   });
 
   it('closes by the button and by Escape; renders nothing when closed', () => {
@@ -216,5 +261,53 @@ describe('TokenInfoModal', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
     rerender(<TokenInfoModal isOpen={false} onClose={onClose} usedTokens={0} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+// Отказ сервера (429 ai_limit) из любого запроса: то же окно, что у проверки перед действием.
+describe('AILimitDialogHost', () => {
+  function renderHost() {
+    h.realConfirm = true;
+    render(
+      <ConfirmProvider>
+        <AILimitDialogHost />
+      </ConfirmProvider>,
+    );
+  }
+
+  it('opens the limit dialog with the reset time and «Что даёт PRO» when the server refuses', async () => {
+    renderHost();
+    const resetsAt = new Date('2026-10-05T00:00:00Z');
+    await act(async () => {
+      reportAILimit({ used: 100, limit: 100, units: 20, resetsAt, pro: false });
+    });
+    expect(await screen.findByText('Дневной лимит исчерпан')).toBeInTheDocument();
+    expect(screen.getByText(`Единицы ИИ на сегодня закончились. Лимит обновится в ${formatLimitReset(resetsAt)}.`)).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Что даёт PRO' }));
+    });
+    expect(proOpened).toEqual([{ reason: 'limit' }]);
+  });
+
+  it('says what the action needed when some units are left, and offers PRO only without it', async () => {
+    renderHost();
+    await act(async () => {
+      reportAILimit({ used: 990, limit: 1000, units: 20, resetsAt: new Date('2026-10-05T00:00:00Z'), pro: true });
+    });
+    expect(await screen.findByText('Не хватает дневного лимита')).toBeInTheDocument();
+    expect(screen.getByText(/^Действие расходует 20 единиц, а на сегодня осталось 10\. Лимит обновится в \d{1,2}:\d{2}\.$/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Понятно' }));
+    });
+    expect(proOpened).toEqual([]);
+  });
+
+  it('builds the refusal text from the server numbers only', () => {
+    const resetsAt = new Date('2026-10-05T00:00:00Z');
+    expect(refusalMessage({ used: null, limit: null, units: null, resetsAt, pro: false }).remaining).toBe(0);
+    expect(refusalMessage({ used: 95, limit: 100, units: null, resetsAt, pro: false }).message).toMatch(
+      /^На это действие не хватает дневного лимита: на сегодня осталось 5\./,
+    );
   });
 });

@@ -159,11 +159,8 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
     last_error = None
     rate_limited = False
     
-    gemini_models = [
-        model.strip() for model in os.getenv(
-            "GEMINI_MODELS", "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash"
-        ).split(",") if model.strip()
-    ]
+    from agents.base import gemini_models_env  # GEMINI_MODELS или общий список BaseAgent по умолчанию
+    gemini_models = gemini_models_env()
     
     for key in shuffled_keys:
         try:

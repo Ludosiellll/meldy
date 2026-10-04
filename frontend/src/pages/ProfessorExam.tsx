@@ -38,7 +38,8 @@ import { getMaterials } from '../api/materials';
 import { updateQuestProgress, recordStudyActivity } from '../api/quests';
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import { playTTS, pauseTTS, resumeTTS, stopTTS } from '../utils/tts';
-import { incrementAIUsage } from '../api/limits';
+import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
+import { professorExamCost } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 // Web Speech API
@@ -117,16 +118,13 @@ const PROFESSORS: ProfessorConfig[] = [
 ];
 
 const EXAM_LENGTHS = [
-  { value: 3, label: 'Экспресс-блиц', cost: 1, xp: 30, desc: 'Быстрый опрос по ключевым темам лекции.' },
-  { value: 5, label: 'Классический билет', cost: 2, xp: 50, desc: 'Стандартный академический зачет на прочность.' },
-  { value: 10, label: 'Полный зачёт', cost: 4, xp: 100, desc: 'Полная строгая проверка по всем нюансам лекции.' }
+  { value: 3, label: 'Экспресс-блиц', cost: professorExamCost(3), xp: 30, desc: 'Быстрый опрос по ключевым темам лекции.' },
+  { value: 5, label: 'Классический билет', cost: professorExamCost(5), xp: 50, desc: 'Стандартный академический зачет на прочность.' },
+  { value: 10, label: 'Полный зачёт', cost: professorExamCost(10), xp: 100, desc: 'Полная строгая проверка по всем нюансам лекции.' }
 ];
 
-const getEnergyCost = (length: number) => {
-  if (length === 3) return 1;
-  if (length === 10) return 4;
-  return 2;
-};
+/** Units of the daily limit for the whole exam (lib/plans.ts); the server charges them with the first question. */
+const getEnergyCost = (length: number) => professorExamCost(length);
 
 const EVALUATE_FAILED = 'Не удалось оценить ответ. Попробуйте ещё раз.';
 const QUESTION_FAILED = 'Не удалось задать вопрос. Попробуйте ещё раз.';
@@ -576,7 +574,8 @@ export default function ProfessorExam() {
           socratic_mode: socraticMode,
           exam_history: examHistory,
           recent_mistakes: recentMistakes,
-          professor_id: selectedProfId
+          professor_id: selectedProfId,
+          exam_length: examLength
         })
       });
 
@@ -586,11 +585,12 @@ export default function ProfessorExam() {
       if (!question) throw new Error(QUESTION_FAILED);
       setCurrentQuestion(question);
       setPhase('question');
-      if (clearHistory && user?.id) await incrementAIUsage(user.id, cost);
+      if (clearHistory) notifyAIUsageChanged(); // the server charged the exam with its first question
     } catch (err) {
       console.error(err);
       const message = err instanceof Error && /[А-Яа-яЁё]/.test(err.message) ? err.message : QUESTION_FAILED;
-      await alert({ title: 'Ошибка', message, type: 'danger' });
+      // The daily limit has its own dialog (opened for every 429 ai_limit): no second one here.
+      if (message !== AI_LIMIT_MESSAGE) await alert({ title: 'Ошибка', message, type: 'danger' });
       setPhase(clearHistory ? 'select' : 'step_feedback');
     }
   };

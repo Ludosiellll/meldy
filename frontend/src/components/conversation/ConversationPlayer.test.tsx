@@ -31,7 +31,8 @@ const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock('../../utils/tts', () => tts);
 vi.mock('../../lib/supabase', () => ({ supabase: { from: db.from } }));
-vi.mock('../../api/limits', () => ({ incrementAIUsage: limits.incrementAIUsage }));
+// The server charges (conversation 5, visuals 2); the player only refreshes the meter afterwards.
+vi.mock('../../api/limits', () => ({ notifyAIUsageChanged: limits.incrementAIUsage }));
 vi.mock('../../api/quests', () => ({ updateQuestProgress: quests.updateQuestProgress }));
 vi.mock('../../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: energy.verifyEnergy }) }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
@@ -360,7 +361,7 @@ describe('ConversationPlayer', () => {
       podcast: generated,
     });
     expect(saved).not.toHaveProperty('_startTab');
-    expect(limits.incrementAIUsage).toHaveBeenCalledWith('user-1', 5);
+    expect(limits.incrementAIUsage).toHaveBeenCalledWith();
     expect(onLinesUpdate).toHaveBeenCalledWith(generated);
     expect(toasts.success).toHaveBeenCalledWith('Разговор готов');
 
@@ -432,7 +433,7 @@ describe('ConversationPlayer', () => {
     await user.click(screen.getByRole('button', { name: /Добавить схемы/ }));
 
     await waitFor(() => expect(onLinesUpdate).toHaveBeenCalled());
-    expect(energy.verifyEnergy).toHaveBeenCalledWith('user-1', 5, 'Подбор схем');
+    expect(energy.verifyEnergy).toHaveBeenCalledWith('user-1', 2, 'Подбор схем'); // AI_COSTS.visuals
     expect(fetchMock).toHaveBeenCalledWith('/api/podcast/visuals', expect.objectContaining({ method: 'POST' }));
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.lines).toEqual(legacyLines);
@@ -444,7 +445,7 @@ describe('ConversationPlayer', () => {
       { ...legacyLines[0], visual: { type: 'steps', title: 'План', items: ['Один', 'Два'] } },
       legacyLines[1],
     ]);
-    expect(limits.incrementAIUsage).toHaveBeenCalledWith('user-1', 5);
+    expect(limits.incrementAIUsage).toHaveBeenCalledWith();
     await waitFor(() => expect(within(activeScene()).getByText('План')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Добавить схемы/ })).not.toBeInTheDocument();
   });

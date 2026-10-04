@@ -86,7 +86,9 @@ vi.mock('../api/limits', () => ({
   FREE_DAILY_LIMIT: 100,
   AI_USAGE_EVENT: 'ai_usage_updated',
   checkAILimit: (...args: unknown[]) => s.checkLimit(...args),
-  incrementAIUsage: (...args: unknown[]) => s.increment(...args),
+  // The server charges a lecture before the stream; after a saved run the page only refreshes the
+  // meter (s.increment counts those refreshes: once per saved run, never for the demo text).
+  notifyAIUsageChanged: (...args: unknown[]) => s.increment(...args),
   nextLimitReset: () => new Date('2026-10-04T00:00:00Z'),
   formatLimitReset: () => '3:00',
 }));
@@ -289,7 +291,7 @@ describe('stream outcomes', () => {
     await waitFor(() => expect(s.activity).toHaveBeenCalledTimes(1));
     expect(s.inserts).toHaveLength(1);
     expect(s.increment).toHaveBeenCalledTimes(1);
-    expect(s.increment).toHaveBeenCalledWith('user-1', 20);
+    expect(s.increment).toHaveBeenCalledWith();
     expect(s.sync).toHaveBeenCalledWith('user-1', 'mat-1', cards.flashcards);
     expect(s.activity).toHaveBeenCalledWith('user-1', 0, 1);
     const row = s.inserts[0];

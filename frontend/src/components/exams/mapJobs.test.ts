@@ -1,18 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  incrementAIUsage: vi.fn(),
+  notifyAIUsageChanged: vi.fn(),
   fetchExamMappingState: vi.fn(),
 }));
 
 vi.mock('../../lib/supabase', () => ({ supabase: {} }));
-vi.mock('../../api/limits', () => ({ incrementAIUsage: (...args: unknown[]) => mocks.incrementAIUsage(...args) }));
+vi.mock('../../api/limits', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/limits')>()),
+  notifyAIUsageChanged: () => mocks.notifyAIUsageChanged(),
+}));
 vi.mock('../../api/exams', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api/exams')>();
   return { ...actual, fetchExamMappingState: (...args: unknown[]) => mocks.fetchExamMappingState(...args) };
 });
 
-import { getMapJob, resetMapJobsForTests, startMapping, subscribeMapJobs } from './mapJobs';
+import { getMapJob, MAPPING_COST, mappingLimitMessage, resetMapJobsForTests, startMapping, subscribeMapJobs } from './mapJobs';
+import { AI_COSTS } from '../../lib/plans';
 
 const enc = new TextEncoder();
 const ev = (data: unknown) => `data: ${JSON.stringify(data)}\n\n`;
@@ -37,7 +41,7 @@ const allow = vi.fn(async () => true);
 
 beforeEach(() => {
   resetMapJobsForTests({ pollIntervalMs: 5, pollLimitMs: 2000 });
-  mocks.incrementAIUsage.mockReset().mockResolvedValue(undefined);
+  mocks.notifyAIUsageChanged.mockReset();
   mocks.fetchExamMappingState.mockReset();
   allow.mockClear();
 });
@@ -47,7 +51,7 @@ afterEach(() => {
 });
 
 describe('startMapping', () => {
-  it('collects marks per batch, keeps reused marks still, charges 10 once after done with used_ai', async () => {
+  it('collects marks per batch, keeps reused marks still, refreshes the meter once after done with used_ai', async () => {
     const fetchMock = vi.fn(async () =>
       sseResponse([
         ev({ type: 'start', questions: 4, to_check: 4, fingerprint: 'fp', materials: [{ id: 'm1', title: 'Денежный рынок', fragments: 112 }], skipped: [] }),
@@ -75,8 +79,9 @@ describe('startMapping', () => {
     expect(job.reusedCount).toBe(2);
     expect(job.done).toMatchObject({ reused: 2, usedAi: true, oldestMappedAt: '2026-10-01T09:40:00Z' });
     expect(job.finishedSeq).toBe(1);
-    expect(mocks.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(mocks.incrementAIUsage).toHaveBeenCalledWith('user-1', 10);
+    // The server charged the units before the judge; the browser writes nothing, it only refreshes.
+    expect(mocks.notifyAIUsageChanged).toHaveBeenCalledTimes(1);
+    expect(MAPPING_COST).toBe(AI_COSTS.examMapping);
   });
 
   it('charges nothing when the run did not use the model', async () => {
@@ -89,7 +94,7 @@ describe('startMapping', () => {
     ));
     await startMapping({ examId: 'exam-1', userId: 'user-1', verifyEnergy: allow });
     expect(getMapJob('exam-1').phase).toBe('done');
-    expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
+    expect(mocks.notifyAIUsageChanged).not.toHaveBeenCalled();
   });
 
   it('does not start when the daily limit is not enough', async () => {
@@ -113,7 +118,7 @@ describe('startMapping', () => {
     expect(job.phase).toBe('interrupted');
     expect(job.message).toBe('Разметка прервалась: проверено 28 из 40.');
     expect(job.finishedSeq).toBe(1);
-    expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
+    expect(mocks.notifyAIUsageChanged).not.toHaveBeenCalled();
   });
 
   it('waits for another run on 409, polling the exam row until it stops running', async () => {
@@ -174,6 +179,30 @@ describe('startMapping', () => {
     ));
     await startMapping({ examId: 'exam-2', userId: 'user-1', verifyEnergy: allow });
     expect(getMapJob('exam-2')).toMatchObject({ phase: 'failed', message: 'Ни у одной лекции нет текста' });
+  });
+
+  it('a run the daily limit does not cover says what is left and when it renews — in the note, no dialog', async () => {
+    const limitEvents: Event[] = [];
+    const onLimit = (event: Event) => limitEvents.push(event);
+    window.addEventListener('meldy:ai-limit', onLimit);
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      sseResponse([
+        ev({ type: 'start', questions: 80, to_check: 80, materials: [], skipped: [] }),
+        ev({ type: 'error', code: 'ai_limit', message: 'Дневной лимит ИИ на сегодня исчерпан.', used: 85, limit: 100, units: 20,
+             resets_at: '2026-10-05T00:00:00Z', pro: false }),
+      ]),
+    ));
+    await startMapping({ examId: 'exam-1', userId: 'user-1', verifyEnergy: allow });
+    window.removeEventListener('meldy:ai-limit', onLimit);
+    const job = getMapJob('exam-1');
+    expect(job.phase).toBe('failed');
+    expect(job.message).toMatch(/^Не хватает дневного лимита ИИ: сверка этих вопросов расходует 20, а сегодня осталось 15\. Лимит обновится в \d{1,2}:\d{2}\.$/);
+    expect(limitEvents).toEqual([]);
+    expect(mocks.notifyAIUsageChanged).toHaveBeenCalledTimes(1);
+    const resetsAt = new Date('2026-10-05T00:00:00Z');
+    expect(mappingLimitMessage({ used: 100, limit: 100, units: 10, resetsAt, pro: false })).toMatch(
+      /^Дневной лимит ИИ исчерпан: сверка с лекциями не запущена\. Лимит обновится в \d{1,2}:\d{2}\.$/,
+    );
   });
 
   it('keeps the questions of a failed batch as checked only by words, without animation', async () => {

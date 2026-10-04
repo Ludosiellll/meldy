@@ -3,23 +3,29 @@
  *
  * «Разметить по лекциям» streams for 10–40 seconds. The run lives here, per exam, not in a
  * component: the sheet shows marks as batches arrive, a page opened again sees the same run, and a
- * second run of the same exam cannot start. Energy: the limit is checked before the run and
- * 10 units are charged once after `done`, only when the server says it used the model.
+ * second run of the same exam cannot start. Daily limit: checked here before the run (at least
+ * AI_COSTS.examMapping); the server charges 10 units for every started 40 questions that go to the
+ * model just before the judge, and gives them back if the model answered none. A run the limit
+ * does not cover ends with an `error` event of code ai_limit: the sheet says so in its note (the
+ * sheet shows the limit without a dialog, redesign spec 4.6 and 5.11).
  *
  * Outcomes of a run:
  * - `done` → phase 'done'; the sheet reloads its rows (finishedSeq changes);
  * - the stream ended without `done` or the connection dropped → 'interrupted' with
  *   «Разметка прервалась: проверено 28 из 40.» and «Продолжить» on the sheet;
- * - `error` or a refused request → 'failed' with the server's plain message;
+ * - `error` or a refused request → 'failed' with the server's plain message (for code ai_limit a
+ *   sentence with what is left today and when the limit renews);
  * - 409 (another run holds the lock) → 'waiting' «Разметка ещё идёт»: the exam row is polled every
  *   3 s for up to 5 minutes, then the sheet reloads.
  */
 import { useSyncExternalStore } from 'react';
-import { incrementAIUsage } from '../../api/limits';
+import { aiLimitFromBody, formatLimitReset, notifyAIUsageChanged, remainingUnits, type AILimitInfo } from '../../api/limits';
+import { AI_COSTS } from '../../lib/plans';
 import { readSseStream, StreamError } from '../../api/sseStream';
 import { fetchExamMappingState, isMappingLocked, normalizeCoverageItem, type CoverageItem } from '../../api/exams';
 
-export const MAPPING_COST = 10;
+/** The least a run costs (one started batch of 40 new questions); the server counts the rest. */
+export const MAPPING_COST = AI_COSTS.examMapping;
 export const MAPPING_ACTION = 'Разметка по лекциям';
 export const MAP_IDLE_MS = 45_000;
 export const MARK_STAGGER_MS = 60;
@@ -263,6 +269,15 @@ function handleEvent(examId: string, data: Record<string, unknown>) {
   }
 }
 
+/** The check of the list was refused by the daily limit (server event error, code ai_limit). */
+export function mappingLimitMessage(info: AILimitInfo): string {
+  const at = formatLimitReset(info.resetsAt);
+  const left = remainingUnits(info);
+  if (left <= 0) return `Дневной лимит ИИ исчерпан: сверка с лекциями не запущена. Лимит обновится в ${at}.`;
+  const need = info.units !== null && info.units > 0 ? `сверка этих вопросов расходует ${info.units}, а ` : '';
+  return `Не хватает дневного лимита ИИ: ${need}сегодня осталось ${left}. Лимит обновится в ${at}.`;
+}
+
 function finish(examId: string, phase: MapPhase, message: string | null) {
   set(examId, (previous) => ({ ...previous, phase, message, finishedSeq: previous.finishedSeq + 1 }));
 }
@@ -342,10 +357,16 @@ export async function startMapping(options: StartMappingOptions): Promise<'start
     if (!terminal) {
       finish(examId, 'interrupted', interruptedMessage(getMapJob(examId)));
     } else if (terminal.type === 'done') {
-      if (terminal.used_ai === true) await incrementAIUsage(userId, MAPPING_COST);
+      if (terminal.used_ai === true) notifyAIUsageChanged(); // the server charged the units
       finish(examId, 'done', null);
     } else {
-      finish(examId, 'failed', plainMessage(terminal.message, 'Разметка не завершилась. Повторите через минуту.'));
+      const limit = aiLimitFromBody(terminal);
+      if (limit) {
+        notifyAIUsageChanged(); // the meter shows what is left
+        finish(examId, 'failed', mappingLimitMessage(limit));
+      } else {
+        finish(examId, 'failed', plainMessage(terminal.message, 'Разметка не завершилась. Повторите через минуту.'));
+      }
     }
     return 'started';
   } finally {

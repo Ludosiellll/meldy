@@ -68,7 +68,8 @@ vi.mock('../api/materials', async importOriginal => ({
   updateMaterialSubject: vi.fn(),
   updateMaterialTitle: vi.fn(),
 }));
-vi.mock('../api/limits', () => ({ incrementAIUsage: (...args: unknown[]) => state.increment(...args) }));
+// The server charges the AI jobs; the page only refreshes the meter afterwards.
+vi.mock('../api/limits', () => ({ notifyAIUsageChanged: (...args: unknown[]) => state.increment(...args) }));
 vi.mock('../api/quests', () => ({ updateQuestProgress: vi.fn(() => Promise.resolve(true)) }));
 vi.mock('../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: vi.fn(async () => true) }) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: state.userId } }) }));
@@ -229,7 +230,7 @@ describe('summary_json writes do not overwrite each other', () => {
     await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
     await waitFor(() => expect(state.material.summary_json.cheatsheet).toBe('# Главное'));
     expect(savedPodcast()).toHaveLength(2);
-    expect(state.increment.mock.calls.map(call => call[1])).toEqual([5, 5]);
+    expect(state.increment).toHaveBeenCalledTimes(2); // both jobs refreshed the meter (the server charged them)
 
     expect(await screen.findByRole('heading', { name: 'Главное' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /Разговор/ }));

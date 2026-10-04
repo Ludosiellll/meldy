@@ -8,7 +8,7 @@ import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 
 import httpx
@@ -583,13 +583,21 @@ class AIError(HTTPException):
         return cls(503, "ai_unconfigured", detail)
 
 
-DEFAULT_GEMINI_MODELS = "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash"
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+# Models checked on 2026-10-04 (orchestrator's web check): gemini-2.0-flash is gone; the 2.5
+# models have conflicting retirement notices (Vertex AI lists 2026-10-20, the Gemini API page
+# names no date), so gemini-3.1-flash-lite (GA) is second and takes over by itself when
+# gemini-2.5-flash-lite answers not_found. Groq retired llama-3.3-70b-versatile on 2026-08-16.
+DEFAULT_GEMINI_MODELS = "gemini-2.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+DEFAULT_GROQ_FAST_MODEL = "openai/gpt-oss-20b"
 DEFAULT_GROQ_VISION_MODEL = "llama-3.2-90b-vision-preview"
 
 DEFAULT_TEMPERATURE = 0.3
 DEFAULT_MAX_TOKENS = 8192
 THINKING_ALLOWANCE = 2048
+# Groq reasoning models (gpt-oss) spend their hidden reasoning from the same max_tokens as the
+# answer: low effort plus this many extra tokens, so a 200-token JSON answer is not cut off.
+GROQ_REASONING_ALLOWANCE = 1024
 MIN_ATTEMPT_SECONDS = 0.05
 MAX_FAST_MODELS = 6
 
@@ -638,7 +646,7 @@ def groq_model() -> str:
 
 
 def groq_fast_model() -> str:
-    return os.getenv("GROQ_FAST_MODEL", "").strip() or groq_model()
+    return os.getenv("GROQ_FAST_MODEL", "").strip() or DEFAULT_GROQ_FAST_MODEL
 
 
 def groq_vision_model() -> str:
@@ -825,15 +833,18 @@ def thinking_plan(model: str, mode: Optional[str]) -> ThinkingPlan:
     default and gets THINKING_ALLOWANCE extra output tokens, so thinking does not eat the answer.
     Models that never think (gemini-2.0, 1.x, gemma) get neither a config nor extra tokens:
     gemini-2.0-flash caps the output at 8192 tokens.
+    gemini-3* without a mode gets level LOW, not the provider default: Google documents
+    «high» as the Gemini 3 default, which would make the fallback model several times slower
+    and dearer than the gemini-2.5-flash-lite it replaces.
     """
     family = _model_family(model)
     if family == "no_thinking":
         return ThinkingPlan(None, 0, "none")
-    if mode not in ("off", "low"):
-        return ThinkingPlan(None, THINKING_ALLOWANCE, "default")
     if family == "gemini3" and _HAS_THINKING_LEVEL:
         level = types.ThinkingLevel.MINIMAL if mode == "off" else types.ThinkingLevel.LOW
-        return ThinkingPlan(types.ThinkingConfig(thinking_level=level), THINKING_ALLOWANCE, mode)
+        return ThinkingPlan(types.ThinkingConfig(thinking_level=level), THINKING_ALLOWANCE, "off" if mode == "off" else "low")
+    if mode not in ("off", "low"):
+        return ThinkingPlan(None, THINKING_ALLOWANCE, "default")
     if family in ("flash25", "pro25") and _HAS_THINKING_BUDGET:
         if mode == "off":
             budget = 128 if family == "pro25" else 0
@@ -906,6 +917,11 @@ async def _gemini_generate(
     return _gemini_response_text(response), _gemini_finish_reason(response)
 
 
+def groq_reasoning_model(model: str) -> bool:
+    """openai/gpt-oss-*: a reasoning model whose hidden reasoning shares max_tokens with the answer."""
+    return (model or "").strip().lower().rsplit("/", 1)[-1].startswith("gpt-oss")
+
+
 async def _groq_generate(
     client: Any,
     model: str,
@@ -916,14 +932,21 @@ async def _groq_generate(
     json_mode: bool,
     timeout: float,
 ) -> tuple[str, Optional[str]]:
+    reasoning = groq_reasoning_model(model)
     kwargs: dict[str, Any] = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        "max_tokens": max_tokens + (GROQ_REASONING_ALLOWANCE if reasoning else 0),
         "timeout": timeout,
     }
-    if json_mode:
+    if reasoning:
+        # Low effort and no reasoning text in the answer (sent as body fields, which every SDK
+        # version passes through). No response_format: Groq's JSON mode validates the raw
+        # generation of a reasoning model and refuses good answers (400 json_validate_failed);
+        # the prompt asks for JSON and parse_model_json reads it.
+        kwargs["extra_body"] = {"reasoning_effort": "low", "include_reasoning": False}
+    elif json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     response = await asyncio.wait_for(client.chat.completions.create(**kwargs), timeout=timeout)
     choices = getattr(response, "choices", None) or []
@@ -947,6 +970,9 @@ class _Outcome:
     timed_out: bool = False
     attempts: int = 0
     last_kind: Optional[str] = None
+    # The provider and model of the latest attempt (the call log names them for a failure too).
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
     def note(self, kind: str) -> None:
         self.last_kind = kind
@@ -968,6 +994,39 @@ class _Outcome:
 def _fill_meta(meta: Optional[dict], **values: Any) -> None:
     if isinstance(meta, dict):
         meta.update(values)
+
+
+# --- which model answered: the last real answer of this process and call observers ----------
+# GET /api/health shows last_answer(); quota.py observes every call to log it for the user.
+_LAST_ANSWER: dict[str, Any] = {}
+_CALL_OBSERVERS: list = []
+
+
+def last_answer() -> dict[str, Any]:
+    """{provider, model, at} of the latest real (not cached) answer in this process; {} before one."""
+    return dict(_LAST_ANSWER)
+
+
+def add_call_observer(observer) -> None:
+    """observer(record) after every real model call of BaseAgent: provider, model, ok, ms.
+
+    A cache hit is not a call. A failed call names the provider and model of its last attempt.
+    Observers run synchronously and must not block; an exception in one is logged and ignored.
+    """
+    if observer not in _CALL_OBSERVERS:
+        _CALL_OBSERVERS.append(observer)
+
+
+def _record_call(provider: Optional[str], model: Optional[str], ok: bool, ms: int) -> None:
+    if ok and provider and model:
+        at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        _LAST_ANSWER.update(provider=provider, model=model, at=at)
+    record = {"provider": provider, "model": model, "ok": bool(ok), "ms": max(0, int(ms))}
+    for observer in list(_CALL_OBSERVERS):
+        try:
+            observer(dict(record))
+        except Exception as exc:  # the call log never breaks an answer
+            print(f"AI call observer failed: {type(exc).__name__}")
 
 
 # --- diagnostics probes: direct calls that ignore the skip list and the cache -------------
@@ -1267,6 +1326,7 @@ class BaseAgent:
                     {"role": "user", "content": user_content},
                 ]
                 outcome.attempts += 1
+                outcome.provider, outcome.model = "groq", model
                 try:
                     answer, finish = await _groq_generate(
                         get_groq_client(self.groq_api_key), model, messages,
@@ -1288,16 +1348,21 @@ class BaseAgent:
 
         if result is None:
             error = outcome.error(configured=bool(keys or self.groq_api_key))
-            _fill_meta(meta, provider=None, model=None, ms=elapsed_ms(), cached=False, thinking=thinking_label,
+            ms = elapsed_ms()
+            _fill_meta(meta, provider=None, model=None, ms=ms, cached=False, thinking=thinking_label,
                        finish_reason=None, error=outcome.last_kind or error.code)
+            if outcome.attempts:
+                _record_call(outcome.provider, outcome.model, False, ms)
             raise error
 
         answer, provider, model, used_thinking, finish = result
         if caching:
             self._cache_set(cache_key, answer, {"provider": provider, "model": model, "thinking": used_thinking,
                                                 "finish_reason": finish})
-        _fill_meta(meta, provider=provider, model=model, ms=elapsed_ms(), cached=False, thinking=used_thinking,
+        ms = elapsed_ms()
+        _fill_meta(meta, provider=provider, model=model, ms=ms, cached=False, thinking=used_thinking,
                    finish_reason=finish)
+        _record_call(provider, model, True, ms)
         return answer
 
     async def _gemini_model_attempts(
@@ -1329,6 +1394,7 @@ class BaseAgent:
                 outcome.note("timeout")
                 return None
             outcome.attempts += 1
+            outcome.provider, outcome.model = "gemini", model
             try:
                 client = get_genai_client(key)
                 answer, finish = await _gemini_generate(

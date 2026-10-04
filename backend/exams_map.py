@@ -42,6 +42,7 @@ from typing import Any, AsyncIterator, Iterable
 from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from exams_prompts import JUDGE_PROMPT, JudgeCandidate, JudgeQuestion, build_judge_block
+from plans import exam_mapping_cost
 from retrieval import STOPWORDS, BM25Index, Hit, Passage, material_passages, stem, terms
 from supabase_rest import RowLevelDenied, SupabaseRest, SupabaseRestError
 
@@ -760,6 +761,10 @@ class MappingJob:
     agent: Any = None
     started: bool = False
     tasks: list[asyncio.Task] = field(default_factory=list)
+    # Дневной лимит ИИ: units → квитанция списания (quota.Charge) или AILimitExceeded. Задаёт
+    # маршрут; None — разметка без списания (тесты конвейера). charge — квитанция этого запуска.
+    reserve_units: Any = None
+    charge: Any = None
 
 
 def _read_error(exc: SupabaseRestError) -> MapError:
@@ -1256,9 +1261,17 @@ async def _release_failed(job: MappingJob) -> None:
 
 
 async def run_mapping(job: MappingJob) -> AsyncIterator[dict]:
-    """События разметки. Последнее событие — done или error, после него ничего."""
+    """События разметки. Последнее событие — done или error, после него ничего.
+
+    Дневной лимит: перед судьёй списывается plans.exam_mapping_cost(число вопросов, которые
+    уходят модели) — готовые и проверенные только по словам бесплатны. Лимита не хватает —
+    событие error с code ai_limit (used, limit, resets_at, pro), модель не вызывается. Модель
+    не ответила ни по одному вопросу (сбой, пачки «только по словам») — единицы возвращаются.
+    """
     job.started = True
     finished = False
+    charge = None
+    used_ai = False
     try:
         catalog = await asyncio.to_thread(_build_catalog, job.materials)
         material_ids = {material.id for material in job.materials}
@@ -1321,8 +1334,16 @@ async def run_mapping(job: MappingJob) -> AsyncIterator[dict]:
             if written:
                 yield {"type": "lexical", "items": written}
 
-        used_ai = False
         judged = [group for group in groups if group.hits]
+        if judged and job.reserve_units is not None:
+            try:
+                charge = job.charge = await job.reserve_units(exam_mapping_cost(len(judged)))
+            except AIError as exc:
+                if exc.code != "ai_limit":
+                    raise
+                event = exc.event() if hasattr(exc, "event") else {"type": "error", "code": exc.code, "message": exc.detail}
+                yield event
+                return
         if judged:
             if job.agent is None:
                 job.agent = BaseAgent(api_key=os.getenv("GROQ_API_KEY", ""))
@@ -1362,6 +1383,10 @@ async def run_mapping(job: MappingJob) -> AsyncIterator[dict]:
         print(f"Exam mapping failed: {type(exc).__name__}")
         yield {"type": "error", "message": INTERNAL_MESSAGE}
     finally:
+        if charge is not None and not used_ai:
+            # Ни один вопрос не проверила модель: единицы возвращаются (в фоне — finally может
+            # идти и после ухода клиента; фон ответа дожидается возврата).
+            charge.refund_soon()
         for task in job.tasks:
             if not task.done():
                 task.cancel()

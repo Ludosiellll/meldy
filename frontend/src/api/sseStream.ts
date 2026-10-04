@@ -17,6 +17,7 @@ export type StreamErrorKind = 'http' | 'network' | 'timeout' | 'aborted';
 export const STREAM_MESSAGES = {
   tooLarge: 'Файл больше 15 МБ. Сожмите его или загрузите часть материала.',
   rateLimited: 'Слишком много запусков за минуту. Подождите минуту и повторите.',
+  aiLimit: 'Дневной лимит ИИ на сегодня исчерпан.',
   auth: 'Сессия истекла. Войдите снова.',
   unavailable: 'Сервер сейчас недоступен. Повторите попытку через минуту.',
   generic: 'Не удалось выполнить запрос. Повторите попытку.',
@@ -89,6 +90,10 @@ export async function httpErrorFromResponse(res: Response): Promise<StreamError>
   const code = typeof record?.code === 'string' && record.code.length <= 64 ? record.code : undefined;
 
   const detail = readableDetail(record?.detail);
+  // The daily AI limit (checked by the server): its own words; a repeat today will not help.
+  if (status === 429 && code === 'ai_limit') {
+    return new StreamError('http', detail ?? STREAM_MESSAGES.aiLimit, { status, code, retryable: false });
+  }
   if (detail && DETAIL_STATUSES.has(status)) {
     return new StreamError('http', detail, { status, code, retryable: RETRYABLE_DETAIL_STATUSES.has(status) });
   }

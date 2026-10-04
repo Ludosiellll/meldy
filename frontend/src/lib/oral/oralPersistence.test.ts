@@ -3,7 +3,7 @@ import { createFakeSupabase } from './testing/fakeSupabase';
 
 const state = vi.hoisted(() => ({
   client: null as unknown as ReturnType<typeof createFakeSupabase>['client'],
-  incrementAIUsage: vi.fn(async () => undefined),
+  notifyAIUsageChanged: vi.fn(),
 }));
 vi.mock('../supabase', () => ({
   supabase: {
@@ -11,10 +11,11 @@ vi.mock('../supabase', () => ({
     rpc: (fn: string, args: Record<string, unknown>) => state.client.rpc(fn, args),
   },
 }));
-vi.mock('../../api/limits', () => ({ incrementAIUsage: state.incrementAIUsage }));
+vi.mock('../../api/limits', () => ({ notifyAIUsageChanged: state.notifyAIUsageChanged }));
 
 import {
   ATTEMPT_KEY,
+  ORAL_ANSWER_COST,
   OralSaveError,
   addPeakFlag,
   buildAttemptPayload,
@@ -34,6 +35,7 @@ import {
   writeLiveMarks,
   type OralAttemptPayload,
 } from './oralPersistence';
+import { AI_COSTS } from '../plans';
 import { gradeAnswer } from './oralGrade';
 import type { Evaluation, Rubric } from './oralApi';
 
@@ -96,7 +98,7 @@ function payload(): OralAttemptPayload {
 
 beforeEach(() => {
   state.client = createFakeSupabase().client;
-  state.incrementAIUsage.mockClear();
+  state.notifyAIUsageChanged.mockClear();
   window.localStorage.clear();
   window.sessionStorage.clear();
 });
@@ -170,8 +172,8 @@ describe('the record_oral_attempt payload (contracts §1.5)', () => {
   });
 });
 
-describe('saving once, charging once', () => {
-  it('calls record_oral_attempt, then charges one unit', async () => {
+describe('saving once, refreshing the limit once', () => {
+  it('calls record_oral_attempt, then refreshes the meter (the server charged the answer)', async () => {
     const fake = createFakeSupabase({
       rpc: async () => ({ data: { session_id: 'sess-1', duplicate: false, events: 5, mistakes_added: 2, mistakes_existing: 0, card_added: true }, error: null }),
     });
@@ -180,11 +182,11 @@ describe('saving once, charging once', () => {
     const result = await saveOralAttempt('user-1', body);
     expect(fake.rpcCalls).toEqual([{ fn: 'record_oral_attempt', args: { p_attempt: body } }]);
     expect(result).toEqual({ sessionId: 'sess-1', duplicate: false, events: 5, mistakesAdded: 2, mistakesExisting: 0, cardAdded: true });
-    expect(state.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(state.incrementAIUsage).toHaveBeenCalledWith('user-1', 1);
+    expect(state.notifyAIUsageChanged).toHaveBeenCalledTimes(1);
+    expect(ORAL_ANSWER_COST).toBe(AI_COSTS.answer);
   });
 
-  it('charges nothing when the save fails, and a retry reuses the attempt id', async () => {
+  it('refreshes nothing when the save fails, and a retry reuses the attempt id', async () => {
     let fail = true;
     const fake = createFakeSupabase({
       rpc: async () =>
@@ -197,22 +199,22 @@ describe('saving once, charging once', () => {
     const error = await saveOralAttempt('user-1', body).catch((caught) => caught);
     expect(error).toBeInstanceOf(OralSaveError);
     expect(error.message).toBe('Результат не сохранён');
-    expect(state.incrementAIUsage).not.toHaveBeenCalled();
+    expect(state.notifyAIUsageChanged).not.toHaveBeenCalled();
 
     fail = false;
     const result = await saveOralAttempt('user-1', body);
     expect(result.sessionId).toBe('sess-2');
     expect(fake.rpcCalls.map((call) => (call.args.p_attempt as OralAttemptPayload).attempt_id)).toEqual(['attempt-retry', 'attempt-retry']);
-    expect(state.incrementAIUsage).toHaveBeenCalledTimes(1);
+    expect(state.notifyAIUsageChanged).toHaveBeenCalledTimes(1);
 
     await saveOralAttempt('user-1', body);
-    expect(state.incrementAIUsage).toHaveBeenCalledTimes(1);
+    expect(state.notifyAIUsageChanged).toHaveBeenCalledTimes(1);
   });
 
   it('treats an answer without a session id as a failed save', async () => {
     state.client = createFakeSupabase({ rpc: async () => ({ data: {}, error: null }) }).client;
     await expect(saveOralAttempt('user-1', { ...payload(), attempt_id: 'attempt-empty' })).rejects.toBeInstanceOf(OralSaveError);
-    expect(state.incrementAIUsage).not.toHaveBeenCalled();
+    expect(state.notifyAIUsageChanged).not.toHaveBeenCalled();
   });
 });
 

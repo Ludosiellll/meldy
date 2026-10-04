@@ -113,6 +113,8 @@ export function analyzeErrorFromHttp(error: StreamError): AnalyzeError {
   const status = error.status ?? 0;
   if (status === 401) return new AnalyzeError('auth', error.message, false);
   if (status === 413) return new AnalyzeError('too_large', error.message, false);
+  // The daily AI limit: the server's words, no «повторить» today (the limit dialog opens too).
+  if (status === 429 && error.code === 'ai_limit') return new AnalyzeError('rate_limited', error.message, false);
   if (status === 429) return new AnalyzeError('rate_limited', error.message, true);
   if (status >= 500 || error.message === STREAM_MESSAGES.unavailable) {
     return new AnalyzeError('unavailable', error.message, error.retryable);
