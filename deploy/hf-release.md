@@ -4,6 +4,12 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — the guide: a clip detail (from 0e07701)
+
+Adds to f234023 (tree of 97aa909). In the guide's «Сегодня» clip the drawn ticket «Билет 12 · вопросы 2 и 31» rose
+over the row of dots; it now slides in beside «Тянуть билет». CSS and one line of the clip; no migration, no
+backend change. Verified: frames of the clip, production build.
+
 ## 2026-10-04 — the guide, and every reel in the film style (from e66577f)
 
 Adds to 59f805f (tree of 0801357). Two requests of the owner:
