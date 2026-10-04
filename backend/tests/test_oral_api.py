@@ -313,11 +313,12 @@ def test_routes_are_declared_with_full_paths_and_mounted():
         ("/api/oral/rubric", frozenset({"POST"})),
         ("/api/oral/check", frozenset({"POST"})),
         ("/api/oral/evaluate", frozenset({"POST"})),
+        ("/api/oral/transcribe", frozenset({"POST"})),
     }
     assert main.oral_router is oral_api.router
 
 
-@pytest.mark.parametrize("path", ["/api/oral/rubric", "/api/oral/check", "/api/oral/evaluate"])
+@pytest.mark.parametrize("path", ["/api/oral/rubric", "/api/oral/check", "/api/oral/evaluate", "/api/oral/transcribe"])
 def test_every_endpoint_is_401_without_a_session(api, path):
     response = api.post(path, json={}, headers={"Authorization": ""})
     assert_plain_russian(response, 401)
