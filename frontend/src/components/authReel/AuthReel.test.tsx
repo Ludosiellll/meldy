@@ -8,7 +8,7 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 
 import AuthReel from './AuthReel';
-import { LOGIN_SCRIPT, REGISTER_SCRIPT, chapterIndexAt, hudLight, sceneVisible, scenesAt } from './script';
+import { LOGIN_SCRIPT, REGISTER_SCRIPT, cornerOpacity, sceneVisible, scenesAt } from './script';
 import Login from '../../pages/Login';
 import Register from '../../pages/Register';
 
@@ -25,27 +25,25 @@ describe('the sign-in reel scripts', () => {
       expect(script.scenes[i].from).toBeLessThan(script.scenes[i - 1].to);
       expect(script.scenes[i].from).toBeGreaterThan(script.scenes[i - 1].from);
     }
-    expect(script.chapters.map((chapter) => chapter.id)).toEqual(script.scenes.map((scene) => scene.id));
     expect(script.transcript).toHaveLength(script.scenes.length);
     expect(script.poster).toBeGreaterThan(0);
     expect(script.poster).toBeLessThan(script.total);
   });
 
   it('mounts the next scene ahead, hidden, and the first one again before the loop wraps', () => {
-    expect(scenesAt(LOGIN_SCRIPT, 3700)).toEqual(['upload', 'mark']);
-    expect(sceneVisible(LOGIN_SCRIPT.scenes[1], 3700)).toBe(false);
-    expect(scenesAt(LOGIN_SCRIPT, 15800)).toEqual(['upload', 'ready']);
-    expect(sceneVisible(LOGIN_SCRIPT.scenes[0], 15800)).toBe(false);
-    expect(sceneVisible(LOGIN_SCRIPT.scenes[3], 15800)).toBe(true);
+    expect(scenesAt(LOGIN_SCRIPT, 3100)).toEqual(['source', 'summary']);
+    expect(sceneVisible(LOGIN_SCRIPT.scenes[1], 3100)).toBe(false);
+    expect(scenesAt(LOGIN_SCRIPT, 17800)).toEqual(['source', 'ready']);
+    expect(sceneVisible(LOGIN_SCRIPT.scenes[0], 17800)).toBe(false);
+    expect(sceneVisible(LOGIN_SCRIPT.scenes[4], 17800)).toBe(true);
   });
 
-  it('names the chapter playing and turns the corner labels white over the blue and dark scenes', () => {
-    expect(chapterIndexAt(LOGIN_SCRIPT, 100)).toBe(0);
-    expect(chapterIndexAt(LOGIN_SCRIPT, 9000)).toBe(2);
-    expect(hudLight(LOGIN_SCRIPT, 1000)).toBe(0);
-    expect(hudLight(LOGIN_SCRIPT, 9000)).toBe(1);
-    expect(hudLight(LOGIN_SCRIPT, 8150 + 175)).toBeCloseTo(0.5);
-    expect(hudLight(LOGIN_SCRIPT, 15900)).toBe(0);
+  it('shows only a small «Meldy» in the corner, and hides it while the big wordmark is on', () => {
+    expect(cornerOpacity(LOGIN_SCRIPT, 100)).toBe(0);
+    expect(cornerOpacity(LOGIN_SCRIPT, 850)).toBeCloseTo(0.5);
+    expect(cornerOpacity(LOGIN_SCRIPT, 9000)).toBe(1);
+    expect(cornerOpacity(LOGIN_SCRIPT, 16000)).toBe(0);
+    expect(cornerOpacity(REGISTER_SCRIPT, 17000)).toBe(0);
   });
 });
 
@@ -66,7 +64,7 @@ describe('the reel in the panel', () => {
 
   it('tells screen readers what it shows and fits a 16:9 frame into the room', () => {
     const { container } = render(<AuthReel variant="login" />);
-    expect(screen.getByText('Ролик: как работает Meldy, 16 секунд, без звука.')).toBeInTheDocument();
+    expect(screen.getByText('Ролик: как работает Meldy, 18 секунд, без звука.')).toBeInTheDocument();
     expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([...LOGIN_SCRIPT.transcript]);
     const frame = container.querySelector('.ar-frame') as HTMLElement;
     expect(frame.style.width).toBe('640px');
@@ -138,11 +136,11 @@ describe('the sign-in pages', () => {
   it('shows the reel under the panel heading of both pages', () => {
     renderAt('/login');
     expect(screen.getByRole('heading', { name: 'От источника до уверенного ответа.' })).toBeInTheDocument();
-    expect(screen.getByText('Ролик: как работает Meldy, 16 секунд, без звука.')).toBeInTheDocument();
+    expect(screen.getByText('Ролик: как работает Meldy, 18 секунд, без звука.')).toBeInTheDocument();
     cleanup();
 
     const { container } = renderAt('/register');
-    expect(screen.getByText('Ролик: материал становится планом подготовки, 16 секунд, без звука.')).toBeInTheDocument();
+    expect(screen.getByText('Ролик: материал становится планом подготовки, 19 секунд, без звука.')).toBeInTheDocument();
     // The password and its repeat stand side by side.
     const pair = container.querySelector('.au-pair') as HTMLElement;
     expect(within(pair).getByLabelText('Пароль')).toBeInTheDocument();

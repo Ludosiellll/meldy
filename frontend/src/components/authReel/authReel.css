@@ -23,12 +23,12 @@
   left: 50%;
   overflow: hidden;
   border-radius: clamp(18px, 2vw, 28px);
-  background: #f3f3f0;
+  background: #fbfbf9;
   isolation: isolate;
   translate: -50% 0;
   box-shadow: 0 36px 70px -36px rgba(4, 12, 34, .7), 0 0 0 1px rgba(255, 255, 255, .22);
 }
-.ar-stage { background: #f3f3f0; }
+.ar-stage { background: #fbfbf9; }
 
 /* Pause and play: a small white disc in the corner of the frame. */
 .ar-play {
@@ -81,312 +81,163 @@
 .ar-start svg { width: 14px; height: 14px; }
 .ar-start:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
-/* ------------------------------------------------------------------ HUD, readable at a third */
-.ar-hud { font-size: 30px; letter-spacing: .2em; }
-.ar-hud .mr-hud-c { width: 40px; height: 40px; opacity: .6; }
-.ar-hud .mr-hud-c--tl { left: 42px; top: 42px; }
-.ar-hud .mr-hud-c--tr { right: 42px; top: 42px; }
-.ar-hud .mr-hud-c--bl { left: 42px; bottom: 42px; }
-.ar-hud .mr-hud-c--br { right: 42px; bottom: 42px; }
-.ar-hud .mr-hud-t--tl { left: 98px; top: 52px; }
-.ar-hud .mr-hud-t--tr { right: 98px; top: 52px; }
-.ar-hud .mr-hud-t--bl { left: 98px; bottom: 50px; }
-.ar-hud .mr-hud-t--br { display: none; }
+/* ------------------------------------------------------------------ statements and the dot */
+.ar-say { left: 110px; top: 402px; z-index: 40; font-size: 140px; }
+.ar-say--center { left: 0; right: 0; top: 400px; text-align: center; }
+.ar-say--end { left: 0; right: 0; top: 410px; text-align: center; font-size: 168px; }
+.ar-say--tight { font-size: 136px; }
+.ar-home { left: 0; top: 0; z-index: 50; width: 34px; height: 34px; }
+.ar-mark { position: absolute; left: 0; right: 0; top: 400px; z-index: 45; display: flex; justify-content: center; }
+.ar-mark-w { font-size: 230px; color: var(--ink); }
+.ar-tag { position: absolute; left: 0; right: 0; top: 690px; z-index: 45; margin: 0; text-align: center; font-size: 40px; color: var(--muted); }
 
-/* ------------------------------------------------------------------ shared scene pieces */
-.ar-h {
+/* ------------------------------------------------------------------ sign-in · 1 the upload */
+.ln-up { left: 280px; top: 110px; width: 1360px; height: 860px; }
+.ln-zone {
   position: absolute;
-  left: 150px;
+  left: 360px;
   top: 150px;
-  max-width: 1500px;
-  font-size: 132px;
-  color: var(--ink);
-}
-.ar-h--light { color: #fff; --accent: var(--yellow); --mr-ghost: rgba(255, 255, 255, .3); }
-.ar-sub {
-  position: absolute;
-  left: 156px;
-  top: 318px;
-}
-.ar-sub .mr-label { font-size: 32px; color: var(--muted); letter-spacing: .2em; }
-.ar-sub--light .mr-label { color: rgba(255, 255, 255, .85); }
-
-/* A wipe: a circle of the next scene's colour opening from a point. */
-.ar-wipe { position: absolute; inset: 0; clip-path: circle(0 at 50% 50%); }
-
-/* Cards and chips of the scenes. */
-.ar-card {
-  position: absolute;
-  border-radius: 40px;
-  background: #fff;
-  box-shadow: 0 50px 90px -46px rgba(16, 41, 90, .5), 0 2px 6px rgba(11, 18, 28, .05), 0 0 0 1px rgba(11, 18, 28, .05);
-}
-.ar-icon {
-  display: grid;
-  align-content: center;
-  gap: 12px;
-  flex: none;
-  width: 96px;
-  height: 118px;
-  padding: 0 22px;
-  border-radius: 22px;
-  background: var(--blue);
-}
-.ar-icon i { display: block; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .88); }
-.ar-icon i:nth-child(2) { width: 70%; }
-.ar-icon--y { background: var(--yellow); }
-.ar-icon--y i { background: rgba(74, 55, 10, .55); }
-.ar-icon--p { background: var(--pink); }
-.ar-icon--p i { background: rgba(110, 30, 60, .45); }
-.ar-icon--g { background: var(--green); }
-.ar-icon--g i { background: rgba(23, 61, 34, .5); }
-
-/* ================================================================== sign-in: upload */
-.ar-drop {
-  position: absolute;
-  left: 960px;
-  top: 400px;
+  box-sizing: border-box;
   display: grid;
   place-items: center;
-  width: 820px;
-  height: 500px;
-  border: 5px dashed #c6c8c0;
-  border-radius: 56px;
-  background: rgba(255, 255, 255, .45);
-}
-.ar-drop-t { display: grid; justify-items: center; gap: 22px; color: var(--muted); font-size: 40px; font-weight: 500; }
-.ar-drop-t svg { width: 84px; height: 84px; color: var(--blue); }
-.ar-file {
-  left: 1010px;
-  top: 560px;
-  display: flex;
-  align-items: center;
-  gap: 34px;
-  width: 720px;
-  padding: 32px 40px 32px 32px;
-}
-.ar-file-body { display: grid; flex: 1; min-width: 0; gap: 8px; }
-.ar-file-name { overflow: hidden; color: var(--ink); font-size: 44px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; text-overflow: ellipsis; }
-.ar-file-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 32px; font-variant-numeric: tabular-nums; }
-.ar-file-meta b { color: var(--blue); font-weight: 600; }
-.ar-file-bar { height: 12px; margin-top: 12px; overflow: hidden; border-radius: 6px; background: #ecebe5; }
-.ar-file-bar i { display: block; height: 100%; background: var(--blue); transform-origin: left; }
-.ar-ok {
-  position: absolute;
-  right: -30px;
-  top: -30px;
-  display: grid;
-  place-items: center;
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  background: #2c9b4e;
-  color: #fff;
-  box-shadow: 0 16px 30px -14px rgba(20, 90, 40, .7);
-}
-.ar-ok svg { width: 46px; height: 46px; }
-
-/* ================================================================== sign-in: the main line */
-.ar-sheet {
-  position: absolute;
-  left: 640px;
-  top: 360px;
-  width: 980px;
-  padding: 56px 74px 60px;
-  border-radius: 36px;
-  background: #fffaf0;
-  box-shadow: 0 50px 90px -46px rgba(16, 41, 90, .5), 0 0 0 1px #efe8d6;
-  color: #3a3f47;
-  font-size: 36px;
-  line-height: 1.5;
-  transform-origin: 40% 85%;
-}
-.ar-sheet-h { margin: 0 0 26px; color: var(--ink); font-size: 60px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
-.ar-sheet p { margin: 0 0 18px; }
-/* The main line: the marker is a background that grows from the left on every line of it. */
-.ar-key {
-  padding: 0 8px;
-  border-radius: 10px;
-  background-image: linear-gradient(transparent 12%, rgba(244, 196, 91, .85) 12%, rgba(244, 196, 91, .85) 92%, transparent 92%);
-  background-repeat: no-repeat;
-  background-size: 0% 100%;
-  color: var(--ink);
-  font-size: 44px;
-  font-weight: 600;
-  line-height: 1.45;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-}
-.ar-note {
-  left: 1300px;
-  top: 640px;
-  display: grid;
-  gap: 18px;
-  width: 520px;
-  padding: 40px 44px;
-}
-.ar-note-k { color: var(--blue); font-size: 28px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
-.ar-note-t { color: var(--ink); font-size: 40px; font-weight: 500; line-height: 1.3; }
-.ar-chip {
-  justify-self: start;
-  padding: 10px 24px;
-  border-radius: 999px;
-  background: var(--blue-t);
-  color: var(--blue-d);
-  font-size: 30px;
-  font-weight: 600;
-}
-.ar-link { position: absolute; inset: 0; overflow: visible; }
-.ar-link path { fill: none; stroke: var(--blue); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
-.ar-link circle { fill: var(--blue); }
-
-/* ================================================================== sign-in: recall */
-.ar-flip { position: absolute; left: 480px; top: 300px; width: 960px; height: 460px; perspective: 2400px; }
-.ar-flip-in { position: absolute; inset: 0; transform-style: preserve-3d; }
-.ar-face {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 60px 90px;
-  border-radius: 48px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 76px;
-  font-weight: 600;
-  letter-spacing: -.03em;
-  line-height: 1.15;
-  text-align: center;
-  box-shadow: 0 60px 100px -50px rgba(4, 12, 34, .7);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-.ar-face small { position: absolute; left: 60px; top: 46px; color: var(--blue); font-size: 30px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
-.ar-face--back { background: #eef4ff; color: #12306f; font-size: 64px; transform: rotateY(180deg); }
-.ar-grades { position: absolute; left: 0; right: 0; top: 820px; display: flex; justify-content: center; gap: 34px; }
-.ar-grade {
-  display: inline-flex;
-  align-items: center;
-  height: 104px;
-  padding: 0 56px;
-  border-radius: 999px;
-  color: var(--ink);
-  font-size: 42px;
-  font-weight: 600;
-  box-shadow: 0 20px 40px -26px rgba(4, 12, 34, .6);
-}
-.ar-grade--no { background: var(--pink); }
-.ar-grade--mid { background: var(--yellow); }
-.ar-grade--yes { background: var(--green); }
-.ar-when { position: absolute; left: 0; right: 0; top: 834px; height: 120px; }
-.ar-when-line { position: absolute; left: 380px; right: 380px; top: 58px; height: 0; border-top: 6px dashed rgba(255, 255, 255, .55); transform-origin: left; }
-.ar-when-row { position: absolute; inset: 0; display: flex; justify-content: center; gap: 64px; }
-.ar-when-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  height: 116px;
-  padding: 0 46px;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 42px;
-  font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 24px 46px -26px rgba(4, 12, 34, .7);
-}
-.ar-when-chip i { width: 22px; height: 22px; margin-right: 18px; border-radius: 50%; background: var(--green); }
-
-/* ================================================================== the ends: a line and the mark */
-.ar-end {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 310px;
-  color: #fff;
-  font-size: 150px;
-  text-align: center;
-  --accent: var(--yellow);
-  --mr-ghost: rgba(255, 255, 255, .3);
-}
-.ar-end-mark { position: absolute; left: 0; right: 0; top: 720px; display: flex; justify-content: center; }
-.ar-end-mark .mr-wordmark { color: #fff; font-size: 120px; }
-
-/* ================================================================== sign-up: the pile */
-.ar-mat {
-  display: flex;
-  align-items: center;
-  gap: 30px;
   width: 640px;
-  padding: 26px 40px 26px 26px;
-  border-radius: 36px;
+  height: 380px;
+  border: 4px dashed #cfd0c8;
+  border-radius: 40px;
+  background: #fafaf8;
 }
-.ar-mat .ar-icon { width: 84px; height: 104px; padding: 0 19px; gap: 10px; border-radius: 20px; }
-.ar-mat-t { display: grid; gap: 6px; min-width: 0; }
-.ar-mat-n { overflow: hidden; color: var(--ink); font-size: 42px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; text-overflow: ellipsis; }
-.ar-mat-m { color: var(--muted); font-size: 30px; }
-.ar-wave { display: flex; align-items: center; gap: 6px; height: 40px; }
-.ar-wave i { display: block; width: 8px; border-radius: 4px; background: rgba(110, 30, 60, .5); }
-.ar-dot {
-  position: absolute;
-  left: 930px;
-  top: 570px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: var(--yellow);
-  box-shadow: 0 0 0 0 rgba(244, 196, 91, .5);
-}
-
-/* ================================================================== sign-up: the plan */
-.ar-plan { left: 460px; top: 300px; width: 1000px; padding: 54px 66px 40px; }
-.ar-plan-head { display: flex; align-items: baseline; justify-content: space-between; }
-.ar-plan-title { position: relative; display: grid; color: var(--ink); font-size: 58px; font-weight: 700; letter-spacing: -.03em; }
-.ar-plan-title > span { grid-area: 1 / 1; white-space: nowrap; }
-.ar-plan-bar { height: 14px; margin: 28px 0 14px; overflow: hidden; border-radius: 7px; background: #ecebe5; }
-.ar-plan-bar i { display: block; height: 100%; background: var(--green); transform-origin: left; }
-.ar-row { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 30px; padding: 16px 0; border-top: 2px solid #efefea; }
-.ar-row:first-of-type { border-top: 0; }
-.ar-tick { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: #efefea; color: #fff; }
-.ar-tick svg { width: 44px; height: 44px; }
-.ar-tick-fill { position: absolute; inset: 0; border-radius: 50%; background: #2c9b4e; }
-.ar-row-t { color: var(--ink); font-size: 46px; font-weight: 500; letter-spacing: -.01em; }
-
-/* ================================================================== sign-up: the week */
-.ar-week { position: absolute; left: 150px; right: 150px; top: 350px; display: grid; grid-template-columns: repeat(8, 1fr); gap: 22px; }
-.ar-day {
-  position: relative;
-  height: 450px;
-  padding: 26px 18px;
-  border-radius: 34px;
-  background: rgba(255, 255, 255, .14);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .22);
-  color: #fff;
-}
-.ar-day--today { background: #fff; color: var(--ink); box-shadow: 0 30px 60px -30px rgba(4, 12, 34, .7); }
-.ar-day-n { font-size: 40px; font-weight: 600; text-align: center; }
-.ar-day-s { margin-top: 4px; font-size: 26px; text-align: center; opacity: .8; }
-.ar-day-cards { position: absolute; left: 18px; right: 18px; bottom: 22px; display: grid; gap: 14px; }
-.ar-mini {
-  height: 74px;
-  border-radius: 18px;
+.ln-zone-hint { display: flex; flex-direction: column; align-items: center; gap: 22px; font-size: 34px; font-weight: 600; color: var(--ink); }
+.ln-zone-ico { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: #efefea; }
+.ln-zone-ico svg { width: 46px; height: 46px; }
+.ln-file { left: 86px; top: 120px; width: 460px; }
+.ln-mods { position: absolute; left: 0; right: 0; top: 584px; display: flex; justify-content: center; gap: 14px; }
+.ln-mod {
+  display: inline-flex;
+  align-items: center;
+  height: 70px;
+  padding: 0 30px;
+  border: 2px solid #e4e4de;
+  border-radius: 999px;
   background: #fff;
-  box-shadow: 0 16px 30px -18px rgba(4, 12, 34, .7), inset 8px 0 0 var(--stripe, var(--blue));
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 500;
 }
-.ar-day--today .ar-mini { box-shadow: 0 0 0 2px #ecebe5, inset 8px 0 0 var(--stripe, var(--blue)); }
-.ar-hop { position: absolute; inset: 0; overflow: visible; }
-.ar-hop path { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: .85; }
-.ar-hop-t { position: absolute; top: 270px; color: #fff; font-size: 34px; font-weight: 600; white-space: nowrap; translate: -50% 0; }
+.ln-run { position: absolute; left: 480px; top: 704px; }
 
-/* ================================================================== sign-up: the exam */
-.ar-ticket { left: 410px; top: 300px; display: flex; align-items: center; gap: 70px; width: 1100px; padding: 60px 70px; }
-.ar-ring { position: relative; flex: none; width: 260px; height: 260px; }
-.ar-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.ar-ring circle { fill: none; stroke-width: 22; }
-.ar-ring .ar-ring-bg { stroke: #ecebe5; }
-.ar-ring .ar-ring-fg { stroke: #2c9b4e; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
-.ar-ring-ok { position: absolute; inset: 0; display: grid; place-items: center; color: #2c9b4e; }
-.ar-ring-ok svg { width: 120px; height: 120px; transform: none; }
-.ar-ticket-tag { display: inline-flex; padding: 12px 28px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 32px; font-weight: 600; }
-.ar-ticket-q { margin-top: 26px; color: var(--ink); font-size: 60px; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
-.ar-ticket-s { margin-top: 18px; color: var(--muted); font-size: 34px; }
+/* ------------------------------------------------------------------ sign-in · 2 the summary */
+.ln-page { left: 1000px; top: 110px; width: 1200px; height: 920px; transform-origin: 0 50%; }
+.ln-page-in { padding: 56px 64px; }
+.ln-crumb { margin: 0; font-size: 28px; }
+.ln-page-h { margin-top: 10px; font-size: 64px; }
+.ln-tabs { display: flex; gap: 10px; margin-top: 30px; }
+.ln-tabs span { padding: 16px 28px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 2px #e4e4de; color: var(--ink); font-size: 30px; font-weight: 500; }
+.ln-tabs span.is-on { background: var(--ink); color: #fff; box-shadow: none; }
+.ln-sum { position: relative; width: 1000px; margin-top: 36px; padding: 48px 52px; }
+.ln-sum-h { margin: 0; font-size: 40px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
+.ln-sum-h--2 { margin-top: 44px; }
+.ln-sum-p { margin: 18px 0 0; font-size: 34px; line-height: 1.5; color: var(--ink); }
+.ln-frag { vertical-align: 4px; }
+.ln-line { display: block; width: 860px; height: 18px; margin-top: 22px; border-radius: 9px; background: #efefea; }
+.ln-line--short { width: 560px; }
+.ln-slip { left: 300px; top: 560px; width: 600px; padding: 40px 46px; }
+.ln-slip-c { margin: 0; font-size: 26px; }
+.ln-slip-q { margin: 14px 0 0; font-size: 36px; line-height: 1.4; color: var(--ink); }
+
+/* ------------------------------------------------------------------ sign-in · 3 the cards */
+.ln-desk { position: absolute; left: 1000px; top: 130px; width: 1000px; height: 860px; transform-origin: 0 50%; }
+.ln-review { left: 0; top: 60px; width: 860px; height: 400px; padding: 56px 60px; }
+.ln-review-l { margin: 0; font-size: 30px; }
+.ln-review-q { margin: 26px 0 0; font-size: 62px; font-weight: 600; line-height: 1.08; letter-spacing: -.03em; color: var(--ink); }
+.ln-review--far { left: 96px; top: -40px; transform: scale(.88); filter: blur(9px); opacity: .7; }
+.ln-front { position: absolute; left: 0; top: 60px; width: 860px; height: 400px; perspective: 3200px; }
+.ln-flip-in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+.ln-face { left: 0; top: 0; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.ln-face--back { transform: rotateY(180deg); }
+.ln-grades { position: absolute; left: 0; top: 500px; display: flex; gap: 16px; }
+.ln-grade {
+  display: inline-flex;
+  align-items: center;
+  height: 88px;
+  padding: 0 38px;
+  border: 2px solid #e4e4de;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 32px;
+  font-weight: 500;
+}
+.ln-when { position: absolute; left: 4px; top: 624px; margin: 0; font-size: 34px; font-weight: 500; color: var(--ink); }
+
+/* ------------------------------------------------------------------ sign-in · 4 the ticket */
+.ln-room { position: absolute; left: 1000px; top: 150px; width: 980px; height: 820px; transform-origin: 0 50%; }
+.ln-ticket { left: 0; top: 0; width: 960px; height: 470px; padding: 52px 56px; }
+.ln-ticket-q { margin-top: 30px; font-size: 76px; }
+.ln-voice-row { position: absolute; left: 56px; right: 56px; bottom: 52px; display: flex; align-items: center; gap: 30px; }
+.ln-wave { display: flex; align-items: center; gap: 8px; height: 90px; }
+.ln-wave i { width: 7px; height: 90px; border-radius: 4px; background: var(--ink); transform-origin: 50% 50%; }
+.ln-stamp { position: absolute; right: 50px; top: 46px; display: grid; place-items: center; width: 300px; height: 120px; font-size: 40px; font-weight: 600; color: var(--ink); }
+.ln-stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ln-stamp path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.ln-ask { left: 0; top: 510px; width: 960px; padding: 40px 50px; }
+.ln-ask-l { margin: 0; font-size: 26px; }
+.ln-ask-q { margin: 12px 0 0; font-size: 38px; line-height: 1.35; color: var(--ink); }
+
+/* ------------------------------------------------------------------ sign-up · 2 the question list */
+.rg-editor { left: 1000px; top: 140px; width: 1140px; height: 860px; transform-origin: 0 50%; }
+.rg-editor-in { padding: 56px 64px; }
+.rg-editor-h { font-size: 64px; }
+.rg-label { margin: 36px 0 0; font-size: 30px; font-weight: 600; color: var(--ink); }
+.rg-field {
+  position: relative;
+  box-sizing: border-box;
+  width: 800px;
+  height: 360px;
+  margin-top: 16px;
+  padding: 36px 40px;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #e4e4de;
+}
+.rg-typed { display: block; font-size: 34px; line-height: 70px; color: var(--ink); }
+.rg-marks { position: absolute; right: 36px; top: 36px; display: grid; justify-items: end; }
+.rg-marks .fm-st { margin: 8px 0; }
+.rg-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; margin-top: 34px; }
+.rg-mapped { font-size: 30px; }
+
+/* ------------------------------------------------------------------ sign-up · 3 the week */
+.rg-board { left: 980px; top: 120px; width: 1320px; height: 900px; transform-origin: 0 50%; background: #fff; }
+.rg-days { display: flex; align-items: center; height: 110px; padding-left: 24px; border-bottom: 1px solid #e4e4de; }
+.rg-day { width: 168px; font-size: 30px; color: var(--muted); white-space: nowrap; }
+.rg-day b { margin-left: 6px; font-weight: 600; color: var(--ink); }
+.rg-day--today b { display: inline-grid; place-items: center; min-width: 52px; height: 52px; padding: 0 8px; border-radius: 14px; background: var(--ink); color: #fff; }
+.rg-cols { position: absolute; left: 0; right: 0; top: 110px; bottom: 0; }
+.rg-col { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid #ecece6; }
+.rg-block {
+  position: absolute;
+  box-sizing: border-box;
+  width: 152px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  background: #efefea;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.rg-block--ink { background: var(--ink); color: #fff; }
+.rg-now { position: absolute; left: 16px; top: 0; bottom: 0; width: 0; border-left: 4px solid var(--blue); transform-origin: 50% 0; }
+.rg-now-tag { left: -8px; top: -24px; }
+
+/* ------------------------------------------------------------------ sign-up · 4 the exam */
+.rg-exam { position: absolute; left: 1020px; top: 150px; width: 900px; height: 780px; transform-origin: 0 50%; }
+.rg-exam-card { left: 0; top: 0; width: 860px; padding: 54px 58px; }
+.rg-exam-h { margin-top: 26px; font-size: 64px; }
+.rg-share { display: flex; align-items: baseline; margin: 24px 0 0; font-size: 150px; font-weight: 700; line-height: 1; letter-spacing: -.05em; color: var(--ink); }
+.rg-share-c { margin: 10px 0 0; font-size: 30px; }
+.rg-dots { display: flex; gap: 12px; margin-top: 30px; }
+.rg-dot { width: 26px; height: 26px; border-radius: 50%; }
+.rg-dot--ok { background: #8acb97; }
+.rg-dot--half { background: #f4c45b; }
+.rg-dot--no { background: #e4e4de; }
+.rg-exam-actions { display: flex; gap: 16px; margin-top: 40px; }

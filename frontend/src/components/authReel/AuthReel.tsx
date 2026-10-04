@@ -1,12 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { ReelClock } from '../reel/clock';
-import { ClockProvider, SceneProvider, flag, put, text, useEls, useFrame } from '../reel/engine';
-import { STAGE_H, STAGE_W, mix, timecode } from '../reel/timeline';
+import { ClockProvider, SceneProvider, opacity, put, useFrame } from '../reel/engine';
+import { STAGE_H, STAGE_W } from '../reel/timeline';
+import { Wordmark } from '../film/kit';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { LOGIN_SCENES } from './LoginScenes';
 import { REGISTER_SCENES } from './RegisterScenes';
-import { SCRIPTS, chapterIndexAt, hudLight, sceneVisible, scenesAt, type AuthReelVariant, type AuthScript } from './script';
+import { SCRIPTS, cornerOpacity, sceneVisible, scenesAt, type AuthReelVariant, type AuthScript } from './script';
 import '../reel/reel.css';
 import './authReel.css';
 
@@ -38,37 +39,14 @@ function useMedia(query: string): boolean {
   return match;
 }
 
-/** Corner brackets, the brand, the chapter typed in, the timecode and the chapter dots. */
-function Hud({ script }: { script: AuthScript }) {
-  const root = useRef<HTMLDivElement>(null);
-  const { one, all } = useEls(root);
-  useFrame((_, t) => {
-    const light = hudLight(script, t);
-    const c = (from: number, to: number) => Math.round(mix(from, to, light));
-    put(root.current, 'color', `rgb(${c(11, 255)},${c(18, 255)},${c(28, 255)})`);
-    const index = chapterIndexAt(script, t);
-    const since = script.scenes[index].from + 200;
-    const label = `${String(index + 1).padStart(2, '0')} / ${script.chapters[index].label}`.toUpperCase();
-    const typed = Math.max(0, Math.floor(((t - since) * 30) / 1000));
-    text(one('label'), label.slice(0, typed));
-    text(one('time'), timecode(t));
-    all('dot').forEach((dot, i) => flag(dot, 'is-on', i === index));
-  });
+/** The only label on the frame: a small «Meldy» in the corner (it steps aside for the big wordmark). */
+function Corner({ script }: { script: AuthScript }) {
+  const root = useRef<HTMLSpanElement>(null);
+  useFrame((_, t) => opacity(root.current, cornerOpacity(script, t)));
   return (
-    <div ref={root} className="mr-hud ar-hud" aria-hidden="true">
-      <span className="mr-hud-c mr-hud-c--tl" />
-      <span className="mr-hud-c mr-hud-c--tr" />
-      <span className="mr-hud-c mr-hud-c--bl" />
-      <span className="mr-hud-c mr-hud-c--br" />
-      <span className="mr-hud-t mr-hud-t--tl">MELDY</span>
-      <span data-a="label" className="mr-hud-t mr-hud-t--tr" />
-      <span data-a="time" className="mr-hud-t mr-hud-t--bl" />
-      <span className="mr-hud-t mr-hud-t--br">
-        {script.chapters.map((chapter) => (
-          <i key={chapter.id} data-a="dot" className="mr-hud-dot" />
-        ))}
-      </span>
-    </div>
+    <span ref={root} className="fm-corner" aria-hidden="true">
+      <Wordmark />
+    </span>
   );
 }
 
@@ -114,7 +92,7 @@ function Stage({ clock, scale, variant }: { clock: ReelClock; scale: number; var
             </SceneProvider>
           );
         })}
-        <Hud script={script} />
+        <Corner script={script} />
       </div>
     </ClockProvider>
   );
