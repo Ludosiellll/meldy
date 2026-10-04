@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import UploadZone, { type UploadOptions, type UploadTab } from '../components/UploadZone';
 import AgentCards from '../components/AgentCards';
 import ResultsPanel from '../components/ResultsPanel';
@@ -529,7 +529,9 @@ export default function Analyze() {
 
   return (
     <div className="az" data-phase={state.phase}>
-      <AnimatePresence mode="wait">
+      {/* No AnimatePresence «wait» here: a result that came within the entering fade left the old view
+          on screen («Готовим конспект…» over a finished analysis). Each view only fades in. */}
+      <>
         {state.phase === 'upload' && (
           <motion.div key="upload" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
             <UploadZone
@@ -624,7 +626,7 @@ export default function Analyze() {
             </div>
           </motion.section>
         )}
-      </AnimatePresence>
+      </>
     </div>
   );
 }
