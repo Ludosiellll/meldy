@@ -177,6 +177,9 @@ export default function MaterialDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  // «Прогресс» links straight to a tab of the material: ?section=quiz | flashcards | summary.
+  const sectionValue = searchParams.get('section');
+  const sectionParam = sectionValue === 'quiz' || sectionValue === 'flashcards' || sectionValue === 'summary' ? sectionValue : undefined;
   const { user } = useAuth();
   const { confirm } = useConfirm();
   const tabRefs = useRef<Partial<Record<Mode, HTMLButtonElement | null>>>({});
@@ -564,6 +567,7 @@ export default function MaterialDetail() {
           canEdit={canEdit}
           onResultsChange={(next, section) => updateMaterialFields(recreatedFields(material.id, next, section))}
           embedded
+          initialTab={sectionParam}
         />
       ) : (
         <ExpressPrepView

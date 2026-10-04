@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -6,43 +6,66 @@ import Gradebook from '../components/Gradebook';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { fetchMaterialEvents, fetchQuestionEvents, type LearningEvent } from '../api/learning';
+import { syncFlashcards } from '../api/flashcards';
 import { normalizeLayout, type ExamKind, type TicketLayout } from '../api/exams';
 import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState } from '../lib/learning/readiness';
-import { materialMetrics, MIN_MEASURED, type MaterialMetrics, type ProgressCard } from '../utils/progressMetrics';
+import type { ProgressCard } from '../utils/progressMetrics';
+import {
+  cardStates,
+  dueCount,
+  forecast,
+  lectureRows,
+  recallShare,
+  recallTally,
+  recallWindow,
+  todoItems,
+  weekLede,
+  JOURNAL_START,
+  LECTURE_RECALL_MIN,
+  RECALL_MIN_ANSWERS,
+  RECALL_WINDOW_DAYS,
+  type CardStates,
+  type ForecastDay,
+  type LectureRow,
+  type MaterialInput,
+  type RecallWindow,
+  type TodoItem,
+} from '../utils/progressModel';
+import { analysisCards } from '../utils/lectureCards';
 import { currentStreak, isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
 import { pluralRu } from '../components/conversation/visuals';
 import { confirmedShares } from '../components/exams/sheetModel';
 import { percent } from '../lib/exams/ticketMath';
 import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
 import { READINESS_LABELS } from '../lib/learning/readiness';
+import { displayMaterialTitle } from '../utils/materialTitle';
 import '../styles/paper.css';
 import './Analytics.css';
-import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
- * «Прогресс» (redesign spec 5.17): measured counters, dated, in the order a student preparing for an
- * exam needs them — the exams first (confirmed by answers and what it means for tickets), then every
- * lecture as a row of a table, the answers per day, and the topics with open mistakes.
- *
- * Every block reads its own source and fails on its own: a failed query shows a plain line with
- * «Повторить», never zeros. Card numbers come from flashcard_progress, test numbers from the
- * journal (the first attempt of a test, never a retake), exam numbers from exam_questions and the
- * answers to tickets in the journal (spoken or typed; «подтверждено» by the rule of
- * lib/learning/readiness). Old-format oral exams are only the exam_sessions rows of kind
- * 'professor'; answers to exam tickets are counted in «Экзамены», not twice. No tabs, no spinner.
+ * «Прогресс», reworked on 2026-10-04 (the owner: the old ledger of counters was hard to read and
+ * «как-будто бессмысленна»). The page answers three questions and gives each a way to act:
+ * - what you already know — the cards by state (закреплены, учатся, новые);
+ * - how your memory works — the share of cards recalled in 30 days, from the journal (which starts
+ *   on 2026-10-03: until 30 days fit after it, the period is «с 3 октября», said in every place);
+ * - what comes next — the reviews of the coming week by the cards' schedule, and «Что подтянуть»:
+ *   the gaps the data shows, each with one button.
+ * Then the exams (confirmed by answers), every lecture with its state and next step, and the days
+ * of study. The numbers come from utils/progressModel.ts (pure, tested); every block reads its own
+ * source and fails on its own with «Повторить», never with zeros. No mastery percentage, no
+ * invented scores: «Как считается» at the end says how each number is made.
  */
 
 const PAGE_SIZE = 1000;
 const ACTIVITY_DAYS = 30;
+/** Card answers of the journal: the 30 days of the share, with a margin for the time zone. */
+const JOURNAL_DAYS = 32;
 const LOADING_LINE_MS = 300;
 
 type Source<T> = { status: 'loading' } | { status: 'ok'; data: T } | { status: 'error' };
 
-interface MaterialRow {
-  id: string;
-  title: string;
+interface MaterialRow extends MaterialInput {
   subject: string | null;
-  created_at: string;
 }
 
 interface CardRow extends ProgressCard {
@@ -64,6 +87,7 @@ interface LegacyExamRow {
 
 interface MistakeRow {
   topic: string | null;
+  material_id: string | null;
 }
 
 interface ExamBlock {
@@ -113,9 +137,10 @@ function confirmedTicketShare(
 
 const loaders = {
   materials: async (userId: string): Promise<MaterialRow[]> => {
+    // Only the small parts of the JSON columns: whether it is text-only, the cards, the test questions.
     const { data, error } = await supabase
       .from('materials')
-      .select('id, title, subject, created_at')
+      .select('id, title, subject, created_at, text_only:summary_json->text_only, flashcards_json, quiz:quiz_json->quiz')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -131,6 +156,7 @@ const loaders = {
         .range(from, to),
     ),
   quiz: (): Promise<LearningEvent[]> => fetchMaterialEvents({ kinds: ['quiz_answer'] }),
+  journal: (): Promise<LearningEvent[]> => fetchMaterialEvents({ kinds: ['card_review', 'exam_answer'], sinceDays: JOURNAL_DAYS }),
   activity: async (userId: string): Promise<SessionRow[]> => {
     const { data, error } = await supabase
       .from('study_sessions')
@@ -157,7 +183,7 @@ const loaders = {
   mistakes: async (userId: string): Promise<MistakeRow[]> => {
     const { data, error } = await supabase
       .from('mistake_diary')
-      .select('topic')
+      .select('topic, material_id')
       .eq('user_id', userId)
       .eq('is_resolved', false);
     if (error) throw error;
@@ -234,84 +260,15 @@ function count(n: number, forms: readonly [string, string, string]): string {
   return `${n} ${pluralRu(n, forms)}`;
 }
 
-/** «по 1 ответу», «по 46 ответам»: the dative after «по». */
-function dative(n: number, one: string, many: string): string {
-  return `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : many}`;
-}
-
 /** Ends a sentence with one period: «… 4 окт.» already has it. */
 function sentence(text: string): string {
   return text.endsWith('.') ? text : `${text}.`;
 }
 
-/**
- * The line under «Прогресс»: what the numbers on this page are made of and since when, e.g. «По 46
- * ответам на билеты и 212 повторениям карточек с 27 сентября.»
- */
-export function progressLede(input: { ticketAnswers: number; testAnswers?: number; cardReviews: number; since: string | null }): string {
-  const parts: string[] = [];
-  if (input.ticketAnswers > 0) parts.push(`${dative(input.ticketAnswers, 'ответу', 'ответам')} на билеты`);
-  // Test answers are named too: the table shows first tests, so the line must not say there were no answers.
-  const tests = input.testAnswers ?? 0;
-  if (tests > 0) parts.push(`${dative(tests, 'ответу', 'ответам')} в тестах`);
-  if (input.cardReviews > 0) parts.push(`${dative(input.cardReviews, 'повторению', 'повторениям')} карточек`);
-  if (parts.length === 0) return 'Ответов на билеты, тестов и повторений карточек пока нет.';
-  const since = input.since ? ` с ${formatDay(input.since)}` : '';
-  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} и ${parts[parts.length - 1]}` : parts[0];
-  return `По ${list}${since}.`;
-}
-
-export interface Cell {
-  main: string;
-  sub: string | null;
-  quiet: boolean;
-}
-
-/**
- * «Вспомнили» counts only cards that were reviewed: a new card or an examiner's follow-up card
- * waiting for its first review is not forgotten, so it is named apart, never put in the «из».
- */
-export function cardsCell(cards: MaterialMetrics['cards']): Cell | null {
-  if (cards.total === 0) return null;
-  if (cards.reviewed === 0) {
-    return { main: `${count(cards.total, ['карточка', 'карточки', 'карточек'])}, ещё не ${pluralRu(cards.total, ['повторялась', 'повторялись', 'повторялись'])}`, sub: null, quiet: true };
-  }
-  const waiting = cards.total - cards.reviewed;
-  const sub = [
-    waiting > 0 ? `ещё ${waiting} ${pluralRu(waiting, ['не повторялась', 'не повторялись', 'не повторялись'])}` : '',
-    cards.consolidated > 0 ? `${cards.consolidated} ${pluralRu(cards.consolidated, ['закреплена', 'закреплены', 'закреплены'])}` : 'закреплённых пока нет',
-    cards.nextCheck ? `следующая проверка ${dayLabel(cards.nextCheck)}` : '',
-  ]
-    .filter(Boolean)
-    .join(', ');
-  return { main: `${cards.recalled} из ${cards.reviewed} вспомнили`, sub, quiet: false };
-}
-
-/** «4 из 5, 2 окт.» and, under it, «повторно 3 окт.: 5 из 5» (a retake never replaces the first). */
-export function quizCell(metrics: Pick<MaterialMetrics, 'quiz' | 'quizRepeat'>): Cell {
-  if (!metrics.quiz) return { main: 'теста не было', sub: null, quiet: true };
-  return {
-    main: `${metrics.quiz.correct} из ${metrics.quiz.total}, ${dayLabel(metrics.quiz.date)}`,
-    sub: metrics.quizRepeat ? `повторно ${dayLabel(metrics.quizRepeat.date)}: ${metrics.quizRepeat.correct} из ${metrics.quizRepeat.total}` : null,
-    quiet: false,
-  };
-}
-
-/** Names what the share is made of: the reviewed cards, the first test, or both. */
-export function accuracyLabel(metrics: Pick<MaterialMetrics, 'cards' | 'quiz'>): string {
-  if (!metrics.quiz) return 'Верно по карточкам';
-  if (metrics.cards.reviewed === 0) return 'Верно в первом тесте';
-  return 'Верно по карточкам и первому тесту';
-}
-
-/** «10 из 13» and «77 %», or «мало данных» / «не проверялось» in this cell only. */
-export function accuracyCell(metrics: MaterialMetrics): Cell {
-  if (metrics.status === 'measured' && metrics.accuracy) {
-    return { main: `${metrics.accuracy.numerator} из ${metrics.accuracy.denominator}`, sub: `${Math.round(metrics.accuracy.value * 100)} %`, quiet: false };
-  }
-  if (metrics.status === 'few_data') return { main: 'мало данных', sub: null, quiet: true };
-  return { main: 'не проверялось', sub: null, quiet: true };
-}
+const CARD_FORMS = ['карточка', 'карточки', 'карточек'] as const;
+const ANSWER_FORMS = ['ответ', 'ответа', 'ответов'] as const;
+/** After «Повторить»: «1 карточку», «2 карточки», «5 карточек». */
+const CARD_ACC = ['карточку', 'карточки', 'карточек'] as const;
 
 /** The date of the mapping in the words of the exam sheet: «Разметка от 21 января, 9:40.» */
 export function mappingDateText(mappedAt: string | null | undefined): string | null {
@@ -346,7 +303,7 @@ export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'con
   }
   if (summary.confirmed > 0 && exam.confirmedTickets !== null && exam.perTicket > 1) {
     const word = exam.perTicket === 2 ? 'оба вопроса' : exam.perTicket === 3 ? 'все три вопроса' : 'все четыре вопроса';
-    parts.push(`Билетов, где подтверждены ${word}, — ${exam.confirmedTickets}\u00a0%.`);
+    parts.push(`Билетов, где подтверждены ${word}, — ${exam.confirmedTickets} %.`);
   }
   parts.push(
     confidence.enoughData
@@ -369,7 +326,7 @@ function coverageLine(exam: ExamBlock): string {
 
 function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
   return (
-    <p role="alert" className="text-[15px] leading-[22px] text-[var(--sf-ink)]">
+    <p role="alert" className="pg-error">
       {text}{' '}
       <button type="button" onClick={onRetry} className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
         Повторить
@@ -378,11 +335,13 @@ function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
   );
 }
 
-function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
+function Section({ title, children, aside, id }: { title: string; children: ReactNode; aside?: ReactNode; id?: string }) {
   return (
-    <section className="pg-sec">
+    <section className="pg-sec" aria-labelledby={id}>
       <div className="pg-sec-head">
-        <h2 className="sf-h2">{title}</h2>
+        <h2 className="sf-h2" id={id}>
+          {title}
+        </h2>
         {aside}
       </div>
       {children}
@@ -390,7 +349,7 @@ function Section({ title, children, aside }: { title: string; children: React.Re
   );
 }
 
-function Quiet({ children }: { children: React.ReactNode }) {
+function Quiet({ children }: { children: ReactNode }) {
   return <p className="pg-quiet">{children}</p>;
 }
 
@@ -483,133 +442,170 @@ export default function Analytics() {
 
   return (
     <div className="sf-page pg">
-      <header className="sf-head">
+      <header className="sf-head pg-head">
         <div>
           <h1 className="sf-h1">Прогресс</h1>
-          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : ledeOf(sources)}</p>
+          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : ledeOf(sources)}</p>
         </div>
-      </header>
-      {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} />}
-      <p className="pg-end">
-        <Link className="sf-secondary" to="/analytics?tab=gradebook">
+        <Link className="sf-secondary pg-head-link" to="/analytics?tab=gradebook">
           Оценки из зачётки
         </Link>
-      </p>
+      </header>
+      {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} userId={user?.id ?? null} />}
     </div>
   );
 }
 
-/** The lede from the sources that loaded: ticket answers, test answers, card reviews and the earliest day. */
+/** «За 7 дней: …» from the sources that loaded, or the day of the last study. */
 function ledeOf(sources: Sources): string {
-  const { exams, activity, quiz } = sources;
-  if (exams.status !== 'ok' && activity.status !== 'ok' && quiz.status !== 'ok') return 'Считаем по вашим ответам…';
-  let ticketAnswers = 0;
-  let since: string | null = null;
-  const consider = (key: string | null | undefined) => {
-    const day = key ? key.slice(0, 10) : '';
-    if (isDateKey(day) && (since === null || day < since)) since = day;
+  const { activity, quiz, journal } = sources;
+  if (activity.status !== 'ok' && quiz.status !== 'ok' && journal.status !== 'ok') return 'Считаем по вашим ответам…';
+  const today = localDateKey();
+  const weekFrom = shiftDateKey(today, -6);
+  let lastDay: string | null = null;
+  const consider = (value: string | null | undefined) => {
+    const day = value ? value.slice(0, 10) : '';
+    if (isDateKey(day) && day <= today && (lastDay === null || day > lastDay)) lastDay = day;
   };
-  if (exams.status === 'ok') {
-    for (const exam of exams.data) {
-      ticketAnswers += exam.answers;
-      consider(exam.summary.since);
-    }
-  }
-  let cardReviews = 0;
+  let cardAnswers = 0;
   if (activity.status === 'ok') {
     for (const row of activity.data) {
       const value = Number(row.cards_reviewed) || 0;
       if (value <= 0) continue;
-      cardReviews += value;
       consider(row.date);
+      const day = row.date.slice(0, 10);
+      if (day >= weekFrom && day <= today) cardAnswers += value;
     }
   }
-  let testAnswers = 0;
+  const tests = new Set<string>();
   if (quiz.status === 'ok') {
     for (const event of quiz.data) {
-      testAnswers += 1;
       consider(event.local_date);
+      if (event.local_date >= weekFrom && event.local_date <= today && event.session_id) tests.add(event.session_id);
     }
   }
-  return progressLede({ ticketAnswers, testAnswers, cardReviews, since });
+  let tickets = 0;
+  if (journal.status === 'ok') {
+    for (const event of journal.data) {
+      consider(event.local_date);
+      if (event.kind === 'exam_answer' && event.local_date >= weekFrom && event.local_date <= today) tickets += 1;
+    }
+  }
+  return weekLede({ cardAnswers, tests: tests.size, tickets, lastDay: lastDay ? formatDay(lastDay) : null });
 }
 
-function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: SourceKey) => void }) {
-  const { materials, cards, quiz, activity, legacyExams, mistakes, exams } = sources;
+function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (key: SourceKey) => void; userId: string | null }) {
+  const { materials, cards, quiz, journal, activity, legacyExams, mistakes, exams } = sources;
   const [howOpen, setHowOpen] = useState(false);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncFailed, setSyncFailed] = useState<string | null>(null);
 
-  const cardsByMaterial = useMemo(() => {
-    const map = new Map<string, CardRow[]>();
-    if (cards.status === 'ok') {
-      for (const card of cards.data) {
-        if (!card.material_id) continue;
-        const list = map.get(card.material_id);
-        if (list) list.push(card);
-        else map.set(card.material_id, [card]);
-      }
+  const now = useMemo(() => new Date(), [cards, journal, materials]);
+  const today = localDateKey(now);
+  const span = recallWindow(today);
+  const windowFrom = span.from;
+  const allCards = cards.status === 'ok' ? cards.data : [];
+  const journalEvents = journal.status === 'ok' ? journal.data : [];
+
+  const states = useMemo(() => cardStates(allCards, now), [allCards, now]);
+  const due = useMemo(() => dueCount(allCards, now), [allCards, now]);
+  const week = useMemo(() => forecast(allCards, now), [allCards, now]);
+  const recall = useMemo(() => recallTally(journalEvents, windowFrom, today), [journalEvents, windowFrom, today]);
+
+  const rows = useMemo(
+    () =>
+      materials.status === 'ok'
+        ? lectureRows({
+            materials: materials.data,
+            cards: allCards,
+            quizEvents: quiz.status === 'ok' ? quiz.data : [],
+            reviewEvents: journalEvents,
+            mistakes: mistakes.status === 'ok' ? mistakes.data : [],
+            now,
+            windowFrom,
+            windowTo: today,
+          })
+        : [],
+    [materials, allCards, quiz, journalEvents, mistakes, now, windowFrom, today],
+  );
+
+  const todo = useMemo(
+    () =>
+      todoItems({
+        // A lecture's next step needs its cards and tests: without them the rows say nothing new.
+        rows: cards.status === 'ok' && quiz.status === 'ok' ? rows : [],
+        mistakes: mistakes.status === 'ok' ? mistakes.data : null,
+        exams: exams.status === 'ok' ? exams.data.map((exam) => ({ id: exam.id, title: subjectOf(exam.title), none: exam.coverage.none })) : null,
+      }),
+    [rows, cards.status, quiz.status, mistakes, exams],
+  );
+  const everythingRead = SOURCE_KEYS.every((key) => key === 'legacyExams' || key === 'activity' || sources[key].status === 'ok');
+
+  const materialById = useMemo(() => new Map((materials.status === 'ok' ? materials.data : []).map((m) => [m.id, m])), [materials]);
+  const addToReview = async (lecture: LectureRow) => {
+    const material = materialById.get(lecture.id);
+    if (!userId || !material || syncing) return;
+    setSyncing(lecture.id);
+    setSyncFailed(null);
+    try {
+      await syncFlashcards(userId, lecture.id, analysisCards(material.flashcards_json));
+      reload('cards');
+    } catch (error) {
+      console.error('Adding cards to review failed', error);
+      setSyncFailed(lecture.id);
+    } finally {
+      setSyncing(null);
     }
-    return map;
-  }, [cards]);
+  };
 
-  const quizByMaterial = useMemo(() => {
-    const map = new Map<string, LearningEvent[]>();
-    if (quiz.status === 'ok') {
-      for (const event of quiz.data) {
-        if (!event.material_id) continue;
-        const list = map.get(event.material_id);
-        if (list) list.push(event);
-        else map.set(event.material_id, [event]);
-      }
-    }
-    return map;
-  }, [quiz]);
-
-  const today = localDateKey();
-  const firstDay = shiftDateKey(today, -(ACTIVITY_DAYS - 1));
-  const chartData = useMemo(() => {
-    const byDate = new Map<string, number>();
-    if (activity.status === 'ok') {
-      for (const row of activity.data) {
-        const key = typeof row.date === 'string' ? row.date.slice(0, 10) : '';
-        byDate.set(key, (byDate.get(key) ?? 0) + (Number(row.cards_reviewed) || 0));
-      }
-    }
-    return Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
-      const key = shiftDateKey(today, i - (ACTIVITY_DAYS - 1));
-      return { key, value: byDate.get(key) ?? 0 };
-    });
-  }, [activity, today]);
-
-  // One sentence about the last 30 days, from the sources that loaded. Only what happened is named:
-  // no «0 ответов», no «0 дней подряд»; a day with a test counts as a day of study too.
-  const cardAnswers = chartData.reduce((sum, day) => sum + day.value, 0);
-  const summaryParts: string[] = [];
-  if (activity.status === 'ok') {
-    const recentQuiz = quiz.status === 'ok' ? quiz.data.filter((e) => e.local_date >= firstDay && e.local_date <= today) : [];
-    const studyDays = new Set([
-      ...activity.data
-        .filter((row) => (Number(row.cards_reviewed) || 0) > 0)
-        .map((row) => row.date.slice(0, 10))
-        .filter((key) => key >= firstDay && key <= today),
-      ...recentQuiz.map((e) => e.local_date),
-    ]).size;
-    const tests = new Set(recentQuiz.filter((e) => e.session_id).map((e) => e.session_id)).size;
-    if (cardAnswers > 0) summaryParts.push(`${count(cardAnswers, ['ответ', 'ответа', 'ответов'])} на карточки`);
-    if (tests > 0) summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
-    if (studyDays > 0) summaryParts.push(`занятия в ${studyDays} из ${ACTIVITY_DAYS} дней`);
-    const streak = currentStreak(activity.data.filter((row) => (Number(row.cards_reviewed) || 0) > 0).map((row) => row.date));
-    if (streak > 0) summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);
-  }
+  const active = rows.filter((row) => !row.textOnly);
+  const textOnly = rows.filter((row) => row.textOnly);
 
   return (
     <>
-      <Section title="Экзамены" aside={<Link to="/exams" className="sf-link" data-muted="">Все экзамены</Link>}>
+      <section className="pg-tiles" aria-label="Сводка">
+        <KnowledgeTile cards={cards} states={states} onRetry={() => reload('cards')} />
+        {/* Unknown cards (still loading or failed) read as «there are cards»: the neutral sentence. */}
+        <MemoryTile journal={journal} recall={recall} span={span} hasCards={cards.status !== 'ok' || states.total > 0} onRetry={() => reload('journal')} />
+        <AheadTile cards={cards} due={due} week={week} onRetry={() => reload('cards')} />
+      </section>
+
+      <Section title="Что подтянуть" id="pg-todo">
+        <div className="pg-card pg-todo">
+          {todo.items.length > 0 ? (
+            <ul className="pg-todo-list">
+              {todo.items.map((item) => (
+                <TodoLine
+                  key={todoKey(item)}
+                  item={item}
+                  span={span}
+                  syncing={syncing}
+                  failed={syncFailed}
+                  onAdd={(lecture) => void addToReview(lecture)}
+                />
+              ))}
+            </ul>
+          ) : everythingRead ? (
+            <Quiet>Пробелов не видно: карточки в повторении, тесты пройдены, открытых ошибок нет.</Quiet>
+          ) : (
+            <Quiet>Часть данных не загрузилась, поэтому список может быть неполным.</Quiet>
+          )}
+          {todo.more > 0 ? <Quiet>Ещё {todo.more} — в списке лекций ниже.</Quiet> : null}
+        </div>
+      </Section>
+
+      <Section title="Экзамены" id="pg-exams" aside={<Link to="/exams" className="sf-link" data-muted="">Все экзамены</Link>}>
         {exams.status === 'error' ? (
           <ErrorLine text="Экзамены не загрузились." onRetry={() => reload('exams')} />
         ) : exams.status === 'loading' ? (
           <Quiet>Загружаем…</Quiet>
         ) : exams.data.length === 0 ? (
-          <Quiet>Экзаменов пока нет. Добавьте список вопросов, и здесь появится, что из него подтверждено ответами.</Quiet>
+          <div className="pg-card pg-exam-empty">
+            <p>Добавьте список вопросов к экзамену — здесь будет видно, какие из них уже подтверждены ответами.</p>
+            <Link className="sf-secondary" to="/exams/new">
+              Новый экзамен
+            </Link>
+          </div>
         ) : (
           <ul className="sf-ledger">
             {exams.data.map((exam) => (
@@ -643,9 +639,9 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
         )}
       </Section>
 
-      <Section title="По лекциям">
+      <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted="">Библиотека</Link>}>
         {materials.status === 'error' ? (
-          <ErrorLine text="Материалы не загрузились." onRetry={() => reload('materials')} />
+          <ErrorLine text="Лекции не загрузились." onRetry={() => reload('materials')} />
         ) : materials.status === 'loading' ? (
           <Quiet>Загружаем…</Quiet>
         ) : materials.data.length === 0 ? (
@@ -659,110 +655,48 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
           <>
             {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
             {quiz.status === 'error' && <ErrorLine text="Результаты тестов не загрузились." onRetry={() => reload('quiz')} />}
-            <div className="pg-card pg-table-card">
-            <table className="sf-table">
-              <thead>
-                <tr>
-                  <th scope="col" style={{ width: '34%' }}>Лекция</th>
-                  <th scope="col">Карточки</th>
-                  <th scope="col">Тест, первая попытка</th>
-                  <th scope="col">Верно при последней проверке</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.data.map((material) => {
-                  const metrics = materialMetrics(cardsByMaterial.get(material.id) ?? [], quizByMaterial.get(material.id) ?? []);
-                  const cardCell = cards.status === 'ok' ? cardsCell(metrics.cards) : null;
-                  const testCell = quiz.status === 'ok' ? quizCell(metrics) : null;
-                  const bothLoaded = cards.status === 'ok' && quiz.status === 'ok';
-                  const share = bothLoaded ? accuracyCell(metrics) : null;
-                  return (
-                    <tr key={material.id} data-material={material.id}>
-                      <td>
-                        <Link to={`/library/${material.id}`} className="sf-cell-title">
-                          {displayMaterialTitle(material.title)}
-                        </Link>
-                      </td>
-                      <td data-label="Карточки">
-                        {cardCell ? (
-                          <>
-                            <span className={cardCell.quiet ? 'sf-cell-quiet' : undefined}>{cardCell.main}</span>
-                            {cardCell.sub ? <span className="sf-cell-sub">{cardCell.sub}</span> : null}
-                          </>
-                        ) : cards.status === 'ok' ? (
-                          <span className="sf-cell-quiet">карточек нет</span>
-                        ) : null}
-                      </td>
-                      <td data-label="Тест, первая попытка">
-                        {testCell ? (
-                          <>
-                            <span className={testCell.quiet ? 'sf-cell-quiet' : undefined}>{testCell.main}</span>
-                            {testCell.sub ? <span className="sf-cell-sub">{testCell.sub}</span> : null}
-                          </>
-                        ) : null}
-                      </td>
-                      <td data-label="Верно при последней проверке" title={share && !share.quiet ? accuracyLabel(metrics) : undefined}>
-                        {share ? (
-                          <>
-                            <span className={share.quiet ? 'sf-cell-quiet' : undefined}>{share.main}</span>
-                            {share.sub ? <span className="sf-cell-sub">{share.sub}</span> : null}
-                          </>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-            <p className="pg-how">
-              <button type="button" className="sf-link" data-muted="" aria-expanded={howOpen} aria-controls="progress-how" onClick={() => setHowOpen((open) => !open)}>
-                Как считается
-              </button>
-            </p>
-            {howOpen ? (
-              <p id="progress-how" className="pg-how-text">
-                «Вспомнили» — повторённые карточки, на которые при последнем повторе вы ответили «Помню» или «С трудом»;
-                карточки, которые ещё не повторялись, в счёт не идут. «Закреплены» — карточки с двумя успешными ответами в
-                разные дни. «Тест» — первая попытка теста, повторные показаны отдельно и в счёт не идут. «Верно при последней
-                проверке» = (вспомнили + верных ответов первого теста) ÷ (повторённых карточек + вопросов первого теста); если
-                чего-то одного нет, считаем по другому. Число показываем от {MIN_MEASURED} ответов, меньше — «мало данных».
-              </p>
+            {active.length > 0 ? (
+              <ul className="pg-card pg-lectures">
+                {active.map((row) => (
+                  <LectureLine
+                    key={row.id}
+                    row={row}
+                    span={span}
+                    now={now}
+                    cardsKnown={cards.status === 'ok'}
+                    quizKnown={quiz.status === 'ok'}
+                    syncing={syncing}
+                    failed={syncFailed}
+                    onAdd={(lecture) => void addToReview(lecture)}
+                  />
+                ))}
+              </ul>
+            ) : null}
+            {textOnly.length > 0 ? (
+              <details className="pg-textonly">
+                <summary>
+                  Только текст — {count(textOnly.length, ['лекция', 'лекции', 'лекций'])}
+                </summary>
+                <p className="pg-quiet">Загружены для разметки экзаменов: конспекта, карточек и теста у них нет.</p>
+                <ul>
+                  {textOnly.map((row) => (
+                    <li key={row.id}>
+                      <Link to={`/library/${row.id}`} className="sf-link" data-muted="">
+                        {displayMaterialTitle(row.title)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
           </>
         )}
       </Section>
 
-      <Section title="Ответы по дням">
-        {activity.status === 'error' ? (
-          <ErrorLine text="Активность по дням не загрузилась." onRetry={() => reload('activity')} />
-        ) : activity.status === 'loading' ? (
-          <Quiet>Загружаем…</Quiet>
-        ) : (
-          <div className="pg-card pg-activity">
-            <Quiet>
-              {summaryParts.length > 0
-                ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.`
-                : `За ${ACTIVITY_DAYS} дней ответов на карточки и тестов не было.`}
-            </Quiet>
-            {/* Bars only when there is something to draw: no empty axis (spec 4.6). */}
-            {cardAnswers > 0 && <DayBars data={chartData} />}
-          </div>
-        )}
-      </Section>
-
-      <Section title="Темы с открытыми ошибками" aside={<Link to="/mistakes" className="sf-link" data-muted="">Дневник ошибок</Link>}>
-        {mistakes.status === 'error' ? (
-          <ErrorLine text="Дневник ошибок не загрузился." onRetry={() => reload('mistakes')} />
-        ) : mistakes.status === 'loading' ? (
-          <Quiet>Загружаем…</Quiet>
-        ) : (
-          <MistakeTopics rows={mistakes.data} />
-        )}
-      </Section>
+      <ActivitySection activity={activity} quiz={quiz} onRetry={() => reload('activity')} />
 
       {(legacyExams.status === 'error' || (legacyExams.status === 'ok' && legacyExams.data.length > 0)) && (
-        <Section title="Устные экзамены (прежний формат)">
+        <Section title="Устные экзамены (прежний формат)" id="pg-legacy">
           {legacyExams.status === 'error' ? (
             <ErrorLine text="Прежние устные экзамены не загрузились." onRetry={() => reload('legacyExams')} />
           ) : legacyExams.status === 'ok' ? (
@@ -770,35 +704,519 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
           ) : null}
         </Section>
       )}
+
+      <p className="pg-how">
+        <button type="button" className="sf-link" data-muted="" aria-expanded={howOpen} aria-controls="progress-how" onClick={() => setHowOpen((open) => !open)}>
+          Как считается
+        </button>
+      </p>
+      {howOpen ? (
+        <div id="progress-how" className="pg-how-text">
+          <p>
+            «Закреплены» — карточки, которые вы вспомнили два раза подряд в разные дни: после этого следующий показ — через неделю и
+            позже; ответ «Не помню» возвращает карточку в «учатся». «Учатся» — карточки, которые уже повторялись, но ещё не закреплены.
+            «Новые» — ещё ни разу не повторялись.
+          </p>
+          <p>
+            «Вспомнили» — доля ответов «Помню» и «С трудом» среди ответов на карточки за {RECALL_WINDOW_DAYS} дней. Ответы записываются с{' '}
+            {formatDay(JOURNAL_START)}: пока с этого дня не прошло {RECALL_WINDOW_DAYS} дней, доля считается с него, а повторения раньше
+            видны только в «Занятиях по дням». Долю показываем от {RECALL_MIN_ANSWERS} ответов, у лекции — от {LECTURE_RECALL_MIN}; лекция,
+            где вспомнили меньше 70 %, попадает в «Что подтянуть».
+          </p>
+          <p>
+            «Повторения на неделю» — сколько карточек придёт на повторение в каждый из ближайших дней по их расписанию; в «сегодня»
+            входят и пропущенные. «Тест» — первая попытка теста лекции, повторные показаны отдельно. Вопрос экзамена «подтверждён»,
+            когда его засчитали два раза в разные дни.
+          </p>
+        </div>
+      ) : null}
     </>
   );
 }
 
-function MistakeTopics({ rows }: { rows: MistakeRow[] }) {
-  if (rows.length === 0) return <Quiet>Открытых ошибок нет.</Quiet>;
-  const byTopic = new Map<string, number>();
-  let withoutTopic = 0;
-  for (const row of rows) {
-    const topic = typeof row.topic === 'string' ? row.topic.trim() : '';
-    if (topic) byTopic.set(topic, (byTopic.get(topic) ?? 0) + 1);
-    else withoutTopic += 1;
-  }
-  const top = Array.from(byTopic.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+/** A thin bar of the cards by state: закреплены (green), учатся (blue), новые (grey). */
+function StateBar({ states }: { states: CardStates }) {
+  if (states.total === 0) return null;
+  const width = (n: number) => `${(n / states.total) * 100}%`;
   return (
-    <div className="pg-card pg-list-card">
-      <p className="pg-list-lead">Открытых ошибок: {rows.length}.</p>
-      {top.length > 0 && (
-        <ul className="pg-rows">
-          {top.map(([topic, n]) => (
-            <li key={topic} className="pg-row">
-              <span className="pg-row-t">{topic}</span>
-              <span className="pg-badge">{count(n, ['ошибка', 'ошибки', 'ошибок'])}</span>
+    <span className="pg-state" aria-hidden="true">
+      {states.solid > 0 ? <i data-s="solid" style={{ width: width(states.solid) }} /> : null}
+      {states.learning > 0 ? <i data-s="learning" style={{ width: width(states.learning) }} /> : null}
+      {states.fresh > 0 ? <i data-s="fresh" style={{ width: width(states.fresh) }} /> : null}
+    </span>
+  );
+}
+
+function KnowledgeTile({ cards, states, onRetry }: { cards: Source<CardRow[]>; states: CardStates; onRetry: () => void }) {
+  return (
+    <article className="pg-tile" aria-labelledby="pg-k-cards">
+      <h2 className="pg-k" id="pg-k-cards">
+        Карточки
+      </h2>
+      {cards.status === 'error' ? (
+        <ErrorLine text="Карточки не загрузились." onRetry={onRetry} />
+      ) : cards.status === 'loading' ? (
+        <Quiet>Загружаем…</Quiet>
+      ) : states.total === 0 ? (
+        <>
+          <p className="pg-note">Карточек в повторении пока нет. Они появляются после разбора лекции.</p>
+          <Link className="sf-link pg-tile-link" to="/analyze">
+            Добавить лекцию
+          </Link>
+        </>
+      ) : (
+        <>
+          <p className="pg-big">
+            {states.solid}
+            <span className="pg-of"> из {states.total}</span>
+          </p>
+          <p className="pg-cap">{pluralRu(states.solid, ['закреплена', 'закреплены', 'закреплены'])}</p>
+          <StateBar states={states} />
+          <ul className="pg-keys">
+            <li>
+              <i data-s="solid" />
+              закреплены {states.solid}
             </li>
-          ))}
-        </ul>
+            <li>
+              <i data-s="learning" />
+              учатся {states.learning}
+            </li>
+            <li>
+              <i data-s="fresh" />
+              новые {states.fresh}
+            </li>
+          </ul>
+        </>
       )}
-      {withoutTopic > 0 && <Quiet>Без темы: {withoutTopic}.</Quiet>}
-    </div>
+    </article>
+  );
+}
+
+/** «за 30 дней», or «с 3 октября» while the journal is younger than the window. */
+function periodText(span: RecallWindow, short = false): string {
+  if (!span.sinceJournal) return `за ${RECALL_WINDOW_DAYS} дней`;
+  return `с ${short ? dayLabel(span.from) : formatDay(span.from)}`;
+}
+
+function MemoryTile({
+  journal,
+  recall,
+  span,
+  hasCards,
+  onRetry,
+}: {
+  journal: Source<LearningEvent[]>;
+  recall: { answers: number; recalled: number };
+  span: RecallWindow;
+  hasCards: boolean;
+  onRetry: () => void;
+}) {
+  const share = recallShare(recall, RECALL_MIN_ANSWERS);
+  const forgot = recall.answers - recall.recalled;
+  return (
+    <article className="pg-tile pg-tile--blue" aria-labelledby="pg-k-memory">
+      <h2 className="pg-k" id="pg-k-memory">
+        Вспомнили {periodText(span)}
+      </h2>
+      {journal.status === 'error' ? (
+        <ErrorLine text="Журнал ответов не загрузился." onRetry={onRetry} />
+      ) : journal.status === 'loading' ? (
+        <Quiet>Загружаем…</Quiet>
+      ) : share !== null ? (
+        <>
+          <p className="pg-big">{Math.round(share * 100)}&nbsp;%</p>
+          <p className="pg-cap">
+            {recall.recalled} из {count(recall.answers, ANSWER_FORMS)} на карточки
+          </p>
+          <span className="pg-state" aria-hidden="true">
+            {recall.recalled > 0 ? <i data-s="hit" style={{ width: `${(recall.recalled / recall.answers) * 100}%` }} /> : null}
+            {forgot > 0 ? <i data-s="miss" style={{ width: `${(forgot / recall.answers) * 100}%` }} /> : null}
+          </span>
+          <ul className="pg-keys">
+            <li>
+              <i data-s="hit" />
+              вспомнили {recall.recalled}
+            </li>
+            <li>
+              <i data-s="miss" />
+              не вспомнили {forgot}
+            </li>
+          </ul>
+        </>
+      ) : (
+        <>
+          <p className="pg-note">
+            {recall.answers === 0
+              ? `Ответов на карточки ${periodText(span)} пока нет.`
+              : `Пока ${count(recall.answers, ANSWER_FORMS)} на карточки — долю покажем с ${RECALL_MIN_ANSWERS}, осталось ${RECALL_MIN_ANSWERS - recall.answers}.`}
+          </p>
+          <p className="pg-note pg-note--small">
+            {hasCards
+              ? 'Здесь будет доля карточек, которые вы вспомнили при повторении: ответы «Помню» и «С трудом».'
+              : 'Карточки появятся после разбора лекции, а здесь — доля тех, что вы вспомнили при повторении.'}
+          </p>
+        </>
+      )}
+    </article>
+  );
+}
+
+function AheadTile({ cards, due, week, onRetry }: { cards: Source<CardRow[]>; due: number; week: ForecastDay[]; onRetry: () => void }) {
+  const later = week.slice(1).reduce((sum, day) => sum + day.count, 0);
+  const total = later + (week[0]?.count ?? 0);
+  const tomorrow = week[1]?.count ?? 0;
+  return (
+    <article className="pg-tile" aria-labelledby="pg-k-ahead">
+      <h2 className="pg-k" id="pg-k-ahead">
+        Повторения на неделю
+      </h2>
+      {cards.status === 'error' ? (
+        <ErrorLine text="Расписание карточек не загрузилось." onRetry={onRetry} />
+      ) : cards.status === 'loading' ? (
+        <Quiet>Загружаем…</Quiet>
+      ) : (
+        <>
+          <p className="pg-big">{due}</p>
+          <p className="pg-cap">{due > 0 ? `${pluralRu(due, ['карточка ждёт', 'карточки ждут', 'карточек ждут'])} сейчас` : 'сейчас повторять нечего'}</p>
+          {week.some((day) => day.count > 0) ? <ForecastBars days={week} /> : null}
+          <p className="pg-note pg-note--small">
+            {later > 0 ? `${tomorrow > 0 ? `Завтра — ${tomorrow}` : 'Завтра повторений нет'}, всего на неделю — ${total}.` : 'На следующие 6 дней повторений нет.'}
+          </p>
+          {due > 0 ? (
+            <Link className="sf-primary pg-tile-cta" to="/review">
+              Повторить
+            </Link>
+          ) : null}
+        </>
+      )}
+    </article>
+  );
+}
+
+function shortDay(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return format(new Date(y, m - 1, d), 'd MMM', { locale: ru });
+}
+
+function weekdayOf(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return format(new Date(y, m - 1, d), 'EEEEEE', { locale: ru });
+}
+
+/** The reviews of the coming 7 days by the cards' schedule: today first (with what was missed). */
+function ForecastBars({ days }: { days: ForecastDay[] }) {
+  const max = Math.max(1, ...days.map((day) => day.count));
+  return (
+    <figure className="pg-mini">
+      <div className="pg-mini-plot" aria-hidden="true">
+        {days.map((day, index) => (
+          <div key={day.key} className="pg-mini-col">
+            {day.count > 0 ? <span className="pg-mini-val">{day.count}</span> : null}
+            <span
+              className="pg-mini-bar"
+              data-today={index === 0 ? '' : undefined}
+              data-zero={day.count === 0 ? '' : undefined}
+              style={{ height: day.count > 0 ? `${Math.max(6, (day.count / max) * 72)}px` : '3px' }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="pg-mini-axis" aria-hidden="true">
+        {days.map((day, index) => (
+          <span key={day.key}>{index === 0 ? 'сег.' : index === 1 ? 'завт.' : weekdayOf(day.key)}</span>
+        ))}
+      </div>
+      <figcaption className="sr-only">
+        {days
+          .map((day, index) => `${index === 0 ? 'Сегодня' : index === 1 ? 'Завтра' : shortDay(day.key)}: ${day.count > 0 ? count(day.count, CARD_FORMS) : 'повторений нет'}.`)
+          .join(' ')}
+      </figcaption>
+    </figure>
+  );
+}
+
+function todoKey(item: TodoItem): string {
+  if (item.kind === 'mistakes' || item.kind === 'quiz') return item.kind;
+  if (item.kind === 'exam') return `exam:${item.examId}`;
+  return `${item.kind}:${item.lecture.id}`;
+}
+
+function title(row: LectureRow): string {
+  return `«${displayMaterialTitle(row.title)}»`;
+}
+
+function TodoLine({
+  item,
+  span,
+  syncing,
+  failed,
+  onAdd,
+}: {
+  item: TodoItem;
+  span: RecallWindow;
+  syncing: string | null;
+  failed: string | null;
+  onAdd: (lecture: LectureRow) => void;
+}) {
+  let tone: 'pink' | 'yellow' | 'blue';
+  let text: ReactNode;
+  let action: ReactNode;
+  switch (item.kind) {
+    case 'weak':
+      tone = 'pink';
+      text = (
+        <>
+          {title(item.lecture)}: вспомнили {item.lecture.recall.recalled} из {count(item.lecture.recall.answers, ANSWER_FORMS)} {periodText(span)}
+        </>
+      );
+      action =
+        item.lecture.due > 0 ? (
+          <Link className="pg-act" data-blue="" to={`/review?material=${item.lecture.id}`}>
+            Повторить
+          </Link>
+        ) : (
+          <Link className="pg-act" to={`/library/${item.lecture.id}`}>
+            Перечитать конспект
+          </Link>
+        );
+      break;
+    case 'mistakes': {
+      tone = 'pink';
+      const shown = item.topics.slice(0, 3);
+      const rest = item.topics.length - shown.length;
+      text = (
+        <>
+          {count(item.count, ['открытая ошибка', 'открытые ошибки', 'открытых ошибок'])}
+          {shown.length > 0 ? `: ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}` : ''}
+        </>
+      );
+      action = (
+        <Link className="pg-act" to="/mistakes">
+          Разобрать
+        </Link>
+      );
+      break;
+    }
+    case 'add':
+      tone = 'yellow';
+      text = (
+        <>
+          {title(item.lecture)}: {count(item.lecture.notInReview, CARD_FORMS)} не{' '}
+          {pluralRu(item.lecture.notInReview, ['добавлена', 'добавлены', 'добавлены'])} в повторение
+          {failed === item.lecture.id ? <span className="pg-todo-err"> Не получилось добавить, попробуйте ещё раз.</span> : null}
+        </>
+      );
+      action = (
+        <button type="button" className="pg-act" disabled={syncing !== null} onClick={() => onAdd(item.lecture)}>
+          {syncing === item.lecture.id ? 'Добавляем…' : 'Добавить'}
+        </button>
+      );
+      break;
+    case 'exam':
+      tone = 'blue';
+      text = (
+        <>
+          «{item.title}»: {count(item.none, ['вопрос', 'вопроса', 'вопросов'])} нет ни в одной лекции
+        </>
+      );
+      action = (
+        <Link className="pg-act" to={`/exams/${item.examId}`}>
+          Лист экзамена
+        </Link>
+      );
+      break;
+    case 'quiz':
+    default: {
+      tone = 'yellow';
+      const [first] = item.lectures;
+      text =
+        item.lectures.length === 1 ? (
+          <>{title(first)}: тест ещё не пройден</>
+        ) : (
+          <>
+            Тесты не пройдены в {item.lectures.length} {pluralRu(item.lectures.length, ['лекции', 'лекциях', 'лекциях'])}. Начните с {title(first)}
+          </>
+        );
+      action = (
+        <Link className="pg-act" to={`/library/${first.id}?section=quiz`} aria-label={`Пройти тест: ${displayMaterialTitle(first.title)}`}>
+          Пройти тест
+        </Link>
+      );
+      break;
+    }
+  }
+  return (
+    <li className="pg-todo-row">
+      <i className="pg-todo-dot" data-tone={tone} aria-hidden="true" />
+      <span className="pg-todo-t">{text}</span>
+      {action}
+    </li>
+  );
+}
+
+/** «повторение завтра», «повторение 9 окт.»: when the lecture's next card comes back. */
+function nextReviewText(iso: string, now: Date): string {
+  const date = new Date(iso);
+  const key = localDateKey(date);
+  if (key === localDateKey(now)) return 'повторение сегодня';
+  if (key === shiftDateKey(localDateKey(now), 1)) return 'повторение завтра';
+  return `повторение ${format(date, 'd MMM', { locale: ru })}`;
+}
+
+/** «тест 4 из 5, 2 окт. · повторно 5 из 5 · 1 ошибка» — only what exists. */
+function lectureMeta(row: LectureRow, quizKnown: boolean): string {
+  const parts: string[] = [];
+  if (quizKnown) {
+    if (row.metrics.quiz) {
+      parts.push(`тест ${row.metrics.quiz.correct} из ${row.metrics.quiz.total}, ${dayLabel(row.metrics.quiz.date)}`);
+      if (row.metrics.quizRepeat) parts.push(`повторно ${row.metrics.quizRepeat.correct} из ${row.metrics.quizRepeat.total}`);
+    } else if (row.hasQuiz) parts.push('тест не пройден');
+  }
+  if (row.mistakes > 0) parts.push(count(row.mistakes, ['открытая ошибка', 'открытые ошибки', 'открытых ошибок']));
+  return parts.join(' · ');
+}
+
+function LectureLine({
+  row,
+  span,
+  now,
+  cardsKnown,
+  quizKnown,
+  syncing,
+  failed,
+  onAdd,
+}: {
+  row: LectureRow;
+  span: RecallWindow;
+  now: Date;
+  cardsKnown: boolean;
+  quizKnown: boolean;
+  syncing: string | null;
+  failed: string | null;
+  onAdd: (lecture: LectureRow) => void;
+}) {
+  const share = recallShare(row.recall, LECTURE_RECALL_MIN);
+  const meta = lectureMeta(row, quizKnown);
+  const name = displayMaterialTitle(row.title);
+  let action: ReactNode = null;
+  if (cardsKnown && row.action?.kind === 'review') {
+    action = (
+      <Link className="pg-act" data-blue="" to={`/review?material=${row.id}`} aria-label={`Повторить ${count(row.action.count, CARD_ACC)}: ${name}`}>
+        Повторить {row.action.count}
+      </Link>
+    );
+  } else if (cardsKnown && row.action?.kind === 'add') {
+    action = (
+      <button type="button" className="pg-act" disabled={syncing !== null} onClick={() => onAdd(row)} aria-label={`Добавить карточки в повторение: ${name}`}>
+        {syncing === row.id ? 'Добавляем…' : 'В повторение'}
+      </button>
+    );
+  } else if (quizKnown && row.action?.kind === 'quiz') {
+    action = (
+      <Link className="pg-act" to={`/library/${row.id}?section=quiz`} aria-label={`Пройти тест: ${name}`}>
+        Пройти тест
+      </Link>
+    );
+  } else if (cardsKnown && row.states.total > 0 && row.states.solid === row.states.total) {
+    action = <span className="pg-done">Всё закреплено</span>;
+  } else if (cardsKnown && row.nextReview) {
+    action = <span className="pg-lec-next">{nextReviewText(row.nextReview, now)}</span>;
+  }
+  return (
+    <li className="pg-lec" data-material={row.id}>
+      <div className="pg-lec-main">
+        <Link className="pg-lec-t" to={`/library/${row.id}`}>
+          {name}
+        </Link>
+        {meta ? <span className="pg-lec-meta">{meta}</span> : null}
+        {failed === row.id ? <span className="pg-todo-err">Не получилось добавить карточки, попробуйте ещё раз.</span> : null}
+      </div>
+      <div className="pg-lec-cards">
+        {!cardsKnown ? null : row.states.total > 0 ? (
+          <>
+            <StateBar states={row.states} />
+            <span className="pg-lec-cap">
+              закреплено {row.states.solid} из {row.states.total}
+              {row.states.fresh > 0 ? ` · новых ${row.states.fresh}` : ''}
+            </span>
+          </>
+        ) : (
+          <span className="pg-lec-cap">{row.notInReview > 0 ? `${count(row.notInReview, CARD_FORMS)} не в повторении` : 'карточек нет'}</span>
+        )}
+      </div>
+      <div className="pg-lec-recall">
+        {share !== null ? (
+          <>
+            <span className="pg-lec-share">вспомнили {Math.round(share * 100)}&nbsp;%</span>
+            <span className="pg-lec-cap">
+              {row.recall.recalled} из {row.recall.answers} {periodText(span, true)}
+            </span>
+          </>
+        ) : row.recall.answers > 0 ? (
+          <span className="pg-lec-cap">
+            {count(row.recall.answers, ANSWER_FORMS)} {periodText(span, true)}
+          </span>
+        ) : null}
+      </div>
+      <div className="pg-lec-act">{action}</div>
+    </li>
+  );
+}
+
+function ActivitySection({ activity, quiz, onRetry }: { activity: Source<SessionRow[]>; quiz: Source<LearningEvent[]>; onRetry: () => void }) {
+  const today = localDateKey();
+  const firstDay = shiftDateKey(today, -(ACTIVITY_DAYS - 1));
+  const chartData = useMemo(() => {
+    const byDate = new Map<string, number>();
+    if (activity.status === 'ok') {
+      for (const row of activity.data) {
+        const key = typeof row.date === 'string' ? row.date.slice(0, 10) : '';
+        byDate.set(key, (byDate.get(key) ?? 0) + (Number(row.cards_reviewed) || 0));
+      }
+    }
+    return Array.from({ length: ACTIVITY_DAYS }, (_, i) => {
+      const key = shiftDateKey(today, i - (ACTIVITY_DAYS - 1));
+      return { key, value: byDate.get(key) ?? 0 };
+    });
+  }, [activity, today]);
+
+  // One sentence about the last 30 days. Only what happened is named: no «0 ответов», no «0 дней
+  // подряд»; a day with a test counts as a day of study too.
+  const cardAnswers = chartData.reduce((sum, day) => sum + day.value, 0);
+  const summaryParts: string[] = [];
+  if (activity.status === 'ok') {
+    const recentQuiz = quiz.status === 'ok' ? quiz.data.filter((e) => e.local_date >= firstDay && e.local_date <= today) : [];
+    const studyDays = new Set([
+      ...activity.data
+        .filter((row) => (Number(row.cards_reviewed) || 0) > 0)
+        .map((row) => row.date.slice(0, 10))
+        .filter((key) => key >= firstDay && key <= today),
+      ...recentQuiz.map((e) => e.local_date),
+    ]).size;
+    const tests = new Set(recentQuiz.filter((e) => e.session_id).map((e) => e.session_id)).size;
+    if (cardAnswers > 0) summaryParts.push(`${count(cardAnswers, ANSWER_FORMS)} на карточки`);
+    if (tests > 0) summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
+    if (studyDays > 0) summaryParts.push(`занятия в ${studyDays} из ${ACTIVITY_DAYS} дней`);
+    const streak = currentStreak(activity.data.filter((row) => (Number(row.cards_reviewed) || 0) > 0).map((row) => row.date));
+    if (streak > 0) summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);
+  }
+
+  return (
+    <Section title="Занятия по дням" id="pg-days">
+      {activity.status === 'error' ? (
+        <ErrorLine text="Активность по дням не загрузилась." onRetry={onRetry} />
+      ) : activity.status === 'loading' ? (
+        <Quiet>Загружаем…</Quiet>
+      ) : (
+        <div className="pg-card pg-activity">
+          <Quiet>
+            {summaryParts.length > 0 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.` : `За ${ACTIVITY_DAYS} дней ответов на карточки и тестов не было.`}
+          </Quiet>
+          {/* Bars only when there is something to draw: no empty axis. */}
+          {cardAnswers > 0 && <DayBars data={chartData} />}
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -824,15 +1242,9 @@ function LegacyExams({ rows }: { rows: LegacyExamRow[] }) {
   );
 }
 
-function shortDay(key: string): string {
-  const [y, m, d] = key.split('-').map(Number);
-  return format(new Date(y, m - 1, d), 'd MMM', { locale: ru });
-}
-
 /**
- * Answers per day as plain columns (spec 5.17): the blue, rounded tops, the value over a non-zero
- * day, a stub on a zero day, an axis from the first day to «сегодня». No hover; a table for screen
- * readers.
+ * Answers per day as plain columns: the blue, rounded tops, the value over a non-zero day, a stub
+ * on a zero day, an axis from the first day to «сегодня». No hover; a table for screen readers.
  */
 function DayBars({ data }: { data: Array<{ key: string; value: number }> }) {
   const max = Math.max(1, ...data.map((day) => day.value));
@@ -857,9 +1269,7 @@ function DayBars({ data }: { data: Array<{ key: string; value: number }> }) {
         <span>{shortDay(data[0].key)}</span>
         <span>сегодня</span>
       </div>
-      <figcaption className="pg-figcap">
-        {sentence(`Ответы на карточки по дням; больше всего ${peak.value} — ${shortDay(peak.key)}`)}
-      </figcaption>
+      <figcaption className="pg-figcap">{sentence(`Ответы на карточки по дням; больше всего ${peak.value} — ${shortDay(peak.key)}`)}</figcaption>
       <table className="sr-only">
         <caption>Ответов на карточки по дням</caption>
         <thead>

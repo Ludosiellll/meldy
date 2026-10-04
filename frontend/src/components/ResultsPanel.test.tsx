@@ -195,6 +195,21 @@ describe('header', () => {
   });
 });
 
+describe('opening tab', () => {
+  const full = (): AnalysisResults => ({ ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } } });
+
+  it('opens on the tab a link from «Прогресс» asks for (?section=quiz) when it has content', () => {
+    renderPanel({ embedded: true, results: full(), initialTab: 'quiz' });
+    expect(screen.getByRole('button', { name: /^Тест/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^Конспект/ })).not.toHaveAttribute('aria-current');
+  });
+
+  it('falls back to the first tab with content when the asked one is empty', () => {
+    renderPanel({ embedded: true, results: { ...full(), quiz: { quiz: [] } }, initialTab: 'quiz' });
+    expect(screen.getByRole('button', { name: /^Конспект/ })).toHaveAttribute('aria-current', 'page');
+  });
+});
+
 describe('preview of an unsaved result (repeat demo run)', () => {
   it('writes nothing: no recreate, no title edit, no quiz journal', async () => {
     renderPanel({ preview: true });

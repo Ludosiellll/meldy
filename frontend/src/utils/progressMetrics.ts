@@ -43,7 +43,7 @@ export interface MaterialMetrics {
   status: 'untested' | 'few_data' | 'measured';
 }
 
-function repetitionsOf(card: ProgressCard): number {
+export function repetitionsOf(card: ProgressCard): number {
   const n = Number(card.repetitions);
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
 }
@@ -53,7 +53,7 @@ function repetitionsOf(card: ProgressCard): number {
  * into the future by a «Не помню» answer (older clients wrote no review date). A follow-up card
  * from an oral answer starts scheduled for tomorrow, so its schedule alone proves nothing.
  */
-function isReviewed(card: ProgressCard, nowMs: number): boolean {
+export function isReviewed(card: ProgressCard, nowMs: number): boolean {
   if (card.last_reviewed_at) return true;
   if (repetitionsOf(card) >= 1) return true;
   if (card.origin === 'oral_followup') return false;

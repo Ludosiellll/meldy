@@ -15,10 +15,11 @@ import { Mark } from '../components/marks';
 import { useFrame } from '../components/exams/useFrame';
 import { currentStreak, isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
 import { pluralRu } from '../components/conversation/visuals';
-import type { Flashcard, StudySession } from '../types';
+import type { StudySession } from '../types';
 import '../styles/paper.css';
 import './Dashboard.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
+import { analysisCards } from '../utils/lectureCards';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -108,18 +109,6 @@ const COVERAGES = new Set(['full', 'partial', 'none', 'unverified']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function analysisCards(flashcardsJson: unknown): Flashcard[] {
-  const items: unknown[] = Array.isArray(flashcardsJson)
-    ? flashcardsJson
-    : Array.isArray((flashcardsJson as { flashcards?: unknown } | null)?.flashcards)
-      ? (flashcardsJson as { flashcards: unknown[] }).flashcards
-      : [];
-  return items.filter((card): card is Flashcard => {
-    const c = card as Partial<Flashcard> | null;
-    return typeof c?.question === 'string' && c.question.trim() !== '' && typeof c?.answer === 'string' && c.answer.trim() !== '';
-  });
 }
 
 /**

@@ -1,22 +1,170 @@
-/* «Прогресс» in the Meldy language (notes: 10_Project/Design_Language_2026-10-04).
+/* «Прогресс», reworked 2026-10-04 (notes: 10_Project/Design_Language_2026-10-04, Codebase_Map).
  *
- * The same measured blocks in cards: an exam is a card with its confirmed questions as a large Onest
- * 500 figure in the blue and the questions as dots (as on «Сегодня»: blue confirmed, yellow once,
- * pink not passed, white untested); the lectures are a table in a card; the answers per day are blue
- * columns in a card; the topics with open mistakes are rows with a pink count. Page root: .sf-page.pg. */
+ * Three summary tiles (cards by state, the share recalled on a blue tint, reviews of the coming
+ * week), «Что подтянуть» as rows with one pill each, the exams as cards, the lectures as rows with
+ * a state bar and their next step, the days of study as blue columns. Colours of states: закреплены
+ * green, учатся blue, новые grey; forgotten answers pink. Page root: .sf-page.pg. */
 
-.pg-sec { max-width: 1120px; margin-top: 56px; }
+.pg-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; }
+.pg-head-link { flex: none; }
+
+.pg-sec { max-width: 1180px; margin-top: 56px; }
 .pg-sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin-bottom: 18px; }
 .pg-quiet { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.pg-error { margin: 0 0 12px; font-size: 15px; line-height: 22px; color: var(--sf-ink); }
 .pg-card {
   border-radius: 36px;
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
 }
-.pg-end { margin: 56px 0 0; }
 .pg-gradebook { margin-top: 36px; }
 
+/* ---------------------------------------------------------------- summary tiles */
+.pg-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  max-width: 1180px;
+  margin-top: 40px;
+}
+.pg-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 28px 30px 28px;
+  border-radius: 36px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.pg-tile--blue {
+  background: var(--sf-accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sf-accent) 16%, transparent), var(--m-card-shadow);
+}
+.pg-k { margin: 0 0 14px; font-size: 16px; line-height: 22px; font-weight: 500; color: var(--sf-muted); letter-spacing: 0; }
+.pg-tile--blue .pg-k { color: var(--sf-ink); }
+.pg-big {
+  margin: 0;
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -.045em;
+  color: var(--sf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.pg-of { font-size: 26px; letter-spacing: -.02em; color: var(--sf-muted); }
+.pg-cap { margin: 8px 0 0; font-size: 15px; line-height: 21px; color: var(--sf-muted); }
+.pg-tile--blue .pg-cap { color: var(--sf-ink); }
+.pg-note { margin: 0; font-size: 17px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; }
+.pg-note--small { margin-top: 12px; font-size: 15px; line-height: 21px; color: var(--sf-muted); }
+.pg-tile--blue .pg-note--small { color: var(--sf-ink); }
+.pg-tile-link { align-self: flex-start; margin-top: 12px; }
+.pg-tile-cta { align-self: flex-start; margin-top: auto; }
+.pg-tile .pg-note--small + .pg-tile-cta { margin-top: 18px; }
+
+/* The cards by state, or the answers recalled and not: one thin bar and its key. */
+.pg-state {
+  display: flex;
+  overflow: hidden;
+  height: 10px;
+  margin-top: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-ink) 8%, transparent);
+}
+.pg-state i { display: block; height: 100%; }
+.pg-state i + i { box-shadow: -2px 0 0 var(--sf-surface); }
+.pg-tile--blue .pg-state i + i { box-shadow: -2px 0 0 var(--sf-accent-soft); }
+.pg-state i[data-s='solid'],
+.pg-keys i[data-s='solid'] { background: var(--m-green); }
+.pg-state i[data-s='learning'],
+.pg-keys i[data-s='learning'] { background: var(--sf-accent); }
+.pg-state i[data-s='fresh'],
+.pg-keys i[data-s='fresh'] { background: color-mix(in srgb, var(--sf-ink) 20%, var(--sf-surface)); }
+.dark .pg-state i[data-s='fresh'],
+.dark .pg-keys i[data-s='fresh'] { background: color-mix(in srgb, var(--sf-ink) 36%, var(--sf-surface)); }
+.pg-state i[data-s='hit'],
+.pg-keys i[data-s='hit'] { background: var(--sf-accent); }
+.pg-state i[data-s='miss'],
+.pg-keys i[data-s='miss'] { background: var(--m-pink); }
+.dark .pg-state i[data-s='learning'],
+.dark .pg-keys i[data-s='learning'],
+.dark .pg-state i[data-s='hit'],
+.dark .pg-keys i[data-s='hit'] { background: var(--sf-accent-fg); }
+.pg-keys { display: grid; gap: 6px; margin: 16px 0 0; padding: 0; list-style: none; font-size: 15px; line-height: 21px; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.pg-keys li { display: flex; align-items: center; gap: 10px; }
+.pg-keys i { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+
+/* Mini columns: the reviews of the 7 days ahead, today in full blue. */
+.pg-mini { margin: 20px 0 0; }
+.pg-mini-plot { display: flex; align-items: flex-end; gap: 8px; height: 96px; }
+.pg-mini-col { display: flex; flex: 1 1 0; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; height: 100%; }
+.pg-mini-val { margin-bottom: 4px; font-size: 13px; line-height: 16px; font-weight: 500; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.pg-mini-bar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  max-width: 34px;
+  border-radius: 8px 8px 3px 3px;
+  background: color-mix(in srgb, var(--sf-accent) 34%, transparent);
+}
+.pg-mini-bar[data-today] { background: var(--sf-accent); }
+.pg-mini-bar[data-zero] { border-radius: 2px; background: color-mix(in srgb, var(--sf-ink) 14%, transparent); }
+.dark .pg-mini-bar[data-today] { background: var(--sf-accent-fg); }
+.pg-mini-axis { display: flex; gap: 8px; margin-top: 8px; }
+.pg-mini-axis span { flex: 1 1 0; min-width: 0; overflow: hidden; font-size: 13px; line-height: 16px; color: var(--sf-muted); text-align: center; white-space: nowrap; text-overflow: ellipsis; }
+
+/* ---------------------------------------------------------------- what to work on */
+.pg-todo { padding: 12px 14px; }
+.pg-todo > .pg-quiet { padding: 14px 18px; }
+.pg-todo-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.pg-todo-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px 10px 10px 20px;
+  border-radius: 24px;
+}
+.pg-todo-row:nth-child(odd) { background: var(--sf-surface-soft); }
+.pg-todo-dot { width: 10px; height: 10px; border-radius: 50%; }
+.pg-todo-dot[data-tone='pink'] { background: var(--m-pink); }
+.pg-todo-dot[data-tone='yellow'] { background: var(--m-yellow); }
+.pg-todo-dot[data-tone='blue'] { background: var(--sf-accent); }
+.pg-todo-t { min-width: 0; font-size: 17px; line-height: 24px; color: var(--sf-ink); text-wrap: pretty; overflow-wrap: anywhere; }
+.pg-todo-err { display: block; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+
+/* The one action of a row: a small pill (blue for «Повторить», white otherwise). */
+.pg-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font: inherit;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .3s var(--m-ease, ease), box-shadow .3s var(--m-ease, ease);
+}
+.pg-act:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-ink) 30%, var(--sf-line)); }
+.pg-act[data-blue] { background: var(--sf-accent); box-shadow: none; color: #fff; }
+.pg-act[data-blue]:hover { background: var(--sf-accent-hover); }
+.pg-act:disabled { cursor: not-allowed; opacity: .6; }
+.pg-act:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 3px; }
+
 /* ---------------------------------------------------------------- exams */
+.pg-exam-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; padding: 26px 30px; }
+.pg-exam-empty p { max-width: 44em; margin: 0; font-size: 17px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; }
 .pg .sf-ledger { max-width: none; gap: 16px; }
 .pg .sf-ledger > li { border-radius: 40px; box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
 .pg .sf-ledger > li:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow); }
@@ -57,18 +205,65 @@
 .dark .pg-legend i[data-r='confirmed'] { background: var(--sf-accent-fg); }
 
 /* ---------------------------------------------------------------- lectures */
-.pg-table-card { padding: 14px 32px 8px; }
-.pg .sf-table { max-width: none; }
-@media (min-width: 640px) {
-  .pg .sf-table th { padding-top: 12px; padding-bottom: 12px; }
-  .pg .sf-table td { padding-top: 16px; padding-bottom: 16px; }
-  .pg .sf-table tbody tr:last-child td { border-bottom: 0; }
+.pg-lectures { display: grid; margin: 0; padding: 8px 14px; list-style: none; }
+.pg-lec {
+  display: grid;
+  /* The step column has one width in every row, so the bars of all rows line up. */
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .8fr) 10rem;
+  align-items: center;
+  gap: 12px 28px;
+  min-height: 84px;
+  padding: 14px 16px;
+  border-radius: 24px;
 }
-.pg .sf-table .sf-cell-title { font-size: 18px; letter-spacing: -.012em; }
-.pg-how { margin: 10px 0 0; }
-.pg-how-text { max-width: 46em; margin: 4px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.pg-lec + .pg-lec { box-shadow: 0 -1px 0 var(--sf-line); }
+.pg-lec-main { display: grid; gap: 4px; min-width: 0; }
+.pg-lec-t { font-size: 18px; line-height: 24px; font-weight: 500; letter-spacing: -.012em; color: var(--sf-ink); text-decoration: none; overflow-wrap: anywhere; }
+.pg-lec-t:hover { text-decoration: underline; text-decoration-color: var(--m-yellow); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.pg-lec-meta { font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.pg-lec-cards { display: grid; gap: 6px; min-width: 0; }
+.pg-lec-cards .pg-state { margin-top: 0; height: 8px; }
+.pg-lec-cap { font-size: 14px; line-height: 20px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.pg-lec-recall { display: grid; gap: 2px; min-width: 0; }
+.pg-lec-share { font-size: 16px; line-height: 22px; font-weight: 500; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.pg-lec-next { font-size: 14px; line-height: 20px; color: var(--sf-muted); text-align: right; }
+.pg-lec-act { display: flex; justify-content: flex-end; min-width: 0; }
+.pg-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--m-green-soft);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--m-green-ink);
+  white-space: nowrap;
+}
+.pg-done::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--m-green); }
 
-/* ---------------------------------------------------------------- answers per day */
+.pg-textonly { margin-top: 14px; }
+.pg-textonly summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.pg-textonly summary::-webkit-details-marker { display: none; }
+.pg-textonly summary:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 3px; }
+.pg-textonly[open] summary { margin-bottom: 10px; }
+.pg-textonly ul { display: grid; gap: 4px; margin: 10px 0 0; padding: 0 0 0 4px; list-style: none; font-size: 15px; line-height: 22px; }
+
+/* ---------------------------------------------------------------- days of study */
 .pg-activity { padding: 28px 32px 26px; }
 .pg-bars { margin: 18px 0 0; max-width: none; }
 .pg .sf-bars-plot { gap: 5px; height: 168px; padding-top: 24px; }
@@ -79,7 +274,7 @@
 .pg .sf-bars-axis { margin-top: 8px; }
 .pg-figcap { margin: 12px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 
-/* ---------------------------------------------------------------- topics with open mistakes, the old oral exams */
+/* ---------------------------------------------------------------- old oral exams, how it is counted */
 .pg-list-card { padding: 26px 32px 22px; }
 .pg-list-lead { margin: 0; font-size: 17px; line-height: 26px; font-weight: 500; color: var(--sf-ink); }
 .pg-rows { display: grid; gap: 8px; margin: 14px 0 6px; padding: 0; list-style: none; }
@@ -97,24 +292,21 @@
 }
 .pg-row-t { min-width: 0; overflow: hidden; color: var(--sf-ink); white-space: nowrap; text-overflow: ellipsis; }
 .pg-row-n { flex: none; padding-right: 10px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
-.pg-badge {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px 6px 12px;
-  border-radius: 999px;
-  background: var(--sf-surface);
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--sf-ink);
-  font-variant-numeric: tabular-nums;
-}
-.pg-badge::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--m-pink); }
+.pg-how { max-width: 1180px; margin: 48px 0 0; }
+.pg-how-text { max-width: 48em; margin: 8px 0 0; font-size: 15px; line-height: 23px; color: var(--sf-muted); }
+.pg-how-text p { margin: 0 0 10px; text-wrap: pretty; }
 
-/* ---------------------------------------------------------------- phones */
+/* ---------------------------------------------------------------- narrower screens */
+@media (max-width: 1099px) {
+  .pg-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pg-tiles > :last-child { grid-column: 1 / -1; }
+  .pg-lec { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 10rem; }
+  .pg-lec-recall { grid-column: 2; grid-row: 2; }
+}
 @media (max-width: 767px) {
+  .pg-tiles { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 28px; }
+  .pg-tile { padding: 24px 22px; border-radius: 30px; }
+  .pg-big { font-size: 52px; }
   .pg .sf-ledger-row { padding: 24px 22px 22px; }
   .pg .sf-ledger > li { border-radius: 32px; }
   .pg .sf-ledger-name { font-size: 23px; }
@@ -123,18 +315,27 @@
   .pg-ready { padding: 18px 16px 16px; border-radius: 22px; }
   .pg-dots { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 7px; }
   .pg-dots[data-many] { grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 5px; }
+  .pg-lectures { padding: 4px 8px; }
+  .pg-lec { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 16px 12px; }
+  .pg-lec-recall { grid-column: auto; grid-row: auto; }
+  .pg-lec-act { justify-content: flex-start; }
+  .pg-lec-next { text-align: left; }
+  .pg-lec-act:empty,
+  .pg-lec-recall:empty { display: none; }
+  .pg-todo { padding: 8px; }
+  .pg-todo-row { grid-template-columns: 10px minmax(0, 1fr); padding: 14px 14px 14px 16px; gap: 8px 12px; }
+  .pg-todo-row .pg-act { grid-column: 2; justify-self: start; }
+  .pg-todo-t { font-size: 16px; }
 }
 @media (max-width: 639px) {
   .pg-sec { margin-top: 44px; }
   .pg-card { border-radius: 28px; }
-  .pg-table-card { padding: 4px 20px; }
-  .pg .sf-table tr { padding: 16px 0; }
-  .pg .sf-table tbody tr:last-child { border-bottom: 0; }
-  .pg .sf-table td { padding: 3px 0; }
-  .pg .sf-table td:first-child { padding-bottom: 6px; }
   .pg-activity { padding: 22px 18px 20px; }
   .pg .sf-bars-plot { height: 140px; gap: 3px; }
   .pg-list-card { padding: 22px 18px 18px; }
   .pg-row { padding-left: 16px; }
-  .pg-end { margin-top: 44px; }
+  .pg-exam-empty { padding: 22px 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-act { transition: none; }
 }

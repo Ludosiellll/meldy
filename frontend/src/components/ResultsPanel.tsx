@@ -499,6 +499,7 @@ export default function ResultsPanel({
   onResultsChange,
   analysisSettings,
   notices,
+  initialTab,
 }: {
   results: AnalysisResults;
   onReset: () => void;
@@ -531,6 +532,8 @@ export default function ResultsPanel({
   analysisSettings?: AnalysisSettings;
   /** Строки о сохранении под заголовком (их показывает страница анализа). */
   notices?: ReactNode;
+  /** Вкладка, с которой открыть панель (ссылки из «Прогресса»), если в ней есть содержимое. */
+  initialTab?: 'summary' | 'flashcards' | 'quiz';
 }) {
   const { user } = useAuth();
   // В режиме просмотра у результата нет материала, в который можно писать.
@@ -620,9 +623,10 @@ export default function ResultsPanel({
 
   // Первой открывается вкладка с содержимым, а не строка о сбое.
   const [tab, setTab] = useState<Tab>(() => {
-    const withContent = tabs.find(t =>
-      t.id === 'summary' ? summaryHasContent : t.id === 'flashcards' ? flashcardCount > 0 : t.id === 'quiz' ? quizCount > 0 : conversationCount > 0,
-    );
+    const hasContent = (id: Tab) =>
+      id === 'summary' ? summaryHasContent : id === 'flashcards' ? flashcardCount > 0 : id === 'quiz' ? quizCount > 0 : conversationCount > 0;
+    if (initialTab && tabs.some(t => t.id === initialTab) && hasContent(initialTab)) return initialTab;
+    const withContent = tabs.find(t => hasContent(t.id));
     return withContent?.id ?? tabs[0]?.id ?? 'summary';
   });
 
