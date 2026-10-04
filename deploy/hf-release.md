@@ -4,6 +4,39 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — the whole site in the new language (from bc3e70b)
+
+Adds to 0a11c46 (tree of 31e3694). The owner approved the new visual language («адаптируй полностью весь сайт
+далее под нужный дизайн»), and every screen now uses it: light canvas, deep ink, one blue accent with yellow, green
+and pink, Onest only, large rounded cards, pill buttons with a circle arrow, status pills, halftone panels, and a
+dark theme.
+
+- New landing around the reel (hero with the exam/credit/colloquium toggle, ticker, «how it works» cards that
+  jump to the reel's chapters, method, final call).
+- «Сегодня», «Добавить лекцию», library, material page (summary, cards, test, «Разговор»), shared material,
+  exams, the draw and the oral answer with its protocol, review, mistakes, progress, gradebook, the knowledge map
+  (now set in Onest), sign-in, profile and pricing. Hidden secondary screens are restyled through a scoped
+  stylesheet.
+- Shared pieces: browser bar colour, app icon, update toast, «Нет подключения» page.
+- Fixes found on the way:
+  - the offline page never opened (wrong cache key) and its button was blocked by the CSP;
+  - phone tabs were cut off;
+  - the top bar overlapped at 1024 px;
+  - focus rings squared off rounded elements;
+  - dark-theme blue text was 3.2–3.8:1;
+  - «Удалить предмет» did nothing in a subject's view;
+  - the shorts player showed a made-up like counter.
+
+No data or behaviour changes beyond these fixes; no migration; backend unchanged since 31e3694.
+
+Verified before release on bc3e70b:
+- tsc -b, Vitest 1471/1471 (95 files);
+- production build (no Literata font files left in the assets);
+- browser sweep of 30 routes at 1440 and 390 in both themes on mocked Supabase/API: no horizontal overflow, no
+  text below 4.5:1 (3:1 for large text). The only console errors are /career's mock 406/404 on an empty career
+  profile.
+- Offline fallback checked in Chromium with the built service worker.
+
 ## 2026-10-04 — the motion reel on the landing (from d1b7c8e)
 
 Adds to b07ade9: «Meldy за 35 секунд» under the hero — a code-built motion reel in the new style (chapters
