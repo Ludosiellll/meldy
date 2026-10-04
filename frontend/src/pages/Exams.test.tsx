@@ -93,8 +93,12 @@ describe('Exams', () => {
     renderList();
 
     const list = await screen.findByRole('list', { name: 'Ваши экзамены' });
-    const links = within(list).getAllByRole('link');
+    const links = within(list).getAllByRole('link').filter((link) => link.classList.contains('ex-row'));
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/exams/exam-1', '/exams/exam-2', '/exams/exam-3']);
+    // A ticket is drawn right from the card once some question is in the lectures; not before the mapping.
+    const draws = within(list).getAllByRole('link', { name: /^Тянуть билет/ });
+    expect(draws.map((link) => link.getAttribute('href'))).toEqual(['/exams/exam-1/draw', '/exams/exam-3/draw']);
+    expect(draws[0]).toHaveAccessibleName('Тянуть билет: Микроэкономика');
     await waitFor(() => expect(plain(links[0].textContent)).toContain('24 из 40 вопросов есть в лекциях · подтверждено 6'));
     expect(plain(links[0].textContent)).toMatch(/экзамен · \d+ [а-я]+, через 12 дней/);
     expect(plain(links[1].textContent)).toContain('зачёт, дата не указана · 25 вопросов, разметки ещё нет');
@@ -123,7 +127,7 @@ describe('Exams', () => {
       pass(3, 'c2', '2026-10-02T05:00:00Z', '2026-10-02'),
     ]);
     renderList();
-    const link = await screen.findByRole('link', { name: /Микроэкономика/ });
+    const link = await screen.findByRole('link', { name: /^Микроэкономика/ });
     await waitFor(() => expect(plain(link.textContent)).toContain('24 из 40 вопросов есть в лекциях · подтверждено 1'));
   });
 
@@ -139,9 +143,21 @@ describe('Exams', () => {
     mocks.listExams.mockResolvedValue([item()]);
     mocks.fetchQuestionEvents.mockRejectedValue(new Error('offline'));
     renderList();
-    const link = await screen.findByRole('link', { name: /Микроэкономика/ });
+    const link = await screen.findByRole('link', { name: /^Микроэкономика/ });
     expect(plain(link.textContent)).toContain('24 из 40 вопросов есть в лекциях');
     expect(plain(link.textContent)).not.toContain('подтверждено');
+  });
+
+  it('shows a running mapping as a moving bar, with nothing to draw yet', async () => {
+    mocks.listExams.mockResolvedValue([
+      item({ mapping_state: 'running', coverage: { full: 3, partial: 0, none: 0, unverified: 0, unmapped: 37 } }),
+    ]);
+    mocks.fetchQuestionEvents.mockResolvedValue([]);
+    renderList();
+    const list = await screen.findByRole('list', { name: 'Ваши экзамены' });
+    await waitFor(() => expect(list.querySelector('.ex-bar[data-running]')).not.toBeNull());
+    expect(within(list).queryByRole('link', { name: /^Тянуть билет/ })).toBeNull();
+    expect(plain(within(list).getAllByRole('link')[0].textContent)).toContain('идёт разметка');
   });
 
   it('starts empty with the department’s list as the one action', async () => {
@@ -158,7 +174,7 @@ describe('Exams', () => {
     renderList();
     expect(await screen.findByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
-    expect(await screen.findByRole('link', { name: /Микроэкономика/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /^Микроэкономика/ })).toBeInTheDocument();
   });
 });
 

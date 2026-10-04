@@ -293,14 +293,50 @@ describe('ExamEditor: a new exam', () => {
     renderEditor();
     const hint = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';
     expect(screen.getByText((_, node) => node?.tagName === 'P' && plain(node.textContent) === hint)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Файл' }));
-    expect(screen.getByText((_, node) => node?.tagName === 'P' && plain(node.textContent) === hint)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Вставить текст' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
     fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
     await screen.findByText(/Распознано 4 вопроса, 2 раздела/);
     expect(screen.queryByText(/рабочей программе дисциплины/)).toBeNull();
+  });
+
+  it('never shows a dead main button: before the list it recognises, and says what it waits for', async () => {
+    renderEditor();
+    // Nothing pasted yet: the main button names the next step and the line under it says what to do.
+    const main = screen.getByRole('button', { name: 'Распознать вопросы' });
+    expect(main).toBeDisabled();
+    expect(screen.getByText('Сначала вставьте список вопросов слева или перетащите туда файл.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Разметить по лекциям' })).toBeNull();
+    expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Список вопросов');
+
+    // Typed (not pasted) text: the same button recognises it.
+    fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
+    expect(screen.queryByText(/Сначала вставьте список вопросов/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
+    await screen.findByText(/Распознано 4 вопроса, 2 раздела/);
+    expect(mocks.parseQuestionList).toHaveBeenCalledWith({ text: PARSE.source_text });
+
+    // Then it maps, and says what the press does.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBeEnabled());
+    expect(screen.getByText(/Meldy сверит каждый вопрос с выбранными лекциями/)).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Проверка и лекции');
+  });
+
+  it('recognises a file dropped on the list field, and one chosen with «выберите файл»', async () => {
+    renderEditor();
+    const field = screen.getByRole('textbox', { name: 'Список вопросов' }).parentElement as HTMLElement;
+    const file = new File(['1. Предмет и метод.'], 'Вопросы.docx');
+    fireEvent.dragEnter(field, { dataTransfer: { types: ['Files'], files: [file] } });
+    expect(screen.getByText('Отпустите файл — Meldy распознает список')).toBeInTheDocument();
+    fireEvent.drop(field, { dataTransfer: { types: ['Files'], files: [file] } });
+    await screen.findByText(/Распознано 4 вопроса/);
+    expect(mocks.parseQuestionList).toHaveBeenCalledWith({ file });
+    expect(screen.queryByText('Отпустите файл — Meldy распознает список')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить заново' }));
+    const chosen = new File(['1. Инфляция.'], 'Список.txt');
+    fireEvent.change(screen.getByLabelText('Файл со списком вопросов'), { target: { files: [chosen] } });
+    await waitFor(() => expect(mocks.parseQuestionList).toHaveBeenLastCalledWith({ file: chosen }));
   });
 });
 

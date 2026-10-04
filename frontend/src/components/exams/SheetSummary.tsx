@@ -204,10 +204,16 @@ export function CoverageSummary(props: CoverageSummaryProps) {
       <p className="ex-big ex-figs" data-range={ranged ? '' : undefined}>
         {strike && (
           <>
-            <span className="ex-figs-was" aria-hidden="true">
-              <TextMark kind="strike" seed={seedFrom(props.seedKey ?? 'exam', 'strike')} animate={Boolean(props.strikeLive)}>
-                {questionShare}
-              </TextMark>
+            {/* The struck figure says what it was: the share of questions, not an older share of tickets. */}
+            <span className="ex-figs-wasbox">
+              <span className="ex-figs-was" aria-hidden="true">
+                <TextMark kind="strike" seed={seedFrom(props.seedKey ?? 'exam', 'strike')} animate={Boolean(props.strikeLive)}>
+                  {questionShare}
+                </TextMark>
+              </span>
+              <span className="ex-figs-was-l" aria-hidden="true">
+                вопросов
+              </span>
             </span>
             <span className="ex-sr">{`вместо ${questionShare} вопросов — `}</span>
           </>

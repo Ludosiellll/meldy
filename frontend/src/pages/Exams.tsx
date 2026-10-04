@@ -60,28 +60,58 @@ const ARROW = (
   </svg>
 );
 
+/** «через 3 дня»: the exam is close (a week or less), the date line is set apart in the card. */
+export function examIsNear(item: Pick<ExamListItem, 'exam_date'>, now: Date = new Date()): boolean {
+  const days = daysUntil(item.exam_date, now);
+  return days !== null && days >= 0 && days <= 7;
+}
+
 function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, QuestionState> | null }) {
   const job = useMapJob(item.id);
   const confirmed = states ? examSummary(item.hashes, states).confirmed : null;
   const mappingNow = job.phase === 'running';
   const pills = examPills(item, mappingNow);
+  const running = mappingNow || item.mapping_state === 'running';
+  // A ticket can be drawn once some question is marked as being in the lectures.
+  const canDraw = pills.length > 0 && item.coverage.full + item.coverage.partial + item.coverage.unverified > 0;
   return (
-    <li>
-      {/* The whole card is the link (its ::after covers the card); the pills under it are read after it. */}
+    <li data-near={examIsNear(item) ? '' : undefined}>
+      {/* The whole card is the link (its ::after covers the card); the bar, pills and «Тянуть билет» are read after it. */}
       <Link className="ex-row" to={`/exams/${item.id}`}>
         <span className="ex-row-title">{subjectOf(item.title)}</span>
         <span className="ex-row-meta" style={{ display: 'block' }}>
           {glue(`${examDateLine(item)} · ${examCoverageLine(item, confirmed, mappingNow)}`)}
         </span>
       </Link>
-      {pills.length > 0 && (
-        <p className="ex-pills">
-          {pills.map((pill) => (
-            <span key={pill.key} className="ex-pill" data-k={pill.key}>
-              {pill.word} <b>{pill.count}</b>
-            </span>
-          ))}
-        </p>
+      {/* The questions by their marks, as one bar: «есть», «частично», «нет», not checked yet. */}
+      {pills.length > 0 ? (
+        <span className="ex-bar" aria-hidden="true">
+          {pills.map((pill) =>
+            pill.count > 0 ? <i key={pill.key} data-k={pill.key} style={{ flexGrow: pill.count }} /> : null,
+          )}
+        </span>
+      ) : running ? (
+        <span className="ex-bar" data-running="" aria-hidden="true">
+          <i />
+        </span>
+      ) : null}
+      {(pills.length > 0 || canDraw) && (
+        <div className="ex-row-foot">
+          {pills.length > 0 && (
+            <p className="ex-pills">
+              {pills.map((pill) => (
+                <span key={pill.key} className="ex-pill" data-k={pill.key}>
+                  {pill.word} <b>{pill.count}</b>
+                </span>
+              ))}
+            </p>
+          )}
+          {canDraw && (
+            <Link className="sf-primary ex-row-draw" to={`/exams/${item.id}/draw`} aria-label={`Тянуть билет: ${subjectOf(item.title)}`}>
+              Тянуть билет
+            </Link>
+          )}
+        </div>
       )}
       <span className="ex-row-go" aria-hidden="true">
         {ARROW}

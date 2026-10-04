@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   EXAM_KINDS,
@@ -54,6 +54,14 @@ const PARSE_ACCEPT = '.docx,.pdf,.txt,.md';
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
 /** Where a student finds the list before pasting it (Jury_Check item 12, answer 21). */
 const LIST_SOURCE_HINT = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';
+/** Under the main button while there is nothing to recognise yet: the button says what it waits for. */
+const PASTE_FIRST = 'Сначала вставьте список вопросов слева или перетащите туда файл.';
+/** The same on a phone, where the field is above the button. */
+const PASTE_FIRST_PHONE = 'Сначала вставьте список вопросов в поле выше или выберите файл.';
+/** Under «Разметить по лекциям»: what the press does. */
+const MAP_NEXT = 'Meldy сверит каждый вопрос с выбранными лекциями — пометки появятся на листе экзамена.';
+
+const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
 
 /** The most common ticket size of the department's tickets (1…4). */
 function ticketSize(tickets: Array<{ keys: string[] }>): number {
@@ -94,7 +102,7 @@ export default function ExamEditor() {
   const [loadError, setLoadError] = useState('');
 
   // the list
-  const [tab, setTab] = useState<'paste' | 'file'>('paste');
+  const [dragging, setDragging] = useState(false);
   const [pasted, setPasted] = useState('');
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -418,6 +426,39 @@ export default function ExamEditor() {
       {primaryLabel}
     </button>
   );
+  // Before the list is recognised the main button recognises it: it is never a dead button that waits
+  // for a step it does not name. With nothing to recognise yet, the line under it says what to do.
+  const recognizeStep = total === 0;
+  const canRecognize = !parsing && !lockedByMapping && pasted.trim().length > 0;
+  const recognize = (
+    <button type="button" className="sf-primary" disabled={!canRecognize} onClick={() => void parse({ text: pasted })}>
+      {parsing ? 'Распознаём…' : 'Распознать вопросы'}
+    </button>
+  );
+  const recognizeNote =
+    recognizeStep && !parsing && pasted.trim() === '' && !lockedByMapping ? (frame.side ? PASTE_FIRST : PASTE_FIRST_PHONE) : null;
+  const dropZone = {
+    onDragEnter: (event: DragEvent) => {
+      if (!hasFiles(event) || parsing || lockedByMapping) return;
+      event.preventDefault();
+      setDragging(true);
+    },
+    onDragOver: (event: DragEvent) => {
+      if (!hasFiles(event) || parsing || lockedByMapping) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+    },
+    onDrop: (event: DragEvent) => {
+      const file = event.dataTransfer?.files?.[0];
+      setDragging(false);
+      if (!file) return;
+      event.preventDefault();
+      if (!parsing && !lockedByMapping) void parse({ file });
+    },
+  };
 
   return (
     <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
@@ -432,6 +473,28 @@ export default function ExamEditor() {
           )}
         </p>
         <h1 className="ex-h1">{editing ? 'Изменить экзамен' : 'Новый экзамен'}</h1>
+        {!editing && (
+          <ol className="nx-steps" aria-label="Шаги">
+            <li data-state={recognizeStep ? 'now' : 'done'} aria-current={recognizeStep ? 'step' : undefined}>
+              <span className="nx-step-n" aria-hidden="true">
+                1
+              </span>
+              Список вопросов
+            </li>
+            <li data-state={recognizeStep ? undefined : 'now'} aria-current={recognizeStep ? undefined : 'step'}>
+              <span className="nx-step-n" aria-hidden="true">
+                2
+              </span>
+              Проверка и лекции
+            </li>
+            <li>
+              <span className="nx-step-n" aria-hidden="true">
+                3
+              </span>
+              Разметка по лекциям
+            </li>
+          </ol>
+        )}
       </header>
 
       {lockedByMapping && (
@@ -444,67 +507,58 @@ export default function ExamEditor() {
         <section aria-label="Вопросы кафедры" style={{ minWidth: 0 }}>
           {total === 0 ? (
             <>
-              <div className="nx-tabs" role="tablist" aria-label="Как добавить список">
-                <button type="button" role="tab" aria-selected={tab === 'paste'} onClick={() => setTab('paste')}>
-                  Вставить текст
-                </button>
-                <button type="button" role="tab" aria-selected={tab === 'file'} onClick={() => setTab('file')}>
-                  Файл
-                </button>
-              </div>
-              {tab === 'paste' ? (
-                <div className="sf-sheet nx-blank">
-                  <textarea
-                    aria-label="Список вопросов"
-                    placeholder="Вставьте текст списка из файла кафедры"
-                    value={pasted}
-                    disabled={parsing || lockedByMapping}
-                    onChange={(event) => setPasted(event.target.value)}
-                    onPaste={(event) => {
-                      const text = event.clipboardData?.getData('text') ?? '';
-                      if (text.trim().length > 20 && pasted.trim() === '') {
-                        const target = event.currentTarget;
-                        window.setTimeout(() => void parse({ text: target.value || text }), 0);
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="sf-sheet nx-blank">
-                  <div className="nx-file">
-                    <button type="button" className="ex-secondary" disabled={parsing || lockedByMapping} onClick={() => fileRef.current?.click()}>
-                      Выбрать файл
-                    </button>
-                    <p>DOCX, PDF, TXT или MD — список, как его дала кафедра.</p>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept={PARSE_ACCEPT}
-                      hidden
-                      aria-label="Файл со списком вопросов"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = '';
-                        if (file) void parse({ file });
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-              <p className="ex-meta">{glue(LIST_SOURCE_HINT)}</p>
-              <div className="nx-under">
-                {tab === 'paste' && (
-                  <button
-                    type="button"
-                    className="ex-secondary"
-                    disabled={parsing || pasted.trim().length === 0 || lockedByMapping}
-                    onClick={() => void parse({ text: pasted })}
-                  >
-                    {parsing ? 'Распознаём…' : 'Распознать вопросы'}
-                  </button>
+              {/* One field for the list: paste the text, or drop the department's file on it. */}
+              <div className="sf-sheet nx-blank" data-drag={dragging ? '' : undefined} {...dropZone}>
+                <textarea
+                  aria-label="Список вопросов"
+                  placeholder="Вставьте текст списка из файла кафедры — или перетащите сюда сам файл"
+                  value={pasted}
+                  disabled={parsing || lockedByMapping}
+                  onChange={(event) => setPasted(event.target.value)}
+                  onPaste={(event) => {
+                    const text = event.clipboardData?.getData('text') ?? '';
+                    if (text.trim().length > 20 && pasted.trim() === '') {
+                      const target = event.currentTarget;
+                      window.setTimeout(() => void parse({ text: target.value || text }), 0);
+                    }
+                  }}
+                />
+                {dragging && (
+                  <p className="nx-drop" aria-hidden="true">
+                    Отпустите файл — Meldy распознает список
+                  </p>
                 )}
-                {parsing && tab === 'file' && <p className="ex-meta">Распознаём…</p>}
               </div>
+              <div className="nx-under">
+                {/* On a phone the button sits here; on a computer the main button of the form recognises. */}
+                {!frame.side && recognize}
+                <p className="nx-or">
+                  {frame.side ? 'Или ' : 'или '}
+                  <button type="button" className="sf-link" disabled={parsing || lockedByMapping} onClick={() => fileRef.current?.click()}>
+                    выберите файл
+                  </button>
+                  {glue(' — DOCX, PDF, TXT или MD, как его дала кафедра.')}
+                </p>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept={PARSE_ACCEPT}
+                  hidden
+                  aria-label="Файл со списком вопросов"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) void parse({ file });
+                  }}
+                />
+              </div>
+              {!frame.side && recognizeNote && <p className="ex-meta">{recognizeNote}</p>}
+              {parsing && (
+                <p className="ex-meta" role="status">
+                  Распознаём список…
+                </p>
+              )}
+              <p className="ex-meta nx-source">{glue(LIST_SOURCE_HINT)}</p>
               {parseError && (
                 <p className="ex-note" role="alert">
                   {parseError}
@@ -626,7 +680,9 @@ export default function ExamEditor() {
           </div>
 
           <div className="nx-go">
-            {frame.side && primary}
+            {frame.side && (recognizeStep ? recognize : primary)}
+            {frame.side && recognizeNote && <p className="ex-meta nx-go-note">{recognizeNote}</p>}
+            {!editing && canSave && usableSelected.length > 0 && <p className="ex-meta nx-go-note">{MAP_NEXT}</p>}
             {disabledReason && total > 0 && <p className="ex-note">{disabledReason}</p>}
             {saveError && (
               <p className="ex-note" role="alert">
@@ -642,7 +698,13 @@ export default function ExamEditor() {
         </aside>
       </div>
 
-      {!frame.side && total > 0 && <div className="ex-cta">{primary}</div>}
+      {!frame.side && total > 0 && (
+        <div className="ex-cta">
+          {/* A phone: why the button is off, right above it (the form with the same line is far below). */}
+          {disabledReason && <p className="ex-cta-why">{disabledReason}</p>}
+          {primary}
+        </div>
+      )}
     </div>
   );
 }

@@ -769,6 +769,8 @@
 .sf-page .ex-share { display: block; }
 .sf-page .ex-figs { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 20px; row-gap: 4px; }
 .sf-page .ex-figs-was { color: var(--sf-muted); font-size: .72em; }
+.sf-page .ex-figs-wasbox { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.sf-page .ex-figs-was-l { margin-top: 6px; font-size: 15px; line-height: 18px; font-weight: 500; letter-spacing: 0; color: var(--sf-muted); }
 .sf-page .ex-figs-now { color: var(--ex-figure); }
 /* A range («43–68 %») is wider: both figures stay on one row at 44 px. */
 .sf-page .ex-figs[data-range] { font-size: 44px; column-gap: 16px; }
@@ -1008,6 +1010,7 @@
   box-shadow: 0 -1px 0 var(--sf-line);
 }
 .sf-page .ex-cta .sf-primary { width: 100%; justify-content: space-between; }
+.sf-page .ex-cta-why { margin: 0 0 8px; font-size: 15px; line-height: 20px; color: var(--sf-ink); text-align: center; text-wrap: balance; }
 
 /* ---------------------------------------------------------------- exams list */
 /* Each exam a card: the subject, when and how much is in the lectures, the status pills; the whole
@@ -1090,6 +1093,41 @@
 .sf-page .ex-pill[data-k='unverified'],
 .sf-page .ex-pill[data-k='unmapped'] { color: var(--sf-muted); box-shadow: inset 0 0 0 1.5px var(--sf-line); }
 
+/* The questions by their marks as one bar under the meta line; while a mapping runs, a soft sweep. */
+.sf-page .ex-bar {
+  display: flex;
+  gap: 3px;
+  height: 10px;
+  margin: 2px 0 0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.sf-page .ex-bar i { display: block; min-width: 6px; height: 100%; }
+.sf-page .ex-bar i[data-k='full'] { background: var(--ex-ok-fg); }
+.sf-page .ex-bar i[data-k='partial'] { background: var(--ex-half-fg); }
+.sf-page .ex-bar i[data-k='none'] { background: color-mix(in srgb, var(--ex-no-fg) 55%, transparent); }
+.sf-page .ex-bar i[data-k='unverified'],
+.sf-page .ex-bar i[data-k='unmapped'] { background: var(--sf-line); }
+.sf-page .ex-bar[data-running] { background: var(--sf-line); }
+.sf-page .ex-bar[data-running] i {
+  width: 30%;
+  border-radius: 999px;
+  background: var(--sf-accent);
+  animation: ex-bar-sweep 1.6s var(--m-ease) infinite;
+}
+@keyframes ex-bar-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}
+/* The pills on the left, «Тянуть билет» on the right; the button sits above the card's link. */
+.sf-page .ex-row-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 20px; margin-top: auto; }
+.sf-page .ex-row-foot .ex-pills { margin: 0; }
+.sf-page .ex-row-draw { position: relative; z-index: 2; }
+/* A week or less to the exam: the date line in ink. */
+.sf-page .ex-list > li[data-near] .ex-row-meta { color: var(--sf-ink); }
+.sf-page[data-frame='s'] .ex-row-foot { flex-direction: column; align-items: stretch; }
+.sf-page[data-frame='s'] .ex-row-draw { justify-content: space-between; }
+
 /* No exam yet: one card, an illustration of a marked list on a blue panel, the one action. */
 .sf-page .ex-empty {
   display: grid;
@@ -1154,6 +1192,57 @@
 .sf-page[data-frame='s'] .ex-empty p { font-size: 17px; }
 
 /* ---------------------------------------------------------------- new exam / edit */
+/* «1 Список вопросов · 2 Проверка и лекции · 3 Разметка по лекциям»: where the student is in the
+   flow, under the heading; the current step ink, the done one with a check. */
+.sf-page .nx-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--sf-muted);
+}
+.sf-page .nx-steps li { display: inline-flex; align-items: center; gap: 10px; }
+.sf-page .nx-steps li + li::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  margin-right: 12px;
+  background: var(--sf-line);
+}
+.sf-page .nx-step-n {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--sf-line);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sf-page .nx-steps li[data-state='now'] { color: var(--sf-ink); font-weight: 600; }
+.sf-page .nx-steps li[data-state='now'] .nx-step-n { background: var(--sf-ink); box-shadow: none; color: var(--sf-canvas); }
+.sf-page .nx-steps li[data-state='done'] .nx-step-n { background: var(--sf-accent); box-shadow: none; color: transparent; position: relative; }
+.sf-page .nx-steps li[data-state='done'] .nx-step-n::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg);
+}
+/* A phone: the three numbers in a row, the name of the current step only. */
+.sf-page[data-frame='s'] .nx-steps { gap: 8px; font-size: 15px; }
+.sf-page[data-frame='s'] .nx-steps li { gap: 8px; }
+.sf-page[data-frame='s'] .nx-steps li + li::before { display: none; }
+.sf-page[data-frame='s'] .nx-steps li:not([data-state='now']) { font-size: 0; gap: 0; }
 .sf-page .nx-body {
   display: grid;
   grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
@@ -1167,30 +1256,7 @@
 .sf-page .nx-parsed { font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.026em; }
 .sf-page[data-frame='s'] .nx-parsed { font-size: 24px; }
 .sf-page .nx-parsed + .ex-meta { margin-top: 6px; }
-/* «Вставить текст · Файл»: a segmented pill, the current one ink. */
-.sf-page .nx-tabs {
-  display: inline-flex;
-  gap: 4px;
-  padding: 5px;
-  border-radius: 999px;
-  background: var(--sf-surface);
-  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .04);
-}
-.sf-page .nx-tabs button {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 20px;
-  border-radius: 999px;
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--sf-ink);
-  cursor: pointer;
-  transition: background-color .45s var(--m-ease), color .3s ease;
-}
-.sf-page .nx-tabs button:hover { background: var(--sf-tint); }
-.sf-page .nx-tabs button[aria-selected='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
-.sf-page .nx-blank { margin-top: 18px; padding: 24px 28px 22px; border-radius: 36px; }
+.sf-page .nx-blank { margin-top: 26px; padding: 24px 28px 22px; border-radius: 36px; }
 .sf-page .nx-blank textarea {
   display: block;
   width: 100%;
@@ -1206,10 +1272,32 @@
   color: var(--ph-paper-ink);
 }
 .sf-page .nx-blank textarea::placeholder { color: var(--ph-paper-muted); opacity: 1; }
+/* The card shows the focus (:focus-within below); no second, square ring inside it. */
+.sf-page .nx-blank textarea:focus-visible { outline: none; }
 .sf-page .nx-blank:focus-within { box-shadow: 0 0 0 2px var(--sf-accent), 0 0 0 6px color-mix(in srgb, var(--sf-accent) 18%, transparent), var(--m-card-shadow); }
-.sf-page .nx-file { display: grid; place-items: center; gap: 12px; min-height: 220px; padding: 24px; text-align: center; font-size: 17px; line-height: 26px; }
-.sf-page .nx-file p { color: var(--ph-paper-muted); font-size: 15px; }
 .sf-page .nx-under { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-top: 14px; }
+/* The list field takes a dropped file too: a dashed accent edge and one line over it while a file is
+   carried over the field. */
+.sf-page .nx-blank { position: relative; }
+.sf-page .nx-blank[data-drag] { box-shadow: 0 0 0 2px var(--sf-accent), 0 0 0 6px color-mix(in srgb, var(--sf-accent) 18%, transparent), var(--m-card-shadow); }
+.sf-page .nx-drop {
+  position: absolute;
+  inset: 10px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed color-mix(in srgb, var(--sf-accent) 70%, transparent);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--sf-surface) 88%, transparent);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--sf-accent-fg);
+  pointer-events: none;
+}
+.sf-page .nx-or { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.sf-page .nx-or .sf-link { font-size: 15px; color: var(--sf-ink); }
+.sf-page .nx-under + .ex-meta,
+.sf-page .nx-source { margin-top: 10px; font-size: 15px; line-height: 22px; }
+.sf-page .nx-go-note { margin-top: 12px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .nx-body > section > .ex-meta:first-of-type { margin-top: 14px; font-size: 15px; line-height: 22px; }
 .sf-page .nx-paste { margin-top: 18px; padding: 22px 22px 18px 14px; border-radius: 36px; }
 .sf-page .nx-paste[data-collapsed] {
@@ -1299,6 +1387,26 @@
 }
 .sf-page[data-frame='m'] .nx-form,
 .sf-page[data-frame='s'] .nx-form { position: static; }
+/* On a computer the main button is always in view: the card's foot with the button and its line sticks
+   to the bottom of the window while the card runs below it (the card clips it to its round corners
+   without becoming a scroll box of its own). */
+.sf-page[data-frame='xl'] .nx-form,
+.sf-page[data-frame='l'] .nx-form {
+  overflow: clip;
+  padding-bottom: 0;
+}
+.sf-page[data-frame='xl'] .nx-go,
+.sf-page[data-frame='l'] .nx-go {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 22px -30px 0;
+  padding: 18px 30px 26px;
+  background: var(--sf-surface);
+  box-shadow: 0 -1px 0 var(--sf-line);
+}
+.sf-page[data-frame='xl'] .nx-grp + .nx-grp,
+.sf-page[data-frame='l'] .nx-grp + .nx-grp { margin-top: 20px; padding-top: 18px; }
 .sf-page[data-frame='s'] .nx-form { padding: 24px 20px 26px; border-radius: 32px; }
 .sf-page .nx-grp + .nx-grp { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--sf-line); }
 .sf-page .nx-lbl { font-size: 15px; line-height: 22px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--sf-accent-fg); }
@@ -1353,6 +1461,7 @@
 .sf-page .nx-line + .ex-meta { margin-top: 10px; font-size: 15px; line-height: 22px; }
 .sf-page .nx-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 28px; }
 .sf-page .nx-go .ex-note { flex-basis: 100%; margin-top: 0; }
+.sf-page .nx-go .nx-go-note { flex-basis: 100%; margin-top: 0; }
 .sf-page .nx-pick { margin: 10px 0 0; padding: 0; list-style: none; }
 .sf-page .nx-pick label,
 .sf-page .nx-pick-head {
@@ -1778,6 +1887,7 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .ex-mode-sheet,
   .sf-page .ex-why-sheet,
   .sf-page .ex-scrim { animation: none; }
+  .sf-page .ex-bar[data-running] i { animation: none; width: 100%; opacity: .45; }
   .sf-page .ex-q[data-coverage='checking'] .ex-cov .sf-mark { animation: none; }
   .sf-page .ex-q,
   .sf-page .ex-sec,
@@ -1788,7 +1898,6 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .ex-new-dot,
   .sf-page .ex-links .sf-link,
   .sf-page .ex-crumb a,
-  .sf-page .nx-tabs button,
   .sf-room-bar .dw-exit { transition: none; }
   .sf-page .ex-list > li:hover,
   .sf-page .ex-list > li:hover .ex-row-go,
