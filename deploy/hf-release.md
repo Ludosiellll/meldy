@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — knowledge map back in the menu (from ce131a8)
+
+Adds to 827588d: «Карта знаний» returns — lecture cards in course order with the concepts they share, readiness
+marks on question numbers, a paper panel with fragments and mistakes, a list view (default on phones). In the top bar
+from 1280 px, otherwise in the account menu.
+
+Verified before release: tsc -b and Vitest 1525/1525 on the release tree; map screenshots at 1440 and 390 in both
+themes on mocked Supabase (no overflow, no console errors). Data is read only: no migration.
+
 ## 2026-10-04 — owner fixes and jury fixes (from 7f6ab03 + review leftovers)
 
 First attempt (run 4) stopped before pushing: `git fetch` from the Space failed on the runner's git 2.55 protocol v2
