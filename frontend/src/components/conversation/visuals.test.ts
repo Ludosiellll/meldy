@@ -3,6 +3,7 @@ import {
   assignVoices,
   buildConversation,
   cleanSourceIds,
+  conversationOutline,
   estimateMinutes,
   conversationMeta,
   fragmentWords,
@@ -14,12 +15,16 @@ import {
   normalizeForMatch,
   normalizeLines,
   normalizeSpeaker,
+  outlineTitle,
+  OUTLINE_LIMIT,
+  OUTLINE_TITLE_MAX,
   parseGeneratedLines,
   pluralLines,
   provenanceLead,
   quoteSourceIds,
   sanitizeVisual,
   toFiniteNumber,
+  topicKey,
   visualLabel,
   voiceForSpeaker,
   VISUAL_LIMITS,
@@ -554,5 +559,62 @@ describe('words on the paper sheet (spec 5.7)', () => {
     expect(visualCaption(quote)).toMatch(/^Эластичность показывает/);
     expect(visualCaption(quote).length).toBeLessThanOrEqual(60);
     expect(visualCaption({ type: 'fact', title: 'Определение', text: 'Текст.' })).toBe('Определение');
+  });
+});
+
+describe('the plan on the first line', () => {
+  const scene = { type: 'scene', title: 'Эластичность спроса', icon: 'scale', caption: 'Почему цена меняет выручку' };
+  const term = (word: string) => ({ type: 'term', term: word, definition: 'Определение.' });
+  const steps = (title: string) => ({ type: 'steps', title, items: ['Один', 'Два'] });
+  const plan = (visuals: unknown[]) => {
+    const lines = buildConversation(
+      visuals.map((visual, index) => ({ speaker: index % 2 ? 'Софья' : 'Макс', text: `Реплика ${index + 1}.`, visual })),
+    );
+    const opening = lines[0]?.visual;
+    return conversationOutline(lines, opening?.type === 'scene' ? opening.title : '');
+  };
+
+  it('names topics, not self-check questions or quotes, each once and at most four', () => {
+    const items = plan([
+      scene,
+      term('Эластичный спрос'),
+      term('ЭЛАСТИЧНЫЙ спрос.'),
+      { type: 'question', question: 'Почему пекарня заработает больше, подняв цену на хлеб?', answer: 'Спрос на хлеб неэластичен.' },
+      { type: 'fact', title: 'Определение', text: 'Эластичность показывает, насколько меняется спрос.' },
+      steps('Эластичного спроса'),
+      steps('Эластичность спроса'),
+      { type: 'compare', title: 'Кофе и хлеб', left: { label: 'Кофе', points: ['Легко заменить'] }, right: { label: 'Хлеб', points: ['Нужен всегда'] } },
+      term('Выручка'),
+      term('Неэластичный спрос'),
+      term('Ценовая дискриминация'),
+    ]);
+    // «Эластичного спроса» is the same topic as «Эластичный спрос»; «Эластичность спроса» is the plan's own title.
+    expect(items).toEqual([
+      { position: 1, caption: 'Эластичный спрос' },
+      { position: 7, caption: 'Кофе и хлеб' },
+      { position: 8, caption: 'Выручка' },
+      { position: 9, caption: 'Неэластичный спрос' },
+    ]);
+    expect(items).toHaveLength(OUTLINE_LIMIT);
+  });
+
+  it('skips the pictures carried over from the opening and shows no plan for fewer than two topics', () => {
+    expect(plan([scene, null, term('Выручка'), term('выручка')])).toEqual([]);
+    expect(plan([scene, null, term('Выручка'), steps('Как считать выручку')])).toEqual([
+      { position: 2, caption: 'Выручка' },
+      { position: 3, caption: 'Как считать выручку' },
+    ]);
+    expect(conversationOutline([])).toEqual([]);
+  });
+
+  it('keeps topic names short: the part before a colon or a dash, or a cut on a word', () => {
+    expect(outlineTitle('Эластичность спроса: как цена меняет выручку у пекарни и у кофейни в центре города')).toBe('Эластичность спроса');
+    const long = 'Почему пекарня и кофейня по-разному реагируют на повышение цен для своих покупателей';
+    expect(outlineTitle(long)).toMatch(/…$/);
+    expect(outlineTitle(long).length).toBeLessThanOrEqual(OUTLINE_TITLE_MAX);
+    expect(outlineTitle('  Короткая   тема ')).toBe('Короткая тема');
+    expect(topicKey('Эластичный спрос!')).toBe(topicKey('эластичного  СПРОСА'));
+    expect(topicKey('Ёмкость рынка')).toBe(topicKey('емкость рынка'));
+    expect(topicKey('Эластичный спрос')).not.toBe(topicKey('Эластичность спроса'));
   });
 });

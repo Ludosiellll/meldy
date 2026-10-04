@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ConversationPlayer, { nextSpeed, plainLineText, sheetMetrics, speedLabel } from './ConversationPlayer';
+import ConversationPlayer, {
+  nextSpeed,
+  plainLineText,
+  sheetMetrics,
+  SLOW_NOTE_MS,
+  speedLabel,
+  WAIT_NOTE_MS,
+  waitMessage,
+} from './ConversationPlayer';
 import { resetJobsForTests } from './jobs';
 
 const tts = vi.hoisted(() => ({
@@ -142,6 +150,67 @@ describe('ConversationPlayer', () => {
     expect(tts.playTTS).not.toHaveBeenCalled();
   });
 
+  it('opens an old saved conversation with a plan of distinct topics, never its self-check question or quote', async () => {
+    // summary_json.podcast as the previous prompt wrote it (the owner's conversation, 2026-10-04): a question
+    // as the scene caption, the same term twice, a self-check question and a quote among the pictures.
+    const saved = [
+      { speaker: 'Макс', text: 'Софья, привет! Звучит немного сложно. Что такое эластичность?', source_ids: ['S01'], visual: { type: 'scene', title: 'Эластичность спроса', icon: 'scale', caption: 'Как изменение цены влияет на покупки?' } },
+      { speaker: 'Софья', text: 'Если цена чуть растёт, а покупают намного меньше, спрос эластичный.', visual: { type: 'term', term: 'Эластичный спрос', definition: 'Покупки меняются сильнее, чем цена.' } },
+      { speaker: 'Макс', text: 'То есть от покупки легко отказаться?', visual: { type: 'term', term: 'эластичный спрос!', definition: 'Покупки меняются сильнее, чем цена.' } },
+      { speaker: 'Софья', text: 'Сравним кофе и хлеб.', visual: { type: 'compare', title: 'Спрос на кофе и хлеб', left: { label: 'Капучино', points: ['Легко заменить'] }, right: { label: 'Хлеб', points: ['Нужен каждый день'] } } },
+      { speaker: 'Макс', text: 'Проверю себя.', visual: { type: 'question', question: 'Объясните экономическую причину, по которой пекарня может заработать больше, подняв цену на хлеб, а кофейня — меньше, подняв цену на капучино.', answer: 'Спрос на хлеб неэластичен.' } },
+      { speaker: 'Софья', text: 'Так сказано в лекции.', visual: { type: 'fact', title: 'Определение', text: 'Эластичность показывает, насколько меняется спрос.' } },
+      { speaker: 'Макс', text: 'Что из этого следует?', visual: { type: 'steps', title: 'Последствия эластичного спроса', items: ['Выручка падает', 'Скидки работают'] } },
+    ];
+    const user = userEvent.setup();
+    render(<ConversationPlayer lines={saved} title="Тема 4. Эластичность" />);
+
+    const scene = activeScene();
+    expect(within(scene).getByText('О чём разговор')).toHaveClass('cv-kicker');
+    expect(within(scene).getByRole('heading', { name: 'Эластичность спроса' })).toBeInTheDocument();
+    // The caption is the lede under the topic, not a question over a list of answers.
+    expect(within(scene).getByText('Как изменение цены влияет на покупки?')).toHaveClass('cv-scene-lede');
+    const plan = within(scene).getByRole('list', { name: 'Дальше в разговоре' });
+    const names = (list: HTMLElement) => within(list).getAllByRole('button').map(button => button.getAttribute('aria-label'));
+    expect(names(plan)).toEqual([
+      'Эластичный спрос, реплика 2',
+      'Спрос на кофе и хлеб, реплика 4',
+      'Последствия эластичного спроса, реплика 7',
+    ]);
+    expect(within(plan).getByRole('button', { name: 'Спрос на кофе и хлеб, реплика 4' })).toHaveTextContent('Спрос на кофе и хлебреплика 4');
+    expect(scene.textContent).not.toMatch(/Объясните экономическую причину|Определение|Эластичность показывает/);
+
+    await user.click(within(plan).getByRole('button', { name: /Спрос на кофе и хлеб/ }));
+    expect(screen.getByText('Реплика 4 из 7')).toBeInTheDocument();
+    expect(within(activeScene()).getByRole('heading', { name: 'Спрос на кофе и хлеб' })).toBeInTheDocument();
+    expect(tts.playTTS).not.toHaveBeenCalled();
+    cleanup();
+
+    // A conversation saved without pictures: the cover is the material title; the plan comes from the summary
+    // terms found in the lines, each once; one topic is no plan — the cover stands alone.
+    const legacy = [
+      { speaker: 'Макс', text: 'Привет! О чём сегодня?' },
+      { speaker: 'Софья', text: 'Про эластичность спроса и выручку.', source_ids: ['S01'] },
+      { speaker: 'Макс', text: 'А что с выручкой при росте цены?' },
+      { speaker: 'Софья', text: 'Выручка падает, если покупки сильно сокращаются.' },
+    ];
+    const terms = [
+      { term: 'Эластичность спроса', definition: 'Насколько покупки зависят от цены.' },
+      { term: 'Выручка', definition: 'Цена, умноженная на количество проданного.' },
+    ];
+    render(<ConversationPlayer lines={legacy} title="Тема 4. Эластичность" terms={terms} />);
+    let cover = activeScene();
+    expect(within(cover).getByText('О чём разговор')).toBeInTheDocument();
+    expect(within(cover).getByRole('heading', { name: 'Тема 4. Эластичность' })).toBeInTheDocument();
+    expect(names(within(cover).getByRole('list'))).toEqual(['Эластичность спроса, реплика 2', 'Выручка, реплика 3']);
+    cleanup();
+
+    render(<ConversationPlayer lines={legacy} title="Тема 4. Эластичность" terms={terms.slice(1)} />);
+    cover = activeScene();
+    expect(within(cover).getByRole('heading', { name: 'Тема 4. Эластичность' })).toBeInTheDocument();
+    expect(within(cover).queryByRole('list')).not.toBeInTheDocument();
+  });
+
   it('shows the clicked line visual, says where the numbers come from and plays from it', async () => {
     const user = userEvent.setup();
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
@@ -214,9 +283,11 @@ describe('ConversationPlayer', () => {
     expect(within(activeScene()).getByText('Энтропия.')).toBeInTheDocument();
   });
 
-  it('moves between lines with the keyboard and toggles playback with Space and K', () => {
+  it('moves between lines with the keyboard; Space starts a line and presses while it loads change nothing', () => {
     render(<ConversationPlayer lines={modelLines} />);
     const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    // The warm-up: the first two lines are prepared as soon as the player is on screen.
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(player, { key: 'ArrowRight' });
     expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
@@ -237,14 +308,128 @@ describe('ConversationPlayer', () => {
       HOST_VOICE,
     );
     // The next lines are prepared only once this one sounds: they do not compete with it for the server.
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+
+    // Presses while the sound loads (K, Space, the button itself) neither cancel nor restart the loading:
+    // a user on a slow network who clicks again and again no longer starts it over every time.
+    tts.stopTTS.mockClear();
+    const play = screen.getByRole('button', { name: 'Загружаем звук' });
+    fireEvent.keyDown(player, { key: 'k' });
+    fireEvent.keyDown(player, { key: ' ' });
+    fireEvent.click(play);
+    expect(tts.stopTTS).not.toHaveBeenCalled();
+    expect(tts.playTTS).toHaveBeenCalledTimes(1);
+    expect(play).toHaveAccessibleName('Загружаем звук');
+    expect(play).toHaveAttribute('aria-busy', 'true');
+
+    // Once the sound plays, K pauses it and K goes on.
+    act(() => lastPlay()[4]());
+    tts.isTTSSounding.mockReturnValue(true);
+    fireEvent.keyDown(player, { key: 'k' });
+    expect(tts.pauseTTS).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Продолжить' })).toBeInTheDocument();
+    fireEvent.keyDown(player, { key: 'K' });
+    expect(tts.resumeTTS).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Пауза' })).toBeInTheDocument();
+  });
+
+  it('answers a press at once: a ring on ▶, then «Готовим голос…», and after 6 s that the line can be read', () => {
+    vi.useFakeTimers();
+    try {
+      render(<ConversationPlayer lines={modelLines} />);
+      const play = screen.getByRole('button', { name: 'Слушать' });
+      expect(play.querySelector('.cv-play-ring')).toBeNull();
+      expect(play).not.toHaveAttribute('aria-busy');
+
+      fireEvent.click(play);
+      expect(play).toHaveAttribute('data-state', 'loading');
+      expect(play).toHaveAttribute('aria-busy', 'true');
+      expect(play.querySelector('.cv-play-ring')).not.toBeNull();
+      // A fast network gets no words at all: the sound simply starts.
+      act(() => vi.advanceTimersByTime(WAIT_NOTE_MS - 1));
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole('status')).toHaveTextContent('Готовим голос…');
+
+      act(() => vi.advanceTimersByTime(SLOW_NOTE_MS - WAIT_NOTE_MS));
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Звук загружается дольше обычного. Реплика уже на экране — её можно читать.',
+      );
+      // The line is indeed on screen while its sound loads.
+      expect(within(screen.getByRole('region', { name: 'Субтитры' })).getByText(modelLines[0].text)).toBeInTheDocument();
+      expect(tts.playTTS).toHaveBeenCalledTimes(1);
+
+      // The sound starts: the ring and the note go away.
+      act(() => lastPlay()[4]());
+      const pause = screen.getByRole('button', { name: 'Пауза' });
+      expect(pause).not.toHaveAttribute('aria-busy');
+      expect(pause.querySelector('.cv-play-ring')).toBeNull();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+      // A failed load replaces the note with the honest error and «Повторить».
+      act(() => lastPlay()[2]());
+      act(() => vi.advanceTimersByTime(WAIT_NOTE_MS));
+      expect(screen.getByRole('status')).toHaveTextContent('Готовим голос…');
+      act(() => lastPlay()[3]({ code: 'unavailable', reason: 'server' }));
+      expect(screen.getByRole('status')).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
+      act(() => vi.advanceTimersByTime(SLOW_NOTE_MS));
+      expect(screen.getByRole('status')).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
+      expect(within(screen.getByRole('status')).getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('blames the internet only when the browser itself says the connection is slow', () => {
+    expect(waitMessage('wait')).toBe('Готовим голос…');
+    expect(waitMessage('slow')).toBe('Звук загружается дольше обычного. Реплика уже на экране — её можно читать.');
+    Object.defineProperty(navigator, 'connection', { value: { effectiveType: '3g' }, configurable: true });
+    try {
+      expect(waitMessage('slow')).toBe('Медленный интернет: звук ещё загружается. Реплика уже на экране — её можно читать.');
+    } finally {
+      Reflect.deleteProperty(navigator, 'connection');
+    }
+  });
+
+  it('prepares the sound of the first two lines once the player is on screen, once per conversation', () => {
+    const observers: Array<{ callback: (entries: Array<{ isIntersecting: boolean }>) => void; disconnect: ReturnType<typeof vi.fn> }> = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        disconnect = vi.fn();
+        observe = vi.fn();
+        constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+          observers.push({ callback, disconnect: this.disconnect });
+        }
+      },
+    );
+    render(<ConversationPlayer lines={modelLines} />);
+    expect(observers).toHaveLength(1);
+    act(() => observers[0].callback([{ isIntersecting: false }]));
     expect(tts.prefetchTTSInOrder).not.toHaveBeenCalled();
 
-    // Нажатие во время загрузки отменяет её; «Продолжить» начнёт реплику заново.
-    fireEvent.keyDown(player, { key: 'k' });
-    expect(tts.stopTTS).toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Продолжить' })).toBeInTheDocument();
-    fireEvent.keyDown(player, { key: 'k' });
-    expect(tts.playTTS).toHaveBeenCalledTimes(2);
+    act(() => observers[0].callback([{ isIntersecting: true }]));
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledWith(
+      [
+        { text: modelLines[0].text, role: 'male' },
+        { text: modelLines[1].text, role: 'female' },
+      ],
+      { persist: true },
+    );
+    expect(observers[0].disconnect).toHaveBeenCalled();
+    // The same conversation is not prepared twice; the first ▶ plays what is ready.
+    act(() => observers[0].callback([{ isIntersecting: true }]));
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows every new picture from its top, even when the sheet was scrolled', () => {
+    render(<ConversationPlayer lines={modelLines} />);
+    const body = screen.getByRole('region', { name: 'Сцена' }).querySelector('.cv-sheet-body') as HTMLElement;
+    body.scrollTop = 30;
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Разговор по материалу' }), { key: 'ArrowRight' });
+    expect(within(activeScene()).getByRole('heading', { name: 'Энтропия' })).toBeInTheDocument();
+    expect(body.scrollTop).toBe(0);
   });
 
   it('pauses and resumes real sound', async () => {
@@ -762,7 +947,8 @@ describe('ConversationPlayer', () => {
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
     expect(screen.getByRole('button', { name: 'Слушать' })).toBeInTheDocument();
-    expect(tts.prefetchTTSInOrder).not.toHaveBeenCalled();
+    // Only the warm-up of the first two lines; nothing more is asked of a server that has just failed.
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
 
     // «Повторить» forgets the failures first, then asks for the same line again.
     await user.click(within(status).getByRole('button', { name: 'Повторить' }));
@@ -774,19 +960,22 @@ describe('ConversationPlayer', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('prepares the next three lines one plan at a time, once the current line is heard', () => {
+  it('prepares the first two lines on screen, then the next three one plan at a time, once the current line is heard', () => {
     const six = Array.from({ length: 6 }, (_, index) => ({ speaker: index % 2 ? 'Софья' : 'Макс', text: `Реплика номер ${index + 1}.` }));
     const line = (number: number) => ({ text: `Реплика номер ${number}.`, role: number % 2 ? 'male' : 'female' });
     const { unmount } = render(<ConversationPlayer lines={six} />);
+    // The player is on screen (no IntersectionObserver here: at once) — the first ▶ will not wait for the server.
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+    expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([line(1), line(2)], { persist: true });
     fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
-    expect(tts.prefetchTTSInOrder).not.toHaveBeenCalled();
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
 
     act(() => lastPlay()[4]());
     expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([line(2), line(3), line(4)], { persist: true });
 
     // The second line starts loading: nothing new until it sounds, then the plan moves one line on.
     act(() => lastPlay()[2]());
-    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(2);
     act(() => lastPlay()[4]());
     expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([line(3), line(4), line(5)], { persist: true });
 
@@ -798,7 +987,7 @@ describe('ConversationPlayer', () => {
     // The last line has nothing after it.
     act(() => lastPlay()[2]());
     act(() => lastPlay()[4]());
-    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(3);
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(4);
 
     // Leaving the page stops the queue.
     unmount();
@@ -970,8 +1159,11 @@ describe('ConversationPlayer with the real speech module', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
-    // Three tries for the same line (now, after 1 s, after 3 more s); the browser voice never speaks.
-    expect(ttsRequests()).toEqual(Array(3).fill(lines[0].text));
+    // ▶ shares the warm-up's request for Max's line and then tries twice more (after 1 s, after 3 more s);
+    // the warm-up asked for Sofia's line once. The browser voice never speaks.
+    const asked = (text: string) => ttsRequests().filter(request => request === text).length;
+    expect(asked(lines[0].text)).toBe(3);
+    expect(asked(lines[1].text)).toBe(1);
     expect(synth.speak).not.toHaveBeenCalled();
     expect(FakeAudio.instances).toHaveLength(0);
     const status = screen.getByRole('status');
@@ -983,7 +1175,7 @@ describe('ConversationPlayer with the real speech module', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(ttsRequests()).toHaveLength(4);
+    expect(asked(lines[0].text)).toBe(4);
     expect(FakeAudio.instances).toHaveLength(1);
     act(() => FakeAudio.instances[0].emit('playing'));
     expect(screen.getByRole('button', { name: 'Пауза' })).toBeInTheDocument();
@@ -992,12 +1184,13 @@ describe('ConversationPlayer with the real speech module', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(ttsRequests()).toEqual([...Array(4).fill(lines[0].text), lines[1].text]);
+    expect(asked(lines[1].text)).toBe(2);
+    expect(ttsRequests()[ttsRequests().length - 1]).toBe(lines[1].text);
     expect(synth.speak).not.toHaveBeenCalled();
     actual.stopTTS();
   });
 
-  it('loads the next lines one request at a time once the sound starts, saves them, and a replay needs no server', async () => {
+  it('prepares the first two lines on screen and the next ones once the sound starts, one request at a time; a replay needs no server', async () => {
     await useRealSpeech();
     const stored = new Map<string, FakeResponse>();
     const cache = {
@@ -1029,15 +1222,25 @@ describe('ConversationPlayer with the real speech module', () => {
     }));
     render(<ConversationPlayer lines={lines} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    // The player is on screen: the first line is asked for before any press, and only it.
     await waitFor(() => expect(pending).toHaveLength(1));
+    expect(ttsRequests()).toEqual([lines[0].text]);
+    // ▶ while it loads joins that request instead of asking again.
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    expect(ttsRequests()).toEqual([lines[0].text]);
     act(() => pending.shift()?.());
     await waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
-    // Nothing else is asked while the first line loads.
-    expect(ttsRequests()).toEqual([lines[0].text]);
+    // Then the second line of the warm-up, still one request at a time.
+    await waitFor(() => expect(pending).toHaveLength(1));
+    expect(ttsRequests()).toEqual([lines[0].text, lines[1].text]);
+    act(() => pending.shift()?.());
 
+    // The first line sounds: the lines after the ready second one follow.
     act(() => FakeAudio.instances[0].emit('playing'));
-    for (const next of [1, 2, 3]) {
+    for (const next of [2, 3]) {
       await waitFor(() => expect(pending).toHaveLength(1));
       expect(ttsRequests()).toEqual(lines.slice(0, next + 1).map(line => line.text));
       act(() => pending.shift()?.());

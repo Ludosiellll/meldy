@@ -2,12 +2,13 @@ import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import katex from 'katex';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
-import { X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import type {
   CompareVisual,
   ConversationSource,
   FactVisual,
   FormulaVisual,
+  OutlineItem,
   Provenance,
   QuestionVisual,
   SceneVisual,
@@ -294,50 +295,63 @@ function QuestionBody({ visual, forceRevealed, interactive }: { visual: Question
   );
 }
 
-function SceneBody({ visual }: { visual: SceneVisual }) {
-  // Иконка темы остаётся в данных, но не рисуется: стоковая пиктограмма ничего не объясняет.
-  return visual.caption ? <p className="cv-text cv-muted">{visual.caption}</p> : null;
+/** Тире не начинает строку (типографское правило): пробел перед ним неразрывный. */
+function keepDash(text: string): string {
+  return text.replace(/ ([\u2014\u2013])/g, '\u00a0$1');
 }
 
-export interface OutlineItem {
-  /** Позиция реплики в разговоре (для перехода). */
-  position: number;
-  caption: string;
+/**
+ * План на первой реплике: темы, которые появятся на листе дальше, — как оглавление
+ * (стрелка, название, «реплика N»), а не как варианты ответа. Строка переводит к реплике.
+ */
+function Chapters({ items, onSeek, interactive }: { items: OutlineItem[]; onSeek?: (position: number) => void; interactive: boolean }) {
+  return (
+    <ol className="cv-chapters" aria-label="Дальше в разговоре">
+      {items.map(item => (
+        <li key={item.position}>
+          {/* The name is set whole: engines join the inline parts of a button differently («Тема,реплика 2»). */}
+          <button
+            type="button"
+            tabIndex={interactive ? undefined : -1}
+            onClick={() => onSeek?.(item.position)}
+            aria-label={`${item.caption}, реплика ${item.position + 1}`}
+          >
+            <ArrowRight aria-hidden="true" strokeWidth={2} className="cv-chapter-arrow" />
+            <span className="cv-chapter-title">{item.caption}</span>
+            <span className="cv-chapter-at">реплика {item.position + 1}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
-/** Заставка начала: что будет на экране дальше, с переходом к нужной реплике. */
-function OutlineBody({
-  caption,
-  items,
+/**
+ * Заставка темы: название и подпись под ним. На первой реплике над названием метка
+ * «О чём разговор», а справа (уже 1024 px — ниже) — план из двух–четырёх тем.
+ * Иконка темы остаётся в данных, но не рисуется: стоковая пиктограмма ничего не объясняет.
+ */
+function SceneCard({
+  visual,
+  opening,
+  chapters,
   onSeek,
   interactive,
 }: {
-  caption: string;
-  items: OutlineItem[];
+  visual: SceneVisual;
+  opening: boolean;
+  chapters: OutlineItem[];
   onSeek?: (position: number) => void;
   interactive: boolean;
 }) {
   return (
-    <div>
-      {caption && <p className="cv-text cv-muted mb-2">{caption}</p>}
-      <ol className="cv-outline">
-        {items.map((item, number) => (
-          <li key={item.position}>
-            <button
-              type="button"
-              tabIndex={interactive ? undefined : -1}
-              onClick={() => onSeek?.(item.position)}
-              title={`Перейти к реплике ${item.position + 1}`}
-            >
-              <span aria-hidden="true" className="cv-outline-n">
-                {number + 1}
-              </span>
-              <span className="line-clamp-2 min-w-0">{item.caption}</span>
-              <span className="sr-only">, реплика {item.position + 1}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
+    <div className="cv-scene" data-chapters={chapters.length ? '' : undefined}>
+      <div className="cv-scene-head">
+        {opening && <p className="cv-kicker">О чём разговор</p>}
+        <h3 className="cv-scene-title">{keepDash(visual.title)}</h3>
+        {visual.caption && <p className="cv-scene-lede">{keepDash(visual.caption)}</p>}
+      </div>
+      {chapters.length > 0 && <Chapters items={chapters} onSeek={onSeek} interactive={interactive} />}
     </div>
   );
 }
@@ -446,9 +460,9 @@ export interface ConversationVisualProps {
   provenance: Provenance;
   /** Фрагменты исходника (для раскрытия «фрагмент 3» и заголовка цитаты). */
   sources?: ConversationSource[] | null;
-  /** Для заставки начала: изображения, которые появятся дальше. */
+  /** Для заставки начала: темы, которые появятся дальше (conversationOutline; пусто — без плана). */
   outline?: OutlineItem[];
-  /** Первая реплика разговора: сцена на ней становится планом разговора. */
+  /** Первая реплика разговора: заставка на ней — «О чём разговор» с планом. */
   opening?: boolean;
   onSeek?: (position: number) => void;
   /**
@@ -475,68 +489,70 @@ export default function ConversationVisual({
   budget,
   reveal = false,
 }: ConversationVisualProps) {
-  const asOutline = visual.type === 'scene' && (origin === 'cover' || opening) && outline.length >= 2;
   const interactive = !measure;
   const [leadRef, leadHeight] = useElementHeight<HTMLDivElement>(48);
   const quote = provenance.kind === 'quote';
   // Над изображением остаётся только слово «Пересказ»: остальные типы видны и так.
   const kind = visual.type === 'fact' && !quote ? visualLabel(visual, provenance) : null;
-  const title = asOutline ? 'О чём разговор' : visualTitle(visual);
+  const title = visualTitle(visual);
   const notes = visual.type === 'chart' ? chartNotes(visual) : [];
   const room = budget && budget > 0 ? Math.max(120, budget - leadHeight - (notes.length ? FOOT_PX : 0)) : undefined;
+  // Класс по типу есть и у невидимой копии: высоту листа считают по тому же набору.
+  const className = `min-w-0 cv-visual-${visual.type}`;
 
-  let body: ReactNode;
-  if (asOutline && visual.type === 'scene') {
-    body = <OutlineBody caption={origin === 'cover' ? '' : visual.caption} items={outline} onSeek={onSeek} interactive={interactive} />;
-  } else {
-    switch (visual.type) {
-      case 'term':
-        body = <p className="cv-text">{visual.definition}</p>;
-        break;
-      case 'steps':
-        body = <StepsBody visual={visual} />;
-        break;
-      case 'compare':
-        body = <CompareBody visual={visual} />;
-        break;
-      case 'formula':
-        body = <FormulaBody visual={visual} />;
-        break;
-      case 'chart':
-        body = <ChartView visual={visual} maxHeight={room} />;
-        break;
-      case 'timeline':
-        body = <TimelineBody visual={visual} />;
-        break;
-      case 'diagram':
-        body = <DiagramView visual={visual} maxHeight={room} reveal={reveal && interactive} />;
-        break;
-      case 'fact': {
-        // Цитата начинается во фрагменте, который указан первым (quoteSourceIds идёт по порядку фрагментов).
-        const fragment = quote && provenance.ids.length ? fragmentText(sources, provenance.ids[0]) : null;
-        body = <FactBody visual={visual} quote={quote} fragment={fragment} />;
-        break;
-      }
-      case 'question':
-        body = <QuestionBody visual={visual} forceRevealed={measure} interactive={interactive} />;
-        break;
-      case 'scene':
-        body = <SceneBody visual={visual} />;
-        break;
-      default:
-        body = null;
-    }
+  if (visual.type === 'scene') {
+    // Заставка (и обложка старого разговора — название материала) не ссылается на источник.
+    const first = opening || origin === 'cover';
+    return (
+      <div className={className} data-visual-type={measure ? undefined : visual.type}>
+        <SceneCard visual={visual} opening={first} chapters={first ? outline : []} onSeek={onSeek} interactive={interactive} />
+      </div>
+    );
   }
 
-  const hasNote = !asOutline && sourceNote(provenance) !== null;
+  let body: ReactNode = null;
+  switch (visual.type) {
+    case 'term':
+      body = <p className="cv-def">{keepDash(visual.definition)}</p>;
+      break;
+    case 'steps':
+      body = <StepsBody visual={visual} />;
+      break;
+    case 'compare':
+      body = <CompareBody visual={visual} />;
+      break;
+    case 'formula':
+      body = <FormulaBody visual={visual} />;
+      break;
+    case 'chart':
+      body = <ChartView visual={visual} maxHeight={room} />;
+      break;
+    case 'timeline':
+      body = <TimelineBody visual={visual} />;
+      break;
+    case 'diagram':
+      body = <DiagramView visual={visual} maxHeight={room} reveal={reveal && interactive} />;
+      break;
+    case 'fact': {
+      // Цитата начинается во фрагменте, который указан первым (quoteSourceIds идёт по порядку фрагментов).
+      const fragment = quote && provenance.ids.length ? fragmentText(sources, provenance.ids[0]) : null;
+      body = <FactBody visual={visual} quote={quote} fragment={fragment} />;
+      break;
+    }
+    case 'question':
+      body = <QuestionBody visual={visual} forceRevealed={measure} interactive={interactive} />;
+      break;
+  }
+
+  const hasNote = sourceNote(provenance) !== null;
   return (
-    <div className="min-w-0" data-visual-type={measure ? undefined : visual.type}>
+    <div className={className} data-visual-type={measure ? undefined : visual.type}>
       {(kind || title || hasNote) && (
         <div ref={leadRef} className="cv-lead">
           {kind && <p className="cv-kind">{kind}</p>}
           <div className="cv-head">
             {title && <h3 className="cv-title">{title}</h3>}
-            {!asOutline && <SourceNote provenance={provenance} sources={sources} interactive={interactive} slipTop={leadHeight} />}
+            <SourceNote provenance={provenance} sources={sources} interactive={interactive} slipTop={leadHeight} />
           </div>
         </div>
       )}
