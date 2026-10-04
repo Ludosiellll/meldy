@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Экзамены»: the main button always works, one list field, exam cards (from 62f2d65)
+
+Adds to 415c6f2 (tree of f67e6aa). The owner, with a screenshot of «Новый экзамен»: «кнопка не работает … как бы
+ты улучшил расположение всего». The blue «Разметить по лекциям» stayed off until the list was recognised and said
+nothing; the step it waited for was a grey button under the field, and on a 891 px window the card ran below the fold.
+
+- «Новый экзамен»: steps «Список вопросов · Проверка и лекции · Разметка по лекциям». Before the list is recognised
+  the main button is «Распознать вопросы»; with nothing to recognise the line under it says what to do. One field for
+  the list — paste the text or drop the file (or «выберите файл») — instead of two tabs. On a computer the button
+  sticks to the bottom of the window.
+- «Экзамены»: a bar of the questions by their marks on each card and «Тянуть билет» right on it.
+- Exam sheet: the struck «60 %» is labelled «вопросов».
+
+No migration, no backend change. Verified before release: tsc -b, Vitest 1512/1512, production build; the exam
+browser scenarios on mocked Supabase/API with the real list parser (text and DOCX, mapping, saved and failed mapping,
+department tickets, «почему», self-rating); the editor at 1906×891, 1366×768, 1024×768 and 390×844 — the main
+button in view in every state.
+
 ## 2026-10-04 — the landing reel without the stutter; sign-up reel labels (from c608015)
 
 Adds to 7946413 (tree of 5a79743). Two remarks of the owner:
