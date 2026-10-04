@@ -4,6 +4,42 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — Voice that is heard, a mandatory first-run guide, the AI limit on the server, PRO window, /try, PPTX and scans (from 13afb7d)
+
+Adds to 243f7c3 (tree of b9eab06). The owner's seven points of 2026-10-04: «Ответ голосом не работает (голос не
+считывается)», «обучение сделать обязательным в первый раз», «странно очень вопрос первый в разговоре + почему-то не
+сразу запускается разговор», «Проверь существует ли лимит на использование ИИ … как работает покупка про подписки …
+рассчитай лимит», «не знаю к какой модели идет запрос», «кнопка попробовать на примере, добавь PPTX и распознавание
+сканов, … первый запуск вокруг ядра».
+
+- Voice: when the browser does not recognise speech (an error, or 7 s without a word — Chromium without Google keys stays
+  silent), the answer is recorded in pieces cut at pauses and transcribed by the server (`POST /api/oral/transcribe`:
+  Groq whisper-large-v3-turbo, Gemini as fallback; Whisper's phantom phrases are dropped). Text appears after each
+  pause, «Готово» waits for the last piece, a level meter shows the microphone works. The privacy note says so.
+- First run: a 5-item menu (Сегодня, Экзамены, Лекции, Повторение, Прогресс) with «+», «Первые шаги» on «Сегодня»,
+  and the guide (6 chapters, spotlight) is mandatory on the first visit. Plain words: «Лекции», «Сверить с лекциями»,
+  «Пункты ответа».
+- Conversation: an opening plan of the lecture's topics instead of captions of later pictures; the sheet is the size
+  of its picture; ▶ answers at once («Готовим голос…», a note when it is slow) and repeated presses do not cancel.
+- AI limit on the server: units are charged before each model call with the user's token, FREE 100 / PRO 1000 a
+  day, refunded when the model gives no result; a spent day answers 429 `ai_limit` and opens one dialog with «Что
+  даёт PRO». `/api/health` names the last model that answered; every call is logged in `ai_calls`.
+- Models: Gemini `gemini-2.5-flash-lite, gemini-3.1-flash-lite, gemini-2.5-flash`; Groq `openai/gpt-oss-120b` /
+  `openai/gpt-oss-20b` (Llama 3.3 70B is retired). Space variables still win.
+- PRO window: a film-style reel of what PRO changes, an honest «payment is not available yet», «Сообщить, когда
+  появится» (`pro_interest`).
+- «Попробовать на примере»: `/try`, a ready microeconomics exam without sign-up or API calls.
+- Lectures: PPTX slide by slide; scanned PDFs (up to 60 pages) and photos recognised by Gemini.
+- Also: gzip and a year of cache for hashed assets (nginx); the analysis screen no longer stays on «Готовим конспект…»;
+  sign-in/sign-up reels show their first line on every loop; the review session has its page heading.
+
+Migrations applied before this release: `20261004204007_pro_interest`, `20261004205613_ai_quota_server` (part 1).
+Part 2, `supabase/pending/ai_quota_lockdown.sql` (client writes off `ai_usage`), waits for the owner.
+Verified before release: tsc -b, Vitest 1736/1736, pytest 816, production build; browser QA on mocked Supabase/API:
+64 route loads at 1440/390 in both themes (no page errors, no overflow, no «Библиотека/Разметить/эталон»), the limit
+dialog and the PRO window, the PRO meter, the mandatory guide, voice through the server with and without Web Speech,
+0 of 40 analysis stalls, the sign-in reel loop, the conversation sheet and loading, /try to the examiner.
+
 ## 2026-10-04 — Ticket: always a way to answer, by voice or text (from 91ba451)
 
 Adds to 6a1339a (tree of e558107). The owner, with a screenshot of a ticket that said «Эталона нет — В лекциях этого
