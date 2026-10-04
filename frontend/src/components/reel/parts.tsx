@@ -281,7 +281,13 @@ export function ParticleCanvas({ draw, className }: { draw: (ctx: CanvasRenderin
   const context = useRef<CanvasRenderingContext2D | null>(null);
   useFrame((lt) => {
     if (IN_JSDOM || !canvas.current) return;
-    if (!context.current) context.current = canvas.current.getContext('2d');
+    if (!context.current) {
+      // Made at once, while a scene mounted ahead may still be hidden: its first frame only draws.
+      context.current = canvas.current.getContext('2d');
+      if (context.current) beginFrame(context.current, STAGE_W, STAGE_H);
+    }
+    // A scene mounted ahead of its time is hidden: nothing to draw until it starts.
+    if (lt < 0) return;
     const ctx = context.current;
     if (!ctx) return;
     beginFrame(ctx, STAGE_W, STAGE_H);

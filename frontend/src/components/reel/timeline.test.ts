@@ -17,8 +17,10 @@ describe('the reel timeline', () => {
 
   it('mounts at most three scenes at a time, ahead of their start', () => {
     for (let t = 0; t < TOTAL; t += 50) expect(activeScenes(t).length).toBeLessThanOrEqual(3);
-    expect(activeScenes(0)).toEqual(['intro']);
+    // The chaos scene is put on the stage with the intro, hidden until 3 s.
+    expect(activeScenes(0)).toEqual(['intro', 'chaos']);
     expect(activeScenes(2700)).toEqual(['intro', 'chaos']);
+    expect(activeScenes(6400)).toEqual(['chaos', 'brand']);
     expect(activeScenes(TOTAL - 1)).toEqual(['outro']);
   });
 

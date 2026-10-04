@@ -15,12 +15,16 @@ export interface SceneWindow {
   from: number;
   /** The scene is gone from this moment. */
   to: number;
+  /** How long before `from` it is put on the stage, hidden (PREMOUNT unless set). */
+  lead?: number;
 }
 
 /** In order of the story; a later scene lies above an earlier one. */
 export const SCENES: readonly SceneWindow[] = [
   { id: 'intro', from: 0, to: 3500 },
-  { id: 'chaos', from: 3000, to: 7100 },
+  // Mounted with the intro, while the stage is still dark: mounting it 0.4 s ahead fell on the
+  // intro's slow push-in and showed as a hitch right before the burst.
+  { id: 'chaos', from: 3000, to: 7100, lead: 3000 },
   { id: 'brand', from: 6700, to: 10000 },
   { id: 'tour', from: 9500, to: 12000 },
   { id: 'tickets', from: 11700, to: 16300 },
@@ -43,7 +47,7 @@ export function sceneWindow(id: SceneId): SceneWindow {
 
 /** The scenes that are on the stage at `t` (including the hidden premount lead), in stage order. */
 export function activeScenes(t: number): SceneId[] {
-  return SCENES.filter((scene) => t >= scene.from - PREMOUNT && t < scene.to).map((scene) => scene.id);
+  return SCENES.filter((scene) => t >= scene.from - (scene.lead ?? PREMOUNT) && t < scene.to).map((scene) => scene.id);
 }
 
 export interface Chapter {

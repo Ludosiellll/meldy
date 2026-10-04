@@ -499,6 +499,8 @@
   top: 540px;
   width: 0;
   height: 0;
+  /* Its own layer: the push-in and the rush at the camera only scale it. */
+  will-change: transform;
 }
 
 .mr-intro-card {
@@ -598,6 +600,13 @@
   margin: -800px 0 0 -800px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.45) 22%, rgba(255, 255, 255, 0) 60%);
+  /* Its own layer: it grows and fades every frame without being redrawn. */
+  will-change: transform, opacity;
+}
+
+/* The chaos moves only drawn-once layers: the camera, each card, the title. */
+.mr-chaos-cam {
+  will-change: transform;
 }
 
 .mr-chaos-card {
@@ -606,6 +615,10 @@
   top: 0;
   width: 340px;
   margin: -66px 0 0 -170px;
+  will-change: transform;
+}
+
+.mr-chaos-card-in {
   padding: 22px 24px 22px;
   border-radius: 24px;
   background: #fff;
@@ -633,6 +646,11 @@
   font-style: normal;
   font-size: 15px;
   font-weight: 700;
+}
+
+.mr-chaos-card-h i svg {
+  width: 15px;
+  height: 15px;
 }
 
 .mr-chaos-card[data-kind='file'] .mr-chaos-card-h i {
@@ -670,6 +688,7 @@
   text-align: center;
   color: #fff;
   --mr-rest: 0 14px 60px rgba(8, 26, 76, 0.45);
+  will-change: transform;
 }
 
 .mr-chaos-head .mr-display {

@@ -126,16 +126,19 @@ const DAYS = [
   ['Сб', '19'],
   ['Вс', '20'],
 ];
-/** The cards due per day: [day, top, height, label, ink]. */
-const BLOCKS: Array<[number, number, number, string, boolean]> = [
-  [0, 120, 230, '11 карточек', true],
-  [0, 370, 120, 'Билет 12', false],
-  [1, 120, 150, 'Эластичность · 4', false],
-  [1, 290, 120, 'Рынок · 3', false],
-  [2, 180, 120, 'Издержки · 2', false],
-  [3, 120, 200, 'Эластичность · 6', false],
-  [4, 240, 120, 'Монополия · 3', false],
-  [6, 140, 170, 'Рынок · 5', false],
+/**
+ * The cards due per day: [day, top, height, topic, cards, ink]. A block is 152 px wide: a topic is
+ * one short word (Эластичность does not fit), the count goes on its own line.
+ */
+const BLOCKS: Array<[number, number, number, string, string, boolean]> = [
+  [0, 120, 230, '11 карточек', '', true],
+  [0, 370, 120, 'Билет 12', '', false],
+  [1, 120, 150, 'Спрос', '4 карточки', false],
+  [1, 290, 120, 'Рынок', '3 карточки', false],
+  [2, 180, 120, 'Издержки', '2 карточки', false],
+  [3, 120, 200, 'Спрос', '6 карточек', false],
+  [4, 240, 120, 'Монополия', '3 карточки', false],
+  [6, 140, 170, 'Рынок', '5 карточек', false],
 ];
 
 function Week() {
@@ -162,14 +165,15 @@ function Week() {
           {DAYS.map(([, date], index) => (
             <i key={date} className="rg-col" style={{ left: 16 + index * 168 }} />
           ))}
-          {BLOCKS.map(([day, top, height, label, ink], index) => (
+          {BLOCKS.map(([day, top, height, topic, cards, ink], index) => (
             <span
               key={index}
               data-a="block"
               className={`rg-block${ink ? ' rg-block--ink' : ''}`}
               style={{ left: 24 + day * 168, top, height, opacity: 0 }}
             >
-              {label}
+              {topic}
+              {cards ? <small>{cards}</small> : null}
             </span>
           ))}
           <i data-a="now" className="rg-now" style={{ transform: 'scaleY(0)' }} />

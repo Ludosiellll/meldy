@@ -225,6 +225,7 @@
   font-weight: 600;
   line-height: 1.2;
 }
+.rg-block small { display: block; margin-top: 6px; font-size: 19px; font-weight: 500; color: var(--muted); }
 .rg-block--ink { background: var(--ink); color: #fff; }
 .rg-now { position: absolute; left: 16px; top: 0; bottom: 0; width: 0; border-left: 4px solid var(--blue); transform-origin: 50% 0; }
 .rg-now-tag { left: -8px; top: -24px; }

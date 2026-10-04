@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { blur, opacity, place, put, useEls, useFrame } from '../engine';
+import { opacity, place, put, useEls, useFrame } from '../engine';
 import { drawBurst, drawDust, drawRing, makeBurst, makeDust } from '../particles';
 import { Marker, ParticleCanvas } from '../parts';
 import { clamp, ease, mix, seg } from '../timeline';
@@ -58,11 +58,13 @@ export default function Intro() {
     opacity(c, fanC > 0.01 ? 1 : 0);
 
     // Slow push in, then the stack rushes at the camera as the session's chaos bursts in (3000+).
+    // Scale and opacity only, on its own layer (reel.css): a growing blur redrew the whole
+    // enlarged stack every frame of the rush, right where the next scene starts. Without the blur
+    // it is gone sooner, before the burst covers it.
     const push = ease.sine(seg(l, 1800, 1300));
     const rush = ease.in(seg(l, 2900, 320));
     put(stack, 'transform', `scale(${(mix(1, 1.07, push) * mix(1, 2.6, rush)).toFixed(3)})`);
-    blur(stack, rush * 22);
-    opacity(stack, 1 - seg(l, 3040, 160));
+    opacity(stack, 1 - ease.in(seg(l, 2930, 190)));
   });
 
   const draw = (ctx: CanvasRenderingContext2D, l: number) => {
