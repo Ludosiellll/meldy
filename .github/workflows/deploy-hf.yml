@@ -54,7 +54,9 @@ jobs:
           set -euo pipefail
           git config user.name "Meldy release"
           git config user.email "release@users.noreply.github.com"
-          git fetch --no-tags hf main
+          # git 2.55 on the runner failed the protocol v2 negotiation with the HF server
+          # ("fatal: expected 'acknowledgments'", 2026-10-04); protocol v1 has no such step.
+          git -c protocol.version=1 fetch --no-tags hf main || git fetch --no-tags hf main
           LIVE=$(git rev-parse FETCH_HEAD)
           git rm -r -q --cached --ignore-unmatch qa-screens
           TREE=$(git write-tree)

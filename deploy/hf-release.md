@@ -4,7 +4,12 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
-## 2026-10-04 — owner fixes and jury fixes (from 7f6ab03)
+## 2026-10-04 — owner fixes and jury fixes (from 7f6ab03 + review leftovers)
+
+First attempt (run 4) stopped before pushing: `git fetch` from the Space failed on the runner's git 2.55 protocol v2
+("expected 'acknowledgments'"); the workflow now fetches with protocol v1. The live Space was not touched.
+Also in this release: a spoken «не знаю» keeps the grade cap, the protocol stamp lands only after the save, the why
+panel keeps a fragment's heading on its own line (Vitest 1485/1485 and tsc -b on the exact tree).
 
 Replaces 77d43d8 (tree of e366fa7). Includes the jury fixes `1c1bd10` (confirmation rule, grade cap, honest
 sheet, «Сегодня», landing) and the owner's six live-site issues except the knowledge map, which follows separately:
