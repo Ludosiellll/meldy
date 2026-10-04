@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Новый экзамен»: the list first, a main button that always answers (from 3b990ea)
+
+Adds to 26b932c (tree of 6f2826d). The owner, with a screenshot of «Новый экзамен» from release 14: «может
+придумаешь как перестроить компоновку страницы получше? а то как-то не очень.» The first screen was an empty field
+beside the whole form (title, tickets, lectures) with a switched-off blue button at the bottom of that form.
+
+- Step 1 is the list alone: one wide card «Вставьте список вопросов» — a field that shows what a department's list
+  looks like, «Распознать вопросы» and «Выбрать файл» right under it; on the side, quietly, what Meldy makes of the
+  list and where to find it. Title, tickets and lectures come with step 2, filled from the list where it can be.
+- No main button is dead: «Распознать вопросы» on an empty field puts the cursor into it and says what to do;
+  «Разметить по лекциям» without a title takes the cursor to the title field (on a phone it is brought out from
+  under the bottom bar), and with a line to fix it opens the list and goes to that line.
+- The title's example reads «Например, Микроэкономика»; «Добавить лекции» is one line.
+
+No migration, no backend change. Verified before release: tsc -b, Vitest 1514/1514, production build; the editor in
+Chromium on mocked Supabase/API with the real list parser at 1911×912, 1366×768, 1024×768 and 390×844 — the main
+button in view and answering in every state, no horizontal overflow; exam scenarios s24 (text and DOCX through
+«Выбрать файл») and s28 (department tickets) pass, s25 maps 24/7/9 (its old 276/780 expectation is outdated).
+
 ## 2026-10-04 — «Экзамены»: the main button always works, one list field, exam cards (from 62f2d65)
 
 Adds to 415c6f2 (tree of f67e6aa). The owner, with a screenshot of «Новый экзамен»: «кнопка не работает … как бы
