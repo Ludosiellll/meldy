@@ -1419,35 +1419,17 @@
 .sf-page .nx-acts { display: flex; flex-wrap: wrap; gap: 0 24px; margin-top: 8px; }
 .sf-page .nx-acts .sf-link { font-size: 15px; color: var(--sf-muted); }
 
-/* The exam, its tickets and lectures: one white card of groups, the fields in it soft pills. */
+/* The exam, its lectures and tickets: one white card of groups, the fields in it soft pills. It scrolls
+   with the page and ends with its button — nothing of it is pinned to the window (a pinned foot covered
+   the lecture checklist; a pinned card hid its own button under a long list on the left). */
 .sf-page .nx-form {
-  position: sticky;
-  top: calc(var(--sf-bar-h) + 20px);
   padding: 28px 30px 30px;
   border-radius: 40px;
   background: var(--sf-surface);
   box-shadow: var(--ex-card);
 }
-.sf-page[data-frame='m'] .nx-form,
-.sf-page[data-frame='s'] .nx-form { position: static; }
-/* On a computer the main button is always in view: the card's foot with the button and its line sticks
-   to the bottom of the window while the card runs below it (the card clips it to its round corners
-   without becoming a scroll box of its own). */
-.sf-page[data-frame='xl'] .nx-form,
-.sf-page[data-frame='l'] .nx-form {
-  overflow: clip;
-  padding-bottom: 0;
-}
 .sf-page[data-frame='xl'] .nx-go,
-.sf-page[data-frame='l'] .nx-go {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  margin: 22px -30px 0;
-  padding: 18px 30px 26px;
-  background: var(--sf-surface);
-  box-shadow: 0 -1px 0 var(--sf-line);
-}
+.sf-page[data-frame='l'] .nx-go { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--sf-line); }
 .sf-page[data-frame='xl'] .nx-grp + .nx-grp,
 .sf-page[data-frame='l'] .nx-grp + .nx-grp { margin-top: 20px; padding-top: 18px; }
 .sf-page[data-frame='s'] .nx-form { padding: 24px 20px 26px; border-radius: 32px; }
@@ -1624,9 +1606,8 @@
 .sf-page .nx-pick-bulk .sf-link:disabled { color: var(--sf-muted); text-decoration: none; cursor: default; opacity: .7; }
 .sf-page .nx-pick-found { margin-left: auto; font-variant-numeric: tabular-nums; }
 .sf-page .nx-pick-scroll {
-  max-height: min(56vh, 520px);
+  max-height: min(48vh, 440px);
   overflow-y: auto;
-  overscroll-behavior: contain;
   margin-top: 8px;
   padding: 4px;
   border-radius: 22px;
