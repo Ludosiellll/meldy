@@ -627,7 +627,8 @@ def test_insert_failure_still_returns_the_rubric_with_saved_false(api):
     assert FOREIGN_TEXT not in response.text
 
 
-def test_rubric_for_a_lecture_without_text_is_422_no_text(api):
+def test_rubric_without_lecture_text_says_why_422(api):
+    """Лекции без текста и экзамен без лекций — разные причины и коды (исправляются по-разному)."""
     fake = api.fake
     material_id = fake.material("Скан", "   ")
     exam_id = fake.exam()
@@ -636,7 +637,7 @@ def test_rubric_for_a_lecture_without_text_is_422_no_text(api):
     assert_plain_russian(post_rubric(api, exam_id, question_id), 422, oral_api.NO_TEXT_DETAIL, "no_text")
     empty_exam = fake.exam()
     lonely = fake.question(empty_exam, ECON_QUESTION)
-    assert_plain_russian(post_rubric(api, empty_exam, lonely), 422, oral_api.NO_TEXT_DETAIL, "no_text")
+    assert_plain_russian(post_rubric(api, empty_exam, lonely), 422, oral_api.NO_LECTURES_DETAIL, "no_lectures")
     assert api.model.calls == []
 
 

@@ -6,7 +6,8 @@ import '../components/oral/oral.css';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { checkAILimit, nextLimitReset } from '../api/limits';
-import { newEventId } from '../api/learning';
+import { newEventId, recordSelfRating, type SelfRating as Rating } from '../api/learning';
+import { SELF_RATING_LABELS } from '../lib/learning/readiness';
 import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech, useSpeechAnswer } from '../hooks/useSpeechAnswer';
 import { isTTSReady, playTTS, prefetchTTS, stopTTS } from '../utils/tts';
 import { Mark, seedFrom } from '../components/marks';
@@ -107,6 +108,10 @@ const LONG_ANSWER_MS = 120_000;
  */
 export const PRIVACY_LINE =
   'Речь распознаёт браузер, в Chrome — через сервис Google. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq). Запись голоса Meldy не получает; в истории остаются оценки по пунктам и короткие отрывки ответа.';
+
+/** An answer nobody checks goes nowhere: only the student's own rating is saved. */
+export const PRIVACY_UNCHECKED_LINE =
+  'Речь распознаёт браузер, в Chrome — через сервис Google. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
 
 /** The examiner's voice starts this long after the follow-up appears: the brace, then the words, then the voice. */
 export const FOLLOWUP_VOICE_DELAY_MS = 300;
@@ -226,6 +231,71 @@ function NearestList({ items }: { items: NearestDisplay[] }) {
   );
 }
 
+/** How the student last chose to answer: that way is offered first next time (a new key, nothing renamed). */
+const MODE_KEY = 'meldy_oral_mode';
+
+function readPreferredMode(): AnswerMode {
+  try {
+    return window.localStorage.getItem(MODE_KEY) === 'text' ? 'text' : 'voice';
+  } catch {
+    return 'voice';
+  }
+}
+
+function writePreferredMode(mode: AnswerMode) {
+  try {
+    window.localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // Storage blocked: the choice simply is not remembered.
+  }
+}
+
+/** The answer can be checked against the lectures: a reference, and checks left today. */
+function checkableIn(state: TicketState): boolean {
+  return state.rubric.status === 'ready' && state.limit !== 'exhausted';
+}
+
+/**
+ * The answer can be given at all: checked, or for practice — no reference to check against (the
+ * question is not in the lectures, the lectures have no text, the reference did not come together or
+ * did not come back) or the day's checks spent. Only a missing question or a lost session blocks it.
+ */
+function answerableIn(state: TicketState): boolean {
+  const status = state.rubric.status;
+  return status === 'ready' || status === 'not_in_lectures' || status === 'unverifiable' || status === 'failed';
+}
+
+const SELF_RATINGS: Rating[] = ['know', 'unsure', 'dont_know'];
+
+/** Why nobody checked the answer, in the reference's own terms (headline and the line under it). */
+function uncheckedWhy(rubric: RubricState, limitSpent: boolean): { title: string; text: string; after: string; fix: string | null } {
+  if (rubric.status === 'not_in_lectures') {
+    return { title: rubric.message, text: '', after: 'Этого вопроса нет в ваших лекциях — сверять было не с чем.', fix: 'Добавить лекции' };
+  }
+  if (rubric.status === 'unverifiable') {
+    if (rubric.code === 'no_lectures') {
+      return {
+        title: 'К экзамену не выбраны лекции',
+        text: 'Meldy сверяет ответ с лекциями экзамена. Выберите их — и ответы будут проверяться.',
+        after: 'К экзамену не выбраны лекции — сверять было не с чем.',
+        fix: 'Выбрать лекции',
+      };
+    }
+    if (rubric.code === 'no_text') {
+      return {
+        title: 'У лекций этого экзамена нет текста',
+        text: 'Похоже, это сканы или файлы без текста. Добавьте лекции текстом — PDF, DOCX, TXT или MD, — и ответы будут проверяться.',
+        after: 'У лекций экзамена нет текста — сверять было не с чем.',
+        fix: 'Добавить лекции',
+      };
+    }
+    return { title: 'Эталон не составился', text: rubric.message, after: 'Эталон по лекциям не составился.', fix: null };
+  }
+  if (rubric.status === 'failed') return { title: 'Эталон не готов', text: rubric.message, after: 'Эталон не был готов — сервис не ответил.', fix: null };
+  if (limitSpent) return { title: '', text: '', after: 'Проверки на сегодня закончились — сравните ответ с пунктами эталона сами.', fix: null };
+  return { title: 'Эталона нет', text: rubric.status === 'blocked' ? rubric.message : '', after: '', fix: null };
+}
+
 function speakLine(text: string, maxMs = 15_000): Promise<'ended' | 'failed'> {
   return new Promise((resolve) => {
     let done = false;
@@ -286,6 +356,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const [now, setNow] = useState(() => Date.now());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [preferred, setPreferred] = useState<AnswerMode>(readPreferredMode);
   const controllerRef = useRef<AbortController | null>(null);
   const draftRef = useRef<ReturnType<typeof createDraftWriter> | null>(null);
   const lastDraftRef = useRef('');
@@ -375,7 +446,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         if (isOralApiError(error) && error.status === 409) {
           rubric = { status: 'not_in_lectures', message: error.message, nearest: nearestFromRow(target) };
         } else if (isOralApiError(error) && error.status === 422) {
-          rubric = { status: 'unverifiable', message: error.message };
+          rubric = { status: 'unverifiable', message: error.message, code: error.code };
         } else if (isOralApiError(error) && error.outage) {
           rubric = { status: 'failed', message: error.message };
         } else {
@@ -693,19 +764,26 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   );
 
   // ── Answering ──
+  const choose = (mode: AnswerMode) => {
+    setPreferred(mode);
+    writePreferredMode(mode);
+  };
+
   const startVoice = () => {
-    if (state.limit === 'exhausted' || state.rubric.status !== 'ready') return;
+    if (!answerableIn(state)) return;
     if (!speech.supported) {
       focusTextRef.current = true;
       dispatch({ type: 'start', mode: 'text', now: Date.now() });
       return;
     }
+    choose('voice');
     speech.reset(state.typed);
     if (speech.start()) dispatch({ type: state.phase === 'answering' ? 'mode' : 'start', mode: 'voice', now: Date.now() });
   };
 
   const startText = () => {
-    if (state.limit === 'exhausted' || state.rubric.status !== 'ready') return;
+    if (!answerableIn(state)) return;
+    choose('text');
     focusTextRef.current = true;
     if (state.phase === 'answering' && voiceAnswer) {
       const text = speech.snapshot();
@@ -774,10 +852,60 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     [later, listenFollowup],
   );
 
+  /**
+   * «Готово» with nothing to check against: no model, no grade. The answer stays on the screen and the
+   * student rates it; the words still being recognised replace the snapshot when they come.
+   */
+  const finishUnchecked = () => {
+    const current = stateRef.current;
+    if (current.phase !== 'answering' || !question) return;
+    const voice = current.mode === 'voice';
+    const snapshot = voice ? speech.snapshot() : current.typed;
+    if (words(snapshot).length === 0) {
+      dispatch({ type: 'notice', text: EMPTY_ANSWER_NOTICE });
+      return;
+    }
+    const run = current.run;
+    const reference = current.rubric.status === 'ready' ? current.rubric.response.rubric.points : [];
+    const live = reference.length > 0 ? Array.from(liveMarks(reference, snapshot, '', new Set(current.named))) : [];
+    const input = inputOf(current.usedSpeech || (voice && words(snapshot).length > 0), current.usedText);
+    dispatch({ type: 'self_check', attemptId: newEventId(), transcript: snapshot, live, input, now: Date.now(), startedAt: new Date().toISOString() });
+    draftRef.current?.cancel();
+    clearDraft(question.id);
+    if (voice) {
+      void speech.stop().then((text) => {
+        if (alive(run) && words(text).length > 0) dispatch({ type: 'transcript', text });
+      });
+    }
+  };
+
+  /** «знаю · плаваю · не знаю» for an unchecked answer: the same journal entry as the sheet's self-rating. */
+  const rateSelf = async (rating: Rating) => {
+    const current = stateRef.current;
+    if (current.phase !== 'self_check' || !question || current.selfRating.status === 'saving') return;
+    const run = current.run;
+    dispatch({ type: 'self_rating', status: 'saving', rating });
+    try {
+      await recordSelfRating({
+        questionHash: question.question_hash,
+        rating,
+        examId,
+        examQuestionId: question.id,
+        materialId: question.evidence[0]?.material_id || null,
+      });
+      if (alive(run)) dispatch({ type: 'self_rating', status: 'saved', rating });
+    } catch {
+      if (alive(run)) dispatch({ type: 'self_rating', status: 'failed', rating });
+    }
+  };
+
   const finish = async () => {
     const current = stateRef.current;
-    if (current.phase !== 'answering' || current.rubric.status !== 'ready' || !question) return;
-    if (current.limit === 'exhausted') return;
+    if (current.phase !== 'answering' || !question) return;
+    if (current.rubric.status !== 'ready' || current.limit === 'exhausted') {
+      finishUnchecked();
+      return;
+    }
     const rubric = current.rubric.response.rubric;
     const rubricPoints = rubric.points;
     const voice = current.mode === 'voice';
@@ -1302,6 +1430,32 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const saidText = answering ? answerText : state.attempt?.transcript ?? answerText;
   const seedBase = question?.id ?? examId;
 
+  const checkable = checkableIn(state);
+  const selfCheck = state.phase === 'self_check';
+  const why = uncheckedWhy(rubric, state.limit === 'exhausted');
+  const nextLink =
+    state.index + 1 < total ? (
+      <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index + 1)}>
+        {nextQuestionLabel(state.index + 1)}
+      </button>
+    ) : (
+      <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}/draw`)}>
+        Тянуть другой билет
+      </button>
+    );
+  // The way to a reference: lectures with text for this exam (the editor opens at them).
+  const fixLink = why.fix ? (
+    <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}/edit#lectures`)}>
+      {why.fix}
+    </button>
+  ) : null;
+  const sheetLink = (
+    <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
+      Лист экзамена
+    </button>
+  );
+
+  // Why nothing can be checked: before the answer, not while answering (the nearest fragments would be a crib).
   let leftState: ReactNode = null;
   if (rubric.status === 'loading') {
     leftState = (
@@ -1309,70 +1463,151 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         Готовим эталон по лекциям…
       </p>
     );
-  } else if (rubric.status === 'not_in_lectures') {
+  } else if (rubric.status !== 'ready' && !answering) {
     leftState = (
       <div className="or-state">
-        <h2 className="or-state-title">{rubric.message}</h2>
-        <NearestList items={rubric.nearest} />
-      </div>
-    );
-  } else if (rubric.status === 'unverifiable' || rubric.status === 'failed' || rubric.status === 'blocked') {
-    leftState = (
-      <div className="or-state">
-        <h2 className="or-state-title">{rubric.status === 'failed' ? 'Эталон не готов' : 'Эталона нет'}</h2>
-        <p className="or-state-text" role="alert">
-          {rubric.message}
-        </p>
+        <h2 className="or-state-title">{why.title}</h2>
+        {why.text ? (
+          <p className="or-state-text" role={rubric.status === 'not_in_lectures' ? undefined : 'alert'}>
+            {why.text}
+          </p>
+        ) : null}
+        {rubric.status === 'not_in_lectures' ? <NearestList items={rubric.nearest} /> : null}
       </div>
     );
   }
 
-  const stateActions: ReactNode =
-    rubric.status === 'failed' ? (
-      <div className="or-acts" data-wide="">
-        <button type="button" className="sf-primary" onClick={retryRubric} data-anchor="">
-          Повторить
-        </button>
-        <button type="button" className="sf-link" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
-          Лист экзамена
-        </button>
-      </div>
-    ) : rubric.status === 'unverifiable' ? (
-      <div className="or-acts" data-wide="">
-        <button type="button" className="sf-primary" onClick={() => void leave(`/exams/${examId}/draw`)} data-anchor="">
-          Тянуть другой билет
-        </button>
-        {state.index + 1 < total ? (
-          <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index + 1)}>
-            {nextQuestionLabel(state.index + 1)}
+  // Two equal ways to answer: the one chosen last time is the blue pill, the other the white one.
+  const voiceFirst = speech.supported && preferred === 'voice';
+  // On a phone the white pill says one word, so both fit the bar's one line.
+  const voiceButton = (main: boolean) =>
+    main ? (
+      <button type="button" className="sf-primary" onClick={startVoice} data-anchor="">
+        Отвечать голосом
+      </button>
+    ) : (
+      <button type="button" className="or-alt" onClick={startVoice} aria-label="Отвечать голосом">
+        <span className="or-wide">Отвечать голосом</span>
+        <span className="or-narrow">Голосом</span>
+      </button>
+    );
+  const textButton = (main: boolean) =>
+    main ? (
+      <button type="button" className="sf-primary" onClick={startText} data-anchor="">
+        Ответить текстом
+      </button>
+    ) : (
+      <button type="button" className="or-alt" onClick={startText} aria-label="Ответить текстом">
+        <span className="or-wide">Ответить текстом</span>
+        <span className="or-narrow">Текстом</span>
+      </button>
+    );
+  const answerChoice = (
+    <div className="or-acts or-choice">
+      {!speech.supported ? (
+        textButton(true)
+      ) : voiceFirst ? (
+        <>
+          {voiceButton(true)}
+          {textButton(false)}
+        </>
+      ) : (
+        <>
+          {textButton(true)}
+          {voiceButton(false)}
+        </>
+      )}
+    </div>
+  );
+
+  let side: ReactNode;
+  if (selfCheck) {
+    const rated = state.selfRating;
+    side = (
+      <>
+        <h2 className="or-state-title" tabIndex={-1} data-anchor="">
+          Ответ не проверялся
+        </h2>
+        {why.after ? <p className="or-hint">{why.after}</p> : null}
+        <p className="or-rate-q" id="or-rate-q">
+          Как вы ответили?
+        </p>
+        <div className="or-rate" role="group" aria-labelledby="or-rate-q">
+          {SELF_RATINGS.map((rating) => (
+            <button
+              key={rating}
+              type="button"
+              aria-pressed={rated.rating === rating}
+              disabled={rated.status === 'saving'}
+              onClick={() => {
+                if (rated.rating === rating && rated.status === 'saved') return;
+                void rateSelf(rating);
+              }}
+            >
+              {SELF_RATING_LABELS[rating]}
+            </button>
+          ))}
+        </div>
+        <p className="or-rate-line" role="status" data-state={rated.status === 'failed' ? 'failed' : undefined}>
+          {rated.status === 'saving'
+            ? 'Сохраняем…'
+            : rated.status === 'saved' && rated.rating
+              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}» — видно на листе экзамена.`
+              : rated.status === 'failed'
+                ? 'Отметка не сохранилась — нажмите ещё раз.'
+                : 'Отметка появится на листе экзамена у этого вопроса.'}
+        </p>
+        <div className="or-acts" data-wide="">
+          {state.index + 1 < total ? (
+            <button type="button" className="sf-primary" onClick={() => void goToQuestion(state.index + 1)}>
+              {nextQuestionLabel(state.index + 1)}
+            </button>
+          ) : (
+            <button type="button" className="sf-primary" onClick={() => void leave(`/exams/${examId}/draw`)}>
+              Следующий билет
+            </button>
+          )}
+          <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index)}>
+            Ответить ещё раз
           </button>
-        ) : null}
-      </div>
-    ) : rubric.status === 'not_in_lectures' || rubric.status === 'blocked' ? (
+          {fixLink}
+          {sheetLink}
+        </div>
+      </>
+    );
+  } else if (rubric.status === 'loading') {
+    side = (
+      <>
+        <div className="or-acts" data-wide="">
+          <button type="button" className="sf-primary" disabled>
+            {voiceFirst ? 'Отвечать голосом' : 'Ответить текстом'}
+          </button>
+        </div>
+        <p className="or-privacy">{PRIVACY_LINE}</p>
+      </>
+    );
+  } else if (rubric.status === 'blocked') {
+    side = (
       <div className="or-acts" data-wide="">
         <button type="button" className="sf-primary" onClick={() => void leave(`/exams/${examId}`)} data-anchor="">
           Лист экзамена
         </button>
-        {state.index + 1 < total ? (
-          <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index + 1)}>
-            {nextQuestionLabel(state.index + 1)}
-          </button>
-        ) : null}
+        {state.index + 1 < total ? nextLink : null}
       </div>
-    ) : null;
-
-  let side: ReactNode;
-  if (!ready) {
+    );
+  } else if (state.phase === 'ready' && rubric.status === 'failed') {
     side = (
       <>
-        {stateActions ?? (
-          <div className="or-acts" data-wide="">
-            <button type="button" className="sf-primary" disabled>
-              {speech.supported ? 'Отвечать голосом' : 'Ответить текстом'}
-            </button>
-          </div>
-        )}
-        {rubric.status === 'loading' || rubric.status === 'failed' ? <p className="or-privacy">{PRIVACY_LINE}</p> : null}
+        <div className="or-acts" data-wide="">
+          <button type="button" className="sf-primary" onClick={retryRubric} data-anchor="">
+            Повторить
+          </button>
+          <button type="button" className="sf-link" onClick={voiceFirst ? startVoice : startText}>
+            Ответить без проверки
+          </button>
+          {sheetLink}
+        </div>
+        <p className="or-privacy">{PRIVACY_LINE}</p>
       </>
     );
   } else if (state.phase === 'ready') {
@@ -1382,41 +1617,40 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           <p className="or-message" role="status">
             {limitLine}
           </p>
-        ) : (
-          <>
-            {!speech.supported ? <p className="or-message or-message-muted">{SPEECH_UNSUPPORTED_MESSAGE}</p> : null}
-            <div className="or-acts">
-              {speech.supported ? (
-                <>
-                  <button type="button" className="sf-primary" onClick={startVoice} data-anchor="">
-                    Отвечать голосом
-                  </button>
-                  <button type="button" className="sf-link" onClick={startText} aria-label="Ответить текстом">
-                    <span className="or-wide">Ответить текстом</span>
-                    <span className="or-narrow">Текстом</span>
-                  </button>
-                </>
-              ) : (
-                <button type="button" className="sf-primary" onClick={startText} data-anchor="">
-                  Ответить текстом
-                </button>
-              )}
-            </div>
-            <label className="or-switch">
-              <input type="checkbox" checked={liveMarksOn} onChange={(event) => toggleLiveMarks(event.target.checked)} />
-              <span className="or-switch-track" aria-hidden="true" />
-              Отмечать пункты во время ответа
-            </label>
-          </>
-        )}
-        <p className="or-privacy">{PRIVACY_LINE}</p>
+        ) : null}
+        {!speech.supported ? <p className="or-message or-message-muted">{SPEECH_UNSUPPORTED_MESSAGE}</p> : null}
+        {!checkable ? (
+          <p className="or-message or-message-muted">
+            {ready
+              ? 'Можно ответить без проверки — после ответа сравните его с пунктами эталона сами.'
+              : 'Можно ответить без проверки — голосом или текстом. После ответа отметьте, как получилось: отметка появится на листе экзамена.'}
+          </p>
+        ) : null}
+        {answerChoice}
+        {!checkable && !ready ? (
+          <p className="or-links">
+            {fixLink}
+            {nextLink}
+            {sheetLink}
+          </p>
+        ) : null}
+        {ready ? (
+          <label className="or-switch">
+            <input type="checkbox" checked={liveMarksOn} onChange={(event) => toggleLiveMarks(event.target.checked)} />
+            <span className="or-switch-track" aria-hidden="true" />
+            Отмечать пункты во время ответа
+          </label>
+        ) : null}
+        <p className="or-privacy">{checkable ? PRIVACY_LINE : PRIVACY_UNCHECKED_LINE}</p>
       </>
     );
   } else if (answering) {
     side = (
       <>
         {/* Secondary on purpose: a count by key words, not the result (Jury_Check item 7). */}
-        {liveMarksOn ? (
+        {points.length === 0 ? (
+          <p className="or-message or-message-muted">Ответ без проверки: после него оцените себя сами.</p>
+        ) : liveMarksOn ? (
           <div className="or-count">
             <p className="or-count-line">
               По ключевым словам:{' '}
@@ -1448,7 +1682,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         {silence ? <p className="or-hint">Говорите — я слушаю.</p> : null}
         {elapsed >= LONG_ANSWER_MS ? <p className="or-hint">Обычно на ответ дают 2–3 минуты.</p> : null}
         <div className="or-acts">
-          <button type="button" className="sf-primary" onClick={() => void finish()} disabled={Boolean(limitLine)} data-anchor={voiceAnswer ? '' : undefined}>
+          <button type="button" className="sf-primary" onClick={() => void finish()} data-anchor={voiceAnswer ? '' : undefined}>
             Готово
           </button>
           {voiceAnswer ? (
@@ -1481,7 +1715,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         <button type="button" className="sf-link or-privacy-link" onClick={() => setPrivacyOpen(true)}>
           Кто видит ответ
         </button>
-        {privacyOpen ? <PrivacySheet text={PRIVACY_LINE} onClose={() => setPrivacyOpen(false)} /> : null}
+        {privacyOpen ? <PrivacySheet text={checkable ? PRIVACY_LINE : PRIVACY_UNCHECKED_LINE} onClose={() => setPrivacyOpen(false)} /> : null}
       </>
     );
   } else {
@@ -1578,11 +1812,39 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
 
   // «Как на экзамене»: no «В эталоне N пунктов» hint (Jury_Check item 11).
   const noteLine =
-    ready && points.length > 0 && mode !== 'exam'
+    ready && points.length > 0 && mode !== 'exam' && !selfCheck
       ? liveMarksOn
         ? `В эталоне ${pointsWord(points.length)} из ваших лекций. Они откроются, когда вы их назовёте.`
         : `В эталоне ${pointsWord(points.length)} из ваших лекций.`
       : null;
+
+  // The answer itself: the field while typing, the transcript otherwise (also after an unchecked answer).
+  const answerBody =
+    answering && state.mode === 'text' ? (
+      <div className="or-said">
+        <label className="or-said-label" htmlFor="or-answer-text">
+          {`Ваш ответ, ${elapsedLabel(elapsed)}`}
+        </label>
+        <textarea
+          id="or-answer-text"
+          className="or-text-field"
+          placeholder="Напишите ответ своими словами"
+          value={state.typed}
+          onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
+          data-anchor=""
+        />
+      </div>
+    ) : (
+      <LiveTranscript
+        label={`Ваш ответ, ${elapsedLabel(state.attempt ? state.attempt.durationSeconds * 1000 : elapsed)}`}
+        finalText={shownFinal}
+        interimText={shownInterim}
+        underlined={liveMarksOn ? answerFinalWords : new Set()}
+        drawNew={answering}
+        seed={seedFrom(seedBase, 'said')}
+        emptyText={answering && voiceAnswer ? (state.paused ? 'Пауза.' : 'Говорите — расшифровка появится здесь.') : undefined}
+      />
+    );
 
   return (
     <div className="or-shell" ref={roomRef} onFocus={rememberFocus}>
@@ -1606,8 +1868,36 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         <section className="or-left" aria-label="Билет и пункты эталона">
           {question ? <TicketCard heading={heading} question={question.text} /> : null}
           {noteLine ? <p className="or-note">{noteLine}</p> : null}
-          {leftState}
-          {ready && points.length > 0 ? (
+          {selfCheck ? (
+            <>
+              {/* The day's checks spent: the reference is there — its points, marked by key words, to compare with. */}
+              {ready && rubricResponse && points.length > 0 ? (
+                <ProtocolSheet
+                  heading="Пункты эталона: сравните со своим ответом"
+                  points={livePoints(rubricResponse.rubric, null, new Set(state.named))}
+                  followup={null}
+                  stamp="none"
+                  seed={state.attempt?.attemptId ?? seedBase}
+                  preliminary
+                />
+              ) : null}
+              <div className="sf-sheet or-sheet" data-plain="">
+                {answerBody}
+              </div>
+              {rubric.status === 'not_in_lectures' && rubric.nearest.length > 0 ? (
+                <div className="or-state">
+                  <NearestList items={rubric.nearest} />
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {selfCheck ? null : leftState}
+          {!selfCheck && answering && !(ready && points.length > 0) ? (
+            <div className="sf-sheet or-sheet" data-plain="">
+              {answerBody}
+            </div>
+          ) : null}
+          {!selfCheck && ready && points.length > 0 ? (
             <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''} data-empty={transcriptShown ? undefined : ''}>
               {/* Phones: the strip «По ключевым словам: 3 из 5 · итог — после ответа» heads the answer sheet
                   itself — two paper objects instead of three (redesign critique 10, round 2); its marks are the
@@ -1646,33 +1936,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                 announcement={liveMarksOn ? state.announcement : ''}
                 said={saidText}
               />
-              {transcriptShown ? (
-                answering && state.mode === 'text' ? (
-                  <div className="or-said">
-                    <label className="or-said-label" htmlFor="or-answer-text">
-                      {`Ваш ответ, ${elapsedLabel(elapsed)}`}
-                    </label>
-                    <textarea
-                      id="or-answer-text"
-                      className="or-text-field"
-                      placeholder="Напишите ответ своими словами"
-                      value={state.typed}
-                      onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
-                      data-anchor=""
-                    />
-                  </div>
-                ) : (
-                  <LiveTranscript
-                    label={`Ваш ответ, ${elapsedLabel(state.attempt ? state.attempt.durationSeconds * 1000 : elapsed)}`}
-                    finalText={shownFinal}
-                    interimText={shownInterim}
-                    underlined={liveMarksOn ? answerFinalWords : new Set()}
-                    drawNew={answering}
-                    seed={seedFrom(seedBase, 'said')}
-                    emptyText={answering && voiceAnswer ? (state.paused ? 'Пауза.' : 'Говорите — расшифровка появится здесь.') : undefined}
-                  />
-                )
-              ) : null}
+              {transcriptShown ? answerBody : null}
             </div>
           ) : null}
         </section>

@@ -76,6 +76,8 @@ RUBRIC_UNVERIFIABLE_DETAIL = (
     "Ответьте на другой вопрос."
 )
 NO_TEXT_DETAIL = "В лекциях этого экзамена нет текста"
+# Причина видна студенту: экзамен без лекций и лекции без текста исправляются по-разному.
+NO_LECTURES_DETAIL = "К экзамену не выбраны лекции"
 BAD_BODY_DETAIL = "Неверный формат запроса."
 BODY_TOO_LARGE_DETAIL = "Запрос слишком большой."
 CHECK_TOO_LONG_DETAIL = "Ответ слишком длинный: для проверки можно до 4000 знаков."
@@ -516,10 +518,13 @@ async def _build_rubric(job: RubricJob) -> dict:
             materials = await _load_materials(db, material_ids) if material_ids else []
         except SupabaseRestError as exc:
             raise _read_error(exc) from None
+        if not material_ids:
+            raise AIError(422, "no_lectures", NO_LECTURES_DETAIL)
         if not materials:
             raise AIError(422, "no_text", NO_TEXT_DETAIL)
         selection = await asyncio.to_thread(oral.select_fragments, job.question_text, materials, job.evidence)
         if not selection.fragments or not selection.materials:
+            # Без общих слов с вопросом берётся начало первой лекции, так что пусто только без текста.
             raise AIError(422, "no_text", NO_TEXT_DETAIL)
         rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
         rubric_id, rubric, saved, cached = await _store_rubric(db, job, rubric, model, selection)
@@ -559,7 +564,7 @@ async def oral_rubric(request: Request):
             if not (isinstance(fingerprint, str) and fingerprint):
                 material_ids = await _exam_material_ids(db, exam_id)
                 if not material_ids:
-                    raise AIError(422, "no_text", NO_TEXT_DETAIL)
+                    raise AIError(422, "no_lectures", NO_LECTURES_DETAIL)
             evidence = question.get("evidence") if isinstance(question.get("evidence"), list) else []
             job = RubricJob(
                 token=token,

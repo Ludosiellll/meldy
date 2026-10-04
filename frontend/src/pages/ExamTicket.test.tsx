@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(async () => true),
   checkAILimit: vi.fn(),
   incrementAIUsage: vi.fn(async () => undefined),
+  recordSelfRating: vi.fn(async () => undefined),
 }));
 
 vi.mock('../lib/supabase', () => ({
@@ -21,6 +22,10 @@ vi.mock('../lib/supabase', () => ({
 }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, session: null, loading: false, signOut: vi.fn() }) }));
 vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: mocks.confirm, alert: vi.fn() }) }));
+vi.mock('../api/learning', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/learning')>()),
+  recordSelfRating: mocks.recordSelfRating,
+}));
 vi.mock('../api/limits', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/limits')>()),
   checkAILimit: mocks.checkAILimit,
@@ -224,6 +229,7 @@ async function renderPage(url: string) {
       <Routes>
         <Route path="/exams/:id/ticket" element={<ExamTicket />} />
         <Route path="/exams/:id/draw" element={<Where />} />
+        <Route path="/exams/:id/edit" element={<Where />} />
         <Route path="/exams/:id" element={<Where />} />
         <Route path="/mistakes" element={<Where />} />
         <Route path="/dashboard" element={<Where />} />
@@ -271,6 +277,8 @@ beforeEach(() => {
   mocks.checkAILimit.mockReset();
   mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: false, count: 3, ok: true });
   mocks.incrementAIUsage.mockClear();
+  mocks.recordSelfRating.mockReset();
+  mocks.recordSelfRating.mockResolvedValue(undefined);
 
   api = {
     '/api/oral/rubric': vi.fn<Handler>(async () => json(200, demoRubricResponse())),
@@ -393,6 +401,110 @@ describe('ExamTicket: before the answer', () => {
     expect(screen.queryByRole('button', { name: 'Отвечать голосом' })).toBeNull();
     expect(mocks.confirm).not.toHaveBeenCalled();
     expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
+  });
+});
+
+describe('ExamTicket: answering without a check', () => {
+  it('lets the student answer when the lectures have no text, and keeps the answer for a self-rating', async () => {
+    const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+    seedDatabase({ rpc });
+    api['/api/oral/rubric'].mockImplementation(async () => json(422, { detail: 'В лекциях этого экзамена нет текста', code: 'no_text' }));
+    await renderPage(ticketUrl());
+    expect(await screen.findByRole('heading', { name: 'У лекций этого экзамена нет текста' })).toBeInTheDocument();
+    expect(screen.getByText(/Можно ответить без проверки/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Добавить лекции' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    // While answering, the reason gives way to the field.
+    expect(screen.queryByRole('heading', { name: 'У лекций этого экзамена нет текста' })).toBeNull();
+    expect(screen.getByText('Ответ без проверки: после него оцените себя сами.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(screen.getByText('Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».')).toBeInTheDocument();
+    typeAnswer('Энтропия — мера неопределённости, бит — её единица.');
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+
+    expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
+    expect(screen.getByText('У лекций экзамена нет текста — сверять было не с чем.')).toBeInTheDocument();
+    expect(screen.getByText('Энтропия — мера неопределённости, бит — её единица.')).toBeInTheDocument();
+    const rate = screen.getByRole('group', { name: 'Как вы ответили?' });
+    fireEvent.click(within(rate).getByRole('button', { name: 'плаваю' }));
+    await waitFor(() => expect(screen.getByText('Отмечено «плаваю» — видно на листе экзамена.')).toBeInTheDocument());
+    expect(mocks.recordSelfRating).toHaveBeenCalledWith(
+      expect.objectContaining({ questionHash: HASH, rating: 'unsure', examId: EXAM, examQuestionId: Q1, materialId: 'mat-1' }),
+    );
+    expect(within(rate).getByRole('button', { name: 'плаваю' })).toHaveAttribute('aria-pressed', 'true');
+    // Nothing was checked, graded, charged or recorded as an oral answer.
+    expect(callsTo('/api/oral/check')).toHaveLength(0);
+    expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(DRAFT_KEY)).toBeNull();
+
+    // The way to a reference: the editor at the exam's lectures.
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить лекции' }));
+    await waitFor(() => expect(location).toBe(`/exams/${EXAM}/edit`));
+  });
+
+  it('names an exam without lectures as such and leads to choosing them', async () => {
+    seedDatabase();
+    api['/api/oral/rubric'].mockImplementation(async () => json(422, { detail: 'К экзамену не выбраны лекции', code: 'no_lectures' }));
+    await renderPage(ticketUrl());
+    expect(await screen.findByRole('heading', { name: 'К экзамену не выбраны лекции' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Выбрать лекции' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ответить текстом' })).toBeEnabled();
+  });
+
+  it('shows the lectures’ nearest fragments again after an answer to a question they do not cover (409)', async () => {
+    seedDatabase();
+    api['/api/oral/rubric'].mockImplementation(async () =>
+      json(409, { detail: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.', code: 'not_in_lectures' }),
+    );
+    await renderPage(`/exams/${EXAM}/ticket?q=${Q2}`);
+    await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.' });
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    // No crib while answering.
+    expect(screen.queryByText('Функция активации определяет выход нейрона')).toBeNull();
+    typeAnswer('Функция активации добавляет нелинейность.');
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
+    expect(screen.getByText('Этого вопроса нет в ваших лекциях — сверять было не с чем.')).toBeInTheDocument();
+    expect(screen.getByText('Функция активации определяет выход нейрона')).toBeInTheDocument();
+  });
+
+  it('lets the student answer with the day’s checks spent and compare with the reference’s points', async () => {
+    const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+    seedDatabase({ rpc });
+    mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
+    await renderPage(ticketUrl());
+    expect(await screen.findByText(/^Дневной лимит исчерпан\. Обновится в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
+    expect(screen.getByText('Можно ответить без проверки — после ответа сравните его с пунктами эталона сами.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
+    expect(screen.getByText('Проверки на сегодня закончились — сравните ответ с пунктами эталона сами.')).toBeInTheDocument();
+    expect(screen.getByText('Пункты эталона: сравните со своим ответом')).toBeInTheDocument();
+    // The titles of the reference open now, for the comparison (they stayed hidden while answering).
+    expect(screen.getByText(DEMO_RUBRIC.points[3].title)).toBeInTheDocument();
+    expect(callsTo('/api/oral/check')).toHaveLength(0);
+    expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('offers the way the student answered last time first', async () => {
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    seedDatabase();
+    const first = await renderPage(ticketUrl());
+    await readyToAnswer();
+    expect(document.querySelector('.or-choice .sf-primary')).toHaveTextContent('Отвечать голосом');
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    expect(window.localStorage.getItem('meldy_oral_mode')).toBe('text');
+    first.unmount();
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    expect(document.querySelector('.or-choice .sf-primary')).toHaveTextContent('Ответить текстом');
+    expect(document.querySelector('.or-choice .or-alt')).toHaveTextContent('Отвечать голосом');
   });
 });
 

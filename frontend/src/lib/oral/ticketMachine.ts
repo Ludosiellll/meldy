@@ -5,14 +5,27 @@
  *   finalizing (stop ≤ 800 ms) → examiner (the quick check, ≤ 1.5 s) → followup (asking |
  *   answering | checking) → evaluating → protocol (saved | save_error | eval_error)
  *
- * With nothing to ask: examiner → evaluating, with the closing line of closingLine(). Pure: no
+ * With nothing to ask: examiner → evaluating, with the closing line of closingLine(). Nothing to
+ * check the answer against (no reference, or the day's checks spent): answering → self_check, where
+ * the student sees the answer and rates it (знаю · плаваю · не знаю) — no grade, no model. Pure: no
  * timers, no network; the page runs the effects and reports back with actions.
  */
 import type { CheckStatus, Evaluation, RubricResponse } from './oralApi';
 import type { AnswerInput, SaveResult } from './oralPersistence';
+import type { SelfRating } from '../../api/learning';
 import type { NearestItem, QuestionHistory, TicketExam, TicketQuestion } from './ticketData';
 
-export type Phase = 'loading' | 'load_error' | 'ready' | 'answering' | 'finalizing' | 'examiner' | 'followup' | 'evaluating' | 'protocol';
+export type Phase =
+  | 'loading'
+  | 'load_error'
+  | 'ready'
+  | 'answering'
+  | 'finalizing'
+  | 'examiner'
+  | 'followup'
+  | 'evaluating'
+  | 'protocol'
+  | 'self_check';
 
 /** The examiner's last words with nothing to ask, when every rubric row was named by key words. */
 export const ALL_COVERED_LINE = 'Хорошо, по существу всё';
@@ -36,8 +49,8 @@ export type RubricState =
   | { status: 'ready'; response: RubricResponse }
   /** 409 not_in_lectures, or a 200 rubric whose coverage is none: nothing to check an answer against. */
   | { status: 'not_in_lectures'; message: string; nearest: NearestDisplay[] }
-  /** 422: no verified rubric (or no lecture text). */
-  | { status: 'unverifiable'; message: string }
+  /** 422: no verified rubric — the server's code says why (no_lectures, no_text, rubric_unverifiable). */
+  | { status: 'unverifiable'; message: string; code: string | null }
   /** The model or the connection failed: «Повторить». */
   | { status: 'failed'; message: string }
   /** 404, 401 and the like: «Лист экзамена». */
@@ -124,6 +137,8 @@ export interface TicketState {
   closing: string | null;
   evaluation: EvaluationState;
   save: SaveState;
+  /** The student's own rating of an answer nobody checked (self_check). */
+  selfRating: { status: 'idle' | 'saving' | 'saved' | 'failed'; rating: SelfRating | null };
 }
 
 export type TicketAction =
@@ -168,7 +183,10 @@ export type TicketAction =
   | { type: 'no_grade' }
   | { type: 'save_retry' }
   | { type: 'evaluation_retry'; run: number }
-  | { type: 'stash_restored'; attempt: AttemptState; followup: FollowupState | null; message: string };
+  | { type: 'stash_restored'; attempt: AttemptState; followup: FollowupState | null; message: string }
+  /** «Готово» with nothing to check against: the answer is kept on the screen for the student's own rating. */
+  | { type: 'self_check'; attemptId: string; transcript: string; live: string[]; input: AnswerInput; now: number; startedAt: string }
+  | { type: 'self_rating'; status: 'saving' | 'saved' | 'failed'; rating: SelfRating };
 
 export function initialTicketState(): TicketState {
   return {
@@ -196,6 +214,7 @@ export function initialTicketState(): TicketState {
     closing: null,
     evaluation: { status: 'idle' },
     save: { status: 'idle' },
+    selfRating: { status: 'idle', rating: null },
   };
 }
 
@@ -387,6 +406,29 @@ export function ticketReducer(state: TicketState, action: TicketAction): TicketS
       return action.run === state.run && state.evaluation.status === 'failed'
         ? { ...state, phase: 'evaluating', evaluation: { status: 'running' }, save: { status: 'idle' } }
         : state;
+    case 'self_check':
+      if (state.phase !== 'answering') return state;
+      return {
+        ...state,
+        phase: 'self_check',
+        paused: false,
+        notice: null,
+        clock: stopClock(state.clock, action.now),
+        named: Array.from(new Set([...state.named, ...action.live])),
+        attempt: {
+          attemptId: action.attemptId,
+          snapshot: action.transcript,
+          transcript: action.transcript,
+          live: action.live,
+          input: action.input,
+          durationSeconds: Math.floor(answerTime(state, action.now) / 1000),
+          startedAt: action.startedAt,
+          restored: false,
+        },
+        selfRating: { status: 'idle', rating: null },
+      };
+    case 'self_rating':
+      return state.phase === 'self_check' ? { ...state, selfRating: { status: action.status, rating: action.rating } } : state;
     case 'stash_restored':
       if (state.phase !== 'ready') return state;
       return {

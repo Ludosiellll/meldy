@@ -402,6 +402,59 @@
 }
 .sf-page .or-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 24px; }
 .sf-page .or-acts .sf-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+/* The other way to answer: a white pill beside the blue one — two equal choices, the last one used first. */
+.sf-page .or-choice { gap: 12px 14px; }
+.sf-page .or-alt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--sf-ink);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
+}
+.sf-page .or-alt:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+.sf-page .or-alt:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
+/* Under the choice when nothing can be checked: the way to a reference, and on to the next question. */
+.sf-page .or-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; margin: 18px 0 0; font-size: 16px; line-height: 24px; }
+.sf-page .or-links .sf-link { font-size: 16px; }
+/* An answer nobody checked: the student's own «знаю · плаваю · не знаю». */
+.sf-page .or-rate-q { margin: 22px 0 0; font-size: 18px; line-height: 26px; font-weight: 500; color: var(--sf-ink); }
+.sf-page .or-rate { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.sf-page .or-rate button {
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: box-shadow .3s ease, background-color .3s ease, color .3s ease;
+}
+.sf-page .or-rate button:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+.sf-page .or-rate button[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
+.sf-page .or-rate button:disabled { cursor: progress; }
+.sf-page .or-rate button:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
+.sf-page .or-rate-line { margin: 12px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.sf-page .or-rate-line[data-state='failed'] { color: var(--sf-ink); }
+/* The plain sheet of an answer without a reference: no rows, so the answer starts at the sheet's edge. */
+.sf-page .or-sheet[data-plain] { margin-top: 18px; padding: 18px 20px 20px; }
+.sf-page .or-sheet[data-plain] .or-said { margin: 0; padding-top: 0; border-top: 0; }
+.sf-page .or-sheet[data-plain] + .or-state { margin-top: 18px; }
 .sf-page .or-switch { display: flex; align-items: center; gap: 12px; min-height: 44px; margin-top: 16px; font-size: 16px; line-height: 22px; cursor: pointer; }
 .sf-page .or-switch input { position: absolute; opacity: 0; pointer-events: none; }
 .sf-page .or-switch-track {
@@ -802,6 +855,9 @@
      on a narrower phone the pill wraps under the link and takes the line. */
   .sf-page .or-acts .sf-primary { order: 3; flex: none; width: auto; height: 52px; margin-left: auto; padding: 0 6px 0 18px; gap: 8px; font-size: 16px; }
   .sf-page .or-acts .sf-primary::after { width: 38px; height: 38px; background-size: 16px; }
+  .sf-page .or-acts .or-alt { min-height: 52px; padding: 0 18px; font-size: 16px; }
+  /* Under the answer, the unchecked answer's heading keeps a little air. */
+  .sf-page .or-side > .or-state-title:first-child { margin-top: 26px; }
   .sf-page .or-acts[data-wide] .sf-primary { flex: 1 1 auto; justify-content: space-between; }
   .sf-page .or-acts .or-acts-extra { display: none; }
   .sf-page .or-wide { display: none; }
