@@ -375,6 +375,27 @@ export default function Gradebook() {
   const toneOf = (avg: number, target: number) => (avg >= target ? 'ok' : avg < target - 0.5 ? 'low' : 'mid');
   const barToneOf = (avg: number, target: number) => (avg >= target ? 'ok' : avg < target - (target > 5 ? 1.0 : 0.5) ? 'low' : 'mid');
 
+  // One delete dialog for both views: it used to render only in the list, so «Удалить предмет» in a
+  // subject's own view set the state and opened nothing.
+  const deleteDialog = (
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence>
+        {subjectToDelete && (
+          <div className="gb-scrim">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="gb-dialog" role="dialog" aria-modal="true" aria-label="Удалить предмет?">
+              <h3 className="gb-dialog-h">Удалить предмет?</h3>
+              <p className="gb-quiet">Вы уверены, что хотите удалить предмет <span className="gb-strong">«{subjectToDelete.name}»</span> и все его оценки? Это действие нельзя отменить.</p>
+              <div className="gb-dialog-acts">
+                <button type="button" onClick={() => setSubjectToDelete(null)} className="sf-secondary">Отмена</button>
+                <button type="button" onClick={() => deleteSubjectMutation.mutate(subjectToDelete.id)} disabled={deleteSubjectMutation.isPending} className="gb-delete">Удалить</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </MotionConfig>
+  );
+
   if (selectedSubject) {
     const subGrades = grades.filter(g => g.subject_id === selectedSubject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const subStat = subjectStats.find(s => s.id === selectedSubject.id);
@@ -442,6 +463,7 @@ export default function Gradebook() {
           </table>
         </div>
         <div className="gb-pad"></div>
+        {deleteDialog}
       </div>
     );
   }
@@ -491,7 +513,12 @@ export default function Gradebook() {
           {subjectStats.map(sub => (
             <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="gb-subject">
               <div className="gb-subject-top">
-                <h3 className="gb-subject-h">{sub.name}</h3>
+                <h3 className="gb-subject-h">
+                  {/* The card opens on click; this button is the way in from the keyboard. */}
+                  <button type="button" className="gb-open" onClick={(e) => { e.stopPropagation(); setSelectedSubject(sub); }}>
+                    {sub.name}
+                  </button>
+                </h3>
                 <button type="button" onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="gb-icon-btn" title="Удалить предмет" aria-label="Удалить предмет">
                   <X aria-hidden="true" />
                 </button>
@@ -535,7 +562,9 @@ export default function Gradebook() {
                 return (
                   <tr key={sub.id} onClick={() => setSelectedSubject(sub)} className="gb-row-link">
                     <td className="gb-strong">
-                      {sub.name}
+                      <button type="button" className="gb-open" onClick={(e) => { e.stopPropagation(); setSelectedSubject(sub); }}>
+                        {sub.name}
+                      </button>
                       <div className="gb-narrow-only gb-chips">
                         {subGrades.slice(0, 5).map((g, i) => <span key={i} className="gb-chip">{g.value}</span>)}
                         {subGrades.length > 5 && <span className="gb-more">+{subGrades.length - 5}</span>}
@@ -581,21 +610,9 @@ export default function Gradebook() {
       )}
 
       {/* Modals */}
+      {deleteDialog}
       <MotionConfig reducedMotion="user">
       <AnimatePresence>
-        {subjectToDelete && (
-          <div className="gb-scrim">
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="gb-dialog" role="dialog" aria-modal="true" aria-label="Удалить предмет?">
-              <h3 className="gb-dialog-h">Удалить предмет?</h3>
-              <p className="gb-quiet">Вы уверены, что хотите удалить предмет <span className="gb-strong">«{subjectToDelete.name}»</span> и все его оценки? Это действие нельзя отменить.</p>
-              <div className="gb-dialog-acts">
-                <button type="button" onClick={() => setSubjectToDelete(null)} className="sf-secondary">Отмена</button>
-                <button type="button" onClick={() => deleteSubjectMutation.mutate(subjectToDelete.id)} disabled={deleteSubjectMutation.isPending} className="gb-delete">Удалить</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
         {showAddSubject && (
           <div className="gb-scrim">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="gb-dialog" role="dialog" aria-modal="true" aria-label="Новый предмет">

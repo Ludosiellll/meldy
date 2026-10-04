@@ -289,3 +289,17 @@
   .gb-send { transition: none; }
   .gb-subject:hover { transform: none; }
 }
+
+/* The subject name is a real button, so a subject opens from the keyboard too (the card and the row
+   stay clickable with the mouse). */
+.gb-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gb-open:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent-fg)); outline-offset: 3px; border-radius: 6px; }
