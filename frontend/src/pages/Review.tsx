@@ -543,6 +543,8 @@ export default function Review() {
   return (
     <div className="sf-page rv">
       <div className="rv-col">
+        {/* The card's question is the visible headline; the page still gets its level-1 heading for screen readers. */}
+        <h1 className="sr-only">Повторение</h1>
         <div className="rv-top">
           <p className="rv-where" title={context || undefined}>
             <b>

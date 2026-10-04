@@ -82,6 +82,12 @@ describe('Review answer persistence', () => {
 
   afterEach(cleanup);
 
+  it('gives the session page one level-1 heading for screen readers', async () => {
+    renderReview();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Повторение' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  });
+
   it('does not complete the session before the answer is saved', async () => {
     const save = deferred<unknown>();
     api.updateCardProgress.mockReturnValue(save.promise);
