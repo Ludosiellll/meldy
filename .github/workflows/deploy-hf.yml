@@ -1,12 +1,14 @@
 name: Deploy to Hugging Face Space
 
-# One reviewed release = one commit that changes deploy/hf-release.md on the working branch.
-# The Space receives a new commit on top of its live main (fast-forward, no force push):
-# the tree of the released GitHub commit without QA screenshots. The live main is tagged first.
+# Release: a commit that changes deploy/hf-release.md on the working branch.
+#   The Space receives a new commit on top of its live main (fast-forward, no force push):
+#   the tree of the released GitHub commit without QA screenshots. The live main is tagged first.
+# Check only: a commit that changes deploy/hf-check.md (and not hf-release.md) waits for the
+#   Space's current main to run and smoke-checks it, without pushing anything.
 on:
   push:
     branches: [claude/relaxed-hypatia-1tpmq5]
-    paths: [deploy/hf-release.md]
+    paths: [deploy/hf-release.md, deploy/hf-check.md]
 
 concurrency:
   group: hf-deploy
@@ -25,6 +27,7 @@ jobs:
     timeout-minutes: 45
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      BEFORE: ${{ github.event.before }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,12 +36,24 @@ jobs:
       - name: Check the token secret
         run: test -n "$HF_TOKEN" || { echo "::error::Repository secret HF_TOKEN is not set"; exit 1; }
 
+      - name: Release or check only
+        id: mode
+        run: |
+          set -uo pipefail
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || git diff --name-only "$BEFORE" "$GITHUB_SHA" -- deploy/hf-release.md | grep -q .; then
+            echo "release=1" >> "$GITHUB_OUTPUT"; echo "Mode: release"
+          else
+            echo "release=0" >> "$GITHUB_OUTPUT"; echo "Mode: check only"
+          fi
+          git remote add hf "https://user:${HF_TOKEN}@huggingface.co/spaces/${SPACE}"
+
       - name: Build the release commit on top of the live Space
+        if: steps.mode.outputs.release == '1'
         run: |
           set -euo pipefail
           git config user.name "Meldy release"
           git config user.email "release@users.noreply.github.com"
-          git remote add hf "https://user:${HF_TOKEN}@huggingface.co/spaces/${SPACE}"
           git fetch --no-tags hf main
           LIVE=$(git rev-parse FETCH_HEAD)
           git rm -r -q --cached --ignore-unmatch qa-screens
@@ -50,6 +65,7 @@ jobs:
           echo "Release commit:  $REL (tree of ${GITHUB_SHA})"
 
       - name: Tag the live version and push the release
+        if: steps.mode.outputs.release == '1'
         run: |
           set -euo pipefail
           TAG="hf-backup-$(date -u +%Y-%m-%d-%H%M)-pre-push"
@@ -58,20 +74,31 @@ jobs:
           git push hf "$REL:refs/heads/main"
           echo "Backup tag: $TAG -> $LIVE"
 
-      - name: Wait until the Space runs the release
+      - name: Expected commit on the Space
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          EXPECT="${REL:-}"
+          if [ -z "$EXPECT" ]; then EXPECT=$(git ls-remote hf refs/heads/main | cut -f1); fi
+          echo "EXPECT=$EXPECT" >> "$GITHUB_ENV"
+          echo "Expecting the Space to run $EXPECT"
+
+      - name: Wait until the Space runs it
+        run: |
+          set -u
           STAGE=""; SHA=""
           for i in $(seq 1 100); do
-            J=$(curl -fsS -H "Authorization: Bearer $HF_TOKEN" "https://huggingface.co/api/spaces/${SPACE}" || echo '{}')
-            STAGE=$(echo "$J" | jq -r '.runtime.stage // empty')
-            SHA=$(echo "$J" | jq -r '.runtime.sha // .sha // empty')
+            J=$(curl -sS -H "Authorization: Bearer $HF_TOKEN" "https://huggingface.co/api/spaces/${SPACE}" 2>/dev/null || true)
+            STAGE=$(printf '%s' "$J" | jq -r '.runtime.stage // empty' 2>/dev/null || true)
+            SHA=$(printf '%s' "$J" | jq -r '.runtime.sha // .sha // empty' 2>/dev/null || true)
+            if [ -z "$STAGE" ]; then echo "[$i] unexpected API answer: $(printf '%s' "$J" | head -c 200)"; fi
             echo "[$i] stage=$STAGE sha=$SHA"
-            if [ "$SHA" = "$REL" ] && [ "$STAGE" = "RUNNING" ]; then exit 0; fi
-            case "$STAGE" in BUILD_ERROR|RUNTIME_ERROR|CONFIG_ERROR) echo "::error::Space stage $STAGE"; exit 1;; esac
+            if [ "$SHA" = "$EXPECT" ] && [ "$STAGE" = "RUNNING" ]; then exit 0; fi
+            if [ "$SHA" = "$EXPECT" ]; then
+              case "$STAGE" in BUILD_ERROR|RUNTIME_ERROR|CONFIG_ERROR) echo "::error::Space stage $STAGE"; exit 1;; esac
+            fi
             sleep 20
           done
-          echo "::error::Space did not reach RUNNING on $REL (last stage=$STAGE sha=$SHA)"; exit 1
+          echo "::error::Space did not reach RUNNING on $EXPECT (last stage=$STAGE sha=$SHA)"; exit 1
 
       - name: Smoke check
         run: |
