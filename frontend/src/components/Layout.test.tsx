@@ -84,14 +84,29 @@ afterEach(() => {
 });
 
 describe('the menu line (spec 4.1)', () => {
-  it('is one line of six text links with «Экзамены» second, and no sidebar', async () => {
+  it('is one line of text links with «Экзамены» second and «Карта знаний» after «Библиотека», and no sidebar', async () => {
     renderAt('/dashboard');
     const labels = within(deskNav())
       .getAllByRole('link')
       .map((link) => link.textContent?.replace(/\d+/g, '').trim());
-    expect(labels).toEqual(['Сегодня', 'Экзамены', 'Библиотека', 'Повторение', 'Дневник ошибок', 'Прогресс']);
+    expect(labels).toEqual(['Сегодня', 'Экзамены', 'Библиотека', 'Карта знаний', 'Повторение', 'Дневник ошибок', 'Прогресс']);
     expect(within(deskNav()).getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
     expect(document.querySelector('aside')).toBeNull();
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
+  });
+
+  it('shows «Карта знаний» in the line only where it fits (1280 px and wider), else in the account menu', async () => {
+    renderAt('/knowledge-map');
+    const link = within(deskNav()).getByRole('link', { name: 'Карта знаний' });
+    expect(link).toHaveAttribute('href', '/knowledge-map');
+    expect(link).toHaveAttribute('aria-current', 'page');
+    expect(link).toHaveClass('sf-bar-link', 'max-[1279px]:!hidden');
+    // The other six are never hidden: the line of six fits from 1024 px.
+    for (const other of within(deskNav()).getAllByRole('link').filter((item) => item !== link)) expect(other.className).toBe('sf-bar-link');
+    openMenu();
+    const fallback = within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('link', { name: 'Карта знаний' });
+    expect(fallback).toHaveAttribute('href', '/knowledge-map');
+    expect(fallback).toHaveClass('sf-acct-item', 'min-[1280px]:!hidden');
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -101,7 +116,7 @@ describe('the menu line (spec 4.1)', () => {
     expect(header.querySelector('svg')).toBeNull();
     expect(header.querySelector('h3')).toBeNull();
     expect(header.innerHTML).not.toMatch(/uppercase|tracking-|animate-|bg-rose|bg-cyan/);
-    expect(header.textContent).not.toMatch(/УЧЁБА|ПРАКТИКА|ПРОГРЕСС|Карта знаний|Лимит/);
+    expect(header.textContent).not.toMatch(/УЧЁБА|ПРАКТИКА|ПРОГРЕСС|Лимит/);
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -158,7 +173,8 @@ describe('phones and tablets (spec 4.2)', () => {
     expect(within(tabs).getAllByRole('link').map((link) => link.textContent)).toEqual(['Сегодня', 'Экзамены', 'Библиотека', 'Повторение']);
     expect(within(tabs).getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
     expect(tabs.querySelector('svg')).toBeNull();
-    expect(PHONE_TABS.map((item) => item.to)).toEqual(DESK_LINKS.slice(0, 4).map((item) => item.to));
+    expect(PHONE_TABS.map((item) => item.to)).toEqual(['/dashboard', '/exams', '/library', '/review']);
+    expect(DESK_LINKS.map((item) => item.to)).toContain('/knowledge-map');
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 

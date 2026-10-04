@@ -27,20 +27,23 @@ interface NavItem {
   to: string;
   label: string;
   counter?: Counter;
+  /** Only where the line has room for it (1280 px and wider); narrower, it is in the account menu. */
+  wide?: boolean;
 }
 
-/** The desktop line: «Сегодня · Экзамены · Библиотека · Повторение 11 · Дневник ошибок 5 · Прогресс». */
+/** The desktop line: «Сегодня · Экзамены · Библиотека · Карта знаний · Повторение 11 · Дневник ошибок 5 · Прогресс» (the map from 1280 px). */
 export const DESK_LINKS: NavItem[] = [
   { to: '/dashboard', label: 'Сегодня' },
   { to: '/exams', label: 'Экзамены' },
   { to: '/library', label: 'Библиотека' },
+  { to: '/knowledge-map', label: 'Карта знаний', wide: true },
   { to: '/review', label: 'Повторение', counter: 'due' },
   { to: '/mistakes', label: 'Дневник ошибок', counter: 'mistakes' },
   { to: '/analytics', label: 'Прогресс' },
 ];
 
 /** The phone tab bar: the same words, four of them; the rest lives in the account menu. */
-export const PHONE_TABS: NavItem[] = DESK_LINKS.slice(0, 4);
+export const PHONE_TABS: NavItem[] = DESK_LINKS.filter((item) => item.to !== '/knowledge-map').slice(0, 4);
 
 /** «Тянуть билет» and the answer screen are a room: the page draws its own top line, no menu (spec 4.3). */
 export function isRoomPath(pathname: string): boolean {
@@ -365,6 +368,8 @@ export default function Layout() {
         {email ? <p className="sf-acct-mail">{email}</p> : null}
       </div>
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
+      {/* The line has room for «Карта знаний» only from 1280 px; narrower, it is here. */}
+      <Link className="sf-acct-item min-[1280px]:!hidden" to="/knowledge-map">Карта знаний</Link>
       {/* On a phone these three are not in the tab bar. */}
       <Link className="sf-acct-item sf-acct-phone" to="/mistakes">
         <span>Дневник ошибок</span>
@@ -459,7 +464,7 @@ export default function Layout() {
           ) : null}
           <nav aria-label="Разделы" className="sf-bar-nav">
             {DESK_LINKS.map((item) => (
-              <NavLink key={item.to} to={item.to} className="sf-bar-link">
+              <NavLink key={item.to} to={item.to} className={item.wide ? 'sf-bar-link max-[1279px]:!hidden' : 'sf-bar-link'}>
                 {item.label}
                 {item.counter ? <NavCount value={counters[item.counter]} /> : null}
               </NavLink>

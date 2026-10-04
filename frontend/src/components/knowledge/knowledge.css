@@ -1,0 +1,556 @@
+/* The knowledge map (pages/KnowledgeMap.tsx, components/knowledge), in the paper kit's language.
+ *
+ * The desk carries Meldy's words (Onest): the heading, the filters, the legend, the guide. The map is a
+ * sheet of paper: lectures are index cards (Literata titles), concepts are words in Literata, edges are
+ * thin grey lines; what Meldy points at is drawn over them in blue pencil. Readiness marks on the
+ * question numbers are the exam sheet's: a ring, a line, a wavy line. Paper stays paper in the dark
+ * theme (the paper kit swaps the desk tokens inside .sf-sheet and .sf-index-card). Card metrics here
+ * match components/knowledge/layout.ts (CARD, WORD). */
+
+.sf-page .km-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- header and filters */
+.sf-page .km-head { max-width: none; }
+.sf-page .km-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 28px;
+  margin-top: 14px;
+}
+.sf-page .km-bar .sf-tabs { gap: 0 22px; }
+.sf-page .km-bar .sf-tabs button { min-height: 44px; white-space: nowrap; }
+.sf-page .km-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sf-page .km-scroll::-webkit-scrollbar { display: none; }
+.sf-page .km-scroll .sf-tabs { flex-wrap: nowrap; }
+.sf-page .km-row2 { margin: 0 0 10px; }
+.sf-page .km-tools { display: flex; align-items: center; gap: 12px 24px; min-width: 0; }
+.sf-page .km-search { width: 264px; max-width: 100%; }
+/* No icons in fields (spec 3.6): the browser's own clear button goes; Esc clears the search. */
+.sf-page .km-search::-webkit-search-cancel-button,
+.sf-page .km-search::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.sf-page .km-sub-label { margin-right: 14px; font-size: 15px; line-height: 20px; color: var(--sf-muted); }
+.sf-page .km-subjects { display: flex; align-items: center; min-width: 0; }
+.sf-page .km-note { margin-top: 10px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.sf-page .km-note .sf-link { min-height: 0; margin-left: 8px; font-size: 15px; }
+
+/* The legend is the filter (as on the exam sheet): a mark, its word and its count. */
+.sf-page .km-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; margin: 0; padding: 0; list-style: none; }
+.sf-page .km-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sf-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.sf-page .km-legend button:hover { color: var(--sf-ink); }
+.sf-page .km-legend button[aria-pressed='true'] { color: var(--sf-ink); font-weight: 600; }
+.sf-page .km-legend button[aria-pressed='true'] .km-legend-word { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.sf-page .km-legend .km-count { font-variant-numeric: tabular-nums; }
+.sf-page .km-legend-mark { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 26px; color: var(--sf-ink); }
+.sf-page .km-legend-mark .km-num-t { color: var(--sf-ink); }
+.sf-page .km-legend-wave { position: relative; display: inline-block; width: 22px; height: 20px; }
+.sf-page .km-legend-wave .km-wave { position: absolute; left: 0; top: 9px; }
+
+/* ---------------------------------------------------------------- the list view with its panel */
+.sf-page .km-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-items: start; }
+.sf-page .km-body[data-side] { grid-template-columns: minmax(0, 1fr) 380px; }
+.sf-page .km-main { min-width: 0; }
+.sf-page .km-side {
+  position: sticky;
+  top: calc(var(--sf-bar-h) + 16px);
+  max-height: calc(100vh - var(--sf-bar-h) - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* ---------------------------------------------------------------- the map sheet */
+.sf-page .km-sheet { position: relative; overflow: hidden; min-height: 360px; }
+.sf-page .km-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.sf-page .km-viewport[data-dragging] { cursor: grabbing; }
+.sf-page .km-viewport[data-dragging] .km-card,
+.sf-page .km-viewport[data-dragging] .km-word { cursor: grabbing; }
+.sf-page .km-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+.sf-page .km-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.sf-page .km-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ph-paper-ink) 30%, transparent);
+  stroke-width: 1.1px;
+  stroke-linecap: round;
+}
+.sf-page .km-edges-base { transition: opacity 150ms ease; }
+.sf-page .km-layer[data-focus] .km-edges-base { opacity: .32; }
+.sf-page .km-edge-lit { fill: var(--ph-pencil); opacity: .94; }
+.sf-page .km-edge-far { fill: var(--ph-pencil); opacity: .42; }
+
+/* Exam names round the oval when several exams share it: Meldy's note in pencil blue. */
+.sf-page .km-group {
+  position: absolute;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--ph-pencil);
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* A lecture: an index card (radius 6, the card's shadow from the paper kit). */
+.sf-page .km-card {
+  position: absolute;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-content: start;
+  margin: 0;
+  padding: 11px 14px 13px 12px;
+  border: 0;
+  font-family: var(--ph-sans);
+  text-align: left;
+  color: var(--ph-paper-ink);
+  cursor: pointer;
+  transition: box-shadow 150ms ease;
+}
+.sf-page .km-card > * { transition: opacity 150ms ease; }
+.sf-page .km-card-n {
+  font-family: var(--ph-serif);
+  font-size: 15px;
+  line-height: 21px;
+  color: var(--ph-paper-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.sf-page .km-card-t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--ph-serif);
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  overflow-wrap: anywhere;
+}
+.sf-page .km-card-q { grid-column: 2; display: block; margin-top: 5px; }
+.sf-page .km-card-qrow { display: flex; align-items: center; height: 24px; white-space: nowrap; }
+.sf-page .km-card-ql {
+  flex: none;
+  width: 58px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ph-paper-muted);
+}
+.sf-page .km-card-qrow + .km-card-qrow .km-card-ql { visibility: hidden; }
+.sf-page .km-card-qn { display: inline-flex; align-items: center; transition: opacity 150ms ease; }
+.sf-page .km-card-qn[data-off] { opacity: .3; }
+.sf-page .km-card-more { margin-left: 4px; font-size: 14px; line-height: 20px; color: var(--ph-paper-muted); }
+.sf-page .km-card-note {
+  grid-column: 2;
+  margin-top: 3px;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ph-pencil);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sf-page .km-card-note[data-quiet] { font-weight: 400; color: var(--ph-paper-muted); }
+.sf-page .km-card:focus-visible { outline: 2px solid var(--ph-pencil); outline-offset: 3px; border-radius: 6px; }
+.sf-page .km-card[data-state='dim'] > * { opacity: .3; }
+.sf-page .km-card[data-state='far'] > * { opacity: .72; }
+.sf-page .km-card[data-state='dim'] {
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .05), 0 1px 0 var(--ph-card-edge), 0 4px 12px -10px var(--ph-sh-soft);
+}
+
+/* A question number with its readiness mark (NumberMark). */
+.sf-page .km-num {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  height: 20px;
+}
+.sf-page .km-num-t {
+  font-family: var(--ph-serif);
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--ph-paper-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* A concept: a word in Literata on the paper; its box hides the lines under it. */
+.sf-page .km-word {
+  position: absolute;
+  box-sizing: border-box;
+  display: block;
+  margin: 0;
+  padding: 4px 8px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ph-paper);
+  font-family: var(--ph-serif);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 420;
+  color: var(--ph-paper-ink);
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.sf-page .km-word-t { display: block; overflow: hidden; text-overflow: ellipsis; }
+.sf-page .km-word[data-hub] { font-weight: 560; }
+.sf-page .km-word:not([data-inside]) { color: color-mix(in srgb, var(--ph-paper-ink) 78%, transparent); }
+/* The chosen word keeps its weight (its box is measured for it); the pencil oval marks it. */
+.sf-page .km-word[aria-pressed='true'] { color: var(--ph-paper-ink); }
+.sf-page .km-word:hover { color: var(--ph-paper-ink); }
+.sf-page .km-word:focus-visible { outline: 2px solid var(--ph-pencil); outline-offset: 2px; }
+.sf-page .km-word[data-state='dim'] { color: color-mix(in srgb, var(--ph-paper-ink) 30%, transparent); }
+.sf-page .km-word[data-state='dim'] .km-wave { opacity: .35; }
+.sf-page .km-word .km-wave { position: absolute; left: 8px; bottom: 1px; }
+.sf-page .km-oval { z-index: 1; }
+
+/* Zoom on the sheet's top right; on paper, so paper tokens. */
+.sf-page .km-zoom {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ph-paper) 92%, transparent);
+}
+.sf-page .km-zoom .km-fit { margin-right: 8px; font-size: 15px; }
+.sf-page .km-zoom-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font-family: var(--ph-sans);
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 400;
+  color: var(--ph-paper-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.sf-page .km-zoom-btn:hover { background: rgba(42, 40, 36, .07); color: var(--ph-paper-ink); }
+.sf-page .km-zoom-btn:focus-visible { outline: 2px solid var(--ph-pencil); outline-offset: 1px; }
+.sf-page .km-zoom-v {
+  min-width: 46px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ph-paper-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* «Понятия: общие · все» on the sheet's top left. */
+.sf-page .km-show {
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0 16px;
+  padding: 0 10px 0 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ph-paper) 92%, transparent);
+}
+.sf-page .km-show-label { font-size: 15px; line-height: 20px; color: var(--ph-paper-muted); }
+.sf-page .km-show .sf-tabs { gap: 0 16px; }
+.sf-page .km-show .sf-tabs button { min-height: 40px; }
+
+/* The footnote of the sheet: the questions that are in no lecture (Meldy's note, pencil blue). */
+.sf-page .km-foot {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 10px;
+  pointer-events: none;
+}
+.sf-page .km-foot > * { pointer-events: auto; }
+.sf-page .km-foot-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 8px;
+  background: color-mix(in srgb, var(--ph-paper) 92%, transparent);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ph-pencil);
+}
+.sf-page .km-foot .sf-link { min-height: 36px; font-size: 15px; color: var(--ph-paper-ink); }
+
+.sf-page .km-hint { margin: 10px 0 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.sf-page .km-empty-map { padding: 72px 24px; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-align: center; }
+
+/* The panel laid on the sheet's right side (computers): a smaller sheet on the map. */
+.sf-page .km-overlay {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+}
+.sf-page .km-overlay > .km-panel {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------- the guide under the map (desk) */
+.sf-page .km-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px 48px;
+  max-width: 1160px;
+  margin-top: 28px;
+}
+.sf-page .km-guide h2 { margin: 0 0 6px; font-size: 17px; line-height: 24px; font-weight: 600; color: var(--sf-ink); }
+.sf-page .km-guide p { margin: 0 0 8px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .km-guide-list { margin: 0; padding: 0; list-style: none; }
+.sf-page .km-guide-list li { padding: 3px 0; font-size: 15px; line-height: 22px; }
+
+/* A word that selects on the map (guide, panel): underlined text, ink. */
+.sf-page .km-word-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: text-decoration-color 150ms ease;
+}
+.sf-page .km-word-link:hover { text-decoration-color: currentColor; }
+.sf-page .km-word-plain { font-weight: 500; color: var(--sf-ink); }
+.sf-page .km-quiet { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.sf-page .km-quiet-inline { color: var(--sf-muted); }
+.sf-page .km-fine { margin: 14px 0 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- the panel (a sheet) */
+.sf-page .km-panel { padding: 16px 22px 24px; }
+.sf-page .km-panel-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-right: -12px; }
+.sf-page .km-panel-kind { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); overflow-wrap: anywhere; }
+.sf-page .km-close {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--sf-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.sf-page .km-close:hover { background: rgba(42, 40, 36, .07); color: var(--sf-ink); }
+.sf-page .km-close svg { width: 20px; height: 20px; }
+.sf-page .km-panel-title {
+  margin: 2px 0 0;
+  font-family: var(--ph-serif);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -.012em;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  outline: none;
+}
+.sf-page .km-panel-meta { margin: 6px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.sf-page .km-panel-acts { display: flex; flex-wrap: wrap; gap: 0 22px; margin-top: 8px; }
+.sf-page .km-panel-blk { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
+.sf-page .km-panel-blk h3 { margin: 0 0 8px; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--sf-ink); }
+.sf-page .km-panel-blk > .sf-link { margin-top: 2px; }
+.sf-page .km-qs { margin: 0; padding: 0; list-style: none; }
+.sf-page .km-q { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: start; padding: 5px 0 7px; }
+.sf-page .km-q-n { display: flex; justify-content: center; padding-top: 3px; }
+.sf-page .km-q-body { display: grid; gap: 2px; min-width: 0; }
+.sf-page .km-q-text { font-family: var(--ph-serif); font-size: 16px; line-height: 24px; color: var(--sf-ink); overflow-wrap: anywhere; text-wrap: pretty; }
+.sf-page .km-q-note { font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.sf-page .km-ref {
+  color: var(--ph-pencil-desk);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+}
+.sf-page .km-links { margin: 0; padding: 0; list-style: none; }
+.sf-page .km-links li { padding: 2px 0; font-family: var(--ph-serif); font-size: 16px; line-height: 24px; }
+.sf-page .km-links .km-quiet-inline { font-family: var(--ph-sans); font-size: 14px; }
+.sf-page .km-run { margin: 8px 0 0; font-family: var(--ph-serif); font-size: 16px; line-height: 26px; color: var(--sf-ink); }
+.sf-page .km-run .km-quiet-inline { font-family: var(--ph-sans); font-size: 14px; }
+.sf-page .km-defs { margin: 0; padding: 0; list-style: none; }
+.sf-page .km-defs > li + li { margin-top: 14px; }
+.sf-page .km-def-head { margin: 0; font-family: var(--ph-serif); font-size: 17px; line-height: 24px; }
+.sf-page .km-def-head .km-ref { font-family: var(--ph-sans); font-size: 15px; }
+.sf-page .km-def-text { margin: 4px 0 0; font-family: var(--ph-serif); font-size: 15px; line-height: 23px; color: var(--sf-muted); overflow-wrap: anywhere; }
+.sf-page .km-def-acts { display: flex; flex-wrap: wrap; gap: 0 18px; margin: 0; }
+.sf-page .km-def-acts .sf-link { min-height: 36px; }
+.sf-page .km-mistakes { margin: 0 0 4px; padding: 0; list-style: none; }
+.sf-page .km-mistakes li { display: grid; gap: 1px; padding: 5px 0; }
+.sf-page .km-mistake-q { font-family: var(--ph-serif); font-size: 16px; line-height: 24px; color: var(--sf-ink); overflow-wrap: anywhere; }
+.sf-page .km-mistake-o { font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.sf-page .km-more { font-size: 14px; color: var(--sf-muted); }
+
+/* Narrow screens: the panel is a bottom sheet of paper over a light scrim. */
+.sf-page .km-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(20, 18, 14, .16); }
+.sf-page .km-panel[data-sheet] {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  max-height: 78vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px var(--sf-g) calc(22px + env(safe-area-inset-bottom));
+  border-radius: 14px 14px 0 0;
+  box-shadow: var(--sf-pop-shadow);
+}
+.sf-page .km-panel[data-sheet] .km-panel-title { font-size: 21px; line-height: 27px; }
+
+/* ---------------------------------------------------------------- the lists («Списком») */
+.sf-page .km-list { max-width: 1040px; }
+.sf-page .km-list-h { margin: 22px 0 6px; font-size: 21px; line-height: 27px; font-weight: 600; letter-spacing: -.012em; color: var(--sf-ink); }
+.sf-page .km-list > section:first-child .km-list-h,
+.sf-page .km-list > p + section .km-list-h { margin-top: 4px; }
+.sf-page .km-list-sub { margin: 14px 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--sf-muted); }
+.sf-page .km-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
+.sf-page .km-row { border-bottom: 1px solid var(--sf-line); }
+.sf-page .km-row-btn {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 11px 12px 12px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.sf-page .km-row-btn:hover,
+.sf-page .km-row[data-selected] .km-row-btn { background: var(--sf-tint); }
+.sf-page .km-row-btn:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: -2px; }
+.sf-page .km-row-concept { grid-template-columns: minmax(0, 1fr); padding-left: 52px; }
+.sf-page .km-row-n {
+  text-align: right;
+  font-family: var(--ph-serif);
+  font-size: 17px;
+  line-height: 26px;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.sf-page .km-row-main { display: grid; gap: 2px; min-width: 0; }
+.sf-page .km-row-title { font-family: var(--ph-serif); font-size: 19px; line-height: 26px; font-weight: 500; overflow-wrap: anywhere; }
+.sf-page .km-row-qs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; min-height: 26px; }
+.sf-page .km-row-ql { margin-right: 4px; font-size: 15px; line-height: 20px; color: var(--sf-muted); }
+.sf-page .km-row-qs .km-num-t { color: var(--sf-ink); }
+.sf-page .km-row-meta { font-size: 15px; line-height: 21px; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- phones */
+.sf-page[data-frame='s'] .km-bar { margin-top: 10px; gap: 0 20px; }
+.sf-page[data-frame='s'] .km-row2 { gap: 6px 20px; }
+.sf-page[data-frame='s'] .km-bar > .km-scroll { width: 100%; }
+.sf-page[data-frame='s'] .km-tools { width: 100%; gap: 16px; }
+.sf-page[data-frame='s'] .km-tools .sf-tabs { order: -1; flex: none; gap: 0 16px; }
+.sf-page[data-frame='s'] .km-search { flex: 1 1 auto; width: auto; min-width: 0; }
+/* The legend is one row on a phone; it scrolls sideways. */
+.sf-page[data-frame='s'] .km-legend { flex-wrap: nowrap; gap: 0 18px; }
+.sf-page[data-frame='s'] .km-row2 { margin-bottom: 6px; }
+.sf-page .km-show-desk { position: static; margin: 0 0 6px; padding: 0; background: none; }
+.sf-page .km-show-desk .km-show-label { color: var(--sf-muted); }
+.sf-page[data-frame='s'] .km-row-btn { grid-template-columns: 30px minmax(0, 1fr); column-gap: 10px; padding: 9px 4px 10px 0; min-height: 44px; }
+.sf-page[data-frame='s'] .km-row-concept { padding-left: 40px; }
+.sf-page[data-frame='s'] .km-row-n { font-size: 16px; line-height: 25px; }
+.sf-page[data-frame='s'] .km-row-title { font-size: 18px; line-height: 25px; }
+.sf-page[data-frame='s'] .km-row-meta { font-size: 14px; line-height: 20px; }
+.sf-page[data-frame='s'] .km-zoom .km-fit { margin-right: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-page .km-card,
+  .sf-page .km-card > *,
+  .sf-page .km-word,
+  .sf-page .km-edges-base,
+  .sf-page .km-card-qn,
+  .sf-page .km-legend button,
+  .sf-page .km-row-btn,
+  .sf-page .km-zoom-btn,
+  .sf-page .km-close { transition: none; }
+}
