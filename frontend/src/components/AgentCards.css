@@ -1,0 +1,103 @@
+/* The analysis under way (AgentCards) in the Meldy language: a card with the heading and a pill
+ * progress bar, the sections as rows with status pills in a window on the blue panel, «Отменить» as
+ * a white pill. Status pills: green «Готово», blue «Готовим…», grey «В очереди», pink «Не получилось». */
+
+.ag { max-width: 720px; margin: 0 auto; padding-top: 48px; color: var(--sf-ink); font-family: var(--ph-sans); }
+.ag-card {
+  box-sizing: border-box;
+  padding: 34px 36px 34px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.ag-h2 { margin: 0; font-size: clamp(28px, 3vw, 36px); line-height: 1.1; font-weight: 500; letter-spacing: -.028em; color: var(--sf-ink); text-wrap: balance; }
+.ag-lede { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.ag-demo { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
+
+.ag-bar {
+  position: relative;
+  height: 12px;
+  margin-top: 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+}
+.ag-bar-fill { height: 100%; border-radius: 999px; background: var(--sf-accent); transition: width .6s var(--m-ease); }
+
+.ag-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-top: 24px;
+  padding: 24px;
+  border-radius: 36px;
+  background: linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
+}
+.ag-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: .2;
+  background-image: radial-gradient(#fff 1.4px, transparent 1.6px);
+  background-size: 9px 9px;
+  -webkit-mask-image: linear-gradient(200deg, #000, transparent 70%);
+  mask-image: linear-gradient(200deg, #000, transparent 70%);
+}
+.ag-list {
+  margin: 0;
+  padding: 6px 20px;
+  list-style: none;
+  border-radius: 24px;
+  background: var(--sf-surface);
+  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, .45);
+}
+.ag-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; border-top: 1px solid var(--sf-line); }
+.ag-row:first-child { border-top: 0; }
+.ag-name { min-width: 0; font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.ag-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: #efefea;
+  color: #5c626b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.dark .ag-status { background: #232a36; color: #b8bdc6; }
+.ag-status[data-status='done'] { background: var(--m-green-soft); color: var(--m-green-ink); }
+.ag-status[data-status='running'] { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
+.ag-status[data-status='failed'] { background: rgba(243, 169, 196, .3); color: #8f1f43; }
+.dark .ag-status[data-status='failed'] { background: rgba(243, 169, 196, .16); color: #f6b8cf; }
+.ag-icon { flex: none; width: 15px; height: 15px; }
+.ag-spin { animation: ag-spin 1s linear infinite; }
+.ag-dot { flex: none; width: 7px; height: 7px; margin: 0 4px; border-radius: 50%; background: currentColor; }
+
+.ag-cancel.sf-secondary { margin-top: 22px; }
+.ag .ag-cancel:focus-visible { border-radius: 999px; }
+
+@keyframes ag-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 639px) {
+  .ag { padding-top: 24px; }
+  .ag-card { padding: 26px 18px 26px; border-radius: 38px; }
+  .ag-lede { font-size: 16px; }
+  .ag-panel { padding: 12px; border-radius: 30px; }
+  .ag-list { padding: 4px 14px; border-radius: 22px; }
+  .ag-row { min-height: 54px; gap: 10px; }
+  .ag-name { font-size: 16px; }
+  .ag-cancel.sf-secondary { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-spin { animation: none; }
+  .ag-bar-fill { transition: none; }
+}

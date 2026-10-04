@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen } from 'lucide-react';
 import UploadZone, { type UploadOptions, type UploadTab } from '../components/UploadZone';
 import AgentCards from '../components/AgentCards';
 import ResultsPanel from '../components/ResultsPanel';
@@ -24,6 +23,7 @@ import {
   isSectionName,
   requestedSections,
 } from '../utils/analysisSections';
+import './Analyze.css';
 
 const ANALYSIS_COST = 20;
 
@@ -132,13 +132,6 @@ function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?
   };
 }
 
-const PRIMARY_BUTTON =
-  'inline-flex min-h-[48px] items-center justify-center rounded-xl bg-[var(--sf-accent)] px-6 text-base font-semibold text-white ' +
-  'shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition-[transform,box-shadow,background-color] duration-100 ' +
-  'hover:bg-[var(--sf-accent-hover)] active:translate-y-[2px] active:shadow-[0_1px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] ' +
-  'motion-reduce:transition-none motion-reduce:active:translate-y-0 dark:shadow-[0_2px_0_color-mix(in_srgb,var(--sf-accent)_60%,var(--sf-canvas))] dark:active:shadow-none';
-const TEXT_BUTTON =
-  'inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-[var(--sf-muted)] transition-colors hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]';
 const INLINE_ACTION =
   'min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60';
 
@@ -521,7 +514,7 @@ export default function Analyze() {
   const shownRunId = lastSaveRef.current?.runId;
 
   return (
-    <div className={`mx-auto p-4 md:p-6 ${state.phase === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}>
+    <div className="az" data-phase={state.phase}>
       <AnimatePresence mode="wait">
         {state.phase === 'upload' && (
           <motion.div key="upload" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
@@ -565,13 +558,14 @@ export default function Analyze() {
               analysisSettings={state.isDemo ? DEMO_SETTINGS : lastRequest?.settings}
               notices={hasNotices ? notices : undefined}
             />
-            <div className="mt-2 border-t border-[var(--sf-line)] pt-5 text-left">
-              <button
-                type="button"
-                onClick={() => navigate('/library')}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-lg px-3 text-sm font-medium text-[var(--sf-muted)] transition hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"
-              >
-                <BookOpen aria-hidden="true" className="h-4 w-4" /> Открыть библиотеку
+            <div className="az-after">
+              <button type="button" onClick={() => navigate('/library')} className="sf-secondary az-pill2">
+                Открыть библиотеку
+                <span className="az-pill2-dot" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
               </button>
             </div>
           </motion.div>
@@ -583,33 +577,36 @@ export default function Analyze() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             aria-labelledby="analysis-error-heading"
-            className="mx-auto max-w-xl py-16 text-[var(--sf-ink)]"
+            className="az-fail"
           >
-            <h2 id="analysis-error-heading" className="text-2xl font-semibold leading-tight">
-              Анализ не завершён
-            </h2>
-            <p role="alert" className="mt-3 text-base leading-relaxed text-[var(--sf-muted)]">
-              {state.error.message}
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              {state.error.kind === 'auth' ? (
-                <Link to="/login" className={PRIMARY_BUTTON}>
-                  Войти
-                </Link>
-              ) : state.error.retryable ? (
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  disabled={starting}
-                  aria-busy={starting || undefined}
-                  className={`${PRIMARY_BUTTON} disabled:cursor-wait disabled:opacity-70`}
-                >
-                  Повторить
+            <div className="az-fail-art" aria-hidden="true">
+              <span className="az-fail-sheet">
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+            <div className="az-fail-body">
+              <h2 id="analysis-error-heading" className="az-fail-h">
+                Анализ не завершён
+              </h2>
+              <p role="alert" className="az-fail-text">
+                {state.error.message}
+              </p>
+              <div className="az-fail-acts">
+                {state.error.kind === 'auth' ? (
+                  <Link to="/login" className="sf-primary">
+                    Войти
+                  </Link>
+                ) : state.error.retryable ? (
+                  <button type="button" onClick={handleRetry} disabled={starting} aria-busy={starting || undefined} className="sf-primary">
+                    Повторить
+                  </button>
+                ) : null}
+                <button type="button" onClick={backToUpload} className="sf-secondary az-back">
+                  {chooseAnotherLabel}
                 </button>
-              ) : null}
-              <button type="button" onClick={backToUpload} className={TEXT_BUTTON}>
-                {chooseAnotherLabel}
-              </button>
+              </div>
             </div>
           </motion.section>
         )}

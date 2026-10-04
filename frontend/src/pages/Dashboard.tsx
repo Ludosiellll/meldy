@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -21,14 +21,17 @@ import './Dashboard.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
- * «Сегодня» on the paper desk (redesign spec 5.15, frame today--1280x720-light, Jury_Check items
- * 5, 6 and 10). The first screen after signing in and after registration.
+ * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
+ * 10_Project/Design_Language_2026-10-04). The first screen after signing in and after registration.
  *
- * - The desk: the nearest exam on the left (its list in miniature as a paper ribbon of pencil marks,
- *   «9 вопросов без материала» first, the share of tickets for the exam's own layout, a dated note
- *   about the last two days) and today's review cards on the right as a stack of index cards.
- * - Without an exam the cards lead; an empty account is sent to the question list first.
- * - Below the desk: the four latest lectures and two weeks of reviews as plain ink columns.
+ * - The greeting with the date and one hand-drawn yellow line under «повторим».
+ * - One main card of what to do now: the nearest exam (a flag with the days left, the subject, the
+ *   meta line, «9 вопросов без материала» first, the share of tickets for the exam's own layout as
+ *   the large figure, the list in miniature as status dots with the pencil marks, the answers line
+ *   and a dated note about the last two days, «Тянуть билет»). Without an exam the cards lead.
+ * - Beside it the task cards: today's review cards (a coloured panel with the first due question)
+ *   and two weeks of reviews; below, the four latest lectures as cards.
+ * - An empty account is sent to the question list first.
  * Every number on the page is read from the account; nothing is invented (no ticket numbers, no zeros
  * on an empty account).
  */
@@ -313,16 +316,32 @@ export function examWhen(daysLeft: number): string {
 }
 
 /**
+ * The heading of the exam card in its two parts: the subject the card sets large («Цифровая
+ * экономика», a leading «Экзамен:» dropped, the title never declined) and the time to the exam with
+ * the kind once («экзамен через 12 дней»; only «сегодня» when the kind is already in the name), which
+ * the card's flag shows. Without a date: the sheet's own header and no time.
+ */
+export function examHeadingParts(exam: { title: string; kind: ExamKind; daysLeft: number | null }): { subject: string; when: string | null } {
+  if (exam.daysLeft === null) return { subject: sheetHeader(exam.title, exam.kind), when: null };
+  const subject = subjectOf(exam.title);
+  const when = examWhen(exam.daysLeft);
+  return { subject, when: KIND_IN_NAME.test(subject) ? when : `${KIND_WORDS[exam.kind]} ${when}` };
+}
+
+/**
  * «Микроэкономика — экзамен через 12 дней»: the subject (a leading «Экзамен:» is dropped, the title
  * is never declined) and the kind once. «Экзамен по микроэкономике — через 12 дней» when the kind is
  * already in the name. Without a date, the sheet's own header: «Микроэкономика: вопросы к экзамену».
  * No period at the end.
  */
 export function examHeading(exam: { title: string; kind: ExamKind; daysLeft: number | null }): string {
-  if (exam.daysLeft === null) return sheetHeader(exam.title, exam.kind);
-  const subject = subjectOf(exam.title);
-  const when = examWhen(exam.daysLeft);
-  return KIND_IN_NAME.test(subject) ? `${subject} — ${when}` : `${subject} — ${KIND_WORDS[exam.kind]} ${when}`;
+  const { subject, when } = examHeadingParts(exam);
+  return when ? `${subject} — ${when}` : subject;
+}
+
+/** «Экзамен через 12 дней», «Сегодня»: the flag of the exam card (the first letter made capital in code). */
+export function examFlag(when: string): string {
+  return when ? when[0].toLocaleUpperCase('ru-RU') + when.slice(1) : when;
 }
 
 /** «15 октября · 40 вопросов, в билете два». */
@@ -372,6 +391,29 @@ function fixedTicketWord(questions: TodayQuestion[], layout: TicketLayout): stri
   return sizes.size === 1 ? allQuestionsWord(Array.from(sizes)[0]) : 'все вопросы';
 }
 
+type ShareCount =
+  | { kind: 'unmapped' }
+  | { kind: 'fixed'; count: string; tickets: number; word: string }
+  | { kind: 'percent'; value: string; perTicket: number };
+
+/** The share of tickets whose questions are all in the lectures, counted once for the sentence and the figure. */
+function shareCount(questions: TodayQuestion[], layout: TicketLayout): ShareCount | null {
+  if (questions.length === 0) return null;
+  if (questions.every((question) => question.coverage === 'unmapped')) return { kind: 'unmapped' };
+  const shares = coverageShares(
+    questions.map((question) => ({ id: question.id, section: question.section, coverage: question.coverage })),
+    layout,
+  );
+  const value = shareText(shares, 'all');
+  if (!value || !shares.low.ok) return null;
+  if (shares.low.mode === 'fixed') {
+    const low = shares.low.allCount;
+    const high = shares.isRange && shares.high.ok && shares.high.mode === 'fixed' ? shares.high.allCount : low;
+    return { kind: 'fixed', count: high !== low ? `${low}–${high}` : String(low), tickets: shares.low.tickets, word: fixedTicketWord(questions, layout) };
+  }
+  return { kind: 'percent', value, perTicket: perTicketOf(shares.low, layout.per_ticket) };
+}
+
 /**
  * The share of tickets whose questions are all in the lectures, for the exam's own layout (random
  * pairs, one per section, or the department's tickets): «Билетов, где оба вопроса есть в ваших
@@ -379,23 +421,26 @@ function fixedTicketWord(questions: TodayQuestion[], layout: TicketLayout): stri
  * по лекциям ещё нет.» before the first mapping; '' when no share can be counted.
  */
 export function shareSentence(questions: TodayQuestion[], layout: TicketLayout): string {
-  if (questions.length === 0) return '';
-  if (questions.every((question) => question.coverage === 'unmapped')) return 'Разметки по лекциям ещё нет.';
-  const shares = coverageShares(
-    questions.map((question) => ({ id: question.id, section: question.section, coverage: question.coverage })),
-    layout,
-  );
-  const value = shareText(shares, 'all');
-  if (!value || !shares.low.ok) return '';
-  if (shares.low.mode === 'fixed') {
-    const low = shares.low.allCount;
-    const high = shares.isRange && shares.high.ok && shares.high.mode === 'fixed' ? shares.high.allCount : low;
-    const count = high !== low ? `${low}–${high}` : String(low);
-    return `Билетов кафедры, где ${fixedTicketWord(questions, layout)} есть в ваших лекциях, — ${count} из ${shares.low.tickets}.`;
-  }
-  const q = perTicketOf(shares.low, layout.per_ticket);
-  if (q <= 1) return `Вопросов, которые есть в ваших лекциях, — ${value}.`;
-  return `Билетов, где ${allQuestionsWord(q)} есть в ваших лекциях, — ${value}.`;
+  const share = shareCount(questions, layout);
+  if (!share) return '';
+  if (share.kind === 'unmapped') return 'Разметки по лекциям ещё нет.';
+  if (share.kind === 'fixed') return `Билетов кафедры, где ${share.word} есть в ваших лекциях, — ${share.count} из ${share.tickets}.`;
+  if (share.perTicket <= 1) return `Вопросов, которые есть в ваших лекциях, — ${share.value}.`;
+  return `Билетов, где ${allQuestionsWord(share.perTicket)} есть в ваших лекциях, — ${share.value}.`;
+}
+
+/**
+ * The same share as the card sets it in large type: «35 %» with «билетов, где оба вопроса есть в
+ * ваших лекциях» («35 % билетов, где…» read together), «1 из 2» for the department's tickets, «60 %»
+ * of the questions for single-question tickets. Null before the first mapping and when no share can
+ * be counted (the sentence says why).
+ */
+export function shareFigure(questions: TodayQuestion[], layout: TicketLayout): { figure: string; caption: string } | null {
+  const share = shareCount(questions, layout);
+  if (!share || share.kind === 'unmapped') return null;
+  if (share.kind === 'fixed') return { figure: `${share.count} из ${share.tickets}`, caption: `билетов кафедры, где ${share.word} есть в ваших лекциях` };
+  if (share.perTicket <= 1) return { figure: share.value, caption: 'вопросов есть в ваших лекциях' };
+  return { figure: share.value, caption: `билетов, где ${allQuestionsWord(share.perTicket)} есть в ваших лекциях` };
 }
 
 /** «Подтверждено ответами — 6 вопросов из 40.», or that there were no answers yet. */
@@ -516,20 +561,61 @@ function shortDay(key: string): string {
 // ---------------------------------------------------------------------------------------------
 // Pieces
 
-/** Mark sizes in the ribbon (prototype today.html): 17×15, a flatter cup and dash; a little larger on a phone. */
+/** The arrow of the pills and the quiet links (aria-hidden: the words say where the link goes). */
+function ArrowIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/** The circle with the arrow at the end of a white pill (the blue one draws its own). */
+function PillDot() {
+  return (
+    <span className="td-dot" aria-hidden="true">
+      <ArrowIcon />
+    </span>
+  );
+}
+
+/** The greeting with one hand-drawn yellow line under «повторим» (drawn in once; already there under reduced motion). */
+function Greeting({ text }: { text: string }) {
+  const word = 'повторим';
+  const at = text.indexOf(word);
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="td-mark">
+        {word}
+        <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path pathLength={1} d="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9" />
+        </svg>
+      </span>
+      {text.slice(at + word.length)}
+    </>
+  );
+}
+
+/** Marks inside the status dots of the list in miniature: 12 px on a computer, a little larger on a phone. */
 const RIBBON_MARKS: Record<'desk' | 'phone', Record<CoverageMarkKind, { width: number; height: number }>> = {
-  desk: { tick: { width: 17, height: 15 }, dtick: { width: 17, height: 15 }, cup: { width: 16, height: 10 }, dash: { width: 17, height: 7 }, dot: { width: 8, height: 8 } },
-  phone: { tick: { width: 19, height: 17 }, dtick: { width: 19, height: 17 }, cup: { width: 18, height: 11 }, dash: { width: 19, height: 8 }, dot: { width: 9, height: 9 } },
+  desk: { tick: { width: 12, height: 10 }, dtick: { width: 12, height: 10 }, cup: { width: 11, height: 7 }, dash: { width: 11, height: 5 }, dot: { width: 6, height: 6 } },
+  phone: { tick: { width: 11, height: 9 }, dtick: { width: 11, height: 9 }, cup: { width: 10, height: 6 }, dash: { width: 10, height: 5 }, dot: { width: 6, height: 6 } },
 };
 const LEGEND_MARKS: Record<CoverageMarkKind, { width: number; height: number }> = {
-  tick: { width: 19, height: 16 },
-  dtick: { width: 19, height: 16 },
-  cup: { width: 18, height: 11 },
-  dash: { width: 19, height: 8 },
-  dot: { width: 9, height: 9 },
+  tick: { width: 10, height: 8 },
+  dtick: { width: 10, height: 8 },
+  cup: { width: 9, height: 6 },
+  dash: { width: 9, height: 4 },
+  dot: { width: 5, height: 5 },
 };
 
-/** The list in miniature: one pencil mark per question in list order, an empty slot for a question not mapped yet. */
+/**
+ * The list in miniature: one status dot per question in list order (green «есть», yellow «частично»,
+ * grey «нет», a ring for «только по словам»), each with its pencil mark, so the meaning is not in the
+ * colour alone; an empty ring for a question not mapped yet.
+ */
 function Ribbon({ examId, questions, perRow, phone }: { examId: string; questions: TodayQuestion[]; perRow: number; phone: boolean }) {
   const rows: TodayQuestion[][] = [];
   for (let i = 0; i < questions.length; i += perRow) rows.push(questions.slice(i, i + perRow));
@@ -540,11 +626,12 @@ function Ribbon({ examId, questions, perRow, phone }: { examId: string; question
       role="img"
       aria-label={`Пометки у ${questions.length} ${pluralRu(questions.length, QUESTION_FORMS)} списка, по порядку`}
       data-per-row={perRow}
+      style={{ '--td-cols': perRow } as CSSProperties}
     >
       {rows.map((row, index) => {
         const first = index * perRow + 1;
         return (
-          <div key={first} className="td-strip-row" style={{ ['--td-n' as string]: row.length }}>
+          <div key={first} className="td-strip-row" style={{ '--td-n': row.length } as CSSProperties}>
             <span className="td-strip-n">{first}</span>
             {row.map((question) => {
               const kind = COVERAGE_MARK[question.coverage];
@@ -572,7 +659,7 @@ const TALLY: Array<{ key: keyof Omit<CoverageTally, 'total'>; mark: CoverageMark
   { key: 'unmapped', mark: null, label: (n) => pluralRu(n, ['ещё не сверен', 'ещё не сверены', 'ещё не сверены']) },
 ];
 
-/** The legend line under the ribbon: the same marks on the desk, each with its count. */
+/** The legend under the dots: the same dots and marks, each with its count. */
 function Tally({ tally, examId }: { tally: CoverageTally; examId: string }) {
   const items = TALLY.filter((item) => tally[item.key] > 0);
   return (
@@ -581,14 +668,16 @@ function Tally({ tally, examId }: { tally: CoverageTally; examId: string }) {
         <Fragment key={item.key}>
           {index > 0 ? ' ' : null}
           <span data-coverage={item.key}>
-            {item.mark ? (
-              <Mark
-                kind={item.mark}
-                seed={markSeed(`${examId}:legend`, index)}
-                width={LEGEND_MARKS[item.mark].width}
-                height={LEGEND_MARKS[item.mark].height}
-              />
-            ) : null}
+            <span className="td-tally-dot" data-coverage={item.key} aria-hidden="true">
+              {item.mark ? (
+                <Mark
+                  kind={item.mark}
+                  seed={markSeed(`${examId}:legend`, index)}
+                  width={LEGEND_MARKS[item.mark].width}
+                  height={LEGEND_MARKS[item.mark].height}
+                />
+              ) : null}
+            </span>
             <b>{tally[item.key]}</b>
             {/* Spaces and commas keep the line readable as text; on screen the flex gaps draw them. */}
             {` ${glue(item.label(tally[item.key]))}`}
@@ -600,23 +689,25 @@ function Tally({ tally, examId }: { tally: CoverageTally; examId: string }) {
   );
 }
 
-/** Today's review cards as the landing's index card, three deep, with the first due question. */
+/** Today's review cards on a coloured panel: three index cards, the first due question on top. */
 function CardStack({ question }: { question: string }) {
   const long = question.trim().length > 64;
   return (
-    <div className="td-stack" aria-hidden="true">
-      <div className="sf-index-card" data-n="3" />
-      <div className="sf-index-card" data-n="2" />
-      <div className="sf-index-card" data-n="1">
-        <p className="td-stack-q" data-long={long ? '' : undefined}>
-          {question.trim()}
-        </p>
+    <div className="td-panel td-stack-panel" aria-hidden="true">
+      <div className="td-stack">
+        <div className="sf-index-card" data-n="3" />
+        <div className="sf-index-card" data-n="2" />
+        <div className="sf-index-card" data-n="1">
+          <p className="td-stack-q" data-long={long ? '' : undefined}>
+            {question.trim()}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-/** Reviews per day as plain ink columns with the value above each, and a table for screen readers. */
+/** Reviews per day as columns with the value above each, and a table for screen readers. */
 function DayBars({ days }: { days: Array<{ key: string; value: number }> }) {
   const max = Math.max(1, ...days.map((day) => day.value));
   const last = days.length - 1;
@@ -728,13 +819,15 @@ export default function Dashboard() {
 
   const head = (
     <header className="td-head">
-      <p className="td-date">{todayLine()}</p>
-      <h1 className="sf-h1">{greeting(user?.user_metadata?.full_name)}</h1>
+      <p className="td-date td-rise">{todayLine()}</p>
+      <h1 className="sf-h1 td-h1 td-rise" data-d="1">
+        <Greeting text={greeting(user?.user_metadata?.full_name)} />
+      </h1>
     </header>
   );
 
   let content: ReactNode;
-  /** The empty account is one object in the middle of the page (spec 3.4), not on the desk's left edge. */
+  /** The empty account is one card in the middle of the page (spec 3.4), not on the desk's left edge. */
   let centered = false;
   if (loading && !data) {
     content = (
@@ -746,12 +839,12 @@ export default function Dashboard() {
     content = (
       <>
         {head}
-        <section className="td-error">
-          <h2 className="sf-h2">Не удалось загрузить данные</h2>
+        <section className="td-card td-error td-rise" data-d="2">
+          <h2 className="td-h2">Не удалось загрузить данные</h2>
           <p className="td-error-text" role="alert">
             Лекции и карточки на месте. Повторите через минуту.
           </p>
-          <button type="button" className="sf-link" onClick={() => void load()}>
+          <button type="button" className="sf-primary" onClick={() => void load()}>
             Повторить
           </button>
         </section>
@@ -761,46 +854,37 @@ export default function Dashboard() {
     // A new account: the question list first (Jury_Check item 6), a lecture when there is no list yet.
     centered = true;
     content = (
-      <section className="td-empty" aria-labelledby="td-empty-h">
-        <h1 className="sf-h1" id="td-empty-h">
-          Начните со списка вопросов
-        </h1>
-        <p className="td-empty-text">
-          {glue('Вставьте вопросы к экзамену и загрузите лекции — Meldy отметит, какие вопросы есть в ваших лекциях и какую долю билетов они закрывают.')}
-        </p>
-        <Link className="sf-primary td-empty-go" to="/exams/new">
-          Вставить список вопросов
-        </Link>
-        <p className="td-empty-alt">
-          <Link className="sf-link" data-muted="" to="/analyze">
-            Списка пока нет — добавить лекцию
-          </Link>
-        </p>
+      <section className="td-card td-empty td-rise" aria-labelledby="td-empty-h">
+        <div className="td-empty-body">
+          <h1 className="sf-h1 td-empty-h1" id="td-empty-h">
+            {glue('Начните со списка вопросов')}
+          </h1>
+          <p className="td-empty-text">
+            {glue('Вставьте вопросы к экзамену и загрузите лекции — Meldy отметит, какие вопросы есть в ваших лекциях и какую долю билетов они закрывают.')}
+          </p>
+          <div className="td-empty-acts">
+            <Link className="sf-primary td-empty-go" to="/exams/new">
+              Вставить список вопросов
+            </Link>
+            <Link className="sf-link td-empty-alt" data-muted="" to="/analyze">
+              Списка пока нет — добавить лекцию
+            </Link>
+          </div>
+        </div>
+        <EmptyArt />
       </section>
     );
   } else {
     content = (
       <>
         {head}
-        <Desk data={data} phone={frame.size === 's'} onRetry={() => void load()} />
-        <section className="td-lower">
-          <Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />
-          <section className="td-activity" aria-labelledby="td-activity-h">
-            <div className="td-sec-head">
-              <h2 className="td-h3" id="td-activity-h">
-                Повторения за две недели
-              </h2>
-            </div>
-            {days.some((day) => day.value > 0) ? (
-              <>
-                <p className="td-meta">{glue(activityLine(streak, days[days.length - 1].value))}</p>
-                <DayBars days={days} />
-              </>
-            ) : (
-              <p className="td-meta">За две недели повторений не было.</p>
-            )}
-          </section>
-        </section>
+        <Desk
+          data={data}
+          phone={frame.size === 's'}
+          onRetry={() => void load()}
+          activity={<Activity days={days} streak={streak} />}
+        />
+        <Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />
       </>
     );
   }
@@ -812,43 +896,58 @@ export default function Dashboard() {
   );
 }
 
-/** The desk: the exam (or today's cards when there is no exam) on the left, the card stack on the right. */
-function Desk({ data, phone, onRetry }: { data: DashboardData; phone: boolean; onRetry: () => void }) {
+/** The main card (the exam, or today's cards when there is no exam) and beside it the task cards. */
+function Desk({ data, phone, onRetry, activity }: { data: DashboardData; phone: boolean; onRetry: () => void; activity: ReactNode }) {
   const { exam, dueCount, dueCards } = data;
   const titles = useMemo(() => new Map(data.lectures.map((lecture) => [lecture.id, displayMaterialTitle(lecture.title)])), [data.lectures]);
   const firstQuestion = dueCards.find((card) => typeof card.question === 'string' && card.question.trim() !== '')?.question ?? '';
   const lecturesText = dueLecturesText(dueCards, titles, dueCount);
   const examPrimary = Boolean(exam && exam.questions.length > 0);
 
-  const cards =
-    dueCount > 0 ? (
-      <article className="td-due" {...(exam ? { 'aria-labelledby': 'td-due-h' } : { 'aria-label': dueTitle(dueCount) })}>
+  let cards: ReactNode = null;
+  if (dueCount > 0 && exam) {
+    const [count, ...words] = dueTitle(dueCount).split(' ');
+    cards = (
+      <article className="td-card td-due td-rise" data-d="3" aria-labelledby="td-due-h">
         {firstQuestion ? <CardStack question={firstQuestion} /> : null}
-        {exam ? (
-          <>
-            <h2 className="td-h3" id="td-due-h">
-              {dueTitle(dueCount)}
-            </h2>
-            <p className="td-meta">{glue([reviewTime(dueCount), lecturesText].filter(Boolean).join(' '))}</p>
-            <Link className={examPrimary ? 'sf-secondary' : 'sf-primary'} to="/review">
-              Начать повторение
-            </Link>
-          </>
-        ) : lecturesText ? (
-          <p className="td-meta td-due-from">{glue(lecturesText)}</p>
-        ) : null}
+        <div className="td-due-body">
+          <span className="td-flag" data-tone="b">
+            Повторение
+          </span>
+          <h2 className="td-count" id="td-due-h">
+            <span className="td-count-n">{count}</span> {words.join(' ')}
+          </h2>
+          <p className="td-meta">{glue([reviewTime(dueCount), lecturesText].filter(Boolean).join(' '))}</p>
+          <Link className={examPrimary ? 'sf-secondary td-pill' : 'sf-primary'} data-size="s" to="/review">
+            Начать повторение
+            {examPrimary ? <PillDot /> : null}
+          </Link>
+        </div>
       </article>
-    ) : exam ? (
-      <article className="td-due" aria-label="Карточки на сегодня">
+    );
+  } else if (exam) {
+    cards = (
+      <article className="td-card td-due td-due-none td-rise" data-d="3" aria-label="Карточки на сегодня">
+        <span className="td-flag" data-tone="b">
+          Повторение
+        </span>
         <p className="td-body td-quiet">Карточек к повторению на сегодня нет.</p>
       </article>
-    ) : null;
+    );
+  }
 
   return (
-    <section className="td-desk" data-cards={dueCount > 0 ? '' : undefined}>
-      {exam ? <ExamBlock exam={exam} phone={phone} /> : <NoExam data={data} onRetry={onRetry} />}
-      {cards}
-    </section>
+    <div className="td-grid">
+      {exam ? (
+        <ExamBlock exam={exam} phone={phone} />
+      ) : (
+        <NoExam data={data} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />
+      )}
+      <div className="td-side">
+        {cards}
+        {activity}
+      </div>
+    </div>
   );
 }
 
@@ -857,49 +956,93 @@ function ExamBlock({ exam, phone }: { exam: TodayExam; phone: boolean }) {
   const total = tally.total;
   const mapped = total > 0 && tally.unmapped < total;
   const gap = mapped && tally.none > 0 ? withoutMaterialLine(tally.none) : null;
-  const sentence = [shareSentence(exam.questions, exam.layout), answersSentence(exam.questions, exam.events)].filter(Boolean).join(' ');
+  const figure = shareFigure(exam.questions, exam.layout);
+  const answers = answersSentence(exam.questions, exam.events);
+  // With the large figure the share is said by it; otherwise («Разметки по лекциям ещё нет.») by the sentence.
+  const sentence = (figure ? [answers] : [shareSentence(exam.questions, exam.layout), answers]).filter(Boolean).join(' ');
   const note = recentNote(exam.questions, exam.events);
   const meta = examMeta({ examDate: exam.examDate, layout: exam.layout, total });
+  const heading = examHeadingParts({ title: exam.title, kind: exam.kind, daysLeft: exam.daysLeft });
+  const soon = exam.daysLeft !== null && exam.daysLeft <= 3;
   const drawWord = exam.layout.mode !== 'fixed' && exam.layout.per_ticket === 1 ? 'Тянуть вопрос' : 'Тянуть билет';
+  const ready = Boolean(figure) || mapped || Boolean(sentence) || Boolean(note);
   return (
-    <article className="td-exam" aria-labelledby="td-exam-h">
-      <h2 className="sf-h2" id="td-exam-h">
-        {glue(examHeading({ title: exam.title, kind: exam.kind, daysLeft: exam.daysLeft }))}
+    <article className="td-card td-main td-exam td-rise" data-d="2" aria-labelledby="td-exam-h">
+      {heading.when ? (
+        // The flag repeats the end of the heading, which screen readers already read in it.
+        <span className="td-flag" data-tone={soon ? 'y' : 'g'} aria-hidden="true">
+          {examFlag(heading.when)}
+        </span>
+      ) : null}
+      <h2 className="td-h2" id="td-exam-h">
+        {glue(heading.subject)}
+        {/* The space stays outside the hidden part, so the name reads «… — экзамен через 12 дней». */}
+        {heading.when ? ' ' : null}
+        {heading.when ? <span className="sr-only">{glue(`— ${heading.when}`)}</span> : null}
       </h2>
       {meta ? <p className="td-meta">{glue(meta)}</p> : null}
       {total === 0 ? <p className="td-body">Вопросов в списке пока нет.</p> : null}
       {gap ? (
         <div className="td-gap">
-          <Link className="sf-link td-gap-link" to={`/exams/${exam.id}?filter=cov:none`}>
+          <Link className="td-gap-link" to={`/exams/${exam.id}?filter=cov:none`}>
+            <span className="td-gap-dot" aria-hidden="true" />
             {glue(gap.link)}
+            <ArrowIcon className="td-arrow" />
           </Link>
           <p className="td-gap-note">{glue(gap.note)}</p>
         </div>
       ) : null}
-      {mapped ? (
-        <>
-          <Ribbon examId={exam.id} questions={exam.questions} perRow={phone ? 10 : 20} phone={phone} />
-          <Tally tally={tally} examId={exam.id} />
-        </>
+      {ready ? (
+        <div className="td-ready">
+          {figure ? (
+            <p className="td-share">
+              <span className="td-share-fig">{figure.figure}</span> <span className="td-share-cap">{glue(figure.caption)}</span>
+            </p>
+          ) : null}
+          {mapped ? (
+            <>
+              <Ribbon examId={exam.id} questions={exam.questions} perRow={phone ? 10 : 20} phone={phone} />
+              <Tally tally={tally} examId={exam.id} />
+            </>
+          ) : null}
+          {sentence || note ? (
+            <div className="td-answers">
+              {sentence ? <p className="td-body">{glue(sentence)}</p> : null}
+              {note ? <p className="td-note">{glue(note)}</p> : null}
+            </div>
+          ) : null}
+        </div>
       ) : null}
-      {sentence ? <p className="td-body">{glue(sentence)}</p> : null}
-      {note ? <p className="td-note">{glue(note)}</p> : null}
       <div className="td-actions">
         {total > 0 ? (
           <Link className="sf-primary" to={`/exams/${exam.id}/draw`}>
             {drawWord}
           </Link>
         ) : null}
-        <Link className="sf-link" to={`/exams/${exam.id}`}>
+        <Link className="sf-secondary td-pill" to={`/exams/${exam.id}`}>
           Лист экзамена
+          <PillDot />
         </Link>
       </div>
     </article>
   );
 }
 
-/** Without an exam to lead with: today's cards first, the question list one step away. */
-function NoExam({ data, onRetry }: { data: DashboardData; onRetry: () => void }) {
+/**
+ * Without an exam to lead with: today's cards first (the count, their lectures and the stack with the
+ * first due question in one card), the question list one step away.
+ */
+function NoExam({
+  data,
+  onRetry,
+  firstQuestion,
+  lecturesText,
+}: {
+  data: DashboardData;
+  onRetry: () => void;
+  firstQuestion: string;
+  lecturesText: string;
+}) {
   const { dueCount, hasExams, examFailed } = data;
   const examsLink = examFailed ? (
     <p className="td-meta td-retry">
@@ -909,32 +1052,44 @@ function NoExam({ data, onRetry }: { data: DashboardData; onRetry: () => void })
       </button>
     </p>
   ) : hasExams ? (
-    <Link className="sf-link" to="/exams">
+    <Link className="sf-secondary td-pill" to="/exams">
       Экзамены
+      <PillDot />
     </Link>
   ) : (
-    <Link className="sf-link" to="/exams/new">
+    <Link className="sf-secondary td-pill" to="/exams/new">
       Вставить список вопросов к экзамену
+      <PillDot />
     </Link>
   );
   if (dueCount > 0) {
     const lead = dueLead(dueCount);
     return (
-      <article className="td-exam" aria-label="На сегодня">
-        <p className="td-big">
-          {glue(lead.count)} <span className="td-big-time">{lead.time}</span>
-        </p>
-        <div className="td-actions">
-          <Link className="sf-primary" to="/review">
-            Начать повторение
-          </Link>
-          {examsLink}
+      <article className="td-card td-main td-lead td-rise" data-d="2" data-split={firstQuestion ? '' : undefined} aria-label="На сегодня">
+        <div className="td-lead-body">
+          <span className="td-flag" data-tone="b" aria-hidden="true">
+            На сегодня
+          </span>
+          <p className="td-big">
+            {glue(lead.count)} <span className="td-big-time">{lead.time}</span>
+          </p>
+          {lecturesText ? <p className="td-meta td-due-from">{glue(lecturesText)}</p> : null}
+          <div className="td-actions">
+            <Link className="sf-primary" to="/review">
+              Начать повторение
+            </Link>
+            {examsLink}
+          </div>
         </div>
+        {firstQuestion ? <CardStack question={firstQuestion} /> : null}
       </article>
     );
   }
   return (
-    <article className="td-exam" aria-label="На сегодня">
+    <article className="td-card td-main td-lead td-rise" data-d="2" aria-label="На сегодня">
+      <span className="td-flag" data-tone="b" aria-hidden="true">
+        На сегодня
+      </span>
       <p className="td-big">Карточек к повторению на сегодня нет.</p>
       {!hasExams && !examFailed ? (
         <>
@@ -954,6 +1109,26 @@ function NoExam({ data, onRetry }: { data: DashboardData; onRetry: () => void })
   );
 }
 
+/** Two weeks of reviews: a task card beside the main one. */
+function Activity({ days, streak }: { days: Array<{ key: string; value: number }>; streak: number }) {
+  const any = days.some((day) => day.value > 0);
+  return (
+    <section className="td-card td-activity td-rise" data-d="4" aria-labelledby="td-activity-h">
+      <h2 className="td-h3" id="td-activity-h">
+        Повторения за две недели
+      </h2>
+      {any ? (
+        <>
+          <p className="td-meta">{glue(activityLine(streak, days[days.length - 1].value))}</p>
+          <DayBars days={days} />
+        </>
+      ) : (
+        <p className="td-meta">За две недели повторений не было.</p>
+      )}
+    </section>
+  );
+}
+
 function Lectures({
   data,
   syncing,
@@ -967,40 +1142,49 @@ function Lectures({
 }) {
   const count = data.lectures.length;
   return (
-    <section className="td-lectures" aria-labelledby="td-lectures-h">
+    <section className="td-sec td-lectures td-rise" data-d="5" aria-labelledby="td-lectures-h">
       <div className="td-sec-head">
-        <h2 className="td-h3" id="td-lectures-h">
+        <h2 className="td-h2 td-sec-h" id="td-lectures-h">
           Лекции
         </h2>
         {count > 0 ? (
-          <Link className="sf-link" data-muted="" to="/library">
+          <Link className="td-more" to="/library">
             {count > RECENT_LECTURES ? `Все ${count}` : 'Библиотека'}
+            <ArrowIcon className="td-arrow" />
           </Link>
         ) : null}
       </div>
       {count === 0 ? (
-        <p className="td-meta">
-          Лекций пока нет.{' '}
-          <Link className="sf-link td-inline-link" to="/analyze">
-            Добавить лекцию
+        <div className="td-lecs-empty">
+          <p className="td-meta">Лекций пока нет.</p>
+          <Link className="td-add" to="/analyze">
+            <span className="td-add-plus" aria-hidden="true">
+              +
+            </span>
+            <span className="td-add-t">Добавить лекцию</span>
+            <span className="td-add-f">PDF, DOCX, TXT, MD или аудио</span>
           </Link>
-        </p>
+        </div>
       ) : (
-        <ol className="td-rows">
-          {data.recent.map((material) => {
+        <ol className="td-lecs">
+          {data.recent.map((material, index) => {
             const meta = lectureMeta(material);
             const missing = cardsMissingFromReview(material, data.materialsWithCards);
+            const date = shortDate(material.created_at);
             return (
-              <li key={material.id}>
-                <Link className="td-row" to={`/library/${material.id}`}>
-                  <span className="td-row-title">{displayMaterialTitle(material.title)}</span>
-                  {meta ? <span className="td-row-meta">{glue(meta)}</span> : null}
-                  <span className="td-row-date">{shortDate(material.created_at)}</span>
+              <li key={material.id} className="td-lec" data-tone={index % 4}>
+                <Link className="td-lec-link" to={`/library/${material.id}`}>
+                  <span className="td-thumb" aria-hidden="true">
+                    <span className="td-thumb-page" />
+                  </span>
+                  <span className="td-lec-title">{displayMaterialTitle(material.title)}</span>
+                  {meta ? <span className="td-lec-meta">{glue(meta)}</span> : null}
+                  {date ? <span className="td-lec-date">{date}</span> : null}
                 </Link>
                 {missing ? (
-                  <p className="td-row-note">
+                  <p className="td-lec-note">
                     Карточки этой лекции не добавлены в повторение.{' '}
-                    <button type="button" className="sf-link" disabled={syncing !== null} onClick={() => onAdd(material)}>
+                    <button type="button" className="td-chip" disabled={syncing !== null} onClick={() => onAdd(material)}>
                       {syncing === material.id ? 'Добавляем…' : 'Добавить'}
                     </button>
                     {syncError === material.id ? <span role="alert"> Не получилось, попробуйте ещё раз.</span> : null}
@@ -1012,5 +1196,22 @@ function Lectures({
         </ol>
       )}
     </section>
+  );
+}
+
+/** The new account's picture: a question list on a blue panel, its rows with status dots (no words, no numbers). */
+function EmptyArt() {
+  return (
+    <div className="td-panel td-empty-art" aria-hidden="true">
+      <div className="td-empty-win">
+        {(['g', 'g', 'y', 'g', 'n', 'g'] as const).map((tone, index) => (
+          <span key={index} className="td-empty-row">
+            <i className="td-empty-n" />
+            <i className="td-empty-line" style={{ width: `${[62, 48, 70, 44, 58, 52][index]}%` }} />
+            <i className="td-empty-st" data-tone={tone} />
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

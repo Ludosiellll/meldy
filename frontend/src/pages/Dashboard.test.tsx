@@ -9,7 +9,9 @@ import Dashboard, {
   answersSentence,
   cardsMissingFromReview,
   dueLecturesText,
+  examFlag,
   examHeading,
+  examHeadingParts,
   examMeta,
   examWhen,
   greeting,
@@ -17,6 +19,7 @@ import Dashboard, {
   pickExam,
   recentNote,
   reviewTime,
+  shareFigure,
   shareSentence,
   todayLine,
   withoutMaterialLine,
@@ -257,16 +260,26 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(examHeading({ title: 'Экзамен по микроэкономике', kind: 'exam', daysLeft: 0 })).toBe('Экзамен по микроэкономике — сегодня');
     // Without a date: the sheet's own header.
     expect(examHeading({ title: 'Экзамен: цифровая экономика', kind: 'exam', daysLeft: null })).toBe('Цифровая экономика: вопросы к экзамену');
+    // The card sets the subject large and shows the rest on its flag.
+    expect(examHeadingParts({ title: 'Экзамен: цифровая экономика', kind: 'exam', daysLeft: 12 })).toEqual({ subject: 'Цифровая экономика', when: 'экзамен через 12 дней' });
+    expect(examHeadingParts({ title: 'Экзамен по микроэкономике', kind: 'exam', daysLeft: 0 })).toEqual({ subject: 'Экзамен по микроэкономике', when: 'сегодня' });
+    expect(examHeadingParts({ title: 'Экзамен: цифровая экономика', kind: 'exam', daysLeft: null })).toEqual({ subject: 'Цифровая экономика: вопросы к экзамену', when: null });
+    expect(examFlag('экзамен через 12 дней')).toBe('Экзамен через 12 дней');
+    expect(examFlag('сегодня')).toBe('Сегодня');
     expect(examMeta({ examDate: '2026-10-15', layout: { mode: 'random', per_ticket: 2 }, total: 40 })).toBe('15 октября · 40 вопросов, в билете два');
     expect(examMeta({ examDate: null, layout: { mode: 'sections', per_ticket: 2 }, total: 40 })).toBe('40 вопросов, в билете по вопросу из каждого раздела');
   });
 
-  it('leads with the seeded exam: heading, meta, «9 вопросов без материала» first, ribbon, legend, sentence, note, actions', async () => {
+  it('leads with the seeded exam: flag, heading, meta, «9 вопросов без материала» first, share, ribbon, legend, answers, note, actions', async () => {
     exam();
     renderDashboard();
     const heading = await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
     expect(heading.textContent).not.toMatch(/Экзамен:|\.$/);
     const block = heading.closest('article')!;
+    // The flag shows the end of the heading; screen readers read it in the heading.
+    const flag = within(block).getByText('Экзамен через 12 дней');
+    expect(flag).toHaveAttribute('aria-hidden', 'true');
+    expect(flag.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(block).getByText(byText('15 октября · 40 вопросов, в билете два'))).toBeInTheDocument();
 
     const gap = within(block).getByRole('link', { name: named('9 вопросов без материала') });
@@ -275,9 +288,8 @@ describe('«Сегодня»: the exam on the desk', () => {
 
     const ribbon = within(block).getByRole('img', { name: /Пометки у 40 вопросов списка/ });
     const legend = within(block).getByText(byText('24 есть в лекциях, 7 частично, 9 нет ни в одной'));
-    const sentence = within(block).getByText(
-      byText('Билетов, где оба вопроса есть в ваших лекциях, — 35 %. Подтверждено ответами — 2 вопроса из 40.'),
-    );
+    const share = within(block).getByText(byText('35 % билетов, где оба вопроса есть в ваших лекциях'));
+    const answers = within(block).getByText(byText('Подтверждено ответами — 2 вопроса из 40.'));
     const note = within(block).getByText(byText('Вчера: вопрос 7 — «хорошо». Вопрос 23 подтверждён.'));
     const draw = within(block).getByRole('link', { name: named('Тянуть билет') });
     const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
@@ -285,8 +297,8 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(draw).toHaveClass('sf-primary');
     expect(sheet).toHaveAttribute('href', '/exams/e-1');
 
-    // Reading order: the gap first, then the ribbon, the legend, the sentence, the note and the actions.
-    const order = [gap, ribbon, legend, sentence, note, draw, sheet];
+    // Reading order: the gap first, then the share, the ribbon, the legend, the answers, the note and the actions.
+    const order = [gap, share, ribbon, legend, answers, note, draw, sheet];
     for (let i = 1; i < order.length; i += 1) {
       expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
@@ -331,7 +343,8 @@ describe('«Сегодня»: the exam on the desk', () => {
   it('counts the share of tickets for the exam’s own layout: one per section is 36 % on the seeded list', async () => {
     exam({ ticket_layout: { mode: 'sections', per_ticket: 2, section_titles: ['Нейронные сети', 'Денежный рынок'] } });
     renderDashboard();
-    expect(await screen.findByText(byText('Билетов, где оба вопроса есть в ваших лекциях, — 36 %. Подтверждено ответами — 2 вопроса из 40.'))).toBeInTheDocument();
+    expect(await screen.findByText(byText('36 % билетов, где оба вопроса есть в ваших лекциях'))).toBeInTheDocument();
+    expect(screen.getByText(byText('Подтверждено ответами — 2 вопроса из 40.'))).toBeInTheDocument();
     expect(screen.getByText(byText('15 октября · 40 вопросов, в билете по вопросу из каждого раздела'))).toBeInTheDocument();
   });
 
@@ -343,7 +356,8 @@ describe('«Сегодня»: the exam on the desk', () => {
     db.fetchQuestionEvents.mockResolvedValue([]);
     exam();
     renderDashboard();
-    expect(await screen.findByText(byText('Билетов, где оба вопроса есть в ваших лекциях, — 35–45 %. Ответов по билетам ещё не было.'))).toBeInTheDocument();
+    expect(await screen.findByText(byText('35–45 % билетов, где оба вопроса есть в ваших лекциях'))).toBeInTheDocument();
+    expect(screen.getByText(byText('Ответов по билетам ещё не было.'))).toBeInTheDocument();
     expect(screen.queryByText(/вслух/)).not.toBeInTheDocument();
   });
 
@@ -394,7 +408,8 @@ describe('«Сегодня»: the exam on the desk', () => {
     exam({ ticket_layout: { mode: 'random', per_ticket: 1 } });
     renderDashboard();
     expect(await screen.findByRole('link', { name: named('Тянуть вопрос') })).toHaveAttribute('href', '/exams/e-1/draw');
-    expect(screen.getByText(byText('Вопросов, которые есть в ваших лекциях, — 60 %. Подтверждено ответами — 2 вопроса из 40.'))).toBeInTheDocument();
+    expect(screen.getByText(byText('60 % вопросов есть в ваших лекциях'))).toBeInTheDocument();
+    expect(screen.getByText(byText('Подтверждено ответами — 2 вопроса из 40.'))).toBeInTheDocument();
   });
 });
 
@@ -427,6 +442,30 @@ describe('«Сегодня»: the sentences, unit by unit', () => {
     );
     expect(shareSentence([q(1, 'unmapped'), q(2, 'unmapped')], { mode: 'random', per_ticket: 2 })).toBe('Разметки по лекциям ещё нет.');
     expect(shareSentence([], { mode: 'random', per_ticket: 2 })).toBe('');
+  });
+
+  it('sets the same share as the large figure with its caption, and none before the first mapping', () => {
+    const list = [q(1, 'full', 1), q(2, 'full', 1), q(3, 'none', 2), q(4, 'full', 2)];
+    const nb = (text: string | undefined) => (text ?? '').replace(/\u00a0/g, ' ');
+    const random = shareFigure(list, { mode: 'random', per_ticket: 2 });
+    expect(nb(random?.figure)).toBe('50 %');
+    expect(random?.caption).toBe('билетов, где оба вопроса есть в ваших лекциях');
+    expect(
+      shareFigure(list, {
+        mode: 'fixed',
+        per_ticket: 2,
+        tickets: [
+          { number: 1, question_ids: ['q1', 'q4'] },
+          { number: 2, question_ids: ['q2', 'q3'] },
+        ],
+      }),
+    ).toEqual({ figure: '1 из 2', caption: 'билетов кафедры, где оба вопроса есть в ваших лекциях' });
+    const single = shareFigure(list, { mode: 'random', per_ticket: 1 });
+    expect(nb(single?.figure)).toBe('75 %');
+    expect(single?.caption).toBe('вопросов есть в ваших лекциях');
+    expect(nb(shareFigure([q(1, 'full'), q(2, 'unverified'), q(3, 'none')], { mode: 'random', per_ticket: 2 })?.figure)).toBe('0–33 %');
+    expect(shareFigure([q(1, 'unmapped'), q(2, 'unmapped')], { mode: 'random', per_ticket: 2 })).toBeNull();
+    expect(shareFigure([], { mode: 'random', per_ticket: 2 })).toBeNull();
   });
 
   it('counts confirmed questions over all answers, says plainly when there were none or the history did not load', () => {
