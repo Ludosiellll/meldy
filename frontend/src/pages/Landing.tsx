@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import '@fontsource-variable/literata/opsz.css';
@@ -11,7 +11,11 @@ import TicketAnswer from '../components/landing/TicketAnswer';
 import { ty } from '../components/landing/typo';
 import '../components/landing/LandingSections.css';
 
+const MeldyReel = lazy(() => import('../components/reel/MeldyReel'));
+
 const COPY = {
+  reelHeading: ty('Meldy за 35 секунд'),
+  reelLead: ty('От списка вопросов до ответа вслух. Ролик без звука — главы можно листать.'),
   tryHeading: ty('Из каждой лекции — ещё и это'),
   tryLead: ty('Та же лекция: конспект со ссылками на источник и вопрос теста.'),
   method: [
@@ -25,6 +29,7 @@ const COPY = {
 
 /** The navbar's anchors, in the order of the sections on the page. */
 const NAV_LINKS = [
+  { href: '#reel', label: 'Ролик' },
   { href: '#ticket', label: 'Ответ на билет' },
   { href: '#try', label: 'Пример' },
   { href: '#method', label: 'Подход' },
@@ -43,6 +48,7 @@ export default function Landing() {
       <Navbar />
       <main>
         <LandingHero />
+        <ReelSection />
         <TicketSection />
         <TryItSection />
         <MethodSection />
@@ -78,7 +84,25 @@ function Navbar() {
   );
 }
 
-/** «Ответ на билет»: right after the hero, the answer the session ends with. */
+/** «Meldy за 35 секунд»: the motion reel right under the hero (loaded after the first screen). */
+function ReelSection() {
+  const navigate = useNavigate();
+  return (
+    <section id="reel" className="lp-section lp-reel" aria-labelledby="reel-heading">
+      <div className="lp-wrap">
+        <div className="lp-reel-head">
+          <h2 id="reel-heading" className="lp-h2">{COPY.reelHeading}</h2>
+          <p className="lp-lead">{COPY.reelLead}</p>
+        </div>
+        <Suspense fallback={<div className="lp-reel-wait" aria-hidden="true" />}>
+          <MeldyReel onCta={() => navigate('/register')} />
+        </Suspense>
+      </div>
+    </section>
+  );
+}
+
+/** «Ответ на билет»: after the reel, the answer the session ends with. */
 function TicketSection() {
   return (
     <section id="ticket" className="lp-section lp-ticket" aria-labelledby="ticket-heading">

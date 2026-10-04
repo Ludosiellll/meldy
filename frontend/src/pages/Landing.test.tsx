@@ -154,30 +154,31 @@ describe('Landing page', () => {
     expect(screen.getByRole('button', { name: 'Войти' })).not.toHaveClass('hidden');
   });
 
-  it('names the navbar «Ответ на билет · Пример · Подход», and every anchor it points to exists', () => {
+  it('names the navbar «Ролик · Ответ на билет · Пример · Подход», and every anchor it points to exists', () => {
     const { container } = renderLanding();
     const nav = screen.getByRole('navigation', { name: 'Главное меню' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map(a => a.textContent)).toEqual(['Ответ на билет', 'Пример', 'Подход']);
+    expect(links.map(a => a.textContent)).toEqual(['Ролик', 'Ответ на билет', 'Пример', 'Подход']);
     const hrefs = links.map(a => a.getAttribute('href'));
-    expect(hrefs).toEqual(['#ticket', '#try', '#method']);
+    expect(hrefs).toEqual(['#reel', '#ticket', '#try', '#method']);
     for (const href of hrefs) expect(container.querySelector(href!)).not.toBeNull();
     expect(container.querySelector('#possibilities')).toBeNull();
   });
 
-  it('orders the sections: hero, «Ответ на билет», «Из каждой лекции — ещё и это», «Подход», the final call', () => {
+  it('orders the sections: hero, the reel, «Ответ на билет», «Из каждой лекции — ещё и это», «Подход», the final call', () => {
     const { container } = renderLanding();
     expect(sectionNames(container)).toEqual([
       HEADLINE,
+      'Meldy за 35 секунд',
       'Ответ на билет',
       'Из каждой лекции — ещё и это',
       'Вспоминать полезнее, чем перечитывать',
       'Начните со списка вопросов',
     ]);
-    expect(Array.from(container.querySelectorAll('main > section')).map(s => s.id)).toEqual(['', 'ticket', 'try', 'method', '']);
+    expect(Array.from(container.querySelectorAll('main > section')).map(s => s.id)).toEqual(['', 'reel', 'ticket', 'try', 'method', '']);
   });
 
-  it('answers a ticket on the landing’s lecture right after the hero', () => {
+  it('answers a ticket on the landing’s lecture right after the reel', () => {
     const { container } = renderLanding();
     const ticket = section(container, 'Ответ на билет');
     expect(ticket.id).toBe('ticket');

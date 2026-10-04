@@ -110,6 +110,22 @@
   border-top: 1px solid var(--sf-line);
   color: var(--sf-ink);
 }
+.lp-reel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+  margin-bottom: 40px;
+}
+.lp-reel-head .lp-h2 { margin: 0; }
+.lp-reel-head .lp-lead { margin: 0; max-width: 520px; }
+.lp-reel-wait {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: clamp(20px, 3.2vw, 44px);
+  background: #05080e;
+}
 .lp-wrap {
   max-width: calc(1304px + 2 * var(--lp-g));
   margin: 0 auto;
@@ -138,7 +154,8 @@
 /* Anchors land under the fixed navbar, on the section's hairline. */
 #ticket,
 #try,
-#method { scroll-margin-top: 72px; }
+#method,
+#reel { scroll-margin-top: 72px; }
 
 /* «Из каждой лекции — ещё и это»: the heading across the section, its lead beside the summary and
    the quiz; the conversation and the map follow below (LectureDesk.css). */
