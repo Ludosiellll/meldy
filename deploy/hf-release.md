@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — blocks centred everywhere, the start page always fresh (from 790bc66)
+
+Adds to 3059a5c (tree of 4bdfffa). Two answers to the owner:
+
+- «нет ли таких проблем с другими разделами?» — the same left-hugging column (1040 px inside the 1304 px page
+  column) was on the library, the exams list (a single exam took half a row), the profile, the pricing plans, the
+  knowledge map as a list, and the empty states of «Кратко», «Разговор» and «Экзамены». Blocks now span the page
+  column like the top bar; a single or odd last exam takes the whole row; the study deck is centred.
+- «почему не обновился основной экран?» — the service worker answered «/» from its precached copy of index.html
+  (the precache route was registered first), so the start page showed the release the browser had cached while inner
+  pages were new. Pages now come from the network first; offline shows «Нет подключения». Browsers that still run
+  the old worker get the new one on their next visit; one more reload (or Ctrl+F5) shows the new start page.
+
+No migration, no backend change.
+
+Verified before release: Vitest 1492/1492, production build; width audit of 24 states at 1532/1920 px; sweep of the
+changed screens at 1440/1024/390 in both themes (no overflow, no console errors, contrast ≥ 4.5:1); two releases on
+one origin in Chromium — «/» shows the new one on the first visit, offline shows «Нет подключения».
+
 ## 2026-10-04 — «Прогресс»: blocks centred (from 1f3a4d8)
 
 Adds to c1ba79e (tree of 0bee6cf). The owner, on the live page: the blocks hugged the left with an empty strip on the
