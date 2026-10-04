@@ -1,0 +1,268 @@
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import ExamSheet, { type SheetRowView } from '../exams/ExamSheet';
+import { Mark } from '../marks';
+import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../exams/marks';
+import {
+  caveatSentence,
+  coverageCounts,
+  coverageShares,
+  footnoteOf,
+  glue,
+  layoutPhrase,
+  lecturesPhrase,
+  matchesFilter,
+  NBSP,
+  noneFigureName,
+  noneLabel,
+  questionShareText,
+  type SheetFilter,
+} from '../exams/sheetModel';
+import { useFrame } from '../exams/useFrame';
+import { pluralRu } from '../conversation/visuals';
+import { KIND_LABELS } from '../../lib/exams/format';
+import { splitFragmentHeading } from '../../utils/fragmentText';
+import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, answerableQuestions, exampleExamQuestion } from '../../data/example';
+import ExampleWhy from './ExampleWhy';
+import TryBar from './TryBar';
+
+/** The honest note of the example (the owner's brief, word for word). */
+export const EXAMPLE_NOTE = 'Пример: три лекции и список вопросов уже сверены. В своём экзамене это сделает Meldy по вашим лекциям.';
+
+const WHY_ID = 'tx-why';
+
+/** The sheet's legend as filters, with the rows' own pencil marks (ExamDetail). */
+const FILTERS: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string }> = [
+  { value: 'cov:full', coverage: 'full', word: 'есть в лекциях' },
+  { value: 'cov:partial', coverage: 'partial', word: 'частично' },
+  { value: 'cov:none', coverage: 'none', word: 'нет ни в одной' },
+];
+
+/**
+ * The example's sheet (/try): the same exam sheet as a real exam (components/exams/ExamSheet) with the
+ * twelve questions of the example already checked against its lectures, the numbers of Meldy's column
+ * computed from those marks by the sheet's own rules, «почему» with the lecture quote behind every
+ * mark, the lectures themselves to read, and «Тянуть билет».
+ */
+export default function ExampleSheet() {
+  const navigate = useNavigate();
+  const frame = useFrame<HTMLDivElement>();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<SheetFilter>('all');
+
+  const examQuestions = useMemo(() => EXAMPLE_QUESTIONS.map(exampleExamQuestion), []);
+  const allRows: SheetRowView[] = useMemo(
+    () =>
+      examQuestions.map((question) => ({
+        question,
+        number: String(question.position),
+        coverage: question.coverage ?? 'unmapped',
+        readiness: 'untested',
+        selfRating: null,
+        footnote: footnoteOf(question),
+        appearance: null,
+      })),
+    [examQuestions],
+  );
+  const rows = allRows.filter((row) => matchesFilter(filter, { coverage: row.coverage, readiness: row.readiness, selfRating: null }));
+  const counts = coverageCounts(allRows);
+  const shares = useMemo(
+    () => coverageShares(examQuestions.map((question) => ({ id: question.id, section: null, coverage: question.coverage ?? 'unmapped' })), EXAMPLE_EXAM.layout),
+    [examQuestions],
+  );
+  const selected = EXAMPLE_QUESTIONS.find((question) => question.id === selectedId) ?? null;
+  const closeWhy = useCallback(() => setSelectedId(null), []);
+  const draw = () => navigate('/try/draw');
+  const answer = (questionId: string) => navigate(`/try/ticket?q=${encodeURIComponent(questionId)}`);
+  const toggle = (value: SheetFilter) => setFilter((current) => (current === value ? 'all' : value));
+
+  const meta = [KIND_LABELS[EXAMPLE_EXAM.kind], layoutPhrase(counts.total, EXAMPLE_EXAM.layout), lecturesPhrase(EXAMPLE_LECTURES.length)].join(' · ');
+  const answerable = answerableQuestions().length;
+
+  const summary = (
+    <>
+      <div className="ex-summary">
+        <div className="ex-pairs" data-compact={frame.side ? undefined : ''} data-count={counts.none > 0 ? 2 : 1}>
+          {counts.none > 0 ? (
+            <div className="ex-pair ex-gap">
+              <button
+                type="button"
+                className="ex-big ex-gap-n"
+                aria-pressed={filter === 'cov:none'}
+                aria-label={noneFigureName(counts.none)}
+                onClick={() => toggle('cov:none')}
+              >
+                {counts.none}
+              </button>
+              <p className="ex-lbl" aria-hidden="true">
+                {noneLabel(counts.none)}
+              </p>
+            </div>
+          ) : null}
+          <div className="ex-pair ex-share">
+            <p className="ex-big ex-figs">
+              <span className="ex-figs-now">{questionShareText(counts)}</span>
+            </p>
+            <p className="ex-lbl">вопросов есть в лекциях</p>
+            <p className="ex-sub">{glue(`${counts.full} из ${counts.total} · частично — ${counts.partial}`)}</p>
+          </div>
+        </div>
+        <p className="ex-fine">Билет — один вопрос, поэтому доля билетов та же.</p>
+        <p className="ex-caveat">{glue(caveatSentence(shares, counts.total))}</p>
+      </div>
+      <div className="ex-blk">
+        <p className="ex-stmt">Ответы в примере нигде не сохраняются.</p>
+        <p className="ex-fine">
+          {glue(`В своём экзамене вопрос подтверждается, когда ответ на него засчитан дважды, в разные дни. Тянуть билет можно из ${answerable} ${pluralRu(answerable, ['вопроса', 'вопросов', 'вопросов'])} примера, которые есть в лекциях.`)}
+        </p>
+      </div>
+    </>
+  );
+
+  const whyPanel = (variant: 'column' | 'sheet') =>
+    selected ? (
+      <ExampleWhy
+        key={selected.id}
+        question={selected}
+        variant={variant}
+        frameBox={frame.box}
+        headingId={`${WHY_ID}-title`}
+        onClose={closeWhy}
+        onAnswer={answer}
+      />
+    ) : null;
+
+  // While «почему» offers «Ответить на этот вопрос» beside the sheet, that is the one filled pill and
+  // «Тянуть билет» steps down to the white one (the real sheet's rule, ExamDetail).
+  const whyAnswers = frame.side && selected !== null && selected.coverage !== 'none';
+  const drawButton = (
+    <button type="button" className={whyAnswers ? 'ex-secondary' : 'sf-primary'} onClick={draw}>
+      Тянуть билет
+    </button>
+  );
+
+  return (
+    <>
+      <TryBar />
+      <div className="sf-page tx-page" ref={frame.ref} data-frame={frame.size}>
+        <header className="ex-head">
+          <div style={{ minWidth: 0 }}>
+            <p className="tx-flag">Пример экзамена</p>
+            <h1 className="ex-h1">{EXAMPLE_EXAM.title}</h1>
+            <p className="ex-meta">{glue(meta)}</p>
+          </div>
+          {frame.side ? <div className="ex-draw">{drawButton}</div> : null}
+        </header>
+
+        <div className="ex-notes">
+          <p className="ex-note tx-note">{EXAMPLE_NOTE}</p>
+        </div>
+
+        {!frame.side ? (
+          <section className="ex-col" aria-label="Сводка">
+            {summary}
+          </section>
+        ) : null}
+
+        <div className="ex-body">
+          <div style={{ minWidth: 0 }}>
+            <ul className="ex-filter" aria-label="Показать вопросы">
+              <li>
+                <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+                  <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
+                </button>
+              </li>
+              {FILTERS.map((item) => {
+                const kind = COVERAGE_MARK[item.coverage];
+                const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
+                const active = filter === item.value;
+                return (
+                  <li key={item.value}>
+                    <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => toggle(item.value)}>
+                      {kind && size ? (
+                        <span className="ex-filter-mark" aria-hidden="true">
+                          <Mark
+                            kind={kind}
+                            seed={301 + item.value.length}
+                            width={Math.round(size.width * PILL_MARK_SCALE)}
+                            height={Math.round(size.height * PILL_MARK_SCALE)}
+                            weight={size.weight}
+                          />
+                        </span>
+                      ) : null}
+                      <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{counts[item.coverage as 'full' | 'partial' | 'none']}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="tx-sheet-hint">Нажмите на вопрос, чтобы увидеть, где в лекциях ответ на него.</p>
+            <ExamSheet
+              examId={EXAMPLE_EXAM.id}
+              title={EXAMPLE_EXAM.sheetTitle}
+              rows={rows}
+              sectionTitles={[]}
+              selectedId={selectedId}
+              rateMode={false}
+              frame={frame.size}
+              whyId={WHY_ID}
+              onOpen={(id) => setSelectedId((current) => (current === id ? null : id))}
+              onRate={() => undefined}
+              onRateDone={() => undefined}
+              ratingPending={new Set()}
+              ratingErrors={{}}
+              peak={null}
+              dim={false}
+              emptyText={rows.length === 0 ? 'В этом фильтре вопросов нет.' : null}
+            />
+          </div>
+          {frame.side ? (
+            <aside className="ex-col" aria-label="Что это значит для билетов" id={selected ? WHY_ID : undefined}>
+              {selected ? whyPanel('column') : summary}
+            </aside>
+          ) : null}
+        </div>
+
+        {!frame.side && selected ? <div id={WHY_ID}>{whyPanel('sheet')}</div> : null}
+
+        <ExampleLectures />
+
+        {!frame.side ? <div className="ex-cta">{drawButton}</div> : null}
+      </div>
+    </>
+  );
+}
+
+/** The three lectures as they were «uploaded»: every quote of the sheet can be found in them. */
+function ExampleLectures() {
+  return (
+    <section className="tx-lectures" aria-labelledby="tx-lectures-h">
+      <h2 id="tx-lectures-h" className="tx-h2">
+        Лекции примера
+      </h2>
+      <p className="tx-sub">Цитаты на листе и пункты ответа взяты из этих текстов слово в слово.</p>
+      <div className="tx-lecture-list">
+        {EXAMPLE_LECTURES.map((lecture) => (
+          <details key={lecture.key} className="tx-lecture">
+            <summary>
+              <span className="tx-lecture-t">{lecture.title}</span>
+              <span className="tx-lecture-m">{`${lecture.fragments.length}${NBSP}${pluralRu(lecture.fragments.length, ['фрагмент', 'фрагмента', 'фрагментов'])}`}</span>
+            </summary>
+            <ol className="tx-frags">
+              {lecture.fragments.map((fragment, index) => {
+                const parts = splitFragmentHeading(fragment.text);
+                return (
+                  <li key={fragment.id} className="tx-frag">
+                    <p className="tx-frag-cap">{`фрагмент${NBSP}${index + 1}`}</p>
+                    {parts.heading ? <p className="tx-frag-h">{parts.heading}</p> : null}
+                    <p className="tx-frag-t">{parts.body}</p>
+                  </li>
+                );
+              })}
+            </ol>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}

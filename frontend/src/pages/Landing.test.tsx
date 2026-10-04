@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import Landing, { HEADLINE, PRIMARY_LABEL } from './Landing';
+import Landing, { HEADLINE, PRIMARY_LABEL, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
 
 vi.mock('../hooks/useAuth', () => ({
@@ -40,6 +40,7 @@ function renderLanding() {
         <Route path="/" element={<Landing />} />
         <Route path="/register" element={<p>Страница регистрации</p>} />
         <Route path="/login" element={<p>Страница входа</p>} />
+        <Route path="/try" element={<p>Пример экзамена</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -153,6 +154,16 @@ describe('Landing page', () => {
     expect(last).toBeDefined();
     fireEvent.click(last);
     expect(screen.getByText('Страница регистрации')).toBeInTheDocument();
+  });
+
+  it('offers the example exam next to the main action, with no account needed', () => {
+    renderLanding();
+    const actions = document.querySelector('.hm-hero .hm-acts') as HTMLElement;
+    const buttons = within(actions).getAllByRole('button');
+    expect(buttons.map((button) => plain(button.textContent))).toEqual([PRIMARY_LABEL, TRY_LABEL]);
+    expect(buttons[1]).toHaveClass('hm-pill--white');
+    fireEvent.click(buttons[1]);
+    expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
   });
 
   it('signs in from the navbar on every width', () => {

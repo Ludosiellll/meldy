@@ -1,0 +1,197 @@
+/* «Попробовать на примере» (/try): only the example's own pieces — the page frame outside the app's
+   shell, its top line, the «Пример экзамена» flag, the hint over the sheet and the lecture texts.
+   The sheet, the draw and the ticket are the real ones (components/exams/exams.css,
+   components/oral/oral.css); the language is notes 10_Project/Design_Language_2026-10-04. */
+
+.tx-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+}
+
+/* ---------------------------------------------------------------- the top line */
+/* The room's translucent line (.sf-room-bar in paper.css): the wordmark, where you are, and the way
+   into an account — «Войти» a white pill, «Создать аккаунт» the blue one. */
+.sf-room-bar.tx-bar { gap: 12px; }
+.tx-bar .tx-bar-left { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.tx-bar .tx-logo {
+  display: inline-flex;
+  align-items: baseline;
+  flex: none;
+  padding: 8px 0;
+  font-family: var(--ph-sans);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.045em;
+  color: var(--sf-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tx-bar .tx-logo::after {
+  content: '';
+  display: inline-block;
+  width: .3em;
+  height: .3em;
+  margin-left: .08em;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.tx-bar .tx-where {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--sf-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The way back to the example's sheet: a white pill with an arrow (the exam sheet's crumb). */
+.tx-bar .tx-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px 0 12px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  transition: background-color .45s var(--m-ease);
+}
+.tx-bar .tx-back::before {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.tx-bar .tx-back:hover { background: var(--sf-tint); }
+.tx-bar .tx-bar-right { display: flex; flex: none; align-items: center; gap: 8px; }
+.tx-bar .tx-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--sf-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .45s var(--m-ease), box-shadow .45s var(--m-ease);
+}
+.tx-bar .tx-pill:hover { box-shadow: 0 0 0 1px var(--sf-ink); }
+.tx-bar .tx-pill[data-blue] { background: var(--sf-accent); box-shadow: none; color: #fff; }
+.tx-bar .tx-pill[data-blue]:hover { background: var(--sf-accent-hover); }
+.tx-bar .tx-logo:focus-visible,
+.tx-bar .tx-back:focus-visible,
+.tx-bar .tx-pill:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; border-radius: 999px; }
+/* Phones and tablets: the wordmark and the account; the way back is in the page itself. */
+@media (max-width: 1023px) {
+  .tx-bar .tx-where { display: none; }
+}
+@media (max-width: 639px) {
+  .sf-room-bar.tx-bar { gap: 8px; }
+  .tx-bar .tx-pill { padding: 0 14px; }
+}
+@media (max-width: 359px) {
+  .tx-bar .tx-pill:not([data-blue]) { display: none; }
+}
+
+/* ---------------------------------------------------------------- the example's sheet */
+/* «Пример экзамена»: a yellow flag with the notch on the right (design language 3) above the subject. */
+.sf-page .tx-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin: 0 0 16px;
+  padding: 0 26px 0 14px;
+  background: var(--m-yellow);
+  color: #0b121c;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 600;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%);
+}
+/* The example's note is a sentence, not a status: the dot stays by its first line instead of wrapping alone. */
+.sf-page .ex-note.tx-note { flex-wrap: nowrap; align-items: flex-start; }
+.sf-page .ex-note.tx-note::before { margin-top: 7px; }
+.sf-page .tx-sheet-hint { margin: -6px 2px 14px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .tx-quote { font-family: var(--ph-sans); }
+.sf-page .tx-why-fine { margin-top: 18px; font-size: 16px; line-height: 24px; }
+
+/* The lectures the sheet was checked against: three white cards that open into their fragments. */
+.sf-page .tx-lectures { max-width: 760px; margin-top: 64px; }
+.sf-page[data-frame='s'] .tx-lectures { margin-top: 44px; }
+.sf-page .tx-h2 { margin: 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.08; font-weight: 500; letter-spacing: -.03em; }
+.sf-page .tx-sub { margin: 10px 0 0; max-width: 36em; font-size: 17px; line-height: 25px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .tx-lecture-list { display: grid; gap: 14px; margin-top: 22px; }
+.sf-page .tx-lecture { border-radius: 32px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.sf-page .tx-lecture > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  min-height: 64px;
+  padding: 12px 18px 12px 26px;
+  border-radius: 32px;
+  cursor: pointer;
+  list-style: none;
+}
+.sf-page .tx-lecture > summary::-webkit-details-marker { display: none; }
+.sf-page .tx-lecture > summary::after {
+  content: '';
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--sf-surface-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b515b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / 18px no-repeat;
+  transition: transform .45s var(--m-ease);
+}
+.dark .sf-page .tx-lecture > summary::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a7adb7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+.sf-page .tx-lecture[open] > summary::after { transform: rotate(180deg); }
+.sf-page .tx-lecture > summary:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
+.sf-page .tx-lecture-t { flex: 1 1 auto; min-width: 0; font-size: 20px; line-height: 26px; font-weight: 500; letter-spacing: -.015em; }
+.sf-page .tx-lecture-m { flex: none; font-size: 15px; line-height: 20px; color: var(--sf-muted); white-space: nowrap; }
+.sf-page .tx-frags { display: grid; gap: 10px; margin: 0; padding: 4px 18px 22px; list-style: none; }
+.sf-page .tx-frag { padding: 14px 18px 16px; border-radius: 22px; background: var(--sf-surface-soft); }
+.sf-page .tx-frag-cap { margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--sf-muted); }
+.sf-page .tx-frag-h { margin: 4px 0 0; font-size: 17px; line-height: 24px; font-weight: 600; }
+.sf-page .tx-frag-t { margin: 4px 0 0; font-size: 16px; line-height: 25px; text-wrap: pretty; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .sf-page .tx-lecture > summary { padding-left: 20px; }
+  .sf-page .tx-lecture-t { font-size: 18px; line-height: 24px; }
+  .sf-page .tx-frags { padding: 2px 10px 14px; }
+  .sf-page .tx-frag { padding: 12px 14px 14px; }
+}
+
+/* ---------------------------------------------------------------- draw and answer */
+/* «Лист примера» in the page itself: on a computer the top line already has it. */
+@media (min-width: 1024px) {
+  .sf-page .tx-narrow-only { display: none; }
+}
+.sf-page .tx-draw-back { margin-top: 10px; }
+.sf-page .tx-draw-back .sf-link { min-height: 44px; }
+.sf-page .tx-grade-note { color: var(--sf-ink); }
+.sf-page .tx-grade-back { display: flex; flex-wrap: wrap; gap: 0 22px; margin: 18px 0 0; }
+.sf-page .tx-grade-back .sf-link { min-height: 44px; }
+.sf-page .or-links .sf-link[data-muted] { font-size: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tx-bar .tx-pill,
+  .tx-bar .tx-back,
+  .sf-page .tx-lecture > summary::after { transition: none; }
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
@@ -276,6 +276,13 @@ export default function Register() {
               <button type="button" onClick={() => navigate('/login')} className="au-link">
                 Войти
               </button>
+            </p>
+            <p className="au-foot">
+              Или сначала{' '}
+              <Link to="/try" className="au-link" style={{ minHeight: 44 }}>
+                попробуйте на примере
+              </Link>
+              {' — без регистрации.'}
             </p>
           </div>
         </section>
