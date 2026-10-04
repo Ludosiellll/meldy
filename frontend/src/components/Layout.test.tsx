@@ -370,15 +370,27 @@ describe('daily limit line', () => {
     }
   });
 
-  it('does not offer PRO to a PRO account', async () => {
+  it('shows a PRO account its own day of 1000 units and does not offer PRO', async () => {
     mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
-    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 0, ok: true });
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 250, ok: true, limit: 1000 });
+    renderAt('/dashboard');
+    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+    await act(async () => undefined);
+    openMenu();
+    const meter = screen.getByTestId('quota-meter');
+    expect(meter).toHaveTextContent('PRO · осталось 750 из 1000');
+    expect(meter).toHaveAccessibleName(/Дневной лимит PRO: осталось 750 из 1000/);
+    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
+  });
+
+  it('says «до 1000» for PRO while the counter is unknown', async () => {
+    mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 0, ok: false, limit: 1000 });
     renderAt('/dashboard');
     await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
     await act(async () => undefined);
     openMenu();
     expect(screen.getByTestId('quota-meter')).toHaveTextContent('PRO · до 1000');
-    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
   });
 
   it('does not pretend the limit is full when the counter could not be read', async () => {
@@ -400,6 +412,7 @@ describe('daily limit line', () => {
     expect(quotaRemaining(250)).toBe(0);
     expect(quotaRemaining(-5)).toBe(100);
     expect(quotaRemaining(null)).toBeNull();
+    expect(quotaRemaining(250, 1000)).toBe(750);
   });
 
   it('stops listening when the shell goes away', async () => {

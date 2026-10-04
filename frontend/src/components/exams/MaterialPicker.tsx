@@ -260,7 +260,7 @@ export default function MaterialPicker(props: MaterialPickerProps) {
         </div>
       )}
       {/* Each row says «только текст»; once, under the list, what that means for the mapping. */}
-      {textOnly > 0 && <p className="ex-meta nx-pick-foot">{glue('«Только текст» — лекция без конспекта: для разметки этого хватает.')}</p>}
+      {textOnly > 0 && <p className="ex-meta nx-pick-foot">{glue('«Только текст» — лекция без конспекта: для сверки с лекциями этого хватает.')}</p>}
       <div className="nx-import">
         <input
           ref={fileRef}

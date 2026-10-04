@@ -88,14 +88,14 @@ IN_FILTER_CHUNK = 50
 MAX_QUESTION_IDS = 300
 
 EXAM_NOT_FOUND_DETAIL = "Экзамен не найден"
-MAPPING_RUNNING_DETAIL = "Разметка уже идёт"
+MAPPING_RUNNING_DETAIL = "Сверка с лекциями уже идёт"
 NO_QUESTIONS_DETAIL = "В экзамене нет вопросов"
 NO_MATERIALS_DETAIL = "К экзамену не добавлены лекции. Добавьте лекции с текстом и повторите."
 NO_TEXT_DETAIL = "Ни у одной лекции нет текста. Добавьте лекции с текстом, а не сканы."
 TOO_LARGE_DETAIL = "В лекциях экзамена больше 3 000 000 знаков. Уберите часть лекций и повторите."
 SESSION_EXPIRED_DETAIL = "Сессия истекла. Войдите снова."
 READ_FAILED_DETAIL = "Не удалось прочитать экзамен. Повторите через минуту."
-LOCK_FAILED_DETAIL = "Не удалось начать разметку. Повторите через минуту."
+LOCK_FAILED_DETAIL = "Не удалось начать сверку с лекциями. Повторите через минуту."
 
 REASON_NO_OVERLAP = "Ни одного фрагмента с этими словами"
 REASON_NO_SUPPORT = "Нет подтверждающего фрагмента"
@@ -120,8 +120,8 @@ _FIXED_REASONS = frozenset(
     [REASON_NO_OVERLAP, REASON_NO_SUPPORT, REASON_NO_ANSWER, *_DEFAULT_REASONS.values()]
     + [reason for reason, _ in _FAILED_BATCH_TEXTS.values()]
 )
-WRITE_FAILED_MESSAGE = "Не удалось сохранить разметку. Уже проверенные вопросы сохранены — повторите через минуту."
-INTERNAL_MESSAGE = "Разметка прервалась из-за ошибки на сервере. Уже проверенные вопросы сохранены — повторите через минуту."
+WRITE_FAILED_MESSAGE = "Не удалось сохранить результаты сверки. Уже проверенные вопросы сохранены — повторите через минуту."
+INTERNAL_MESSAGE = "Сверка прервалась из-за ошибки на сервере. Уже проверенные вопросы сохранены — повторите через минуту."
 
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _SOURCE_ID_RE = re.compile(r"^S\d{1,4}$")

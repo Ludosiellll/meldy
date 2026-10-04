@@ -6,6 +6,7 @@ import '../components/oral/oral.css';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { checkAILimit, nextLimitReset } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { newEventId, recordSelfRating, type SelfRating as Rating } from '../api/learning';
 import { SELF_RATING_LABELS } from '../lib/learning/readiness';
 import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech } from '../hooks/useSpeechAnswer';
@@ -143,6 +144,10 @@ export const CHOSE_SERVER_NOTICE = 'Браузер не присылает ра�
 export const FOLLOWUP_VOICE_DELAY_MS = 300;
 
 const EVALUATION_FAILED_MESSAGE = 'Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.';
+/** The server refused the check (429 ai_limit): a repeat helps only after the reset, so the line says when. */
+export function evaluationLimitMessage(resetAt: Date = nextLimitReset()): string {
+  return `Дневной лимит ИИ исчерпан — ответ не проверен. Он сохранён на этой странице: «Проверить снова» сработает после ${clockTime(resetAt)}.`;
+}
 const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
 
 /**
@@ -496,6 +501,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           rubric = { status: 'unverifiable', message: error.message, code: error.code };
         } else if (isOralApiError(error) && error.outage) {
           rubric = { status: 'failed', message: error.message };
+        } else if (isOralApiError(error) && error.limitReached) {
+          // New answer points cost a unit and the day is spent: the answer goes unchecked, like a spent limit.
+          if (alive(run)) dispatch({ type: 'limit', run, limit: 'exhausted' });
+          rubric = { status: 'blocked', message: error.message };
         } else {
           rubric = { status: 'blocked', message: error instanceof Error ? error.message : AI_UNAVAILABLE_MESSAGE };
         }
@@ -530,7 +539,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
       },
     );
     if (user?.id) {
-      checkAILimit(user.id, 1).then((status) => {
+      // A checked answer costs AI_COSTS.answer units (the server charges them at /api/oral/evaluate).
+      checkAILimit(user.id, AI_COSTS.answer).then((status) => {
         if (alive(run)) dispatch({ type: 'limit', run, limit: status.ok && !status.allowed ? 'exhausted' : 'ok' });
       });
     }
@@ -965,6 +975,13 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     }
   };
 
+  /** A failed check. A spent day (429 ai_limit) says when it resets and marks the limit as spent. */
+  const evaluationFailed = (run: number, error: unknown) => {
+    const limit = isOralApiError(error) && error.limitReached;
+    dispatch({ type: 'evaluation_failed', run, message: limit ? evaluationLimitMessage() : EVALUATION_FAILED_MESSAGE });
+    if (limit) dispatch({ type: 'limit', run, limit: 'exhausted' });
+  };
+
   const finish = async () => {
     const before = stateRef.current;
     if (before.phase !== 'answering' || !question || settlingRef.current) return;
@@ -1021,7 +1038,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
       },
       (error: unknown) => {
         if (!alive(run) || (isOralApiError(error) && error.kind === 'aborted')) return;
-        dispatch({ type: 'evaluation_failed', run, message: EVALUATION_FAILED_MESSAGE });
+        evaluationFailed(run, error);
       },
     );
     dispatch({ type: 'examiner' });
@@ -1241,9 +1258,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
       );
       if (alive(run)) dispatch({ type: 'evaluation_done', run, result });
     } catch (error) {
-      if (alive(run) && !(isOralApiError(error) && error.kind === 'aborted')) {
-        dispatch({ type: 'evaluation_failed', run, message: EVALUATION_FAILED_MESSAGE });
-      }
+      if (alive(run) && !(isOralApiError(error) && error.kind === 'aborted')) evaluationFailed(run, error);
     }
   };
 

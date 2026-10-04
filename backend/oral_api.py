@@ -74,7 +74,7 @@ RUBRIC_CONFLICT = "user_id,question_hash,source_key,rubric_version"
 QUESTION_NOT_FOUND_DETAIL = "Вопрос не найден"
 NOT_IN_LECTURES_DETAIL = "Этого вопроса нет в ваших лекциях — оценить ответ не по чему."
 RUBRIC_UNVERIFIABLE_DETAIL = (
-    "Не получилось составить эталон, где каждый пункт подтверждён цитатой из ваших лекций. "
+    "Не получилось собрать пункты ответа, где каждый подтверждён цитатой из ваших лекций. "
     "Ответьте на другой вопрос."
 )
 NO_TEXT_DETAIL = "В лекциях этого экзамена нет текста"
@@ -86,7 +86,7 @@ CHECK_TOO_LONG_DETAIL = "Ответ слишком длинный: для про
 EVALUATE_TOO_LONG_DETAIL = "Ответ слишком длинный: для протокола можно до 6000 знаков."
 SESSION_EXPIRED_DETAIL = "Сессия истекла. Войдите снова."
 READ_FAILED_DETAIL = "Не удалось прочитать вопрос. Повторите через минуту."
-EMPTY_ANSWER_VERDICT = "Ответа не было: ни один пункт эталона не прозвучал."
+EMPTY_ANSWER_VERDICT = "Ответа не было: ни один из пунктов не прозвучал."
 
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _POINT_ID_RE = re.compile(r"^p[1-6]$")

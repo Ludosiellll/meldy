@@ -64,7 +64,7 @@ describe('startMapping', () => {
 
     await expect(startMapping({ examId: 'exam-1', userId: 'user-1', verifyEnergy: allow })).resolves.toBe('started');
 
-    expect(allow).toHaveBeenCalledWith('user-1', 10, 'Разметка по лекциям');
+    expect(allow).toHaveBeenCalledWith('user-1', 10, 'Сверка с лекциями');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/exams/exam-1/map');
     expect(JSON.parse(String(init.body))).toEqual({ question_ids: null, force: false });
@@ -116,14 +116,14 @@ describe('startMapping', () => {
     await startMapping({ examId: 'exam-1', userId: 'user-1', verifyEnergy: allow });
     const job = getMapJob('exam-1');
     expect(job.phase).toBe('interrupted');
-    expect(job.message).toBe('Разметка прервалась: проверено 28 из 40.');
+    expect(job.message).toBe('Сверка прервалась: проверено 28 из 40.');
     expect(job.finishedSeq).toBe(1);
     expect(mocks.notifyAIUsageChanged).not.toHaveBeenCalled();
   });
 
   it('waits for another run on 409, polling the exam row until it stops running', async () => {
     vi.stubGlobal('fetch', vi.fn(async () =>
-      new Response(JSON.stringify({ detail: 'Разметка уже идёт' }), { status: 409, headers: { 'content-type': 'application/json' } }),
+      new Response(JSON.stringify({ detail: 'Сверка с лекциями уже идёт' }), { status: 409, headers: { 'content-type': 'application/json' } }),
     ));
     const running = { mapping_state: 'running', mapping_started_at: new Date().toISOString(), mapped_at: null };
     mocks.fetchExamMappingState
@@ -138,7 +138,7 @@ describe('startMapping', () => {
     });
     await startMapping({ examId: 'exam-1', userId: 'user-1', verifyEnergy: allow });
     unsubscribe();
-    expect(seen).toContain('waiting:Разметка ещё идёт');
+    expect(seen).toContain('waiting:Сверка ещё идёт');
     expect(mocks.fetchExamMappingState).toHaveBeenCalledWith('exam-1');
     expect(mocks.fetchExamMappingState.mock.calls.length).toBe(3);
     expect(getMapJob('exam-1')).toMatchObject({ phase: 'idle', finishedSeq: 1 });
@@ -146,7 +146,7 @@ describe('startMapping', () => {
 
   it('gives up waiting after the time limit and still asks the sheet to reload', async () => {
     resetMapJobsForTests({ pollIntervalMs: 5, pollLimitMs: 30 });
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Разметка уже идёт' }), { status: 409 })));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Сверка с лекциями уже идёт' }), { status: 409 })));
     mocks.fetchExamMappingState.mockResolvedValue({ mapping_state: 'running', mapping_started_at: new Date().toISOString(), mapped_at: null });
     await startMapping({ examId: 'exam-1', userId: 'user-1', verifyEnergy: allow });
     expect(getMapJob('exam-1')).toMatchObject({ phase: 'idle', finishedSeq: 1 });

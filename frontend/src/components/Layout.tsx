@@ -87,9 +87,9 @@ function isPanePath(pathname: string): boolean {
 }
 
 /** What the limit line shows: never below zero; unknown when the counter could not be read. */
-export function quotaRemaining(used: number | null): number | null {
+export function quotaRemaining(used: number | null, limit: number = FREE_DAILY_LIMIT): number | null {
   if (used === null || !Number.isFinite(used)) return null;
-  return Math.max(0, FREE_DAILY_LIMIT - Math.max(0, used));
+  return Math.max(0, limit - Math.max(0, used));
 }
 
 const STAGE_KEY = 'meldy_stage';
@@ -233,6 +233,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   /** Units used today; null while unknown (not read yet, or the counter could not be read). */
   const [usedTokens, setUsedTokens] = useState<number | null>(null);
+  // The account's day as the server counts it: 100, or 1000 with PRO (ai_quota_status).
+  const [dayLimit, setDayLimit] = useState<number | null>(null);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const roomMode = isRoomPath(location.pathname);
@@ -244,17 +246,22 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const mainRef = useRef<HTMLElement | null>(null);
   const tabsRef = useRef<HTMLElement | null>(null);
   const menuId = useId();
-  const remainingUnits = quotaRemaining(usedTokens);
+  const quotaLimit = dayLimit ?? (profile?.is_pro ? PRO_DAILY_UNITS : FREE_DAILY_LIMIT);
+  const remainingUnits = quotaRemaining(usedTokens, quotaLimit);
   const quotaLabel = profile?.is_pro
-    ? `Дневной лимит PRO: до ${PRO_DAILY_UNITS} единиц ИИ в день`
+    ? remainingUnits === null
+      ? `Дневной лимит PRO: до ${PRO_DAILY_UNITS} единиц ИИ в день`
+      : `Дневной лимит PRO: осталось ${remainingUnits} из ${quotaLimit}`
     : remainingUnits === null
       ? 'Дневной лимит: остаток не удалось загрузить. Нажмите, чтобы проверить ещё раз'
-      : `Дневной лимит: осталось ${remainingUnits} из ${FREE_DAILY_LIMIT}`;
+      : `Дневной лимит: осталось ${remainingUnits} из ${quotaLimit}`;
   const quotaState = profile?.is_pro
-    ? `PRO · до ${PRO_DAILY_UNITS}`
+    ? remainingUnits === null
+      ? `PRO · до ${PRO_DAILY_UNITS}`
+      : `PRO · осталось ${remainingUnits} из ${quotaLimit}`
     : remainingUnits === null
       ? 'проверить'
-      : `осталось ${remainingUnits} из ${FREE_DAILY_LIMIT}`;
+      : `осталось ${remainingUnits} из ${quotaLimit}`;
   const openQuota = () => {
     if (!profile?.is_pro && usedTokens === null) {
       refetchTokensRef.current?.();
@@ -340,7 +347,9 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       const request = ++tokensRequest;
       checkAILimit(userId, 0)
         .then((res) => {
-          if (request === tokensRequest) setUsedTokens(res.ok ? res.count : null);
+          if (request !== tokensRequest) return;
+          setUsedTokens(res.ok ? res.count : null);
+          if (res.ok && Number.isFinite(res.limit) && res.limit > 0) setDayLimit(res.limit);
         })
         .catch(() => {
           if (request === tokensRequest) setUsedTokens(null);

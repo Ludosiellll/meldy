@@ -58,7 +58,7 @@ function Pile() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 2 · «Вопросы — по лекциям.» — the list is typed in, «Разметить по лекциям», each line is marked.
+// 2 · «Вопросы — по лекциям.» — the list is typed in, «Сверить с лекциями», each line is marked.
 
 const SHEET_LEAVE = 4160;
 const QUESTIONS: Array<{ text: string; kind: 'ok' | 'half' | 'no'; word: string }> = [
@@ -97,7 +97,7 @@ function Sheet() {
           </div>
           <div className="rg-actions">
             <span data-a="mapbtn" className="fm-btn fm-btn--blue">
-              Разметить по лекциям
+              Сверить с лекциями
               <i>
                 <Arrow />
               </i>

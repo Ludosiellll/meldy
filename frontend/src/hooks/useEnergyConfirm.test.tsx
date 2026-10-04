@@ -164,13 +164,13 @@ describe('verifyEnergy', () => {
     const host = renderHookHost(true);
     let result: boolean | undefined;
     await act(async () => {
-      void host.verify('user-1', 10, 'Разметка по лекциям').then(value => {
+      void host.verify('user-1', 10, 'Сверка с лекциями').then(value => {
         result = value;
       });
     });
     expect(await screen.findByText('Не хватает дневного лимита')).toBeInTheDocument();
     expect(screen.queryByText('Дневной лимит исчерпан')).not.toBeInTheDocument();
-    expect(screen.getByText(/Разметка по лекциям расходует 10 единиц, а на сегодня осталось 5\. Лимит обновится в \d{1,2}:\d{2}\./)).toBeInTheDocument();
+    expect(screen.getByText(/Сверка с лекциями расходует 10 единиц, а на сегодня осталось 5\. Лимит обновится в \d{1,2}:\d{2}\./)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Отмена/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Понятно' })).toHaveFocus();
     await act(async () => {

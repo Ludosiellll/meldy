@@ -1139,7 +1139,7 @@ def test_a_failed_lock_write_is_503_not_a_missing_exam(fake, judge):
     exam_id, _, _ = course(fake, [Q_BACKPROP])
     fake.fail[("PATCH", "exams")] = 500
     error = map_error(fake, exam_id)
-    assert (error.status, error.detail) == (503, "Не удалось начать разметку. Повторите через минуту.")
+    assert (error.status, error.detail) == (503, "Не удалось начать сверку с лекциями. Повторите через минуту.")
 
 
 def test_the_lock_is_released_after_an_exception(fake, judge, monkeypatch):
@@ -1162,7 +1162,7 @@ def test_a_failed_write_ends_the_stream_with_error_and_a_failed_state(fake, judg
     assert [event["type"] for event in events] == ["start", "error"]
     assert events[-1]["message"] == WRITE_FAILED_MESSAGE
     # На листе у сбоя кнопка «Повторить»: текст не называет кнопку, которой нет.
-    assert WRITE_FAILED_MESSAGE == "Не удалось сохранить разметку. Уже проверенные вопросы сохранены — повторите через минуту."
+    assert WRITE_FAILED_MESSAGE == "Не удалось сохранить результаты сверки. Уже проверенные вопросы сохранены — повторите через минуту."
     assert fake.row("exams", exam_id)["mapping_state"] == "failed"
     assert fake.row("exams", exam_id)["mapped_material_ids"] == []  # после сбоя набор лекций разметки не меняется
     assert "internal details" not in json.dumps(events, ensure_ascii=False)

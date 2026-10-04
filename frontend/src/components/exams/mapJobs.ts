@@ -1,7 +1,7 @@
 /**
  * Mapping runs that outlive the open page (contracts §8, the pattern of conversation/jobs.ts).
  *
- * «Разметить по лекциям» streams for 10–40 seconds. The run lives here, per exam, not in a
+ * «Сверить с лекциями» streams for 10–40 seconds. The run lives here, per exam, not in a
  * component: the sheet shows marks as batches arrive, a page opened again sees the same run, and a
  * second run of the same exam cannot start. Daily limit: checked here before the run (at least
  * AI_COSTS.examMapping); the server charges 10 units for every started 40 questions that go to the
@@ -12,10 +12,10 @@
  * Outcomes of a run:
  * - `done` → phase 'done'; the sheet reloads its rows (finishedSeq changes);
  * - the stream ended without `done` or the connection dropped → 'interrupted' with
- *   «Разметка прервалась: проверено 28 из 40.» and «Продолжить» on the sheet;
+ *   «Сверка прервалась: проверено 28 из 40.» and «Продолжить» on the sheet;
  * - `error` or a refused request → 'failed' with the server's plain message (for code ai_limit a
  *   sentence with what is left today and when the limit renews);
- * - 409 (another run holds the lock) → 'waiting' «Разметка ещё идёт»: the exam row is polled every
+ * - 409 (another run holds the lock) → 'waiting' «Сверка ещё идёт»: the exam row is polled every
  *   3 s for up to 5 minutes, then the sheet reloads.
  */
 import { useSyncExternalStore } from 'react';
@@ -26,7 +26,7 @@ import { fetchExamMappingState, isMappingLocked, normalizeCoverageItem, type Cov
 
 /** The least a run costs (one started batch of 40 new questions); the server counts the rest. */
 export const MAPPING_COST = AI_COSTS.examMapping;
-export const MAPPING_ACTION = 'Разметка по лекциям';
+export const MAPPING_ACTION = 'Сверка с лекциями';
 export const MAP_IDLE_MS = 45_000;
 export const MARK_STAGGER_MS = 60;
 
@@ -173,8 +173,8 @@ export function checkedCount(job: MapJobSnapshot): { checked: number; total: num
 
 export function interruptedMessage(job: MapJobSnapshot): string {
   const progress = checkedCount(job);
-  if (!progress) return 'Разметка прервалась до начала проверки.';
-  return `Разметка прервалась: проверено ${progress.checked} из ${progress.total}.`;
+  if (!progress) return 'Сверка прервалась до начала проверки.';
+  return `Сверка прервалась: проверено ${progress.checked} из ${progress.total}.`;
 }
 
 function num(value: unknown): number {
@@ -288,7 +288,7 @@ function sleep(ms: number) {
 
 /** Another run holds the lock: poll the exam row until it is free (or stale), at most five minutes. */
 async function waitForOtherRun(examId: string) {
-  set(examId, (previous) => ({ ...previous, phase: 'waiting', message: 'Разметка ещё идёт' }));
+  set(examId, (previous) => ({ ...previous, phase: 'waiting', message: 'Сверка ещё идёт' }));
   const deadline = Date.now() + timing.pollLimitMs;
   while (Date.now() < deadline) {
     await sleep(timing.pollIntervalMs);
@@ -349,7 +349,7 @@ export async function startMapping(options: StartMappingOptions): Promise<'start
       } else if (error instanceof StreamError && error.kind === 'aborted') {
         finish(examId, 'idle', null);
       } else {
-        finish(examId, 'failed', error instanceof StreamError ? error.message : 'Разметка не запустилась. Повторите через минуту.');
+        finish(examId, 'failed', error instanceof StreamError ? error.message : 'Сверка не запустилась. Повторите через минуту.');
       }
       return 'started';
     }
@@ -365,7 +365,7 @@ export async function startMapping(options: StartMappingOptions): Promise<'start
         notifyAIUsageChanged(); // the meter shows what is left
         finish(examId, 'failed', mappingLimitMessage(limit));
       } else {
-        finish(examId, 'failed', plainMessage(terminal.message, 'Разметка не завершилась. Повторите через минуту.'));
+        finish(examId, 'failed', plainMessage(terminal.message, 'Сверка не завершилась. Повторите через минуту.'));
       }
     }
     return 'started';

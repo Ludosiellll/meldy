@@ -170,7 +170,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [manualError, setManualError] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>('exam');
   const [limit, setLimit] = useState<MappingLimit | null>(null);
-  // «Разметить по лекциям» had the focus when its run started: the focus goes to the pill that replaces it.
+  // «Сверить с лекциями» had the focus when its run started: the focus goes to the pill that replaces it.
   const mapPillFocused = useRef(false);
   const drawPillRef = useRef<HTMLAnchorElement>(null);
   const [peak, setPeak] = useState<PeakRun | null>(null);
@@ -543,7 +543,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   }, [limit]);
 
   const mappingBlocked = Boolean(limit) || job.starting;
-  // When «Разметить по лекциям» leaves the page with the focus on it (its run started), the focus goes to
+  // When «Сверить с лекциями» leaves the page with the focus on it (its run started), the focus goes to
   // «Тянуть билет», which takes its place — never to the page's body.
   const mapPillRef = useCallback((element: HTMLButtonElement | null) => {
     if (element || !mapPillFocused.current) return;
@@ -730,7 +730,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   if (reusedPart) notes.push({ key: 'reused', text: reusedPart, quiet: true });
   if (bundle.materials.length === 0)
     notes.push({ key: 'nolect', text: 'Без лекций Meldy не сможет отметить покрытие. Список сохранится.', action: { label: 'Добавить лекции', run: () => navigate(`/exams/${exam.id}/edit#lectures`) } });
-  // Before the first run the filled pill of the header is «Разметить по лекциям» (redesign critique 7).
+  // Before the first run the filled pill of the header is «Сверить с лекциями» (redesign critique 7).
   else if (neverMapped && !staleRun && !outcomeNote) notes.push({ key: 'unmapped', text: 'Вопросы ещё не сверены с лекциями.' });
   else if (!busy && !staleRun && !outcomeNote && mappedCount > 0 && mappedCount < questions.length)
     notes.push({
@@ -748,7 +748,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   if (eventsState === 'error' && eventsError) notes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) }, quiet: true });
 
   const editLocked = running || job.phase === 'waiting' || (examFresh && exam.mapping_state === 'running' && isMappingLocked(exam));
-  // Before the first run the one filled pill is «Разметить по лекциям»; «Тянуть билет» is a link under it.
+  // Before the first run the one filled pill is «Сверить с лекциями»; «Тянуть билет» is a link under it.
   const preMapping = neverMapped && bundle.materials.length > 0 && !staleRun && !outcomeNote;
   // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7).
   const showCoverageFilters = mappedCount > 0 || running;

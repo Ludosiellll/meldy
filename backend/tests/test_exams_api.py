@@ -412,7 +412,7 @@ def test_map_errors_before_the_stream_are_plain_json(api):
     foreign, _, _ = course(fake, [Q_BACKPROP], user="user-b")
     assert_plain_russian(post(foreign), 404, "Экзамен не найден")
     running, _, _ = course(fake, [Q_BACKPROP], mapping_state="running", mapping_started_at=T0)
-    assert_plain_russian(post(running), 409, "Разметка уже идёт")
+    assert_plain_russian(post(running), 409, "Сверка с лекциями уже идёт")
     assert_plain_russian(post(fake.exam()), 400, "В экзамене нет вопросов")
     scans, _, _ = course(fake, [Q_BACKPROP], materials=(("Скан", " "),))
     response = post(scans)

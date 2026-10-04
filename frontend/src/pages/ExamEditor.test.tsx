@@ -235,7 +235,7 @@ describe('ExamEditor: a new exam', () => {
   it('ticks lectures by the words of the title and text-only imports, all of them when none matches, never a scan', async () => {
     await pasteAndParse();
     expect(plain(screen.getByText(/лекци/, { selector: '#lectures .nx-line' }).textContent)).toContain('2 из 3 лекций');
-    expect(screen.getByText(/«Только текст» — лекция без конспекта: для разметки этого хватает/)).toBeInTheDocument();
+    expect(screen.getByText(/«Только текст» — лекция без конспекта: для сверки с лекциями этого хватает/)).toBeInTheDocument();
     // The checklist is in sight from the start (no «изменить» to unfold it), and says why these are ticked.
     expect(screen.queryByRole('button', { name: 'изменить' })).toBeNull();
     expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('Отмечены лекции, подходящие к названию экзамена. Лишние снимите, нужные отметьте.');

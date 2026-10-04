@@ -67,7 +67,7 @@ const SHEET_PREVIEW: Array<{ coverage: 'full' | 'partial' | 'none'; width: strin
   { coverage: 'partial', width: '62%' },
   { coverage: 'none', width: '70%' },
 ];
-/** Under «Разметить по лекциям»: what the press does, with how many lectures. */
+/** Under «Сверить с лекциями»: what the press does, with how many lectures. */
 function mapNext(lectures: number): string {
   const chosen = lectures % 10 === 1 && lectures % 100 !== 11 ? 'выбранной лекцией' : 'выбранными лекциями';
   return `Meldy сверит каждый вопрос с ${lectures} ${chosen} — пометки появятся на листе экзамена.`;

@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import type { ConversationTerm } from './types';
+import { AI_LIMIT_MESSAGE, formatLimitReset, nextLimitReset } from '../../api/limits';
 
 /** Лимиты сервера: /api/podcast/generate — 20 000 символов, /api/podcast/visuals — 15 000 символов и 40 реплик. */
 export const CONVERSATION_CONTEXT_LIMIT = 20000;
@@ -99,6 +100,14 @@ export async function postJson(url: string, body: unknown): Promise<unknown> {
     throw new ConversationError('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.');
   }
   if (response.status === 429) {
+    // The daily AI limit (code ai_limit, the dialog opens from lib/apiAuth) is not «busy»: a minute will not help.
+    let code: unknown = null;
+    try {
+      code = ((await response.json()) as { code?: unknown })?.code;
+    } catch {
+      code = null;
+    }
+    if (code === 'ai_limit') throw new ConversationError(`${AI_LIMIT_MESSAGE} Он обновится в ${formatLimitReset(nextLimitReset())}.`);
     throw new ConversationError('Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.');
   }
   if (!response.ok) {

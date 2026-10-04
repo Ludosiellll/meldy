@@ -411,9 +411,9 @@ describe('ExamTicket: before the answer', () => {
 
   it('shows the server’s detail for 422 and offers another ticket', async () => {
     seedDatabase();
-    api['/api/oral/rubric'].mockImplementation(async () => json(422, { detail: 'Не получилось составить эталон, где каждый пункт подтверждён цитатой из ваших лекций. Ответьте на другой вопрос.', code: 'rubric_unverifiable' }));
+    api['/api/oral/rubric'].mockImplementation(async () => json(422, { detail: 'Не получилось собрать пункты ответа, где каждый подтверждён цитатой из ваших лекций. Ответьте на другой вопрос.', code: 'rubric_unverifiable' }));
     await renderPage(ticketUrl());
-    expect(await screen.findByText(/Не получилось составить эталон, где каждый пункт подтверждён цитатой/)).toBeInTheDocument();
+    expect(await screen.findByText(/Не получилось собрать пункты ответа, где каждый подтверждён цитатой/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Тянуть другой билет' }));
     await waitFor(() => expect(location).toBe(`/exams/${EXAM}/draw`));
   });

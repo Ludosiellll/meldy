@@ -1046,7 +1046,7 @@ describe('ExamDetail: mapping by lectures', () => {
     const button = screen.getByRole('button', { name: 'Сверить с лекциями' });
     button.focus();
     fireEvent.click(button);
-    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: разметка расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
+    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
     expect(notes()[0]).not.toMatch(/в 0\d:/);
     expect(document.querySelector('.ex-notes .ex-note[role="status"]')).toHaveTextContent('Дневной лимит исчерпан');
     // The same button, still there, unavailable and focused: nothing to close, nothing to lose the focus to.
@@ -1073,7 +1073,7 @@ describe('ExamDetail: mapping by lectures', () => {
     await waitFor(() => expect(notes()[0]).toMatch(/^Не хватает дневного лимита: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 4\./));
   });
 
-  it('keeps «Разметить по лекциям» in place while the limit is checked and hands the focus to «Тянуть билет» when the run starts', async () => {
+  it('keeps «Сверить с лекциями» in place while the limit is checked and hands the focus to «Тянуть билет» when the run starts', async () => {
     const stream = liveStream();
     vi.stubGlobal('fetch', vi.fn(async () => stream.response));
     let allow!: (value: unknown) => void;
@@ -1093,7 +1093,7 @@ describe('ExamDetail: mapping by lectures', () => {
     stream.close();
   });
 
-  it('before the first run: one filled pill «Разметить по лекциям», «Тянуть билет» as a link, only «Все» in the filter (redesign critique 7)', async () => {
+  it('before the first run: one filled pill «Сверить с лекциями», «Тянуть билет» as a link, only «Все» in the filter (redesign critique 7)', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
     renderDetail();
     await opened();
@@ -1108,13 +1108,13 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(plain(column().textContent)).toContain('Доля билетов появится после сверки');
   });
 
-  it('offers «Продолжить» after a dropped stream; a 409 then shows «Разметка ещё идёт» and polls until the exam is free', async () => {
+  it('offers «Продолжить» after a dropped stream; a 409 then shows «Сверка ещё идёт» and polls until the exam is free', async () => {
     const first = liveStream();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(first.response)
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ detail: 'Разметка уже идёт' }), { status: 409, headers: { 'content-type': 'application/json' } }),
+        new Response(JSON.stringify({ detail: 'Сверка с лекциями уже идёт' }), { status: 409, headers: { 'content-type': 'application/json' } }),
       );
     vi.stubGlobal('fetch', fetchMock);
     // The server wrote q1 before it sent it, then the stream broke (the lock is released as failed).
@@ -1130,10 +1130,10 @@ describe('ExamDetail: mapping by lectures', () => {
     first.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
     first.close();
 
-    await waitFor(() => expect(notes()).toContain('Разметка прервалась: проверено 1 из 3.Продолжить'));
+    await waitFor(() => expect(notes()).toContain('Сверка прервалась: проверено 1 из 3.Продолжить'));
     expect(row('q1')).toHaveAttribute('data-coverage', 'full');
     // One note with one action: not also «2 вопроса ещё не сверены… Разметить».
-    expect(notes()).toEqual(['Разметка прервалась: проверено 1 из 3.Продолжить']);
+    expect(notes()).toEqual(['Сверка прервалась: проверено 1 из 3.Продолжить']);
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
 
@@ -1257,7 +1257,7 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(plain(column().textContent)).toContain('не сверено — 1');
   });
 
-  it('does not repeat «Разметка прервалась» on a later visit when the exam was mapped since', async () => {
+  it('does not repeat «Сверка прервалась» on a later visit when the exam was mapped since', async () => {
     const stream = liveStream();
     vi.stubGlobal('fetch', vi.fn(async () => stream.response));
     mocks.loadExamBundle
@@ -1270,7 +1270,7 @@ describe('ExamDetail: mapping by lectures', () => {
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
     stream.close();
-    await waitFor(() => expect(notes()).toContain('Разметка прервалась: проверено 1 из 3.Продолжить'));
+    await waitFor(() => expect(notes()).toContain('Сверка прервалась: проверено 1 из 3.Продолжить'));
     cleanup();
 
     // Mapped to the end in another tab meanwhile.

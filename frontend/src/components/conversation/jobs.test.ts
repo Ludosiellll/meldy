@@ -26,7 +26,7 @@ vi.mock('../../lib/supabase', () => ({
 
 import { renderHook } from '@testing-library/react';
 import { isJobRunning, jobStatus, publishLines, resetJobsForTests, runJob, useLinesFeed } from './jobs';
-import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson, saveCheatsheet, saveConversationLines } from './persistence';
+import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson, postJson, saveCheatsheet, saveConversationLines } from './persistence';
 
 describe('patchSummaryJson', () => {
   beforeEach(() => {
@@ -52,6 +52,20 @@ describe('patchSummaryJson', () => {
     db.updatedRows = 1;
     db.error = { message: 'network' };
     await expect(saveCheatsheet('m1', 'x')).rejects.toThrow('Не удалось сохранить шпаргалку. Попробуйте ещё раз.');
+  });
+});
+
+describe('postJson', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const answer = (status: number, body: unknown) =>
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })));
+
+  it('tells a spent day from a busy service', async () => {
+    answer(429, { detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 });
+    await expect(postJson('/api/podcast/generate', {})).rejects.toThrow(/^Дневной лимит ИИ на сегодня исчерпан\. Он обновится в /);
+    answer(429, { detail: 'Too many requests' });
+    await expect(postJson('/api/podcast/generate', {})).rejects.toThrow('Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.');
   });
 });
 
