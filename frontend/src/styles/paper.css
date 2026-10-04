@@ -95,6 +95,11 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(60, 46, 26, .34); }
   outline-offset: 3px;
   border-radius: 3px;
 }
+/* A pill keeps its shape when it has the focus: the ring above would square it off (stage QA round 2). */
+.sf-shell .sf-primary:focus-visible,
+.sf-page .sf-primary:focus-visible,
+.sf-page .ex-secondary:focus-visible,
+.sf-page .sf-secondary:focus-visible { border-radius: 999px; }
 
 /* ---------------------------------------------------------------- page frame */
 .sf-page {
@@ -910,6 +915,14 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(60, 46, 26, .34); }
   .sf-crumb { display: none; }
 }
 html[data-stage] .sf-crumb { display: none; }
+/* «Разговор» on the projector (stage QA round 2): the player's meta line, the speaker's name, «Цитата»,
+   «фрагмент 8», the plan and «1×» were 12–13 px, unreadable from 5 m. In stage mode nothing in the
+   player is smaller than 14 px. The player itself (components/conversation) is frozen; only its small
+   text utilities are raised here, and only under html[data-stage]. */
+html[data-stage] section[aria-label='Разговор по материалу'] :is(.text-xs, .text-\[11px\], .text-\[12px\], .text-\[13px\]) {
+  font-size: 14px;
+}
+html[data-stage] section[aria-label='Разговор по материалу'] .text-xs { line-height: 20px; }
 @media (max-width: 639px) {
   .sf-detail-head { padding-top: 20px; }
   .sf-h1-serif { font-size: 26px; line-height: 31px; }

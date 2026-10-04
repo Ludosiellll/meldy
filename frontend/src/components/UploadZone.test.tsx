@@ -151,12 +151,12 @@ describe('UploadZone demo text', () => {
     expect(onDemo).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('tab', { name: 'Текст' })).toHaveAttribute('aria-selected', 'true');
     expect(textarea().value).toBe(DEMO_TEXT);
-    expect(screen.getByText('Демо-текст: энергия не списывается, настройки по умолчанию')).toBeInTheDocument();
-    // За демо энергия не списывается, поэтому строки о расходе нет.
+    expect(screen.getByText('Демо-текст: лимит не списывается, настройки по умолчанию')).toBeInTheDocument();
+    // За демо-текст лимит не списывается, поэтому строки о расходе нет.
     expect(screen.queryByText('Анализ расходует 20 из 100 единиц дневного лимита.')).not.toBeInTheDocument();
 
     fireEvent.change(textarea(), { target: { value: `${DEMO_TEXT} Мой абзац.` } });
-    expect(screen.queryByText('Демо-текст: энергия не списывается, настройки по умолчанию')).not.toBeInTheDocument();
+    expect(screen.queryByText('Демо-текст: лимит не списывается, настройки по умолчанию')).not.toBeInTheDocument();
     expect(screen.getByText('Анализ расходует 20 из 100 единиц дневного лимита.')).toBeInTheDocument();
   });
 });

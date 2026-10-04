@@ -89,8 +89,9 @@ describe('peakText: the five transitions', () => {
     const text = textOf([answer('2026-09-29', true, 4), answer(TODAY, true, 4)], null, 3);
     expect(text.because).toBe('29 сентября — зачтено. Сегодня снова «хорошо»: два зачёта в разные дни, вопрос подтверждён.');
     expect(text).toMatchObject({ title: 'Подтверждено ответами', before: 6, after: 7, total: 40, draws: true });
-    expect(text.statement).toBe('Вопрос 17 подтверждён ответом, который вы дали только что.');
-    expect(plain(text.fine[0])).toBe('Подтверждено — значит, зачтено дважды, в разные дни. С 20 сентября: 0 → 7. Билетов, где подтверждены оба вопроса, — 3 %.');
+    // The growth is part of the statement (redesign critique 2, round 2).
+    expect(plain(text.statement)).toBe('Вопрос 17 подтверждён ответом, который вы дали только что. С 20 сентября: 0 → 7.');
+    expect(plain(text.fine[0])).toBe('Подтверждено — значит, зачтено дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 3 %.');
   });
 
   it('confirmed → not passed takes the confirmation back', () => {

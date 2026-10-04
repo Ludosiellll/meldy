@@ -264,7 +264,7 @@ describe('stream outcomes', () => {
     fireEvent.click(startButton());
 
     await errorHeading();
-    expect(screen.getByRole('alert')).toHaveTextContent('Анализ прервался до конца. Материал не сохранён, энергия не списана.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Анализ прервался до конца. Материал не сохранён, лимит не списан.');
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
 
@@ -352,7 +352,7 @@ describe('stream outcomes', () => {
     await chooseFile();
     fireEvent.click(startButton());
     await errorHeading();
-    expect(screen.getByRole('alert')).toHaveTextContent('ИИ-сервис сейчас не ответил. Материал не сохранён, энергия не списана.');
+    expect(screen.getByRole('alert')).toHaveTextContent('ИИ-сервис сейчас не ответил. Материал не сохранён, лимит не списан.');
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
     expect(s.activity).not.toHaveBeenCalled();
@@ -363,7 +363,7 @@ describe('stream outcomes', () => {
       () =>
         sse([
           ev(TEXT),
-          ev({ type: 'error', code: 'busy', message: 'Сервис ИИ сейчас занят. Материал не сохранён, энергия не списана. Попробуйте через минуту.' }),
+          ev({ type: 'error', code: 'busy', message: 'Сервис ИИ сейчас занят. Материал не сохранён, лимит не списан. Попробуйте через минуту.' }),
           ev({ type: 'done' }),
         ]),
     ];
@@ -598,10 +598,10 @@ describe('demo text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Подробный' }));
     fireEvent.click(screen.getByText('Разговор', { selector: 'span' }));
     await loadDemo();
-    expect(screen.getByText('Демо-текст: энергия не списывается, настройки по умолчанию')).toBeInTheDocument();
+    expect(screen.getByText('Демо-текст: лимит не списывается, настройки по умолчанию')).toBeInTheDocument();
     fireEvent.click(startButton());
 
-    expect(await screen.findByText('Демо-текст: энергия не списывается.')).toBeInTheDocument();
+    expect(await screen.findByText('Демо-текст: лимит не списывается.')).toBeInTheDocument();
     await resultsHeading();
     await waitFor(() => expect(s.activity).toHaveBeenCalledTimes(1));
     expect(s.verify).not.toHaveBeenCalled();
@@ -618,7 +618,7 @@ describe('demo text', () => {
     ]);
     expect(s.inserts).toHaveLength(1);
     expect(s.inserts[0].summary_json).toMatchObject({ origin: 'demo', demo_text_id: 'demo-v1' });
-    expect(screen.getByText('Демо-текст: энергия не списана.')).toBeInTheDocument();
+    expect(screen.getByText('Демо-текст: лимит не списан.')).toBeInTheDocument();
   });
 
   it('a second demo run inserts nothing and links the existing material', async () => {
@@ -675,13 +675,13 @@ describe('demo text', () => {
     renderAnalyze();
     await loadDemo();
     fireEvent.click(startButton());
-    expect(await screen.findByText('Демо-текст: энергия не списывается.')).toBeInTheDocument();
+    expect(await screen.findByText('Демо-текст: лимит не списывается.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Отменить' }));
 
     await pasteText(LECTURE);
     fireEvent.click(startButton());
     await screen.findByRole('button', { name: 'Отменить' });
-    expect(screen.queryByText('Демо-текст: энергия не списывается.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Демо-текст: лимит не списывается.')).not.toBeInTheDocument();
     expect(s.verify).toHaveBeenCalledTimes(1);
   });
 

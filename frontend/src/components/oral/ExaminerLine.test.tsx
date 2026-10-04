@@ -77,7 +77,10 @@ describe('<LiveTranscript>', () => {
 describe('<TicketCard>', () => {
   it('names a known ticket, a drawn pair and a single question', () => {
     expect(ticketHeading('12', 0, 2, '7')).toEqual({ strong: 'Билет 12', rest: 'вопрос 1 из 2' });
-    expect(ticketHeading(null, 1, 2, '7')).toEqual({ strong: 'Случайный билет', rest: 'вопрос 2 из 2' });
+    // A drawn pair keeps the question's own number (redesign critique 8).
+    expect(ticketHeading(null, 1, 2, '7')).toEqual({ strong: 'Вопрос 7', rest: '2 из 2' });
+    expect(ticketHeading(null, 0, 2, '12.')).toEqual({ strong: 'Вопрос 12', rest: '1 из 2' });
+    expect(ticketHeading(null, 0, 2, '')).toEqual({ strong: 'Случайный билет', rest: 'вопрос 1 из 2' });
     expect(ticketHeading(null, 0, 1, '17')).toEqual({ strong: 'Вопрос 17', rest: '' });
     render(<TicketCard heading={ticketHeading('12', 0, 2, '7')} question="Как обучается нейронная сеть?" />);
     expect(screen.getByRole('heading', { level: 1, name: 'Как обучается нейронная сеть?' })).toBeInTheDocument();

@@ -59,7 +59,7 @@ export default function AgentCards({
           : `Завершено ${finished} из ${total}. Разделы готовятся одновременно.`}
       </p>
       {isDemo && (
-        <p className="mt-1 text-sm text-[var(--sf-muted)]">Демо-текст: энергия не списывается.</p>
+        <p className="mt-1 text-sm text-[var(--sf-muted)]">Демо-текст: лимит не списывается.</p>
       )}
 
       <div

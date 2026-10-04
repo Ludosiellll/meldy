@@ -160,29 +160,71 @@ describe('ExamDraw', () => {
     expect(screen.getByRole('button', { name: 'Тянуть ещё' })).toBeInTheDocument();
   });
 
-  it('draws only from answered questions in that mode and says so once, in the top line', async () => {
+  it('draws only from answered questions in that mode and says the mode under the actions', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4)], { mode: 'random', per_ticket: 1 }));
     mocks.fetchQuestionEvents.mockResolvedValue([answer(3)]);
     renderDraw('/exams/exam-1/draw?mode=answered');
     const single = await screen.findByRole('article', { name: 'Вопрос 3' });
     // One question: the card's line is the one the answer screen's card will have, said once.
-    expect(single.querySelector('.dw-no')?.textContent).toBe('Вопрос 3');
-    expect(single.querySelector('.dw-q-n')).toBeNull();
-    expect(document.querySelector('.sf-room-bar .dw-long')?.textContent).toBe('Микроэкономика · тянуть вопрос, из уже отвеченных');
+    expect(single.querySelector('.dw-face:not(.dw-face-old) .dw-no')?.textContent).toBe('Вопрос 3');
+    expect(single.querySelector('.dw-face:not(.dw-face-old) .dw-q-n')).toBeNull();
+    // The top line names the place; the way of drawing is the line under «Отвечать» (redesign critique 8).
+    expect(document.querySelector('.sf-room-bar .dw-long')?.textContent).toBe('Микроэкономика · Тянуть вопрос');
     expect(document.querySelector('.sf-room-bar .dw-short')?.textContent).toBe('Тянуть вопрос');
-    // No second choice of the mode on this page: it sits under «Тянуть билет» on the sheet.
-    expect(screen.queryByRole('list', { name: 'Как тянуть' })).toBeNull();
+    expect(screen.getByText('Из вопросов, на которые вы уже отвечали')).toBeInTheDocument();
   });
 
-  it('puts the card where the ticket card will be and «Отвечать» in the column next to it', async () => {
+  it('is a single-object screen: the card, then «Отвечать» and «Тянуть ещё», then the way of drawing (redesign critique 8)', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
     renderDraw();
     const card = await screen.findByRole('article', { name: /Случайный билет/ });
-    const room = document.querySelector('main.dw-room') as HTMLElement;
-    expect(card.closest('.dw-left-col')?.parentElement).toBe(room);
+    const center = document.querySelector('main.dw-room > .dw-center') as HTMLElement;
+    expect(center.contains(card)).toBe(true);
     const answer = screen.getByRole('button', { name: 'Отвечать' });
-    expect(answer.closest('.dw-side')?.parentElement).toBe(room);
+    expect(center.contains(answer)).toBe(true);
     expect(screen.getByRole('button', { name: 'Тянуть ещё' }).closest('.dw-acts')).toBe(answer.closest('.dw-acts'));
+    expect(card.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const mode = document.querySelector('.dw-mode .ex-draw-mode') as HTMLElement;
+    expect(answer.compareDocumentPosition(mode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mode.textContent?.replace(/\s+/g, ' ')).toBe('Как на экзамене · изменить');
+  });
+
+  it('keeps the question numbers on a random pair: «Случайный билет · вопросы 1 и 2», each number hung beside its question', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
+    renderDraw();
+    const card = await screen.findByRole('article', { name: 'Случайный билет: вопросы 1 и 2' });
+    const face = card.querySelector('.dw-face:not(.dw-face-old)') as HTMLElement;
+    expect(face.querySelector('.dw-no')?.textContent?.replace(/\s+/g, ' ')).toBe('Случайный билет · вопросы 1 и 2');
+    expect(Array.from(face.querySelectorAll('.dw-q-n')).map((item) => item.textContent)).toEqual(['1', '2']);
+  });
+
+  it('turns over from the blank back, and «Тянуть ещё» from the last ticket: the old face is shown until the card is edge-on', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4), question(5)], { mode: 'random', per_ticket: 1 }));
+    renderDraw();
+    const first = await screen.findByRole('article', { name: /Вопрос \d/ });
+    const firstLabel = first.getAttribute('aria-label');
+    // The first draw turns the blank back over.
+    const old = first.querySelector('.dw-face-old') as HTMLElement;
+    expect(old).toHaveAttribute('aria-hidden', 'true');
+    expect(old).toHaveTextContent('Билеты');
+    fireEvent.click(screen.getByRole('button', { name: 'Тянуть ещё' }));
+    const second = screen.getByRole('article', { name: /Вопрос \d/ });
+    expect(second.getAttribute('aria-label')).not.toBe(firstLabel);
+    // «Тянуть ещё»: the last ticket stays on the card until it is edge-on.
+    expect(second.querySelector('.dw-face-old')).toHaveTextContent(`Вопрос номер ${firstLabel?.replace('Вопрос ', '')} о рынке`);
+    expect(second.querySelector('.dw-face:not(.dw-face-old)')).toHaveTextContent(`Вопрос номер ${second.getAttribute('aria-label')?.replace('Вопрос ', '')} о рынке`);
+  });
+
+  it('changes the way of drawing on the draw page itself, and draws again', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4)], { mode: 'random', per_ticket: 1 }));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(2)]);
+    renderDraw();
+    await screen.findByRole('article', { name: /Вопрос \d/ });
+    fireEvent.click(screen.getByRole('button', { name: 'изменить' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Из вопросов, на которые вы уже отвечали/ }));
+    await waitFor(() => expect(location).toBe('/exams/exam-1/draw?mode=answered'));
+    expect(await screen.findByRole('article', { name: 'Вопрос 2' })).toBeInTheDocument();
+    expect(screen.getByText('Из вопросов, на которые вы уже отвечали')).toBeInTheDocument();
   });
 
   it('explains an empty answered pool and offers the exam mode', async () => {
@@ -215,7 +257,8 @@ describe('ExamDraw', () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)]));
     renderDraw('/exams/exam-1/draw?mode=weak');
     await screen.findByRole('article', { name: /Случайный билет/ });
-    expect(document.querySelector('.sf-room-bar .dw-long')?.textContent).toBe('Микроэкономика · тянуть билет, чаще слабые');
+    expect(document.querySelector('.sf-room-bar .dw-long')?.textContent).toBe('Микроэкономика · Тянуть билет');
+    expect(screen.getByText('Чаще слабые')).toBeInTheDocument();
   });
 
   it('voices nothing (correction 7)', async () => {

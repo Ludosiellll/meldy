@@ -135,7 +135,7 @@ def test_hung_provider_ends_with_an_error_event_and_never_done(api, monkeypatch)
     assert "KA" in names
     assert names[-1] == "error" and "results" not in names and "done" not in names
     assert items[-1]["code"] == "timeout"
-    assert items[-1]["message"].startswith("ИИ-сервис сейчас не ответил. Материал не сохранён, энергия не списана.")
+    assert items[-1]["message"].startswith("ИИ-сервис сейчас не ответил. Материал не сохранён, лимит не списан.")
     done_events = [item for item in items if item != "KA" and item["type"] == "agent_done"]
     assert {event["status"] for event in done_events} == {"timeout"}
 
@@ -699,3 +699,14 @@ def test_media_quota_on_every_model_is_reported_as_busy(monkeypatch, tmp_path):
     with pytest.raises(AIError) as info:
         asyncio.run(media_parser.transcribe_media_file(str(path), "video/mp4"))
     assert info.value.status_code == 429
+
+
+def test_terminal_messages_say_limit_not_energy():
+    """Spec 3.10: the app speaks of a daily limit; «энергия» is gone from every terminal message."""
+    from agents.coordinator import TERMINAL_MESSAGES
+    import main
+
+    messages = list(TERMINAL_MESSAGES.values()) + [main.MEDIA_BUSY_MESSAGE]
+    for message in messages:
+        assert "лимит не списан" in message
+        assert "энерги" not in message.lower()

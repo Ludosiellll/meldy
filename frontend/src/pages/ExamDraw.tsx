@@ -14,20 +14,11 @@ import {
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import DrawStack, { ticketTitle, type DrawnCardQuestion } from '../components/exams/DrawStack';
 import { preloadTicketScreen, whenIdle } from '../components/exams/preload';
+import DrawModeMenu, { drawModeOf } from '../components/exams/DrawModeMenu';
 import { numberOf } from '../components/exams/sheetModel';
 import { subjectOf } from '../lib/exams/format';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
-
-/**
- * How the ticket is drawn, said once in the top line (the choice itself sits under «Тянуть билет»
- * on the sheet): «Цифровая экономика · тянуть билет, из уже отвеченных».
- */
-export const MODE_WORDS: Record<DrawMode, string> = {
-  exam: 'как на экзамене',
-  weak: 'чаще слабые',
-  answered: 'из уже отвеченных',
-};
 
 /** «Отвечать будете на один вопрос: вопроса 36 нет в ваших лекциях.» */
 export function skippedNote(answerable: number, missing: string[]): string {
@@ -36,25 +27,21 @@ export function skippedNote(answerable: number, missing: string[]): string {
   return `Отвечать будете на ${head}: ${tail} нет в ваших лекциях.`;
 }
 
-function modeOf(value: string | null): DrawMode {
-  return value === 'weak' || value === 'answered' ? value : 'exam';
-}
-
 interface Drawn {
   key: number;
   result: DrawResult;
 }
 
 /**
- * «Тянуть билет» (room mode, no menu): a stack of three cards in the very box the ticket card has on
- * the answer screen, so the card does not jump when «Отвечать» opens it (redesign critique 6). The
- * top one lifts and turns over with the drawn ticket; «Отвечать» stands where «Отвечать голосом»
- * will be. The answer keys are requested while the card lifts. Nothing is voiced.
+ * «Тянуть билет» (room mode, no menu): a single-object screen (redesign critique 8). The stack stands
+ * in the middle; the top card lifts and turns over to the drawn ticket, «Отвечать» and «Тянуть ещё»
+ * under it, and under them the way of drawing with «изменить» (also on phones: stage QA round 2).
+ * The answer keys are requested while the card lifts. Nothing is voiced.
  */
 export default function ExamDraw() {
   const { id: examId = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const mode = modeOf(params.get('mode'));
+  const mode = drawModeOf(params.get('mode'));
   const navigate = useNavigate();
   const reduced = usePrefersReducedMotion();
 
@@ -170,7 +157,7 @@ export default function ExamDraw() {
           Meldy
         </Link>
         <span className="dw-where">
-          <span className="dw-long">{title ? `${title} · тянуть ${drawWord}, ${MODE_WORDS[mode]}` : `Тянуть ${drawWord}`}</span>
+          <span className="dw-long">{title ? `${title} · Тянуть ${drawWord}` : `Тянуть ${drawWord}`}</span>
           <span className="dw-short">{`Тянуть ${drawWord}`}</span>
         </span>
       </div>
@@ -206,15 +193,17 @@ export default function ExamDraw() {
   }
 
   const failure = drawn && !drawn.result.ok ? drawn.result : null;
+  const changeMode = (next: DrawMode) => setParams(next === 'exam' ? {} : { mode: next }, { replace: true });
 
   return (
     <>
       {bar}
       <main className="sf-page dw-room">
-        <section className="dw-left-col" aria-label="Билет">
+        <div className="dw-center">
+        <section aria-label="Билет">
           <DrawStack drawKey={drawn?.key ?? 0} ticketNumber={card?.number ?? null} questions={card?.questions ?? null} animate={!reduced} />
         </section>
-        <section className="dw-side" aria-label="Что дальше">
+        <section aria-label="Что дальше">
         {failure && <p className="dw-msg">{failure.message}</p>}
 
         <div className="dw-acts">
@@ -250,6 +239,7 @@ export default function ExamDraw() {
             </button>
           )}
         </div>
+        <DrawModeMenu className="dw-mode" variant="popover" mode={mode} onChange={changeMode} />
         {card && (
           <p id="dw-ticket-title" className="ex-sr">
             {ticketTitle(card.number, card.questions)}
@@ -260,6 +250,7 @@ export default function ExamDraw() {
         )}
         {historyFailed && <p className="dw-note">История ответов не загрузилась: тянем без неё.</p>}
         </section>
+        </div>
       </main>
     </>
   );

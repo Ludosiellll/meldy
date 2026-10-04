@@ -48,7 +48,7 @@ vi.mock('react-hot-toast', () => ({
   default: Object.assign(vi.fn(), { success: (...args: unknown[]) => db.toastSuccess(...args), error: vi.fn() }),
 }));
 
-import ResultsPanel from './ResultsPanel';
+import ResultsPanel, { buildHtmlExport } from './ResultsPanel';
 
 const summary = { title: 'Энтропия', subject: 'Физика', content: 'Энтропия — мера беспорядка системы.', terms: [], source_ids: ['S01'] };
 const cards = { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка', source_ids: ['S01'] }] };
@@ -413,5 +413,19 @@ describe('text-only materials', () => {
     expect(screen.getByText('Только текст, конспекта нет. Материал участвует в разметке экзаменов.')).toBeInTheDocument();
     expect(screen.queryByText('Нет данных для отображения')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Экспорт' })).not.toBeInTheDocument();
+  });
+});
+
+describe('HTML export', () => {
+  it('is self-contained: no web-font links, the system font stack, no capitals by CSS', () => {
+    const html = buildHtmlExport(
+      { summarizer: { content: '# Энтропия\nМера беспорядка' }, flashcards: { flashcards: [] }, quiz: { quiz: [] } } as unknown as AnalysisResults,
+      'Энтропия',
+    );
+    expect(html).not.toMatch(/fonts\.googleapis|fonts\.gstatic|<link/i);
+    expect(html).not.toMatch(/'Inter'/);
+    expect(html).toMatch(/font-family: system-ui/);
+    expect(html).not.toMatch(/text-transform:\s*uppercase/);
+    expect(html).toContain('Энтропия');
   });
 });

@@ -31,10 +31,14 @@ describe('<RubricSlots>', () => {
     expect(container.querySelectorAll('.or-pt-blank')).toHaveLength(5);
   });
 
-  it('opens a named row with a tick and the lecture’s own words, underlined where they matched', () => {
+  it('opens a named row with a provisional dashed tick and the lecture’s own words, underlined where they matched', () => {
     const { container } = render(slots(['p1'], { announcement: `Пункт 1 назван: ${titles[0]}` }));
     const row = container.querySelector('[data-point="p1"]')!;
-    expect(row.querySelector('svg[data-mark="tick"]')).not.toBeNull();
+    // Named by key words, not judged yet: the dashed tick of «только по словам»; the solid tick, the cup,
+    // the dash and the cross belong to the protocol (redesign critique 1, round 2).
+    expect(row.querySelector('svg[data-mark="dtick"]')).not.toBeNull();
+    expect(container.querySelector('svg[data-mark="tick"]')).toBeNull();
+    expect(row.querySelector('.sr-only')?.textContent).toBe('Пункт 1 назван по ключевым словам.');
     expect(row.textContent).toContain('Обучение сети заключается в подборе');
     expect(row.querySelectorAll('[data-mark="under"]').length).toBeGreaterThan(0);
     expect(within(row as HTMLElement).getByText('фрагмент 12')).toBeInTheDocument();
@@ -56,10 +60,10 @@ describe('<RubricSlots>', () => {
 
   it('draws in only the rows named after it appeared', () => {
     const { container, rerender } = render(slots(['p1']));
-    expect(container.querySelector('[data-point="p1"] svg[data-mark="tick"]')).toHaveAttribute('data-drawn', 'still');
+    expect(container.querySelector('[data-point="p1"] svg[data-mark="dtick"]')).toHaveAttribute('data-drawn', 'still');
     rerender(slots(['p1', 'p2']));
     expect(container.querySelector('[data-point="p2"]')).toHaveAttribute('data-fresh');
-    expect(container.querySelector('[data-point="p2"] svg[data-mark="tick"]')).toHaveAttribute('data-drawn', 'live');
+    expect(container.querySelector('[data-point="p2"] svg[data-mark="dtick"]')).toHaveAttribute('data-drawn', 'live');
     expect(container.querySelector('[data-point="p1"]')).not.toHaveAttribute('data-fresh');
   });
 

@@ -148,10 +148,10 @@ describe('runAnalyzeStream outcomes', () => {
   });
 
   it('error events map to kinds by code; a later done is ignored', async () => {
-    mockFetch(() => sseResponse([ev(TEXT), ev({ type: 'error', code: 'busy', message: 'Сервис ИИ сейчас занят. Материал не сохранён, энергия не списана. Попробуйте через минуту.' }), ev({ type: 'done' })]));
+    mockFetch(() => sseResponse([ev(TEXT), ev({ type: 'error', code: 'busy', message: 'Сервис ИИ сейчас занят. Материал не сохранён, лимит не списан. Попробуйте через минуту.' }), ev({ type: 'done' })]));
     const error = await run().catch(e => e);
     expect(error).toMatchObject({ kind: 'busy', retryable: true });
-    expect(error.message).toContain('энергия не списана');
+    expect(error.message).toContain('лимит не списан');
   });
 
   it.each([
@@ -231,6 +231,15 @@ describe('runAnalyzeStream outcomes', () => {
       expect(error).toMatchObject({ kind: 'timeout' });
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('wording of an unfinished analysis (spec 3.10)', () => {
+  it('says «лимит не списан» wherever it says the material was not saved, and never «энергия»', () => {
+    for (const message of Object.values(ANALYZE_MESSAGES)) {
+      expect(message).not.toMatch(/энерги/i);
+      if (message.includes('не сохранён')) expect(message).toContain('лимит не списан');
     }
   });
 });

@@ -68,7 +68,6 @@ interface ProfessorConfig {
   character: string;
   specialties: string[];
   description: string;
-  gradient: string;
   accentColor: string;
   borderColor: string;
   textAccent: string;
@@ -84,7 +83,6 @@ const PROFESSORS: ProfessorConfig[] = [
     character: 'Строгий, академичный, ценит точность формул и логику.',
     specialties: ['Точные науки', 'Математика', 'Алгоритмы'],
     description: 'Не терпит «воды» в ответах. Ценит строгие определения, четкие формулировки и логические доказательства.',
-    gradient: 'from-blue-600 to-indigo-800 dark:from-blue-700 dark:to-indigo-900',
     accentColor: 'bg-indigo-600 text-white',
     borderColor: 'border-indigo-200 dark:border-indigo-800',
     textAccent: 'text-indigo-600 dark:text-indigo-400',
@@ -98,7 +96,6 @@ const PROFESSORS: ProfessorConfig[] = [
     character: 'Вдохновляющая, приветливая, любит примеры и творческие аналогии.',
     specialties: ['История', 'Философия', 'Литература', 'Этика'],
     description: 'Обращает внимание на глубину понимания сути, умение объяснять сложные вещи простыми словами и приводить живые примеры.',
-    gradient: 'from-pink-500 to-purple-700 dark:from-pink-600 dark:to-purple-800',
     accentColor: 'bg-purple-600 text-white',
     borderColor: 'border-purple-200 dark:border-purple-800',
     textAccent: 'text-purple-600 dark:text-purple-400',
@@ -112,7 +109,6 @@ const PROFESSORS: ProfessorConfig[] = [
     character: 'Технологичный, современный, говорит на понятном IT-языке.',
     specialties: ['Программирование', 'IT-инженерия', 'Архитектура ПО'],
     description: 'Ценит практические кейсы, лаконичность рассуждений и реальный опыт решения прикладных задач.',
-    gradient: 'from-emerald-500 to-teal-700 dark:from-emerald-600 dark:to-teal-800',
     accentColor: 'bg-emerald-600 text-white',
     borderColor: 'border-emerald-200 dark:border-emerald-800',
     textAccent: 'text-emerald-600 dark:text-emerald-400',
@@ -562,7 +558,7 @@ export default function ProfessorExam() {
     // как первый вопрос действительно пришёл: неудачный старт ничего не стоит.
     const cost = getEnergyCost(examLength);
     if (clearHistory && user?.id) {
-      const ok = await verifyEnergy(user.id, cost, 'AI-Экзаменатор');
+      const ok = await verifyEnergy(user.id, cost, 'Устный экзамен');
       if (!ok) {
         setPhase('select');
         return;
@@ -743,31 +739,31 @@ export default function ProfessorExam() {
   const getGradeColors = (grade: string) => {
     switch (grade) {
       case '5': return {
-        bg: 'bg-gradient-to-br from-emerald-50/90 to-teal-50/40 dark:from-emerald-950/40 dark:to-teal-950/20 border-emerald-200/60 dark:border-emerald-800 shadow-lg shadow-emerald-100/10 backdrop-blur-md',
+        bg: 'bg-[var(--sf-surface)] border-[var(--sf-line)]',
         text: 'text-emerald-950 dark:text-emerald-100',
         textColor: 'text-emerald-800 dark:text-emerald-300',
-        sealBg: 'bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-emerald-200 dark:shadow-none border border-emerald-400',
+        sealBg: 'bg-[var(--sf-ink)] border border-[var(--sf-ink)]',
         label: 'Отлично (5)'
       };
       case '4': return {
-        bg: 'bg-gradient-to-br from-indigo-50/90 to-blue-50/40 dark:from-indigo-950/40 dark:to-blue-950/20 border-indigo-200/60 dark:border-indigo-800 shadow-lg shadow-indigo-100/10 backdrop-blur-md',
+        bg: 'bg-[var(--sf-surface)] border-[var(--sf-line)]',
         text: 'text-indigo-950 dark:text-indigo-100',
         textColor: 'text-indigo-800 dark:text-indigo-300',
-        sealBg: 'bg-gradient-to-tr from-indigo-500 to-blue-500 shadow-indigo-200 dark:shadow-none border border-indigo-400',
+        sealBg: 'bg-[var(--sf-ink)] border border-[var(--sf-ink)]',
         label: 'Хорошо (4)'
       };
       case '3': return {
-        bg: 'bg-gradient-to-br from-amber-50/90 to-orange-50/40 dark:from-amber-950/40 dark:to-orange-950/20 border-amber-200/60 dark:border-amber-800 shadow-lg shadow-amber-100/10 backdrop-blur-md',
+        bg: 'bg-[var(--sf-surface)] border-[var(--sf-line)]',
         text: 'text-amber-950 dark:text-amber-100',
         textColor: 'text-amber-800 dark:text-amber-300',
-        sealBg: 'bg-gradient-to-tr from-amber-500 to-orange-500 shadow-amber-200 dark:shadow-none border border-amber-400',
+        sealBg: 'bg-[var(--sf-ink)] border border-[var(--sf-ink)]',
         label: 'Удовлетворительно (3)'
       };
       default: return {
-        bg: 'bg-gradient-to-br from-rose-50/90 to-red-50/40 dark:from-rose-950/40 dark:to-red-950/20 border-rose-200/60 dark:border-rose-800 shadow-lg shadow-rose-100/10 backdrop-blur-md',
+        bg: 'bg-[var(--sf-surface)] border-[var(--sf-line)]',
         text: 'text-rose-950 dark:text-rose-100',
         textColor: 'text-rose-800 dark:text-rose-300',
-        sealBg: 'bg-gradient-to-tr from-rose-500 to-red-500 shadow-rose-200 dark:shadow-none border border-rose-400',
+        sealBg: 'bg-[var(--sf-ink)] border border-[var(--sf-ink)]',
         label: 'Неудовлетворительно (2)'
       };
     }
@@ -797,12 +793,12 @@ export default function ProfessorExam() {
       {/* Заголовок */}
       <div className="flex items-center gap-2 mb-6 justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-rose-500/10 rounded-2xl flex items-center justify-center border border-rose-500/20 shadow-inner">
-            <Award className="w-5 h-5 text-rose-500" />
-          </div>
           <div>
-            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-wide uppercase">AI-Экзаменатор</h1>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">Интерактивный устный зачет на прочность</p>
+            <h1 className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em] text-[var(--sf-ink)]">Устный экзамен по лекции</h1>
+            <p className="mt-1 text-[15px] leading-[22px] text-[var(--sf-muted)]">
+              Прежний формат. Билеты по списку кафедры —{' '}
+              <Link to="/exams" className="underline decoration-1 underline-offset-4">в разделе «Экзамены»</Link>.
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -840,16 +836,11 @@ export default function ProfessorExam() {
           >
             {/* Карточка-приветствие */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-xl">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
-              
-              <div className="max-w-2xl mx-auto text-center space-y-4">
-                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-full dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900/40">
-                  Интеллектуальная подготовка
-                </span>
-                <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-                  Выберите Экзаменатора и Тяните Билет
+              <div className="max-w-2xl mx-auto text-center space-y-3">
+                <h2 className="text-2xl font-semibold leading-[30px] tracking-[-0.017em] text-[var(--sf-ink)]">
+                  Выберите лекцию и экзаменатора
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg mx-auto">
+                <p className="text-[15px] leading-[22px] text-[var(--sf-muted)] max-w-lg mx-auto">
                   ИИ-Профессор проверит ваше понимание лекции, выявит фактические неточности и составит зачетную ведомость. Отвечайте развернуто текстом или говорите в микрофон!
                 </p>
               </div>
@@ -857,7 +848,7 @@ export default function ProfessorExam() {
               {/* Выбор лекции */}
               <div className="max-w-xl mx-auto mt-8 space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
+                  <label className="text-[15px] font-medium text-[var(--sf-muted)] block">
                     1. Выберите лекцию для проверки:
                   </label>
                   <CustomSelect
@@ -874,8 +865,8 @@ export default function ProfessorExam() {
 
                 {/* Выбор Профессора */}
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
-                    2. Выберите ИИ-Экзаменатора:
+                  <label className="text-[15px] font-medium text-[var(--sf-muted)] block">
+                    2. Выберите экзаменатора:
                   </label>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -901,20 +892,20 @@ export default function ProfessorExam() {
                           )}
                           
                           <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${prof.gradient} flex items-center justify-center text-lg font-semibold text-white shadow-md shrink-0`} aria-hidden="true">
+                            <div className="w-11 h-11 rounded-full border border-[var(--sf-line-strong)] bg-[var(--sf-surface)] flex items-center justify-center text-lg font-semibold text-[var(--sf-ink)] shrink-0" aria-hidden="true">
                               {prof.avatar}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs leading-snug truncate">
+                              <h4 className="font-semibold text-[var(--sf-ink)] text-[15px] leading-snug truncate">
                                 {prof.name}
                               </h4>
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block truncate mt-0.5">
+                              <span className="text-[14px] text-[var(--sf-muted)] block truncate mt-0.5">
                                 {prof.specialties[0]}
                               </span>
                             </div>
                           </div>
 
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed flex-1">
+                          <p className="text-[14px] text-[var(--sf-muted)] leading-relaxed flex-1">
                             {prof.character}
                           </p>
                         </motion.div>
@@ -927,8 +918,8 @@ export default function ProfessorExam() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Длина */}
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
-                      3. Длина билета и расход энергии:
+                    <label className="text-[15px] font-medium text-[var(--sf-muted)] block">
+                      3. Длина билета и расход лимита:
                     </label>
                     <div className="flex flex-col gap-2">
                       {EXAM_LENGTHS.map(opt => {
@@ -944,17 +935,12 @@ export default function ProfessorExam() {
                             }`}
                           >
                             <div className="min-w-0 pr-2">
-                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 block">{opt.label}</span>
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight block mt-0.5">{opt.desc}</span>
+                              <span className="text-[15px] font-semibold text-[var(--sf-ink)] block">{opt.label}</span>
+                              <span className="text-[14px] text-[var(--sf-muted)] leading-snug block mt-0.5">{opt.desc}</span>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs text-slate-500 dark:text-slate-400" title="Расход дневного лимита ИИ">
+                              <span className="text-[14px] text-[var(--sf-muted)]" title="Расход дневного лимита">
                                 {opt.cost} ед.
-                              </span>
-                              <span className={`px-1.5 py-0.5 rounded-lg text-[9px] font-black ${
-                                isSelected ? 'bg-indigo-650 text-white dark:bg-indigo-500' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                              }`}>
-                                +{opt.xp} XP
                               </span>
                             </div>
                           </div>
@@ -966,16 +952,15 @@ export default function ProfessorExam() {
                   {/* Режим Сократа и Настрой */}
                   <div className="space-y-4 flex flex-col justify-between">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
+                      <label className="text-[15px] font-medium text-[var(--sf-muted)] block">
                         4. Особый режим экзамена:
                       </label>
                       <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/50 p-3.5 rounded-2xl flex items-center justify-between shadow-inner">
                         <div className="space-y-0.5 pr-2">
-                          <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wide flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                          <h4 className="font-semibold text-[var(--sf-ink)] text-[15px] flex items-center gap-1.5">
                             Метод Сократа
                           </h4>
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
+                          <p className="text-[14px] text-[var(--sf-muted)] leading-snug">
                             Профессор будет задавать дополнительные каверзные вопросы и цепляться к неточностям.
                           </p>
                         </div>
@@ -999,8 +984,8 @@ export default function ProfessorExam() {
                     {todayMood ? (
                       <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl p-3.5 flex items-center justify-between shadow-sm text-left">
                         <div className="min-w-0">
-                          <p className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">Ваше состояние учтено</p>
-                          <p className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-0.5 leading-snug">Сложность и стиль профессора будут мягко адаптированы.</p>
+                          <p className="text-[15px] font-semibold text-[var(--sf-ink)]">Ваше состояние учтено</p>
+                          <p className="text-[14px] text-[var(--sf-muted)] mt-0.5 leading-snug">Сложность и стиль профессора будут мягко адаптированы.</p>
                         </div>
                         <span className="text-[15px] font-medium text-emerald-800 dark:text-emerald-300 shrink-0 ml-2">
                           {todayMood.mood === 'great' ? 'отлично' : todayMood.mood === 'good' ? 'хорошо' : todayMood.mood === 'okay' ? 'нормально' : todayMood.mood === 'tired' ? 'устали' : 'тревожно'}
@@ -1009,10 +994,10 @@ export default function ProfessorExam() {
                     ) : (
                       <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/40 rounded-2xl p-3.5 shadow-sm text-left flex justify-between items-center">
                         <div className="min-w-0">
-                          <p className="text-xs font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-wide">Адаптировать сложность?</p>
-                          <p className="text-[9px] text-indigo-600 dark:text-indigo-400 mt-0.5 leading-snug">Укажите ваше состояние, чтобы снизить каверзность при усталости.</p>
+                          <p className="text-[15px] font-semibold text-[var(--sf-ink)]">Адаптировать сложность?</p>
+                          <p className="text-[14px] text-[var(--sf-muted)] mt-0.5 leading-snug">Укажите ваше состояние, чтобы снизить каверзность при усталости.</p>
                         </div>
-                        <Link to="/mood" className="text-[10px] px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg font-black shrink-0 hover:bg-indigo-750 transition shadow-sm ml-2">
+                        <Link to="/mood" className="text-[15px] font-medium text-[var(--sf-ink)] underline decoration-1 underline-offset-4 shrink-0 ml-2 min-h-[44px] inline-flex items-center">
                           Настроить
                         </Link>
                       </div>
@@ -1040,9 +1025,8 @@ export default function ProfessorExam() {
             {examHistory.length > 0 && (
               <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-md">
                 <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-850 pb-3">
-                  <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                    Предыдущие зачетные сессии
+                  <h3 className="font-semibold text-[var(--sf-ink)] text-[19px] leading-[26px]">
+                    Прежние устные экзамены
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1050,19 +1034,19 @@ export default function ProfessorExam() {
                     <div key={session.id} className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-150/40 dark:border-slate-700/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/60 transition-all">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate">{session.subject || 'Без предмета'}</span>
-                          <span className="px-1.5 py-0.5 bg-slate-200/60 dark:bg-slate-750 text-slate-500 dark:text-slate-400 rounded-md text-[8px] font-bold shrink-0">
+                          <span className="text-[15px] font-semibold text-[var(--sf-ink)] truncate">{session.subject || 'Без предмета'}</span>
+                          <span className="text-[14px] text-[var(--sf-muted)] shrink-0">
                             {new Date(session.completed_at).toLocaleDateString('ru-RU')}
                           </span>
                         </div>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Сдано билетов: {session.total_questions || 1}</p>
+                        <p className="text-[14px] text-[var(--sf-muted)]">Сдано билетов: {session.total_questions || 1}</p>
                       </div>
                       <div className="flex items-center gap-3 ml-3 shrink-0">
                         <div className="text-right">
                           <p className={`text-sm font-black ${
                             session.score >= 85 ? 'text-emerald-600 dark:text-emerald-405' : session.score >= 70 ? 'text-indigo-600 dark:text-indigo-405' : 'text-amber-600'
                           }`}>{session.score}%</p>
-                          <p className="text-[8px] text-slate-400 uppercase font-black tracking-widest mt-0.5">Точность</p>
+                          <p className="text-[14px] text-[var(--sf-muted)] mt-0.5">точность</p>
                         </div>
                       </div>
                     </div>
@@ -1113,10 +1097,9 @@ export default function ProfessorExam() {
               {/* Левый сайдбар: Карточка профессора */}
               <div className="lg:col-span-1 space-y-4">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl p-5 shadow-lg flex flex-col items-center text-center relative overflow-hidden">
-                  <div className={`absolute -top-10 -left-10 w-24 h-24 rounded-full blur-2xl opacity-10 bg-gradient-to-br ${activeProf.gradient}`} />
                   
                   <div className="relative mb-3">
-                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${activeProf.gradient} flex items-center justify-center text-4xl shadow-md border-4 border-white dark:border-slate-800`} />
+                    <div className="w-20 h-20 rounded-full border border-[var(--sf-line-strong)] bg-[var(--sf-surface)] flex items-center justify-center text-3xl font-semibold text-[var(--sf-ink)]" aria-hidden="true">{activeProf.avatar}</div>
                     <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
                       <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                         isListening ? 'bg-rose-400 animate-pulse' : ttsState === 'playing' ? 'bg-indigo-400' : 'bg-green-400'
@@ -1320,7 +1303,7 @@ export default function ProfessorExam() {
                     {/* Комментарий экзаменатора */}
                     <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-100/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
                       <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${activeProf.gradient} flex items-center justify-center text-base font-semibold text-white shadow-inner shrink-0`} aria-hidden="true">
+                        <div className="w-10 h-10 rounded-full border border-[var(--sf-line-strong)] bg-[var(--sf-surface)] flex items-center justify-center text-base font-semibold text-[var(--sf-ink)] shrink-0" aria-hidden="true">
                           {activeProf.avatar}
                         </div>
                         <div className="flex-1 space-y-1 min-w-0">
@@ -1340,7 +1323,7 @@ export default function ProfessorExam() {
                       </div>
                       <div className="flex-1 min-w-[150px] h-2 bg-slate-200/60 dark:bg-slate-850 rounded-full overflow-hidden relative">
                         <div 
-                          className={`h-full bg-gradient-to-r ${activeProf.gradient} rounded-full`} 
+                          className="h-full bg-[var(--sf-ink)] rounded-full" 
                           style={{ width: `${evaluation.score}%` }} 
                         />
                       </div>
@@ -1473,7 +1456,6 @@ export default function ProfessorExam() {
           >
             {/* Сама зачетка */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
-              <div className={`h-2.5 bg-gradient-to-r ${activeProf.gradient}`} />
               
               <div className="p-5 md:p-8">
                 {/* Шапка результата */}
@@ -1550,13 +1532,7 @@ export default function ProfessorExam() {
                           animate={{ scale: 1, opacity: 1, rotate: 5 }}
                           transition={{ type: 'spring', stiffness: 90, delay: 0.3 }}
                           className={`w-24 h-24 rounded-full flex flex-col items-center justify-center text-white shadow-xl relative overflow-hidden border-4 border-white dark:border-slate-800 select-none ${
-                            finalGrade === '5'
-                              ? 'bg-gradient-to-tr from-emerald-650 to-teal-500 shadow-emerald-500/20'
-                              : finalGrade === '4'
-                              ? 'bg-gradient-to-tr from-indigo-650 to-blue-500 shadow-indigo-500/20'
-                              : finalGrade === '3'
-                              ? 'bg-gradient-to-tr from-amber-600 to-orange-500 shadow-amber-500/20'
-                              : 'bg-gradient-to-tr from-rose-650 to-red-500 shadow-rose-500/20'
+                            'bg-[var(--sf-ink)]'
                           }`}
                         >
                           <div className="absolute inset-1 rounded-full border border-dashed border-white/20 scale-95" />

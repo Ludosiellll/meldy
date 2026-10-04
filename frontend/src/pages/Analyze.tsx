@@ -489,7 +489,7 @@ export default function Analyze() {
 
   const notices = (
     <>
-      {state.isDemo && save.status === 'saved' && <p>Демо-текст: энергия не списана.</p>}
+      {state.isDemo && save.status === 'saved' && <p>Демо-текст: лимит не списан.</p>}
       {save.status === 'existing' && save.materialId && (
         <p>
           Этот результат не сохранён: демо-материал уже есть в библиотеке.{' '}

@@ -88,9 +88,11 @@ const NOTE_CHARS = 54;
 
 /**
  * Margin notes of the visible rows, in order (redesign critique 3): the lecture is named on the first
- * row of a section and whenever it differs from the last note above; otherwise the note is one line,
- * «там же, фрагмент 4». A hand mark interrupts the run, so the next row names its lecture again.
- * Rows come already filtered, so after a filter change the first note names its lecture too.
+ * row of a section and whenever it differs from the note right above; otherwise the note is one line,
+ * «там же, фрагмент 4». «Там же» means the line above, so a row without a note (a dash, a question
+ * not mapped yet) and a hand mark interrupt the run: the next note names its lecture again (redesign
+ * critique 7 of round 2). Rows come already filtered, so after a filter change the first note names its
+ * lecture too.
  */
 export function marginNotes(rows: Array<{ section: number | null; footnote: Footnote | null }>): Array<NoteView | null> {
   let lastMaterial: string | null = null;
@@ -99,7 +101,10 @@ export function marginNotes(rows: Array<{ section: number | null; footnote: Foot
     if (row.section !== null && row.section !== lastSection) lastMaterial = null;
     if (row.section !== null) lastSection = row.section;
     const note = row.footnote;
-    if (!note) return null;
+    if (!note) {
+      lastMaterial = null;
+      return null;
+    }
     if (note.manual) {
       lastMaterial = null;
       return { lead: note.title, fragments: '', named: false };

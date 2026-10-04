@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { Mark, PencilOval, seedFrom, type MarkKind } from '../marks';
+import { MARK_DRAW_MS, MARK_STAGGER_MS, Mark, PencilOval, seedFrom, type MarkKind } from '../marks';
 import { ZAVTRA } from '../landing/zavtraPath';
 import { UnderlinedText, quoteText } from './RubricSlots';
 import {
@@ -124,19 +124,55 @@ function extraLine(followup: ProtocolFollowup): string {
   return `ответ: «${followup.answer}», ${followupVerdict(followup)}.`;
 }
 
-function lectureCaption(label: string): string {
-  return label.startsWith('«') ? `Лекция ${label}` : label || 'Лекция';
+/** The lecture's title in a source label «"Нейронные сети", фрагмент 12», or '' when it has none. */
+export function lectureTitleOf(label: string): string {
+  return /^«([^»]*)»/.exec(label.trim())?.[1]?.trim() ?? '';
 }
 
 /**
- * The label in front of a lecture quote: «Лекция «Нейронные сети», фрагмент 12:». An exam has many
- * lectures, so the quote always names its own (QA s35); only a rubric that knows no lecture title
- * falls back to «Лекция, фрагмент 12:».
+ * «Лекция «Нейронные сети», фрагмент 12» on the lecture's first mention in a protocol, «Лекция,
+ * фрагмент 13» after it (redesign critique 4, round 2 — the same rule as «там же» on the sheet).
  */
-export function quoteLabel(point: Pick<ProtocolPoint, 'sourceLabel' | 'fragments'>): string {
-  const label = point.sourceLabel.trim();
-  if (label) return `${lectureCaption(label)}:`;
-  return `Лекция${point.fragments ? `, ${point.fragments}` : ''}:`;
+function lectureCaption(label: string, fragments: string, named: boolean): string {
+  const clean = label.trim();
+  if (named && clean.startsWith('«')) return `Лекция ${clean}`;
+  if (named && clean) return clean;
+  return `Лекция${fragments ? `, ${fragments}` : ''}`;
+}
+
+/**
+ * The label in front of a lecture quote: «Лекция «Нейронные сети», фрагмент 12:» where the lecture
+ * is named for the first time on the sheet (an exam has many lectures: QA s35), «Лекция, фрагмент 13:»
+ * for the next quotes from it. A rubric that knows no lecture title says «Лекция, фрагмент 12:».
+ */
+export function quoteLabel(point: Pick<ProtocolPoint, 'sourceLabel' | 'fragments'>, named = true): string {
+  return `${lectureCaption(point.sourceLabel, point.fragments, named)}:`;
+}
+
+/**
+ * For each point, whether its quote names the lecture: only the first quote from each lecture does.
+ */
+export function lectureMentions(points: Array<Pick<ProtocolPoint, 'sourceLabel' | 'sourceQuote'>>): boolean[] {
+  const seen = new Set<string>();
+  return points.map((point) => {
+    if (!point.sourceQuote) return false;
+    const title = lectureTitleOf(point.sourceLabel);
+    if (!title) return false;
+    if (seen.has(title)) return false;
+    seen.add(title);
+    return true;
+  });
+}
+
+/**
+ * The line under the sheet's header that says why the examiner asked, so the asked point is clear
+ * above the fold (redesign critique 4, round 2): «Пункт 4 не назван — о нём спросил экзаменатор.»
+ */
+export function askedNote(number: number, status: PointStatus): string {
+  if (status === 'missing') return `Пункт ${number} не назван — о нём спросил экзаменатор.`;
+  if (status === 'wrong') return `В пункте ${number} ошибка — о ней спросил экзаменатор.`;
+  if (status === 'partial') return `Пункт ${number} упомянут не полностью — о нём спросил экзаменатор.`;
+  return `О пункте ${number} спросил экзаменатор.`;
 }
 
 function PointRow({
@@ -145,19 +181,23 @@ function PointRow({
   seed,
   preliminary,
   animate,
+  namesLecture,
 }: {
   point: ProtocolPoint;
   followup: ProtocolFollowup | null;
   seed: string;
   preliminary: boolean;
   animate: boolean;
+  /** The first quote from this point's lecture on the sheet: it names the lecture. */
+  namesLecture: boolean;
 }) {
   const markSeed = seedFrom(seed, point.id);
   const asked = followup && followup.pointId === point.id ? followup : null;
   if (preliminary) {
     return (
       <li className="or-ppt" data-point={point.id}>
-        <span className="or-pt-m">{point.live ? <Mark kind="tick" seed={markSeed} /> : null}</span>
+        {/* Named by key words only: the provisional dashed tick of the answer sheet. */}
+        <span className="or-pt-m">{point.live ? <Mark kind="dtick" seed={markSeed} /> : null}</span>
         <span className="or-pt-n" aria-hidden="true">
           {point.number}
         </span>
@@ -166,7 +206,7 @@ function PointRow({
           <p className="or-ppt-st">{point.live ? 'по ключевым словам назван' : 'по ключевым словам не назван'}</p>
           {point.sourceQuote ? (
             <p className="or-q2">
-              <span className="or-q2-label">{glue(quoteLabel(point))}</span>
+              <span className="or-q2-label">{glue(quoteLabel(point, namesLecture))}</span>
               «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} seed={markSeed + 31} />»
             </p>
           ) : null}
@@ -220,12 +260,12 @@ function PointRow({
         {point.sourceQuote ? (
           point.status === 'covered' ? (
             <p className="or-q2">
-              <span className="or-q2-label">{glue(quoteLabel(point))}</span>
+              <span className="or-q2-label">{glue(quoteLabel(point, namesLecture))}</span>
               «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} groups={shared} seed={markSeed + 31} animate={animate} delayMs={underDelay} />»
             </p>
           ) : (
             <blockquote className="sf-slip or-pslip">
-              <span className="or-slip-cap">{lectureCaption(point.sourceLabel)}</span>
+              <span className="or-slip-cap">{glue(lectureCaption(point.sourceLabel, point.fragments, namesLecture))}</span>
               <span className="or-pslip-quote">
                 «<UnderlinedText text={quoteText(point.sourceQuote)} anchors={point.anchors} groups={shared} seed={markSeed + 31} animate={animate} delayMs={underDelay} />»
               </span>
@@ -258,13 +298,18 @@ interface ProtocolSheetProps {
  * lecture says, the same words underlined in both — so it is visible what a point was counted for.
  */
 export function ProtocolSheet({ heading, points, followup, stamp, seed, preliminary = false, animate = false }: ProtocolSheetProps) {
+  const mentions = lectureMentions(points);
+  const asked = followup && !preliminary ? points.find((point) => point.id === followup.pointId) ?? null : null;
+  // The point marks are drawn in lecture order, 250 ms each, 60 ms apart; the oval after the last one.
+  const ovalDelay = animate ? Math.max(0, points.length - 1) * MARK_STAGGER_MS + MARK_DRAW_MS : 0;
   return (
     <div className="sf-sheet or-psheet">
       <div className="or-ph">
         <span className="or-ph-date">{heading}</span>
         {stamp === 'passed' ? (
           <span className="or-stamp" data-passed="true">
-            <PencilOval seed={seedFrom(seed, 'oval')} animate={animate}>
+            {/* Wide enough that the line never cuts the word's corners (spec 3.8: word +10/+7). */}
+            <PencilOval seed={seedFrom(seed, 'oval')} animate={animate} delayMs={ovalDelay} padX={18} padY={8}>
               Зачтено
             </PencilOval>
           </span>
@@ -274,10 +319,19 @@ export function ProtocolSheet({ heading, points, followup, stamp, seed, prelimin
           </span>
         ) : null}
       </div>
+      {asked ? <p className="or-asked sf-pnote">{askedNote(asked.number, asked.status)}</p> : null}
       {preliminary ? <p className="or-prelim">Предварительно: по ключевым словам</p> : null}
       <ol className="or-ppts" aria-label="Пункты эталона">
-        {points.map((point) => (
-          <PointRow key={point.id} point={point} followup={followup} seed={seed} preliminary={preliminary} animate={animate} />
+        {points.map((point, index) => (
+          <PointRow
+            key={point.id}
+            point={point}
+            followup={followup}
+            seed={seed}
+            preliminary={preliminary}
+            animate={animate}
+            namesLecture={mentions[index]}
+          />
         ))}
       </ol>
       {followup && !preliminary ? (
@@ -311,8 +365,9 @@ export function HowGraded({ result }: { result: GradeResult }) {
 interface ProtocolGradeProps {
   result: GradeResult;
   /**
-   * A previous answer to the same question, on the «Как считается» row: «прошлый ответ, 2 окт.:
-   * «хорошо»» (redesign critique 5: «4 из 5» next to «Раскрыто 3 пункта из 5» read as points).
+   * A previous answer to the same question, on its own muted line under «Как считается»: «Прошлый
+   * ответ, 2 окт.: «хорошо».», the date being the link (redesign critique 4, round 2; a grade in words
+   * because «4 из 5» next to «Раскрыто 3 пункта из 5» read as points).
    */
   previous?: ReactNode;
   children?: ReactNode;
@@ -344,13 +399,8 @@ export function ProtocolGrade({ result, previous, children }: ProtocolGradeProps
         <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
           Как считается
         </button>
-        {previous ? (
-          <span className="or-previous">
-            <span aria-hidden="true"> · </span>
-            {previous}
-          </span>
-        ) : null}
       </p>
+      {previous ? <p className="or-previous or-prev-line">{previous}</p> : null}
       {open ? (
         <div id={howId}>
           <HowGraded result={result} />

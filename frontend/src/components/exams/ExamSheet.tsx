@@ -38,6 +38,8 @@ export interface SheetPeak {
   /** Draw the new readiness mark in. */
   animate: boolean;
   because: string;
+  /** Phones: «Подтверждено ответами: 1 из 40, было 0.» under the row — the column is above, out of view. */
+  count?: string;
 }
 
 interface ExamSheetProps {
@@ -228,6 +230,7 @@ export default function ExamSheet(props: ExamSheetProps) {
                   row.footnote && note && <MarginNote footnote={row.footnote} note={note} appearance={row.appearance} />
                 )}
                 {isPeak && peak?.because && <span className="ex-because">{glue(peak.because)}</span>}
+                {isPeak && peak?.count && <span className="ex-because ex-because-count">{glue(peak.count)}</span>}
                 {(selected || isPeak) && <MarginStroke seed={selectionSeed(examId, question.position)} animate={isPeak} />}
               </li>
             </Fragment>

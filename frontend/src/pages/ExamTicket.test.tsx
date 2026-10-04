@@ -381,7 +381,9 @@ describe('ExamTicket: before the answer', () => {
     seedDatabase();
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     await renderPage(ticketUrl());
-    expect(await screen.findByText(/^Дневной лимит исчерпан\. Обновится в \d\d:\d\d\.$/)).toBeInTheDocument();
+    // «Обновится в 3:00»: the hour without a leading zero (redesign critique 4, spec 3.10).
+    expect(await screen.findByText(/^Дневной лимит исчерпан\. Обновится в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Обновится в 0\d:/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Отвечать голосом' })).toBeNull();
     expect(mocks.confirm).not.toHaveBeenCalled();
     expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
@@ -603,11 +605,13 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem('meldy_oral_attempt')).toBeNull();
-    // The previous answer is on the «Как считается» row, its grade in words leads to that protocol
-    // («4 из 5» next to «Раскрыто 3 пункта из 5» read as points; redesign critique 5).
-    const before = screen.getByRole('link', { name: '«хорошо»' });
+    // The previous answer has its own muted line under «Как считается»; its date leads to that protocol,
+    // its grade is in words (redesign critique 4, round 2).
+    const before = screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\.$/ });
     expect(before).toHaveAttribute('href', `/exams/${EXAM}/ticket?session=${PREVIOUS_SESSION}`);
-    expect(before.closest('.or-how-row')?.textContent?.replace(/\s/g, ' ')).toBe('Как считается · прошлый ответ, 6 окт.: «хорошо»');
+    expect(before.textContent?.replace(/\s/g, ' ')).toBe('6 окт.');
+    expect(before.closest('.or-prev-line')?.textContent?.replace(/\s/g, ' ')).toBe('Прошлый ответ, 6 окт.: «хорошо».');
+    expect(before.closest('.or-how-row')).toBeNull();
   });
 
   it('links the previous answer’s protocol under the exam it was given in', async () => {
@@ -638,7 +642,7 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     await screen.findByText(/Сохранено в историю и/);
-    expect(screen.getByRole('link', { name: '«хорошо»' })).toHaveAttribute('href', `/exams/${OTHER}/ticket?session=${PREVIOUS_SESSION}`);
+    expect(screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\.$/ })).toHaveAttribute('href', `/exams/${OTHER}/ticket?session=${PREVIOUS_SESSION}`);
   });
 
   it('says «Результат не сохранён», retries with the same attempt id and charges once', async () => {
@@ -899,16 +903,20 @@ describe('ExamTicket: answering by text', () => {
     expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
   });
 
-  it('keeps the privacy line one tap away while answering on a phone and says it in full in the protocol', async () => {
+  it('says the privacy line in full before the answer and keeps it one link away while answering (redesign critique 5, round 2)', async () => {
     const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
     seedDatabase({ rpc });
     await renderPage(ticketUrl());
     await readyToAnswer();
+    // No promise of a teacher's view: there is no such screen.
+    expect(PRIVACY_LINE).not.toMatch(/преподавател/);
+    expect(document.querySelector('.or-privacy')?.textContent).toBe(PRIVACY_LINE);
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(DEMO_ANSWER);
-    // The paragraph for wide screens and the link for phones and tablets (oral.css shows one of them).
-    expect(document.querySelector('.or-privacy-desk')?.textContent).toBe(PRIVACY_LINE);
+    // While answering: no paragraph under «Готово» on any width, one link instead.
+    expect(document.querySelector('.or-privacy')).toBeNull();
     const link = screen.getByRole('button', { name: 'Кто видит ответ' });
+    expect(link).not.toHaveAttribute('data-muted');
     link.focus();
     fireEvent.click(link);
     const sheet = screen.getByRole('dialog', { name: 'Кто видит ответ' });
@@ -925,8 +933,8 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     await screen.findByText(/Сохранено в историю и/);
-    // The protocol says it in full for phones; its top line there is only «‹ Лист экзамена».
-    expect(document.querySelector('.or-privacy-phone')?.textContent).toBe(PRIVACY_LINE);
+    // The protocol does not repeat it; its top line on a phone is only «‹ Лист экзамена».
+    expect(document.querySelector('.or-privacy')).toBeNull();
     const bar = screen.getByRole('banner');
     expect(bar).toHaveAttribute('data-back');
     expect(within(bar).getByRole('button', { name: 'Лист экзамена' }).querySelector('svg')).not.toBeNull();
@@ -1004,6 +1012,64 @@ describe('ExamTicket: answering aloud', () => {
     expect(followupCheck).toMatchObject({ transcript: 'Будут колебания', followup_question: Q4 });
     // The check answered: its verdict is given as is.
     expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «Будут колебания», засчитан частично.`);
+  });
+
+  it('stages peak 2: the counter folds into one line at «Готово», the question shows, the voice comes 300 ms later (redesign critique 3, round 2)', async () => {
+    ttsFailing.add('Так…');
+    seedDatabase();
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    const rec = recognition();
+    act(() => rec.say([[DEMO_ANSWER, true]]));
+    // While answering: the big counter.
+    expect(container.querySelector('.or-count-big')?.textContent?.replace(/\s+/g, ' ')).toBe('4 из 5');
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    act(() => rec.end());
+    // From «Готово» on: one line, no big number.
+    await waitFor(() => expect(container.querySelector('.or-count-big')).toBeNull());
+    expect(container.querySelector('.or-count-line')?.textContent?.replace(/\s+/g, ' ')).toBe('По ключевым словам названо 4 из 5');
+    expect(await screen.findByText(`«${Q4}»`)).toBeInTheDocument();
+    expect(container.querySelector('.or-count-big')).toBeNull();
+    // The question is on screen before the voice: nothing plays in the first 300 ms.
+    expect(audiosFor(Q4)).toHaveLength(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(320);
+    });
+    await waitFor(() => expect(audiosFor(Q4)).toHaveLength(1));
+  });
+
+  it('heads the answer sheet with the phone strip: two paper objects, the strip’s marks provisional (redesign critique 10, round 2)', async () => {
+    seedDatabase();
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    act(() => recognition().say([[DEMO_ANSWER, true]]));
+    const strip = container.querySelector('.or-strip') as HTMLElement;
+    expect(strip.closest('.or-sheet')).not.toBeNull();
+    expect(strip).not.toHaveClass('sf-sheet');
+    expect(container.querySelectorAll('.or-left .sf-sheet, .or-left .sf-index-card')).toHaveLength(2);
+    expect(strip.querySelectorAll('svg[data-mark="dtick"]')).toHaveLength(4);
+    expect(strip.querySelector('svg[data-mark="tick"]')).toBeNull();
+    // The strip comes first in the sheet, the answer after it.
+    expect(strip.compareDocumentPosition(container.querySelector('.or-said') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps the voice silent when «Не знаю» comes before it', async () => {
+    ttsFailing.add('Так…');
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    const rec = recognition();
+    act(() => rec.say([[DEMO_ANSWER, true]]));
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    act(() => rec.end());
+    fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    expect(audiosFor(Q4)).toHaveLength(0);
   });
 
   it('plays «Так…» only when it is ready, and the follow-up after it', async () => {
@@ -1325,5 +1391,20 @@ describe('ExamTicket: a ticket of two questions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Второй вопрос' }));
     expect(await screen.findByRole('article', { name: 'Билет 12, вопрос 2 из 2' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.' })).toBeInTheDocument();
+  });
+  it('keeps the question’s own number for a drawn pair: card, top line and protocol (redesign critique 8)', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    const { container } = await renderPage(`/exams/${EXAM}/ticket?q=${Q1},${Q2}`);
+    await readyToAnswer();
+    const card = screen.getByRole('article', { name: 'Вопрос 7, 1 из 2' });
+    expect(card.querySelector('.or-ticket-no')?.textContent?.replace(/\s+/g, ' ')).toBe('Вопрос 7 · 1 из 2');
+    expect(container.querySelector('.or-where .or-long')?.textContent).toBe('Вопрос 7, 1 из 2');
+    expect(container.querySelector('.or-where .or-short')?.textContent).toBe('Вопрос 7 · 1 из 2');
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+    await screen.findByText(/Сохранено в историю и/);
+    expect(container.querySelector('.or-ph-date')?.textContent?.replace(/\s+/g, ' ')).toMatch(/^Вопрос 7 · ответ 3 октября, \d{1,2}:\d{2}$/);
   });
 });

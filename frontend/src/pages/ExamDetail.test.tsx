@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   fetchQuestionEvents: vi.fn(),
   recordSelfRating: vi.fn(),
   incrementAIUsage: vi.fn(),
+  checkAILimit: vi.fn(),
   verifyEnergy: vi.fn(),
   confirm: vi.fn(),
 }));
@@ -36,7 +37,7 @@ vi.mock('../api/learning', async (importOriginal) => {
 });
 vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
-  return { ...actual, incrementAIUsage: mocks.incrementAIUsage };
+  return { ...actual, incrementAIUsage: mocks.incrementAIUsage, checkAILimit: mocks.checkAILimit };
 });
 // The draw and answer screens are preloaded while the sheet is idle; not in these tests.
 vi.mock('../components/exams/preload', () => ({
@@ -242,6 +243,7 @@ beforeEach(() => {
   mocks.recordSelfRating.mockResolvedValue(undefined);
   mocks.incrementAIUsage.mockResolvedValue(undefined);
   mocks.verifyEnergy.mockResolvedValue(true);
+  mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: false, count: 0, ok: true });
   mocks.confirm.mockResolvedValue(true);
   mocks.markQuestionManual.mockResolvedValue(undefined);
   setWidth(1280);
@@ -366,7 +368,7 @@ describe('ExamDetail: the sheet', () => {
     expect(document.querySelectorAll('.ex-q')).toHaveLength(6);
   });
 
-  it('names the lecture again after a section heading and after a filter change, «там же» in between', async () => {
+  it('names the lecture again after a section heading, a row without a note and a filter change, «там же» in between', async () => {
     const list = [
       question(1, 'full', { section: 1 }),
       question(2, 'full', { section: 1 }),
@@ -385,8 +387,10 @@ describe('ExamDetail: the sheet', () => {
     const note = (id: string) => plain(row(id).querySelector('.ex-qnote')?.textContent);
     expect(note('q1')).toBe('Денежный рынок, фрагмент 1');
     expect(note('q2')).toBe('там же, фрагмент 2');
-    // A gap in between does not break «там же»: the note above it is still the same lecture.
-    expect(note('q4')).toBe('там же, фрагмент 4');
+    // «Там же» means the line right above: after the dash of q3 the lecture is named again
+    // (redesign critique 7, round 2).
+    expect(row('q3').querySelector('.ex-qnote')).toBeNull();
+    expect(note('q4')).toBe('Денежный рынок, фрагмент 4');
     // A new section names the lecture again; another lecture is named; back to the first — named.
     expect(note('q5')).toBe('Денежный рынок, фрагмент 5');
     expect(note('q6')).toBe('Инфляция, фрагмент 3');
@@ -538,8 +542,16 @@ describe('ExamDetail: «почему»', () => {
       .filter((href) => href?.includes('session='));
     expect(protocols).toEqual(['/exams/exam-1/ticket?session=session-b', '/exams/exam-1/ticket?session=session-a']);
     expect(within(side).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/exams/exam-1/ticket?q=q1');
+    // One filled pill while «почему» is open: its answer link; the sheet's «Тянуть билет» is outlined
+    // (redesign critique 6, round 2). The answers are «Ответы», a written one counts too.
+    expect(within(side).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveClass('sf-primary');
+    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('ex-secondary');
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
+    expect(within(side).getByText('Ответы')).toBeInTheDocument();
+    expect(within(side).queryByText('Ответы вслух')).toBeNull();
 
     fireEvent.click(within(side).getByRole('button', { name: 'Закрыть' }));
+    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
     expect(screen.queryByRole('heading', { name: named('Есть в ваших лекциях') })).toBeNull();
     expect(within(column()).getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
   });
@@ -553,6 +565,8 @@ describe('ExamDetail: «почему»', () => {
     expect(within(side).getByRole('heading', { name: named('Ни в одной из 2 лекций нет фрагмента об этом') })).toBeInTheDocument();
     expect(within(side).getByText(/Ближе всего — «Инфляция», фрагмент.7: совпало только слово «цен»/)).toBeInTheDocument();
     expect(within(side).queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull();
+    // No answer to offer here: «Тянуть билет» stays the filled pill.
+    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
     expect(within(side).getByRole('link', { name: 'Добавить материал к вопросу' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
 
     mocks.confirm.mockResolvedValueOnce(false);
@@ -646,9 +660,15 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
 
     const side = column();
     expect(await within(side).findByText('Подтверждено ответами')).toBeInTheDocument();
-    expect(within(side).getByLabelText('было 0')).toBeInTheDocument();
-    expect(plain(side.querySelector('.ex-peak-big')?.textContent)).toBe('0 1 из 40');
-    expect(within(side).getByText('Вопрос 1 подтверждён ответом, который вы дали только что.')).toBeInTheDocument();
+    // «1 из 40» and beside it «было 0» — no struck-out figure (redesign critique 2, round 2).
+    const big = side.querySelector('.ex-peak-big') as HTMLElement;
+    expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('1 из 40');
+    expect(plain(big.querySelector('.ex-was')?.textContent)).toBe('было 0');
+    expect(big.querySelector('s, del')).toBeNull();
+    expect(plain(big.querySelector('.ex-sr')?.textContent)).toBe('Подтверждено ответами: 1 из 40, было 0.');
+    expect(plain(side.querySelector('.ex-peak .ex-stmt')?.textContent)).toBe(
+      `Вопрос 1 подтверждён ответом, который вы дали только что. С ${formatDay(dayKey(-3))}: 0 → 1.`,
+    );
     // Not enough «знаю» answers to compare confidence with results: no such line.
     expect(screen.queryByText(/Вы отметили «знаю»/)).toBeNull();
     expect(within(side).queryByText(/Сравнить уверенность с ответами пока нельзя/)).toBeNull();
@@ -672,8 +692,19 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     mocks.fetchQuestionEvents.mockResolvedValue(confirmingAnswer());
     renderDetail({ strict: true });
     await opened();
-    expect(await within(column()).findByText('Вопрос 1 подтверждён ответом, который вы дали только что.')).toBeInTheDocument();
+    expect(await within(column()).findByText(/^Вопрос 1 подтверждён ответом, который вы дали только что\./)).toBeInTheDocument();
     expect(row('q1')).toHaveAttribute('data-peak');
+  });
+
+  it('says the new count under the row on a phone, where the column is out of view (redesign critique 10)', async () => {
+    setWidth(390);
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(1), before: 'once' }));
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue(confirmingAnswer());
+    renderDetail();
+    await opened();
+    await waitFor(() => expect(row('q1')).toHaveAttribute('data-peak'));
+    expect(plain(row('q1').querySelector('.ex-because-count')?.textContent)).toBe('Подтверждено ответами: 1 из 40, было 0.');
   });
 
   it('adds the confidence line only with enough «знаю» answers', async () => {
@@ -714,10 +745,11 @@ describe('ExamDetail: mapping by lectures', () => {
       .mockResolvedValue(bundle([question(1, 'full'), question(2, 'none'), question(3, 'partial')]));
     renderDetail();
     await opened();
-    expect(notes()).toEqual(['Вопросы ещё не сверены с лекциями.Разметить по лекциям']);
+    expect(notes()).toEqual(['Вопросы ещё не сверены с лекциями.']);
     fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(mocks.verifyEnergy).toHaveBeenCalledWith('user-1', 10, 'Разметка по лекциям');
+    expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10);
+    expect(mocks.verifyEnergy).not.toHaveBeenCalled();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/exams/exam-1/map');
     expect(JSON.parse(String(init.body))).toEqual({ question_ids: null, force: false });
@@ -765,7 +797,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
-    await waitFor(() => expect(mocks.verifyEnergy).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'reused', items: ['q1', 'q2', 'q3'].map((id) => item(id, 'full', { reused: true })) });
     stream.send({ type: 'done', state: 'done', counts: { full: 3 }, reused: 3, used_ai: false });
@@ -774,17 +806,76 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
   });
 
-  it('does not start when the daily limit is declined', async () => {
+  it('says in the header that the daily limit is used up — no dialog — and keeps the focus on the button (stage QA round 2)', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    mocks.verifyEnergy.mockResolvedValue(false);
+    mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
+    mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
+    renderDetail();
+    await opened();
+    const button = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    button.focus();
+    fireEvent.click(button);
+    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: разметка расходует 10 единиц, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
+    expect(notes()[0]).not.toMatch(/в 0\d:/);
+    expect(document.querySelector('.ex-notes .ex-note[role="status"]')).toHaveTextContent('Дневной лимит исчерпан');
+    // The same button, still there, unavailable and focused: nothing to close, nothing to lose the focus to.
+    expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBe(button);
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveFocus();
+    expect(mocks.verifyEnergy).not.toHaveBeenCalled();
+    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(button);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mocks.checkAILimit).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('says how much is left when the limit is not enough for a run', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 96, ok: true });
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
-    await waitFor(() => expect(mocks.verifyEnergy).toHaveBeenCalled());
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBeInTheDocument();
+    await waitFor(() => expect(notes()[0]).toMatch(/^Не хватает дневного лимита: разметка расходует 10 единиц, сегодня осталось 4\./));
+  });
+
+  it('keeps «Разметить по лекциям» in place while the limit is checked and hands the focus to «Тянуть билет» when the run starts', async () => {
+    const stream = liveStream();
+    vi.stubGlobal('fetch', vi.fn(async () => stream.response));
+    let allow!: (value: unknown) => void;
+    mocks.checkAILimit.mockReturnValue(new Promise((resolve) => (allow = resolve)));
+    mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
+    renderDetail();
+    await opened();
+    const button = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    button.focus();
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'));
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveFocus();
+    allow({ allowed: true, isPro: false, count: 0, ok: true });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Разметить по лекциям' })).toBeNull());
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveFocus());
+    stream.close();
+  });
+
+  it('before the first run: one filled pill «Разметить по лекциям», «Тянуть билет» as a link, only «Все» in the filter (redesign critique 7)', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
+    renderDetail();
+    await opened();
+    const head = document.querySelector('.ex-head') as HTMLElement;
+    expect(head.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(within(head).getByRole('button', { name: 'Разметить по лекциям' })).toHaveClass('sf-primary');
+    expect(within(head).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
+    const filter = screen.getByRole('list', { name: 'Показать вопросы' });
+    expect(within(filter).getAllByRole('button').map((item) => plain(item.textContent))).toEqual(['Все 3']);
+    // The column does not repeat the note under the header.
+    expect(within(column()).queryByText('Вопросы ещё не сверены с лекциями.')).toBeNull();
+    expect(plain(column().textContent)).toContain('Доля билетов появится после разметки');
   });
 
   it('offers «Продолжить» after a dropped stream; a 409 then shows «Разметка ещё идёт» and polls until the exam is free', async () => {
@@ -945,7 +1036,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
-    await waitFor(() => expect(mocks.verifyEnergy).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
     stream.close();
@@ -986,6 +1077,58 @@ describe('ExamDetail: the draw button', () => {
 });
 
 describe('ExamDetail on a phone', () => {
+  it.each([
+    ['a phone (390 px)', 390],
+    ['a portrait tablet (768 px)', 768],
+  ])('changes the way of drawing under the fixed «Тянуть билет» on %s (stage QA round 2)', async (_label, width) => {
+    setWidth(width);
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    const cta = document.querySelector('.ex-cta') as HTMLElement;
+    expect(plain(within(cta).getByText('Как на экзамене').closest('.ex-draw-mode')?.textContent)).toBe('Как на экзамене · изменить');
+    const change = within(cta).getByRole('button', { name: 'изменить' });
+    fireEvent.click(change);
+    const menu = screen.getByRole('menu', { name: 'Как тянуть билет' });
+    // A bottom sheet over the page, not inside the fixed bar.
+    expect(menu).toHaveClass('ex-mode-sheet');
+    expect(cta.contains(menu)).toBe(false);
+    await waitFor(() => expect(within(menu).getByRole('menuitemradio', { name: /Как на экзамене/ })).toHaveFocus());
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Из вопросов, на которые вы уже отвечали/ }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(within(cta).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw?mode=answered');
+    expect(plain(cta.querySelector('.ex-draw-mode')?.textContent)).toBe('Из вопросов, на которые вы уже отвечали · изменить');
+    await waitFor(() => expect(change).toHaveFocus());
+  });
+
+  it('sets the two shares side by side above the sheet on a phone (redesign critique 10)', async () => {
+    setWidth(390);
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    const pairs = within(screen.getByRole('region', { name: 'Сводка' })).getAllByText((_, element) => element?.classList.contains('ex-pairs') === true)[0];
+    expect(pairs).toHaveAttribute('data-compact');
+    expect(pairs).toHaveAttribute('data-count', '2');
+    expect(Array.from(pairs.querySelectorAll('.ex-pair > .ex-big')).map((item) => plain(item.textContent))).toEqual(['60 %', '35 %']);
+  });
+
+  it('closes the phone menu with Escape and gives the focus back', async () => {
+    setWidth(390);
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    const change = within(document.querySelector('.ex-cta') as HTMLElement).getByRole('button', { name: 'изменить' });
+    fireEvent.click(change);
+    const menu = screen.getByRole('menu', { name: 'Как тянуть билет' });
+    await waitFor(() => expect(within(menu).getAllByRole('menuitemradio')[0]).toHaveFocus());
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(within(menu).getByRole('menuitemradio', { name: /Чаще слабые/ })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    await waitFor(() => expect(change).toHaveFocus());
+    expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
+  });
+
   it('lists the readiness legend after the sheet, above «Тянуть билет»', async () => {
     setWidth(390);
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));

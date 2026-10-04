@@ -236,7 +236,7 @@ export default function UploadZone({
               <div id={textHintId} className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 text-sm text-[var(--sf-muted)]">
                 <span>
                   {demoText
-                    ? 'Демо-текст: энергия не списывается, настройки по умолчанию'
+                    ? 'Демо-текст: лимит не списывается, настройки по умолчанию'
                     : trimmedLength > 0 && textProblem
                       ? textProblem
                       : ''}

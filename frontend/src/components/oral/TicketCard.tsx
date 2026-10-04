@@ -8,14 +8,15 @@ export interface TicketHeading {
 }
 
 /**
- * «Билет 12 · вопрос 1 из 2» for a known ticket, «Случайный билет · вопрос 1 из 2» for a drawn pair,
- * «Вопрос 17» for a single question (redesign spec 2.2 #2: Literata, ordinary case, no small caps).
+ * «Билет 12 · вопрос 1 из 2» for a department's ticket; for a drawn pair the question's own number,
+ * «Вопрос 12 · 1 из 2», so the number stays on screen from the draw to the protocol (redesign
+ * critique 8); «Вопрос 17» for a single question (redesign spec 2.2 #2: Literata, ordinary case).
  */
 export function ticketHeading(ticketNumber: string | null, index: number, total: number, questionLabel: string): TicketHeading {
-  const rest = total > 1 ? `вопрос ${index + 1} из ${total}` : '';
-  if (ticketNumber) return { strong: `Билет ${ticketNumber}`, rest };
-  if (total > 1) return { strong: 'Случайный билет', rest };
-  return { strong: questionLabel ? `Вопрос ${questionLabel}` : 'Вопрос', rest: '' };
+  const label = questionLabel.trim().replace(/[.)]\s*$/, '');
+  if (ticketNumber) return { strong: `Билет ${ticketNumber}`, rest: total > 1 ? `вопрос ${index + 1} из ${total}` : '' };
+  if (total > 1) return label ? { strong: `Вопрос ${label}`, rest: `${index + 1} из ${total}` } : { strong: 'Случайный билет', rest: `вопрос ${index + 1} из ${total}` };
+  return { strong: label ? `Вопрос ${label}` : 'Вопрос', rest: '' };
 }
 
 interface TicketCardProps {

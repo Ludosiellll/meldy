@@ -5,7 +5,7 @@ import '../styles/paper.css';
 import '../components/oral/oral.css';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
-import { checkAILimit, formatLimitReset, nextLimitReset } from '../api/limits';
+import { checkAILimit, nextLimitReset } from '../api/limits';
 import { newEventId } from '../api/learning';
 import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech, useSpeechAnswer } from '../hooks/useSpeechAnswer';
 import { isTTSReady, playTTS, prefetchTTS, stopTTS } from '../utils/tts';
@@ -78,7 +78,7 @@ import {
   type RubricState,
   type TicketState,
 } from '../lib/oral/ticketMachine';
-import { draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
+import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -94,8 +94,15 @@ export const SAVE_WAIT_MS = 5000;
 const SILENCE_HINT_MS = 8000;
 const LONG_ANSWER_MS = 120_000;
 
+/**
+ * Contracts §7.2 without its last sentence: «Протокол видите вы и преподаватель вашей учебной группы»
+ * promised a teacher's screen that does not exist (redesign critique 5, round 2; Jury_Check 11).
+ */
 export const PRIVACY_LINE =
-  'Речь распознаёт браузер, в Chrome — через сервис Google. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq). Запись голоса Meldy не получает; в истории остаются оценки по пунктам и короткие отрывки ответа. Протокол видите вы и преподаватель вашей учебной группы, если вы в ней состоите.';
+  'Речь распознаёт браузер, в Chrome — через сервис Google. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq). Запись голоса Meldy не получает; в истории остаются оценки по пунктам и короткие отрывки ответа.';
+
+/** The examiner's voice starts this long after the follow-up appears: the brace, then the words, then the voice. */
+export const FOLLOWUP_VOICE_DELAY_MS = 300;
 
 const EVALUATION_FAILED_MESSAGE = 'Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.';
 const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
@@ -805,7 +812,17 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
       // The answer itself is kept in the attempt; the recognizer starts empty for the follow-up's answer.
       speechRef.current.reset('');
       dispatch({ type: 'followup', pointId: point.id, question: point.followup.question, expected: point.followup.expected, chosenBy: choice.chosenBy, mode });
-      askFollowup(point.followup.question);
+      // The brace draws (250 ms), the examiner's block comes in at +200 ms, the voice at +300 ms —
+      // unless the student has already chosen to answer or said «Не знаю».
+      const token = askTokenRef.current;
+      const askedQuestion = point.followup.question;
+      later(() => {
+        const current = stateRef.current;
+        // Typing an answer meanwhile is fine (the field is there while the question is heard); «Не знаю»,
+        // «Отвечать» or «Текстом» move the token on and keep the voice silent.
+        if (token !== askTokenRef.current || current.phase !== 'followup' || !current.followup || current.followup.status !== null) return;
+        askFollowup(askedQuestion);
+      }, FOLLOWUP_VOICE_DELAY_MS);
       return;
     }
     dispatch({ type: 'no_followup' });
@@ -1071,21 +1088,23 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
     const previous = state.history?.previous ?? null;
     // The previous answer may have been given in another exam with the same question: its protocol lives there.
     const previousPath = previous ? `/exams/${previous.examId ?? examId}/ticket?session=${encodeURIComponent(previous.sessionId)}` : '';
-    // «прошлый ответ, 2 окт.: «хорошо»» on the «Как считается» row: a grade in words, not «4 из 5»
-    // next to «Раскрыто 3 пункта из 5».
+    // «Прошлый ответ, 2 окт.: «хорошо».» on its own line, the date being the link to that protocol: a
+    // grade in words, not «4 из 5» next to «Раскрыто 3 пункта из 5» (redesign critique 4, round 2).
     const previousWord = previous && previous.grade !== null ? gradeWord(previous.grade) : '';
     const previousLink =
       previous && previous.sessionId !== (state.save.status === 'saved' ? state.save.result.sessionId : '') ? (
         <>
-          {`прошлый ответ, ${shortDate(previous.localDate)}: `}
-          <Link className="sf-ref" to={previousPath}>
-            {previousWord ? `«${previousWord}»` : 'протокол'}
+          {'Прошлый ответ, '}
+          <Link className="sf-ref" to={previousPath} aria-label={`Протокол прошлого ответа, ${shortDate(previous.localDate)}`}>
+            {shortDate(previous.localDate)}
           </Link>
+          {previousWord ? `: «${previousWord}».` : '.'}
         </>
       ) : null;
     const hasNext = state.index + 1 < total;
+    // «Билет 12, вопрос 1 · ответ 3 октября, 14:12»; a drawn pair: «Вопрос 12 · ответ 4 октября, 1:13».
     const sheetHeading = glue(
-      `${heading.strong}${total > 1 ? `, вопрос ${state.index + 1}` : ''} · ответ ${longDateTime(savedAt)}`,
+      `${heading.strong}${ticketNumber && total > 1 ? `, вопрос ${state.index + 1}` : ''} · ответ ${longDateTime(savedAt)}`,
     );
     const barRight = (
       <>
@@ -1219,8 +1238,6 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
                   Лист экзамена
                 </button>
               </div>
-              {/* Phones: the privacy paragraph is a link while answering, so it is said here in full. */}
-              <p className="or-privacy or-privacy-phone">{PRIVACY_LINE}</p>
             </ProtocolGrade>
           </section>
         </main>
@@ -1232,7 +1249,8 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   const rubric = state.rubric;
   const answering = state.phase === 'answering';
   const ready = rubric.status === 'ready';
-  const limitLine = state.limit === 'exhausted' ? `Дневной лимит исчерпан. Обновится в ${formatLimitReset(nextLimitReset())}.` : null;
+  // «Обновится в 3:00» (spec 3.10, 5.11): local time of 00:00 UTC, the hour without a leading zero.
+  const limitLine = state.limit === 'exhausted' ? `Дневной лимит исчерпан. Обновится в ${clockTime(nextLimitReset())}.` : null;
   const shownNamed = liveMarksOn ? named : new Set<string>();
   const namedCount = named.size;
   const asked = followup ? followup.pointId : null;
@@ -1413,26 +1431,28 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
             Сначала
           </button>
         </div>
-        <p className="or-privacy or-privacy-desk">{PRIVACY_LINE}</p>
-        {/* Phones: the paragraph would hide under the fixed bar while answering — one link instead. */}
-        <button type="button" className="sf-link or-privacy-link" data-muted="" onClick={() => setPrivacyOpen(true)}>
+        {/* The paragraph is said in full before the first answer; while answering it is one link on every
+            width (redesign critique 5, round 2: six lines under «Готово» for the whole answer). */}
+        <button type="button" className="sf-link or-privacy-link" onClick={() => setPrivacyOpen(true)}>
           Кто видит ответ
         </button>
         {privacyOpen ? <PrivacySheet text={PRIVACY_LINE} onClose={() => setPrivacyOpen(false)} /> : null}
       </>
     );
   } else {
-    // finalizing, examiner, followup, evaluating
+    // finalizing, examiner, followup, evaluating: from «Готово» on the counter is one line, so the
+    // examiner's question is the largest thing on the desk (redesign critique 3, round 2).
     side = (
       <>
         {liveMarksOn ? (
-          <div className="or-count">
-            <p className="or-count-label">Названо</p>
-            <p className="or-count-big">
-              {state.named.length} <span className="or-of">из</span> {points.length}
-            </p>
-            <p className="or-count-fine">по ключевым словам, итог — после ответа</p>
-          </div>
+          <p className="or-count-line">
+            По ключевым словам названо{' '}
+            <b>
+              {state.named.length}
+              {'\u00a0'}из{'\u00a0'}
+              {points.length}
+            </b>
+          </p>
         ) : null}
         {state.phase === 'finalizing' || state.phase === 'examiner' ? <ExaminerThinking /> : null}
         {state.phase === 'followup' && followup ? (
@@ -1531,26 +1551,32 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
       <main className="sf-page or-room" data-phase={state.phase}>
         <section className="or-left" aria-label="Билет и пункты эталона">
           {question ? <TicketCard heading={heading} question={question.text} /> : null}
-          {ready && points.length > 0 && state.phase !== 'ready' && liveMarksOn ? (
-            <div className="sf-sheet or-strip">
-              <p className="or-strip-count">
-                {`Названо ${namedCount} из ${points.length} `}
-                <span>· по ключевым словам</span>
-              </p>
-              <div className="or-strip-marks" aria-hidden="true">
-                {points.map((point) =>
-                  shownNamed.has(point.id) ? <Mark key={point.id} kind="tick" seed={seedFrom(seedBase, point.id)} width={20} height={17} /> : <span key={point.id} className="or-strip-blank" />,
-                )}
-              </div>
-              <button type="button" className="sf-link" data-muted="" aria-expanded={sheetOpen} onClick={() => setSheetOpen((open) => !open)}>
-                {sheetOpen ? 'Скрыть пункты' : 'Пункты эталона'}
-              </button>
-            </div>
-          ) : null}
           {noteLine ? <p className="or-note">{noteLine}</p> : null}
           {leftState}
           {ready && points.length > 0 ? (
             <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''} data-empty={transcriptShown ? undefined : ''}>
+              {/* Phones: the strip «Названо 3 из 5 · по ключевым словам» heads the answer sheet itself — two
+                  paper objects instead of three (redesign critique 10, round 2). Hidden on wide screens. */}
+              {state.phase !== 'ready' && liveMarksOn ? (
+                <div className="or-strip">
+                  <p className="or-strip-count">
+                    {`Названо ${namedCount} из ${points.length} `}
+                    <span>· по ключевым словам</span>
+                  </p>
+                  <div className="or-strip-marks" aria-hidden="true">
+                    {points.map((point) =>
+                      shownNamed.has(point.id) ? (
+                        <Mark key={point.id} kind="dtick" seed={seedFrom(seedBase, point.id)} width={20} height={17} />
+                      ) : (
+                        <span key={point.id} className="or-strip-blank" />
+                      ),
+                    )}
+                  </div>
+                  <button type="button" className="sf-link" data-muted="" aria-expanded={sheetOpen} onClick={() => setSheetOpen((open) => !open)}>
+                    {sheetOpen ? 'Скрыть пункты' : 'Пункты эталона'}
+                  </button>
+                </div>
+              ) : null}
               <RubricSlots
                 points={points}
                 materials={rubricResponse?.rubric.materials ?? []}

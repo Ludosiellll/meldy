@@ -15,7 +15,8 @@ import {
 } from '../api/exams';
 import { fetchQuestionEvents, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
-import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import { checkAILimit, FREE_DAILY_LIMIT, nextLimitReset } from '../api/limits';
+import { pluralRu } from '../components/conversation/visuals';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState, type Readiness } from '../lib/learning/readiness';
 import { percent } from '../lib/exams/ticketMath';
@@ -25,8 +26,8 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import { Mark } from '../components/marks';
 import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exams/ExamSheet';
 import WhyPanel from '../components/exams/WhyPanel';
-import { CoverageSummary, PeakSummary, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
-import { checkedCount, getMapJob, interruptedMessage, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
+import { CoverageSummary, PeakSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
+import { checkedCount, getMapJob, interruptedMessage, MAPPING_COST, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, type SheetCoverage } from '../components/exams/marks';
 import { peakChange, peakText, takePeakFlags, type PeakFlag } from '../components/exams/peak';
 import { preloadDrawScreen, preloadTicketScreen, whenIdle } from '../components/exams/preload';
@@ -48,23 +49,14 @@ import {
   type SheetFilter,
 } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
+import DrawModeMenu, { DRAW_CAPTIONS } from '../components/exams/DrawModeMenu';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
 const DIM_MS = 3000;
 const SCROLL_PAUSE_MS = 700;
 
-export const DRAW_CAPTIONS: Record<DrawMode, string> = {
-  exam: 'Как на экзамене',
-  weak: 'Чаще слабые',
-  answered: 'Из вопросов, на которые вы уже отвечали',
-};
-
-const DRAW_HINTS: Record<DrawMode, string> = {
-  exam: 'Случайные вопросы; известные билеты — целиком.',
-  weak: 'Чаще не проверявшиеся и не зачтённые; вопросов без материала не будет.',
-  answered: 'Только вопросы, на которые вы уже отвечали вслух.',
-};
+export { DRAW_CAPTIONS };
 
 interface PeakRun {
   questionId: string;
@@ -113,6 +105,19 @@ function examWhen(kind: keyof typeof KIND_LABELS, examDate: string | null): stri
   return `${KIND_LABELS[kind]} ${day}${days === null ? '' : `, ${relativeDays(days)}`}`;
 }
 
+/** What the header says when the daily limit does not cover a mapping run (no dialog: spec 4.6, 5.11). */
+export interface MappingLimit {
+  remaining: number;
+  resetAt: number;
+}
+
+/** «Дневной лимит исчерпан: разметка расходует 10 единиц, сегодня осталось 0. Обновится в 3:00.» */
+export function mappingLimitSentence(limit: MappingLimit): string {
+  const head = limit.remaining === 0 ? 'Дневной лимит исчерпан' : 'Не хватает дневного лимита';
+  const at = formatClock(new Date(limit.resetAt).toISOString());
+  return `${head}: разметка расходует ${MAPPING_COST} ${pluralRu(MAPPING_COST, ['единицу', 'единицы', 'единиц'])}, сегодня осталось ${limit.remaining}. Обновится в ${at}.`;
+}
+
 /** One page state per exam: opening another exam's sheet starts from scratch. */
 export default function ExamDetail() {
   const { id: examId = '' } = useParams();
@@ -123,7 +128,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const navigate = useNavigate();
-  const { verifyEnergy } = useEnergyConfirm();
   const { confirm } = useConfirm();
   const reduced = usePrefersReducedMotion();
   const frame = useFrame<HTMLDivElement>();
@@ -145,7 +149,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [manualPending, setManualPending] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>('exam');
-  const [modeMenu, setModeMenu] = useState(false);
+  const [limit, setLimit] = useState<MappingLimit | null>(null);
+  // «Разметить по лекциям» had the focus when its run started: the focus goes to the pill that replaces it.
+  const mapPillFocused = useRef(false);
+  const drawPillRef = useRef<HTMLAnchorElement>(null);
   const [peak, setPeak] = useState<PeakRun | null>(null);
   const peakFlags = useRef<PeakFlag[] | null>(null);
   const lastSeq = useRef(job.finishedSeq);
@@ -422,16 +429,49 @@ function ExamSheetPage({ examId }: { examId: string }) {
   }, [peak?.dim]);
 
   // ------------------------------------------------------------------ actions
+  /*
+   * The daily limit is checked before a run. When it does not cover the run, the header says so and
+   * every mapping action stays where it is but unavailable — no dialog, and the focus is not lost
+   * (redesign spec 4.6 and 5.11, stage QA round 2). An unreadable limit never blocks the work.
+   */
+  const verifyMappingLimit = useCallback(async (uid: string, cost: number): Promise<boolean> => {
+    const status = await checkAILimit(uid, cost);
+    if (status.isPro || !status.ok || status.allowed) {
+      setLimit(null);
+      return true;
+    }
+    setLimit({ remaining: Math.max(0, FREE_DAILY_LIMIT - (Number(status.count) || 0)), resetAt: nextLimitReset().getTime() });
+    return false;
+  }, []);
+
+  // The limit is renewed at 00:00 UTC: the actions come back by themselves.
+  useEffect(() => {
+    if (!limit) return;
+    const timer = window.setTimeout(() => setLimit(null), Math.max(0, Math.min(limit.resetAt - Date.now() + 1000, 2_147_000_000)));
+    return () => window.clearTimeout(timer);
+  }, [limit]);
+
+  const mappingBlocked = Boolean(limit) || job.starting;
+  // When «Разметить по лекциям» leaves the page with the focus on it (its run started), the focus goes to
+  // «Тянуть билет», which takes its place — never to the page's body.
+  const mapPillRef = useCallback((element: HTMLButtonElement | null) => {
+    if (element || !mapPillFocused.current) return;
+    mapPillFocused.current = false;
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body) drawPillRef.current?.focus();
+    }, 0);
+  }, []);
   const startRun = useCallback(
     (questionIds: string[] | null = null) => {
-      if (!userId) return;
-      void startMapping({ examId, userId, questionIds, verifyEnergy });
+      if (!userId || limit || getMapJob(examId).starting) return;
+      void startMapping({ examId, userId, questionIds, verifyEnergy: verifyMappingLimit });
     },
-    [examId, userId, verifyEnergy],
+    [examId, userId, limit, verifyMappingLimit],
   );
 
   const unverifiedIds = useMemo(() => allRows.filter((row) => row.coverage === 'unverified').map((row) => row.question.id), [allRows]);
-  const recheck = !running && job.phase !== 'waiting' && unverifiedIds.length > 0 ? () => startRun(unverifiedIds) : null;
+  const recheck = !running && job.phase !== 'waiting' && !limit && unverifiedIds.length > 0 ? () => startRun(unverifiedIds) : null;
 
   const onRate = async (row: SheetRowView, rating: Rating) => {
     const hash = row.question.question_hash;
@@ -550,11 +590,14 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const drawLabel = perTicket <= 1 && exam.ticket_layout.mode !== 'fixed' ? 'Тянуть вопрос' : 'Тянуть билет';
   const drawHref = `/exams/${exam.id}/draw${drawMode === 'exam' ? '' : `?mode=${drawMode}`}`;
   const progress = checkedCount(job);
-  const staleRun = examFresh && !live && exam.mapping_state === 'running' && !isMappingLocked(exam);
+  // A run of this tab or another one is going on (the short limit check before a run is not: the
+  // action that asked for it stays where it is, so the focus is not lost).
+  const busy = running || job.phase === 'waiting';
+  const staleRun = examFresh && !busy && exam.mapping_state === 'running' && !isMappingLocked(exam);
   const mappedCount = questions.filter((question) => question.coverage !== null).length;
   // Marks a mapping run wrote (a mark made by hand is not a run).
   const runMarks = questions.filter((question) => question.coverage !== null && question.coverage_method !== 'manual').length;
-  const neverMapped = mappedCount === 0 && !live && questions.length > 0;
+  const neverMapped = mappedCount === 0 && !busy && questions.length > 0;
   // What happened to this tab's run on this visit (the database says the rest).
   const outcome = ownRun && !running ? job.phase : null;
   const outcomeNote = outcome === 'interrupted' || (outcome === 'failed' && Boolean(job.message));
@@ -586,35 +629,61 @@ function ExamSheetPage({ examId }: { examId: string }) {
       : null;
   const skippedLectures = ownRun ? job.start?.skipped.filter((item) => item.reason === 'no_text').length ?? 0 : 0;
 
-  const notes: Array<{ key: string; text: string; action?: { label: string; run: () => void }; quiet?: boolean }> = [];
-  if (outcome === 'interrupted') notes.push({ key: 'int', text: job.message ?? interruptedMessage(job), action: { label: 'Продолжить', run: () => startRun(null) } });
-  if (staleRun) notes.push({ key: 'stale', text: `Разметка прервалась: проверено ${runMarks} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null) } });
+  const notes: Array<{ key: string; text: string; action?: { label: string; run: () => void; maps?: boolean }; quiet?: boolean; status?: boolean }> = [];
+  if (limit) notes.push({ key: 'limit', text: mappingLimitSentence(limit), status: true });
+  if (outcome === 'interrupted') notes.push({ key: 'int', text: job.message ?? interruptedMessage(job), action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
+  if (staleRun) notes.push({ key: 'stale', text: `Разметка прервалась: проверено ${runMarks} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
   if (job.phase === 'waiting') notes.push({ key: 'wait', text: 'Разметка ещё идёт. Лист обновится, когда она закончится.', quiet: true });
-  if (outcome === 'failed' && job.message) notes.push({ key: 'fail', text: job.message, action: { label: 'Повторить', run: () => startRun(null) } });
+  if (outcome === 'failed' && job.message) notes.push({ key: 'fail', text: job.message, action: { label: 'Повторить', run: () => startRun(null), maps: true } });
   if (job.failedMessage && running) notes.push({ key: 'batch', text: `${job.failedMessage}.`, quiet: true });
   if (reusedPart) notes.push({ key: 'reused', text: reusedPart, quiet: true });
   if (bundle.materials.length === 0)
     notes.push({ key: 'nolect', text: 'Без лекций Meldy не сможет отметить покрытие. Список сохранится.', action: { label: 'Добавить лекции', run: () => navigate(`/exams/${exam.id}/edit#lectures`) } });
-  else if (neverMapped && !staleRun && !outcomeNote)
-    notes.push({ key: 'unmapped', text: 'Вопросы ещё не сверены с лекциями.', action: { label: 'Разметить по лекциям', run: () => startRun(null) } });
-  else if (!live && !staleRun && !outcomeNote && mappedCount > 0 && mappedCount < questions.length)
+  // Before the first run the filled pill of the header is «Разметить по лекциям» (redesign critique 7).
+  else if (neverMapped && !staleRun && !outcomeNote) notes.push({ key: 'unmapped', text: 'Вопросы ещё не сверены с лекциями.' });
+  else if (!busy && !staleRun && !outcomeNote && mappedCount > 0 && mappedCount < questions.length)
     notes.push({
       key: 'some-unmapped',
       text: unmappedSentence(questions.length - mappedCount, shares),
-      action: { label: 'Разметить', run: () => startRun(null) },
+      action: { label: 'Разметить', run: () => startRun(null), maps: true },
     });
   if (!running && examFresh && (added > 0 || removed > 0)) {
     const parts: string[] = [];
     if (added > 0) parts.push(`добавлено ${lecturesPhrase(added)}`);
     if (removed > 0) parts.push(`убрано ${lecturesPhrase(removed)}`);
-    notes.push({ key: 'changed', text: `После разметки ${parts.join(', ')}.`, action: { label: 'Обновить разметку', run: () => startRun(null) } });
+    notes.push({ key: 'changed', text: `После разметки ${parts.join(', ')}.`, action: { label: 'Обновить разметку', run: () => startRun(null), maps: true } });
   }
   if (skippedLectures > 0) notes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.`, quiet: true });
   if (eventsState === 'error' && eventsError) notes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) }, quiet: true });
 
   const editLocked = running || job.phase === 'waiting' || (examFresh && exam.mapping_state === 'running' && isMappingLocked(exam));
+  // Before the first run the one filled pill is «Разметить по лекциям»; «Тянуть билет» is a link under it.
+  const preMapping = neverMapped && bundle.materials.length > 0 && !staleRun && !outcomeNote;
+  // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7).
+  const showCoverageFilters = mappedCount > 0 || running;
+  const mapPill = (
+    <button
+      ref={mapPillRef}
+      type="button"
+      className="sf-primary"
+      aria-disabled={mappingBlocked || undefined}
+      aria-busy={job.starting || undefined}
+      onClick={() => startRun(null)}
+      onFocus={() => {
+        mapPillFocused.current = true;
+      }}
+      onBlur={() => {
+        mapPillFocused.current = false;
+      }}
+    >
+      Разметить по лекциям
+    </button>
+  );
   const whyId = `exam-why-${exam.id}`;
   const showPeak = Boolean(peak) && !rateMode && !selectedRow;
+  // The open «почему» has its own filled pill «Ответить на этот вопрос» (not for a question missing from
+  // the lectures or being checked): then the sheet's «Тянуть билет» steps down to an outlined pill.
+  const whyAnswers = Boolean(selectedRow && selectedRow.coverage !== 'none' && selectedRow.coverage !== 'checking');
 
   const readiness = (part: 'all' | 'head' | 'rest') => (
     <ReadinessBlock
@@ -748,47 +817,48 @@ function ExamSheetPage({ examId }: { examId: string }) {
             </button>
           </div>
         </div>
-        {frame.side && (
-          <div className="ex-draw" style={{ position: 'relative' }}>
-            <Link className="sf-primary" to={drawHref} onMouseEnter={preloadTicketScreen} onFocus={preloadTicketScreen}>
-              {drawLabel}
-            </Link>
-            <p className="ex-draw-mode">
-              {DRAW_CAPTIONS[drawMode]} ·{' '}
-              <button type="button" className="sf-link" aria-haspopup="menu" aria-expanded={modeMenu} onClick={() => setModeMenu((open) => !open)}>
-                изменить
-              </button>
-            </p>
-            {modeMenu && (
-              <div className="ex-mode-menu" role="menu" aria-label="Как тянуть билет">
-                {(Object.keys(DRAW_CAPTIONS) as DrawMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={drawMode === mode}
-                    onClick={() => {
-                      setDrawMode(mode);
-                      setModeMenu(false);
-                    }}
-                  >
-                    {DRAW_CAPTIONS[mode]}
-                    <small>{DRAW_HINTS[mode]}</small>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {frame.side &&
+          (preMapping ? (
+            <div className="ex-draw" data-premap="">
+              {mapPill}
+              <Link className="sf-link ex-draw-alt" to={drawHref} onMouseEnter={preloadTicketScreen} onFocus={preloadTicketScreen}>
+                {drawLabel}
+              </Link>
+            </div>
+          ) : (
+            <div className="ex-draw">
+              {/* While «почему» offers «Ответить на этот вопрос», that is the one filled pill (redesign critique 6). */}
+              <Link
+                ref={drawPillRef}
+                className={whyAnswers ? 'ex-secondary' : 'sf-primary'}
+                to={drawHref}
+                onMouseEnter={preloadTicketScreen}
+                onFocus={preloadTicketScreen}
+              >
+                {drawLabel}
+              </Link>
+              <DrawModeMenu variant="popover" mode={drawMode} onChange={setDrawMode} />
+            </div>
+          ))}
       </header>
 
       {notes.length > 0 && (
         <div className="ex-notes">
           {notes.map((note) => (
-            <p key={note.key} className="ex-note" data-quiet={note.quiet ? '' : undefined} role={note.key === 'fail' ? 'alert' : undefined}>
+            <p
+              key={note.key}
+              className="ex-note"
+              data-quiet={note.quiet ? '' : undefined}
+              role={note.key === 'fail' ? 'alert' : note.status ? 'status' : undefined}
+            >
               {glue(note.text)}
               {note.action && (
-                <button type="button" className="sf-link" onClick={note.action.run}>
+                <button
+                  type="button"
+                  className="sf-link"
+                  aria-disabled={(note.action.maps && mappingBlocked) || undefined}
+                  onClick={note.action.run}
+                >
                   {note.action.label}
                 </button>
               )}
@@ -808,7 +878,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
               </button>
             </li>
             {coverageFilters
-              .filter((item) => item.count > 0 || item.value === 'cov:full' || item.value === 'cov:partial' || item.value === 'cov:none')
+              .filter((item) => showCoverageFilters && (item.count > 0 || item.value === 'cov:full' || item.value === 'cov:partial' || item.value === 'cov:none'))
               .map((item) => {
                 const kind = COVERAGE_MARK[item.coverage];
                 const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
@@ -849,7 +919,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
             ratingErrors={ratingErrors}
             peak={
               peak
-                ? ({ questionId: peak.questionId, animate: peak.phase === 'draw' && peak.draws, because: peak.because } satisfies SheetPeak)
+                ? ({
+                    questionId: peak.questionId,
+                    animate: peak.phase === 'draw' && peak.draws,
+                    because: peak.because,
+                    count: frame.side ? undefined : peakCountLine(peak.view),
+                  } satisfies SheetPeak)
                 : null
             }
             dim={Boolean(peak?.dim)}
@@ -873,10 +948,31 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       {!frame.side && (
         <div className="ex-cta">
-          <Link className="sf-primary" to={drawHref} onTouchStart={preloadTicketScreen} onFocus={preloadTicketScreen}>
-            {drawLabel}
-          </Link>
-          <p className="ex-cta-note">{DRAW_CAPTIONS[drawMode]}</p>
+          {preMapping ? (
+            <>
+              {mapPill}
+              <p className="ex-cta-alt">
+                <Link className="sf-link" to={drawHref} onTouchStart={preloadTicketScreen} onFocus={preloadTicketScreen}>
+                  {drawLabel}
+                </Link>
+              </p>
+            </>
+          ) : (
+            <>
+              <Link ref={drawPillRef} className="sf-primary" to={drawHref} onTouchStart={preloadTicketScreen} onFocus={preloadTicketScreen}>
+                {drawLabel}
+              </Link>
+              {/* Phones and tablets choose the way of drawing here too (stage QA round 2): a bottom sheet. */}
+              <DrawModeMenu
+                className="ex-cta-mode"
+                variant="sheet"
+                mode={drawMode}
+                onChange={setDrawMode}
+                sheetHost={frame.ref.current}
+                frameBox={frame.box}
+              />
+            </>
+          )}
         </div>
       )}
     </div>

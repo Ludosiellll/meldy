@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import KnowledgeMap from './KnowledgeMap';
 
 const api = vi.hoisted(() => ({ from: vi.fn() }));
@@ -107,5 +107,23 @@ describe('KnowledgeMap zoom', () => {
 
     await user.click(screen.getByRole('button', { name: 'Показать всю карту' }));
     expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  it('«Проверить себя» opens the exams, not the old oral exam (redesign spec 5.20)', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/knowledge-map']}>
+        <Routes>
+          <Route path="/knowledge-map" element={<KnowledgeMap />} />
+          <Route path="/exams" element={<p>Список экзаменов</p>} />
+          <Route path="/exam" element={<p>Прежний устный экзамен</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole('img', { name: /Карта связей/ });
+    await user.click(screen.getByRole('button', { name: /Материал.*Алгоритмы/ }));
+    await user.click(screen.getByRole('button', { name: /Проверить себя/ }));
+    expect(await screen.findByText('Список экзаменов')).toBeInTheDocument();
+    expect(screen.queryByText('Прежний устный экзамен')).not.toBeInTheDocument();
   });
 });

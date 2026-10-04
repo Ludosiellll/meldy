@@ -123,10 +123,29 @@ export function TextMark({
   );
 }
 
-/** «Зачтено» in a pencil oval (protocol). */
-export function PencilOval({ seed, children, animate, className }: { seed: number; children: ReactNode; animate?: boolean; className?: string }) {
+/**
+ * «Зачтено» in a pencil oval (protocol). `delayMs` lets the protocol draw it after its last point mark;
+ * padX / padY widen the oval around the word (spec 3.8: word +10/+7).
+ */
+export function PencilOval({
+  seed,
+  children,
+  animate,
+  delayMs,
+  padX,
+  padY,
+  className,
+}: {
+  seed: number;
+  children: ReactNode;
+  animate?: boolean;
+  delayMs?: number;
+  padX?: number;
+  padY?: number;
+  className?: string;
+}) {
   return (
-    <TextMark kind="oval" seed={seed} animate={animate} className={className}>
+    <TextMark kind="oval" seed={seed} animate={animate} delayMs={delayMs} padX={padX} padY={padY} className={className}>
       {children}
     </TextMark>
   );

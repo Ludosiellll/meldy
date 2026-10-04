@@ -1,6 +1,6 @@
 /**
  * Russian dates and times of the answer screen, built by hand so the words do not depend on the
- * browser's ICU build: «7 окт.», «7 окт., 14:02», «3 октября, 14:12», «0:18».
+ * browser's ICU build: «7 окт.», «7 окт., 14:02», «4 октября, 1:02», «0:18».
  */
 import { ty } from '../../components/landing/typo';
 
@@ -18,10 +18,11 @@ export function toDate(value: string | Date | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** «1:02», «14:12»: the hour without a leading zero, as the rest of the app writes it (redesign critique 4). */
 export function clockTime(value: string | Date | null | undefined): string {
   const date = toDate(value);
   if (!date) return '';
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 /** «7 окт.» */

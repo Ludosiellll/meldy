@@ -92,7 +92,7 @@ describe('rows', () => {
     expect(footnoteOf({ ...base, coverage: 'none' })).toBeNull();
   });
 
-  it('writes «там же» while the lecture stays the same, and names it again after a section, a hand mark or another lecture', () => {
+  it('writes «там же» while the lecture stays the same, and names it again after a section, a row without a note, a hand mark or another lecture', () => {
     const note = (materialId: string, fragments: string, title = materialId === 'm1' ? 'Нейронные сети и глубокое обучение' : 'Инфляция') => ({
       title,
       fragments,
@@ -119,7 +119,10 @@ describe('rows', () => {
     expect(text(1)).toBe('там же, фрагмент 4');
     expect(views[1]?.named).toBe(false);
     expect(text(2)).toBeNull();
-    expect(text(3)).toBe('там же, фрагменты 5, 6');
+    // «Там же» means the line right above: after a row without a note the lecture is named again
+    // (redesign critique 7, round 2: «там же» used to sit right under the selected dash of № 17).
+    expect(text(3)).toBe('Нейронные сети и глубокое обучение, фрагменты 5, 6');
+    expect(views[3]?.named).toBe(true);
     expect(text(4)).toBe('отмечено вами');
     expect(text(5)).toBe('Нейронные сети и глубокое обучение, фрагмент 7');
     expect(text(6)).toBe('Инфляция, фрагмент 1');

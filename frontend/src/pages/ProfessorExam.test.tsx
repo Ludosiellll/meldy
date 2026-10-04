@@ -135,6 +135,18 @@ describe('starting an old-format oral exam', () => {
     expect(container.textContent).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}]/u);
   });
 
+  it('has no gradient tiles, XP chips or capitals: a plain heading and a way to the new exams (QA round 2)', async () => {
+    saveState({});
+    const { container } = renderExam();
+    await screen.findByRole('button', { name: /Войти в аудиторию/ });
+    expect(screen.getByRole('heading', { level: 1, name: 'Устный экзамен по лекции' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Выберите лекцию и экзаменатора' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'в разделе «Экзамены»' })).toHaveAttribute('href', '/exams');
+    expect(container.textContent).not.toMatch(/XP|AI-|Интеллектуальная подготовка|энерги/);
+    expect(container.querySelector('[class*="gradient"]')).toBeNull();
+    expect(container.querySelector('.uppercase')).toBeNull();
+  });
+
   it('charges nothing when the first question fails', async () => {
     saveState({});
     fetchMock.mockResolvedValue(jsonResponse(502, { detail: 'ИИ-сервис сейчас не ответил. Попробуйте ещё раз.', code: 'ai_failed' }));
@@ -145,7 +157,7 @@ describe('starting an old-format oral exam', () => {
 
     await waitFor(() => expect(db.alert).toHaveBeenCalled());
     expect(db.alert.mock.calls[0][0]).toMatchObject({ message: 'ИИ-сервис сейчас не ответил. Попробуйте ещё раз.' });
-    expect(db.verifyEnergy).toHaveBeenCalledWith('user-1', 1, 'AI-Экзаменатор');
+    expect(db.verifyEnergy).toHaveBeenCalledWith('user-1', 1, 'Устный экзамен');
     expect(db.incrementAIUsage).not.toHaveBeenCalled();
   });
 

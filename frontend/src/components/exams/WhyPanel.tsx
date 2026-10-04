@@ -288,7 +288,8 @@ export default function WhyPanel(props: WhyPanelProps) {
 
       {(answers.length > 0 || props.answersError) && (
         <div className="ex-blk">
-          <p className="ex-why-t">Ответы вслух</p>
+          {/* «Ответы»: a written answer counts as much as a spoken one (Jury_Check 11). */}
+          <p className="ex-why-t">Ответы</p>
           {props.answersError ? (
             <p className="ex-fine">{props.answersError}</p>
           ) : (
@@ -312,12 +313,16 @@ export default function WhyPanel(props: WhyPanelProps) {
           {props.manualError}
         </p>
       )}
-      <div className="ex-why-acts">
-        {canAnswer && (
-          <Link className="sf-link" to={`/exams/${examId}/ticket?q=${encodeURIComponent(question.id)}`}>
+      {/* The panel's one filled pill (redesign critique 6, round 2): on stage the step from row 12 to its
+          answer. The sheet's «Тянуть билет» steps down to an outlined pill while the panel is open. */}
+      {canAnswer && (
+        <div className="ex-why-go">
+          <Link className="sf-primary" to={`/exams/${examId}/ticket?q=${encodeURIComponent(question.id)}`}>
             Ответить на этот вопрос
           </Link>
-        )}
+        </div>
+      )}
+      <div className="ex-why-acts">
         {reviewMaterial && (
           <Link className="sf-link" to={`/review?material=${encodeURIComponent(reviewMaterial)}`}>
             Повторить карточки этой лекции

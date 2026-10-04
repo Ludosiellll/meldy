@@ -137,7 +137,11 @@ function parseMarkdownToHtml(md: string): string {
   return html;
 }
 
-function buildHtmlExport(results: AnalysisResults, displayTitle: string): string {
+/**
+ * The «Скачать HTML» / «Печать или PDF» document. Self-contained: no web fonts (the print window
+ * inherits the page's CSP and a saved file would call Google), the system font stack instead.
+ */
+export function buildHtmlExport(results: AnalysisResults, displayTitle: string): string {
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   
@@ -172,12 +176,10 @@ function buildHtmlExport(results: AnalysisResults, displayTitle: string): string
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Meldy — ${escapeHtml(displayTitle)}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     color: #1e293b;
     line-height: 1.7;
     max-width: 760px;
@@ -204,9 +206,9 @@ function buildHtmlExport(results: AnalysisResults, displayTitle: string): string
     letter-spacing: -1px; flex-shrink: 0;
   }
   .doc-header-text h1 {
-    font-size: 13px; font-weight: 700;
-    color: #0f766e; letter-spacing: 0.05em;
-    text-transform: uppercase; margin: 0;
+    font-size: 17px; font-weight: 650;
+    color: #20201e; letter-spacing: -0.02em;
+    margin: 0;
   }
   .doc-header-text p {
     font-size: 12px; color: #94a3b8; margin: 0;

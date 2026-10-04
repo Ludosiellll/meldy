@@ -1,4 +1,4 @@
-import { pluralRu } from '../conversation/visuals';
+import { useRef } from 'react';
 import { glue } from './sheetModel';
 
 export interface DrawnCardQuestion {
@@ -13,7 +13,7 @@ export const NONE_QUESTION_MESSAGE =
   'Этого вопроса нет в ваших лекциях — оценить ответ не по чему. Добавьте материал или тяните ещё.';
 
 interface DrawStackProps {
-  /** Changes with every draw, so the top card lifts again. */
+  /** Changes with every draw, so the top card turns over again. */
   drawKey: number;
   /** The department's ticket number for a known ticket; null for a random combination. */
   ticketNumber: number | null;
@@ -36,13 +36,67 @@ export function ticketTitle(ticketNumber: number | null, questions: DrawnCardQue
 }
 
 /**
- * A static stack of three ticket cards; the top one lifts and turns over (600 ms at most, no
- * shuffling; a 150 ms fade under reduced motion) and shows the drawn ticket: its number when the
- * department's tickets are known, the questions with their numbers and texts. Nothing is voiced
- * (correction 7).
+ * The card's own line: «Случайный билет · вопросы 12 и 31», «Билет 12 · вопросы 3 и 25», «Вопрос 12».
+ * The numbers stay on the card (redesign critique 8: a random pair used to lose them until the peak).
+ */
+export function cardHead(ticketNumber: number | null, questions: DrawnCardQuestion[]): { strong: string; rest: string } {
+  if (ticketNumber === null && questions.length === 1) return { strong: `Вопрос ${questions[0].number}`, rest: '' };
+  return { strong: ticketNumber !== null ? `Билет ${ticketNumber}` : 'Случайный билет', rest: numbersPhrase(questions) };
+}
+
+interface Face {
+  ticketNumber: number | null;
+  questions: DrawnCardQuestion[] | null;
+}
+
+function FaceContent({ face }: { face: Face }) {
+  if (!face.questions) return <p className="dw-back">Билеты</p>;
+  const head = cardHead(face.ticketNumber, face.questions);
+  const single = face.ticketNumber === null && face.questions.length === 1;
+  return (
+    <>
+      <p className="dw-no">
+        <b>{head.strong}</b>
+        {head.rest && glue(` · ${head.rest}`)}
+      </p>
+      <ol className="dw-qs" data-single={single ? '' : undefined}>
+        {face.questions.map((question) => (
+          <li key={question.id} className="dw-q">
+            {!single && (
+              <span className="dw-q-n" aria-hidden="true">
+                {question.number}
+              </span>
+            )}
+            <span className="dw-q-t">{question.text}</span>
+            {question.none && <span className="dw-q-none sf-pnote">{NONE_QUESTION_MESSAGE}</span>}
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
+/**
+ * A static stack of three ticket cards; the top one lifts and turns over around its horizontal axis
+ * (600 ms at most, no shuffling; a 150 ms fade under reduced motion). Until the card is edge-on
+ * (250 ms) it still shows what it showed before — the blank back, or the last ticket on «Тянуть ещё»
+ * — and only then the drawn ticket, so turning it over reveals something (redesign critique 8). The
+ * drawn ticket is in the page at once (an aria-hidden copy of the old face covers it for those 250 ms).
+ * Nothing is voiced (correction 7).
  */
 export default function DrawStack({ drawKey, ticketNumber, questions, animate }: DrawStackProps) {
-  const single = ticketNumber === null && questions?.length === 1;
+  // The face shown before this draw: the blank back first, then the previous ticket.
+  const faces = useRef<{ key: number; current: Face; previous: Face | null }>({
+    key: drawKey,
+    current: { ticketNumber, questions },
+    previous: null,
+  });
+  if (faces.current.key !== drawKey) {
+    faces.current = { key: drawKey, current: { ticketNumber, questions }, previous: faces.current.current };
+  } else {
+    faces.current.current = { ticketNumber, questions };
+  }
+  const previous = animate && questions ? faces.current.previous ?? { ticketNumber: null, questions: null } : null;
   return (
     <div className="dw-stack">
       <div className="sf-index-card dw-under" data-n="2" aria-hidden="true" />
@@ -51,33 +105,16 @@ export default function DrawStack({ drawKey, ticketNumber, questions, animate }:
         key={drawKey}
         className="sf-index-card dw-card"
         data-state={questions ? (animate ? 'lift' : 'fade') : undefined}
-        data-lifted={questions ? '' : undefined}
         aria-live="polite"
         aria-label={questions ? ticketTitle(ticketNumber, questions) : 'Стопка билетов'}
       >
-        {questions ? (
-          <>
-            <p className="dw-no">
-              {ticketNumber !== null ? (
-                <b>Билет {ticketNumber}</b>
-              ) : (
-                // One question: the same line the answer screen's card will have, «Вопрос 12».
-                <b>{single ? `Вопрос ${questions[0].number}` : 'Случайный билет'}</b>
-              )}
-              {questions.length > 1 && glue(` · ${questions.length} ${pluralRu(questions.length, ['вопрос', 'вопроса', 'вопросов'])}`)}
-            </p>
-            <ol className="dw-qs">
-              {questions.map((question) => (
-                <li key={question.id} className="dw-q">
-                  {!single && <span className="dw-q-n">Вопрос {question.number}</span>}
-                  <span className="dw-q-t">{question.text}</span>
-                  {question.none && <span className="dw-q-none sf-pnote">{NONE_QUESTION_MESSAGE}</span>}
-                </li>
-              ))}
-            </ol>
-          </>
-        ) : (
-          <p className="dw-back">Билеты</p>
+        <div className="dw-face">
+          <FaceContent face={{ ticketNumber, questions }} />
+        </div>
+        {previous && (
+          <div className="dw-face dw-face-old" aria-hidden="true">
+            <FaceContent face={previous} />
+          </div>
         )}
       </article>
     </div>

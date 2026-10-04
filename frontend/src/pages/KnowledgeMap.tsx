@@ -933,7 +933,7 @@ export default function KnowledgeMap() {
                       </div>
                       <div className="mt-4 flex flex-col gap-2">
                         <button type="button" onClick={() => navigate(`/library/${selectedNode.id}`)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white hover:bg-[var(--sf-accent-hover)]"><BookOpen className="h-4 w-4" /> Открыть материал</button>
-                        <button type="button" onClick={() => navigate('/exam')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--sf-line)] px-4 text-sm font-medium text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]">Проверить себя <ArrowUpRight className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => navigate('/exams')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--sf-line)] px-4 text-sm font-medium text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]">Проверить себя <ArrowUpRight className="h-4 w-4" /></button>
                       </div>
                     </>
                   ) : (

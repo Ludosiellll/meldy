@@ -40,7 +40,7 @@ describe('AgentCards', () => {
 
   it('shows a plain demo line, not an uppercase badge, and no hype copy', () => {
     const { container } = render(<AgentCards agents={agents} phase="analyzing" isDemo />);
-    expect(screen.getByText('Демо-текст: энергия не списывается.')).toBeInTheDocument();
+    expect(screen.getByText('Демо-текст: лимит не списывается.')).toBeInTheDocument();
     expect(screen.queryByText('ДЕМО')).not.toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/uppercase|tracking-wider|gradient/);
     expect(container.textContent).not.toMatch(/Интеллектуальн|Нейросетев|успешно/);

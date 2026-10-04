@@ -66,7 +66,9 @@ describe('<ProtocolSheet>', () => {
     const p3 = container.querySelector('[data-point="p3"]')!;
     expect(p3.querySelector('svg[data-mark="cup"]')).not.toBeNull();
     expect(p3.textContent).toContain('Назван метод, про градиент по весам не сказано.');
-    expect(p3.querySelector('.sf-slip')?.textContent).toContain('Лекция «Нейронные сети», фрагмент 14');
+    // The lecture is named once on the sheet; the next quotes from it say «Лекция, фрагмент N»
+    // (redesign critique 4, round 2).
+    expect(p3.querySelector('.sf-slip .or-slip-cap')?.textContent?.replace(/\s/g, ' ')).toBe('Лекция, фрагмент 14');
 
     const p4 = container.querySelector('[data-point="p4"]')!;
     expect(p4.querySelector('svg[data-mark="dash"]')).not.toBeNull();
@@ -174,7 +176,8 @@ describe('<ProtocolSheet>', () => {
       <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, null, new Set(['p1', 'p2']))} followup={null} stamp="none" seed="a" preliminary />,
     );
     expect(screen.getByText('Предварительно: по ключевым словам')).toBeInTheDocument();
-    expect(container.querySelectorAll('svg[data-mark="tick"]')).toHaveLength(2);
+    // Named by key words only: the provisional dashed tick (redesign critique 1, round 2).
+    expect(container.querySelectorAll('svg[data-mark="dtick"]')).toHaveLength(2);
     expect(container.textContent).not.toContain('Зачтено');
   });
 });
@@ -191,16 +194,17 @@ describe('<ProtocolGrade>', () => {
       ],
       { point_id: 'p4', status: 'missing' },
     );
-    render(<ProtocolGrade result={result} previous="прошлый ответ, 1 окт.: «удовлетворительно»" />);
+    render(<ProtocolGrade result={result} previous="Прошлый ответ, 1 окт.: «удовлетворительно»." />);
     expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
     expect(screen.queryByText(/\/ 9 = 67 из 100 → 4/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
     expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 4')).toBeInTheDocument();
     expect(screen.getByText('Оценка тренировочная: по пунктам эталона из ваших лекций, а не по требованиям преподавателя.')).toBeInTheDocument();
-    // The previous answer sits on the «Как считается» row, as a grade in words (redesign critique 5).
+    // The previous answer is its own line under «Как считается», a grade in words (redesign critique 4, round 2).
     const row = screen.getByRole('button', { name: 'Как считается' }).closest('.or-how-row') as HTMLElement;
-    expect(row.textContent).toBe('Как считается · прошлый ответ, 1 окт.: «удовлетворительно»');
+    expect(row.textContent).toBe('Как считается');
+    expect(screen.getByText('Прошлый ответ, 1 окт.: «удовлетворительно».')).toHaveClass('or-prev-line');
     expect(document.body.textContent).not.toMatch(/3 из 5/);
   });
 });
@@ -250,5 +254,72 @@ describe('<ReviewCard>', () => {
     expect(screen.getByText('А что будет, если взять слишком большую скорость обучения?')).toBeInTheDocument();
     expect(container.querySelector('svg.or-rcard-zav path')).not.toBeNull();
     expect(screen.getByText('Вернётся в повторении завтра.')).toBeInTheDocument();
+  });
+});
+
+describe('<ProtocolSheet>: round 2 of the stage critique', () => {
+  it('says above the fold which point the examiner asked about and why', () => {
+    stubReducedMotion(false);
+    const { container, rerender } = render(
+      <ProtocolSheet heading="Вопрос 12 · ответ 4 октября, 1:13" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" />,
+    );
+    const note = container.querySelector('.or-asked') as HTMLElement;
+    expect(note).toHaveClass('sf-pnote');
+    expect(note.textContent).toBe('Пункт 4 не назван — о нём спросил экзаменатор.');
+    // Right under the header, before the first point.
+    expect(note.compareDocumentPosition(container.querySelector('.or-ppts') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    rerender(
+      <ProtocolSheet
+        heading="Вопрос 12 · ответ 4 октября, 1:13"
+        points={livePoints(DEMO_RUBRIC, evaluation)}
+        followup={{ ...followup, pointId: 'p5' }}
+        stamp="passed"
+        seed="attempt-1"
+      />,
+    );
+    expect(container.querySelector('.or-asked')?.textContent).toBe('В пункте 5 ошибка — о ней спросил экзаменатор.');
+
+    rerender(<ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={null} stamp="passed" seed="attempt-1" />);
+    expect(container.querySelector('.or-asked')).toBeNull();
+  });
+
+  it('names a lecture on its first quote only', () => {
+    stubReducedMotion(false);
+    const { container } = render(
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" />,
+    );
+    const labels = Array.from(container.querySelectorAll('.or-q2-label, .or-slip-cap'))
+      .map((item) => item.textContent?.replace(/\s/g, ' ') ?? '')
+      .filter((text) => text.startsWith('Лекция'));
+    expect(labels[0]).toBe('Лекция «Нейронные сети», фрагмент 12:');
+    expect(labels.slice(1).every((text) => !text.includes('«'))).toBe(true);
+    expect(labels.slice(1)).toContain('Лекция, фрагмент 14');
+  });
+
+  it('draws the point marks in lecture order and the oval after the last one', () => {
+    stubReducedMotion(false);
+    const { container } = render(
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" animate />,
+    );
+    const delays = Array.from(container.querySelectorAll('.or-ppt > .or-pt-m svg'))
+      .map((svg) => svg.querySelector('mask path, path.sf-mark-fade') as SVGElement | null)
+      .map((path) => parseInt(path?.style.animationDelay ?? '', 10));
+    expect(delays).toHaveLength(5);
+    expect(delays[0]).toBe(0);
+    expect(delays).toEqual([...delays].sort((a, b) => a - b));
+    const oval = container.querySelector('.or-stamp svg mask path') as SVGElement;
+    // 5 points: the last mark starts at 240 ms and takes 250 ms; the oval starts at 490 ms.
+    expect(parseInt(oval.style.animationDelay, 10)).toBe(4 * 60 + 250);
+    expect(Math.max(...delays)).toBeLessThan(parseInt(oval.style.animationDelay, 10));
+  });
+
+  it('marks the rows named by key words with the provisional dashed tick on a preliminary sheet', () => {
+    stubReducedMotion(false);
+    const { container } = render(
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, null, new Set(['p1', 'p2']))} followup={null} stamp="none" seed="attempt-1" preliminary />,
+    );
+    expect(container.querySelectorAll('svg[data-mark="dtick"]')).toHaveLength(2);
+    expect(container.querySelector('svg[data-mark="tick"]')).toBeNull();
   });
 });

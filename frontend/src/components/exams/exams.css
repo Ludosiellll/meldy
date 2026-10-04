@@ -99,6 +99,49 @@
 .sf-page .ex-mode-menu button:hover { background: var(--sf-tint); }
 .sf-page .ex-mode-menu button[aria-checked='true'] { font-weight: 600; }
 .sf-page .ex-mode-menu small { display: block; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--sf-muted); font-weight: 400; }
+/* The way of drawing on phones and tablets: a bottom sheet over the page (the fixed bar under it has
+   no room for a popover). Rows of 52, the chosen one in ink 600. */
+.sf-page .ex-mode { position: relative; }
+.sf-page .ex-mode-sheet {
+  position: fixed;
+  bottom: 0;
+  z-index: 41;
+  max-height: 78vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 18px var(--sf-g) calc(16px + env(safe-area-inset-bottom));
+  border-radius: 14px 14px 0 0;
+  background: var(--sf-surface);
+  box-shadow: var(--sf-pop-shadow);
+  text-align: left;
+  animation: ex-sheet-up 200ms cubic-bezier(.22, .61, .36, 1) both;
+}
+.sf-page .ex-mode-sheet-t { margin: 0 0 6px; font-size: 19px; line-height: 26px; font-weight: 600; color: var(--sf-ink); }
+.sf-page .ex-mode-sheet button {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 11px 0 12px;
+  border-top: 1px solid var(--sf-line);
+  text-align: left;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--sf-ink);
+}
+.sf-page .ex-mode-sheet button[aria-checked='true'] { font-weight: 600; }
+.sf-page .ex-mode-sheet small { display: block; margin-top: 2px; font-size: 15px; line-height: 22px; color: var(--sf-muted); font-weight: 400; }
+@keyframes ex-sheet-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+/* Under the fixed «Тянуть билет»: «Как на экзамене · изменить», centred; the link keeps a 44 px target
+   without making the bar taller. */
+.sf-page .ex-cta-mode .ex-draw-mode { margin-top: 6px; font-size: 15px; line-height: 22px; text-align: center; }
+.sf-page .ex-cta-mode .ex-draw-mode .sf-link,
+.sf-page .dw-mode .ex-draw-mode .sf-link { min-height: 44px; margin: -11px 0; vertical-align: baseline; }
+@media (pointer: coarse) {
+  .sf-page .ex-draw-mode .sf-link { min-height: 44px; margin: -11px 0; }
+}
 
 /* Secondary outlined pill (at most one in a screen's content). */
 .sf-page .ex-secondary {
@@ -120,13 +163,18 @@
 }
 .sf-page .ex-secondary:hover { border-color: var(--sf-ink); }
 .sf-page .ex-secondary:disabled { cursor: not-allowed; color: var(--sf-muted); border-color: var(--sf-line); }
-.sf-page .sf-primary:disabled {
+.sf-page .sf-primary:disabled,
+.sf-page .sf-primary[aria-disabled='true'] {
   background: var(--sf-surface-soft);
   color: var(--sf-muted);
   box-shadow: none;
   cursor: not-allowed;
   transform: none;
 }
+/* Before the first mapping: «Тянуть билет» is a link under «Разметить по лекциям». */
+.sf-page .ex-draw .ex-draw-alt { font-size: 16px; }
+.sf-page .ex-cta-alt { margin-top: 6px; font-size: 16px; line-height: 22px; text-align: center; }
+.sf-page .ex-cta-alt .sf-link { min-height: 44px; margin: -11px 0; vertical-align: baseline; }
 
 /* Plain lines on the desk: states, banners, errors (no boxes, no red). */
 .sf-page .ex-note { margin-top: 12px; font-size: 15px; line-height: 22px; color: var(--sf-ink); text-wrap: pretty; }
@@ -402,6 +450,18 @@
 .sf-page[data-frame='m'] .ex-big,
 .sf-page[data-frame='s'] .ex-big { font-size: 44px; }
 .sf-page[data-frame='s'] .ex-lbl { font-size: 16px; line-height: 22px; }
+/* Phones and tablets: 60 % and 35 % side by side (grid 1fr 1fr, gap 16), each number over its label
+   (44/1, labels 15/20). On a phone the counts under them are left to the legend just above the sheet
+   («есть в лекциях 24 · частично 7 · нет ни в одной 9»); «хотя бы один» is in «Как считается». */
+.sf-page .ex-pairs[data-compact] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.sf-page .ex-pairs[data-compact][data-count='1'] { grid-template-columns: minmax(0, 1fr); }
+.sf-page .ex-pairs[data-compact] .ex-pair { display: block; }
+.sf-page .ex-pairs[data-compact] .ex-pair + .ex-pair { margin-top: 0; }
+.sf-page .ex-pairs[data-compact] .ex-big { font-size: 44px; line-height: 1; }
+.sf-page .ex-pairs[data-compact] .ex-pair[data-wide] .ex-big { font-size: 36px; }
+.sf-page .ex-pairs[data-compact] .ex-lbl { margin-top: 6px; font-size: 15px; line-height: 20px; }
+.sf-page .ex-pairs[data-compact] .ex-sub { margin-top: 2px; font-size: 15px; line-height: 20px; }
+.sf-page[data-frame='s'] .ex-pairs[data-compact] .ex-sub { display: none; }
 .sf-page .ex-caveat { margin-top: 16px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; max-width: 26em; }
 .sf-page .ex-blk { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
 .sf-page .ex-stmt { font-size: 17px; line-height: 25px; text-wrap: pretty; }
@@ -431,34 +491,23 @@
   color: var(--sf-ink);
 }
 .sf-page .ex-rl .ex-count { font-variant-numeric: tabular-nums; }
-/* The old number is crossed out by a typeset diagonal (not pencil, spec 3.8.3): a horizontal strike
-   turned 0, 6, 8 and 9 into other figures. It appears after the new mark is drawn. */
+/* Peak 3: «7 из 40» and, 16 px to the right on the same baseline, «было 6» in Onest 500 24/30, muted; it
+   comes in (150 ms) at 950 ms, after the ring is drawn. No strike: a struck-out 0 read as «ø». */
+.sf-page .ex-peak-big { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 16px; }
 .sf-page .ex-peak-big .ex-was {
-  position: relative;
-  display: inline-block;
-  margin-right: 14px;
-  font-size: .82em;
+  font-size: 24px;
+  line-height: 30px;
   font-weight: 500;
+  letter-spacing: -.01em;
   color: var(--sf-muted);
-  text-decoration: none;
+  white-space: nowrap;
+  animation: ex-was-in 150ms ease 950ms both;
 }
-.sf-page .ex-peak-big .ex-was::after {
-  content: '';
-  position: absolute;
-  left: -8%;
-  right: -8%;
-  top: 50%;
-  height: 3px;
-  margin-top: -1.5px;
-  border-radius: 2px;
-  background: currentColor;
-  transform: rotate(-28deg);
-  animation: ex-strike-in 150ms ease 950ms both;
-}
-@keyframes ex-strike-in {
+@keyframes ex-was-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+.sf-page .ex-because-count { margin-top: 2px; color: var(--ph-paper-ink); }
 .sf-page .ex-peak-big .ex-of { font-weight: 500; }
 
 /* «Как считается»: a formula under a hairline, no bar and no fill. */
@@ -497,11 +546,13 @@
 }
 .sf-page .ex-why .ex-stmt { margin-top: 10px; }
 .sf-page .ex-slip-cap { margin: 18px 0 8px; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.sf-page .ex-why-go { margin-top: 24px; }
 .sf-page .ex-why-acts { display: flex; flex-direction: column; align-items: flex-start; margin-top: 12px; }
 .sf-page .ex-why-acts .sf-link { font-size: 16px; }
 .sf-page .ex-attempts { margin: 8px 0 0; padding: 0; list-style: none; }
+/* «3 окт. · 4 · хорошо» at 17/26: the answers are what the stage step points at. */
 .sf-page .ex-attempts a,
-.sf-page .ex-attempts span { display: inline-flex; align-items: center; min-height: 36px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.sf-page .ex-attempts span { display: inline-flex; align-items: center; min-height: 36px; font-size: 17px; line-height: 26px; font-variant-numeric: tabular-nums; }
 .sf-page .ex-attempts a { color: var(--sf-ink); text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 32%, transparent); text-underline-offset: 5px; }
 
 /* Phones: «почему» is a bottom sheet with a handle (left and right follow the page frame). */
@@ -523,6 +574,7 @@
 .sf-page .ex-why-sheet h3 { font-size: 21px; line-height: 27px; }
 .sf-page .ex-why-sheet .ex-stmt { font-size: 16px; line-height: 24px; }
 .sf-page .ex-why-sheet .ex-why-acts { flex-direction: row; flex-wrap: wrap; gap: 0 20px; }
+.sf-page .ex-why-sheet .ex-why-go .sf-primary { width: 100%; height: 52px; font-size: 16px; }
 
 /* Phones: the page's one action sticks to the bottom; it takes its own room, so it never covers
    the last row. */
@@ -536,7 +588,6 @@
   background: var(--sf-canvas);
 }
 .sf-page .ex-cta .sf-primary { width: 100%; height: 52px; padding: 0 20px; font-size: 16px; }
-.sf-page .ex-cta-note { margin-top: 6px; font-size: 14px; line-height: 20px; color: var(--sf-muted); text-align: center; }
 
 /* ---------------------------------------------------------------- exams list */
 .sf-page .ex-list { max-width: 1040px; margin: 24px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
@@ -771,80 +822,99 @@
   .sf-room-bar .dw-where { color: var(--sf-ink); font-weight: 600; }
 }
 
-/* The room has the answer screen's grid (700 + 64): the stack stands exactly where the ticket card
-   will be, «Отвечать» exactly where «Отвечать голосом» will be (redesign critique 6). */
-.sf-page.dw-room {
-  display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(0, 1fr);
-  gap: 64px;
-  align-items: start;
-  padding-top: 24px;
-  padding-bottom: 56px;
-}
-.sf-page .dw-left-col, .sf-page .dw-side { min-width: 0; }
+/* The draw is a single-object screen (redesign critique 8, spec 3.4): the stack in the middle, 760 wide,
+   its top 12vh under the bar; «Отвечать» and «Тянуть ещё» centred 32 px under it, the way of drawing
+   on one muted line under them. */
+.sf-page.dw-room { padding-top: 12vh; padding-bottom: 56px; }
+.sf-page .dw-center { max-width: 760px; margin: 0 auto; }
 .sf-page .dw-stack { position: relative; perspective: 1200px; }
 .sf-page .dw-under { position: absolute; inset: 0; }
 .sf-page .dw-under[data-n='1'] { transform: translate(4px, 4px) rotate(-.8deg); }
 .sf-page .dw-under[data-n='2'] { transform: translate(8px, 9px) rotate(1.2deg); }
 .sf-page .dw-card {
   position: relative;
-  min-height: 160px;
-  padding: 18px 28px 22px;
+  min-height: 168px;
+  overflow: hidden;
   transform: rotate(-.4deg);
   transform-origin: 50% 100%;
   backface-visibility: hidden;
 }
-/* Lift −12 px with the lift shadow (250 ms), then the card turns over around the horizontal axis and
-   settles like a spring (200/25): 600 ms at most. */
+.sf-page .dw-face { padding: 20px 32px 24px; }
+/* The face shown before the draw (the blank back or the last ticket) covers the new one until the card
+   is edge-on, then goes. */
+.sf-page .dw-face-old { position: absolute; inset: 0; background: var(--ph-card); }
+/* Lift −12 px with the lift shadow and turn edge-on (250 ms), swap the face there, settle like a spring
+   (200/25): 600 ms in all. */
 .sf-page .dw-card[data-state='lift'] { animation: dw-lift 600ms cubic-bezier(.22, .61, .36, 1) both; }
+.sf-page .dw-card[data-state='lift'] .dw-face:not(.dw-face-old) { animation: dw-face-new 600ms linear both; }
+.sf-page .dw-card[data-state='lift'] .dw-face-old { animation: dw-face-old 600ms linear both; }
 .sf-page .dw-card[data-state='fade'] { animation: dw-fade 150ms ease both; }
 .sf-page .dw-no { font-family: var(--ph-serif); font-size: 17px; line-height: 24px; color: var(--ph-paper-muted); }
 .sf-page .dw-no b { font-weight: 600; color: var(--ph-paper-ink); }
-.sf-page .dw-qs { margin: 6px 0 0; padding: 0; list-style: none; }
+.sf-page .dw-qs { margin: 10px 0 0; padding: 0; list-style: none; }
+/* The list's numbers hang in a 36 px margin, on the first line of their question. */
+.sf-page .dw-q { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: baseline; }
+.sf-page .dw-qs[data-single] .dw-q { grid-template-columns: minmax(0, 1fr); }
 .sf-page .dw-q + .dw-q { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ph-paper-rule); }
-.sf-page .dw-q-n { display: block; font-family: var(--ph-serif); font-size: 15px; line-height: 22px; color: var(--ph-paper-muted); }
+.sf-page .dw-q-n {
+  font-family: var(--ph-serif);
+  font-size: 20px;
+  line-height: 36px;
+  color: var(--ph-paper-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
 .sf-page .dw-q-t {
   display: block;
-  margin-top: 2px;
-  max-width: 22em;
   font-family: var(--ph-serif);
-  font-size: 26px;
-  line-height: 33px;
+  font-size: 30px;
+  line-height: 36px;
   font-weight: 600;
-  letter-spacing: -.014em;
-  text-wrap: balance;
-  overflow-wrap: anywhere;
+  letter-spacing: -.016em;
+  text-wrap: pretty;
+  overflow-wrap: break-word;
 }
-.sf-page .dw-q-none { display: block; margin-top: 6px; }
-.sf-page .dw-back { display: grid; place-items: center; min-height: 160px; font-family: var(--ph-serif); font-size: 19px; color: var(--ph-paper-muted); }
-.sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-top: 22px; }
-.sf-page .dw-msg { margin-top: 22px; max-width: 34em; font-size: 17px; line-height: 26px; }
+.sf-page .dw-q-none { display: block; grid-column: -2; margin-top: 6px; }
+.sf-page .dw-back { display: grid; place-items: center; min-height: 124px; font-family: var(--ph-serif); font-size: 19px; color: var(--ph-paper-muted); }
+.sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 26px; margin-top: 32px; }
+.sf-page .dw-mode { margin-top: 10px; }
+.sf-page .dw-mode .ex-draw-mode { text-align: center; font-size: 15px; line-height: 22px; }
+.sf-page .dw-mode .ex-mode-menu { left: 50%; right: auto; transform: translateX(-50%); }
+.sf-page .dw-msg { margin: 32px auto 0; max-width: 34em; font-size: 17px; line-height: 26px; text-align: center; text-wrap: pretty; }
 .sf-page .dw-msg + .dw-acts { margin-top: 18px; }
-.sf-page .dw-note { margin-top: 14px; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .dw-note { margin: 14px auto 0; max-width: 34em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .sf-page.dw-room { padding-top: 16px; }
-  .sf-page .dw-card { padding: 12px 24px 14px; }
-  .sf-page .dw-q-t { font-size: 25px; line-height: 31px; }
-}
-@media (max-width: 1279px) {
-  .sf-page.dw-room { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 44px; }
+  .sf-page .dw-face { padding: 18px 30px 22px; }
 }
 @media (max-width: 1023px) {
-  .sf-page.dw-room { display: block; padding-top: 16px; }
-  .sf-page .dw-acts { margin-top: 28px; }
+  .sf-page.dw-room { padding-top: 24px; }
 }
 @media (max-width: 639px) {
-  .sf-page .dw-card { padding: 16px 18px 18px; transform: none; }
+  .sf-page.dw-room { padding-top: 16px; }
+  .sf-page .dw-card { transform: none; }
+  .sf-page .dw-face { padding: 16px 18px 18px; }
+  .sf-page .dw-q { grid-template-columns: 28px minmax(0, 1fr); }
+  .sf-page .dw-q-n { font-size: 17px; line-height: 26px; }
   .sf-page .dw-q-t { font-size: 21px; line-height: 26px; }
+  .sf-page .dw-acts { justify-content: flex-start; }
   .sf-page .dw-acts .sf-primary { width: 100%; }
+  .sf-page .dw-mode .ex-draw-mode { text-align: left; }
 }
 @keyframes dw-lift {
   0% { transform: translateY(0) rotate(-.4deg) rotateX(0); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft); }
-  /* 250 ms: lifted, edge-on — the face turns towards the room */
-  42% { transform: translateY(-12px) rotate(-.4deg) rotateX(88deg); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 28px 42px -16px var(--ph-sh-lift); }
-  70% { transform: translateY(-8px) rotate(-.4deg) rotateX(-6deg); }
-  86% { transform: translateY(-2px) rotate(-.4deg) rotateX(2deg); }
+  /* 250 ms: lifted and edge-on; the face is swapped here */
+  41.6% { transform: translateY(-12px) rotate(-.4deg) rotateX(90deg); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 28px 42px -16px var(--ph-sh-lift); }
+  41.7% { transform: translateY(-12px) rotate(-.4deg) rotateX(-90deg); }
+  72% { transform: translateY(-6px) rotate(-.4deg) rotateX(8deg); }
+  88% { transform: translateY(-2px) rotate(-.4deg) rotateX(-2deg); }
   100% { transform: translateY(0) rotate(-.4deg) rotateX(0); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft); }
+}
+@keyframes dw-face-new {
+  0%, 41.6% { visibility: hidden; }
+  41.7%, 100% { visibility: visible; }
+}
+@keyframes dw-face-old {
+  0%, 41.6% { visibility: visible; }
+  41.7%, 100% { visibility: hidden; }
 }
 @keyframes dw-fade {
   from { opacity: 0; }
@@ -867,9 +937,12 @@ html[data-stage] .sf-page .ex-links,
 html[data-stage] .sf-page [data-stage-hide] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sf-page .ex-peak-big .ex-was::after,
+  .sf-page .ex-peak-big .ex-was { animation: ex-was-in 150ms ease both; }
   .sf-page .ex-qnote[data-fresh] { animation: none; }
   .sf-page .dw-card[data-state='lift'] { animation: dw-fade 150ms ease both; }
+  .sf-page .dw-card[data-state='lift'] .dw-face { animation: none; }
+  .sf-page .dw-face-old { display: none; }
+  .sf-page .ex-mode-sheet { animation: none; }
   .sf-page .ex-q,
   .sf-page .ex-sec,
   .sf-page .ex-filter button,

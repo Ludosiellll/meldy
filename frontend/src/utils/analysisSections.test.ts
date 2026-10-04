@@ -165,3 +165,12 @@ describe('material row', () => {
     expect(flashcardsOf(results as AnalysisResults)).toHaveLength(1);
   });
 });
+
+describe('wording of a failed run (spec 3.10: «лимит», not «энергия»)', () => {
+  it('every run failure says the daily limit was not charged and never mentions energy', () => {
+    for (const message of Object.values(RUN_FAILURE_MESSAGES)) {
+      expect(message).toContain('лимит не списан');
+      expect(message).not.toMatch(/энерги/i);
+    }
+  });
+});

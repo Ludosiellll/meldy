@@ -97,10 +97,10 @@ export function CoverageSummary({ counts, checking, shares, layout, howOpen, onH
     );
   }
   if (mapped === 0) {
+    // «Вопросы ещё не сверены с лекциями.» is already the note under the header (redesign critique 7).
     return (
       <div className="ex-summary">
-        <p className="ex-stmt">Вопросы ещё не сверены с лекциями.</p>
-        <p className="ex-fine">Доля билетов появится после разметки: Meldy отметит, какие вопросы есть в ваших лекциях.</p>
+        <p className="ex-stmt">Доля билетов появится после разметки: Meldy отметит, какие вопросы есть в ваших лекциях.</p>
       </div>
     );
   }
@@ -112,8 +112,12 @@ export function CoverageSummary({ counts, checking, shares, layout, howOpen, onH
   const any = shareText(shares, 'atLeastOne');
   // A range («35–41 %») does not fit beside its label: then both pairs stack the same way.
   const stacked = (all ?? '').length > 5 ? '' : undefined;
+  const pairs = low.ok && !single ? 2 : 1;
   return (
     <div className="ex-summary">
+      {/* Phones and tablets: the two shares side by side, so the sheet starts on the first screen
+          (redesign critique 10); the counts under them are in the legend right above the sheet. */}
+      <div className="ex-pairs" data-compact={compact ? '' : undefined} data-count={pairs}>
       <div className="ex-pair" data-first="" data-wide={stacked}>
         <p className="ex-big">{questionShare}</p>
         <p className="ex-lbl">вопросов есть в ваших лекциях</p>
@@ -135,6 +139,7 @@ export function CoverageSummary({ counts, checking, shares, layout, howOpen, onH
           )}
         </div>
       )}
+      </div>
       {single && <p className="ex-fine">Билет — один вопрос, поэтому доля билетов та же.</p>}
       {!low.ok && <p className="ex-fine">{low.reason}</p>}
       {!compact && <p className="ex-caveat">{glue(caveatSentence(shares, counts.total))}</p>}
@@ -369,25 +374,41 @@ export interface PeakView {
   fine: string[];
 }
 
-/** Peak 3: the number that changed after the answer just given, the old value struck out. */
+/**
+ * «Подтверждено ответами: 7 из 40, было 6.» — the sentence a screen reader hears, and the line under the
+ * scrolled-to row on a phone, where the column above the sheet is out of view (redesign critique 10).
+ */
+export function peakCountLine(peak: PeakView): string {
+  const now = `${peak.after}${peak.total !== null ? ` из ${peak.total}` : ''}`;
+  const was = peak.before !== null && peak.before !== peak.after ? `, было ${peak.before}` : '';
+  return `${peak.title}: ${now}${was}.`;
+}
+
+/**
+ * Peak 3: the number that changed after the answer just given, «7 из 40», and beside it on the same
+ * baseline the old value in words, «было 6» (redesign critique 2, round 2): a struck-out 0 read as «ø»
+ * and a horizontal strike turns 0 into «θ». The old value comes in after the new mark is drawn.
+ */
 export function PeakSummary({ peak, confidence, onClose }: { peak: PeakView; confidence: string | null; onClose: () => void }) {
+  const was = peak.before !== null && peak.before !== peak.after ? peak.before : null;
   return (
     <div className="ex-peak" aria-live="polite">
       <p className="ex-why-t">{peak.title}</p>
       <p className="ex-big ex-peak-big" style={{ marginTop: 4 }}>
-        {peak.before !== null && peak.before !== peak.after && (
-          <>
-            <s className="ex-was" aria-label={`было ${peak.before}`}>
-              {peak.before}
-            </s>{' '}
-          </>
-        )}
-        {peak.after}
-        {peak.total !== null && (
-          <>
-            {' '}
-            <span className="ex-of">из</span> {peak.total}
-          </>
+        <span className="ex-sr">{peakCountLine(peak)}</span>
+        <span className="ex-now" aria-hidden="true">
+          {peak.after}
+          {peak.total !== null && (
+            <>
+              {' '}
+              <span className="ex-of">из</span> {peak.total}
+            </>
+          )}
+        </span>
+        {was !== null && (
+          <span className="ex-was" aria-hidden="true">
+            было {was}
+          </span>
         )}
       </p>
       <p className="ex-stmt" style={{ marginTop: 12 }}>

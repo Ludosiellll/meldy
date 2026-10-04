@@ -192,10 +192,9 @@ export function peakText(input: {
       before: Math.max(0, counts.confirmed - 1),
       after: counts.confirmed,
       total: counts.total,
-      statement: `Вопрос ${number} подтверждён ответом, который вы дали только что.`,
-      fine: [
-        `Подтверждено — значит, зачтено дважды, в разные дни.${counts.since ? ` С ${formatDay(counts.since, now)}: 0 → ${counts.confirmed}.` : ''}${confirmedTickets}`,
-      ],
+      // The growth belongs to the statement (redesign critique 2, round 2): «… только что. С 27 сентября: 0 → 7.»
+      statement: `Вопрос ${number} подтверждён ответом, который вы дали только что.${counts.since ? ` С ${formatDay(counts.since, now)}: 0 → ${counts.confirmed}.` : ''}`,
+      fine: [`Подтверждено — значит, зачтено дважды, в разные дни.${confirmedTickets}`],
       draws: true,
     };
   }
