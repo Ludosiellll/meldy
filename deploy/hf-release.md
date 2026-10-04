@@ -4,6 +4,32 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — the guide, and every reel in the film style (from e66577f)
+
+Adds to 59f805f (tree of 0801357). Two requests of the owner:
+
+- «сделал помощника, который будет очень красиво с анимациями (точнее с суперкороткими видео …) обьяснять
+  пользователю как и что работает, перебирая по вкладкам … (адаптируй это так, чтобы под телефоны тоже подошло)».
+  The guide has eight chapters, one per section (Сегодня, Добавить лекцию, Библиотека, Повторение, Экзамены,
+  Дневник ошибок, Карта знаний, Прогресс), each with a 6.4 s clip and a line or two in the screens' own words. A card
+  in the corner on a computer, a sheet above the tabs on a phone. «Дальше» moves the app to the next section and
+  lights it up in the top line or the tabs, but never away from a page with work in progress. It opens by itself once
+  on «Сегодня» (remembered on the device and in the profile), then from «?» next to the account button and «Как
+  пользоваться Meldy» in the account menu.
+- With a reference promo: «мне не нравятся эти надписи по углам, только Meldy можно оставить, а также менее иишно …
+  делай все видосы в вот таком стиле (я про регистрацию, логин и про будущие ролики)». The sign-in and sign-up reels
+  are rebuilt in that style: real screens of Meldy in monochrome, heavy two-line statements, a slow camera with tilt,
+  depth of field and motion blur, the yellow dot of the wordmark opening and closing each loop. No corner labels
+  (only a small «Meldy»), no particles, rings, halftone or gradients. The guide's clips use the same kit.
+
+No migration, no backend change (the guide writes `onboarding_status.guide` in the user's own profile row, a column
+the client could already write).
+
+Verified before release: tsc -b, Vitest 1509/1509 (new: the guide's chapters, auto-open, «Дальше», «?», focus and
+Esc), production build; the guide end to end in Chromium at 1440×900, 1366×657, 1024×768 and 390×844 in both themes
+(opens by itself, eight chapters, the right section lit up, no overflow, no console errors); the top line measured
+at 1024–1440 px with «?»; frames of both reels and all eight clips; MP4s of both reels and of the clips.
+
 ## 2026-10-04 — sign-in and sign-up: a short reel under the panel heading (from f1b01b9)
 
 Adds to 570163b (tree of e35de71). The owner, on the release-9 panels: «мне не нравится что карточка эта сама по
