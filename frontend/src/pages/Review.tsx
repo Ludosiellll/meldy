@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { pluralRu } from '../components/conversation/visuals';
 import { HandPhraseMark, handPhraseFor } from '../components/marks';
 import '../styles/paper.css';
+import './Review.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
 
@@ -47,6 +48,30 @@ interface Judged {
   days: number;
 }
 
+/** A saved answer and when the card comes back, as the server computed it (the done screen's day columns). */
+interface Returned {
+  key: string;
+  question: string;
+  days: number;
+  followUp: boolean;
+  note: string;
+}
+
+/** The question of a card as one plain line for a small card: no markdown signs, no formula dollars. */
+function plainQuestion(markdown: string): string {
+  return stripSourceMarkers(markdown)
+    .replace(/[*_`#>$\\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** «Завтра», «Через 6 дней» over a column of the done screen. */
+export function dayColumnTitle(days: number): string {
+  if (days <= 0) return 'Сегодня';
+  if (days === 1) return 'Завтра';
+  return `Через ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}`;
+}
+
 /** «вернётся завтра», «вернётся через 6 дней». */
 export function returnsIn(days: number): string {
   if (days <= 0) return 'вернётся сегодня';
@@ -67,6 +92,15 @@ function cardDay(card: DueCard): string {
   if (!raw) return '';
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? '' : format(date, 'd MMMM', { locale: ru });
+}
+
+/** Where a card comes from: an examiner's follow-up («из ответа на билет, 2 октября») or its lecture. */
+function cardContext(card: DueCard, titles: Record<string, string>): { followUp: boolean; title: string | undefined; context: string } {
+  const followUp = card.origin === 'oral_followup';
+  const title = card.material_id ? titles[card.material_id] : undefined;
+  const day = cardDay(card);
+  const context = followUp ? (day ? `из ответа на билет, ${day}` : 'из ответа на билет') : title ?? '';
+  return { followUp, title, context };
 }
 
 /** Titles of the cards' lectures, for the face and the back of a card; nothing when they cannot be read. */
@@ -111,6 +145,7 @@ export default function Review() {
   const [judged, setJudged] = useState<Judged | null>(null);
   const [counts, setCounts] = useState<Record<Grade, number>>({ forgot: 0, hard: 0, remember: 0 });
   const [tomorrow, setTomorrow] = useState(0);
+  const [returned, setReturned] = useState<Returned[]>([]);
   const [done, setDone] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -146,6 +181,7 @@ export default function Review() {
       setJudged(null);
       setCounts({ forgot: 0, hard: 0, remember: 0 });
       setTomorrow(0);
+      setReturned([]);
       setDone(false);
       void loadLectureTitles(data).then(setTitles);
     } catch (error) {
@@ -213,6 +249,10 @@ export default function Review() {
       const days = typeof result?.interval_days === 'number' && Number.isFinite(result.interval_days) ? result.interval_days : NaN;
       setCounts((previous) => ({ ...previous, [grade]: previous[grade] + 1 }));
       if (days === 1) setTomorrow((previous) => previous + 1);
+      if (Number.isFinite(days)) {
+        const { followUp, context } = cardContext(card, titles);
+        setReturned((previous) => [...previous, { key: `${card.id}:${previous.length}`, question: plainQuestion(card.question), days, followUp, note: context }]);
+      }
 
       const activity = recordActivity();
       const last = idx + 1 >= cards.length;
@@ -277,9 +317,9 @@ export default function Review() {
 
   if (loading) {
     return (
-      <div className="sf-page">
-        <div className="mx-auto max-w-[600px] pt-10" role="status" aria-label="Загружаем карточки">
-          {loadingLine ? <p className="text-[17px] text-[var(--sf-muted)]">Загружаем карточки…</p> : null}
+      <div className="sf-page rv">
+        <div className="rv-col rv-state" role="status" aria-label="Загружаем карточки">
+          {loadingLine ? <p className="rv-quiet">Загружаем карточки…</p> : null}
         </div>
       </div>
     );
@@ -287,13 +327,13 @@ export default function Review() {
 
   if (loadError) {
     return (
-      <div className="sf-page">
-        <div className="mx-auto max-w-[600px] pt-10" role="alert">
-          <h1 className="text-[24px] font-semibold leading-[30px] text-[var(--sf-ink)]">Не удалось загрузить карточки</h1>
-          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">{loadError}</p>
-        </div>
-        <div className="mx-auto max-w-[600px]">
-          <button type="button" className="sf-link mt-2" onClick={() => void loadCards()}>
+      <div className="sf-page rv">
+        <div className="rv-col rv-state">
+          <div className="rv-note-card" role="alert">
+            <h1 className="rv-h2">Не удалось загрузить карточки</h1>
+            <p className="rv-quiet rv-gap-s">{loadError}</p>
+          </div>
+          <button type="button" className="sf-secondary rv-gap-m" onClick={() => void loadCards()}>
             Повторить загрузку
           </button>
         </div>
@@ -304,37 +344,48 @@ export default function Review() {
   // No cards due
   if (cards.length === 0) {
     return (
-      <div className="sf-page">
-        <div className="mx-auto max-w-[480px] pt-16 text-center">
-          {materialFilter ? (
-            <>
-              <h1 className="text-[24px] font-semibold leading-[30px] text-[var(--sf-ink)]">Карточек этого материала к повторению сейчас нет</h1>
-              <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">Срок следующего повторения ещё не наступил.</p>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6">
-                <button type="button" className="sf-link" onClick={() => navigate('/review')}>
-                  Все карточки к повторению
-                </button>
-                {UUID.test(materialFilter) ? (
-                  <button type="button" className="sf-link" data-muted="" onClick={() => navigate(`/library/${materialFilter}`)}>
-                    К материалу
+      <div className="sf-page rv">
+        <div className="rv-col rv-state">
+          <section className="rv-empty">
+            <div className="rv-art" aria-hidden="true">
+              <b />
+              <b />
+              <b>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </b>
+            </div>
+            {materialFilter ? (
+              <>
+                <h1 className="rv-h2">Карточек этого материала к повторению сейчас нет</h1>
+                <p className="rv-quiet rv-gap-s">Срок следующего повторения ещё не наступил.</p>
+                <div className="rv-acts">
+                  <button type="button" className="sf-secondary" onClick={() => navigate('/review')}>
+                    Все карточки к повторению
                   </button>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <>
-              <h1 className="text-[24px] font-semibold leading-[30px] text-[var(--sf-ink)]">На сегодня всё</h1>
-              <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">Карточек с наступившим сроком повторения нет.</p>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6">
-                <Link className="sf-link" to="/exams">
-                  Экзамены
-                </Link>
-                <Link className="sf-link" data-muted="" to="/library">
-                  Библиотека
-                </Link>
-              </div>
-            </>
-          )}
+                  {UUID.test(materialFilter) ? (
+                    <button type="button" className="sf-link" data-muted="" onClick={() => navigate(`/library/${materialFilter}`)}>
+                      К материалу
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="rv-h2">На сегодня всё</h1>
+                <p className="rv-quiet rv-gap-s">Карточек с наступившим сроком повторения нет.</p>
+                <div className="rv-acts">
+                  <Link className="sf-secondary" to="/exams">
+                    Экзамены
+                  </Link>
+                  <Link className="sf-link" data-muted="" to="/library">
+                    Библиотека
+                  </Link>
+                </div>
+              </>
+            )}
+          </section>
         </div>
       </div>
     );
@@ -345,115 +396,145 @@ export default function Review() {
     const total = counts.forgot + counts.hard + counts.remember;
     // Cards left in this queue (the session was ended early), or a full queue: more may be due.
     const mayHaveMore = total < cards.length || cards.length >= QUEUE_SIZE;
+    // The answered cards by the day they come back (the server's interval), nearest first.
+    const byDay = new Map<number, Returned[]>();
+    for (const item of returned) byDay.set(item.days, [...(byDay.get(item.days) ?? []), item]);
+    const columns = [...byDay.entries()].sort((a, b) => a[0] - b[0]);
     return (
-      <div className="sf-page">
-        <div className="mx-auto max-w-[600px] pt-10">
-          <h1 className="text-[24px] font-semibold leading-[30px] text-[var(--sf-ink)]">
-            Повторили {total} {pluralRu(total, ['карточку', 'карточки', 'карточек'])}
-          </h1>
-          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-ink)]">
-            {`Помню — ${counts.remember}, с трудом — ${counts.hard}, не помню — ${counts.forgot}.`}
-            {tomorrow > 0 ? ` Завтра ${tomorrow === 1 ? 'вернётся' : 'вернутся'} ${tomorrow}.` : ''}
-          </p>
-          <p className="mt-1 text-[15px] leading-[22px] text-[var(--sf-muted)]">Ответы сохранены.</p>
-          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-            {mayHaveMore ? (
-              <button type="button" className="sf-primary" onClick={() => void loadCards()}>
-                Продолжить
-              </button>
-            ) : null}
-            <Link className="sf-link" to="/exams">
-              Лист экзамена
-            </Link>
-            <Link className="sf-link" data-muted="" to="/library">
-              Библиотека
-            </Link>
-          </div>
+      <div className="sf-page rv">
+        <div className="rv-col rv-col-done">
+          <section className="rv-done" aria-labelledby="rv-done-h">
+            <div className="rv-done-main">
+              <h1 id="rv-done-h" className="rv-h1">
+                Повторили {total} {pluralRu(total, ['карточку', 'карточки', 'карточек'])}
+              </h1>
+              <p className="rv-done-line">
+                {`Помню — ${counts.remember}, с трудом — ${counts.hard}, не помню — ${counts.forgot}.`}
+                {tomorrow > 0 ? ` Завтра ${tomorrow === 1 ? 'вернётся' : 'вернутся'} ${tomorrow}.` : ''}
+              </p>
+              <p className="rv-saved">Ответы сохранены.</p>
+              <div className="rv-acts">
+                {mayHaveMore ? (
+                  <button type="button" className="sf-primary" onClick={() => void loadCards()}>
+                    Продолжить
+                  </button>
+                ) : null}
+                <Link className="sf-secondary" to="/exams">
+                  Лист экзамена
+                </Link>
+                <Link className="sf-link" data-muted="" to="/library">
+                  Библиотека
+                </Link>
+              </div>
+            </div>
+            <div className="rv-art rv-art-done" aria-hidden="true">
+              <b />
+              <b />
+              <b>{total}</b>
+            </div>
+          </section>
+
+          {columns.length > 0 ? (
+            <section className="rv-days" aria-labelledby="rv-days-h">
+              <h2 id="rv-days-h" className="rv-days-h">
+                Когда вернутся
+              </h2>
+              <ol className="rv-cols">
+                {columns.map(([days, items], index) => (
+                  <li key={days} className="rv-day" data-first={index === 0 ? '' : undefined}>
+                    <p className="rv-day-h">
+                      <span className="rv-day-n" aria-hidden="true">
+                        {items.length}
+                      </span>
+                      {dayColumnTitle(days)}
+                      <span className="sr-only">{`: ${items.length} ${pluralRu(items.length, ['карточка', 'карточки', 'карточек'])}`}</span>
+                    </p>
+                    <ul className="rv-minis">
+                      {items.slice(0, 3).map((item) => (
+                        <li key={item.key} className="rv-mini" data-followup={item.followUp ? '' : undefined}>
+                          <span className="rv-mini-q">{item.question}</span>
+                          {item.note ? <small className="rv-mini-note">{item.note}</small> : null}
+                        </li>
+                      ))}
+                    </ul>
+                    {items.length > 3 ? <p className="rv-more">и ещё {items.length - 3}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
         </div>
       </div>
     );
   }
 
   const card = cards[idx];
-  const followUp = card.origin === 'oral_followup';
-  const title = card.material_id ? titles[card.material_id] : undefined;
-  const day = cardDay(card);
-  const context = followUp ? (day ? `из ответа на билет, ${day}` : 'из ответа на билет') : title ?? '';
+  const { followUp, title, context } = cardContext(card, titles);
   const note = sourceNote(title, card.source_ids);
   const hand = judged ? handPhraseFor(judged.days) : null;
   const longQuestion = card.question.length > 90;
   const longAnswer = card.answer.length > 220;
   const progress = cards.length > 0 ? (idx + (judged ? 1 : 0)) / cards.length : 0;
   const judgedWord = judged ? GRADES.find((item) => item.grade === judged.grade)?.word ?? '' : '';
+  // The cards still waiting under this one (at most two are drawn).
+  const under = Math.min(2, cards.length - idx - 1);
 
   return (
-    <div className="sf-page">
-      <div className="mx-auto max-w-[600px] pt-10 [@media(min-width:1024px)_and_(max-height:780px)]:pt-5">
-        <div className="flex items-baseline justify-between gap-4">
-          <p className="min-w-0 truncate text-[15px] leading-[22px] text-[var(--sf-muted)]" title={context || undefined}>
-            <b className="font-semibold text-[var(--sf-ink)] [font-variant-numeric:tabular-nums]">
+    <div className="sf-page rv">
+      <div className="rv-col">
+        <div className="rv-top">
+          <p className="rv-where" title={context || undefined}>
+            <b>
               {idx + 1} из {cards.length}
             </b>
             {context ? ` · ${context}` : ''}
           </p>
-          <button type="button" className="sf-link shrink-0" data-muted="" onClick={finish}>
+          <button type="button" className="sf-link rv-end" data-muted="" onClick={finish}>
             Закончить
           </button>
         </div>
-        <div className="relative mt-3 h-px bg-[var(--sf-line-strong)]" aria-hidden="true">
-          <div
-            className="absolute left-0 top-[-0.5px] h-[2px] bg-[color-mix(in_srgb,var(--sf-ink)_70%,transparent)] transition-[width] duration-150"
-            style={{ width: `${Math.max(progress, 1 / cards.length) * 100}%` }}
-          />
+        <div className="rv-progress" aria-hidden="true">
+          <i style={{ width: `${Math.max(progress, 1 / cards.length) * 100}%` }} />
         </div>
 
-        <div className="sf-deck mt-6" data-enter="" key={card.id ?? idx}>
-          <div className="sf-index-card sf-deck-under" data-n="2" aria-hidden="true" />
-          <div className="sf-index-card sf-deck-under" data-n="1" aria-hidden="true" />
+        <div className="sf-deck rv-deck" data-enter="" data-under={under} key={card.id ?? idx}>
+          {under >= 2 ? <div className="sf-index-card sf-deck-under rv-under" data-n="2" aria-hidden="true" /> : null}
+          {under >= 1 ? <div className="sf-index-card sf-deck-under rv-under" data-n="1" aria-hidden="true" /> : null}
           <div className="sf-flip" data-flipped={flipped ? '' : undefined} onClick={flip}>
             <div className="sf-flip-inner">
               <section
-                className="sf-index-card sf-flip-face flex flex-col px-6 py-5 sm:px-[34px] sm:py-7"
+                className="sf-index-card sf-flip-face rv-face"
                 data-side="front"
+                data-followup={followUp ? '' : undefined}
                 aria-hidden={flipped}
                 aria-label="Вопрос"
               >
-                <p className="line-clamp-2 font-[family-name:var(--ph-serif)] text-[15px] leading-[22px] text-[var(--ph-paper-muted)] [overflow-wrap:anywhere]">
-                  {followUp ? 'Вопрос экзаменатора' : title ?? 'Вопрос'}
-                </p>
-                <div
-                  className={`${PAPER_MD} my-auto py-4 font-[family-name:var(--ph-serif)] font-semibold tracking-[-0.012em] text-[var(--ph-paper-ink)] [text-wrap:balance] ${
-                    // A long question gets a wider measure: 13em of 26 px left half the card empty.
-                    longQuestion ? 'max-w-[21em] text-[22px] leading-[1.25] sm:text-[26px]' : 'max-w-[13em] text-[25px] leading-[1.15] sm:text-[36px] sm:leading-[1.12]'
-                  }`}
-                >
+                <p className={followUp ? 'rv-chip' : 'rv-label'}>{followUp ? 'Вопрос экзаменатора' : title ?? 'Вопрос'}</p>
+                <div className={`${PAPER_MD} rv-q`} data-long={longQuestion ? '' : undefined}>
                   <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(card.question)}</ReactMarkdown>
                 </div>
               </section>
               <section
-                className="sf-index-card sf-flip-face relative flex flex-col px-6 py-5 sm:px-[34px] sm:py-7"
+                className="sf-index-card sf-flip-face rv-face"
                 data-side="back"
+                data-followup={followUp ? '' : undefined}
                 aria-hidden={!flipped}
                 aria-label="Ответ"
               >
-                <p className="font-[family-name:var(--ph-serif)] text-[15px] leading-[22px] text-[var(--ph-paper-muted)]">Ответ</p>
+                <p className="rv-label">Ответ</p>
                 {flipped ? (
-                  <div
-                    className={`${PAPER_MD} mt-3 whitespace-pre-line font-[family-name:var(--ph-serif)] text-[var(--ph-paper-ink)] ${
-                      longAnswer ? 'text-[17px] leading-[1.5]' : 'text-[19px] leading-[1.4] sm:text-[22px]'
-                    }`}
-                  >
+                  <div className={`${PAPER_MD} rv-a`} data-long={longAnswer ? '' : undefined}>
                     <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(card.answer)}</ReactMarkdown>
                   </div>
                 ) : null}
-                {note ? <p className="sf-pnote mt-auto pt-4">{note}</p> : null}
+                {note ? <p className="sf-pnote rv-source">{note}</p> : null}
                 {judged ? (
                   hand ? (
-                    <span className="absolute right-5 top-4 origin-top-right rotate-[-4deg]">
+                    <span className="rv-hand">
                       <HandPhraseMark phrase={hand} px={26} />
                     </span>
                   ) : Number.isFinite(judged.days) ? (
-                    <span className="sf-pnote absolute right-6 top-6">{`через ${judged.days} ${pluralRu(judged.days, ['день', 'дня', 'дней'])}`}</span>
+                    <span className="sf-pnote rv-when">{`через ${judged.days} ${pluralRu(judged.days, ['день', 'дня', 'дней'])}`}</span>
                   ) : null
                 ) : null}
               </section>
@@ -461,32 +542,32 @@ export default function Review() {
           </div>
         </div>
 
-        <div className="mt-6" aria-busy={processing}>
+        <div className="rv-controls" aria-busy={processing}>
           {!flipped ? (
-            <>
-              <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">Сначала вспомните ответ, потом переверните карточку.</p>
-              <button ref={flipButtonRef} type="button" className="sf-primary mt-4" onClick={flip} aria-keyshortcuts="Space Enter">
+            <div className="rv-flip-row">
+              <button ref={flipButtonRef} type="button" className="sf-primary" onClick={flip} aria-keyshortcuts="Space Enter">
                 Перевернуть
               </button>
-            </>
+              <p className="rv-quiet">Сначала вспомните ответ, потом переверните карточку.</p>
+            </div>
           ) : judged ? (
-            <p className="text-[17px] leading-[26px] text-[var(--sf-ink)]" role="status">
+            <p className="rv-judged" role="status">
               {Number.isFinite(judged.days) ? `${judgedWord} — ${returnsIn(judged.days)}.` : `${judgedWord}.`}
             </p>
           ) : (
-            <div ref={gradesRef} className="flex flex-wrap items-baseline gap-x-8 gap-y-2" role="group" aria-label="Как вспомнилось">
+            <div ref={gradesRef} className="rv-grades" role="group" aria-label="Как вспомнилось">
               {GRADES.map((item) => (
                 <button
                   key={item.grade}
                   type="button"
+                  className="rv-grade"
                   onClick={() => void handleAnswer(item.grade)}
                   disabled={processing}
                   aria-keyshortcuts={item.key}
                   aria-label={item.word}
-                  className="inline-flex min-h-11 items-baseline gap-2 text-[18px] font-medium text-[var(--sf-ink)] underline decoration-1 underline-offset-[6px] [text-decoration-color:color-mix(in_srgb,currentColor_35%,transparent)] transition-colors hover:[text-decoration-color:currentColor] disabled:cursor-wait disabled:text-[var(--sf-muted)]"
                 >
-                  {item.word}
-                  <span className="hidden text-[14px] font-normal text-[var(--sf-muted)] no-underline sm:inline" aria-hidden="true">
+                  <span className="rv-grade-w">{item.word}</span>
+                  <span className="rv-key" aria-hidden="true">
                     {item.key}
                   </span>
                 </button>
@@ -494,12 +575,12 @@ export default function Review() {
             </div>
           )}
           {processing ? (
-            <p role="status" aria-live="polite" className="mt-3 text-[15px] leading-[22px] text-[var(--sf-muted)]">
+            <p role="status" aria-live="polite" className="rv-quiet rv-gap-s">
               Сохраняем ответ…
             </p>
           ) : null}
           {saveError ? (
-            <p role="alert" className="mt-3 text-[15px] leading-[22px] text-[var(--sf-ink)]">
+            <p role="alert" className="rv-alert">
               {saveError}
             </p>
           ) : null}

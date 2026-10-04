@@ -1,0 +1,416 @@
+/* «Повторение» in the Meldy language (notes: 10_Project/Design_Language_2026-10-04).
+ *
+ * One big card at a time on the canvas (radius 40, the long soft shadow), the cards still waiting
+ * peek out under it as a stack, a calm blue progress line on top and the three words as white pills
+ * with a dark circle for the key. A card from an examiner's follow-up question is the missed point
+ * of the reel's «Повторение» scene: a blue edge and a yellow chip. The done screen lays the answered
+ * cards out in day columns, as the reel does, by the interval the server set. Page root: .sf-page.rv. */
+
+.rv-col {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-top: 48px;
+}
+.rv-col-done { max-width: 1040px; }
+.rv-state { padding-top: 64px; }
+@media (min-width: 1024px) and (max-height: 780px) {
+  .rv-col { padding-top: 24px; }
+}
+
+.rv-quiet { margin: 0; font-size: 16px; line-height: 24px; color: var(--sf-muted); text-wrap: pretty; }
+.rv-gap-s { margin-top: 10px; }
+.rv-gap-m { margin-top: 20px; }
+.rv-alert { margin: 12px 0 0; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--sf-ink); }
+
+.rv-h1 {
+  margin: 0;
+  font-size: clamp(36px, 4vw, 52px);
+  line-height: 1.04;
+  font-weight: 500;
+  letter-spacing: -.04em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+}
+.rv-h2 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -.03em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+}
+
+/* ---------------------------------------------------------------- where you are */
+.rv-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.rv-where {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--sf-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rv-where b { font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.rv-end { flex: none; }
+
+/* A calm line: the share of the queue that is done, in the one blue. */
+.rv-progress {
+  position: relative;
+  height: 6px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-ink) 9%, transparent);
+}
+.rv-progress i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--sf-accent);
+  transition: width .6s var(--m-ease);
+}
+.dark .rv-progress i { background: var(--sf-accent-fg); }
+
+/* ---------------------------------------------------------------- the card and the stack under it */
+.rv-deck { margin-top: 26px; }
+.rv .rv-under {
+  border-radius: 40px;
+  transform-origin: 50% 100%;
+  box-shadow: 0 0 0 1px var(--ph-edge), 0 18px 40px -30px rgba(16, 41, 90, .45);
+}
+.rv .rv-under[data-n='1'] { transform: translateY(16px) scale(.95); background: #eaf1fd; }
+.rv .rv-under[data-n='2'] { transform: translateY(32px) scale(.9); background: #fdf3d8; }
+.dark .rv .rv-under[data-n='1'] { background: #1a2a47; }
+.dark .rv .rv-under[data-n='2'] { background: #2a2618; }
+
+.rv .sf-flip { cursor: pointer; }
+.rv .sf-flip[data-flipped] { cursor: default; }
+.rv .rv-face {
+  display: flex;
+  flex-direction: column;
+  padding: 34px 44px 40px;
+  border-radius: 40px;
+  box-shadow: 0 0 0 1px var(--ph-edge), var(--m-card-shadow);
+}
+/* The missed point of an answer, back as a card: the blue edge of the reel. */
+.rv .rv-face[data-followup] { box-shadow: 0 0 0 3px var(--sf-accent), 0 30px 60px -36px rgba(40, 105, 221, .75); }
+
+.rv-label {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--ph-paper-muted);
+  overflow-wrap: anywhere;
+}
+.rv-chip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--m-yellow-soft);
+  color: var(--m-yellow-ink);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.rv-q {
+  max-width: 15em;
+  margin: auto 0;
+  padding: 20px 0 6px;
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -.032em;
+  color: var(--ph-paper-ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+/* A long question gets a wider measure and a smaller size: 15em of 40 px left half the card empty. */
+.rv-q[data-long] { max-width: 24em; font-size: 28px; line-height: 1.22; letter-spacing: -.02em; }
+
+.rv-a {
+  margin-top: 14px;
+  font-size: 22px;
+  line-height: 1.45;
+  color: var(--ph-paper-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.rv-a[data-long] { font-size: 18px; line-height: 1.55; }
+.rv-source { margin: auto 0 0; padding-top: 18px; }
+.rv-hand { position: absolute; right: 30px; top: 22px; transform: rotate(-4deg); transform-origin: top right; }
+.rv-when { position: absolute; right: 40px; top: 34px; }
+
+/* A new card rises in (the language's motion), quickly: the next card comes 600 ms after an answer. */
+.rv .rv-deck[data-enter] .sf-flip { animation: rv-rise .55s var(--m-ease) both; }
+@keyframes rv-rise {
+  from { opacity: 0; transform: translateY(18px); }
+}
+
+/* ---------------------------------------------------------------- under the card */
+.rv-controls { margin-top: 54px; }
+.rv-flip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; }
+.rv-flip-row .rv-quiet { flex: 1 1 16em; }
+.rv-judged { margin: 0; font-size: 19px; line-height: 28px; font-weight: 500; color: var(--sf-ink); }
+
+.rv-grades { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rv-grade {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 60px;
+  padding: 8px 8px 8px 24px;
+  border: 1px solid var(--sf-line);
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .3s ease, box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
+}
+.rv-grade:hover { border-color: var(--sf-ink); box-shadow: 0 14px 30px -18px rgba(16, 41, 90, .4); }
+.rv-grade:active { transform: scale(.98); }
+.rv-grade:disabled { cursor: wait; color: var(--sf-muted); border-color: var(--sf-line); box-shadow: none; transform: none; }
+.rv-grade-w { min-width: 0; overflow-wrap: anywhere; }
+.rv-key {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: transform .7s var(--m-ease);
+}
+.rv-grade:hover .rv-key { transform: translateX(3px); }
+.rv-grade:disabled .rv-key { background: var(--sf-muted); transform: none; }
+
+/* ---------------------------------------------------------------- empty, error */
+.rv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 32px 44px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  text-align: center;
+}
+.rv-empty .rv-art { margin-bottom: 18px; }
+.rv-empty .rv-acts { justify-content: center; }
+.rv-note-card {
+  padding: 32px 36px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+
+/* ---------------------------------------------------------------- done */
+.rv-done {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px 48px;
+  align-items: center;
+  padding: 44px 52px 48px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.rv-done-main { min-width: 0; }
+.rv-done-line { margin: 16px 0 0; font-size: 19px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.rv-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 6px 14px 6px 12px;
+  border-radius: 999px;
+  background: var(--m-green-soft);
+  color: var(--m-green-ink);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.rv-saved::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.rv-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 28px; }
+
+/* Three small cards, as on «Сегодня»: the one on top carries the number. */
+.rv-art { position: relative; flex: none; width: 150px; height: 128px; }
+.rv-art b {
+  position: absolute;
+  inset: 10px 16px;
+  border-radius: 20px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 14px 26px -16px rgba(16, 41, 90, .5);
+}
+.rv-art b:nth-child(1) { transform: rotate(-10deg); background: #eaf1fd; }
+.rv-art b:nth-child(2) { transform: rotate(7deg); background: #fdf3d8; }
+.rv-art b:nth-child(3) {
+  display: grid;
+  place-items: center;
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  color: var(--sf-accent-fg);
+  font-variant-numeric: tabular-nums;
+}
+.rv-art b svg { width: 44px; height: 44px; }
+.dark .rv-art b:nth-child(1) { background: #1a2a47; }
+.dark .rv-art b:nth-child(2) { background: #2a2618; }
+
+/* The day columns: when the answered cards come back. */
+.rv-days { margin-top: 56px; }
+.rv-days-h { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.028em; color: var(--sf-ink); }
+.rv-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 16px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-day {
+  min-width: 0;
+  padding: 24px 18px 20px;
+  border-radius: 36px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.rv-day-h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 21px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -.015em;
+  color: var(--sf-ink);
+}
+.rv-day-n {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rv-day[data-first] .rv-day-n { background: var(--sf-accent); box-shadow: none; color: #fff; }
+.rv-minis { display: grid; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
+.rv-mini {
+  min-width: 0;
+  padding: 14px 16px 15px;
+  border: 1px solid var(--sf-line);
+  border-radius: 22px;
+  background: var(--sf-surface-soft);
+  color: var(--sf-ink);
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: -.005em;
+}
+.rv-mini-q {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.rv-mini-note {
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sf-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.rv-mini[data-followup] {
+  border: 2px solid var(--sf-accent);
+  background: var(--sf-surface);
+  box-shadow: 0 16px 30px -22px rgba(40, 105, 221, .8);
+}
+.rv-mini[data-followup] .rv-mini-note {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--m-yellow-soft);
+  color: var(--m-yellow-ink);
+  vertical-align: top;
+}
+.rv-more { margin: 10px 4px 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- phones */
+@media (max-width: 639px) {
+  .rv-col { padding-top: 22px; }
+  .rv-state { padding-top: 32px; }
+  .rv-where { font-size: 15px; }
+  .rv-deck { margin-top: 20px; }
+  .rv .rv-face { padding: 22px 22px 26px; border-radius: 32px; }
+  .rv .rv-under { border-radius: 32px; }
+  .rv .rv-under[data-n='1'] { transform: translateY(11px) scale(.95); }
+  .rv .rv-under[data-n='2'] { transform: translateY(22px) scale(.9); }
+  .rv-q { padding-top: 14px; font-size: 28px; line-height: 1.12; letter-spacing: -.025em; }
+  .rv-q[data-long] { font-size: 21px; line-height: 1.28; }
+  .rv-a { font-size: 19px; }
+  .rv-a[data-long] { font-size: 17px; }
+  .rv-hand { right: 18px; top: 14px; }
+  .rv-when { right: 22px; top: 24px; }
+  .rv-controls { margin-top: 40px; }
+  .rv-grades { gap: 8px; }
+  .rv-grade { justify-content: center; min-height: 54px; padding: 6px 8px; font-size: 16px; text-align: center; }
+  .rv-key { display: none; }
+  .rv-h2 { font-size: 26px; }
+  .rv-empty { padding: 28px 22px 32px; border-radius: 36px; }
+  .rv-note-card { padding: 24px 22px; border-radius: 32px; }
+  .rv-done { grid-template-columns: minmax(0, 1fr); padding: 28px 22px 30px; border-radius: 36px; }
+  .rv-art-done { display: none; }
+  .rv-done-line { font-size: 17px; }
+  .rv-days { margin-top: 40px; }
+  .rv-days-h { font-size: 24px; }
+  .rv-cols { grid-template-columns: minmax(0, 1fr); }
+  .rv-day { border-radius: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-progress i,
+  .rv-grade,
+  .rv-key { transition: none; }
+  .rv-grade:hover .rv-key,
+  .rv-grade:active { transform: none; }
+  .rv .rv-deck[data-enter] .sf-flip { animation: none; }
+}

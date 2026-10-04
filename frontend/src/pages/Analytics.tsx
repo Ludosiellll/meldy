@@ -16,6 +16,7 @@ import { percent } from '../lib/exams/ticketMath';
 import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
 import { READINESS_LABELS } from '../lib/learning/readiness';
 import '../styles/paper.css';
+import './Analytics.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
@@ -379,8 +380,8 @@ function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
 
 function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <section className="mt-12" style={{ maxWidth: 1040 }}>
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <section className="pg-sec">
+      <div className="pg-sec-head">
         <h2 className="sf-h2">{title}</h2>
         {aside}
       </div>
@@ -390,7 +391,36 @@ function Section({ title, children, aside }: { title: string; children: React.Re
 }
 
 function Quiet({ children }: { children: React.ReactNode }) {
-  return <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">{children}</p>;
+  return <p className="pg-quiet">{children}</p>;
+}
+
+/** The exam's questions as dots, as on «Сегодня»: confirmed, once, not passed, then the untested ones. */
+function ReadinessDots({ exam }: { exam: ExamBlock }) {
+  const { confirmed, once, notPassed } = exam.summary;
+  const untested = Math.max(0, exam.total - confirmed - once - notPassed);
+  const dots: Array<'confirmed' | 'once' | 'not_passed' | 'untested'> = [
+    ...Array.from({ length: confirmed }, () => 'confirmed' as const),
+    ...Array.from({ length: once }, () => 'once' as const),
+    ...Array.from({ length: notPassed }, () => 'not_passed' as const),
+    ...Array.from({ length: untested }, () => 'untested' as const),
+  ];
+  return (
+    <span className="pg-ready" aria-hidden="true">
+      <span className="pg-dots" data-many={exam.total > 40 ? '' : undefined}>
+        {dots.map((kind, index) => (
+          <i key={index} data-r={kind} />
+        ))}
+      </span>
+      <span className="pg-legend">
+        {(['confirmed', 'once', 'not_passed', 'untested'] as const).map((kind) => (
+          <span key={kind}>
+            <i data-r={kind} />
+            {READINESS_LABELS[kind]}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
 }
 
 export default function Analytics() {
@@ -433,7 +463,7 @@ export default function Analytics() {
 
   if (gradebook) {
     return (
-      <div className="sf-page">
+      <div className="sf-page pg">
         <header className="sf-head">
           <div>
             <h1 className="sf-h1">Оценки из зачётки</h1>
@@ -444,7 +474,7 @@ export default function Analytics() {
             </p>
           </div>
         </header>
-        <div className="mt-8">
+        <div className="pg-gradebook">
           <Gradebook />
         </div>
       </div>
@@ -452,7 +482,7 @@ export default function Analytics() {
   }
 
   return (
-    <div className="sf-page">
+    <div className="sf-page pg">
       <header className="sf-head">
         <div>
           <h1 className="sf-h1">Прогресс</h1>
@@ -460,8 +490,8 @@ export default function Analytics() {
         </div>
       </header>
       {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} />}
-      <p className="mt-12">
-        <Link className="sf-link" data-muted="" to="/analytics?tab=gradebook">
+      <p className="pg-end">
+        <Link className="sf-secondary" to="/analytics?tab=gradebook">
           Оценки из зачётки
         </Link>
       </p>
@@ -603,6 +633,7 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
                       </span>
                     </span>
                   ) : null}
+                  {exam.total > 0 ? <ReadinessDots exam={exam} /> : null}
                   {/* The share of tickets is a small line of the foot, never a big «0 %» (Jury_Check 4). */}
                   {exam.total > 0 ? <span className="sf-ledger-foot">{ledgerFoot(exam)}</span> : null}
                 </div>
@@ -628,7 +659,8 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
           <>
             {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
             {quiz.status === 'error' && <ErrorLine text="Результаты тестов не загрузились." onRetry={() => reload('quiz')} />}
-            <table className="sf-table mt-2">
+            <div className="pg-card pg-table-card">
+            <table className="sf-table">
               <thead>
                 <tr>
                   <th scope="col" style={{ width: '34%' }}>Лекция</th>
@@ -682,13 +714,14 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
                 })}
               </tbody>
             </table>
-            <p className="mt-3">
+            </div>
+            <p className="pg-how">
               <button type="button" className="sf-link" data-muted="" aria-expanded={howOpen} aria-controls="progress-how" onClick={() => setHowOpen((open) => !open)}>
                 Как считается
               </button>
             </p>
             {howOpen ? (
-              <p id="progress-how" className="max-w-[44em] text-[15px] leading-[22px] text-[var(--sf-muted)]">
+              <p id="progress-how" className="pg-how-text">
                 «Вспомнили» — повторённые карточки, на которые при последнем повторе вы ответили «Помню» или «С трудом»;
                 карточки, которые ещё не повторялись, в счёт не идут. «Закреплены» — карточки с двумя успешными ответами в
                 разные дни. «Тест» — первая попытка теста, повторные показаны отдельно и в счёт не идут. «Верно при последней
@@ -706,7 +739,7 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
         ) : activity.status === 'loading' ? (
           <Quiet>Загружаем…</Quiet>
         ) : (
-          <>
+          <div className="pg-card pg-activity">
             <Quiet>
               {summaryParts.length > 0
                 ? `За ${ACTIVITY_DAYS} дней: ${summaryParts.join(', ')}.`
@@ -714,7 +747,7 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
             </Quiet>
             {/* Bars only when there is something to draw: no empty axis (spec 4.6). */}
             {cardAnswers > 0 && <DayBars data={chartData} />}
-          </>
+          </div>
         )}
       </Section>
 
@@ -752,14 +785,14 @@ function MistakeTopics({ rows }: { rows: MistakeRow[] }) {
   }
   const top = Array.from(byTopic.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
   return (
-    <div className="space-y-2">
-      <p className="text-[16px] leading-[24px] text-[var(--sf-ink)]">Открытых ошибок: {rows.length}.</p>
+    <div className="pg-card pg-list-card">
+      <p className="pg-list-lead">Открытых ошибок: {rows.length}.</p>
       {top.length > 0 && (
-        <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
+        <ul className="pg-rows">
           {top.map(([topic, n]) => (
-            <li key={topic} className="flex items-baseline justify-between gap-4 py-3 text-[16px] leading-[22px]">
-              <span className="min-w-0 truncate text-[var(--sf-ink)]">{topic}</span>
-              <span className="shrink-0 tabular-nums text-[var(--sf-muted)]">{count(n, ['ошибка', 'ошибки', 'ошибок'])}</span>
+            <li key={topic} className="pg-row">
+              <span className="pg-row-t">{topic}</span>
+              <span className="pg-badge">{count(n, ['ошибка', 'ошибки', 'ошибок'])}</span>
             </li>
           ))}
         </ul>
@@ -772,18 +805,18 @@ function MistakeTopics({ rows }: { rows: MistakeRow[] }) {
 function LegacyExams({ rows }: { rows: LegacyExamRow[] }) {
   const last = rows[0];
   return (
-    <div className="space-y-2 text-[16px] leading-[24px] text-[var(--sf-ink)]">
-      <p>
+    <div className="pg-card pg-list-card">
+      <p className="pg-list-lead">
         Пройдено: {rows.length}. Последний {dayLabel(last.completed_at)}: {count(Number(last.score) || 0, ['балл', 'балла', 'баллов'])} из 100.
       </p>
-      <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
+      <ul className="pg-rows">
         {rows.slice(0, 5).map((row) => (
-          <li key={row.id} className="flex items-baseline justify-between gap-4 py-3">
-            <span className="min-w-0 truncate">
+          <li key={row.id} className="pg-row">
+            <span className="pg-row-t">
               {dayLabel(row.completed_at)}
               {row.subject ? ` · ${row.subject}` : ''}
             </span>
-            <span className="shrink-0 tabular-nums text-[var(--sf-muted)]">{Number(row.score) || 0} из 100</span>
+            <span className="pg-row-n">{Number(row.score) || 0} из 100</span>
           </li>
         ))}
       </ul>
@@ -797,15 +830,15 @@ function shortDay(key: string): string {
 }
 
 /**
- * Answers per day as plain columns (spec 5.17): ink at 55 %, square tops, the value over a non-zero
- * day, a 2 px stub on a zero day, an axis from the first day to «сегодня». No hover; a table for
- * screen readers.
+ * Answers per day as plain columns (spec 5.17): the blue, rounded tops, the value over a non-zero
+ * day, a stub on a zero day, an axis from the first day to «сегодня». No hover; a table for screen
+ * readers.
  */
 function DayBars({ data }: { data: Array<{ key: string; value: number }> }) {
   const max = Math.max(1, ...data.map((day) => day.value));
   const peak = data.reduce((best, day) => (day.value > best.value ? day : best), data[0]);
   return (
-    <figure className="sf-bars mt-4">
+    <figure className="sf-bars pg-bars">
       <div className="sf-bars-plot" aria-hidden="true">
         {data.map((day) => (
           <div key={day.key} className="sf-bars-day">
@@ -824,7 +857,7 @@ function DayBars({ data }: { data: Array<{ key: string; value: number }> }) {
         <span>{shortDay(data[0].key)}</span>
         <span>сегодня</span>
       </div>
-      <figcaption className="mt-3 text-[15px] leading-[22px] text-[var(--sf-muted)]">
+      <figcaption className="pg-figcap">
         {sentence(`Ответы на карточки по дням; больше всего ${peak.value} — ${shortDay(peak.key)}`)}
       </figcaption>
       <table className="sr-only">

@@ -82,36 +82,40 @@ export interface MapLayout {
   edgeById: Map<string, EdgeGeo>;
 }
 
-/** Card metrics (px at 100 %). The CSS of the card (knowledge.css) uses the same numbers. */
+/**
+ * Card metrics (px at 100 %). The CSS of the card (knowledge.css) uses the same numbers: a rounded
+ * card, the lecture's number in a small circle in its own column, the title in Onest 600 16/21.
+ */
 export const CARD = {
   width: 240,
-  padTop: 11,
-  padBottom: 13,
-  padLeft: 12,
-  padRight: 14,
-  numberCol: 26,
+  padTop: 14,
+  padBottom: 15,
+  padLeft: 14,
+  padRight: 16,
+  numberCol: 30,
   titleSize: 16,
   titleLine: 21,
   maxTitleLines: 4,
-  questionsGap: 5,
+  questionsGap: 6,
   questionsLine: 24,
-  noteGap: 3,
+  noteGap: 4,
   noteLine: 20,
 } as const;
 
 /**
- * Concept words: Literata 15 on one line. A word shared by three lectures or more is set at 560, the
- * others at 420; boxes are measured one step heavier (600 / 500), so the text always fits.
+ * Concept words: pills of Onest 15 on one line. A word shared by three lectures or more is set at
+ * 600, the others at 500, and each box is measured at the weight it is drawn in (textMetrics adds
+ * the safety margin), so the text always fits between the pill's ends.
  */
 export const WORD = {
   size: 15,
-  height: 30,
-  padX: 8,
+  height: 32,
+  padX: 12,
   maxWidth: 300,
 } as const;
 
-export function wordFont(lectures: number): 'serif500' | 'serif600' {
-  return lectures >= 3 ? 'serif600' : 'serif500';
+export function wordFont(lectures: number): 'sans500' | 'sans600' {
+  return lectures >= 3 ? 'sans600' : 'sans500';
 }
 
 const GAP_X = 20;
@@ -387,7 +391,7 @@ export function layoutMap(view: MapView, options: LayoutOptions = {}): MapLayout
   const aspect = Math.min(3.2, Math.max(0.5, options.aspect ?? 2.2));
   // ---- sizes
   const cardSizes: CardSize[] = view.lectures.map((lecture) => {
-    const wrapped = wrapLines(lecture.title, CARD_TITLE_WIDTH, 'serif600', CARD.titleSize);
+    const wrapped = wrapLines(lecture.title, CARD_TITLE_WIDTH, 'sans600', CARD.titleSize);
     const lines = wrapped.slice(0, CARD.maxTitleLines);
     const questions = packQuestionRows(lecture.questions.map((question) => ({ id: question.id, number: question.number })));
     const hasNote = hasCardNote(lecture);

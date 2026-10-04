@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle2, XCircle, Clock, Zap, RotateCcw, Trophy } from 'lucide-react';
+import { useState, useRef, useEffect, useId } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import { X, CheckCircle2, XCircle, Clock, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import './ReviewTestModal.css';
 import type { ReviewQuestion } from '../api/career';
 import { generateReviewTest, updateModuleReview } from '../api/career';
 
@@ -34,6 +35,7 @@ export default function ReviewTestModal({
   const [finalScore, setFinalScore] = useState(0);
   const [saving, setSaving] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     loadTest();
@@ -103,138 +105,110 @@ export default function ReviewTestModal({
 
   const q = questions[currentIdx];
   const timerPct = (timer / TIMER_SECONDS) * 100;
-  const timerColor = timer > 45 ? '#22c55e' : timer > 20 ? '#f59e0b' : '#ef4444';
+  // The time left in words' colours: green, then yellow, then the colour of a wrong answer.
+  const timerTone = timer > 45 ? 'ok' : timer > 20 ? 'mid' : 'low';
 
   return (
+    <MotionConfig reducedMotion="user">
     <AnimatePresence>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="rt-scrim">
         <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94 }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="rt-dialog"
         >
           {/* Header */}
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-indigo-600/10 dark:bg-indigo-600/30 rounded-xl flex items-center justify-center">
-                <RotateCcw className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">🔁 Spaced Repetition</p>
-                <h3 className="text-sm font-extrabold text-slate-850 dark:text-slate-100 truncate max-w-[260px]">{moduleTitle}</h3>
+          <div className="rt-head">
+            <div className="rt-head-l">
+              <span className="rt-ico" aria-hidden="true">
+                <RotateCcw />
+              </span>
+              <div className="min-w-0">
+                <p className="rt-kicker">Spaced Repetition</p>
+                <h3 id={titleId} className="rt-title">{moduleTitle}</h3>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition">
-              <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
+            <button type="button" onClick={onClose} className="rt-close" aria-label="Закрыть">
+              <X aria-hidden="true" />
             </button>
           </div>
 
-          <div className="p-6">
+          <div className="rt-body">
             {loading ? (
-              <div className="flex flex-col items-center justify-center h-48 gap-3">
-                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Генерируем вопросы...</p>
+              <div className="rt-loading" role="status">
+                <p className="rt-quiet">Генерируем вопросы...</p>
               </div>
             ) : done ? (
               /* Results screen */
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-center gap-5 py-4"
-              >
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black
-                  ${finalScore >= 70 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-2 border-emerald-500/40' : 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-2 border-rose-500/40'}`}>
-                  {finalScore}%
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rt-result">
+                <div className="rt-score" data-good={finalScore >= 70 ? '' : undefined} style={{ ['--rt-share' as string]: `${finalScore}%` }}>
+                  <span>{finalScore}%</span>
                 </div>
-                <div className="text-center">
-                  <p className="text-base font-extrabold text-slate-800 dark:text-slate-100">
-                    {finalScore >= 70 ? '🎉 Отлично! Материал усвоен!' : '📚 Нужно ещё поработать'}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <div>
+                  <p className="rt-verdict">{finalScore >= 70 ? 'Отлично! Материал усвоен!' : 'Нужно ещё поработать'}</p>
+                  <p className="rt-quiet">
                     {finalScore >= 70
                       ? `Следующее повторение запланировано автоматически`
                       : 'Рекомендуем перечитать теорию и повторить через 1 день'}
                   </p>
                 </div>
-                {saving && <p className="text-xs text-indigo-600 dark:text-indigo-400 animate-pulse">Сохраняем прогресс...</p>}
-                <div className="flex gap-3 w-full mt-2">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-650 dark:text-slate-300 rounded-2xl text-xs font-bold transition"
-                  >
-                    Закрыть
-                  </button>
-                </div>
+                {saving && <p className="rt-quiet" role="status">Сохраняем прогресс...</p>}
+                <button type="button" onClick={onClose} className="sf-secondary rt-wide">
+                  Закрыть
+                </button>
               </motion.div>
             ) : (
               <>
                 {/* Progress & Timer */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex flex-wrap gap-1">
+                <div className="rt-meter">
+                  <div className="rt-steps" aria-hidden="true">
                     {questions.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-1.5 rounded-full transition-all ${
-                          i < currentIdx
-                            ? (scores[i] ? 'bg-emerald-500' : 'bg-rose-500')
-                            : i === currentIdx ? 'bg-indigo-500 w-4' : 'bg-slate-200 dark:bg-slate-700'
-                        } ${questions.length > 10 ? 'w-2.5' : 'w-5'}`}
-                      />
+                      <i key={i} data-state={i < currentIdx ? (scores[i] ? 'right' : 'wrong') : i === currentIdx ? 'now' : undefined} />
                     ))}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" style={{ color: timerColor }} />
-                    <span className="text-xs font-bold tabular-nums" style={{ color: timerColor }}>{timer}с</span>
+                  <div className="rt-timer" data-tone={timerTone}>
+                    <Clock aria-hidden="true" />
+                    <span>{timer}с</span>
                   </div>
                 </div>
 
                 {/* Timer bar */}
-                <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full mb-5 overflow-hidden">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ backgroundColor: timerColor }}
-                    animate={{ width: `${timerPct}%` }}
-                    transition={{ duration: 0.4 }}
-                  />
+                <div className="rt-bar" aria-hidden="true">
+                  <motion.div className="rt-bar-fill" data-tone={timerTone} animate={{ width: `${timerPct}%` }} transition={{ duration: 0.4 }} />
                 </div>
 
                 {/* Question */}
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={currentIdx}
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -30 }}
-                    className="space-y-4"
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                    className="rt-qblock"
                   >
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-relaxed">
-                      <span className="text-indigo-600 dark:text-indigo-400 font-black">Q{currentIdx + 1}.</span> {q?.question}
+                    <p className="rt-q">
+                      <span className="rt-qn">Q{currentIdx + 1}.</span> {q?.question}
                     </p>
 
                     {/* Options */}
-                    <div className="space-y-2">
+                    <div className="rt-opts">
                       {q?.options.map((opt, oi) => {
                         const letter = opt.split(')')[0].trim();
                         const isCorrect = q.correct === letter;
                         const isSelected = selected?.startsWith(letter);
-                        let bg = 'bg-slate-50/50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-indigo-600 dark:hover:border-indigo-500 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/30';
-                        if (answered) {
-                          if (isCorrect) bg = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300';
-                          else if (isSelected && !isCorrect) bg = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300';
-                          else bg = 'bg-slate-100/40 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-50 text-slate-400 dark:text-slate-400';
-                        }
+                        const state = !answered ? undefined : isCorrect ? 'right' : isSelected ? 'wrong' : 'faded';
                         return (
-                          <button
-                            key={oi}
-                            disabled={answered}
-                            onClick={() => handleAnswer(opt)}
-                            className={`w-full text-left p-3 rounded-xl border text-xs font-semibold transition-all ${bg}`}
-                          >
-                            <span className="flex items-center gap-2">
-                              {answered && isCorrect && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />}
-                              {answered && isSelected && !isCorrect && <XCircle className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />}
-                              <span className="text-slate-855 dark:text-slate-200">{opt}</span>
+                          <button key={oi} type="button" disabled={answered} onClick={() => handleAnswer(opt)} className="rt-opt" data-state={state}>
+                            <span className="rt-opt-in">
+                              {answered && isCorrect && <CheckCircle2 className="rt-opt-i" aria-hidden="true" />}
+                              {answered && isSelected && !isCorrect && <XCircle className="rt-opt-i" aria-hidden="true" />}
+                              <span>{opt}</span>
                             </span>
                           </button>
                         );
@@ -243,27 +217,18 @@ export default function ReviewTestModal({
 
                     {/* Explanation */}
                     {answered && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"
-                      >
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400">Объяснение: </span>
+                      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="rt-expl">
+                        <span className="rt-expl-h">Объяснение: </span>
                         <ReactMarkdown>{q?.explanation}</ReactMarkdown>
                       </motion.div>
                     )}
 
                     {answered && (
-                      <motion.button
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        onClick={handleNext}
-                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2"
-                      >
-                        {currentIdx < questions.length - 1 ? 'Следующий вопрос →' : (
-                          <><Trophy className="w-4 h-4" /> Завершить тест</>
-                        )}
-                      </motion.button>
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <button type="button" onClick={handleNext} className="sf-primary rt-wide">
+                          {currentIdx < questions.length - 1 ? 'Следующий вопрос' : 'Завершить тест'}
+                        </button>
+                      </motion.div>
                     )}
                   </motion.div>
                 </AnimatePresence>
@@ -273,5 +238,6 @@ export default function ReviewTestModal({
         </motion.div>
       </div>
     </AnimatePresence>
+    </MotionConfig>
   );
 }

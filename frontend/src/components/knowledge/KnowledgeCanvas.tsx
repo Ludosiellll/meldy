@@ -10,9 +10,9 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Readiness } from '../../lib/learning/readiness';
-import { PencilSvg, quad, sample, seedFrom, shape, tapered } from '../marks';
+import { quad, sample, seedFrom, tapered } from '../marks';
 import { cardNote, cardNoteWords, count, inLectures, questionWords, CONCEPTS, LECTURES, NBSP, SHARED } from './copy';
-import { QUESTIONS_LABEL, QUESTIONS_LABEL_WIDTH, type Box, type CardBox, type EdgeGeo, type MapLayout, type WordBox } from './layout';
+import { QUESTIONS_LABEL, QUESTIONS_LABEL_WIDTH, WORD, type Box, type CardBox, type EdgeGeo, type MapLayout, type WordBox } from './layout';
 import { conceptNode, lectureNode, neighbourhood, type MapConcept, type MapLecture, type MapView, type NodeId, type QuestionView } from './model';
 import { NumberMark, WaveUnder } from './NumberMark';
 
@@ -164,7 +164,7 @@ const MapCard = memo(function MapCard({ lecture, box, questionById, state, selec
 });
 
 // ---------------------------------------------------------------------------------------------
-// A concept word
+// A concept word: a pill; the chosen one is the dark pill, as the current tab is (knowledge.css).
 
 interface WordProps {
   concept: MapConcept;
@@ -201,7 +201,7 @@ const MapWord = memo(function MapWord({ concept, box, state, selected, handlers 
         , {concept.lectureIds.length > 1 ? inLectures(concept.lectureIds.length) : 'в одной лекции'}
         {concept.weak ? ', есть открытая ошибка' : ''}
       </span>
-      {concept.weak ? <WaveUnder width={box.w - 2 * 8} seed={seedFrom('km-weak', concept.key)} /> : null}
+      {concept.weak ? <WaveUnder width={box.w - 2 * WORD.padX} seed={seedFrom('km-weak', concept.key)} /> : null}
     </button>
   );
 });
@@ -221,13 +221,6 @@ const PencilEdge = memo(function PencilEdge({ edge, far }: { edge: EdgeGeo; far:
   }, [edge, far]);
   return <path d={d} className={far ? 'km-edge-far' : 'km-edge-lit'} />;
 });
-
-function OvalMark({ box, seed }: { box: WordBox; seed: number }) {
-  const w = box.w + 14;
-  const h = box.h + 8;
-  const paths = useMemo(() => shape('oval', w, h, seed, { weight: 2.1 }), [w, h, seed]);
-  return <PencilSvg width={w} height={h} paths={paths} className="sf-textmark-ink km-oval" style={{ left: box.x - 7, top: box.y - 4 }} kind="oval" />;
-}
 
 // ---------------------------------------------------------------------------------------------
 // The canvas
@@ -552,7 +545,6 @@ export default function KnowledgeCanvas(props: CanvasProps) {
     return items.sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
   }, [view, layout]);
 
-  const selectedWord = selected?.startsWith('c:') ? layout.wordByKey.get(selected.slice(2)) ?? null : null;
   const percent = percentText(current.scale);
 
   return (
@@ -621,7 +613,6 @@ export default function KnowledgeCanvas(props: CanvasProps) {
               />
             ),
           )}
-          {selectedWord ? <OvalMark box={selectedWord} seed={seedFrom('km-oval', selectedWord.key)} /> : null}
         </div>
       </div>
       {props.topLeft}

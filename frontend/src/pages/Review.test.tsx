@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Review from './Review';
@@ -276,6 +276,34 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     await revealAndChoose(user, 'Помню');
     expect(await screen.findByRole('heading', { name: 'Повторили 2 карточки' })).toBeInTheDocument();
     expect(screen.getByText('Помню — 1, с трудом — 0, не помню — 1. Завтра вернётся 1.')).toBeInTheDocument();
+  });
+
+  it('lays the answered cards out by the day they come back, as the server set it', async () => {
+    api.getDueCards.mockResolvedValue([
+      { id: 'card-1', question: 'Первый вопрос', answer: 'Первый ответ' },
+      { id: 'card-2', question: 'Второй **вопрос**', answer: 'Второй ответ' },
+      { id: 'card-3', question: 'Третий вопрос', answer: 'Третий ответ' },
+    ]);
+    api.updateCardProgress
+      .mockResolvedValueOnce({ card_id: 'card-1', interval_days: 6, duplicate: false })
+      .mockResolvedValueOnce({ card_id: 'card-2', interval_days: 1, duplicate: false })
+      .mockResolvedValueOnce({ card_id: 'card-3', duplicate: false });
+    const user = userEvent.setup();
+    renderReview();
+    await revealAndChoose(user, 'Помню');
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    await revealAndChoose(user, 'Не помню');
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    await revealAndChoose(user, 'С трудом');
+    await screen.findByRole('heading', { name: 'Повторили 3 карточки' });
+
+    const days = screen.getByRole('region', { name: 'Когда вернутся' });
+    const columns = within(days).getAllByRole('listitem').filter((item) => item.classList.contains('rv-day'));
+    // Nearest day first; a card without a server interval is not placed on any day.
+    expect(columns.map((column) => column.querySelector('.rv-day-h')?.textContent)).toEqual(['1Завтра: 1 карточка', '1Через 6 дней: 1 карточка']);
+    expect(within(columns[0]).getByText('Второй вопрос')).toBeInTheDocument();
+    expect(within(columns[1]).getByText('Первый вопрос')).toBeInTheDocument();
+    expect(within(days).queryByText('Третий вопрос')).toBeNull();
   });
 });
 

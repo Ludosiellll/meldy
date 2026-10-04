@@ -130,22 +130,22 @@ describe('cards', () => {
 
 describe('text metrics', () => {
   it('wraps a title at spaces and after hyphens, never wider than the line', () => {
-    const lines = wrapLines('Денежно-кредитная политика и трансмиссионный механизм', 188, 'serif600', CARD.titleSize);
+    const lines = wrapLines('Денежно-кредитная политика и трансмиссионный механизм', 180, 'sans600', CARD.titleSize);
     expect(lines.length).toBeGreaterThan(1);
-    for (const line of lines) expect(textWidth(line, 'serif600', CARD.titleSize)).toBeLessThanOrEqual(188);
+    for (const line of lines) expect(textWidth(line, 'sans600', CARD.titleSize)).toBeLessThanOrEqual(180);
     expect(lines.join(' ').replace(/- /g, '-')).toBe('Денежно-кредитная политика и трансмиссионный механизм');
   });
 
   it('cuts a word longer than the line', () => {
-    const lines = wrapLines('Аааааааааааааааааааааааааааааааааааааа', 100, 'serif600', 16);
+    const lines = wrapLines('Аааааааааааааааааааааааааааааааааааааа', 100, 'sans600', 16);
     expect(lines.length).toBeGreaterThan(1);
-    for (const line of lines) expect(textWidth(line, 'serif600', 16)).toBeLessThanOrEqual(100);
+    for (const line of lines) expect(textWidth(line, 'sans600', 16)).toBeLessThanOrEqual(100);
   });
 
   it('shortens a label with «…» only when it does not fit', () => {
-    expect(fitText('Инфляция', 200, 'serif500', 15)).toBe('Инфляция');
-    const cut = fitText('Естественный уровень безработицы в долгосрочном периоде', 160, 'serif500', 15);
+    expect(fitText('Инфляция', 200, 'sans500', 15)).toBe('Инфляция');
+    const cut = fitText('Естественный уровень безработицы в долгосрочном периоде', 160, 'sans500', 15);
     expect(cut.endsWith('…')).toBe(true);
-    expect(textWidth(cut, 'serif500', 15)).toBeLessThanOrEqual(160);
+    expect(textWidth(cut, 'sans500', 15)).toBeLessThanOrEqual(160);
   });
 });

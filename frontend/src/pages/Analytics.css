@@ -1,0 +1,140 @@
+/* «Прогресс» in the Meldy language (notes: 10_Project/Design_Language_2026-10-04).
+ *
+ * The same measured blocks in cards: an exam is a card with its confirmed questions as a large Onest
+ * 500 figure in the blue and the questions as dots (as on «Сегодня»: blue confirmed, yellow once,
+ * pink not passed, white untested); the lectures are a table in a card; the answers per day are blue
+ * columns in a card; the topics with open mistakes are rows with a pink count. Page root: .sf-page.pg. */
+
+.pg-sec { max-width: 1120px; margin-top: 56px; }
+.pg-sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin-bottom: 18px; }
+.pg-quiet { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.pg-card {
+  border-radius: 36px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.pg-end { margin: 56px 0 0; }
+.pg-gradebook { margin-top: 36px; }
+
+/* ---------------------------------------------------------------- exams */
+.pg .sf-ledger { max-width: none; gap: 16px; }
+.pg .sf-ledger > li { border-radius: 40px; box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.pg .sf-ledger > li:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow); }
+.pg .sf-ledger-row { gap: 18px 48px; padding: 34px 40px 32px; }
+.pg .sf-ledger-name { font-size: 28px; line-height: 1.15; letter-spacing: -.025em; }
+.pg .sf-ledger-meta { margin-top: 8px; font-size: 16px; line-height: 24px; }
+.pg .sf-ledger-figs { display: block; }
+.pg .sf-ledger-fig { font-size: 64px; line-height: 1; letter-spacing: -.045em; color: var(--sf-accent-fg); }
+.pg .sf-ledger-fig .sf-of { font-size: 28px; letter-spacing: -.02em; color: var(--sf-ink); }
+.pg .sf-ledger-cap { max-width: 12em; margin-top: 8px; font-size: 15px; line-height: 21px; }
+.pg .sf-ledger-foot { font-size: 15px; line-height: 22px; text-wrap: pretty; }
+
+.pg-ready {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  padding: 22px 24px 20px;
+  border: 1px solid color-mix(in srgb, var(--sf-accent) 18%, transparent);
+  border-radius: 28px;
+  background: var(--sf-accent-soft);
+}
+.pg-dots { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 8px; max-width: 640px; }
+.pg-dots[data-many] { grid-template-columns: repeat(30, minmax(0, 1fr)); gap: 6px; max-width: none; }
+.pg-dots i,
+.pg-legend i { display: block; aspect-ratio: 1; border-radius: 50%; }
+.pg-dots i[data-r='confirmed'],
+.pg-legend i[data-r='confirmed'] { background: var(--sf-accent); }
+.pg-dots i[data-r='once'],
+.pg-legend i[data-r='once'] { background: var(--m-yellow); }
+.pg-dots i[data-r='not_passed'],
+.pg-legend i[data-r='not_passed'] { background: var(--m-pink); }
+.pg-dots i[data-r='untested'],
+.pg-legend i[data-r='untested'] { background: var(--sf-surface); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sf-accent) 30%, transparent); }
+.pg-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.pg-legend > span { display: inline-flex; align-items: center; gap: 8px; }
+.pg-legend i { width: 12px; flex: none; }
+.dark .pg-dots i[data-r='confirmed'],
+.dark .pg-legend i[data-r='confirmed'] { background: var(--sf-accent-fg); }
+
+/* ---------------------------------------------------------------- lectures */
+.pg-table-card { padding: 14px 32px 8px; }
+.pg .sf-table { max-width: none; }
+@media (min-width: 640px) {
+  .pg .sf-table th { padding-top: 12px; padding-bottom: 12px; }
+  .pg .sf-table td { padding-top: 16px; padding-bottom: 16px; }
+  .pg .sf-table tbody tr:last-child td { border-bottom: 0; }
+}
+.pg .sf-table .sf-cell-title { font-size: 18px; letter-spacing: -.012em; }
+.pg-how { margin: 10px 0 0; }
+.pg-how-text { max-width: 46em; margin: 4px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+
+/* ---------------------------------------------------------------- answers per day */
+.pg-activity { padding: 28px 32px 26px; }
+.pg-bars { margin: 18px 0 0; max-width: none; }
+.pg .sf-bars-plot { gap: 5px; height: 168px; padding-top: 24px; }
+.pg .sf-bars-bar { max-width: 30px; border-radius: 8px 8px 3px 3px; background: var(--sf-accent); }
+.dark .pg .sf-bars-bar { background: var(--sf-accent-fg); }
+.pg .sf-bars-bar[data-zero] { height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--sf-ink) 14%, transparent); }
+.pg .sf-bars-val { margin-bottom: 4px; font-size: 13px; font-weight: 500; }
+.pg .sf-bars-axis { margin-top: 8px; }
+.pg-figcap { margin: 12px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- topics with open mistakes, the old oral exams */
+.pg-list-card { padding: 26px 32px 22px; }
+.pg-list-lead { margin: 0; font-size: 17px; line-height: 26px; font-weight: 500; color: var(--sf-ink); }
+.pg-rows { display: grid; gap: 8px; margin: 14px 0 6px; padding: 0; list-style: none; }
+.pg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 8px 10px 8px 20px;
+  border-radius: 20px;
+  background: var(--sf-surface-soft);
+  font-size: 16px;
+  line-height: 22px;
+}
+.pg-row-t { min-width: 0; overflow: hidden; color: var(--sf-ink); white-space: nowrap; text-overflow: ellipsis; }
+.pg-row-n { flex: none; padding-right: 10px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.pg-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.pg-badge::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--m-pink); }
+
+/* ---------------------------------------------------------------- phones */
+@media (max-width: 767px) {
+  .pg .sf-ledger-row { padding: 24px 22px 22px; }
+  .pg .sf-ledger > li { border-radius: 32px; }
+  .pg .sf-ledger-name { font-size: 23px; }
+  .pg .sf-ledger-fig { font-size: 52px; }
+  .pg .sf-ledger-fig .sf-of { font-size: 24px; }
+  .pg-ready { padding: 18px 16px 16px; border-radius: 22px; }
+  .pg-dots { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 7px; }
+  .pg-dots[data-many] { grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 5px; }
+}
+@media (max-width: 639px) {
+  .pg-sec { margin-top: 44px; }
+  .pg-card { border-radius: 28px; }
+  .pg-table-card { padding: 4px 20px; }
+  .pg .sf-table tr { padding: 16px 0; }
+  .pg .sf-table tbody tr:last-child { border-bottom: 0; }
+  .pg .sf-table td { padding: 3px 0; }
+  .pg .sf-table td:first-child { padding-bottom: 6px; }
+  .pg-activity { padding: 22px 18px 20px; }
+  .pg .sf-bars-plot { height: 140px; gap: 3px; }
+  .pg-list-card { padding: 22px 18px 18px; }
+  .pg-row { padding-left: 16px; }
+  .pg-end { margin-top: 44px; }
+}

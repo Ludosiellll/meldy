@@ -2,14 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Camera, Plus, BookOpen, AlertTriangle, Crosshair, Check, Sparkles, Upload, ArrowLeft, Trash2, LayoutGrid, Table, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Camera, Plus, AlertTriangle, Sparkles, ArrowLeft, Trash2, LayoutGrid, Table, X } from 'lucide-react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
 import { checkAILimit, incrementAIUsage } from '../api/limits';
 import { updateQuestProgress } from '../api/quests';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import './Gradebook.css';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -349,16 +350,12 @@ export default function Gradebook() {
     setScanning(false);
   };
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Загрузка оценок…</div>;
+  if (loading) return <p className="gb-quiet gb-loading" role="status">Загрузка оценок…</p>;
   if (hasLoadError) return (
-    <div className="mx-auto max-w-lg border-y border-[var(--sf-line)] py-10 text-center">
-      <h2 className="text-lg font-semibold text-[var(--sf-ink)]">Не удалось загрузить оценки</h2>
-      <p className="mt-2 text-sm text-[var(--sf-muted)]">Проверьте подключение и попробуйте ещё раз. Данные не удалены.</p>
-      <button
-        type="button"
-        onClick={() => { void Promise.all([refetchSubjects(), refetchGrades()]); }}
-        className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--sf-accent-hover)]"
-      >
+    <div className="gb-card gb-state">
+      <h2 className="gb-h2">Не удалось загрузить оценки</h2>
+      <p className="gb-quiet">Проверьте подключение и попробуйте ещё раз. Данные не удалены.</p>
+      <button type="button" onClick={() => { void Promise.all([refetchSubjects(), refetchGrades()]); }} className="sf-primary gb-state-act">
         Повторить
       </button>
     </div>
@@ -374,64 +371,69 @@ export default function Gradebook() {
     ? subjectStats.reduce((sum, s) => sum + s.avg, 0) / subjectStats.filter(s => s.avg > 0).length 
     : 0;
 
+  /** The average against the target: «есть», «почти», «ниже цели» (green, yellow, pink). */
+  const toneOf = (avg: number, target: number) => (avg >= target ? 'ok' : avg < target - 0.5 ? 'low' : 'mid');
+  const barToneOf = (avg: number, target: number) => (avg >= target ? 'ok' : avg < target - (target > 5 ? 1.0 : 0.5) ? 'low' : 'mid');
+
   if (selectedSubject) {
     const subGrades = grades.filter(g => g.subject_id === selectedSubject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const subStat = subjectStats.find(s => s.id === selectedSubject.id);
     
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSelectedSubject(null)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">
-              <ArrowLeft className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+      <div className="gb">
+        <div className="gb-subhead">
+          <div className="gb-subhead-l">
+            <button type="button" onClick={() => setSelectedSubject(null)} className="gb-round" aria-label="Назад к предметам" title="Назад к предметам">
+              <ArrowLeft aria-hidden="true" />
             </button>
-            <h2 className="font-bold text-xl text-slate-900 dark:text-slate-100">{selectedSubject.name}</h2>
+            <h2 className="gb-h2">{selectedSubject.name}</h2>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-bold">
+          <div className="gb-subhead-r">
+            <span className="gb-pill" data-tone="blue">
               Средний балл: {subStat?.avg ? subStat.avg.toFixed(2) : '-'}
-            </div>
-            <button onClick={() => setSubjectToDelete(selectedSubject)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition" title="Удалить предмет">
-              <Trash2 className="w-5 h-5" />
+            </span>
+            <button type="button" onClick={() => setSubjectToDelete(selectedSubject)} className="gb-round gb-danger" title="Удалить предмет" aria-label="Удалить предмет">
+              <Trash2 aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800">
-          <h3 className="font-bold text-sm text-slate-500 mb-3 uppercase tracking-wider">Быстрое добавление (сегодня)</h3>
-          <div className="flex flex-wrap gap-2 mb-2">
+        <section className="gb-card gb-quick">
+          <h3 className="gb-label">Быстрое добавление (сегодня)</h3>
+          <div className="gb-values">
             {gradeValues.map(v => (
               <button 
                 key={v}
+                type="button"
                 onClick={() => handleAddGrade({ subId: selectedSubject.id, val: v })}
                 disabled={addGradeMutation.isPending}
-                className="w-10 h-10 rounded-xl font-black text-base bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-[var(--sf-accent-soft)] hover:text-[var(--sf-accent)] transition"
+                className="gb-value"
               >
                 {v}
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <table className="w-full text-left border-collapse">
+        <div className="gb-card gb-table-card">
+          <table className="gb-table">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
-                <th className="p-4 font-bold">Оценка</th>
-                <th className="p-4 font-bold">Дата</th>
-                <th className="p-4 font-bold text-right">Действие</th>
+              <tr>
+                <th>Оценка</th>
+                <th>Дата</th>
+                <th className="gb-right">Действие</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody>
               {subGrades.length === 0 ? (
-                <tr><td colSpan={3} className="p-8 text-center text-slate-500">Пока нет оценок</td></tr>
+                <tr><td colSpan={3} className="gb-empty-cell">Пока нет оценок</td></tr>
               ) : subGrades.map(g => (
-                <tr key={g.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
-                  <td className="p-4 font-black text-lg text-slate-800 dark:text-slate-200">{g.value}</td>
-                  <td className="p-4 text-slate-500">{new Date(g.date).toLocaleDateString()}</td>
-                  <td className="p-4 text-right">
-                    <button onClick={() => deleteGradeMutation.mutate(g.id)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition">
-                      <Trash2 className="w-4 h-4" />
+                <tr key={g.id}>
+                  <td className="gb-grade">{g.value}</td>
+                  <td className="gb-muted">{new Date(g.date).toLocaleDateString()}</td>
+                  <td className="gb-right">
+                    <button type="button" onClick={() => deleteGradeMutation.mutate(g.id)} className="gb-icon-btn gb-danger" aria-label="Удалить оценку" title="Удалить оценку">
+                      <Trash2 aria-hidden="true" />
                     </button>
                   </td>
                 </tr>
@@ -439,89 +441,78 @@ export default function Gradebook() {
             </tbody>
           </table>
         </div>
-        <div className="h-24 sm:h-4"></div>
+        <div className="gb-pad"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="gb">
       {/* Header Widget */}
-      <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-5 text-[var(--sf-ink)] sm:flex-row sm:items-center">
+      <section className="gb-card gb-hero">
         <div>
-          <p className="mb-1 text-xs font-medium text-[var(--sf-muted)]">Средний балл</p>
-          <div className="flex items-end gap-3">
-            <span className="text-4xl font-semibold tabular-nums">{overallAvg ? overallAvg.toFixed(2) : '—'}</span>
-            <span className="mb-1 pb-0.5 text-sm text-[var(--sf-muted)]">из {maxScore.toFixed(0)}</span>
-          </div>
+          <p className="gb-label">Средний балл</p>
+          <p className="gb-avg">
+            <span className="gb-avg-n">{overallAvg ? overallAvg.toFixed(2) : '—'}</span>
+            <span className="gb-avg-of">из {maxScore.toFixed(0)}</span>
+          </p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button onClick={() => setShowScan(true)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[var(--sf-line)] px-4 text-sm font-medium text-[var(--sf-ink)] transition hover:bg-[var(--sf-surface-soft)] sm:flex-none">
-            <Camera className="h-4 w-4" />
+        <div className="gb-hero-acts">
+          <button type="button" onClick={() => setShowScan(true)} className="sf-secondary gb-with-icon">
+            <Camera aria-hidden="true" />
             <span>Распознать по фото</span>
           </button>
-          <button onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition hover:-translate-y-px hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none sm:flex-none">
-            <Plus className="h-4 w-4" />
+          <button type="button" onClick={() => { setShowAddGrade(true); setGradeValue(maxScore === 10 ? 8 : 5); }} className="sf-primary">
             <span>Добавить оценку</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-[var(--sf-accent)]" />
-          Мои предметы
-        </h2>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-            <button onClick={() => setViewMode('cards')} className={`p-1.5 rounded-md transition ${viewMode === 'cards' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
-              <LayoutGrid className="w-4 h-4" />
+      <div className="gb-bar">
+        <h2 className="gb-h2">Мои предметы</h2>
+        <div className="gb-bar-r">
+          <div className="gb-seg" role="group" aria-label="Вид">
+            <button type="button" onClick={() => setViewMode('cards')} aria-pressed={viewMode === 'cards'} aria-label="Карточками" title="Карточками">
+              <LayoutGrid aria-hidden="true" />
             </button>
-            <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
-              <Table className="w-4 h-4" />
+            <button type="button" onClick={() => setViewMode('table')} aria-pressed={viewMode === 'table'} aria-label="Таблицей" title="Таблицей">
+              <Table aria-hidden="true" />
             </button>
           </div>
-          <button onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="text-sm font-bold text-[var(--sf-accent)] hover:opacity-80 transition">
-            + Предмет
+          <button type="button" onClick={() => { setShowAddSubject(true); setNewSubTarget(maxScore === 10 ? 9.0 : 5.0); }} className="sf-secondary gb-with-icon">
+            <Plus aria-hidden="true" />
+            Предмет
           </button>
         </div>
       </div>
 
       {viewMode === 'cards' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="gb-grid">
           {subjectStats.map(sub => (
-            <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-indigo-500/30 transition">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100 pr-2">{sub.name}</h3>
-                <div className="flex items-center gap-2">
-                  <div className={`px-2 py-1 rounded-md text-xs font-bold ${
-                    sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
-                    sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                  }`}>
-                    {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition" title="Удалить предмет">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+            <div key={sub.id} onClick={() => setSelectedSubject(sub)} className="gb-subject">
+              <div className="gb-subject-top">
+                <h3 className="gb-subject-h">{sub.name}</h3>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="gb-icon-btn" title="Удалить предмет" aria-label="Удалить предмет">
+                  <X aria-hidden="true" />
+                </button>
               </div>
-              
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-xs text-slate-500">
+
+              <div className="gb-subject-mid">
+                <span className="gb-pill" data-tone={toneOf(sub.avg, sub.target_grade)}>
+                  {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
+                </span>
+                <span className="gb-subject-meta">
                   <span>Цель: {sub.target_grade.toFixed(1)}</span>
                   <span>{sub.count} оценок</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full ${sub.avg >= sub.target_grade ? 'bg-emerald-500' : sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                    style={{ width: `${Math.min(100, (sub.avg / (sub.target_grade > 5 ? 10 : 5)) * 100)}%` }}
-                  />
-                </div>
+                </span>
+              </div>
+              <div className="gb-track" aria-hidden="true">
+                <i data-tone={barToneOf(sub.avg, sub.target_grade)} style={{ width: `${Math.min(100, (sub.avg / (sub.target_grade > 5 ? 10 : 5)) * 100)}%` }} />
               </div>
 
               {sub.avg > 0 && sub.avg < sub.target_grade - (sub.target_grade > 5 ? 1.0 : 0.5) && (
-                <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 p-2.5 rounded-lg text-xs font-medium flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="gb-warn">
+                  <AlertTriangle aria-hidden="true" />
                   <span>Средний балл ниже цели. Повторите последнюю тему: карточки, тест или разговор по материалу.</span>
                 </div>
               )}
@@ -529,47 +520,44 @@ export default function Gradebook() {
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[300px]">
+        <div className="gb-card gb-table-card gb-scroll">
+          <table className="gb-table gb-table-subjects">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
-                <th className="p-4 font-bold whitespace-nowrap">Предмет</th>
-                <th className="p-4 font-bold hidden sm:table-cell w-full">Оценки</th>
-                <th className="p-4 font-bold text-right whitespace-nowrap">Ср. балл</th>
+              <tr>
+                <th>Предмет</th>
+                <th className="gb-wide-only">Оценки</th>
+                <th className="gb-right">Ср. балл</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody>
               {subjectStats.map(sub => {
                 const subGrades = grades.filter(g => g.subject_id === sub.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                 return (
-                  <tr key={sub.id} onClick={() => setSelectedSubject(sub)} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition cursor-pointer">
-                    <td className="p-4 font-bold text-slate-800 dark:text-slate-200">
+                  <tr key={sub.id} onClick={() => setSelectedSubject(sub)} className="gb-row-link">
+                    <td className="gb-strong">
                       {sub.name}
-                      <div className="sm:hidden flex gap-1 flex-wrap mt-2">
-                        {subGrades.slice(0, 5).map((g, i) => <span key={i} className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{g.value}</span>)}
-                        {subGrades.length > 5 && <span className="text-[10px] font-bold text-slate-400">+{subGrades.length - 5}</span>}
+                      <div className="gb-narrow-only gb-chips">
+                        {subGrades.slice(0, 5).map((g, i) => <span key={i} className="gb-chip">{g.value}</span>)}
+                        {subGrades.length > 5 && <span className="gb-more">+{subGrades.length - 5}</span>}
                       </div>
                     </td>
-                    <td className="p-4 hidden sm:table-cell">
-                      <div className="flex gap-1.5 flex-wrap">
+                    <td className="gb-wide-only">
+                      <div className="gb-chips">
                         {subGrades.slice(0, 8).map((g, i) => (
-                          <span key={i} className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-md">
+                          <span key={i} className="gb-chip">
                             {g.value}
                           </span>
                         ))}
-                        {subGrades.length > 8 && <span className="text-xs font-bold text-slate-400 ml-1 flex items-center">+{subGrades.length - 8}</span>}
+                        {subGrades.length > 8 && <span className="gb-more">+{subGrades.length - 8}</span>}
                       </div>
                     </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <div className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${
-                          sub.avg >= sub.target_grade ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 
-                          sub.avg < sub.target_grade - 0.5 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                        }`}>
+                    <td className="gb-right">
+                      <div className="gb-cell-r">
+                        <span className="gb-pill" data-tone={toneOf(sub.avg, sub.target_grade)}>
                           {sub.avg > 0 ? sub.avg.toFixed(2) : '-'}
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition" title="Удалить предмет">
-                          <X className="w-4 h-4" />
+                        </span>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSubjectToDelete(sub); }} className="gb-icon-btn" title="Удалить предмет" aria-label="Удалить предмет">
+                          <X aria-hidden="true" />
                         </button>
                       </div>
                     </td>
@@ -577,14 +565,14 @@ export default function Gradebook() {
                 );
               })}
             </tbody>
-            <tfoot className="bg-slate-50 dark:bg-slate-800/30">
+            <tfoot>
               <tr>
-                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">Итого</td>
-                <td className="p-4 hidden sm:table-cell text-slate-500 text-sm">Общий средний балл по всем предметам</td>
-                <td className="p-4 text-right">
-                  <div className="inline-block px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 rounded-md text-sm font-bold">
+                <td className="gb-strong">Итого</td>
+                <td className="gb-wide-only gb-muted">Общий средний балл по всем предметам</td>
+                <td className="gb-right">
+                  <span className="gb-pill" data-tone="blue">
                     {overallAvg > 0 ? overallAvg.toFixed(2) : '-'}
-                  </div>
+                  </span>
                 </td>
               </tr>
             </tfoot>
@@ -593,53 +581,56 @@ export default function Gradebook() {
       )}
 
       {/* Modals */}
+      <MotionConfig reducedMotion="user">
       <AnimatePresence>
         {subjectToDelete && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 shadow-2xl">
-              <h3 className="font-bold text-lg mb-2 text-slate-900 dark:text-slate-100">Удалить предмет?</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Вы уверены, что хотите удалить предмет <span className="font-bold text-slate-800 dark:text-slate-200">«{subjectToDelete.name}»</span> и все его оценки? Это действие нельзя отменить.</p>
-              <div className="flex gap-2">
-                <button onClick={() => setSubjectToDelete(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold transition hover:bg-slate-200 dark:hover:bg-slate-700">Отмена</button>
-                <button onClick={() => deleteSubjectMutation.mutate(subjectToDelete.id)} disabled={deleteSubjectMutation.isPending} className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-bold transition hover:bg-rose-700 disabled:opacity-50">Удалить</button>
+          <div className="gb-scrim">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="gb-dialog" role="dialog" aria-modal="true" aria-label="Удалить предмет?">
+              <h3 className="gb-dialog-h">Удалить предмет?</h3>
+              <p className="gb-quiet">Вы уверены, что хотите удалить предмет <span className="gb-strong">«{subjectToDelete.name}»</span> и все его оценки? Это действие нельзя отменить.</p>
+              <div className="gb-dialog-acts">
+                <button type="button" onClick={() => setSubjectToDelete(null)} className="sf-secondary">Отмена</button>
+                <button type="button" onClick={() => deleteSubjectMutation.mutate(subjectToDelete.id)} disabled={deleteSubjectMutation.isPending} className="gb-delete">Удалить</button>
               </div>
             </motion.div>
           </div>
         )}
 
         {showAddSubject && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm">
-              <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-slate-100">Новый предмет</h3>
+          <div className="gb-scrim">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="gb-dialog" role="dialog" aria-modal="true" aria-label="Новый предмет">
+              <h3 className="gb-dialog-h">Новый предмет</h3>
               <input 
                 type="text" 
                 placeholder="Название (например, Физика)" 
+                aria-label="Название предмета"
                 value={newSubName} 
                 onChange={e => setNewSubName(e.target.value)} 
-                className="w-full mb-3 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
+                className="sf-input gb-field" 
               />
-              <label className="text-xs text-slate-500 mb-1 block">Целевой балл</label>
+              <label className="gb-field-l" htmlFor="gb-target">Целевой балл</label>
               <input 
+                id="gb-target"
                 type="number" 
                 step="0.1" 
                 min="1"
                 max={maxScore}
                 value={newSubTarget} 
                 onChange={e => setNewSubTarget(parseFloat(e.target.value))} 
-                className="w-full mb-6 p-3 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-xl border-none focus:ring-2 focus:ring-indigo-500" 
+                className="sf-input gb-field" 
               />
-              <div className="flex gap-2">
-                <button onClick={() => setShowAddSubject(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
-                <button onClick={handleAddSubject} disabled={addSubjectMutation.isPending || !newSubName.trim() || !Number.isFinite(newSubTarget) || newSubTarget <= 0 || newSubTarget > maxScore} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Создать</button>
+              <div className="gb-dialog-acts">
+                <button type="button" onClick={() => setShowAddSubject(false)} className="sf-secondary">Отмена</button>
+                <button type="button" onClick={handleAddSubject} disabled={addSubjectMutation.isPending || !newSubName.trim() || !Number.isFinite(newSubTarget) || newSubTarget <= 0 || newSubTarget > maxScore} className="sf-primary">Создать</button>
               </div>
             </motion.div>
           </div>
         )}
 
         {showAddGrade && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm">
-              <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-slate-100">Добавить оценку</h3>
+          <div className="gb-scrim">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="gb-dialog" role="dialog" aria-modal="true" aria-label="Добавить оценку">
+              <h3 className="gb-dialog-h">Добавить оценку</h3>
               <CustomSelect
                 value={gradeSubId}
                 onChange={val => setGradeSubId(val)}
@@ -647,83 +638,86 @@ export default function Gradebook() {
                 options={subjects.map(s => ({ value: s.id, label: s.name }))}
                 className="w-full mb-3"
               />
-              <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${gradeValues.length}, minmax(0, 1fr))` }}>
+              <div className="gb-values gb-values-pick" style={{ gridTemplateColumns: `repeat(${gradeValues.length}, minmax(0, 1fr))` }}>
                 {gradeValues.map(v => (
                   <button 
                     key={v} 
+                    type="button"
                     onClick={() => setGradeValue(v)} 
-                    className={`py-2 rounded-xl font-black text-base transition ${gradeValue === v ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                    aria-pressed={gradeValue === v}
+                    className="gb-value"
                   >
                     {v}
                   </button>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setShowAddGrade(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">Отмена</button>
-                <button onClick={() => handleAddGrade()} disabled={!gradeSubId || addGradeMutation.isPending} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50">Сохранить</button>
+              <div className="gb-dialog-acts">
+                <button type="button" onClick={() => setShowAddGrade(false)} className="sf-secondary">Отмена</button>
+                <button type="button" onClick={() => handleAddGrade()} disabled={!gradeSubId || addGradeMutation.isPending} className="sf-primary">Сохранить</button>
               </div>
             </motion.div>
           </div>
         )}
 
         {showScan && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex flex-col justify-end sm:justify-center sm:items-center p-0 sm:p-4">
-            <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="bg-white dark:bg-slate-900 w-full max-w-lg sm:rounded-2xl shadow-2xl flex flex-col h-[100dvh] sm:h-[80vh] overflow-hidden">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-indigo-500" />
+          <div className="gb-scrim gb-scrim-sheet">
+            <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} className="gb-scan" role="dialog" aria-modal="true" aria-label="Распознавание оценок">
+              <div className="gb-scan-head">
+                <h3 className="gb-dialog-h gb-scan-h">
+                  <Sparkles aria-hidden="true" />
                   Распознавание оценок
                 </h3>
-                <button onClick={() => setShowScan(false)} className="text-slate-400 hover:text-slate-600 transition">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <button type="button" onClick={() => setShowScan(false)} className="gb-round" aria-label="Закрыть" title="Закрыть">
+                  <X aria-hidden="true" />
                 </button>
               </div>
               
-              <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50 custom-scrollbar">
+              <div ref={chatScrollRef} className="gb-scan-msgs">
                 {scanMessages.map((msg, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[90%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm shadow-sm'}`}>
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="gb-msg" data-role={msg.role}>
+                    <div className="gb-bubble">
                       {msg.images && msg.images.length > 0 && (
-                        <div className={`grid gap-2 mb-2 ${msg.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        <div className="gb-shots" data-one={msg.images.length === 1 ? '' : undefined}>
                           {msg.images.map((img, idx) => (
-                            <img key={idx} src={`data:image/jpeg;base64,${img}`} alt="Scan target" className="w-full max-w-[240px] rounded-xl object-contain bg-black/10 border border-white/20" />
+                            <img key={idx} src={`data:image/jpeg;base64,${img}`} alt="Scan target" className="gb-shot" />
                           ))}
                         </div>
                       )}
-                      {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
+                      {msg.content && <p className="gb-bubble-t">{msg.content}</p>}
                     </div>
                   </motion.div>
                 ))}
                 {scanning && (
-                  <div className="flex justify-start">
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-2xl rounded-tl-sm p-3 shadow-sm flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs font-bold text-slate-500">Изучаю оценки...</span>
+                  <div className="gb-msg" data-role="assistant">
+                    <div className="gb-bubble gb-busy" role="status">
+                      Изучаю оценки...
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 pb-8 sm:pb-3">
+              <div className="gb-scan-foot">
                 {scanImages.length > 0 && (
-                  <div className="mb-3 flex gap-2 overflow-x-auto py-1 custom-scrollbar">
+                  <div className="gb-previews">
                     {scanImages.map((img, idx) => (
-                      <div key={idx} className="relative inline-block shrink-0">
-                        <img src={`data:image/jpeg;base64,${img}`} alt="Preview" className="w-16 h-16 object-cover rounded-xl border-2 border-indigo-500" />
-                        <button onClick={() => setScanImages(prev => prev.filter((_, i) => i !== idx))} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:scale-110 transition">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                      <div key={idx} className="gb-preview">
+                        <img src={`data:image/jpeg;base64,${img}`} alt="Preview" />
+                        <button type="button" onClick={() => setScanImages(prev => prev.filter((_, i) => i !== idx))} className="gb-preview-x" aria-label="Убрать фото">
+                          <X aria-hidden="true" />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2 items-end">
-                  <label className="shrink-0 w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                <div className="gb-compose">
+                  <label className="gb-round gb-attach" title="Добавить фото">
                     <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
-                    <Camera className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <Camera aria-hidden="true" />
+                    <span className="sr-only">Добавить фото</span>
                   </label>
                   <textarea
                     placeholder="Напишите комментарий..."
+                    aria-label="Комментарий"
                     value={scanText}
                     onChange={e => setScanText(e.target.value)}
                     onKeyDown={e => {
@@ -732,15 +726,17 @@ export default function Gradebook() {
                         handleScan();
                       }
                     }}
-                    className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-xl p-3 max-h-32 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 resize-none custom-scrollbar"
+                    className="sf-input gb-textarea"
                     rows={scanText.split('\n').length > 1 ? 2 : 1}
                   />
                   <button 
+                    type="button"
                     onClick={handleScan} 
                     disabled={scanning || (!scanText.trim() && scanImages.length === 0)} 
-                    className="shrink-0 w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="gb-send"
+                    aria-label="Отправить"
                   >
-                    <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                   </button>
                 </div>
               </div>
@@ -748,7 +744,8 @@ export default function Gradebook() {
           </div>
         )}
       </AnimatePresence>
-      <div className="h-24 sm:h-4"></div>
+      </MotionConfig>
+      <div className="gb-pad"></div>
     </div>
   );
 }

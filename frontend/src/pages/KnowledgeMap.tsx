@@ -227,12 +227,14 @@ export default function KnowledgeMap() {
   if (status === 'error' || !base || !view) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
-        <div className="sf-head" style={{ display: 'block' }}>
-          <h1 className="sf-h2">Не удалось загрузить карту</h1>
-          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">Лекции на месте — повторите через минуту.</p>
-          <button type="button" className="sf-link mt-2" onClick={retry}>
-            Повторить
-          </button>
+        <div className="km-state">
+          <div className="km-state-card">
+            <h1 className="km-state-h">Не удалось загрузить карту</h1>
+            <p className="km-state-text">Лекции на месте — повторите через минуту.</p>
+            <button type="button" className="sf-secondary km-state-act" onClick={retry}>
+              Повторить
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -241,14 +243,23 @@ export default function KnowledgeMap() {
   if (base.lectures.length === 0) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
-        <div className="mx-auto max-w-[480px] pt-16 text-center">
-          <h1 className="sf-h2">Здесь будет карта ваших лекций</h1>
-          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">
-            Загрузите лекции — Meldy найдёт понятия, которые их связывают, и покажет, в какой лекции какие вопросы экзамена.
-          </p>
-          <Link className="sf-primary mt-6 inline-flex" to="/analyze">
-            Добавить лекцию
-          </Link>
+        <div className="km-state">
+          <div className="km-state-card" data-center="">
+            <div className="km-state-art" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <b />
+              <b />
+            </div>
+            <h1 className="km-state-h">Здесь будет карта ваших лекций</h1>
+            <p className="km-state-text">
+              Загрузите лекции — Meldy найдёт понятия, которые их связывают, и покажет, в какой лекции какие вопросы экзамена.
+            </p>
+            <Link className="sf-primary km-state-act" to="/analyze">
+              Добавить лекцию
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -328,7 +339,7 @@ export default function KnowledgeMap() {
           {lede ? <p className="sf-lede">{lede}</p> : null}
         </div>
         {exam ? (
-          <Link className="sf-link" to={`/exams/${exam.id}`}>
+          <Link className="sf-secondary" to={`/exams/${exam.id}`}>
             Лист экзамена
           </Link>
         ) : null}

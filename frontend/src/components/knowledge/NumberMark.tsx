@@ -7,7 +7,7 @@ import { digitsWidth, textWidth } from './textMetrics';
 /**
  * A question number with its readiness mark, as on the exam sheet: a ring (подтверждено), a line
  * under it (засчитано, не подтверждено), a wavy line (не засчитано), nothing (не проверялось).
- * Its box is computed from the digits (Literata tabular figures), so a card with ten numbers does not
+ * Its box is computed from the digits (Onest 500 tabular figures), so a card with ten numbers does not
  * measure ten elements. The mark is aria-hidden: say what it means next to it in words.
  */
 interface NumberMarkProps {
@@ -22,7 +22,7 @@ interface NumberMarkProps {
 const LINE = 20;
 
 export function numberWidth(number: string, size = 15): number {
-  return Math.ceil(/^\d+$/.test(number) ? digitsWidth(number.length, 'serif400', size) : textWidth(number, 'serif400', size));
+  return Math.ceil(/^\d+$/.test(number) ? digitsWidth(number.length, 'sans500', size) : textWidth(number, 'sans500', size));
 }
 
 /** The room a number takes in a row: the ring needs 6 px on each side. */

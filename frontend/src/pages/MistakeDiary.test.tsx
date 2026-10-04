@@ -259,7 +259,9 @@ describe('Mistake diary list', () => {
     expect(screen.getByText(/^Ответ на билет · Макроэкономика/)).toBeInTheDocument();
     expect(screen.queryByText(/вслух/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/^Устный экзамен · /)).toHaveLength(2);
-    expect(screen.getByText('Открыто: 3. Исправлено: 1.')).toBeInTheDocument();
+    // The two figures of the summary card: «Открыто 3», «Исправлено 1».
+    expect(screen.getByText('Открыто').closest('p')).toHaveTextContent(/^Открыто\s*3$/);
+    expect(screen.getByText('Исправлено').closest('p')).toHaveTextContent(/^Исправлено\s*1$/);
   });
 
   it('says in the intro that mistakes come from tests, ticket answers and oral exams', async () => {

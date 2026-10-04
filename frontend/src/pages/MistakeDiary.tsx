@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, AlertCircle, RefreshCw, Trash2, Filter, ChevronDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -9,6 +9,8 @@ import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
 import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import '../styles/paper.css';
+import './MistakeDiary.css';
 
 interface Mistake {
   id: string;
@@ -277,80 +279,69 @@ export default function MistakeDiary() {
   const openCount = mistakes.filter(m => !m.is_resolved).length;
   const resolvedCount = mistakes.filter(m => m.is_resolved).length;
 
+  const FILTERS: Array<{ key: 'all' | 'open' | 'resolved'; label: string }> = [
+    { key: 'all', label: 'Все' },
+    { key: 'open', label: 'Открытые' },
+    { key: 'resolved', label: 'Исправленные' },
+  ];
+
   return (
-    <div className="p-3 md:p-6 max-w-4xl mx-auto">
+    <MotionConfig reducedMotion="user">
+    <div className="sf-page md">
       {/* ═══ РЕЖИМ ПРАКТИКИ ════════════════════════════════════════════════════ */}
       {isPracticing ? (
-        <div className="max-w-2xl mx-auto py-8">
+        <div className="md-practice">
           <AnimatePresence mode="wait">
             {!practiceFinished ? (
               <motion.div
                 key={`q-${currentQIndex}`}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
               >
                 {/* Хедер прогресса */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[var(--sf-ink)]">
+                <div className="md-ptop">
+                  <p className="md-pwhere">
+                    <b>
                       Вопрос {currentQIndex + 1} из {practiceQuestions.length}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      Верных ответов: {correctCount}
-                    </span>
-                  </div>
+                    </b>
+                    <span>Верных ответов: {correctCount}</span>
+                  </p>
                   <button
+                    type="button"
+                    className="sf-link md-stop"
+                    data-muted=""
                     onClick={async () => {
                       if (await confirm({ title: 'Прервать', message: 'Вы уверены, что хотите прервать работу над ошибками? Прогресс не сохранится.', type: 'warning' })) {
                         setIsPracticing(false);
                       }
                     }}
-                    className="text-xs text-slate-400 hover:text-slate-600 transition"
                   >
                     Прервать
                   </button>
                 </div>
+                <div className="md-progress" aria-hidden="true">
+                  <i style={{ width: `${((currentQIndex + (selectedOption ? 1 : 0)) / Math.max(1, practiceQuestions.length)) * 100}%` }} />
+                </div>
 
                 {/* Карточка вопроса */}
-                <div className="card p-4 md:p-8 space-y-4 md:space-y-6">
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 leading-relaxed">
-                    {practiceQuestions[currentQIndex]?.question}
-                  </h3>
+                <section className="md-card md-qcard">
+                  <h2 className="md-qtext">{practiceQuestions[currentQIndex]?.question}</h2>
 
                   {/* Опции */}
-                  <div className="space-y-3">
+                  <div className="md-opts">
                     {practiceQuestions[currentQIndex]?.options.map((opt: string) => {
                       const isSelected = selectedOption === opt;
                       const isCorrect = opt.startsWith(practiceQuestions[currentQIndex]?.correct);
                       const hasAnswered = selectedOption !== null;
-
-                      let btnStyle = 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200';
-                      if (hasAnswered) {
-                        if (isCorrect) {
-                          btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300';
-                        } else if (isSelected) {
-                          btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300';
-                        } else {
-                          btnStyle = 'border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 opacity-60';
-                        }
-                      }
+                      const state = !hasAnswered ? undefined : isCorrect ? 'right' : isSelected ? 'wrong' : 'faded';
 
                       return (
-                        <button
-                          key={opt}
-                          disabled={hasAnswered}
-                          onClick={() => checkAnswer(opt)}
-                          className={`w-full p-3 md:p-4 text-left text-sm font-semibold rounded-xl border-2 transition-all duration-200 ${btnStyle} flex justify-between items-center`}
-                        >
-                          <span>{opt}</span>
-                          {hasAnswered && isCorrect && (
-                            <span className="text-xs font-medium shrink-0">верный ответ</span>
-                          )}
-                          {hasAnswered && isSelected && !isCorrect && (
-                            <span className="text-xs font-medium shrink-0">ваш ответ</span>
-                          )}
+                        <button key={opt} type="button" disabled={hasAnswered} onClick={() => checkAnswer(opt)} className="md-opt" data-state={state}>
+                          <span className="md-opt-t">{opt}</span>
+                          {hasAnswered && isCorrect && <span className="md-opt-v">верный ответ</span>}
+                          {hasAnswered && isSelected && !isCorrect && <span className="md-opt-v">ваш ответ</span>}
                         </button>
                       );
                     })}
@@ -358,67 +349,52 @@ export default function MistakeDiary() {
 
                   {/* Объяснение */}
                   {showExplanation && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      style={{ overflow: 'hidden' }}
-                      className="p-4 bg-[var(--sf-surface-soft)] border border-[var(--sf-line)] rounded-xl space-y-1"
-                    >
-                      <h4 className="text-sm font-medium text-[var(--sf-ink)]">Пояснение</h4>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                        {practiceQuestions[currentQIndex]?.explanation}
-                      </p>
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ overflow: 'hidden' }}>
+                      <div className="md-expl">
+                        <h3 className="md-expl-h">Пояснение</h3>
+                        <p className="md-expl-t">{practiceQuestions[currentQIndex]?.explanation}</p>
+                      </div>
                     </motion.div>
                   )}
 
                   {/* Кнопка далее */}
-                      {selectedOption && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={nextQuestion}
-                      disabled={finishingPractice}
-                      className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-100"
-                    >
-                      {finishingPractice
-                        ? 'Сохраняем результат…'
-                        : currentQIndex + 1 < practiceQuestions.length ? 'Следующий вопрос' : 'Завершить практику'}
-                    </motion.button>
+                  {selectedOption && (
+                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="md-next">
+                      <button type="button" className="sf-primary" onClick={nextQuestion} disabled={finishingPractice}>
+                        {finishingPractice
+                          ? 'Сохраняем результат…'
+                          : currentQIndex + 1 < practiceQuestions.length ? 'Следующий вопрос' : 'Завершить практику'}
+                      </button>
+                    </motion.div>
                   )}
-                </div>
+                </section>
               </motion.div>
             ) : (
-              <motion.div
+              <motion.section
                 key="finished"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="card p-8 md:p-10 text-center space-y-6"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="md-card md-done"
               >
                 {/* Результат показываем только после сохранения */}
                 {practiceSaveError ? (
-                  <div role="alert" className="space-y-2">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Не удалось сохранить прогресс</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                      Изменения не сохранены. Ошибки остались открытыми, опыт не начислен.
-                    </p>
+                  <div role="alert">
+                    <h2 className="md-h2">Не удалось сохранить прогресс</h2>
+                    <p className="md-text">Изменения не сохранены. Ошибки остались открытыми, опыт не начислен.</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">Работа завершена</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                  <div>
+                    <h2 className="md-h2">Работа завершена</h2>
+                    <p className="md-text md-text-ink">
                       Правильных ответов: {finalCorrectCount} из {practiceQuestions.length}.
                     </p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                    <p className="md-text">
                       Исправлено ошибок: {practiceResolvedCount} из {practiceMistakeCount}. Остальные остаются открытыми.
                     </p>
-                    {practiceXpAwarded && (
-                      <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-full px-4 py-2 mt-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        Получено +50 XP
-                      </div>
-                    )}
+                    {practiceXpAwarded && <p className="md-pill" data-tone="green">Получено +50 XP</p>}
                     {practiceXpError && (
-                      <p role="status" className="text-sm text-amber-700 dark:text-amber-300">
+                      <p role="status" className="md-text md-warn">
                         Ошибки сохранены, но XP начислить не удалось.
                       </p>
                     )}
@@ -426,17 +402,20 @@ export default function MistakeDiary() {
                 )}
 
                 {/* Кнопка выхода */}
-                <button
-                  onClick={() => {
-                    setIsPracticing(false);
-                    setPracticeFinished(false);
-                    fetchMistakes();
-                  }}
-                  className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition"
-                >
-                  Вернуться в дневник
-                </button>
-              </motion.div>
+                <div className="md-done-acts">
+                  <button
+                    type="button"
+                    className="sf-primary"
+                    onClick={() => {
+                      setIsPracticing(false);
+                      setPracticeFinished(false);
+                      fetchMistakes();
+                    }}
+                  >
+                    Вернуться в дневник
+                  </button>
+                </div>
+              </motion.section>
             )}
           </AnimatePresence>
         </div>
@@ -444,124 +423,95 @@ export default function MistakeDiary() {
         /* ═══ ОБЫЧНЫЙ РЕЖИМ ДНЕВНИКА ═══════════════════════════════════════════ */
         <>
           {/* Заголовок */}
-          <header className="mb-6 border-b border-[var(--sf-line)] pb-4">
-            <h1 className="text-xl font-semibold text-[var(--sf-ink)]">Дневник ошибок</h1>
-            <p className="mt-1 text-sm text-[var(--sf-muted)]">
-              Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.
-            </p>
-            {!loading && !loadError && mistakes.length > 0 && (
-              <p className="mt-2 text-sm text-[var(--sf-ink)]">
-                Открыто: {openCount}. Исправлено: {resolvedCount}.
-              </p>
-            )}
+          <header className="sf-head md-head">
+            <div className="min-w-0">
+              <h1 className="sf-h1">Дневник ошибок</h1>
+              <p className="sf-lede">Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.</p>
+            </div>
           </header>
 
-          {/* Работа над ошибками */}
-          {openCount > 0 && (
-            <div className="mb-6">
-              <button
-                onClick={startPractice}
-                disabled={practiceLoading}
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[var(--sf-accent)] px-6 text-sm font-semibold text-white shadow-[0_2px_0_rgba(0,0,0,0.18)] transition hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none disabled:cursor-wait disabled:opacity-70 sm:w-auto"
-              >
-                {practiceLoading ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
-                    Готовим задания…
-                  </>
-                ) : (
-                  'Начать работу над ошибками'
-                )}
-              </button>
-              <p className="mt-2 text-sm text-[var(--sf-muted)]">
-                Задания по {Math.min(openCount, 5)} {Math.min(openCount, 5) === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует 2 единицы дневного лимита ИИ, если задания получились.
-              </p>
-              {practiceError && (
-                <p role="alert" className="mt-2 text-sm text-[var(--sf-ink)]">
-                  {practiceError}
-                </p>
+          {/* Сколько открыто и работа над ошибками */}
+          {(openCount > 0 || (!loading && !loadError && mistakes.length > 0)) && (
+            <section className="md-card md-summary" aria-label="Ошибки и работа над ними">
+              {!loading && !loadError && mistakes.length > 0 && (
+                <div className="md-figs">
+                  <p className="md-fig" data-tone="open">
+                    <span className="md-fig-l">Открыто</span> <span className="md-fig-n">{openCount}</span>
+                  </p>
+                  <p className="md-fig" data-tone="resolved">
+                    <span className="md-fig-l">Исправлено</span> <span className="md-fig-n">{resolvedCount}</span>
+                  </p>
+                </div>
               )}
-            </div>
+
+              {/* Работа над ошибками */}
+              {openCount > 0 && (
+                <div className="md-cta">
+                  <button type="button" onClick={startPractice} disabled={practiceLoading} className="sf-primary md-start" aria-busy={practiceLoading}>
+                    {practiceLoading ? 'Готовим задания…' : 'Начать работу над ошибками'}
+                  </button>
+                  <p className="md-note">
+                    Задания по {Math.min(openCount, 5)} {Math.min(openCount, 5) === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует 2 единицы дневного лимита ИИ, если задания получились.
+                  </p>
+                  {practiceError && (
+                    <p role="alert" className="md-alert">
+                      {practiceError}
+                    </p>
+                  )}
+                </div>
+              )}
+            </section>
           )}
 
           {/* Фильтры */}
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-4 h-4 text-[var(--sf-muted)]" aria-hidden="true" />
-            {(['all', 'open', 'resolved'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                aria-pressed={filter === f}
-                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-sm transition ${
-                  filter === f
-                    ? 'bg-[var(--sf-ink)] text-[var(--sf-canvas)]'
-                    : 'text-[var(--sf-muted)] hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]'
-                }`}
-              >
-                {f === 'all' && 'Все'}
-                {f === 'open' && 'Открытые'}
-                {f === 'resolved' && 'Исправленные'}
-              </button>
-            ))}
-            <button
-              onClick={fetchMistakes}
-              className="ml-auto inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--sf-muted)] hover:text-[var(--sf-ink)] transition"
-              title="Обновить"
-              aria-label="Обновить"
-            >
-              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+          <div className="md-bar">
+            <ul className="sf-tabs md-tabs" aria-label="Какие ошибки показать">
+              {FILTERS.map(({ key, label }) => (
+                <li key={key}>
+                  <button type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}>
+                    {label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={fetchMistakes} className="md-round" title="Обновить" aria-label="Обновить">
+              <RefreshCw aria-hidden="true" />
             </button>
           </div>
 
           {/* Список ошибок */}
           {loading ? (
-            <div className="flex items-center justify-center py-20" role="status" aria-label="Загружаем дневник ошибок">
-              <div className="w-8 h-8 border-2 border-[var(--sf-accent-fg)] border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
+            <div className="md-loading" role="status" aria-label="Загружаем дневник ошибок">
+              <p className="md-text">Загружаем…</p>
             </div>
           ) : loadError ? (
-            <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-6">
-              <p role="alert" className="text-sm text-[var(--sf-ink)]">Не удалось загрузить дневник ошибок.</p>
-              <button
-                onClick={fetchMistakes}
-                className="mt-2 min-h-[44px] text-sm font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline"
-              >
+            <div className="md-card md-state">
+              <p role="alert" className="md-text md-text-ink">
+                Не удалось загрузить дневник ошибок.
+              </p>
+              <button type="button" onClick={fetchMistakes} className="sf-secondary md-state-act">
                 Повторить
               </button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-10 text-center">
-              <h3 className="font-semibold text-[var(--sf-ink)] mb-1">
-                {filter === 'open' ? 'Открытых ошибок нет' : 'Пока пусто'}
-              </h3>
-              <p className="text-sm text-[var(--sf-muted)]">
-                {filter === 'open'
-                  ? 'Все ошибки отмечены как исправленные.'
-                  : 'Ошибки из тестов и ответов на билеты появятся здесь.'}
+            <div className="md-card md-state md-empty">
+              <h2 className="md-h3">{filter === 'open' ? 'Открытых ошибок нет' : 'Пока пусто'}</h2>
+              <p className="md-text">
+                {filter === 'open' ? 'Все ошибки отмечены как исправленные.' : 'Ошибки из тестов и ответов на билеты появятся здесь.'}
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
+            <ul className="md-list">
               {filtered.map(mistake => {
                 const expanded = expandedId === mistake.id;
                 const fromQuiz = mistake.origin === 'quiz';
                 return (
-                  <li key={mistake.id} className={mistake.is_resolved ? 'opacity-70' : ''}>
-                    <button
-                      type="button"
-                      aria-expanded={expanded}
-                      onClick={() => setExpandedId(expanded ? null : mistake.id)}
-                      className="flex w-full items-start gap-3 py-4 text-left"
-                    >
-                      <span className="mt-0.5 shrink-0" aria-hidden="true">
-                        {mistake.is_resolved
-                          ? <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          : <AlertCircle className="w-4 h-4 text-[var(--sf-muted)]" />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium leading-snug text-[var(--sf-ink)] line-clamp-2">
-                          {mistake.question}
-                        </span>
-                        <span className="mt-1 block text-xs text-[var(--sf-muted)]">
+                  <li key={mistake.id} className="md-item" data-open={expanded ? '' : undefined}>
+                    <button type="button" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : mistake.id)} className="md-row">
+                      <span className="md-dot" data-tone={mistake.is_resolved ? 'resolved' : 'open'} aria-hidden="true" />
+                      <span className="md-main">
+                        <span className="md-q">{mistake.question}</span>
+                        <span className="md-meta">
                           {mistakeOriginLabel(mistake.origin)}
                           {mistake.topic ? ` · ${mistake.topic}` : ''}
                           {' · '}
@@ -569,34 +519,30 @@ export default function MistakeDiary() {
                           {mistake.is_resolved ? ' · исправлена' : ''}
                         </span>
                       </span>
-                      <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--sf-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                      <span className="md-chev" aria-hidden="true">
+                        <ChevronDown />
+                      </span>
                     </button>
 
                     {expanded && (
-                      <div className="space-y-3 pb-4 pl-7">
-                        <div>
-                          <p className="text-xs text-[var(--sf-muted)]">Ваш ответ</p>
-                          <p className="text-sm leading-relaxed text-[var(--sf-ink)]">{mistake.student_answer || '(пусто)'}</p>
+                      <div className="md-detail">
+                        <div className="md-ans">
+                          <p className="md-ans-l">Ваш ответ</p>
+                          <p className="md-ans-t">{mistake.student_answer || '(пусто)'}</p>
                         </div>
-                        <div>
-                          <p className="text-xs text-[var(--sf-muted)]">{fromQuiz ? 'Правильный ответ' : 'Что нужно было сказать'}</p>
-                          <p className="text-sm leading-relaxed text-[var(--sf-ink)]">{mistake.correct_answer}</p>
+                        <div className="md-ans" data-right="">
+                          <p className="md-ans-l">{fromQuiz ? 'Правильный ответ' : 'Что нужно было сказать'}</p>
+                          <p className="md-ans-t">{mistake.correct_answer}</p>
                         </div>
-                        <div className="flex flex-wrap gap-2 pt-1">
+                        <div className="md-acts">
                           {!mistake.is_resolved && (
-                            <button
-                              onClick={() => markResolved(mistake.id)}
-                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[var(--sf-line)] bg-[var(--sf-surface)] px-3 text-sm font-medium text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)] transition"
-                            >
-                              <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                            <button type="button" onClick={() => markResolved(mistake.id)} className="sf-secondary md-act">
+                              <CheckCircle2 aria-hidden="true" />
                               Отметить как исправленную
                             </button>
                           )}
-                          <button
-                            onClick={() => deleteMistake(mistake.id)}
-                            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 text-sm text-[var(--sf-muted)] hover:text-rose-700 dark:hover:text-rose-300 transition"
-                          >
-                            <Trash2 className="w-4 h-4" aria-hidden="true" />
+                          <button type="button" onClick={() => deleteMistake(mistake.id)} className="md-del">
+                            <Trash2 aria-hidden="true" />
                             Удалить
                           </button>
                         </div>
@@ -610,5 +556,6 @@ export default function MistakeDiary() {
         </>
       )}
     </div>
+    </MotionConfig>
   );
 }
