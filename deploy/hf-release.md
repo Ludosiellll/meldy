@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Новый экзамен»: nothing pinned to the window (from 7ad65fe)
+
+Adds to 091bd4e (tree of 4efc0fc). The owner, with a screenshot of the pinned foot over the lecture checklist:
+«а блок который снизу он должен всегда быть привязан к экрану? Как-то неудобно». The form card now scrolls with the
+page and ends with «Разметить по лекциям» after «Билеты»; scrolling over the lecture list goes on to the page at its
+end. The phone's bottom bar stays. CSS only. Verified before release: Vitest of the exam pages and components,
+production build; in Chromium at 1536×730, 1366×768 and 1911×912 — the first lecture row is not covered, the wheel
+over the list reaches the button.
+
 ## 2026-10-04 — «Изменить экзамен» opened at the lectures shows their label (from c87a560)
 
 Adds to 1146f1c (tree of 6a43ce0). From the exam sheet («9 лекций», «Добавить материал к вопросу») the editor
