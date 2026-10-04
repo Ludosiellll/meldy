@@ -42,7 +42,7 @@ LIMIT_BODY_KEYS = {"detail", "code", "used", "limit", "resets_at", "pro", "units
 
 
 class QuotaServer:
-    """RPC дневного лимита в памяти, как функции миграции 20261004190000_ai_quota_server.
+    """RPC дневного лимита в памяти, как функции миграции 20261004205613_ai_quota_server.
 
     Запросы к таблицам уходят во вложенный обработчик (inner), если он есть.
     """

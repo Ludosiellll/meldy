@@ -6,7 +6,7 @@
 -- with the three own-row policies for role public and full DML for anon and authenticated, and a
 -- minimal public.profiles with is_pro (B is PRO). Today's rows of A are duplicated on purpose (the
 -- old client could insert twice) to prove the merge; A also has a row from yesterday.
--- Order: baseline.sql, this file, 20261004190000_ai_quota_server.sql (twice),
+-- Order: baseline.sql, this file, 20261004205613_ai_quota_server.sql (twice),
 -- ai_quota_behaviour.sql, then supabase/tests/ai_quota_server.sql (contract_ok must be true).
 create extension if not exists "uuid-ossp";
 

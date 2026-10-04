@@ -1,5 +1,5 @@
 -- pro_interest
--- Repo file: supabase/migrations/20261004191000_pro_interest.sql (the orchestrator applies it).
+-- Repo file: supabase/migrations/20261004204007_pro_interest.sql (the orchestrator applies it).
 -- «Сообщить, когда появится» in the PRO window (frontend/src/components/pro/ProWindow.tsx): a
 -- signed-in student leaves a note that they want PRO once payment exists. One row per account; the
 -- reason says where the window was opened from: 'pricing' (the «Тарифы» page), 'limit' (the daily
@@ -10,7 +10,7 @@
 -- the client (no UPDATE/DELETE grant and no such policy); anon gets nothing. The client may write
 -- only user_id and reason: created_at is always the server's time. service_role keeps Supabase's
 -- default privileges (server side, bypasses RLS) so a later server job can read the list.
--- Rollback: supabase/rollback/20261004191000_pro_interest_down.sql. Contract check after the
+-- Rollback: supabase/rollback/20261004204007_pro_interest_down.sql. Contract check after the
 -- apply: supabase/tests/pro_interest.sql. Local behaviour test: supabase/tests/local/pro_interest_behaviour.sql.
 
 create table if not exists public.pro_interest (

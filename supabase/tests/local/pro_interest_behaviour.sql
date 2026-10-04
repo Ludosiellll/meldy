@@ -1,5 +1,5 @@
 -- LOCAL ONLY; NEVER RUN AGAINST THE LIVE PROJECT. Behaviour test of *_pro_interest.sql on the local
--- baseline: supabase/tests/local/baseline.sql, then 20261004191000_pro_interest.sql (twice, to prove
+-- baseline: supabase/tests/local/baseline.sql, then 20261004204007_pro_interest.sql (twice, to prove
 -- it is re-runnable), then this file. Users A and B come from the baseline, C is added here. Runs as
 -- role authenticated with request.jwt.claim.sub switching between them, and finally as anon.
 -- Everything happens in one transaction that rolls back; a failure raises an exception, success
