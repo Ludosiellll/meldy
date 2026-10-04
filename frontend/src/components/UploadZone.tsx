@@ -6,6 +6,7 @@ import { hasBadWords } from '../utils/moderation';
 import { compressImage } from '../lib/imageCompression';
 import { charactersLabel, pastedTextFile, pastedTextProblem, pastedTextTitle } from '../utils/pastedText';
 import { isDemoText } from '../data/demo';
+import { PPTX_MIME, PPT_LEGACY_MESSAGE, isLegacyPpt } from '../lib/lectureFormats';
 import './UploadZone.css';
 
 export type UploadTab = 'file' | 'text' | 'url' | 'media';
@@ -50,12 +51,12 @@ const TABS: { id: UploadTab; label: string; icon: LucideIcon }[] = [
 const PANEL_TONE: Record<UploadTab, string> = { file: 'blue', text: 'sky', url: 'rose', media: 'warm' };
 
 const MAX_SIZE = 15 * 1024 * 1024;
-const DOC_ACCEPT = '.pdf,.docx,.txt,.md,.html,.htm,.jpg,.jpeg,.png';
+const DOC_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,.jpg,.jpeg,.png,${PPTX_MIME}`;
 const MEDIA_ACCEPT = '.mp4,.mp3,.wav,.mpeg,.m4a';
 /** Форматы на плашках — ровно то, что принимает поле выбора файла (HTM и JPEG — те же HTML и JPG). */
-const DOC_FORMATS = ['PDF', 'DOCX', 'HTML', 'TXT', 'MD', 'JPG', 'PNG'];
+const DOC_FORMATS = ['PDF', 'DOCX', 'PPTX', 'HTML', 'TXT', 'MD', 'JPG', 'PNG'];
 const MEDIA_FORMATS = ['MP4', 'MP3', 'WAV', 'MPEG', 'M4A'];
-const DOC_FORMATS_TEXT = 'PDF, DOCX, HTML, TXT, MD, JPG и PNG — до 15 МБ';
+const DOC_FORMATS_TEXT = 'PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — до 15 МБ';
 const MEDIA_FORMATS_TEXT = 'MP4, MP3, WAV, MPEG и M4A — до 15 МБ';
 
 function ArrowIcon() {
@@ -101,6 +102,12 @@ export default function UploadZone({
   const textProblem = pastedTextProblem(text);
 
   const validateAndSet = async (picked: File) => {
+    // Брошенный на панель файл обходит список форматов поля выбора: старый .ppt останавливаем сразу.
+    if (isLegacyPpt(picked.name)) {
+      setFileError(PPT_LEGACY_MESSAGE);
+      setFile(null);
+      return;
+    }
     let finalFile = picked;
     if (!picked.name.includes('.') && picked.size > 0 && picked.type.startsWith('image/')) {
       finalFile = new File([picked], `${picked.name}.jpg`, { type: picked.type });
@@ -378,6 +385,11 @@ export default function UploadZone({
                     }}
                   />
                 </div>
+              )}
+              {tab === 'file' && (
+                <p className="az-help az-scan-note">
+                  Сканы и фото страниц распознаёт <span className="az-nowrap">ИИ-сервис</span> Google Gemini.
+                </p>
               )}
               <input
                 ref={fileInputRef}

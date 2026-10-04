@@ -3,8 +3,10 @@
 Пути объявлены полностью (/api/exams/..., /api/extract); main.py подключает router без
 префикса. Сессию проверяет общий middleware (без неё — 401), лимиты считаются по
 пользователю (user_or_ip_key). Ошибки — {"detail": "<по-русски>"} без текста
-провайдеров и исключений. Модель здесь вызывает только разметка (/map); разбор и
-извлечение текста бесплатны и без ИИ.
+провайдеров и исключений. Разбор и извлечение текста бесплатны (единиц лимита не тратят)
+и обходятся без ИИ, кроме скана: PDF без текстового слоя распознаёт Gemini (ocr.py, свой
+лимит на пользователя и предел страниц), а ответ получает ocr: true и pages. Модель
+вызывает ещё разметка (/map).
 """
 
 from __future__ import annotations
@@ -20,9 +22,11 @@ from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import ocr
 from exams_map import MAX_QUESTION_IDS, MapError, prepare_mapping, release_unstarted, run_mapping
 from exams_parse import ParseError, parse_question_list
-from parser import extract_text
+from ocr import OcrError
+from parser import PPT_LEGACY_DETAIL, PPTX_NO_TEXT_DETAIL, extract_text
 from ratelimit import limiter, user_or_ip_key
 from sse import SSE_HEADERS, sse_event, with_keepalive
 from supabase_rest import SupabaseRest, bearer_token
@@ -31,7 +35,7 @@ from uploads import read_upload_with_limit
 router = APIRouter()
 
 LIST_EXTENSIONS = ("docx", "pdf", "txt", "md")
-LECTURE_EXTENSIONS = ("pdf", "docx", "txt", "md", "html", "htm")
+LECTURE_EXTENSIONS = ("pdf", "docx", "pptx", "txt", "md", "html", "htm")
 FORM_PART_LIMIT = 4 * 1024 * 1024  # длинный текст доходит до своей проверки (60 000 знаков)
 TITLE_GUESS_CHARS = 120
 SHORT_TEXT_CHARS = 300
@@ -41,7 +45,7 @@ BOTH_INPUTS_DETAIL = "Отправьте что-то одно: текст спи
 NO_INPUT_DETAIL = "Вставьте текст списка или выберите файл."
 NO_FILE_DETAIL = "Выберите файл с лекцией."
 LIST_FORMAT_DETAIL = "Этот формат не подходит. Загрузите DOCX, PDF, TXT или MD."
-LECTURE_FORMAT_DETAIL = "Этот формат не подходит. Загрузите PDF, DOCX, TXT, MD или HTML."
+LECTURE_FORMAT_DETAIL = "Этот формат не подходит. Загрузите PDF, DOCX, PPTX, TXT, MD или HTML."
 EMPTY_FILE_DETAIL = "Файл пустой. Выберите другой файл."
 NO_TEXT_DETAIL = "В файле не найден текст: похоже на скан."
 UNREADABLE_DETAIL = "Не удалось прочитать файл. Сохраните его заново или выберите другой."
@@ -68,6 +72,8 @@ _TITLE_SKIP_RE = re.compile(
     r"|(?:составител\w*|автор(?:ы|-составител\w*)?|разработчик\w*|преподавател\w*|лектор|доцент|профессор|ассистент)"
     r"(?:\s*[:,]|\s+[А-ЯЁ]\.|\s+кафедр\w*|\s*$)|ст\.\s*преп\w*"
     r"|(?:стр\.?|страница|с\.|page)\s*\d+|содержание$|оглавление$"
+    # Строки, которые ставит сам разбор файла: «Слайд 3» и «Заметки: …» презентации.
+    r"|слайд\s*№?\s*\d+\.?$|заметки\s*:"
     r")",
     re.IGNORECASE,
 )
@@ -124,10 +130,20 @@ def _extension(name: str) -> str:
     return name.rsplit(".", 1)[-1].lower() if "." in name else ""
 
 
-async def _read_text(upload: Any, allowed: tuple[str, ...], format_detail: str) -> tuple[str, str]:
-    """(текст, имя файла) или HTTPException: 415 формат, 413 размер, 422 нет текста."""
+async def _read_text(
+    upload: Any, allowed: tuple[str, ...], format_detail: str, rate_key: str | None = None
+) -> tuple[str, str, int | None]:
+    """(текст, имя файла, сколько страниц распознано со скана — или None) или HTTPException:
+    415 формат, 413 размер или скан длиннее предела страниц, 422 нет текста, 429 лимит
+    распознавания или сервис занят, 502/504 распознавание не удалось.
+
+    PDF с пустым или крошечным текстовым слоем распознаётся (ocr.py), если есть ключ Gemini;
+    rate_key — ключ лимита распознавания (user_or_ip_key).
+    """
     name = _file_name(upload)
     extension = _extension(name)
+    if extension == "ppt" and "pptx" in allowed:
+        raise HTTPException(status_code=415, detail=PPT_LEGACY_DETAIL)
     if extension not in allowed:
         raise HTTPException(status_code=415, detail=format_detail)
     contents = await read_upload_with_limit(upload)
@@ -138,11 +154,19 @@ async def _read_text(upload: Any, allowed: tuple[str, ...], format_detail: str) 
     except Exception as exc:  # повреждённый файл: текст исключения пользователю не показываем
         print(f"Exams text extraction failed: {type(exc).__name__}")
         raise HTTPException(status_code=422, detail=UNREADABLE_DETAIL) from None
-    if not isinstance(text, str) or not text.strip():
-        raise HTTPException(status_code=422, detail=NO_TEXT_DETAIL)
+    if not isinstance(text, str):
+        text = ""
+    try:
+        scanned = await asyncio.to_thread(ocr.scan_pages, contents, f"upload.{extension}", text)
+        if scanned is not None:
+            text = await ocr.recognize_scan(contents, scanned, rate_key=rate_key)
+    except OcrError as exc:
+        raise exc.http_exception() from None
+    if not text.strip():
+        raise HTTPException(status_code=422, detail=PPTX_NO_TEXT_DETAIL if extension == "pptx" else NO_TEXT_DETAIL)
     # Одиночный суррогат (битый текстовый слой PDF) не кодируется в UTF-8: ни JSON, ни база его не примут.
     text = text.encode("utf-8", errors="replace").decode("utf-8")
-    return text, name
+    return text, name, scanned
 
 
 def _file_stem(file_name: str) -> str:
@@ -160,9 +184,11 @@ def _meaningful_stem(stem: str) -> bool:
 
 
 def _is_title_service_line(line: str) -> bool:
-    """Шапка учебного заведения, гриф, автор, город и год — не название лекции."""
+    """Шапка учебного заведения, гриф, автор, город и год — не название лекции. Отметки страниц
+    распознанного скана («[Стр. 1–15]») — тоже."""
     return bool(
-        _TITLE_SKIP_RE.match(line)
+        ocr.MARKER_LINE_RE.match(line)
+        or _TITLE_SKIP_RE.match(line)
         or _TITLE_SKIP_ANYWHERE_RE.search(line)
         or _TITLE_DATE_RE.match(line)
         or _PERSON_RE.match(line)
@@ -248,16 +274,22 @@ async def parse_exam_questions(request: Request):
         raise HTTPException(status_code=400, detail=BOTH_INPUTS_DETAIL)
     if not has_text and not has_file:
         raise HTTPException(status_code=400, detail=NO_INPUT_DETAIL)
+    scanned = None
     if has_file:
-        text, _ = await _read_text(upload, LIST_EXTENSIONS, LIST_FORMAT_DETAIL)
+        text, _, scanned = await _read_text(upload, LIST_EXTENSIONS, LIST_FORMAT_DETAIL, user_or_ip_key(request))
     else:
         text = text_value
     try:
         # Разбор — чистый CPU (до 60 000 знаков): в потоке-исполнителе он не держит цикл
         # событий, и чужие потоки разметки и анализа не замирают.
-        return await asyncio.to_thread(parse_question_list, text)
+        result = await asyncio.to_thread(parse_question_list, text)
     except ParseError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from None
+    if scanned is not None:
+        # Строка о распознавании встаёт к остальным предупреждениям предпросмотра.
+        warnings = [*result.get("warnings", []), {"code": "ocr", "message": ocr.OCR_NOTICE}]
+        result = {**result, "warnings": warnings, "ocr": True, "pages": scanned}
+    return result
 
 
 # ── POST /api/extract ───────────────────────────────────────────────────────────
@@ -266,16 +298,22 @@ async def parse_exam_questions(request: Request):
 @router.post("/api/extract")
 @limiter.limit("10/minute", key_func=user_or_ip_key)
 async def extract_lecture_text(request: Request):
-    """Текст лекции без ИИ и без энергии (режим «только текст»)."""
+    """Текст лекции без единиц лимита (режим «только текст»): без ИИ, кроме распознавания скана.
+
+    Распознанный скан: ocr: true и pages в ответе.
+    """
     form = await _read_form(request)
     upload = form.get("file")
     if not _is_upload(upload):
         raise HTTPException(status_code=400, detail=NO_FILE_DETAIL)
-    text, name = await _read_text(upload, LECTURE_EXTENSIONS, LECTURE_FORMAT_DETAIL)
+    text, name, scanned = await _read_text(upload, LECTURE_EXTENSIONS, LECTURE_FORMAT_DETAIL, user_or_ip_key(request))
     warnings: list[str] = []
-    if len(text.strip()) < SHORT_TEXT_CHARS:
+    if scanned is None and len(text.strip()) < SHORT_TEXT_CHARS:
         warnings.append(SHORT_TEXT_WARNING)
-    return {"text": text, "length": len(text), "title_guess": title_guess(text, name), "warnings": warnings}
+    body: dict[str, Any] = {"text": text, "length": len(text), "title_guess": title_guess(text, name), "warnings": warnings}
+    if scanned is not None:
+        body.update(ocr=True, pages=scanned)
+    return body
 
 
 # ── POST /api/exams/{exam_id}/map ───────────────────────────────────────────────

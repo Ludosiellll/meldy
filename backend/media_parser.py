@@ -8,8 +8,13 @@ from google import genai
 from google.genai import types
 import random
 
-from agents.base import AIError, classify_error
+from agents.base import AIError, classify_error, gemini_keys, gemini_models_env
+from ocr import OCR_INLINE_MAX_BYTES, OCR_PROMPT, recognize_image
 
+MEDIA_TRANSCRIPTION_PROMPT = (
+    "Сделай максимально полную и точную текстовую расшифровку всего, что сказано в этом аудио/видео. "
+    "Передай речь дословно на языке оригинала."
+)
 
 MEDIA_PROCESSING_TIMEOUT_MESSAGE = "Расшифровка заняла слишком много времени. Попробуйте файл короче."
 
@@ -49,8 +54,7 @@ async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None) -> 
     return str(getattr(response, "text", "") or "").strip()
 
 def get_gemini_keys():
-    raw_keys = os.getenv("GEMINI_API_KEY", "")
-    keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+    keys = gemini_keys()
     if not keys:
         raise ValueError("GEMINI_API_KEY не настроен для расшифровки аудио.")
     return keys
@@ -143,6 +147,18 @@ async def _download_and_transcribe_youtube(youtube_url: str) -> str:
             os.remove(temp_path)
 
 async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
+    """Text of an audio, video or image file.
+
+    Audio: Groq Whisper first, then Gemini. An image (a photo of a page) up to
+    OCR_INLINE_MAX_BYTES goes to Gemini inline with the OCR prompt of ocr.py (no Files API);
+    a bigger one and audio/video go through the Files API. Models: GEMINI_MODELS.
+    """
+    is_image = bool(mime_type and mime_type.startswith("image/"))
+    if is_image and os.path.getsize(file_path) <= OCR_INLINE_MAX_BYTES:
+        with open(file_path, "rb") as image_file:
+            data = image_file.read()
+        return await recognize_image(data, mime_type)
+
     if mime_type and mime_type.startswith("audio/"):
         try:
             groq_text = await _transcribe_audio_with_groq(file_path, mime_type)
@@ -154,17 +170,14 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
     keys = get_gemini_keys()
     shuffled_keys = list(keys)
     random.shuffle(shuffled_keys)
-    
+
     loop = asyncio.get_running_loop()
     last_error = None
     rate_limited = False
-    
-    gemini_models = [
-        model.strip() for model in os.getenv(
-            "GEMINI_MODELS", "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash"
-        ).split(",") if model.strip()
-    ]
-    
+
+    gemini_models = gemini_models_env()
+    prompt = OCR_PROMPT if is_image else MEDIA_TRANSCRIPTION_PROMPT
+
     for key in shuffled_keys:
         try:
             client = genai.Client(api_key=key)
@@ -194,12 +207,6 @@ async def transcribe_media_file(file_path: str, mime_type: str = None) -> str:
                 response = None
                 for model_name in gemini_models:
                     try:
-                        is_image = mime_type and mime_type.startswith('image/')
-                        if is_image:
-                            prompt = "Внимательно изучи это изображение. Это фотография конспекта, школьной доски или страницы учебника. Извлеки АБСОЛЮТНО ВЕСЬ текст, который ты видишь. Сохрани структуру: заголовки, списки, абзацы. Если видишь математические формулы, запиши их в формате LaTeX (KaTeX). Если часть текста неразборчива, напиши [неразборчиво], но постарайся восстановить по контексту. Твоя единственная цель - сделать идеальный текстовый слепок изображения без лишних комментариев."
-                        else:
-                            prompt = "Сделай максимально полную и точную текстовую расшифровку всего, что сказано в этом аудио/видео. Передай речь дословно на языке оригинала."
-                        
                         response = await client.aio.models.generate_content(
                             model=model_name,
                             contents=[myfile, prompt],

@@ -315,6 +315,8 @@
 }
 .az-url-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
 .az-help { margin: 14px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+/* Under the file panel: who recognises scans and photos. */
+.az-scan-note { padding: 0 6px; text-wrap: pretty; }
 .az-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .az-examples-l { margin-right: 2px; font-size: 15px; color: var(--sf-muted); }
 .az-chip {

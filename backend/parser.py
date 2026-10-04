@@ -3,6 +3,16 @@ import re
 from dataclasses import dataclass, replace
 from typing import Optional
 
+PPT_LEGACY_DETAIL = "Старый формат PowerPoint (.ppt) не читается. Сохраните презентацию как PPTX или PDF и загрузите снова."
+PPTX_NO_TEXT_DETAIL = (
+    "В презентации нет текста: похоже, слайды сделаны картинками. "
+    "Сохраните её как PDF — такой файл Meldy распознает как скан."
+)
+
+
+class UnsupportedFormat(ValueError):
+    """A format the app knows but cannot read. The message is shown to the user as is."""
+
 
 def extract_text(contents: bytes, filename: str) -> str:
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else "txt"
@@ -11,12 +21,26 @@ def extract_text(contents: bytes, filename: str) -> str:
         return _extract_pdf(contents)
     elif ext == "docx":
         return _extract_docx(contents)
+    elif ext == "pptx":
+        return _extract_pptx(contents)
+    elif ext == "ppt":
+        raise UnsupportedFormat(PPT_LEGACY_DETAIL)
     elif ext in ("html", "htm"):
         return _extract_html(contents)
     elif ext in ("txt", "md"):
         return _extract_text(contents)
     else:
         return _extract_text(contents)
+
+
+def pdf_page_count(contents: bytes) -> Optional[int]:
+    """Pages of a PDF, or None when PyPDF2 cannot read it."""
+    try:
+        from PyPDF2 import PdfReader
+
+        return len(PdfReader(io.BytesIO(contents)).pages)
+    except Exception:
+        return None
 
 
 def _extract_pdf(contents: bytes) -> str:
@@ -419,6 +443,174 @@ def _collect_runs(element, parts: list[str]) -> None:
             parts.append("-")
         else:
             _collect_runs(child, parts)
+
+
+# ── PPTX ─────────────────────────────────────────────────────────────────────────
+
+# Фигуры, у которых верх отличается меньше чем на 1/8 дюйма, стоят в одном ряду и читаются слева
+# направо: при ручной расстановке колонки редко выровнены точно.
+_PPTX_ROW_TOLERANCE_EMU = 114300
+_DGM_NS = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
+_A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+
+def _extract_pptx(contents: bytes) -> str:
+    """Текст презентации по слайдам.
+
+    У каждого слайда с текстом — строка «Слайд N» (N — номер в презентации), затем заголовок,
+    затем надписи в порядке чтения: сверху вниз, в одном ряду слева направо. Группы фигур
+    раскрываются, таблица — строками «a | b | c», схемы SmartArt — их пункты, у диаграммы —
+    её название. Заметки докладчика — «Заметки: …» в конце слайда. Слайды без текста и без
+    заметок пропускаются; колонтитулы, дата и номер слайда в текст не входят.
+    """
+    try:
+        from pptx import Presentation
+
+        presentation = Presentation(io.BytesIO(contents))
+        blocks: list[str] = []
+        for number, slide in enumerate(presentation.slides, start=1):
+            lines = _pptx_slide_lines(slide)
+            notes = _pptx_notes(slide)
+            if notes:
+                lines.append("Заметки: " + "\n".join(notes))
+            if lines:
+                blocks.append("\n".join([f"Слайд {number}", *lines]))
+        return clean_extracted_text("\n\n".join(blocks))
+    except Exception as e:
+        raise ValueError(f"Ошибка чтения PPTX: {e}")
+
+
+def _pptx_slide_lines(slide) -> list[str]:
+    title = slide.shapes.title
+    lines: list[str] = []
+    if title is not None and title.has_text_frame:
+        # Заголовок — одной строкой, даже если в нём перенос.
+        heading = " ".join(_pptx_frame_lines(title.text_frame))
+        if heading:
+            lines.append(heading)
+    others = [shape for shape in slide.shapes if title is None or shape.element is not title.element]
+    for shape in _pptx_reading_order(others):
+        lines.extend(_pptx_shape_lines(shape))
+    return lines
+
+
+def _pptx_position(shape) -> tuple[int, int]:
+    try:
+        top, left = shape.top, shape.left
+    except Exception:
+        return 0, 0
+    return int(top or 0), int(left or 0)
+
+
+def _pptx_reading_order(shapes) -> list:
+    rows: list[tuple[int, list]] = []
+    for shape in sorted(shapes, key=_pptx_position):
+        top = _pptx_position(shape)[0]
+        if rows and top - rows[-1][0] <= _PPTX_ROW_TOLERANCE_EMU:
+            rows[-1][1].append(shape)
+        else:
+            rows.append((top, [shape]))
+    return [shape for _, row in rows for shape in sorted(row, key=lambda item: _pptx_position(item)[1])]
+
+
+def _pptx_is_service_placeholder(shape) -> bool:
+    """Колонтитул, дата и номер слайда: служебные поля, не текст лекции."""
+    try:
+        if not shape.is_placeholder:
+            return False
+        from pptx.enum.shapes import PP_PLACEHOLDER
+
+        return shape.placeholder_format.type in (PP_PLACEHOLDER.FOOTER, PP_PLACEHOLDER.DATE, PP_PLACEHOLDER.SLIDE_NUMBER)
+    except Exception:
+        return False
+
+
+def _pptx_shape_lines(shape) -> list[str]:
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    if _pptx_is_service_placeholder(shape):
+        return []
+    if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+        lines: list[str] = []
+        for child in _pptx_reading_order(list(shape.shapes)):
+            lines.extend(_pptx_shape_lines(child))
+        return lines
+    if getattr(shape, "has_table", False):
+        return _pptx_table_rows(shape.table)
+    if getattr(shape, "has_text_frame", False):
+        return _pptx_frame_lines(shape.text_frame)
+    if getattr(shape, "has_chart", False):
+        return _pptx_chart_title(shape.chart)
+    return _pptx_smartart_lines(shape)
+
+
+def _pptx_frame_lines(frame) -> list[str]:
+    lines: list[str] = []
+    for paragraph in frame.paragraphs:
+        # python-pptx передаёт перенос строки внутри абзаца (a:br) символом \v.
+        for line in paragraph.text.replace("\v", "\n").split("\n"):
+            text = " ".join(line.split())
+            if text:
+                lines.append(text)
+    return lines
+
+
+def _pptx_table_rows(table) -> list[str]:
+    rows: list[str] = []
+    for row in table.rows:
+        cells: list[str] = []
+        for cell in row.cells:
+            if getattr(cell, "is_spanned", False):
+                continue  # ячейка под объединением: её текст уже у первой ячейки
+            text = " ".join(cell.text.replace("\v", " ").split())
+            if text:
+                cells.append(text)
+        if cells:
+            rows.append(" | ".join(cells))
+    return rows
+
+
+def _pptx_chart_title(chart) -> list[str]:
+    try:
+        if chart.has_title and chart.chart_title.has_text_frame:
+            return _pptx_frame_lines(chart.chart_title.text_frame)
+    except Exception:
+        pass
+    return []
+
+
+def _pptx_smartart_lines(shape) -> list[str]:
+    """Пункты схемы SmartArt: их текст лежит в отдельной части файла (данные схемы)."""
+    try:
+        rel_ids = shape.element.find(f".//{{{_DGM_NS}}}relIds")
+        if rel_ids is None:
+            return []
+        data_part = shape.part.related_part(rel_ids.get(f"{{{_R_NS}}}dm"))
+        from lxml import etree
+
+        root = etree.fromstring(data_part.blob)
+    except Exception:
+        return []
+    lines: list[str] = []
+    for point in root.iter(f"{{{_DGM_NS}}}pt"):
+        if point.get("type") not in (None, "node"):
+            continue  # служебные точки схемы: связи, оформление
+        body = point.find(f"{{{_DGM_NS}}}t")
+        if body is None:
+            continue
+        for paragraph in body.iter(f"{{{_A_NS}}}p"):
+            text = " ".join("".join(node.text or "" for node in paragraph.iter(f"{{{_A_NS}}}t")).split())
+            if text:
+                lines.append(text)
+    return lines
+
+
+def _pptx_notes(slide) -> list[str]:
+    if not slide.has_notes_slide:  # обращение к notes_slide создало бы пустые заметки
+        return []
+    frame = slide.notes_slide.notes_text_frame
+    return _pptx_frame_lines(frame) if frame is not None else []
 
 
 def _extract_text(contents: bytes) -> str:

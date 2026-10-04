@@ -34,7 +34,9 @@ from ratelimit import limiter, rate_limit_exceeded_handler, user_or_ip_key
 from sse import SSE_HEADERS, sse_event, with_keepalive
 from uploads import AI_UNAVAILABLE_DETAIL, ai_configured, max_upload_bytes, read_upload_with_limit
 
-from parser import extract_text
+from parser import PPT_LEGACY_DETAIL, PPTX_NO_TEXT_DETAIL, extract_text
+import ocr
+from ocr import OcrError
 from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from agents.coordinator import CORE_SECTIONS, CoordinatorAgent
@@ -308,7 +310,14 @@ NO_TEXT_IN_MEDIA_MESSAGE = "Не удалось получить текст из
 NO_TEXT_AT_URL_MESSAGE = "Не удалось получить текст из веб-страницы. Проверьте ссылку или вставьте текст."
 MEDIA_TIMEOUT_MESSAGE = "Расшифровка заняла слишком много времени. Попробуйте файл короче."
 MEDIA_BUSY_MESSAGE = "Сервис ИИ сейчас занят. Материал не сохранён, лимит не списан. Попробуйте через минуту."
-DOCUMENT_EXTENSIONS = (".pdf", ".txt", ".docx", ".md", ".html", ".htm")
+# Распознавание скана или фото (ocr.py) в потоке анализа: ошибки сервиса распознавания.
+OCR_BUSY_MESSAGE = "Сервис распознавания сейчас занят. Материал не сохранён, лимит не списан. Попробуйте через минуту."
+OCR_TIMEOUT_MESSAGE = (
+    "Распознавание текста заняло слишком много времени. Материал не сохранён, лимит не списан. Попробуйте файл поменьше."
+)
+OCR_FAILED_MESSAGE = "Не удалось распознать текст. Материал не сохранён, лимит не списан. Попробуйте ещё раз."
+OCR_UNAVAILABLE_MESSAGE = "Распознавание текста сейчас недоступно. Материал не сохранён, лимит не списан. Загрузите файл с текстом."
+DOCUMENT_EXTENSIONS = (".pdf", ".txt", ".docx", ".pptx", ".md", ".html", ".htm")
 MEDIA_EXTENSIONS = (".mp4", ".mp3", ".wav", ".mpeg", ".m4a", ".jpg", ".jpeg", ".png")
 
 
@@ -342,9 +351,26 @@ def _internal_error_event(error_id: str) -> dict:
     return {"type": "error", "code": "internal", "message": ANALYSIS_INTERNAL_MESSAGE.format(error_id=error_id)}
 
 
-async def _analysis_events(text: str, settings: dict, enabled_agents: Optional[str]) -> AsyncGenerator[dict, None]:
-    """text_extracted, the coordinator events, and done only after results."""
-    yield {"type": "text_extracted", "length": len(text), "text": text}
+def _ocr_failure_event(exc: Exception) -> dict:
+    """The stream's error event for a scan or photo that could not be recognised (never provider text)."""
+    if isinstance(exc, OcrError):
+        return {"type": "error", "code": exc.code, "message": exc.detail}
+    status = getattr(exc, "status_code", None)
+    if status == 429:
+        return {"type": "error", "code": "busy", "message": OCR_BUSY_MESSAGE}
+    if status == 504:
+        return {"type": "error", "code": "timeout", "message": OCR_TIMEOUT_MESSAGE}
+    if status == 503:
+        return {"type": "error", "code": "no_text", "message": OCR_UNAVAILABLE_MESSAGE}
+    return {"type": "error", "code": "failed", "message": OCR_FAILED_MESSAGE}
+
+
+async def _analysis_events(
+    text: str, settings: dict, enabled_agents: Optional[str], extracted: Optional[dict] = None
+) -> AsyncGenerator[dict, None]:
+    """text_extracted (with ocr/pages when the text was recognised), the coordinator events,
+    and done only after results."""
+    yield {"type": "text_extracted", "length": len(text), "text": text, **(extracted or {})}
     coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
     terminal = None
     async for event in coordinator.process(text, enabled_agents=_parse_enabled_agents(enabled_agents), **settings):
@@ -404,20 +430,42 @@ async def event_stream(
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
     enabled_agents: Optional[str] = None,
+    ocr_key: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
-    """SSE stream of agent progress for an uploaded document (already read by the route)."""
+    """SSE stream of agent progress for an uploaded document (already read by the route).
+
+    A PDF whose text layer is empty or tiny is recognised first (ocr.py, a status event
+    before it); text_extracted then carries ocr: true and pages. ``ocr_key`` is the
+    rate-limit key of the user (user_or_ip_key).
+    """
     async def events():
+        name = filename or "file.txt"
         try:
-            text = await asyncio.to_thread(extract_text, contents, filename or "file.txt")
+            text = await asyncio.to_thread(extract_text, contents, name)
         except Exception as exc:
             print(f"Text extraction failed for {os.path.splitext(filename or '')[1]}: {type(exc).__name__}: {exc}")
             yield {"type": "error", "code": "no_text", "message": UNREADABLE_FILE_MESSAGE}
             return
+        extracted: dict = {}
+        try:
+            scan = await asyncio.to_thread(ocr.scan_pages, contents, name, text or "")
+        except OcrError as exc:
+            yield _ocr_failure_event(exc)
+            return
+        if scan is not None:
+            yield {"type": "status", "message": ocr.OCR_STATUS_MESSAGE}
+            try:
+                text = await ocr.recognize_scan(contents, scan, rate_key=ocr_key)
+            except (OcrError, AIError) as exc:
+                yield _ocr_failure_event(exc)
+                return
+            extracted = {"ocr": True, "pages": scan}
         if not text or not text.strip():
-            yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_FILE_MESSAGE}
+            message = PPTX_NO_TEXT_DETAIL if name.lower().endswith(".pptx") else NO_TEXT_IN_FILE_MESSAGE
+            yield {"type": "error", "code": "no_text", "message": message}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted):
             yield event
 
     async for chunk in _guarded(events(), "Analysis"):
@@ -437,6 +485,8 @@ async def analyze(
     enabled_agents: Optional[str] = Form(None),
 ):
     ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext == ".ppt":
+        raise HTTPException(status_code=400, detail=PPT_LEGACY_DETAIL)
     if ext not in DOCUMENT_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -450,6 +500,7 @@ async def analyze(
         with_keepalive(event_stream(
             contents, file.filename or "file.txt",
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
+            ocr_key=user_or_ip_key(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -473,37 +524,58 @@ async def event_stream_media(
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
     enabled_agents: Optional[str] = None,
+    ocr_key: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
-    """SSE stream for an audio, video or image file (already read by the route)."""
+    """SSE stream for an audio, video or image file (already read by the route).
+
+    A photo of a page (JPG/PNG) is recognised by ocr.py with its bytes in the request (no temp
+    file, no Files API, the OCR rate limit of ``ocr_key``); text_extracted then carries
+    ocr: true and pages: 1.
+    """
     async def events():
         yield {"type": "status", "message": "Распознаём текст файла. Это может занять несколько минут."}
-        tmp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename or "")[1].lower()) as tmp:
-                tmp_path = tmp.name
-                tmp.write(content)
+        photo = ocr.image_mime(filename, content_type, content)
+        extracted: dict = {"ocr": True, "pages": 1} if photo else {}
+        if photo and len(content) <= ocr.OCR_INLINE_MAX_BYTES:
             try:
-                text = await asyncio.wait_for(
-                    transcribe_media_file(tmp_path, content_type),
-                    timeout=media_transcribe_timeout_seconds(),
-                )
-            except (asyncio.TimeoutError, MediaProcessingTimeout):
-                yield {"type": "error", "code": "timeout", "message": MEDIA_TIMEOUT_MESSAGE}
+                text = await ocr.recognize_photo(content, photo, rate_key=ocr_key)
+            except (OcrError, AIError) as exc:
+                yield _ocr_failure_event(exc)
                 return
-            except AIError as exc:
-                if exc.status_code != 429:
-                    raise
-                yield {"type": "error", "code": "busy", "message": MEDIA_BUSY_MESSAGE}
-                return
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        else:
+            if photo:  # only with MAX_UPLOAD_BYTES above 15 MB: the Files API, same prompt and limit
+                try:
+                    ocr.check_ocr_rate(ocr_key)
+                except OcrError as exc:
+                    yield _ocr_failure_event(exc)
+                    return
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename or "")[1].lower()) as tmp:
+                    tmp_path = tmp.name
+                    tmp.write(content)
+                try:
+                    text = await asyncio.wait_for(
+                        transcribe_media_file(tmp_path, photo or content_type),
+                        timeout=media_transcribe_timeout_seconds(),
+                    )
+                except (asyncio.TimeoutError, MediaProcessingTimeout):
+                    yield {"type": "error", "code": "timeout", "message": MEDIA_TIMEOUT_MESSAGE}
+                    return
+                except AIError as exc:
+                    if exc.status_code != 429:
+                        raise
+                    yield {"type": "error", "code": "busy", "message": MEDIA_BUSY_MESSAGE}
+                    return
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_MEDIA_MESSAGE}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted):
             yield event
 
     async for chunk in _guarded(events(), "Media analysis"):
@@ -540,6 +612,7 @@ async def analyze_media(
         with_keepalive(event_stream_media(
             content, file.filename or "", file.content_type,
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
+            ocr_key=user_or_ip_key(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
