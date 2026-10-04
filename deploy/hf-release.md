@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — the landing reel without the stutter; sign-up reel labels (from c608015)
+
+Adds to 7946413 (tree of 5a79743). Two remarks of the owner:
+
+- «на главном экране там где основное видео, в момент перехода со 2 на 3-ю секунду видеоролика … подлагивает».
+  Measured frame by frame in Chromium with traces. The burst scene redrew all its cards every frame (a blur that
+  followed each card's speed, a scale that never stopped changing), the «≡» file mark fetched one more font file
+  as the scene mounted and laid it out again mid-motion, the flash and the intro's rushing stack were repainted
+  every frame, and the scene's mount fell on the intro's push-in. Now: cards, flash, camera and title are their own
+  layers drawn once, the mark is an SVG, the scene mounts with the intro. Raster per frame in the scene 20–47 ms →
+  0.5–7 ms, render passes 12–19 → 2–5; at 4× CPU throttling eleven long tasks in 2.6–3.6 s became one of 50 ms.
+  The look is the same, except that the flying cards are no longer smeared by speed (the drain at the end still is).
+- «на странице регистрации в видеоролике … вылазит текст в самом ролике "эластичность"». The week's blocks are
+  152 px wide; a topic is now one short word and the count of cards goes on its own line.
+
+No migration, no backend change. Verified before release: tsc -b, Vitest 1509/1509, production build; a sweep of
+every reel and guide clip every 100 ms for text outside its plate (red on «Эластичность» before, green now); frames
+of the burst before and after.
+
 ## 2026-10-04 — the guide: a clip detail (from 0e07701)
 
 Adds to f234023 (tree of 97aa909). In the guide's «Сегодня» clip the drawn ticket «Билет 12 · вопросы 2 и 31» rose
