@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — sign-in and sign-up fit the screen and stay alive (from e538623)
+
+Adds to 0c13253 (tree of 972453b). The owner, on /login and /register at ~1534×732: «не все помещается, да и
+анимаций нет никаких постоянных во время нахождения на этой странице, регистрация тем более».
+
+- Fit: spacing follows the screen height; «Забыли пароль?» sits on the password label row; the password and its
+  repeat stand side by side; the panel follows the card. The whole form fits at 1534×732, 1440×800, 1366×657,
+  1280×720, 1024×768 (before: 931 px of sign-in and 1043 px of sign-up on a 732 px screen).
+- Motion: the sign-in panel loops three scenes (a lecture uploads; a marker underlines the main line and a note with
+  «фрагмент 3» slides out; a card flips and gets «Помню») with the matching step lit; the sign-up panel ticks the
+  four parts of the plan up to «План готов». The halftone of every sign-in panel drifts slowly. Reduced motion keeps
+  everything still.
+
+No migration, no backend change.
+
+Verified before release: tsc -b, Vitest 1496/1496, production build; screenshots of sign-in, sign-up and password
+reset at several sizes in both themes (no overflow, no console errors, contrast ≥ 4.5:1); frames over a cycle.
+
 ## 2026-10-04 — blocks centred everywhere, the start page always fresh (from 790bc66)
 
 Adds to 3059a5c (tree of 4bdfffa). Two answers to the owner:
