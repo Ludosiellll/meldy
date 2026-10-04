@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import type { PickerMaterial } from '../../api/exams';
-import MaterialPicker, { groupBySubject, matchesQuery } from './MaterialPicker';
+import MaterialPicker, { groupBySubject, matchesQuery, type ImportStatus } from './MaterialPicker';
 
 function material(id: string, title: string, subject: string, overrides: Partial<PickerMaterial> = {}): PickerMaterial {
   return { id, title, subject, created_at: '2026-10-01T10:00:00Z', textLength: 4000, fragments: 12, textOnly: false, ...overrides };
@@ -186,5 +186,52 @@ describe('MaterialPicker helpers', () => {
       ['История', 3],
       ['Без предмета', 1],
     ]);
+  });
+});
+
+describe('MaterialPicker: «Добавить лекции»', () => {
+  const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+  function renderImports(imports: ImportStatus[] = []) {
+    const onImport = vi.fn();
+    render(
+      <MaterialPicker
+        materials={SHORT}
+        selected={new Set()}
+        onToggle={() => {}}
+        onSetMany={() => {}}
+        onImport={onImport}
+        imports={imports}
+        loading={false}
+        error={null}
+        onRetry={() => {}}
+      />,
+    );
+    return onImport;
+  }
+
+  it('takes PPTX too and says in one line what it costs and who recognises scans', () => {
+    const onImport = renderImports();
+    const input = screen.getByLabelText('Файлы лекций');
+    expect((input.getAttribute('accept') ?? '').split(',')).toEqual(
+      expect.arrayContaining(['.pdf', '.docx', '.pptx', '.txt', '.md', PPTX]),
+    );
+    const line = document.querySelector('.nx-import-line')?.textContent ?? '';
+    expect(line).toBe(
+      'Добавить лекции — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт ИИ-сервис Google Gemini.',
+    );
+    expect(document.querySelector('.nx-import-line .ex-nb')?.textContent).toBe('ИИ-сервис');
+    const deck = new File(['PK'], 'Лекция 4.pptx', { type: PPTX });
+    fireEvent.change(input, { target: { files: [deck] } });
+    expect(onImport).toHaveBeenCalledWith([deck]);
+  });
+
+  it('asks to check formulas and numbers after a scan was recognised, and only then', () => {
+    renderImports([
+      { key: 'a', name: 'scan.pdf', state: 'done', ocr: true },
+      { key: 'b', name: 'lecture.docx', state: 'done' },
+    ]);
+    expect(screen.getByText('«scan.pdf» добавлена. Текст распознан со скана — сверьте формулы и числа с оригиналом.')).toBeInTheDocument();
+    expect(screen.getByText('«lecture.docx» добавлена.')).toBeInTheDocument();
   });
 });

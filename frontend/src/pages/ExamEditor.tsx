@@ -315,7 +315,7 @@ export default function ExamEditor() {
         setMaterials((current) => [material, ...current.filter((item) => item.id !== material.id)]);
         setSelectionTouched(true);
         setSelected((current) => new Set(current).add(material.id));
-        setImports((current) => current.map((item) => (item.key === key ? { ...item, state: 'done' } : item)));
+        setImports((current) => current.map((item) => (item.key === key ? { ...item, state: 'done', ocr: material.ocr } : item)));
       } catch (error) {
         setImports((current) =>
           current.map((item) => (item.key === key ? { ...item, state: 'error', message: examErrorMessage(error, EXAM_MESSAGES.material) } : item)),

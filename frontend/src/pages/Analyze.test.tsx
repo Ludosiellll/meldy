@@ -100,6 +100,8 @@ vi.mock('../components/QuizView', () => ({
   },
 }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
+// jsdom не загружает картинки: сжатие фото здесь отдаёт файл как есть.
+vi.mock('../lib/imageCompression', () => ({ compressImage: async (file: File) => file }));
 
 import Analyze from './Analyze';
 import { ANALYZE_TIMEOUTS } from '../api/analyzeStream';
@@ -919,5 +921,53 @@ describe('cost note', () => {
     await resultsHeading();
     expect(screen.queryByText('Запуск ИИ')).not.toBeInTheDocument();
     expect(analyzeCalls()).toHaveLength(1);
+  });
+});
+
+describe('scans, photos and presentations', () => {
+  const SCAN_NOTICE = 'Текст распознан со скана — сверьте формулы и числа с оригиналом.';
+  const OCR_STATUS = { type: 'status', message: 'Распознаём текст со скана. Это может занять несколько минут.' };
+  const scanRun = () =>
+    sse([ev(OCR_STATUS), ev({ ...TEXT, ocr: true, pages: 3 }), ev(GROUNDING), ev(start('summarizer')), ev(DONE_SUMMARY), ev(RESULTS), ev({ type: 'done' })]);
+
+  it('a recognised scan: one line over the result asks to check formulas and numbers', async () => {
+    streams = [scanRun];
+    renderAnalyze();
+    await chooseFile(new File(['%PDF'], 'scan.pdf', { type: 'application/pdf' }));
+    fireEvent.click(startButton());
+    await resultsHeading();
+    expect(screen.getByText(SCAN_NOTICE)).toBeInTheDocument();
+    expect(analyzeCalls()[0].url).toBe('/api/analyze');
+    // The recognised text is what is saved, like any other text; the analysis is charged as usual.
+    await waitFor(() => expect(s.inserts).toHaveLength(1));
+    expect(s.inserts[0]).toMatchObject({ original_text: TEXT.text });
+  });
+
+  it('a photo of a page says «с фото»; an ordinary text says nothing about recognition', async () => {
+    streams = [() => sse([ev({ ...TEXT, ocr: true, pages: 1 }), ev(GROUNDING), ev(start('summarizer')), ev(DONE_SUMMARY), ev(RESULTS)])];
+    renderAnalyze();
+    await chooseFile(new File(['jpg'], 'доска.jpg', { type: 'image/jpeg' }));
+    fireEvent.click(startButton());
+    await resultsHeading();
+    expect(screen.getByText('Текст распознан с фото — сверьте формулы и числа с оригиналом.')).toBeInTheDocument();
+    expect(analyzeCalls()[0].url).toBe('/api/analyze/media');
+    cleanup();
+
+    renderAnalyze();
+    await chooseFile();
+    fireEvent.click(startButton());
+    await resultsHeading();
+    expect(screen.queryByText(/Текст распознан/)).toBeNull();
+  });
+
+  it('a presentation goes to the document analysis', async () => {
+    renderAnalyze();
+    const deck = await chooseFile(
+      new File(['PK'], 'Лекция 3.pptx', { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }),
+    );
+    fireEvent.click(startButton());
+    await resultsHeading();
+    expect(analyzeCalls()[0].url).toBe('/api/analyze');
+    expect(form(analyzeCalls()[0]).get('file')).toBe(deck);
   });
 });

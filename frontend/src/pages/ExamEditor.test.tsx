@@ -271,6 +271,16 @@ describe('ExamEditor: a new exam', () => {
     expect(mocks.verifyEnergy).not.toHaveBeenCalled();
   });
 
+  it('a lecture recognised from a scan asks to check formulas and numbers in its row', async () => {
+    mocks.importTextOnlyMaterial.mockResolvedValue(material('m8', 'Лекция 9. Кредит', '', { textOnly: true, fragments: 5, ocr: true }));
+    await pasteAndParse();
+    fireEvent.change(screen.getByLabelText('Файлы лекций'), { target: { files: [new File(['%PDF'], 'scan.pdf', { type: 'application/pdf' })] } });
+    expect(
+      await screen.findByText('«scan.pdf» добавлена. Текст распознан со скана — сверьте формулы и числа с оригиналом.'),
+    ).toBeInTheDocument();
+    expect(mocks.verifyEnergy).not.toHaveBeenCalled();
+  });
+
   it('shows a failed import next to its file', async () => {
     const { ExamApiError } = await import('../api/exams');
     mocks.importTextOnlyMaterial.mockRejectedValue(new ExamApiError('В файле не найден текст: похоже на скан.', 'no_text'));

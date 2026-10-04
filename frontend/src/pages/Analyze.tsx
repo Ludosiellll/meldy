@@ -15,6 +15,7 @@ import { hasBadWords } from '../utils/moderation';
 import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, incrementAIUsage, nextLimitReset } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
+import { OCR_NOTICE, OCR_PHOTO_NOTICE } from '../lib/lectureFormats';
 import {
   SECTION_LABELS,
   SECTION_NAMES,
@@ -148,6 +149,8 @@ export default function Analyze() {
   const [starting, setStarting] = useState(false);
   // Сообщение сервера о долгом шаге (расшифровка медиа, загрузка страницы).
   const [statusNote, setStatusNote] = useState<string | undefined>(undefined);
+  // Текст этого запуска распознан со скана или фото (text_extracted с ocr: true): строка над результатом.
+  const [ocrNotice, setOcrNotice] = useState<string | null>(null);
   const [save, setSave] = useState<SaveInfo>(IDLE_SAVE);
   const [saveBusy, setSaveBusy] = useState(false);
 
@@ -285,6 +288,10 @@ export default function Analyze() {
         throw new AnalyzeError('bad_request', 'Текст содержит недопустимые материалы (мат или неприемлемый контент).', false);
       }
       const length = typeof event.length === 'number' ? event.length : undefined;
+      if (event.ocr === true) {
+        const photo = lastRequestRef.current?.file?.type.startsWith('image/') ?? false;
+        setOcrNotice(photo ? OCR_PHOTO_NOTICE : OCR_NOTICE);
+      }
       setState(prev => ({ ...prev, phase: 'analyzing', textLength: length ?? prev.textLength }));
     } else if (event.type === 'agent_start' && isSectionName(event.agent)) {
       setState(prev => ({
@@ -344,6 +351,7 @@ export default function Analyze() {
     setSaveBusy(false);
     setStarting(false);
     setStatusNote(undefined);
+    setOcrNotice(null);
     setState(prev => ({
       phase: 'extracting',
       agents: initAgents.filter(agent => requested.includes(agent.id as SectionName)),
@@ -482,6 +490,7 @@ export default function Analyze() {
 
   const notices = (
     <>
+      {ocrNotice && <p>{ocrNotice}</p>}
       {state.isDemo && save.status === 'saved' && <p>Демо-текст: лимит не списан.</p>}
       {save.status === 'existing' && save.materialId && (
         <p>
@@ -509,7 +518,12 @@ export default function Analyze() {
       )}
     </>
   );
-  const hasNotices = (state.isDemo && save.status === 'saved') || save.status === 'existing' || save.status === 'failed' || Boolean(save.cardsFailed);
+  const hasNotices =
+    Boolean(ocrNotice) ||
+    (state.isDemo && save.status === 'saved') ||
+    save.status === 'existing' ||
+    save.status === 'failed' ||
+    Boolean(save.cardsFailed);
   // Результаты на экране принадлежат этому запуску: «Создать … заново» вернёт раздел только ему.
   const shownRunId = lastSaveRef.current?.runId;
 

@@ -201,3 +201,50 @@ describe('UploadZone start states', () => {
     expect(onUpload).toHaveBeenCalledWith(null, 'https://example.org/lecture', undefined);
   });
 });
+
+describe('UploadZone lecture formats', () => {
+  const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+  it('takes PPTX by extension and by MIME type and lists it with the other formats', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    const accept = (screen.getByTestId('upload-file-input').getAttribute('accept') || '').split(',');
+    expect(accept).toEqual(expect.arrayContaining(['.pdf', '.docx', '.pptx', '.jpg', '.png', PPTX]));
+    expect(accept).not.toContain('.ppt');
+    const chips = Array.from(document.querySelectorAll('.az-format')).map(chip => chip.textContent);
+    expect(chips).toEqual(['PDF', 'DOCX', 'PPTX', 'HTML', 'TXT', 'MD', 'JPG', 'PNG']);
+    expect(screen.getByText('PDF, DOCX, PPTX, HTML, TXT, MD, JPG и PNG — до 15 МБ')).toBeInTheDocument();
+  });
+
+  it('says honestly that scans and photos are recognised by Google Gemini, on the file tab only', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="file" />);
+    const note = () => document.querySelector('.az-scan-note');
+    expect(note()?.textContent).toBe('Сканы и фото страниц распознаёт ИИ-сервис Google Gemini.');
+    // «ИИ-сервис» не разрывается на «ИИ-» и «сервис» в конце строки.
+    expect(note()?.querySelector('.az-nowrap')?.textContent).toBe('ИИ-сервис');
+    fireEvent.click(screen.getByRole('tab', { name: 'Аудио и видео' }));
+    expect(note()).toBeNull();
+  });
+
+  it('starts an analysis of a presentation', async () => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="file" />);
+    const deck = new File(['PK'], 'Лекция 3.pptx', { type: PPTX });
+    fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [deck] } });
+    expect(await screen.findByText('Лекция 3.pptx')).toBeInTheDocument();
+    fireEvent.click(startButton());
+    expect(onUpload).toHaveBeenCalledWith(deck, undefined, undefined);
+  });
+
+  it('stops an old .ppt at once and asks to save it as PPTX or PDF', async () => {
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="file" />);
+    const old = new File(['old'], 'Лекция 3.PPT', { type: 'application/vnd.ms-powerpoint' });
+    fireEvent.drop(document.querySelector('.az-panel') as Element, { dataTransfer: { files: [old] } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Старый формат PowerPoint (.ppt) не читается. Сохраните презентацию как PPTX или PDF и загрузите снова.',
+    );
+    expect(screen.queryByText('Лекция 3.PPT')).toBeNull();
+    expect(startButton()).toBeDisabled();
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+});

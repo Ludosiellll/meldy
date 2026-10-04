@@ -145,6 +145,8 @@ export interface PickerMaterial {
   /** Source fragments the mapping will see (build_source_chunks without a cap). */
   fragments: number;
   textOnly: boolean;
+  /** Only right after «Добавить лекции»: the text was recognised from a scan (/api/extract said ocr: true). */
+  ocr?: boolean;
 }
 
 export interface ParsedQuestion {
@@ -169,6 +171,9 @@ export interface ExtractResult {
   length: number;
   title_guess: string;
   warnings: string[];
+  /** The PDF was a scan and its text was recognised (Google Gemini); pages — how many. */
+  ocr: boolean;
+  pages: number | null;
 }
 
 export const EXAM_MESSAGES = {
@@ -1078,7 +1083,7 @@ export async function parseQuestionList(input: { text?: string; file?: File }, s
   return normalizeParse(await postForm('/api/exams/parse', form, signal));
 }
 
-/** POST /api/extract: lecture text without AI and without energy. */
+/** POST /api/extract: lecture text without daily-limit units (a scan is recognised by Gemini, still free). */
 export async function extractText(file: File, signal?: AbortSignal): Promise<ExtractResult> {
   const form = new FormData();
   form.append('file', file, file.name);
@@ -1089,6 +1094,8 @@ export async function extractText(file: File, signal?: AbortSignal): Promise<Ext
     length: int(raw.length) ?? raw.text.length,
     title_guess: str(raw.title_guess),
     warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((item): item is string => typeof item === 'string') : [],
+    ocr: raw.ocr === true,
+    pages: int(raw.pages),
   };
 }
 
@@ -1131,6 +1138,7 @@ export async function importTextOnlyMaterial(userId: string, file: File, signal?
     textLength: text.trim().length,
     fragments: countSourceFragments(text),
     textOnly: true,
+    ...(extracted.ocr ? { ocr: true } : {}),
   };
 }
 

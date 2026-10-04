@@ -35,6 +35,7 @@ import {
   createExam,
   deleteExam,
   ExamApiError,
+  extractText,
   importTextOnlyMaterial,
   isMappingLocked,
   listExams,
@@ -615,6 +616,22 @@ describe('backend helpers', () => {
       quiz_json: { quiz: [] },
     });
     expect(material).toMatchObject({ id: 'm-new', textOnly: true, fragments: 2 });
+  });
+
+  it('marks a lecture recognised from a scan, and only such a lecture', async () => {
+    const reply = (extra: Record<string, unknown>) =>
+      vi.fn(async () =>
+        new Response(JSON.stringify({ text: 'Текст скана.', length: 12, title_guess: 'Лекция 5', warnings: [], ...extra }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', reply({ ocr: true, pages: 3 }));
+    expect(await extractText(new File(['%PDF'], 'scan.pdf'))).toMatchObject({ ocr: true, pages: 3 });
+    db.respond = () => ({ data: { id: 'm-scan', created_at: '2026-10-04T10:00:00Z' }, error: null });
+    expect(await importTextOnlyMaterial('user-1', new File(['%PDF'], 'scan.pdf'))).toMatchObject({ id: 'm-scan', ocr: true });
+
+    vi.stubGlobal('fetch', reply({}));
+    expect(await extractText(new File(['x'], 'lecture.docx'))).toMatchObject({ ocr: false, pages: null });
+    db.respond = () => ({ data: { id: 'm-plain', created_at: '2026-10-04T10:00:00Z' }, error: null });
+    expect(await importTextOnlyMaterial('user-1', new File(['x'], 'lecture.docx'))).not.toHaveProperty('ocr');
   });
 
   it('refuses a scan (no text) without inserting a material', async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import type { PickerMaterial } from '../../api/exams';
+import { OCR_NOTICE, PPTX_MIME } from '../../lib/lectureFormats';
 import { displayMaterialTitle } from '../../utils/materialTitle';
 import { pluralRu } from '../conversation/visuals';
 import { glue } from './sheetModel';
@@ -10,6 +11,8 @@ export interface ImportStatus {
   name: string;
   state: 'pending' | 'done' | 'error';
   message?: string;
+  /** The text was recognised from a scan: the row says so and asks to check formulas and numbers. */
+  ocr?: boolean;
 }
 
 interface MaterialPickerProps {
@@ -28,7 +31,7 @@ interface MaterialPickerProps {
   disabled?: boolean;
 }
 
-export const IMPORT_ACCEPT = '.pdf,.docx,.txt,.md,.html,.htm';
+export const IMPORT_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,${PPTX_MIME}`;
 
 /** From this many lectures the list gets a search line and is split by subject. */
 export const PICKER_LONG_LIST = 8;
@@ -107,7 +110,8 @@ function GroupCheckbox(props: { state: GroupState; label: string; disabled: bool
  * of fragments each one gives the mapping («нет текста — не участвует» for a scan), «Выбрать все /
  * Снять все», and — for a long list — a search line and the lectures split by subject, each subject
  * with its own box. The list scrolls inside the form, so the form keeps its place. «Добавить лекции»
- * imports files as plain text (/api/extract): no summary, no cards, no daily limit.
+ * imports files as plain text (/api/extract): no summary, no cards, no daily limit; a scanned PDF is
+ * recognised by Google Gemini (still no daily limit) and its row asks to check formulas and numbers.
  */
 export default function MaterialPicker(props: MaterialPickerProps) {
   const { materials, selected } = props;
@@ -276,12 +280,17 @@ export default function MaterialPicker(props: MaterialPickerProps) {
           <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
             Добавить лекции
           </button>
-          <span className="ex-meta"> — только текст, без конспекта и без расхода лимита: PDF, DOCX, TXT, MD</span>
+          {/* What it takes and what it costs (nothing); scans are recognised by an outside AI service, said so. */}
+          <span className="ex-meta">
+            {' — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт '}
+            <span className="ex-nb">ИИ-сервис</span>
+            {' Google Gemini.'}
+          </span>
         </p>
         {props.imports.map((item) => (
           <p key={item.key} className="nx-import-row" role={item.state === 'error' ? 'alert' : undefined}>
             {item.state === 'pending' && `«${item.name}»: читаем текст…`}
-            {item.state === 'done' && `«${item.name}» добавлена.`}
+            {item.state === 'done' && (item.ocr ? `«${item.name}» добавлена. ${OCR_NOTICE}` : `«${item.name}» добавлена.`)}
             {item.state === 'error' && `«${item.name}» не добавлена: ${item.message ?? 'не удалось прочитать файл.'}`}
           </p>
         ))}
