@@ -1,0 +1,57 @@
+/* «фрагмент 2» under a card or a test question (Meldy 2026-10-04): a small pill with a lecture mark; it opens the
+   fragments' own text on warm paper, like the slips beside the summary. */
+.srf-compact { margin-top: 14px; }
+.srf-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color .4s var(--m-ease), color .3s ease;
+}
+.srf-button::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--m-sky);
+}
+.srf-button:hover { background: var(--sf-accent-soft); }
+.srf-button[aria-expanded='true'] { background: var(--sf-accent); color: #fff; }
+.srf-button[aria-expanded='true']::before { background: #fff; }
+@media (pointer: coarse) {
+  .srf-button { min-height: 44px; }
+}
+
+.srf-slips { display: grid; gap: 10px; margin-top: 12px; cursor: auto; }
+.srf-slip {
+  max-width: 40em;
+  margin: 0;
+  padding: 16px 20px 18px;
+  border-radius: 22px;
+  background: #fff8ee;
+  box-shadow: 0 1px 0 #eadfcc, 0 18px 36px -28px rgba(60, 40, 10, .4);
+  color: #2b2a26;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.dark .srf-slip { background: #211f1b; box-shadow: 0 0 0 1px #2f2a22; color: #efe8dc; }
+.srf-n { margin-right: 6px; font-weight: 500; color: #5f5a50; }
+.dark .srf-n { color: #b9b0a2; }
+.srf-heading { font-weight: 600; }
+
+.srf-none { display: inline-block; font-size: 14px; line-height: 22px; color: var(--sf-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .srf-button { transition: none; }
+}

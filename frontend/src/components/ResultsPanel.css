@@ -1,0 +1,189 @@
+/* The results panel in the Meldy language (notes: 10_Project/Design_Language_2026-10-04): status lines as pills
+   with a dot, the section tabs as pills with «Экспорт» at the end of their row, the summary in a white card
+   (SummaryView card), cards and the test as big rounded cards (FlashcardsView.css, QuizView.css). On the analysis
+   page the panel has its own header: a status pill, the big title, one meta line, «Экспорт» and «Новый анализ». */
+
+/* ---------------------------------------------------------------- status and notes */
+.rp-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 24px; padding-top: 22px; }
+.rp-notes { display: grid; flex: 1 1 24rem; gap: 6px; min-width: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.rp-notes p { margin: 0; }
+
+/* A status pill with a dot: green when every section is there, yellow when one is missing. */
+.rp-status {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 9px;
+  width: fit-content;
+  margin: 0;
+  padding: 7px 15px 7px 12px;
+  border-radius: 999px;
+  background: var(--m-yellow-soft);
+  color: var(--m-yellow-ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.rp-status::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--m-yellow); }
+.rp-status[data-tone='ok'] { background: var(--m-green-soft); color: var(--m-green-ink); }
+.rp-status[data-tone='ok']::before { background: var(--m-green); }
+
+/* ---------------------------------------------------------------- section tabs and «Экспорт» */
+.rp-tabsrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; margin-top: 22px; }
+.rp-tabsrow[data-tight] { margin-top: 12px; }
+.rp-tabsrow .sf-sectabs { flex: 1 1 auto; min-width: 0; }
+.rp-tabsrow .sf-sectabs button { min-height: 44px; line-height: 44px; padding: 0 18px; font-size: 15px; }
+.rp-tabsrow .sf-sectabs button:not([aria-current='page']) { box-shadow: inset 0 0 0 1px var(--sf-line); }
+.rp-body { min-height: 260px; padding-top: 26px; }
+.rp-body[data-single] { padding-top: 28px; }
+
+/* «Экспорт» on the analysis page: a white pill with an icon. */
+.rp-export-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: box-shadow .6s var(--m-ease);
+}
+.rp-export-pill:hover,
+.rp-export-pill[aria-expanded='true'] { box-shadow: 0 0 0 1px var(--sf-line), 0 14px 30px -18px rgba(16, 41, 90, .45); }
+.rp-export-pill svg { width: 18px; height: 18px; }
+.rp-export-menu.sf-menu { top: calc(100% + 8px); }
+
+/* ---------------------------------------------------------------- a section that did not come (spec 4.6: on the page, no card) */
+.rp-failure { max-width: 36em; color: var(--sf-ink); }
+.rp-failure > p { margin: 0; font-size: 17px; line-height: 26px; }
+.rp-failure-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 8px; }
+.rp-failure-acts p { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.rp-failure-acts p[role='alert'] { color: var(--sf-ink); }
+
+/* «Карточки не добавлены в повторение. Повторить» */
+.rp-sync { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0 0 18px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.rp-sync button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.rp-sync button:disabled { opacity: .6; cursor: default; }
+
+/* «Только текст, конспекта нет…»: a quiet status with a grey dot («нет» in the language's statuses). */
+.rp-text-only {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: fit-content;
+  max-width: 40em;
+  margin: 28px 0 0;
+  padding: 12px 20px 12px 16px;
+  border-radius: 22px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 17px;
+  line-height: 26px;
+  color: var(--sf-ink);
+}
+.rp-text-only::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--sf-control-edge, #8a8f97); transform: translateY(-1px); }
+.rp-podcast-failed { margin: 0 0 16px; font-size: 16px; line-height: 24px; color: var(--sf-ink); }
+
+/* ---------------------------------------------------------------- the analysis page header */
+.rp-result-head { padding-bottom: 6px; }
+.rp-result-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 32px; }
+.rp-result-main { flex: 1 1 32rem; min-width: 0; }
+.rp-title-row { display: flex; align-items: flex-start; gap: 10px; min-width: 0; margin-top: 16px; }
+.rp-title {
+  max-width: 18em;
+  margin: 0;
+  color: var(--sf-ink);
+  font-size: clamp(32px, 3.6vw, 52px);
+  line-height: 1.06;
+  font-weight: 500;
+  letter-spacing: -.034em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.rp-edit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+  opacity: .8;
+  transition: background-color .3s ease, color .3s ease, opacity .3s ease;
+}
+.rp-edit svg { width: 18px; height: 18px; }
+.rp-edit:hover,
+.rp-edit:focus-visible { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line); color: var(--sf-ink); opacity: 1; }
+@media (hover: hover) and (min-width: 768px) {
+  .rp-edit { opacity: 0; }
+  .rp-title-row:hover .rp-edit { opacity: .8; }
+}
+.rp-title-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; max-width: 760px; margin-top: 16px; }
+.rp-title-edit input {
+  flex: 1 1 280px;
+  min-width: 0;
+  height: 52px;
+  padding: 0 18px;
+  border: 1px solid var(--sf-line);
+  border-radius: 18px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 20px;
+  font-weight: 500;
+}
+.rp-title-edit input:focus-visible { outline: none; border-color: var(--sf-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 22%, transparent); }
+.rp-round {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  cursor: pointer;
+}
+.rp-round[data-tone='ok'] { background: var(--sf-accent); box-shadow: none; color: #fff; }
+.rp-round svg { width: 18px; height: 18px; }
+.rp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 12px; font-size: 16px; line-height: 1.45; color: var(--sf-muted); }
+.rp-result-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.rp-grounding { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 16px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.rp-result-notes { display: grid; gap: 6px; margin-top: 14px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.rp-result-notes p { margin: 0; }
+
+@media (max-width: 639px) {
+  .rp-tabsrow .sf-sectabs button { padding: 0 14px; }
+  .rp-result-acts { width: 100%; }
+  .rp-result-acts .sf-primary { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-export-pill,
+  .rp-edit { transition: none; }
+}

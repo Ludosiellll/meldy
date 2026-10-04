@@ -114,6 +114,8 @@ export function FragmentRefs({ ids, sources, stems, mode, current = null, onPick
                 type="button"
                 className="sf-ref sv-ref"
                 data-active={active ? '' : undefined}
+                // The number again in a small circle before the words (CSS ::before, not part of the text).
+                data-n={fragmentWord(id).replace('фрагмент ', '')}
                 aria-label={`Фрагмент лекции ${fragmentWord(id).replace('фрагмент ', '')}`}
                 {...(mode === 'inline'
                   ? { 'aria-expanded': active, 'aria-controls': active ? slipId : undefined }

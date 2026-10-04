@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { FlashcardsInfo, Flashcard } from '../types/index';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, GraduationCap, ArrowLeft, Check, X, Copy } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { ArrowRight, Check, Copy, Eye, EyeOff, GraduationCap, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import SourceReferences from './SourceReferences';
 import { stripSourceMarkers } from './summary/fragmentModel';
 import 'katex/dist/katex.min.css';
+import './FlashcardsView.css';
 
+/**
+ * The cards of a material (Meldy 2026-10-04): big rounded cards, the question on top and the answer in a soft
+ * panel under it; «Начать обучение» turns them into a deck, one card at a time, with «Знаю» and «Ещё раз».
+ */
 export default function FlashcardsView({ data, sources = [] }: { data: FlashcardsInfo; sources?: { id: string; text: string }[] }) {
   // Без меток фрагментов «[S02]», которые модель иногда копирует из входа.
   const cards = data?.flashcards?.map((card) => ({
@@ -24,16 +29,18 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
   const [studyResults, setStudyResults] = useState<Record<number, boolean>>({});
   const [studyDone, setStudyDone] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState(-1);
+  // With reduced motion the cards and the deck simply appear.
+  const still = Boolean(useReducedMotion());
 
   const toggle = (i: number) => setRevealed({ ...revealed, [i]: !revealed[i] });
-  
+
   const revealAll = () => {
     if (!cards || !Array.isArray(cards)) return;
     const r: Record<number, boolean> = {};
     cards.forEach((_: Flashcard, i: number) => { r[i] = true; });
     setRevealed(r);
   };
-  
+
   const hideAll = () => setRevealed({});
 
   const startStudy = () => {
@@ -59,7 +66,7 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
     }
   };
 
-  if (!cards || !Array.isArray(cards)) return <p className="text-slate-400">Нет данных</p>;
+  if (!cards || !Array.isArray(cards)) return <p className="fc-none">Нет данных</p>;
 
   // Study mode
   if (studyMode) {
@@ -67,26 +74,26 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
 
     if (studyDone) {
       return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="card p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center mx-auto mb-4 border border-emerald-100 dark:border-emerald-900/30">
-            <GraduationCap className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />
+        <motion.div initial={still ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="fc-result">
+          <div className="fc-result-icon" aria-hidden="true">
+            <GraduationCap strokeWidth={1.75} />
           </div>
-          <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+          <h3 className="fc-result-h">
             Результат: {knownCount} из {cards.length}
           </h3>
-          <p className="text-slate-500 dark:text-slate-400 mb-6">
+          <p className="fc-result-p">
             {knownCount === cards.length ? 'Отлично! Вы знаете все карточки!' :
              knownCount >= cards.length / 2 ? 'Неплохо, но есть что подтянуть.' :
              'Стоит повторить материал ещё раз.'}
           </p>
-          <div className="flex justify-center gap-3">
-            <button onClick={startStudy}
-              className="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition">
+          <div className="fc-result-acts">
+            <button type="button" onClick={startStudy} className="fc-pill">
               Пройти снова
+              <span className="fc-dot" aria-hidden="true">
+                <RotateCcw strokeWidth={2} />
+              </span>
             </button>
-            <button onClick={exitStudy}
-              className="px-5 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-sm font-medium transition">
+            <button type="button" onClick={exitStudy} className="fc-chip">
               К списку
             </button>
           </div>
@@ -95,52 +102,63 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
     }
 
     return (
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        <div className="flex items-center justify-between text-sm text-slate-500 dark:text-slate-400 mb-2">
-          <span>Карточка {studyIdx + 1} из {cards.length}</span>
-          <button onClick={exitStudy} className="hover:text-slate-800 dark:hover:text-slate-200 transition">Выйти</button>
+      <motion.div initial={still ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="fc-study">
+        <div className="fc-study-top">
+          <span className="fc-count">Карточка {studyIdx + 1} из {cards.length}</span>
+          <button type="button" onClick={exitStudy} className="fc-quiet">
+            Выйти
+          </button>
         </div>
 
-        <motion.div key={studyIdx} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="card p-8 min-h-[300px] flex flex-col justify-center items-center text-center">
-          <p className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-8">{cards[studyIdx].question}</p>
-          
-          <AnimatePresence mode="wait">
-            {!studyRevealed ? (
-              <motion.button 
-                key="reveal" 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                exit={{ opacity: 0 }}
-                onClick={() => setStudyRevealed(true)}
-                className="mx-auto px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-medium transition"
-              >
-                Показать ответ
-              </motion.button>
-            ) : (
-              <motion.div 
-                key="answer" 
-                initial={{ opacity: 0, y: 10 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0 }}
-                className="w-full mt-4 pt-6 border-t border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-left markdown-content"
-              >
-                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                  {cards[studyIdx].answer}
-                </ReactMarkdown>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+        {/* A deck: two cards under the one being learnt. */}
+        <div className="fc-deck">
+          <span className="fc-under" data-n="1" aria-hidden="true" />
+          <span className="fc-under" data-n="2" aria-hidden="true" />
+          <motion.div key={studyIdx} initial={still ? false : { opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="fc-big">
+            <p className="fc-big-q">{cards[studyIdx].question}</p>
+
+            <AnimatePresence mode="wait">
+              {!studyRevealed ? (
+                <motion.button
+                  key="reveal"
+                  type="button"
+                  initial={still ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setStudyRevealed(true)}
+                  className="fc-pill"
+                >
+                  Показать ответ
+                  <span className="fc-dot" aria-hidden="true">
+                    <Eye strokeWidth={2} />
+                  </span>
+                </motion.button>
+              ) : (
+                <motion.div
+                  key="answer"
+                  initial={still ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="fc-big-a markdown-content"
+                >
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {cards[studyIdx].answer}
+                  </ReactMarkdown>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
 
         {studyRevealed && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
-            <button onClick={() => markCard(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-100 dark:hover:bg-emerald-950/40 transition">
-              <Check className="w-5 h-5" />Знаю
+          <motion.div initial={still ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="fc-marks">
+            <button type="button" onClick={() => markCard(true)} className="fc-mark" data-tone="know">
+              <Check aria-hidden="true" strokeWidth={2} />
+              Знаю
             </button>
-            <button onClick={() => markCard(false)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 font-medium hover:bg-rose-100 dark:hover:bg-rose-950/40 transition">
-              <X className="w-5 h-5" />Ещё раз
+            <button type="button" onClick={() => markCard(false)} className="fc-mark" data-tone="again">
+              <RotateCcw aria-hidden="true" strokeWidth={2} />
+              Ещё раз
             </button>
           </motion.div>
         )}
@@ -148,66 +166,89 @@ export default function FlashcardsView({ data, sources = [] }: { data: Flashcard
     );
   }
 
+  // A click anywhere on a card turns it over; the buttons and links inside it do only their own thing.
+  const onCardClick = (event: MouseEvent<HTMLLIElement>, index: number) => {
+    if ((event.target as HTMLElement).closest('button, a')) return;
+    toggle(index);
+  };
+
   // Normal mode
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 w-full">
-        <div className="flex gap-2">
-          <button onClick={revealAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
-            <Eye className="w-3.5 h-3.5" />Показать все
+    <div className="fc">
+      <div className="fc-bar">
+        <div className="fc-bar-quiet">
+          <button type="button" onClick={revealAll} className="fc-chip">
+            <Eye aria-hidden="true" strokeWidth={1.75} />
+            Показать все
           </button>
-          <button onClick={hideAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition border border-slate-200 dark:border-slate-700">
-            <EyeOff className="w-3.5 h-3.5" />Скрыть все
+          <button type="button" onClick={hideAll} className="fc-chip">
+            <EyeOff aria-hidden="true" strokeWidth={1.75} />
+            Скрыть все
           </button>
         </div>
-        <button onClick={startStudy}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm shrink-0">
-          <GraduationCap className="w-4 h-4" />Начать обучение
+        <button type="button" onClick={startStudy} className="fc-pill">
+          Начать обучение
+          <span className="fc-dot" aria-hidden="true">
+            <ArrowRight strokeWidth={2} />
+          </span>
         </button>
       </div>
 
-      <div className="space-y-3">
+      <ol className="fc-list">
         {cards.map((c: Flashcard, i: number) => (
-          <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-            className="card p-4 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition group"
-            onClick={() => toggle(i)}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Q{i+1}: {c.question}</p>
-                <AnimatePresence>
-                  {revealed[i] && (
-                    <motion.div 
-                      initial={{ height: 0, opacity: 0 }} 
-                      animate={{ height: 'auto', opacity: 1 }} 
-                      exit={{ height: 0, opacity: 0 }}
-                      className="text-slate-700 dark:text-slate-300 text-sm border-t border-slate-100 dark:border-slate-850 pt-3 mt-2 markdown-content text-left"
-                    >
-                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                        {c.answer}
-                      </ReactMarkdown>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <SourceReferences ids={c.source_ids} sources={sources} compact />
-              </div>
-              <button 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  navigator.clipboard.writeText(`Q: ${c.question}\nA: ${c.answer}`); 
-                  setCopiedIdx(i); 
-                  setTimeout(() => setCopiedIdx(-1), 1500); 
-                }} 
-                className="shrink-0 opacity-0 group-hover:opacity-100 transition p-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400"
+          <motion.li
+            key={i}
+            initial={still ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(i, 8) * 0.04 }}
+            className="fc-card"
+            data-open={revealed[i] ? '' : undefined}
+            onClick={(event) => onCardClick(event, i)}
+          >
+            <div className="fc-card-top">
+              <button type="button" className="fc-q" aria-expanded={Boolean(revealed[i])} onClick={() => toggle(i)}>
+                Q{i+1}: {c.question}
+              </button>
+              <button
+                type="button"
+                aria-label={copiedIdx === i ? 'Скопировано' : 'Скопировать карточку'}
+                onClick={() => {
+                  navigator.clipboard.writeText(`Q: ${c.question}\nA: ${c.answer}`);
+                  setCopiedIdx(i);
+                  setTimeout(() => setCopiedIdx(-1), 1500);
+                }}
+                className="fc-copy"
+                data-done={copiedIdx === i ? '' : undefined}
               >
-                {copiedIdx === i ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedIdx === i ? <Check aria-hidden="true" strokeWidth={2} /> : <Copy aria-hidden="true" strokeWidth={1.75} />}
               </button>
             </div>
+            <AnimatePresence initial={false}>
+              {revealed[i] && (
+                <motion.div
+                  initial={still ? false : { height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={still ? { opacity: 0, transition: { duration: 0 } } : { height: 0, opacity: 0 }}
+                  className="fc-answer-wrap"
+                >
+                  <div className="fc-answer markdown-content">
+                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {c.answer}
+                    </ReactMarkdown>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <SourceReferences ids={c.source_ids} sources={sources} compact />
             {!revealed[i] && (
-              <p className="text-slate-400 dark:text-slate-500 text-[13px] border-t border-slate-100 dark:border-slate-800/80 pt-2 italic">Нажмите, чтобы увидеть ответ</p>
+              <p className="fc-hint">
+                <Eye aria-hidden="true" strokeWidth={1.75} />
+                Нажмите, чтобы увидеть ответ
+              </p>
             )}
-          </motion.div>
+          </motion.li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }

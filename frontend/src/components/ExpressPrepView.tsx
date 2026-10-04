@@ -11,6 +11,7 @@ import { stripSourceMarkers } from './summary/fragmentModel';
 import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
 import { runJob, useJobStatus } from './conversation/jobs';
 import type { ConversationFlashcard, PodcastLine } from './conversation/types';
+import './ExpressPrepView.css';
 
 export type ExpressTab = 'cheatsheet' | 'podcast';
 
@@ -36,23 +37,6 @@ interface ExpressPrepViewProps {
 }
 
 const CHEATSHEET_FAILED = 'Не удалось создать шпаргалку. Попробуйте ещё раз.';
-
-const MARKDOWN_CLASSES = [
-  'text-[15px] leading-relaxed text-[var(--sf-ink)]',
-  '[&>*:first-child]:mt-0',
-  '[&_h1]:mb-3 [&_h1]:mt-7 [&_h1]:text-xl [&_h1]:font-semibold',
-  '[&_h2]:mb-2 [&_h2]:mt-7 [&_h2]:border-b [&_h2]:border-[var(--sf-line)] [&_h2]:pb-1.5 [&_h2]:text-lg [&_h2]:font-semibold',
-  '[&_h3]:mb-1.5 [&_h3]:mt-5 [&_h3]:text-base [&_h3]:font-semibold',
-  '[&_p]:my-2.5',
-  '[&_ul]:my-2.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1',
-  '[&_li::marker]:text-[var(--sf-muted)]',
-  '[&_strong]:font-semibold',
-  '[&_code]:rounded [&_code]:bg-[var(--sf-surface-soft)] [&_code]:px-1 [&_code]:py-px [&_code]:text-[0.9em]',
-  '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--sf-line)] [&_blockquote]:pl-4 [&_blockquote]:text-[var(--sf-muted)]',
-  '[&_hr]:my-6 [&_hr]:border-[var(--sf-line)]',
-  '[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-[var(--sf-line)] [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-[var(--sf-line)] [&_th]:px-2 [&_th]:py-1 [&_th]:text-left',
-  '[&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden [&_.katex-display]:py-1',
-].join(' ');
 
 export default function ExpressPrepView({
   summaryJson,
@@ -135,12 +119,12 @@ export default function ExpressPrepView({
 
   if (cheatsheet.trim()) {
     return (
-      <article className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6 sm:px-8 sm:py-8">
-        <header className="mb-5 border-b border-[var(--sf-line)] pb-4">
-          <h2 className="text-lg font-semibold text-[var(--sf-ink)]">Шпаргалка</h2>
-          <p className="mt-0.5 text-[13px] text-[var(--sf-muted)]">Главное из материала для быстрого повторения</p>
+      <article className="xp-sheet">
+        <header className="xp-sheet-head">
+          <h2>Шпаргалка</h2>
+          <p>Главное из материала для быстрого повторения</p>
         </header>
-        <div className={MARKDOWN_CLASSES}>
+        <div className="xp-md">
           <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
             {stripSourceMarkers(cheatsheet)}
           </ReactMarkdown>
@@ -150,43 +134,44 @@ export default function ExpressPrepView({
   }
 
   return (
-    <section className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-6 py-8 text-[var(--sf-ink)]">
-      <h2 className="text-lg font-semibold leading-snug">Шпаргалка ещё не создана</h2>
-      <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-[var(--sf-muted)]">
-        Соберём главное из материала: определения, формулы и частые ошибки на экзамене.
-      </p>
-      {materialId && canEdit ? (
-        <div className="mt-6 flex flex-col items-start gap-4">
-          <button
-            type="button"
-            onClick={handleCreateCheatsheet}
-            disabled={isGenerating}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)] disabled:cursor-wait disabled:opacity-70"
-          >
-            {isGenerating && <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
-            {isGenerating ? 'Составляем шпаргалку…' : 'Создать шпаргалку'}
-          </button>
-          {cheatsheetJob.state === 'error' && (
-            <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[var(--sf-ink)]">
-              <span className="inline-flex items-center gap-1.5">
-                <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" />
-                {cheatsheetJob.message}
-              </span>
-              <button
-                type="button"
-                onClick={handleCreateCheatsheet}
-                className="inline-flex h-8 items-center rounded-lg border border-[var(--sf-line)] px-3 text-sm font-medium text-[var(--sf-ink)] transition-colors [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]"
-              >
-                Повторить
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="mt-5 text-sm text-[var(--sf-muted)]">
-          {materialId ? 'Шпаргалку может создать только автор материала.' : 'Шпаргалку можно создать на странице материала в библиотеке.'}
-        </p>
-      )}
+    <section className="xp-empty">
+      <div className="xp-empty-text">
+        <h2>Шпаргалка ещё не создана</h2>
+        <p className="xp-empty-p">Соберём главное из материала: определения, формулы и частые ошибки на экзамене.</p>
+        {materialId && canEdit ? (
+          <div className="xp-empty-acts">
+            <button type="button" onClick={handleCreateCheatsheet} disabled={isGenerating} className="sf-primary xp-create" aria-busy={isGenerating || undefined}>
+              {isGenerating && <LoaderCircle aria-hidden="true" className="xp-spin" />}
+              {isGenerating ? 'Составляем шпаргалку…' : 'Создать шпаргалку'}
+            </button>
+            {cheatsheetJob.state === 'error' && (
+              <div role="alert" className="xp-error">
+                <span className="xp-error-text">
+                  <AlertCircle aria-hidden="true" />
+                  {cheatsheetJob.message}
+                </span>
+                <button type="button" onClick={handleCreateCheatsheet} className="xp-retry">
+                  Повторить
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="xp-empty-note">
+            {materialId ? 'Шпаргалку может создать только автор материала.' : 'Шпаргалку можно создать на странице материала в библиотеке.'}
+          </p>
+        )}
+      </div>
+      {/* A sheet of the main points on a warm panel (no words, no numbers). */}
+      <div className="xp-art" aria-hidden="true">
+        <span className="xp-art-sheet">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
     </section>
   );
 }

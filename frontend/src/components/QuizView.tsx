@@ -12,6 +12,7 @@ import {
   recordQuizAttempt,
   type QuizAttemptAnswer,
 } from '../api/learning';
+import './QuizView.css';
 
 /**
  * The test of a material («Тест» after analysis and on the material page).
@@ -215,27 +216,23 @@ function JournalLine({ state, onRetry }: { state: SaveState; onRetry: () => void
   if (state.status === 'off') return null;
   if (state.status === 'no_material') {
     return (
-      <p role="status" className="text-sm text-[var(--sf-muted)]">
+      <p role="status" className="qz-journal-line">
         Результат не сохранён: материал ещё не в библиотеке
       </p>
     );
   }
   if (state.status === 'saving') {
     return (
-      <p role="status" aria-live="polite" className="text-sm text-[var(--sf-muted)]">
+      <p role="status" aria-live="polite" className="qz-journal-line">
         Сохраняем результат…
       </p>
     );
   }
   if (state.status === 'failed') {
     return (
-      <div role="alert" className="flex flex-wrap items-center gap-x-3 text-sm text-[var(--sf-ink)]">
+      <div role="alert" className="qz-journal-line qz-journal-failed">
         <span>{state.message === SAVE_FAILED_MESSAGE ? 'Результат не сохранён.' : state.message}</span>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline"
-        >
+        <button type="button" onClick={onRetry} className="qz-link">
           Повторить
         </button>
       </div>
@@ -243,13 +240,13 @@ function JournalLine({ state, onRetry }: { state: SaveState; onRetry: () => void
   }
   const { mistakesAdded: added, mistakesExisting: existing } = state;
   return (
-    <div role="status" className="space-y-1 text-sm text-[var(--sf-muted)]">
+    <div role="status" className="qz-journal-line qz-journal-saved">
       <p>Результат сохранён</p>
       {state.retake && <p>Повторная попытка: в «Прогрессе» считается первая</p>}
       {(added > 0 || existing > 0) && (
         <p>
           {added > 0 && (
-            <Link to="/mistakes" className="font-semibold text-[var(--sf-accent-fg)] underline underline-offset-4">
+            <Link to="/mistakes" className="qz-link">
               {addedLine(added)}
             </Link>
           )}
@@ -257,7 +254,7 @@ function JournalLine({ state, onRetry }: { state: SaveState; onRetry: () => void
             <>
               {added > 0 ? ', ' : ''}
               {added > 0 ? existingLine(existing, true) : (
-                <Link to="/mistakes" className="font-semibold text-[var(--sf-accent-fg)] underline underline-offset-4">
+                <Link to="/mistakes" className="qz-link">
                   {existingLine(existing, false)}
                 </Link>
               )}
@@ -287,29 +284,20 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
   const { correct, scored } = score(questions, answers);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Режим презентации"
-      className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-[var(--sf-canvas)] text-[var(--sf-ink)]"
-    >
-      <div className="flex items-center justify-between gap-4 border-b border-[var(--sf-line)] px-5 py-3 sm:px-8">
-        <p className="text-sm text-[var(--sf-muted)]">Режим презентации · ответы зрителей не сохраняются</p>
-        <button
-          type="button"
-          onClick={onExit}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[var(--sf-ink)] hover:bg-[var(--sf-surface-soft)]"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
+    <div role="dialog" aria-modal="true" aria-label="Режим презентации" className="qz-pres">
+      <div className="qz-pres-bar">
+        <p>Режим презентации · ответы зрителей не сохраняются</p>
+        <button type="button" onClick={onExit} className="qz-chip">
+          <X aria-hidden="true" strokeWidth={2} />
           Выйти
         </button>
       </div>
 
       {!finished ? (
-        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-5 py-10 sm:px-8">
-          <p className="mb-3 text-base text-[var(--sf-muted)]">Вопрос {index + 1} из {total}</p>
-          <h2 className="mb-8 text-2xl font-semibold leading-snug sm:text-3xl lg:text-4xl">{q.question}</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="qz-pres-stage">
+          <p className="qz-pres-count">Вопрос {index + 1} из {total}</p>
+          <h2 className="qz-pres-q">{q.question}</h2>
+          <div className="qz-pres-options">
             {q.options.map((option, j) => {
               const selected = answers[index] === j;
               return (
@@ -318,14 +306,10 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
                   key={j}
                   aria-pressed={selected}
                   onClick={() => setAnswers((prev) => ({ ...prev, [index]: j }))}
-                  className={`flex min-h-[64px] items-center gap-4 rounded-xl border px-5 py-4 text-left text-lg transition-colors lg:text-xl ${
-                    selected
-                      ? 'border-[var(--sf-accent)] bg-[var(--sf-accent-soft)]'
-                      : 'border-[var(--sf-line)] bg-[var(--sf-surface)] hover:border-[var(--sf-muted)]'
-                  }`}
+                  className="qz-pres-opt"
                 >
-                  <span className="w-6 shrink-0 font-semibold text-[var(--sf-muted)]">{displayLetter(q.labels, j)}</span>
-                  <span className="leading-snug">{optionBody(option, q.labels[j])}</span>
+                  <span className="qz-letter">{displayLetter(q.labels, j)}</span>
+                  <span>{optionBody(option, q.labels[j])}</span>
                 </button>
               );
             })}
@@ -334,35 +318,35 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
             <button
               type="button"
               onClick={() => (index + 1 < total ? setIndex(index + 1) : setFinished(true))}
-              className="mt-8 min-h-[52px] self-start rounded-xl bg-[var(--sf-accent)] px-8 text-base font-semibold text-white transition active:translate-y-px hover:bg-[var(--sf-accent-hover)]"
+              className="sf-primary qz-pres-next"
             >
               {index + 1 < total ? 'Следующий вопрос' : 'Завершить тест'}
             </button>
           )}
         </div>
       ) : (
-        <div className="mx-auto w-full max-w-2xl flex-1 px-5 py-10 sm:px-8">
-          <p className="text-4xl font-semibold tabular-nums">
+        <div className="qz-pres-done">
+          <p className="qz-pres-score">
             {correct} из {scored}
           </p>
-          <p className="mt-1 text-base text-[var(--sf-muted)]">верных ответов</p>
-          <ol className="mt-8 divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
+          <p className="qz-pres-score-cap">верных ответов</p>
+          <ol className="qz-pres-list">
             {questions.map((item, i) => {
               const right = item.correctIndex !== null && answers[i] === item.correctIndex;
               return (
-                <li key={i} className="flex items-start gap-3 py-4">
+                <li key={i}>
                   {item.correctIndex === null ? (
-                    <span className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                    <span className="qz-pres-mark" aria-hidden="true" />
                   ) : right ? (
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                    <CheckCircle2 className="qz-pres-mark" data-tone="right" aria-hidden="true" />
                   ) : (
-                    <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                    <XCircle className="qz-pres-mark" data-tone="wrong" aria-hidden="true" />
                   )}
                   <div className="min-w-0">
-                    <p className="font-medium leading-snug">
+                    <p className="qz-pres-item">
                       {i + 1}. {item.question}
                     </p>
-                    <p className="mt-1 text-sm text-[var(--sf-muted)]">
+                    <p className="qz-pres-item-sub">
                       {item.correctIndex === null
                         ? 'Правильный ответ не указан, вопрос не учитывается.'
                         : right
@@ -374,11 +358,7 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
               );
             })}
           </ol>
-          <button
-            type="button"
-            onClick={onExit}
-            className="mt-8 min-h-[48px] rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-6 text-sm font-semibold hover:bg-[var(--sf-surface-soft)]"
-          >
+          <button type="button" onClick={onExit} className="qz-chip qz-pres-close">
             Закрыть презентацию
           </button>
         </div>
@@ -448,9 +428,9 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
 
   if (questions.length === 0) {
     return (
-      <div className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-6">
-        <p className="font-medium text-[var(--sf-ink)]">Теста нет</p>
-        <p className="mt-1 text-sm text-[var(--sf-muted)]">В этом результате нет ни одного вопроса.</p>
+      <div className="qz-empty">
+        <p className="qz-empty-h">Теста нет</p>
+        <p className="qz-empty-p">В этом результате нет ни одного вопроса.</p>
       </div>
     );
   }
@@ -494,21 +474,17 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
   };
 
   return (
-    <div className="relative text-[var(--sf-ink)]">
-      <div className="mb-6 flex flex-col gap-3 border-b border-[var(--sf-line)] pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="qz">
+      <div className="qz-head">
         <div>
-          <h3 className="text-base font-semibold">Проверочный тест</h3>
-          <p className="text-sm text-[var(--sf-muted)]">
+          <h3 className="qz-title">Проверочный тест</h3>
+          <p className="qz-sub">
             {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по материалу
           </p>
         </div>
         {!submitted && (
-          <button
-            type="button"
-            onClick={() => setPresenting(true)}
-            className="inline-flex min-h-[44px] items-center gap-2 self-start rounded-lg px-2 -mx-2 text-sm font-medium text-[var(--sf-muted)] hover:text-[var(--sf-ink)] sm:self-auto"
-          >
-            <Maximize2 className="h-4 w-4" aria-hidden="true" />
+          <button type="button" onClick={() => setPresenting(true)} className="qz-chip">
+            <Maximize2 aria-hidden="true" strokeWidth={1.75} />
             Режим презентации для аудитории
           </button>
         )}
@@ -520,73 +496,58 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
-          className="mb-6 rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-5 py-4"
+          className="qz-result"
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
+          <div className="qz-result-top">
+            <div className="qz-result-main">
               {scored > 0 ? (
                 <>
-                  <p className="text-lg font-semibold">
+                  <p className="qz-score">
                     {correct} из {scored} — {gradeLabel(pct)}
                   </p>
-                  <p className="text-sm text-[var(--sf-muted)]">{pct}% правильных ответов</p>
+                  <p className="qz-pct">{pct}% правильных ответов</p>
                 </>
               ) : (
-                <p className="text-lg font-semibold">Проверить ответы не по чему</p>
+                <p className="qz-score">Проверить ответы не по чему</p>
               )}
               {unscored > 0 && (
-                <p className="text-sm text-[var(--sf-muted)]">
+                <p className="qz-pct">
                   {unscored === total
                     ? 'Ни у одного вопроса не указан правильный ответ.'
                     : `Без правильного ответа: ${unscored} ${pluralRu(unscored, ['вопрос', 'вопроса', 'вопросов'])}, в результат не входят.`}
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={handleRetry}
-              className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 self-start rounded-lg border border-[var(--sf-line)] bg-[var(--sf-surface)] px-4 text-sm font-medium hover:bg-[var(--sf-surface-soft)]"
-            >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            <button type="button" onClick={handleRetry} className="qz-chip">
+              <RotateCcw aria-hidden="true" strokeWidth={1.75} />
               Пройти снова
             </button>
           </div>
           {journal && (
-            <div className="mt-3 border-t border-[var(--sf-line)] pt-3">
+            <div className="qz-journal">
               <JournalLine state={save} onRetry={retrySave} />
             </div>
           )}
         </motion.section>
       )}
 
-      <ol className="space-y-4">
+      <ol className="qz-list">
         {questions.map((q, i) => {
           const selected = answers[i];
           const unscoredQuestion = q.correctIndex === null;
           return (
-            <li key={i} className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-5">
-              <p id={`quiz-q-${i}`} className="mb-3 font-medium leading-snug">
+            <li key={i} className="qz-card" data-answered={selected !== undefined ? '' : undefined}>
+              <p id={`quiz-q-${i}`} className="qz-q">
                 {i + 1}. {q.question}
               </p>
-              <div role="group" aria-labelledby={`quiz-q-${i}`} className="space-y-2">
+              <div role="group" aria-labelledby={`quiz-q-${i}`} className="qz-options">
                 {q.options.map((option, j) => {
                   const isSelected = selected === j;
                   const isRight = submitted && !unscoredQuestion && q.correctIndex === j;
                   const isWrongChoice = submitted && isSelected && !unscoredQuestion && q.correctIndex !== j;
-                  let tone = 'border-[var(--sf-line)] bg-[var(--sf-canvas)] text-[var(--sf-ink)]';
-                  if (!submitted) {
-                    tone = isSelected
-                      ? 'border-[var(--sf-accent)] bg-[var(--sf-accent-soft)] text-[var(--sf-ink)]'
-                      : 'border-[var(--sf-line)] bg-[var(--sf-canvas)] text-[var(--sf-ink)] hover:border-[var(--sf-muted)]';
-                  } else if (isRight) {
-                    tone = 'border-emerald-600/50 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-200';
-                  } else if (isWrongChoice) {
-                    tone = 'border-rose-600/50 bg-rose-50 text-rose-900 dark:border-rose-500/40 dark:bg-rose-950/30 dark:text-rose-200';
-                  } else if (isSelected) {
-                    tone = 'border-[var(--sf-muted)] bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]';
-                  } else {
-                    tone = 'border-[var(--sf-line)] bg-[var(--sf-canvas)] text-[var(--sf-muted)]';
-                  }
+                  // What the option shows: chosen before the check, then right, the wrong choice, an unscored choice or the rest.
+                  let state = isSelected ? 'selected' : 'idle';
+                  if (submitted) state = isRight ? 'right' : isWrongChoice ? 'wrong' : isSelected ? 'chosen' : 'rest';
                   return (
                     <button
                       type="button"
@@ -594,10 +555,11 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
                       aria-pressed={isSelected}
                       disabled={submitted}
                       onClick={() => handleSelect(i, j)}
-                      className={`flex min-h-[44px] w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors disabled:cursor-default ${tone}`}
+                      className="qz-opt"
+                      data-state={state}
                     >
-                      {isRight && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />}
-                      {isWrongChoice && <XCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden="true" />}
+                      {isRight && <CheckCircle2 className="qz-opt-mark" aria-hidden="true" />}
+                      {isWrongChoice && <XCircle className="qz-opt-mark" aria-hidden="true" />}
                       <span>{option}</span>
                       {isRight && <span className="sr-only"> — правильный ответ</span>}
                       {isWrongChoice && <span className="sr-only"> — ваш ответ, неверный</span>}
@@ -605,12 +567,10 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
                   );
                 })}
               </div>
-              {submitted && unscoredQuestion && (
-                <p className="mt-3 text-sm text-[var(--sf-muted)]">Правильный ответ не указан, вопрос не учитывается.</p>
-              )}
+              {submitted && unscoredQuestion && <p className="qz-note">Правильный ответ не указан, вопрос не учитывается.</p>}
               {submitted && q.explanation && (
-                <p className="mt-3 border-t border-[var(--sf-line)] pt-3 text-sm text-[var(--sf-muted)]">
-                  <span className="font-medium text-[var(--sf-ink)]">Пояснение:</span> {q.explanation}
+                <p className="qz-explain">
+                  <span className="qz-explain-h">Пояснение:</span> {q.explanation}
                 </p>
               )}
               <SourceReferences ids={q.sourceIds} sources={sources} compact />
@@ -620,16 +580,12 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
       </ol>
 
       {!submitted && (
-        <div className="mt-6 flex flex-col items-center gap-3 text-center">
-          <p className="text-sm text-[var(--sf-muted)]">
+        <div className="qz-submit">
+          <p className="qz-progress">
             Отвечено {answeredCount} из {total}
           </p>
           {answeredCount === total && (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              className="min-h-[48px] rounded-xl bg-[var(--sf-accent)] px-8 text-base font-semibold text-white shadow-[0_2px_0_rgba(0,0,0,0.18)] transition hover:bg-[var(--sf-accent-hover)] active:translate-y-px active:shadow-none"
-            >
+            <button type="button" onClick={handleSubmit} className="sf-primary">
               Проверить ответы
             </button>
           )}

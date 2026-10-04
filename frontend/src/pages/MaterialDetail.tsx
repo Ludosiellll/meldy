@@ -1,7 +1,7 @@
 import type { AnalysisResults, CoreSectionName, Material, SectionStates } from '../types';
 import { useCallback, useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Globe, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Globe, MoreHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import toast from 'react-hot-toast';
@@ -12,6 +12,7 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
 import { parseSections, sectionHasContent } from '../utils/analysisSections';
 import '../styles/paper.css';
+import './MaterialDetail.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 
 type Mode = 'full' | 'express' | 'podcast';
@@ -141,7 +142,7 @@ function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename,
       <button
         ref={buttonRef}
         type="button"
-        className="sf-more"
+        className="sf-more md-round"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Действия с лекцией"
@@ -150,7 +151,7 @@ function MaterialMenu({ open, isPublic, hasSubject, onToggle, onClose, onRename,
         <MoreHorizontal aria-hidden="true" strokeWidth={1.75} />
       </button>
       {open ? (
-        <div className="sf-menu" role="menu" aria-label="Действия с лекцией">
+        <div className="sf-menu md-menu" role="menu" aria-label="Действия с лекцией">
           <button type="button" role="menuitem" onClick={pick(onRename, false)}>
             Переименовать
           </button>
@@ -327,22 +328,38 @@ export default function MaterialDetail() {
 
   if (loading) {
     return (
-      <div className="sf-page">
+      <div className="sf-page md-page">
         <p className="sf-lede sf-loading-line" aria-live="polite">
           {loadingLine ? 'Загружаем лекцию…' : ' '}
         </p>
+        {loadingLine ? (
+          // The shape of the page while the lecture loads: a title, the tabs and the white sheet.
+          <div className="md-skeleton" aria-hidden="true">
+            <i className="md-skel-title" />
+            <i className="md-skel-tabs" />
+            <div className="md-skel-card">
+              <i />
+              <i />
+              <i />
+              <i />
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }
 
   if (!material) {
     return (
-      <div className="sf-page">
-        <div className="sf-state">
+      <div className="sf-page md-page">
+        <div className="sf-state md-state">
           <h1 className="sf-h2">Лекция не найдена</h1>
           <p className="sf-state-text">Возможно, её удалили или ссылка неполная.</p>
-          <p className="mt-3">
-            <Link className="sf-link" to="/library">
+          <p className="md-state-acts">
+            <Link className="sf-secondary md-pill md-pill-back" to="/library">
+              <span className="md-dot" aria-hidden="true">
+                <ArrowLeft strokeWidth={2} />
+              </span>
               Библиотека
             </Link>
           </p>
@@ -406,12 +423,14 @@ export default function MaterialDetail() {
   return (
     // On «Разговор» a low window (1280×720 projector) folds the crumb and the meta line and shrinks the title, so the
     // sheet, the subtitle and the player fit without page scroll (components/conversation/conversation.css).
-    <div className="sf-page" data-tab={mode === 'podcast' ? 'talk' : undefined}>
-      {/* Spec 5.2 and design critique 12: crumb, the title in Literata, one meta line; «Повторить карточки» and «⋯»
-          on the right. No chips, no icon buttons and no second filled button. */}
-      <header className="sf-head sf-detail-head">
+    <div className="sf-page md-page" data-tab={mode === 'podcast' ? 'talk' : undefined}>
+      {/* Spec 5.2, critique 12 and the Meldy prototype (Material.dc.html): a crumb pill, the big title, one meta line;
+          «Повторить карточки» as the white pill with the black circle and «⋯» as a round button on the right.
+          No chips and no second filled button. */}
+      <header className="sf-head sf-detail-head md-head">
         <div className="sf-detail-main">
-          <Link to="/library" className="sf-link sf-crumb" data-muted="">
+          <Link to="/library" className="sf-crumb md-crumb">
+            <ArrowLeft aria-hidden="true" strokeWidth={2} />
             Библиотека
           </Link>
           {editingTitle ? (
@@ -432,7 +451,7 @@ export default function MaterialDetail() {
                 }}
                 autoFocus
               />
-              <button type="submit" className="sf-link">
+              <button type="submit" className="md-small-pill">
                 Сохранить
               </button>
               <button type="button" className="sf-link" data-muted="" onClick={cancelTitle}>
@@ -440,7 +459,7 @@ export default function MaterialDetail() {
               </button>
             </form>
           ) : (
-            <h1 className="sf-h1 sf-h1-serif [overflow-wrap:anywhere]">{displayMaterialTitle(material.title)}</h1>
+            <h1 className="sf-h1 sf-h1-serif md-title [overflow-wrap:anywhere]">{displayMaterialTitle(material.title)}</h1>
           )}
           {editingSubject ? (
             <form
@@ -461,7 +480,7 @@ export default function MaterialDetail() {
                 }}
                 autoFocus
               />
-              <button type="submit" className="sf-link">
+              <button type="submit" className="md-small-pill">
                 Сохранить
               </button>
               <button type="button" className="sf-link" data-muted="" onClick={cancelSubject}>
@@ -475,10 +494,13 @@ export default function MaterialDetail() {
           )}
         </div>
         {cardCount > 0 || canEdit ? (
-          <div className="sf-head-actions">
+          <div className="sf-head-actions md-acts">
             {cardCount > 0 && (
-              <Link className="sf-secondary" to={`/review?material=${encodeURIComponent(material.id)}`}>
+              <Link className="sf-secondary md-pill" to={`/review?material=${encodeURIComponent(material.id)}`}>
                 Повторить карточки
+                <span className="md-dot" aria-hidden="true">
+                  <ArrowRight strokeWidth={2} />
+                </span>
               </Link>
             )}
             {canEdit && (
@@ -504,8 +526,8 @@ export default function MaterialDetail() {
         ) : null}
       </header>
 
-      {/* Режимы: текстовые вкладки, текущая — чернилами 600 с чертой 2 px (без значков и плашек). */}
-      <div role="tablist" aria-label="Режим" className="sf-viewtabs">
+      {/* Режимы: вкладки-пилюли в белой капсуле, текущая — тёмная пилюля (язык Meldy). */}
+      <div role="tablist" aria-label="Режим" className="sf-viewtabs md-tabs">
         {modes.map((item, index) => {
           const selected = mode === item;
           return (
@@ -530,7 +552,7 @@ export default function MaterialDetail() {
       </div>
 
       {/* Контент в зависимости от выбранного режима */}
-      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)}>
+      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="md-panel">
       {mode === 'full' ? (
         <ResultsPanel
           results={panelResults as AnalysisResults}

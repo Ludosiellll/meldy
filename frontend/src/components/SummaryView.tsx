@@ -110,8 +110,12 @@ interface MarginPick {
  * page the margin to the right holds the lecture fragment of the section being read (it follows the
  * reading, a click on «фрагмент N» chooses another one) and, for a longer summary, the list of its
  * sections. On a narrow page «фрагмент N» opens the fragment under its section.
+ *
+ * `card` (the material page and the analysis result, Meldy 2026-10-04): the text stands in a white
+ * card with a large radius, the margin beside it holds the list of sections and the fragment as soft
+ * cards. Pages that put the summary into their own box leave it off.
  */
-export default function SummaryView({ data, sources = [] }: { data: SummaryInfo; sources?: SourceFragment[] }) {
+export default function SummaryView({ data, sources = [], card = false }: { data: SummaryInfo; sources?: SourceFragment[]; card?: boolean }) {
   const content = extractContent(data);
   const terms = extractTerms(data);
   const sections = useMemo(() => buildSections(content, sources), [content, sources]);
@@ -209,7 +213,7 @@ export default function SummaryView({ data, sources = [] }: { data: SummaryInfo;
   };
 
   return (
-    <div ref={rootRef} className="sv-doc" data-margin={margin ? '' : undefined}>
+    <div ref={rootRef} className="sv-doc" data-margin={margin ? '' : undefined} data-card={card ? '' : undefined}>
       <div className="sv-text">
         {hasFragments && (
           <p className="sv-origin">

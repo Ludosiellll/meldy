@@ -1,0 +1,152 @@
+/* «Кратко» in the Meldy language: the cheat sheet in a white card with a large radius (like the summary), and,
+   while there is none, a card with the offer to make it beside a warm panel with a sheet. */
+
+/* ---------------------------------------------------------------- the cheat sheet */
+.xp-sheet {
+  max-width: 920px;
+  padding: 44px 56px 52px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+}
+.xp-sheet-head { margin-bottom: 26px; }
+.xp-sheet-head h2 { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.024em; }
+.xp-sheet-head p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); }
+
+.xp-md { max-width: 680px; font-size: 17px; line-height: 1.65; color: var(--sf-ink); }
+.xp-md > :first-child { margin-top: 0; }
+.xp-md h1 { margin: 32px 0 12px; font-size: 26px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; }
+.xp-md h2 {
+  margin: 30px 0 12px;
+  padding-top: 26px;
+  border-top: 1px solid color-mix(in srgb, var(--sf-line) 72%, transparent);
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -.015em;
+}
+.xp-md > h2:first-child { padding-top: 0; border-top: 0; }
+.xp-md h3 { margin: 22px 0 8px; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.xp-md p { margin: 10px 0; }
+.xp-md ul { margin: 10px 0; padding-left: 28px; list-style: none; }
+.xp-md ul > li { position: relative; margin: 6px 0; }
+.xp-md ul > li::before { content: ''; position: absolute; left: -24px; top: .6em; width: 9px; height: 9px; border-radius: 50%; background: var(--m-sky); }
+.xp-md ol { margin: 10px 0; padding-left: 1.5em; list-style: decimal; }
+.xp-md ol > li { margin: 6px 0; padding-left: 4px; }
+.xp-md ol > li::marker { color: var(--sf-accent-fg); font-weight: 600; }
+.xp-md strong { font-weight: 600; }
+.xp-md code { padding: 1px 6px; border-radius: 8px; background: var(--sf-surface-soft); font-size: .9em; }
+.xp-md blockquote {
+  margin: 14px 0;
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: var(--m-yellow-soft);
+  color: var(--sf-ink);
+}
+.xp-md blockquote p { margin: 0; }
+.xp-md hr { margin: 26px 0; border: 0; border-top: 1px solid var(--sf-line); }
+.xp-md table { width: 100%; margin: 14px 0; border-collapse: separate; border-spacing: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 0 0 1px var(--sf-line); font-size: 15px; }
+.xp-md th,
+.xp-md td { padding: 8px 12px; border-bottom: 1px solid var(--sf-line); text-align: left; vertical-align: top; }
+.xp-md th { background: var(--sf-surface-soft); font-weight: 600; }
+.xp-md tr:last-child td { border-bottom: 0; }
+.xp-md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+/* ---------------------------------------------------------------- no cheat sheet yet */
+.xp-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  align-items: center;
+  gap: 32px;
+  max-width: 1040px;
+  padding: 14px 14px 14px 48px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+}
+.xp-empty-text { padding: 30px 0; }
+.xp-empty h2 { margin: 0; font-size: clamp(28px, 2.8vw, 38px); line-height: 1.1; font-weight: 500; letter-spacing: -.03em; }
+.xp-empty-p { max-width: 34em; margin: 12px 0 0; font-size: 18px; line-height: 1.5; color: var(--sf-muted); }
+.xp-empty-note { margin: 22px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+.xp-empty-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-top: 26px; }
+.xp-create[aria-busy='true'] { padding-right: 26px; cursor: wait; }
+.xp-create[aria-busy='true']::after { display: none; }
+.xp-spin { width: 18px; height: 18px; flex: none; animation: xp-spin 1s linear infinite; }
+@keyframes xp-spin {
+  to { transform: rotate(360deg); }
+}
+.xp-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 15px; line-height: 1.45; color: var(--sf-ink); }
+.xp-error-text { display: inline-flex; align-items: center; gap: 8px; }
+.xp-error-text svg { width: 17px; height: 17px; flex: none; color: var(--sf-muted); }
+.xp-retry {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.xp-retry:hover { background: var(--sf-surface-soft); }
+
+.xp-art {
+  position: relative;
+  height: 280px;
+  overflow: hidden;
+  border-radius: 38px;
+  background: linear-gradient(160deg, #f3a25b 0%, #ef8fa8 70%, #c9607f 100%);
+}
+.xp-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .22;
+  background-image: radial-gradient(#fff 1.4px, transparent 1.6px);
+  background-size: 9px 9px;
+  -webkit-mask-image: linear-gradient(200deg, #000, transparent 70%);
+  mask-image: linear-gradient(200deg, #000, transparent 70%);
+}
+.xp-art-sheet {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  width: 54%;
+  height: 74%;
+  padding: 24px 22px 0;
+  box-sizing: border-box;
+  border-radius: 20px;
+  background: #fff8ee;
+  box-shadow: 0 26px 50px -26px rgba(60, 20, 30, .55);
+  transform: translate(-50%, -50%) rotate(-5deg);
+}
+.xp-art-sheet i { display: block; height: 9px; border-radius: 999px; background: #e6dccb; }
+.xp-art-sheet i:first-child { width: 60%; height: 12px; background: #0b121c; }
+.xp-art-sheet i:nth-child(2) { width: 92%; }
+.xp-art-sheet i:nth-child(3) { width: 78%; background: var(--m-yellow); }
+.xp-art-sheet i:nth-child(4) { width: 86%; }
+.xp-art-sheet i:nth-child(5) { width: 64%; }
+
+@media (max-width: 1023px) {
+  .xp-empty { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 12px; border-radius: 40px; }
+  .xp-empty-text { order: 2; padding: 18px 18px 26px; }
+  .xp-art { height: 220px; border-radius: 30px; }
+}
+@media (max-width: 639px) {
+  .xp-sheet { padding: 30px 22px 34px; border-radius: 36px; }
+  .xp-md { font-size: 16px; }
+  .xp-empty-text { padding: 14px 10px 20px; }
+  .xp-empty-p { font-size: 16px; }
+  .xp-art { height: 180px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xp-spin { animation: none; }
+}

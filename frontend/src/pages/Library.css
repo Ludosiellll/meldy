@@ -1,0 +1,435 @@
+/* «Библиотека» in the Meldy language (notes: 10_Project/Design_Language_2026-10-04, prototype Today.dc.html):
+   the big title with one line under it, a white pill for «Лист экзамена», folders in one white capsule, a pill search,
+   lecture rows as the kit's white cards with a lecture tile, a soft row menu; an empty library is a card with
+   a blue panel, and loading shows the shape of the list. Structure of the rows is the kit's (.sf-toc). */
+
+.lib-page {
+  --lib-w: 1040px;
+  --lib-tile: 52px;
+}
+
+/* ---------------------------------------------------------------- header */
+.lib-head { max-width: var(--lib-w); }
+.lib-head-main { min-width: 0; }
+
+/* The second button of the language: a white pill with a black circle and an arrow. */
+.lib-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 6px 6px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
+}
+.lib-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+.lib-pill:active { transform: scale(.98); }
+.lib-dot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  transition: transform .7s var(--m-ease);
+}
+.lib-dot svg { width: 18px; height: 18px; }
+.lib-pill:hover .lib-dot { transform: translateX(4px); }
+
+/* A quiet link with an arrow (the prototype's .more): «Лист экзамена» of a section. */
+.lib-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--sf-accent-fg);
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.lib-more svg { width: 18px; height: 18px; transition: transform .6s var(--m-ease); }
+.lib-more:hover svg { transform: translateX(4px); }
+
+/* «Нет связи»: a status pill with a yellow dot. */
+.lib-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 8px 16px 8px 12px;
+  border-radius: 999px;
+  background: var(--m-yellow-soft);
+  color: var(--m-yellow-ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.lib-offline::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--m-yellow); }
+
+/* ---------------------------------------------------------------- folders and search */
+.lib-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  max-width: var(--lib-w);
+  margin-top: 28px;
+}
+.lib-page .sf-tabs.lib-folders {
+  flex-wrap: nowrap;
+  gap: 4px;
+  max-width: 100%;
+  padding: 5px;
+  overflow-x: auto;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .04);
+  scrollbar-width: none;
+}
+.lib-page .sf-tabs.lib-folders::-webkit-scrollbar { display: none; }
+.lib-page .lib-folders li { flex: none; }
+.lib-page .lib-folders button { min-height: 42px; padding: 0 18px; font-size: 15px; }
+/* Inside the scrolling capsule the ring is drawn inwards, so it is not clipped. */
+.lib-page .lib-folders button:focus-visible { outline-offset: -2px; }
+.lib-page .lib-folders .sf-tabs-n { margin-left: 8px; font-size: 13px; }
+
+.lib-search { position: relative; flex: 1 1 280px; max-width: 340px; margin-left: auto; }
+.lib-search > svg {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  color: var(--sf-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.lib-page .lib-search .sf-input {
+  width: 100%;
+  height: 52px;
+  padding: 0 18px 0 46px;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(11, 18, 28, .04);
+}
+.lib-page .lib-search .sf-input::-webkit-search-cancel-button { cursor: pointer; }
+
+/* ---------------------------------------------------------------- the list */
+.lib-list { margin-top: 28px; }
+.lib-filters + .lib-list { margin-top: 20px; }
+.lib-empty-line { margin: 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
+
+.lib-page .sf-toc { max-width: var(--lib-w); gap: 12px; }
+.lib-page .sf-toc-row { border-radius: 28px; }
+/* The row with an open menu stands above the rows after it (a hovered row is a stacking context). */
+.lib-page .sf-toc-row[data-open] { z-index: 6; }
+.lib-page .sf-toc-link {
+  grid-template-columns: var(--lib-tile) minmax(0, 1fr) auto;
+  column-gap: 18px;
+  align-items: center;
+  padding: 16px 76px 16px 16px;
+  border-radius: 28px;
+}
+
+/* The lecture tile: its place in the course on the blue of a lecture Meldy has read; a plain tile for a
+   lecture loaded only as text (the meta line says so in words). */
+.lib-page .sf-toc-n {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--lib-tile);
+  height: var(--lib-tile);
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(150deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+}
+.lib-page .sf-toc-n::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, .55) 1.1px, transparent 1.4px);
+  background-size: 7px 7px;
+  -webkit-mask-image: radial-gradient(circle at 18% 12%, #000, transparent 72%);
+  mask-image: radial-gradient(circle at 18% 12%, #000, transparent 72%);
+  pointer-events: none;
+}
+.lib-page .sf-toc-row[data-text-only] .sf-toc-n {
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  color: var(--sf-muted);
+}
+.lib-page .sf-toc-row[data-text-only] .sf-toc-n::after { display: none; }
+.lib-page .sf-toc-title { font-size: 20px; line-height: 1.3; }
+.lib-page .sf-toc-meta { margin-top: 3px; }
+.lib-page .sf-toc-date { line-height: 1.3; }
+
+/* «⋯» of a row: a circle that turns white with a ring under the pointer. */
+.lib-page .sf-toc-more { top: 50%; right: 14px; transform: translateY(-50%); }
+.lib-page .sf-toc-more > .sf-more { width: 48px; height: 48px; }
+.lib-page .sf-toc-more > .sf-more:hover,
+.lib-page .sf-toc-more > .sf-more[aria-expanded='true'] { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line); }
+
+/* The row menu: the kit's soft menu with a folder mark and a quieter delete. */
+.lib-page .sf-menu { min-width: 260px; }
+.lib-page .sf-menu .sf-menu-label { padding: 8px 14px 4px; font-size: 13px; }
+.lib-page .sf-menu button[role='menuitemradio']::after {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--sf-line-strong, #cfd0c8);
+}
+.lib-page .sf-menu button[role='menuitemradio'][aria-checked='true']::after { background: var(--sf-accent); box-shadow: none; transform: scale(1.2); }
+.lib-page .sf-menu button[data-danger] { color: var(--ph-wrong); }
+.lib-page .sf-menu form { align-items: center; padding: 6px 8px 8px 10px; }
+.lib-menu-input.sf-input { flex: 1 1 auto; min-width: 0; height: 40px; padding: 0 12px; border-radius: 14px; font-size: 15px; }
+/* The kit's menu buttons are full-width rows; «Создать» stays a small blue pill. */
+.lib-page .sf-menu .lib-small-pill {
+  justify-content: center;
+  width: auto;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--sf-accent);
+  color: #fff;
+}
+.lib-page .sf-menu .lib-small-pill:hover { background: var(--sf-accent-hover); }
+/* The kit marks a focused menu row by its tint and removes the ring; a blue pill needs the ring back. */
+.lib-page .sf-menu .lib-small-pill:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+
+/* A small blue pill (Создать, Сохранить) and the rename row of a lecture. */
+.lib-small-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-accent);
+  color: #fff;
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .3s ease;
+}
+.lib-small-pill:hover { background: var(--sf-accent-hover); }
+.lib-small-pill:disabled { opacity: .55; cursor: default; }
+.lib-page .sf-toc-edit { gap: 10px 14px; padding: 14px 18px 14px 86px; }
+.lib-page .sf-toc-edit .sf-input { height: 48px; border-radius: 16px; font-size: 17px; }
+.lib-page .sf-toc-edit .lib-small-pill { min-height: 44px; }
+
+/* ---------------------------------------------------------------- exam sections */
+.lib-section { max-width: var(--lib-w); margin-top: 64px; }
+.lib-section:first-child { margin-top: 0; }
+.lib-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px 24px;
+  margin-bottom: 18px;
+}
+.lib-section-head .sf-lede { margin-top: 6px; font-size: 17px; }
+
+/* ---------------------------------------------------------------- states */
+.lib-loading-text { margin: 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
+.lib-skeleton { margin-top: 28px; }
+.lib-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.lib-skel-tile,
+.lib-skel-lines i {
+  display: block;
+  background: linear-gradient(90deg, var(--sf-surface-soft) 0%, color-mix(in srgb, var(--sf-line) 70%, var(--sf-surface-soft)) 50%, var(--sf-surface-soft) 100%);
+  background-size: 300% 100%;
+  animation: lib-shimmer 1.6s ease-in-out infinite;
+}
+.lib-skel-tile { flex: none; width: var(--lib-tile); height: var(--lib-tile); border-radius: 18px; }
+.lib-skel-lines { display: grid; flex: 1 1 auto; gap: 10px; }
+.lib-skel-lines i { height: 14px; border-radius: 999px; }
+.lib-skel-lines i:first-child { width: min(380px, 70%); height: 18px; }
+.lib-skel-lines i:last-child { width: min(240px, 45%); }
+@keyframes lib-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+/* A card for «не удалось загрузить». */
+.lib-note-card {
+  max-width: 620px;
+  margin-top: 56px;
+  padding: 40px 44px 44px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.lib-note-card p { margin: 10px 0 0; font-size: 17px; line-height: 1.55; color: var(--sf-muted); }
+.lib-note-card .lib-pill { margin-top: 26px; }
+
+/* The empty library: a white card with the invitation and a blue panel with a lecture window. */
+.lib-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 520px);
+  align-items: center;
+  gap: 40px;
+  margin-top: 56px;
+  padding: 16px 16px 16px 56px;
+  border-radius: 56px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.lib-empty-text { padding: 32px 0; }
+.lib-empty .sf-h1 { max-width: 12em; }
+.lib-empty-p { max-width: 30em; margin: 16px 0 0; font-size: 19px; line-height: 1.5; color: var(--sf-muted); }
+.lib-empty .sf-primary { margin-top: 30px; }
+
+.lib-art {
+  position: relative;
+  height: 360px;
+  overflow: hidden;
+  border-radius: 44px;
+  background: linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
+}
+.lib-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .2;
+  background-image: radial-gradient(#fff 1.4px, transparent 1.6px);
+  background-size: 9px 9px;
+  -webkit-mask-image: linear-gradient(200deg, #000, transparent 70%);
+  mask-image: linear-gradient(200deg, #000, transparent 70%);
+}
+.lib-art-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62%;
+  height: 66%;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .55);
+}
+.lib-art-card[data-n='1'] { transform: translate(-58%, -46%) rotate(-7deg); background: #eaf1fd; }
+.lib-art-card[data-n='2'] { transform: translate(-44%, -52%) rotate(5deg); background: #fdf3d8; }
+.lib-art-card[data-n='3'] {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 26px 26px 0;
+  transform: translate(-50%, -50%) rotate(-1.5deg);
+  animation: lib-art-in 1.1s var(--m-ease) both;
+}
+.lib-art-card i { display: block; height: 10px; border-radius: 999px; background: #e3e3dd; }
+.lib-art-card i:first-child { width: 58%; height: 14px; background: #0b121c; }
+.lib-art-card i:nth-child(2) { width: 92%; }
+.lib-art-card i:nth-child(3) { width: 84%; }
+.lib-art-card i:nth-child(4) { width: 66%; }
+.lib-art-pills { display: flex; gap: 8px; margin-top: 10px; }
+.lib-art-pills b { display: block; width: 58px; height: 22px; border-radius: 999px; }
+.lib-art-pills b:nth-child(1) { background: var(--m-green); }
+.lib-art-pills b:nth-child(2) { background: var(--m-yellow); }
+.lib-art-pills b:nth-child(3) { background: var(--m-sky); }
+@keyframes lib-art-in {
+  from { opacity: 0; transform: translate(-50%, -42%) rotate(-4deg); }
+}
+
+/* ---------------------------------------------------------------- the join dialog */
+.lib-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(11, 18, 28, .42);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.lib-dialog {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  border-radius: 36px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+}
+.lib-dialog h2 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; }
+.lib-dialog p { margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+.lib-dialog .sf-input { display: block; width: 100%; margin-top: 12px; }
+.lib-dialog .sf-input:first-of-type { margin-top: 20px; }
+.lib-dialog-error { color: var(--sf-ink) !important; }
+.lib-dialog-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 24px; margin-top: 26px; }
+
+/* ---------------------------------------------------------------- narrower */
+@media (max-width: 1023px) {
+  .lib-empty { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px; border-radius: 44px; }
+  .lib-empty-text { order: 2; padding: 20px 20px 28px; }
+  .lib-art { height: 280px; border-radius: 34px; }
+}
+@media (max-width: 639px) {
+  .lib-page { --lib-tile: 44px; }
+  .lib-head .lib-pill { min-height: 48px; }
+  .lib-search { flex-basis: 100%; max-width: none; margin-left: 0; }
+  .lib-filters { margin-top: 22px; }
+  .lib-page .sf-toc-link { column-gap: 14px; padding: 14px 16px 14px 14px; }
+  .lib-page .sf-toc-n { border-radius: 15px; font-size: 16px; }
+  .lib-page .sf-toc-title { font-size: 18px; }
+  .lib-page .sf-toc-row { border-radius: 24px; }
+  .lib-page .sf-toc-edit { padding: 14px; }
+  .lib-section { margin-top: 48px; }
+  .lib-note-card { margin-top: 32px; padding: 28px 22px 30px; border-radius: 32px; }
+  .lib-empty { margin-top: 28px; border-radius: 36px; }
+  .lib-empty-text { padding: 16px 12px 22px; }
+  .lib-empty-p { font-size: 17px; }
+  .lib-art { height: 220px; border-radius: 28px; }
+  .lib-dialog { padding: 26px 22px; border-radius: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lib-pill,
+  .lib-dot,
+  .lib-more svg,
+  .lib-small-pill { transition: none; }
+  .lib-pill:hover .lib-dot,
+  .lib-more:hover svg,
+  .lib-pill:active { transform: none; }
+  .lib-skel-tile,
+  .lib-skel-lines i,
+  .lib-art-card[data-n='3'] { animation: none; }
+}

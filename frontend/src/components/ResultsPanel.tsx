@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, RotateCcw, Edit3, Check, X } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
+import { Download, Edit3, Check, X } from 'lucide-react';
 import type {
   AnalysisResults,
   AnalysisSettings,
@@ -37,6 +37,7 @@ import { charactersLabel } from '../utils/pastedText';
 import { pluralRu } from './conversation/visuals';
 import ConversationPlayer from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
+import './ResultsPanel.css';
 
 type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast' | 'shorts';
 
@@ -467,22 +468,16 @@ function SectionFailure({
   const core = section === 'summarizer' || section === 'flashcards' || section === 'quiz';
   // Spec 4.6: the failure sits on the page, left-aligned, without a card, red or a spinner; the link says what it does.
   return (
-    <div className="max-w-[36em] text-[var(--sf-ink)]">
-      <p className="text-[17px] leading-[26px]">{sectionFailureSentence(section, state)}</p>
+    <div className="rp-failure">
+      <p>{sectionFailureSentence(section, state)}</p>
       {core && canEdit && onRecreate && (
-        <div className="mt-2 flex flex-col items-start gap-1">
+        <div className="rp-failure-acts">
           <button type="button" onClick={onRecreate} disabled={!materialId || !hasText || busy} className="sf-link">
             {running ? RECREATE_RUNNING[section as CoreSection] : RECREATE_LABEL[section as CoreSection]}
           </button>
-          {!materialId && (
-            <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">Станет доступно, когда материал сохранится в библиотеке.</p>
-          )}
-          {materialId && !hasText && <p className="text-[15px] leading-[22px] text-[var(--sf-muted)]">У материала нет исходного текста.</p>}
-          {error && (
-            <p role="alert" className="text-[15px] leading-[22px] text-[var(--sf-ink)]">
-              {error}
-            </p>
-          )}
+          {!materialId && <p>Станет доступно, когда материал сохранится в библиотеке.</p>}
+          {materialId && !hasText && <p>У материала нет исходного текста.</p>}
+          {error && <p role="alert">{error}</p>}
         </div>
       )}
     </div>
@@ -834,17 +829,41 @@ export default function ResultsPanel({
   const headerHasText = Boolean(
     !allRequestedOk || (!textOnly && groundingText && tab !== 'summary') || showPartialNotice || cheatsheetFailed || notices,
   );
+  const exportMenu = showExport && (
+    <div className="sf-menu rp-export-menu" role="menu" aria-label="Экспорт">
+      <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
+        {copied ? 'Скопировано' : 'Копировать'}
+      </button>
+      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+        <button type="button" role="menuitem" onClick={() => { handlePrintPdf(); setShowExport(false); }}>
+          Печать или PDF
+        </button>
+      )}
+      {tab === 'flashcards' && flashcardCount > 0 && (
+        <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
+          Файл для Anki
+        </button>
+      )}
+      {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+        <button type="button" role="menuitem" onClick={() => { handleDownloadHtml(); setShowExport(false); }}>
+          Скачать HTML
+        </button>
+      )}
+    </div>
+  );
+  const closeExportOnEscape = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && showExport) {
+      event.preventDefault();
+      setShowExport(false);
+      exportButtonRef.current?.focus();
+    }
+  };
+  // On the material page «Экспорт» is a quiet link (one filled button per screen); on the analysis page a white pill.
   const exportControl = (
     <div
       // The link keeps its 44 px tap height; next to the header text the negative margin lines it up with the first line.
       className={`export-menu-container relative flex ${exportInTabs ? '' : '-my-[11px]'}`}
-      onKeyDown={event => {
-        if (event.key === 'Escape' && showExport) {
-          event.preventDefault();
-          setShowExport(false);
-          exportButtonRef.current?.focus();
-        }
-      }}
+      onKeyDown={closeExportOnEscape}
     >
       <button
         ref={exportButtonRef}
@@ -857,28 +876,7 @@ export default function ResultsPanel({
       >
         Экспорт
       </button>
-      {showExport && (
-        <div className="sf-menu" role="menu" aria-label="Экспорт">
-          <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
-            {copied ? 'Скопировано' : 'Копировать'}
-          </button>
-          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-            <button type="button" role="menuitem" onClick={() => { handlePrintPdf(); setShowExport(false); }}>
-              Печать или PDF
-            </button>
-          )}
-          {tab === 'flashcards' && flashcardCount > 0 && (
-            <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
-              Файл для Anki
-            </button>
-          )}
-          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-            <button type="button" role="menuitem" onClick={() => { handleDownloadHtml(); setShowExport(false); }}>
-              Скачать HTML
-            </button>
-          )}
-        </div>
-      )}
+      {exportMenu}
     </div>
   );
 
@@ -890,9 +888,9 @@ export default function ResultsPanel({
         // ссылкой справа. «Новый анализ» здесь не нужен: «Добавить лекцию» есть в верхней строке, а заливная
         // кнопка на экране одна.
         (textOnly ? Boolean(showPartialNotice || notices) : headerHasText || !exportInTabs) && (
-          <header className="no-print flex flex-wrap items-start justify-between gap-x-6 gap-y-1 pt-5">
-            <div className="min-w-0 flex-1 space-y-1 text-[15px] leading-[22px] text-[var(--sf-muted)]">
-              {!allRequestedOk && <p className="font-medium text-[var(--sf-ink)]">{statusLabel}</p>}
+          <header className="no-print rp-head">
+            <div className="rp-notes">
+              {!allRequestedOk && <p className="rp-status">{statusLabel}</p>}
               {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
               {/* On «Конспект» the fragments stand next to the sections and say so themselves. */}
               {!textOnly && groundingText && tab !== 'summary' ? <p>{groundingText}</p> : null}
@@ -904,190 +902,152 @@ export default function ResultsPanel({
           </header>
         )
       ) : (
-        !(embedded && textOnly && !showPartialNotice && !notices) && (
-          <header className="border-b border-slate-200 dark:border-slate-800 pb-5 md:pb-6 no-print">
-            <div className={`flex flex-col gap-5 ${embedded ? `sm:flex-row sm:items-center ${allRequestedOk ? 'sm:justify-end' : 'sm:justify-between'}` : 'lg:flex-row lg:items-start lg:justify-between'}`}>
-              {/* На странице материала названия здесь нет, но о недостающем разделе говорим и здесь:
-                  строка без значка, только когда сохранённый статус запрошенного раздела не «готово». */}
-              {embedded && !allRequestedOk && (
-                <p className="text-base font-medium text-[var(--sf-ink)]">{statusLabel}</p>
-              )}
-              {!embedded && (
-                <div className="min-w-0 flex-1">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--sf-muted)]">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${allRequestedOk ? 'bg-emerald-500' : 'bg-[var(--sf-muted)]'}`}
-                      aria-hidden="true"
-                    />
-                    {statusLabel}
-                  </div>
+        // На странице анализа: статус пилюлей с точкой, крупное название, одна строка о тексте; «Экспорт» и «Новый анализ».
+        <header className="rp-result-head no-print">
+          <div className="rp-result-top">
+            <div className="rp-result-main">
+              <p className="rp-status" data-tone={allRequestedOk ? 'ok' : 'partial'}>
+                {statusLabel}
+              </p>
 
-                  {isEditing ? (
-                    <div className="flex max-w-2xl items-center gap-2">
-                      <input
-                        type="text"
-                        value={editVal}
-                        onChange={event => setEditVal(event.target.value)}
-                        onKeyDown={event => {
-                          if (event.key === 'Enter') saveManualTitle();
-                          if (event.key === 'Escape') setIsEditing(false);
-                        }}
-                        className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-lg font-semibold text-slate-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                        placeholder="Название материала"
-                        aria-label="Название материала"
-                        autoFocus
-                      />
-                      <button onClick={saveManualTitle} className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white transition hover:bg-teal-500" aria-label="Сохранить название">
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => setIsEditing(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" aria-label="Отменить изменение">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="group flex min-w-0 items-start gap-2">
-                      <h1 className="max-w-3xl text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-slate-950 dark:text-slate-50 md:text-3xl">
-                        {currentTitle}
-                      </h1>
-                      {materialId && canEdit && (
-                        <button
-                          onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
-                          className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-teal-700 focus-visible:opacity-100 dark:hover:bg-slate-800 dark:hover:text-teal-300 md:opacity-0 md:group-hover:opacity-100"
-                          aria-label="Изменить название"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                    {textLength ? <span>{charactersLabel(textLength)}</span> : null}
-                    {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
-                    {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
-                    {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
-                    {exerciseCount > 0 ? <span>{exerciseCount} {pluralRu(exerciseCount, ['задание', 'задания', 'заданий'])} для практики</span> : null}
-                    {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
-                  </div>
-                </div>
-              )}
-
-              {!textOnly && (
-              <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
-                <div className="relative export-menu-container">
-                  <button
-                    onClick={() => setShowExport(value => !value)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                    aria-expanded={showExport}
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Экспорт</span>
+              {isEditing ? (
+                <div className="rp-title-edit">
+                  <input
+                    type="text"
+                    value={editVal}
+                    onChange={event => setEditVal(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') saveManualTitle();
+                      if (event.key === 'Escape') setIsEditing(false);
+                    }}
+                    placeholder="Название материала"
+                    aria-label="Название материала"
+                    autoFocus
+                  />
+                  <button type="button" onClick={saveManualTitle} className="rp-round" data-tone="ok" aria-label="Сохранить название">
+                    <Check aria-hidden="true" strokeWidth={2} />
                   </button>
-
-                  <AnimatePresence>
-                    {showExport && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 6 }}
-                        transition={{ duration: 0.12 }}
-                        className="absolute right-0 top-full z-50 mt-2 flex w-56 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-850"
-                      >
-                        <button onClick={() => { handleCopy(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                          <Copy className="h-4 w-4" />{copied ? 'Скопировано' : 'Копировать'}
-                        </button>
-                        {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                          <button onClick={() => { handlePrintPdf(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                            <Download className="h-4 w-4" />Печать или PDF
-                          </button>
-                        )}
-                        {tab === 'flashcards' && flashcardCount > 0 && (
-                          <button onClick={() => { handleExportAnki(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                            <Download className="h-4 w-4" />Файл для Anki
-                          </button>
-                        )}
-                        {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                          <button onClick={() => { handleDownloadHtml(); setShowExport(false); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
-                            <Download className="h-4 w-4" />Скачать HTML
-                          </button>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <button type="button" onClick={() => setIsEditing(false)} className="rp-round" aria-label="Отменить изменение">
+                    <X aria-hidden="true" strokeWidth={2} />
+                  </button>
                 </div>
-
-                <button onClick={onReset} className="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 sm:flex-none">
-                  <RotateCcw className="h-4 w-4" />Новый анализ
-                </button>
-              </div>
+              ) : (
+                <div className="rp-title-row">
+                  <h1 className="rp-title">{currentTitle}</h1>
+                  {materialId && canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => { setEditVal(currentTitle); setIsEditing(true); }}
+                      className="rp-edit"
+                      aria-label="Изменить название"
+                    >
+                      <Edit3 aria-hidden="true" strokeWidth={1.75} />
+                    </button>
+                  )}
+                </div>
               )}
+
+              <div className="rp-meta">
+                {textLength ? <span>{charactersLabel(textLength)}</span> : null}
+                {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
+                {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
+                {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
+                {exerciseCount > 0 ? <span>{exerciseCount} {pluralRu(exerciseCount, ['задание', 'задания', 'заданий'])} для практики</span> : null}
+                {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
+              </div>
             </div>
 
-            {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
-            {!textOnly && view.grounding?.source_count ? (
-              <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                <span>
-                  Основано на {view.grounding.source_count}{' '}
-                  {view.grounding.source_count % 10 === 1 && view.grounding.source_count % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника
-                </span>
-                {view.grounding.citable_items > 0 ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                      у {view.grounding.citable_items} {pluralRu(view.grounding.citable_items, ['пункта', 'пунктов', 'пунктов'])} есть
-                      ссылка на наиболее похожий фрагмент
-                    </span>
-                  </>
-                ) : null}
-              </p>
-            ) : null}
-
-            {(showPartialNotice || cheatsheetFailed || notices) && (
-              <div className="mt-4 space-y-1.5 text-sm leading-relaxed text-[var(--sf-muted)]">
-                {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
-                {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
-                {notices}
+            {!textOnly && (
+              <div className="rp-result-acts">
+                <div className="export-menu-container relative" onKeyDown={closeExportOnEscape}>
+                  <button
+                    ref={exportButtonRef}
+                    type="button"
+                    className="rp-export-pill"
+                    aria-haspopup="menu"
+                    aria-expanded={showExport}
+                    onClick={() => setShowExport(value => !value)}
+                  >
+                    <Download aria-hidden="true" strokeWidth={1.75} />
+                    Экспорт
+                  </button>
+                  {exportMenu}
+                </div>
+                <button type="button" onClick={onReset} className="sf-primary">
+                  Новый анализ
+                </button>
               </div>
             )}
-          </header>
-        )
+          </div>
+
+          {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
+          {!textOnly && view.grounding?.source_count ? (
+            <p className="rp-grounding">
+              <span>
+                Основано на {view.grounding.source_count}{' '}
+                {view.grounding.source_count % 10 === 1 && view.grounding.source_count % 100 !== 11 ? 'фрагменте' : 'фрагментах'} исходника
+              </span>
+              {view.grounding.citable_items > 0 ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    у {view.grounding.citable_items} {pluralRu(view.grounding.citable_items, ['пункта', 'пунктов', 'пунктов'])} есть
+                    ссылка на наиболее похожий фрагмент
+                  </span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+
+          {(showPartialNotice || cheatsheetFailed || notices) && (
+            <div className="rp-result-notes">
+              {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
+              {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
+              {notices}
+            </div>
+          )}
+        </header>
       )}
 
       {textOnly ? (
-        <p className="mt-6 max-w-[36em] text-[17px] leading-[26px] text-[var(--sf-ink)]">
-          {TEXT_ONLY_NOTICE}
-        </p>
+        <p className="rp-text-only">{TEXT_ONLY_NOTICE}</p>
       ) : (
         <>
           {tabs.length > 1 && (
-            <div className={`no-print flex items-center justify-between gap-x-6 ${embedded && headerHasText ? 'mt-2' : 'mt-4'}`}>
-            <nav className="sf-sectabs min-w-0 flex-1" aria-label="Разделы результата">
-              {tabs.map(item => {
-                const isActive = tab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setTab(item.id)}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <span className="sf-sectab-label">{item.label}</span>
-                    {item.count ? <span className="sf-tabs-n">{item.count}</span> : null}
-                  </button>
-                );
-              })}
-            </nav>
-            {exportInTabs && exportControl}
+            <div className="no-print rp-tabsrow" data-tight={embedded && headerHasText ? '' : undefined}>
+              <nav className="sf-sectabs" aria-label="Разделы результата">
+                {tabs.map(item => {
+                  const isActive = tab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setTab(item.id)}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      <span className="sf-sectab-label">{item.label}</span>
+                      {item.count ? <span className="sf-tabs-n">{item.count}</span> : null}
+                    </button>
+                  );
+                })}
+              </nav>
+              {exportInTabs && exportControl}
             </div>
           )}
 
-          <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${tabs.length > 1 ? 'pt-6' : 'pt-7'} min-h-[260px] printable-section`}>
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="rp-body printable-section"
+            data-single={tabs.length > 1 ? undefined : ''}
+          >
             {tab === 'summary' && (
               isFailed('summarizer') ? (
                 <SectionFailure {...failureProps('summarizer')} />
               ) : (
                 <article>
-                  <SummaryView data={view.summarizer} sources={view.grounding?.sources} />
+                  <SummaryView data={view.summarizer} sources={view.grounding?.sources} card />
                 </article>
               )
             )}
@@ -1097,14 +1057,9 @@ export default function ResultsPanel({
               ) : (
                 <>
                   {cardSync && cardSync.materialId === materialId && (
-                    <p className="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-[var(--sf-muted)]" role="status">
+                    <p className="rp-sync" role="status">
                       {CARDS_SYNC_FAILED}
-                      <button
-                        type="button"
-                        disabled={cardSyncRunning}
-                        onClick={() => void syncCards(cardSync.materialId, cardSync.cards)}
-                        className="min-h-[44px] font-semibold text-[var(--sf-accent-fg)] underline-offset-4 enabled:hover:underline disabled:opacity-60"
-                      >
+                      <button type="button" disabled={cardSyncRunning} onClick={() => void syncCards(cardSync.materialId, cardSync.cards)}>
                         Повторить
                       </button>
                     </p>
@@ -1122,9 +1077,7 @@ export default function ResultsPanel({
             )}
             {tab === 'podcast' && (
               <>
-                {isFailed('podcast') && (
-                  <p className="mb-4 text-base text-[var(--sf-ink)]">{sectionFailureSentence('podcast', sections?.podcast)}</p>
-                )}
+                {isFailed('podcast') && <p className="rp-podcast-failed">{sectionFailureSentence('podcast', sections?.podcast)}</p>}
                 <ConversationPlayer
                   lines={conversationLines}
                   title={currentTitle}

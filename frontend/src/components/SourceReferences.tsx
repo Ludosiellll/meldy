@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { splitFragmentHeading } from '../utils/fragmentText';
+import './SourceReferences.css';
 
 interface SourceReferencesProps {
   ids?: string[];
@@ -25,7 +26,7 @@ export default function SourceReferences({ ids, sources = [], compact = false }:
   if (!ids?.length) {
     if (!sources.length) return null;
     return (
-      <span className={`inline-block text-[15px] leading-[22px] text-[var(--sf-muted)] ${compact ? 'mt-2' : ''}`} title="Для этого места не нашлось фрагмента лекции">
+      <span className={`srf-none ${compact ? 'srf-compact' : ''}`} title="Для этого места не нашлось фрагмента лекции">
         без ссылки на фрагмент
       </span>
     );
@@ -36,11 +37,11 @@ export default function SourceReferences({ ids, sources = [], compact = false }:
   const label = `${numbers.length === 1 ? 'фрагмент' : 'фрагменты'} ${numbers.join(', ')}`;
 
   return (
-    <div className={compact ? 'mt-2' : ''}>
+    <div className={compact ? 'srf srf-compact' : 'srf'}>
       <button
         type="button"
         onClick={() => setOpen(value => !value)}
-        className="inline-flex min-h-8 items-center text-[15px] font-medium leading-[22px] text-[var(--ph-pencil-desk,var(--sf-accent-fg))] underline decoration-1 underline-offset-4 [text-decoration-color:color-mix(in_srgb,currentColor_35%,transparent)] transition-colors hover:[text-decoration-color:currentColor] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="srf-button"
         aria-expanded={open}
         aria-controls={contentId}
         aria-label={`Ближайшие фрагменты лекции: ${numbers.join(', ')}`}
@@ -48,18 +49,18 @@ export default function SourceReferences({ ids, sources = [], compact = false }:
         {label}
       </button>
       {open && (
-        <div id={contentId} className="mt-2 space-y-3">
+        <div id={contentId} className="srf-slips">
           {ids.map((id, index) => {
             const text = sourceMap.get(id);
             // A lecture heading keeps its own line (jury memo 12): «Фрагмент 4. Обучение нейронной сети»,
             // the fragment's text below. Without a heading the fragment reads exactly as before.
             const parts = text ? splitFragmentHeading(text) : null;
             return (
-              <p key={`${id}-${index}`} className="max-w-[36em] text-[15px] leading-[22px] text-[var(--sf-ink)]">
-                <span className="mr-1.5 font-medium text-[var(--sf-muted)]">Фрагмент {fragmentNumber(id)}.</span>
+              <p key={`${id}-${index}`} className="srf-slip">
+                <span className="srf-n">Фрагмент {fragmentNumber(id)}.</span>
                 {parts?.heading ? (
                   <>
-                    <span className="font-semibold" data-fragment-heading="">
+                    <span className="srf-heading" data-fragment-heading="">
                       {parts.heading}
                     </span>
                     <span className="block">{parts.body}</span>

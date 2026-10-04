@@ -1,0 +1,294 @@
+/* The cards of a material in the Meldy language: big rounded cards with the answer in a soft panel, quiet
+   pills for «Показать все / Скрыть все», the white pill with the black circle for «Начать обучение», and a deck
+   for learning one card at a time (two tinted cards under the white one, as on «Сегодня»). */
+
+.fc-none { margin: 0; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- the bar */
+.fc-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; margin-bottom: 20px; }
+.fc-bar-quiet { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.fc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .3s ease, box-shadow .5s var(--m-ease);
+}
+.fc-chip svg { width: 17px; height: 17px; color: var(--sf-muted); }
+.fc-chip:hover { background: var(--sf-surface-soft); }
+
+/* The second button of the language: a white pill with a black circle. */
+.fc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 8px 8px 24px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
+}
+.fc-pill:hover { box-shadow: 0 0 0 1px var(--sf-line), 0 16px 34px -18px rgba(16, 41, 90, .45); }
+.fc-pill:active { transform: scale(.98); }
+.fc-dot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  transition: transform .7s var(--m-ease);
+}
+.fc-dot svg { width: 18px; height: 18px; }
+.fc-pill:hover .fc-dot { transform: translateX(4px); }
+
+/* ---------------------------------------------------------------- the cards */
+.fc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); align-items: start; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.fc-card {
+  position: relative;
+  padding: 26px 30px 24px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
+}
+.fc-card:hover { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.fc-card[data-open] { box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.fc-card-top { display: flex; align-items: flex-start; gap: 12px; }
+.fc-q {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -.01em;
+  text-align: left;
+  overflow-wrap: anywhere;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.fc-copy {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+  transition: opacity .3s ease, background-color .3s ease, color .3s ease;
+}
+.fc-copy svg { width: 17px; height: 17px; }
+.fc-copy:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+.fc-copy[data-done] { color: var(--m-green-ink); }
+/* Hidden until hover on a computer: the keyboard focus shows it too. */
+.fc-copy:focus-visible { opacity: 1; }
+@media (hover: hover) {
+  .fc-copy { opacity: 0; }
+  .fc-card:hover .fc-copy,
+  .fc-copy[data-done] { opacity: 1; }
+}
+
+.fc-answer-wrap { overflow: hidden; }
+.fc-answer {
+  margin-top: 16px;
+  padding: 16px 20px;
+  border-radius: 22px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-line) 70%, transparent);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--sf-ink);
+  cursor: auto;
+}
+.fc-answer.markdown-content p,
+.fc-answer.markdown-content ul,
+.fc-answer.markdown-content ol,
+.fc-big-a.markdown-content p,
+.fc-big-a.markdown-content ul,
+.fc-big-a.markdown-content ol { color: inherit; }
+.fc-answer.markdown-content p:last-child,
+.fc-big-a.markdown-content p:last-child { margin-bottom: 0; }
+.fc-answer.markdown-content strong,
+.fc-big-a.markdown-content strong { color: inherit; font-weight: 600; }
+
+.fc-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--sf-line) 70%, transparent);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--sf-muted);
+}
+.fc-hint svg { width: 16px; height: 16px; flex: none; }
+
+/* ---------------------------------------------------------------- learning: the deck */
+.fc-study { max-width: 860px; }
+.fc-study-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.fc-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--sf-accent-soft);
+  color: var(--sf-accent-fg);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.fc-quiet {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--sf-muted);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+  text-underline-offset: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fc-quiet:hover { color: var(--sf-ink); text-decoration-color: var(--m-yellow); }
+
+.fc-deck { position: relative; margin: 8px 6px 26px; }
+.fc-under { position: absolute; inset: 0; border-radius: 44px; box-shadow: 0 18px 34px -24px rgba(16, 41, 90, .45); }
+.fc-under[data-n='1'] { background: #eaf1fd; transform: rotate(-2.4deg) translate(-6px, 8px); }
+.fc-under[data-n='2'] { background: #fdf3d8; transform: rotate(1.8deg) translate(8px, 10px); }
+.dark .fc-under[data-n='1'] { background: #1a2a47; }
+.dark .fc-under[data-n='2'] { background: #2a2618; }
+.fc-big {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  min-height: 340px;
+  padding: 48px 44px;
+  border-radius: 44px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+  text-align: center;
+}
+.fc-big-q { max-width: 26em; margin: 0; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.25; font-weight: 500; letter-spacing: -.02em; overflow-wrap: anywhere; text-wrap: balance; }
+.fc-big-a {
+  width: 100%;
+  max-width: 40em;
+  padding: 20px 24px;
+  border-radius: 26px;
+  background: var(--sf-surface-soft);
+  font-size: 18px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.fc-marks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fc-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform .5s var(--m-ease), box-shadow .5s var(--m-ease);
+}
+.fc-mark svg { width: 20px; height: 20px; }
+.fc-mark[data-tone='know'] { background: var(--m-green-soft); color: var(--m-green-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--m-green) 55%, transparent); }
+.fc-mark[data-tone='again'] { background: var(--m-yellow-soft); color: var(--m-yellow-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--m-yellow) 60%, transparent); }
+.fc-mark:hover { transform: translateY(-2px); }
+
+/* ---------------------------------------------------------------- the result */
+.fc-result {
+  max-width: 640px;
+  padding: 44px 44px 40px;
+  border-radius: 44px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+}
+.fc-result-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--m-green-soft);
+  color: var(--m-green-ink);
+}
+.fc-result-icon svg { width: 30px; height: 30px; }
+.fc-result-h { margin: 22px 0 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.08; font-weight: 500; letter-spacing: -.03em; }
+.fc-result-p { margin: 10px 0 0; font-size: 18px; line-height: 1.5; color: var(--sf-muted); }
+.fc-result-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+
+@media (max-width: 639px) {
+  .fc-card { padding: 22px 22px 20px; border-radius: 28px; }
+  .fc-q { font-size: 18px; }
+  .fc-answer { padding: 14px 16px; font-size: 16px; }
+  .fc-bar .fc-pill { width: 100%; justify-content: space-between; }
+  .fc-big { min-height: 300px; padding: 34px 22px; border-radius: 36px; }
+  .fc-under { border-radius: 36px; }
+  .fc-big-a { padding: 16px 18px; font-size: 16px; }
+  .fc-mark { min-height: 56px; }
+  .fc-result { padding: 30px 22px; border-radius: 34px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-chip,
+  .fc-pill,
+  .fc-dot,
+  .fc-card,
+  .fc-copy,
+  .fc-mark { transition: none; }
+  .fc-pill:hover .fc-dot,
+  .fc-pill:active,
+  .fc-mark:hover { transform: none; }
+}

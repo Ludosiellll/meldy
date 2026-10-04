@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { MoreHorizontal } from 'lucide-react';
+import { ArrowRight, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -12,6 +12,7 @@ import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
 import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
 import '../styles/paper.css';
+import './Library.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
@@ -314,8 +315,7 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
               {naming ? (
                 <form onSubmit={submitFolder}>
                   <input
-                    className="sf-input"
-                    style={{ flex: 1, minWidth: 0, height: 40 }}
+                    className="sf-input lib-menu-input"
                     aria-label="Название папки"
                     placeholder="Название папки"
                     maxLength={60}
@@ -323,7 +323,7 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />
-                  <button type="submit" className="sf-link" style={{ width: 'auto', minHeight: 40, padding: 0 }}>
+                  <button type="submit" className="lib-small-pill">
                     Создать
                   </button>
                 </form>
@@ -333,7 +333,7 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
                 </button>
               )}
               <div className="sf-menu-sep" role="separator" />
-              <button type="button" role="menuitem" onClick={onDelete}>
+              <button type="button" role="menuitem" data-danger="" onClick={onDelete}>
                 Удалить
               </button>
             </>
@@ -396,7 +396,7 @@ function RenameRow({ entry, onSave, onCancel }: { entry: LibraryEntry; onSave: (
           }
         }}
       />
-      <button type="submit" className="sf-link" disabled={saving}>
+      <button type="submit" className="lib-small-pill" disabled={saving}>
         {saving ? 'Сохраняем…' : 'Сохранить'}
       </button>
       <button type="button" className="sf-link" data-muted="" onClick={onCancel} disabled={saving}>
@@ -415,7 +415,12 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
         const date = shortDate(entry.created_at);
         const due = entry.deadline ? shortDate(entry.deadline) : '';
         return (
-          <li key={entry.id} className="sf-toc-row">
+          <li
+            key={entry.id}
+            className="sf-toc-row"
+            data-open={openMenu === menuKey ? '' : undefined}
+            data-text-only={entry.textOnly ? '' : undefined}
+          >
             {renaming === menuKey ? (
               <RenameRow
                 entry={entry}
@@ -661,14 +666,12 @@ export default function Library() {
   }
 
   const joinDialog = joinOpen ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="library-join-title" className="w-full max-w-sm rounded-lg bg-[var(--sf-surface)] p-6 text-[var(--sf-ink)]" style={{ boxShadow: 'var(--sf-pop-shadow)' }}>
-        <h2 id="library-join-title" className="text-[20px] font-semibold leading-[26px]">
-          Вступить в учебную группу
-        </h2>
-        <p className="mt-2 text-[15px] leading-[22px] text-[var(--sf-muted)]">Код группы и ваше имя и фамилия — их увидит преподаватель.</p>
+    <div className="lib-backdrop">
+      <div role="dialog" aria-modal="true" aria-labelledby="library-join-title" className="lib-dialog">
+        <h2 id="library-join-title">Вступить в учебную группу</h2>
+        <p>Код группы и ваше имя и фамилия — их увидит преподаватель.</p>
         <input
-          className="sf-input mt-4 w-full"
+          className="sf-input"
           aria-label="Код группы"
           autoFocus
           value={inviteCode}
@@ -676,14 +679,14 @@ export default function Library() {
           placeholder="Код, например A7B-9X2"
         />
         <input
-          className="sf-input mt-3 w-full"
+          className="sf-input"
           aria-label="Имя и фамилия"
           value={classNickname}
           onChange={(event) => setClassNickname(event.target.value)}
           placeholder="Имя и фамилия"
         />
-        {joinError ? <p className="mt-3 text-[15px] leading-[22px] text-[var(--sf-ink)]">{joinError}</p> : null}
-        <div className="mt-5 flex items-center justify-end gap-6">
+        {joinError ? <p className="lib-dialog-error">{joinError}</p> : null}
+        <div className="lib-dialog-acts">
           <button type="button" className="sf-link" data-muted="" onClick={() => setJoinOpen(false)}>
             Отмена
           </button>
@@ -697,10 +700,24 @@ export default function Library() {
 
   if (entries === null && loading) {
     return (
-      <div className="sf-page">
-        <div className="sf-head" role="status" aria-label="Загружаем библиотеку">
-          {loadingLine ? <p className="text-[17px] text-[var(--sf-muted)]">Загружаем библиотеку…</p> : null}
+      <div className="sf-page lib-page">
+        <div className="sf-head lib-head" role="status" aria-label="Загружаем библиотеку">
+          {loadingLine ? <p className="lib-loading-text">Загружаем библиотеку…</p> : null}
         </div>
+        {loadingLine ? (
+          // The shape of the list while it loads: four quiet rows, no numbers or titles.
+          <ol className="sf-toc lib-skeleton" aria-hidden="true">
+            {[0, 1, 2, 3].map((row) => (
+              <li key={row} className="lib-skel-row">
+                <span className="lib-skel-tile" />
+                <span className="lib-skel-lines">
+                  <i />
+                  <i />
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
         {joinDialog}
       </div>
     );
@@ -708,14 +725,19 @@ export default function Library() {
 
   if (entries === null && failed) {
     return (
-      <div className="sf-page">
-        <div className="sf-head" style={{ display: 'block' }}>
-          <h1 className="sf-h2">Не удалось загрузить библиотеку</h1>
-          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">Лекции на месте — повторите через минуту.</p>
-          <button type="button" className="sf-link mt-2" onClick={() => void load()}>
+      <div className="sf-page lib-page">
+        <section className="lib-note-card" aria-labelledby="library-failed-title">
+          <h1 id="library-failed-title" className="sf-h2">
+            Не удалось загрузить библиотеку
+          </h1>
+          <p>Лекции на месте — повторите через минуту.</p>
+          <button type="button" className="lib-pill" onClick={() => void load()}>
             Повторить
+            <span className="lib-dot" aria-hidden="true">
+              <RotateCcw strokeWidth={2} />
+            </span>
           </button>
-        </div>
+        </section>
         {joinDialog}
       </div>
     );
@@ -723,41 +745,62 @@ export default function Library() {
 
   if (list.length === 0) {
     return (
-      <div className="sf-page">
-        <div className="mx-auto max-w-[480px] pt-16 text-center">
-          <h1 className="sf-h2">Здесь будут ваши лекции</h1>
-          <p className="mt-2 text-[17px] leading-[26px] text-[var(--sf-muted)]">
-            Загрузите первую — Meldy сделает конспект, карточки и тест и сошлётся на её фрагменты.
-          </p>
-          <Link className="sf-primary mt-6 inline-flex" to="/analyze">
-            Добавить лекцию
-          </Link>
-        </div>
+      <div className="sf-page lib-page">
+        <section className="lib-empty" aria-labelledby="library-empty-title">
+          <div className="lib-empty-text">
+            <h1 id="library-empty-title" className="sf-h1">
+              Здесь будут ваши лекции
+            </h1>
+            <p className="lib-empty-p">Загрузите первую — Meldy сделает конспект, карточки и тест и сошлётся на её фрагменты.</p>
+            <Link className="sf-primary" to="/analyze">
+              Добавить лекцию
+            </Link>
+          </div>
+          {/* A lecture on a blue panel: the cards behind it and the window of its summary (no words, no numbers). */}
+          <div className="lib-art" aria-hidden="true">
+            <span className="lib-art-card" data-n="1" />
+            <span className="lib-art-card" data-n="2" />
+            <span className="lib-art-card" data-n="3">
+              <i />
+              <i />
+              <i />
+              <i />
+              <span className="lib-art-pills">
+                <b />
+                <b />
+                <b />
+              </span>
+            </span>
+          </div>
+        </section>
         {joinDialog}
       </div>
     );
   }
 
   return (
-    <div className="sf-page">
-      <header className="sf-head" style={{ maxWidth: 1040 }}>
-        <div className="min-w-0">
+    <div className="sf-page lib-page">
+      <header className="sf-head lib-head">
+        <div className="lib-head-main">
           <h1 className="sf-h1">{heading}</h1>
           {lede ? <p className="sf-lede">{lede}</p> : null}
         </div>
         {sheetLink ? (
-          <Link className="sf-link" to={sheetLink}>
+          <Link className="lib-pill" to={sheetLink}>
             Лист экзамена
+            <span className="lib-dot" aria-hidden="true">
+              <ArrowRight strokeWidth={2} />
+            </span>
           </Link>
         ) : null}
       </header>
 
-      {failed ? <p className="mt-2 text-[15px] leading-[22px] text-[var(--sf-muted)]">Нет связи. Показываем сохранённое на этом устройстве.</p> : null}
+      {failed ? <p className="lib-offline">Нет связи. Показываем сохранённое на этом устройстве.</p> : null}
 
       {visibleFolders.length > 0 || list.length >= SEARCH_FROM ? (
-        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2" style={{ maxWidth: 1040 }}>
+        <div className="lib-filters">
           {visibleFolders.length > 0 ? (
-            <ul className="sf-tabs" aria-label="Папки">
+            <ul className="sf-tabs lib-folders" aria-label="Папки">
               <li>
                 <button type="button" aria-pressed={folderFilter === ''} onClick={() => setFolderFilter('')}>
                   Все<span className="sf-tabs-n">{list.length}</span>
@@ -774,25 +817,28 @@ export default function Library() {
             </ul>
           ) : null}
           {list.length >= SEARCH_FROM ? (
-            <input
-              className="sf-input ml-auto w-full sm:w-72"
-              type="search"
-              aria-label="Найти лекцию"
-              placeholder="Найти лекцию"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+            <label className="lib-search">
+              <Search aria-hidden="true" strokeWidth={2} />
+              <input
+                className="sf-input"
+                type="search"
+                aria-label="Найти лекцию"
+                placeholder="Найти лекцию"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
           ) : null}
         </div>
       ) : null}
 
-      <div className="mt-5">
+      <div className="lib-list">
         {shown.length === 0 ? (
-          <p className="text-[17px] leading-[26px] text-[var(--sf-muted)]">{filtering ? 'Таких лекций нет.' : 'Лекций пока нет.'}</p>
+          <p className="lib-empty-line">{filtering ? 'Таких лекций нет.' : 'Лекций пока нет.'}</p>
         ) : layout.mode === 'sections' ? (
           layout.groups.map((group) => (
-            <section key={group.key} className="mt-8 first:mt-0" aria-labelledby={`library-group-${group.key}`} style={{ maxWidth: 1040 }}>
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
+            <section key={group.key} className="lib-section" aria-labelledby={`library-group-${group.key}`}>
+              <div className="lib-section-head">
                 <div className="min-w-0">
                   <h2 id={`library-group-${group.key}`} className="sf-h2">
                     {group.exam ? subjectOf(group.exam.title) : 'Другие материалы'}
@@ -804,8 +850,9 @@ export default function Library() {
                   </p>
                 </div>
                 {group.exam ? (
-                  <Link className="sf-link" to={`/exams/${group.exam.id}`}>
+                  <Link className="lib-more" to={`/exams/${group.exam.id}`}>
                     Лист экзамена
+                    <ArrowRight aria-hidden="true" strokeWidth={2} />
                   </Link>
                 ) : null}
               </div>

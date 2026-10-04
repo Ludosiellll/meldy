@@ -205,8 +205,8 @@ function JobError({ message, onRetry }: { message: string; onRetry: () => void }
 }
 
 /**
- * «Разговор» на «Бумажном столе» (спека интерьера 5.7, шаг А): лист бумаги с тем, что показывают
- * ведущие, под ним субтитр — имя ведущего чернилами и реплика крупно, — и плеер одной строкой:
+ * «Разговор» (спека интерьера 5.7, шаг А; язык Meldy 2026-10-04): на розовой панели — белое окно-лист с тем,
+ * что показывают ведущие, под ним субтитр — имя ведущего и реплика крупно, — и плеер одной строкой:
  * ← ▶ →, сегменты реплик, «Реплика 8 из 14», одна кнопка скорости и ссылка «Текст разговора»,
  * которая открывает расшифровку панелью справа поверх листа.
  */
@@ -727,25 +727,38 @@ export default function ConversationPlayer({
     const creating = createJob.state === 'working';
     return (
       <section aria-label="Разговор по материалу" className="cv cv-empty">
-        <h2>Для этого материала разговор ещё не создан</h2>
-        <p>
-          Два ведущих, Макс и Софья, обсудят лекцию простыми словами, а на листе рядом будут появляться схемы, графики и
-          термины из неё.
-        </p>
-        {materialId && canEdit ? (
-          <>
-            <button type="button" onClick={createConversation} disabled={creating} className="sf-primary">
-              {creating ? 'Составляем разговор…' : 'Создать разговор'}
-            </button>
-            {createJob.state === 'error' && <JobError message={createJob.message} onRetry={createConversation} />}
-          </>
-        ) : (
+        <div className="cv-empty-text">
+          <h2>Для этого материала разговор ещё не создан</h2>
           <p>
-            {materialId
-              ? 'Разговор может создать только автор материала.'
-              : 'Разговор можно создать на странице материала в библиотеке.'}
+            Два ведущих, Макс и Софья, обсудят лекцию простыми словами, а на листе рядом будут появляться схемы, графики и
+            термины из неё.
           </p>
-        )}
+          {materialId && canEdit ? (
+            <>
+              <button type="button" onClick={createConversation} disabled={creating} className="sf-primary">
+                {creating ? 'Составляем разговор…' : 'Создать разговор'}
+              </button>
+              {createJob.state === 'error' && <JobError message={createJob.message} onRetry={createConversation} />}
+            </>
+          ) : (
+            <p>
+              {materialId
+                ? 'Разговор может создать только автор материала.'
+                : 'Разговор можно создать на странице материала в библиотеке.'}
+            </p>
+          )}
+        </div>
+        {/* The talk card of the prototype, still: a rose panel with the ▶ circle and a window (no words, no motion). */}
+        <div className="cv-empty-art" aria-hidden="true">
+          <span className="cv-empty-play">
+            <Play fill="currentColor" strokeWidth={1.5} />
+          </span>
+          <span className="cv-empty-window">
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
       </section>
     );
   }
@@ -766,7 +779,7 @@ export default function ConversationPlayer({
       aria-keyshortcuts="Space K ArrowLeft ArrowRight"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="cv"
+      className="cv cv-show"
     >
       <h2 className="sr-only">Разговор по материалу</h2>
       <div className="cv-meta-row">
@@ -897,7 +910,7 @@ export default function ConversationPlayer({
           >
             <SkipBack aria-hidden="true" strokeWidth={1.75} />
           </button>
-          {/* Единственная объёмная кнопка вкладки: заливной круг с кромкой 4 px. */}
+          {/* Единственная объёмная кнопка вкладки: белый круг с синим ▶ и светлым ореолом (язык Meldy). */}
           <button ref={playRef} type="button" className="cv-play" onClick={togglePlay} aria-label={playLabel} title="K — пауза" data-state={playback}>
             {isSpeaking ? (
               <Pause aria-hidden="true" fill="currentColor" strokeWidth={1.5} />
