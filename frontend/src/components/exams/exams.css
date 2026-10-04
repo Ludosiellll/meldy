@@ -1118,3 +1118,6 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .ex-filter button,
   .sf-page .ex-secondary { transition: none; }
 }
+
+/* A lecture fragment's own heading on a slip: its own line, above the text (jury memo 12). */
+.sf-page .ex-slip-head { display: block; margin-bottom: 4px; font-family: var(--ph-sans); font-size: 15px; line-height: 22px; font-weight: 600; }

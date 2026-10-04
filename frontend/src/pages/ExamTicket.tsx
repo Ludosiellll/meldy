@@ -25,7 +25,7 @@ import {
   storedPoints,
   type ProtocolFollowup,
 } from '../components/oral/OralProtocol';
-import { browserCandidate, decideFollowup } from '../lib/oral/followup';
+import { browserCandidate, decideFollowup, saysDontKnow } from '../lib/oral/followup';
 import { followupFallback, liveMarks, namedPoints, underlinedFinalWords, words } from '../lib/oral/rubricMatch';
 import { gradeAnswer, gradeWord, type GradeResult } from '../lib/oral/oralGrade';
 import { subjectOf } from '../lib/exams/format';
@@ -954,6 +954,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     dispatch({ type: 'followup_checking' });
     const answer = voice ? (await speech.stop()) || heard : heard;
     const run = current.run;
+    // «Не знаю» said or typed is the button's answer: missing, no check — so the grade cap holds even when the check is slow.
+    if (saysDontKnow(answer)) {
+      if (!alive(run)) return;
+      dispatch({ type: 'followup_result', status: 'missing', answer: answer.trim().slice(0, 160) });
+      return;
+    }
     let status: 'covered' | 'partial' | 'missing' | 'wrong';
     let judgedBy: 'check' | 'keywords' = 'check';
     try {
@@ -1219,7 +1225,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
               heading={sheetHeading}
               points={livePoints(rubricResponse.rubric, state.evaluation.status === 'done' ? state.evaluation.result : null, new Set(state.named))}
               followup={followupForProtocol}
-              stamp={stampFor(result.grade)}
+              // «Засчитано» means counted: the stamp lands only once the answer is saved (jury review).
+              stamp={state.save.status === 'saved' ? stampFor(result.grade) : 'none'}
               seed={seed}
               animate={!state.attempt?.restored}
             />

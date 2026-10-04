@@ -164,6 +164,14 @@ describe('WhyPanel: a question that is in the lectures', () => {
     expect(onRecheck).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the lecture heading of a fragment on its own line', () => {
+    const excerpt = 'Обучение нейронной сети\nОбучение сети заключается в подборе весов, минимизирующих функцию потерь.';
+    renderPanel({ question: question({ coverage: 'full', evidence: [{ material_id: 'm1', material_title: 'Лекция', source_id: 'S08', excerpt }], nearest: [] }) }, 'full');
+    const heading = document.querySelector('[data-fragment-heading]');
+    expect(heading).toHaveTextContent('Обучение нейронной сети');
+    expect(heading?.closest('blockquote')).toHaveTextContent(/Обучение нейронной сети\s*Обучение сети заключается/);
+  });
+
   it('cuts a long fragment at 600 characters and opens it whole on demand', () => {
     const long = `${'Слово '.repeat(150)}конец.`;
     renderPanel({ question: question({ coverage: 'full', evidence: [{ material_id: 'm1', material_title: 'Лекция', source_id: 'S01', excerpt: long }], nearest: [] }) }, 'full');

@@ -13,6 +13,7 @@ import type { LearningEvent } from '../../api/learning';
 import { compareEventTime, questionState, type QuestionState } from '../../lib/learning/readiness';
 import { formatShortDay, formatShortMoment, fragmentNumber, GRADE_WORDS } from '../../lib/exams/format';
 import { normalizeForMatch } from '../conversation/visuals';
+import { splitFragmentHeading } from '../../utils/fragmentText';
 import { PencilUnder, seedFrom } from '../marks';
 import type { SheetCoverage } from './marks';
 import { confirmedAgeSentence, glue, lecturesGenitive, NBSP } from './sheetModel';
@@ -132,11 +133,18 @@ function MarkedExcerpt({ text, matched, seedKey }: { text: string; matched: stri
 
 function Excerpt({ item, matched = [], seedKey }: { item: EvidenceItem; matched?: string[]; seedKey: string }) {
   const [whole, setWhole] = useState(false);
-  const long = item.excerpt.length > EXCERPT_LIMIT;
-  const text = long && !whole ? `${item.excerpt.slice(0, EXCERPT_LIMIT).replace(/\s+\S*$/, '')}…` : item.excerpt;
+  // The lecture's own heading keeps its line (jury memo 12), the text runs below it.
+  const parts = splitFragmentHeading(item.excerpt);
+  const long = parts.body.length > EXCERPT_LIMIT;
+  const text = long && !whole ? `${parts.body.slice(0, EXCERPT_LIMIT).replace(/\s+\S*$/, '')}…` : parts.body;
   return (
     <>
       <blockquote className="sf-slip" style={{ margin: 0 }}>
+        {parts.heading && (
+          <span className="ex-slip-head" data-fragment-heading="">
+            {parts.heading}
+          </span>
+        )}
         <MarkedExcerpt text={text} matched={matched} seedKey={seedKey} />
       </blockquote>
       {long && (

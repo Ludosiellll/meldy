@@ -67,3 +67,19 @@ export function decideFollowup(candidate: string | null, check: CheckResult | nu
   }
   return candidate ? { pointId: candidate, chosenBy: 'client' } : null;
 }
+
+// «Не знаю» сказано или написано вместо кнопки — тот же ответ, что и кнопка: пункт не назван,
+// без проверки и без угадывания по ключевым словам (иначе при таймауте проверки потолок
+// оценки за главный пункт не срабатывал — ревью жюри 2026-10-04). Только короткая фраза
+// целиком: «я не знаю», «не помню», «ну, не знаю», «затрудняюсь ответить», «забыл».
+const DONT_KNOW = /^(?:(?:ну|эм|хм|честно|я)\s+)*(?:не\s+знаю|не\s+помню|затрудняюсь(?:\s+ответить)?|забыл[аи]?)$/u;
+
+export function saysDontKnow(text: string): boolean {
+  const plain = text
+    .toLocaleLowerCase('ru-RU')
+    .replace(/ё/g, 'е')
+    .replace(/[^\p{L}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain.length > 0 && plain.length <= 40 && DONT_KNOW.test(plain);
+}

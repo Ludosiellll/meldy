@@ -670,9 +670,12 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     expect(await screen.findByText(/Результат не сохранён/)).toBeInTheDocument();
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
+    // Not saved means not counted: no «Засчитано» / «не засчитано» stamp yet (jury review).
+    expect(document.querySelector('.or-stamp')).toBeNull();
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
+    expect(document.querySelector('.or-stamp')).not.toBeNull();
     const ids = rpc.mock.calls.map((call) => (call as unknown as [string, { p_attempt: { attempt_id: string } }])[1].p_attempt.attempt_id);
     expect(ids).toHaveLength(2);
     expect(ids[0]).toBe(ids[1]);

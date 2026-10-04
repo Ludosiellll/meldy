@@ -58,3 +58,19 @@ describe('«Готово» decision table (contracts §7.2)', () => {
     expect(decideFollowup(null, null)).toBeNull();
   });
 });
+
+describe('saysDontKnow', () => {
+  it('takes a short «не знаю» said or typed as the button', async () => {
+    const { saysDontKnow } = await import('./followup');
+    for (const text of ['не знаю', 'Не знаю.', 'я не знаю', 'Ну, не знаю…', 'не помню', 'Затрудняюсь ответить', 'забыла', 'НЕ ЗНАЮ!']) {
+      expect(saysDontKnow(text), text).toBe(true);
+    }
+  });
+
+  it('leaves real answers to the check', async () => {
+    const { saysDontKnow } = await import('./followup');
+    for (const text of ['', 'не знаю точно, но колебания растут', 'знаю: колебания', 'не знаю как сказать, выручка падает', 'нет']) {
+      expect(saysDontKnow(text), text).toBe(false);
+    }
+  });
+});
