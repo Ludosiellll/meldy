@@ -5,6 +5,7 @@ import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import PWAUpdater from './components/PWAUpdater';
 import RouteLoading from './components/RouteLoading';
+import { ProWindowProvider } from './components/pro/ProWindow';
 // Fonts and kit tokens for every route (Onest only since the 2026-10-04 redesign): the app does not
 // load fonts from a third-party host, which the production CSP blocks.
 import './styles/paper.css';
@@ -75,6 +76,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <PWAUpdater />
+      <ProWindowProvider />
       <Toaster 
         position="top-right" 
         toastOptions={{ 

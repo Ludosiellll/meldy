@@ -185,9 +185,9 @@ describe('TokenInfoModal', () => {
     expect(screen.getByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeInTheDocument();
     expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 80 из 100 единиц.');
     expect(screen.getByText(new RegExp(`Лимит обновится в ${formatLimitReset(nextLimitReset())}\\.`))).toBeInTheDocument();
-    // Список трат — примеры, а не полный перечень: единицы уходят и на разметку, и на ответ на билет.
+    // Список трат — примеры, а не полный перечень: единицы уходят и на сверку с лекциями, и на ответ на билет.
     expect(container.textContent).toContain(
-      'Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, разметка экзамена по лекциям, ответ на билет, разговор, шпаргалка.',
+      'Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, сверка вопросов экзамена с лекциями, ответ на билет, разговор, шпаргалка.',
     );
     expect(container.textContent).not.toMatch(/⚡|PRO|тариф|Энергия/);
     expect(container.querySelector('.animate-pulse, [class*="gradient"], [class*="shadow-[0_0"]')).toBeNull();
@@ -202,9 +202,12 @@ describe('TokenInfoModal', () => {
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '0%' });
   });
 
-  it('keeps the honest PRO line', () => {
+  it('keeps the honest PRO line: the PRO day of lib/plans.ts, counted by the server', () => {
     render(<TokenInfoModal isOpen isPro onClose={() => {}} usedTokens={0} />);
-    expect(screen.getByText('У вашего аккаунта PRO: дневной лимит к нему не применяется.')).toBeInTheDocument();
+    expect(
+      screen.getByText(`У вас PRO: до 1000 единиц ИИ в день вместо 100. Лимит обновится в ${formatLimitReset(nextLimitReset())}.`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/не применяется/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Осталось на сегодня/)).not.toBeInTheDocument();
   });
 

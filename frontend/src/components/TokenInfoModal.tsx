@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { FREE_DAILY_LIMIT, formatLimitReset, nextLimitReset } from '../api/limits';
+import { FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../lib/plans';
 
 interface Props {
   isOpen: boolean;
@@ -12,7 +13,7 @@ interface Props {
 /**
  * Окно «Дневной лимит ИИ»: сколько единиц осталось и когда лимит обновится
  * (00:00 UTC, показано в местном времени). Без тарифных предложений: оплаты в
- * Meldy нет, у аккаунта с PRO просто написано, что лимит к нему не применяется.
+ * Meldy нет, у аккаунта с PRO написан его дневной лимит (lib/plans.ts, считает сервер).
  * Вид (Meldy 2026-10-04): белая карточка со скруглением 32, остаток — в голубой плашке
  * с полосой-пилюлей; стили .ac-modal-* в styles/legacy.css.
  */
@@ -56,7 +57,7 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
 
         {isPro ? (
           <p className="ac-modal-p">
-            У вашего аккаунта PRO: дневной лимит к нему не применяется.
+            У вас PRO: до {PRO_DAILY_UNITS} единиц ИИ в день вместо {FREE_DAILY_UNITS}. Лимит обновится в {resetAt}.
           </p>
         ) : (
           <>
@@ -70,8 +71,8 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
             </div>
             <p className="ac-modal-p">
               {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}{' '}
-              Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, разметка экзамена
-              по лекциям, ответ на билет, разговор, шпаргалка.
+              Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, сверка вопросов
+              экзамена с лекциями, ответ на билет, разговор, шпаргалка.
             </p>
           </>
         )}
