@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Новый экзамен»: the lecture checklist in sight (from 8228be2)
+
+Adds to 4215c84 (tree of 1e9e039). The owner: «но выбрать лекцию как-будто тоже возможность должна быть, или как
+ты считаешь? подумай». The choice existed, but as a folded line «Все 9 лекций · изменить» at the bottom of the
+form — under the sticky button on a 1366×768 laptop, so it was not seen.
+
+- «Лекции» right after the exam's title; the checklist is always open (subjects, search, «Выбрать все / Снять
+  все»). Until the student changes the ticks, a line says why these are ticked.
+- The note by «Разметить по лекциям» names how many lectures: «Meldy сверит каждый вопрос с 9 выбранными
+  лекциями…».
+- Step 1 says how many lectures the library has and that they are chosen on the next step.
+
+No migration, no backend change. Verified before release: tsc -b, Vitest 1513/1513, production build; the editor
+in Chromium on mocked Supabase/API with the real list parser at 1911×912, 1366×768 and 390×844 — the lectures
+block under the title, the checklist reachable, the main button in view, no horizontal overflow.
+
 ## 2026-10-04 — «Новый экзамен»: the list first, a main button that always answers (from 3b990ea)
 
 Adds to 26b932c (tree of 6f2826d). The owner, with a screenshot of «Новый экзамен» from release 14: «может
