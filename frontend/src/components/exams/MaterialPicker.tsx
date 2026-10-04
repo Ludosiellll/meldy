@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import type { PickerMaterial } from '../../api/exams';
 import { displayMaterialTitle } from '../../utils/materialTitle';
@@ -18,8 +18,8 @@ interface MaterialPickerProps {
   onToggle: (id: string) => void;
   /** Tick or untick several lectures at once: all, the found ones, or one subject. */
   onSetMany: (ids: string[], selected: boolean) => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  /** Why these lectures are ticked, until the student changes them (null: say nothing). */
+  hint?: string | null;
   onImport: (files: File[]) => void;
   imports: ImportStatus[];
   loading: boolean;
@@ -33,8 +33,6 @@ export const IMPORT_ACCEPT = '.pdf,.docx,.txt,.md,.html,.htm';
 /** From this many lectures the list gets a search line and is split by subject. */
 export const PICKER_LONG_LIST = 8;
 const NO_SUBJECT = 'Без предмета';
-/** How many chosen titles the folded line names before «и ещё N». */
-const FOLDED_TITLES = 3;
 
 function fragmentsLine(material: PickerMaterial): string {
   if (material.textLength === 0) return 'нет текста — не участвует';
@@ -85,14 +83,6 @@ export function groupBySubject(materials: PickerMaterial[]): PickerGroup[] {
   return [...groups.values()];
 }
 
-/** «Денежный рынок», «Инфляция» и ещё 2 — what the folded line has ticked. */
-export function chosenTitlesLine(titles: string[]): string {
-  const named = titles.slice(0, FOLDED_TITLES).map((title) => `«${title}»`);
-  const rest = titles.length - named.length;
-  if (rest <= 0) return named.length > 1 ? `${named.slice(0, -1).join(', ')} и ${named[named.length - 1]}` : (named[0] ?? '');
-  return `${named.join(', ')} и ещё ${rest}`;
-}
-
 type GroupState = 'none' | 'some' | 'all';
 
 function GroupCheckbox(props: { state: GroupState; label: string; disabled: boolean; onChange: () => void }) {
@@ -113,20 +103,19 @@ function GroupCheckbox(props: { state: GroupState; label: string; disabled: bool
 }
 
 /**
- * The lectures of an exam: a checklist with the number of fragments each one gives the mapping
- * («нет текста — не участвует» for a scan), «Выбрать все / Снять все», and — for a long list — a
- * search line and the lectures split by subject, each subject with its own box. The list scrolls
- * inside the form, so the form keeps its place. «Добавить лекции» imports files as plain text
- * (/api/extract): no summary, no cards, no daily limit.
+ * The lectures of an exam, always in sight (the marks depend on them): a checklist with the number
+ * of fragments each one gives the mapping («нет текста — не участвует» for a scan), «Выбрать все /
+ * Снять все», and — for a long list — a search line and the lectures split by subject, each subject
+ * with its own box. The list scrolls inside the form, so the form keeps its place. «Добавить лекции»
+ * imports files as plain text (/api/extract): no summary, no cards, no daily limit.
  */
 export default function MaterialPicker(props: MaterialPickerProps) {
-  const { materials, selected, open } = props;
+  const { materials, selected } = props;
   const fileRef = useRef<HTMLInputElement>(null);
-  const listId = useId();
   const [query, setQuery] = useState('');
   const usable = materials.filter((material) => material.textLength > 0);
   const chosen = usable.filter((material) => selected.has(material.id));
-  const textOnly = chosen.filter((material) => material.textOnly).length;
+  const textOnly = materials.filter((material) => material.textOnly).length;
 
   const long = materials.length >= PICKER_LONG_LIST;
   const filtering = long && query.trim() !== '';
@@ -159,28 +148,8 @@ export default function MaterialPicker(props: MaterialPickerProps) {
 
   return (
     <div id="lectures" className="nx-pickbox">
-      <p className="nx-line">
-        {props.loading ? 'Загружаем лекции…' : glue(lecturesSummary(chosen.length, usable.length))}
-        {!props.loading && materials.length > 0 && (
-          <>
-            {' · '}
-            <button
-              type="button"
-              className="sf-link"
-              style={{ minHeight: 0, fontSize: 'inherit' }}
-              aria-expanded={open}
-              aria-controls={listId}
-              onClick={() => props.onOpenChange(!open)}
-              disabled={props.disabled}
-            >
-              {open ? 'свернуть' : 'изменить'}
-            </button>
-          </>
-        )}
-      </p>
-      {!open && !props.loading && chosen.length > 0 && chosen.length < usable.length && (
-        <p className="ex-meta nx-pick-chosen">{chosenTitlesLine(chosen.map((material) => displayMaterialTitle(material.title)))}</p>
-      )}
+      <p className="nx-line">{props.loading ? 'Загружаем лекции…' : glue(lecturesSummary(chosen.length, usable.length))}</p>
+      {!props.loading && props.hint && usable.length > 0 && <p className="ex-meta nx-pick-hint">{glue(props.hint)}</p>}
       {props.error && (
         <p className="ex-note" role="alert">
           {props.error}{' '}
@@ -189,18 +158,11 @@ export default function MaterialPicker(props: MaterialPickerProps) {
           </button>
         </p>
       )}
-      {textOnly > 0 && (
-        <p className="ex-meta">
-          {textOnly === chosen.length
-            ? 'Все выбранные лекции загружены только текстом: конспекта нет, для разметки этого хватает.'
-            : `${textOnly} из них ${textOnly === 1 ? 'загружена' : 'загружены'} только текстом: конспекта нет, для разметки этого хватает.`}
-        </p>
-      )}
       {materials.length === 0 && !props.loading && !props.error && (
         <p className="ex-meta">Без лекций Meldy не сможет отметить покрытие. Список вопросов сохранится и без них.</p>
       )}
-      {open && materials.length > 0 && (
-        <div id={listId} className="nx-pick-panel">
+      {materials.length > 0 && (
+        <div className="nx-pick-panel">
           {long && (
             <label className="nx-pick-find">
               <Search aria-hidden="true" strokeWidth={2} />
@@ -293,6 +255,8 @@ export default function MaterialPicker(props: MaterialPickerProps) {
           )}
         </div>
       )}
+      {/* Each row says «только текст»; once, under the list, what that means for the mapping. */}
+      {textOnly > 0 && <p className="ex-meta nx-pick-foot">{glue('«Только текст» — лекция без конспекта: для разметки этого хватает.')}</p>}
       <div className="nx-import">
         <input
           ref={fileRef}

@@ -367,17 +367,28 @@ export function suggestedMaterialIds(
   const withText = materials.filter((material) => material.textLength > 0);
   const wanted = stemsOf(examTitle);
   if (wanted.size === 0) return withText.map((material) => material.id);
-  const byWords = new Set(
-    withText
-      .filter((material) => {
-        const stems = stemsOf(`${material.subject} ${material.title}`);
-        for (const stem of wanted) if (stems.has(stem)) return true;
-        return false;
-      })
-      .map((material) => material.id),
-  );
+  const byWords = new Set(withText.filter((material) => sharesStem(material, wanted)).map((material) => material.id));
   if (byWords.size === 0) return withText.map((material) => material.id);
   return withText.filter((material) => byWords.has(material.id) || material.subject.trim() === '').map((material) => material.id);
+}
+
+function sharesStem(material: { title: string; subject: string }, wanted: Set<string>): boolean {
+  const stems = stemsOf(`${material.subject} ${material.title}`);
+  for (const stem of wanted) if (stems.has(stem)) return true;
+  return false;
+}
+
+/**
+ * Why suggestedMaterialIds ticked what it ticked: the exam has no title yet (all lectures), the title
+ * matched some lectures, or it matched none (all lectures again).
+ */
+export function suggestionReason(
+  materials: Array<{ title: string; subject: string; textLength: number }>,
+  examTitle: string,
+): 'no-title' | 'by-title' | 'no-match' {
+  const wanted = stemsOf(examTitle);
+  if (wanted.size === 0) return 'no-title';
+  return materials.some((material) => material.textLength > 0 && sharesStem(material, wanted)) ? 'by-title' : 'no-match';
 }
 
 const TITLE_HINT = /по\s+(?:курсу|дисциплине|предмету)\s*[«"„“]?([^»"“”\n]{3,80})/i;

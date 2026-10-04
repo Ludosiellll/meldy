@@ -21,6 +21,7 @@ import {
   splitPoint,
   splitRow,
   suggestedMaterialIds,
+  suggestionReason,
   suggestedTitle,
   toggleSection,
 } from './previewModel';
@@ -221,6 +222,12 @@ describe('suggestions', () => {
     expect(suggestedMaterialIds(materials, 'Физика')).toEqual(['m2', 'm4']);
     expect(suggestedMaterialIds(materials, 'История')).toEqual(['m1', 'm2', 'm4']);
     expect(suggestedMaterialIds(materials, '')).toEqual(['m1', 'm2', 'm4']);
+    // What the editor says about the ticks: no title yet, by the title's words, or nothing matched.
+    expect(suggestionReason(materials, '')).toBe('no-title');
+    expect(suggestionReason(materials, 'Макроэкономика')).toBe('by-title');
+    expect(suggestionReason(materials, 'История')).toBe('no-match');
+    // A scan shares the word but gives the mapping nothing: it does not count as a match.
+    expect(suggestionReason([materials[2]], 'Макроэкономика')).toBe('no-match');
   });
 
   it('keeps the whole demo course when the title comes from the list header', () => {

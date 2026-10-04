@@ -235,8 +235,10 @@ describe('ExamEditor: a new exam', () => {
   it('ticks lectures by the words of the title and text-only imports, all of them when none matches, never a scan', async () => {
     await pasteAndParse();
     expect(plain(screen.getByText(/лекци/, { selector: '#lectures .nx-line' }).textContent)).toContain('2 из 3 лекций');
-    expect(screen.getByText(/1 из них загружена только текстом/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'изменить' }));
+    expect(screen.getByText(/«Только текст» — лекция без конспекта: для разметки этого хватает/)).toBeInTheDocument();
+    // The checklist is in sight from the start (no «изменить» to unfold it), and says why these are ticked.
+    expect(screen.queryByRole('button', { name: 'изменить' })).toBeNull();
+    expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('Отмечены лекции, подходящие к названию экзамена. Лишние снимите, нужные отметьте.');
     const list = screen.getByRole('list', { name: 'Лекции для экзамена' });
     expect(within(list).getByRole('checkbox', { name: /Денежный рынок/ })).toBeChecked();
     // A text-only import has no subject: it stays ticked when the title comes from the list header.
@@ -250,6 +252,11 @@ describe('ExamEditor: a new exam', () => {
     expect(within(list).getByRole('checkbox', { name: /Лекция 3/ })).toBeChecked();
     expect(within(list).getByRole('checkbox', { name: /Денежный рынок/ })).toBeChecked();
     expect(within(list).getByRole('checkbox', { name: /Механика/ })).toBeChecked();
+    expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('По названию экзамена лекций не нашлось — отмечены все. Лишние снимите.');
+
+    // Once the student ticks by hand, the list is theirs: no more explanations of the ticks.
+    fireEvent.click(within(list).getByRole('checkbox', { name: /Механика/ }));
+    expect(document.querySelector('.nx-pick-hint')).toBeNull();
   });
 
   it('imports lectures as plain text without spending the daily limit', async () => {
@@ -326,7 +333,7 @@ describe('ExamEditor: a new exam', () => {
     // Step 2: the exam's form and its button, which says what the press does.
     expect(screen.getByLabelText('Название экзамена')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBeEnabled());
-    expect(screen.getByText(/Meldy сверит каждый вопрос с выбранными лекциями/)).toBeInTheDocument();
+    expect(plain(document.querySelector('.nx-go-note')?.textContent)).toBe('Meldy сверит каждый вопрос с 2 выбранными лекциями — пометки появятся на листе экзамена.');
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Проверка и лекции');
   });
 

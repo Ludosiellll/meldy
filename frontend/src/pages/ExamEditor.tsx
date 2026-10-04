@@ -42,6 +42,7 @@ import {
   skippedLines,
   suggestedMaterialIds,
   suggestedTitle,
+  suggestionReason,
   type PreviewState,
   type SkippedLine,
 } from '../components/exams/previewModel';
@@ -66,8 +67,17 @@ const SHEET_PREVIEW: Array<{ coverage: 'full' | 'partial' | 'none'; width: strin
   { coverage: 'partial', width: '62%' },
   { coverage: 'none', width: '70%' },
 ];
-/** Under «Разметить по лекциям»: what the press does. */
-const MAP_NEXT = 'Meldy сверит каждый вопрос с выбранными лекциями — пометки появятся на листе экзамена.';
+/** Under «Разметить по лекциям»: what the press does, with how many lectures. */
+function mapNext(lectures: number): string {
+  const chosen = lectures % 10 === 1 && lectures % 100 !== 11 ? 'выбранной лекцией' : 'выбранными лекциями';
+  return `Meldy сверит каждый вопрос с ${lectures} ${chosen} — пометки появятся на листе экзамена.`;
+}
+/** Why the lectures are ticked as they are, until the student changes them. */
+const TICK_HINTS = {
+  'no-title': 'Пока отмечены все: когда вы назовёте экзамен, Meldy оставит лекции этого предмета.',
+  'by-title': 'Отмечены лекции, подходящие к названию экзамена. Лишние снимите, нужные отметьте.',
+  'no-match': 'По названию экзамена лекций не нашлось — отмечены все. Лишние снимите.',
+} as const;
 const TITLE_ID = 'exam-title';
 const SAVE_WHY_ID = 'exam-save-why';
 
@@ -156,7 +166,6 @@ export default function ExamEditor() {
   const [materialsState, setMaterialsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [selectionTouched, setSelectionTouched] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(location.hash === '#lectures');
   const [imports, setImports] = useState<ImportStatus[]>([]);
 
   const [saving, setSaving] = useState(false);
@@ -220,7 +229,6 @@ export default function ExamEditor() {
 
   useEffect(() => {
     if (location.hash !== '#lectures' || loadState === 'loading') return;
-    setPickerOpen(true);
     window.setTimeout(() => document.getElementById('lectures')?.scrollIntoView?.({ block: 'start' }), 0);
   }, [location.hash, loadState]);
 
@@ -299,7 +307,6 @@ export default function ExamEditor() {
 
   const importFiles = async (files: File[]) => {
     if (!user) return;
-    setPickerOpen(true);
     for (const file of files) {
       const key = `${file.name}:${file.size}:${Date.now()}`;
       setImports((current) => [...current, { key, name: file.name, state: 'pending' }]);
@@ -480,6 +487,14 @@ export default function ExamEditor() {
       {primaryLabel}
     </button>
   );
+  // Step 1 says where the lectures are chosen (step 2) and how many the library has.
+  const libraryLectures = materials.filter((material) => material.textLength > 0).length;
+  const lecturesAhead =
+    materialsState !== 'ready'
+      ? 'Какие лекции брать, выберете на следующем шаге.'
+      : libraryLectures > 0
+        ? `В библиотеке ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy заранее отметит лекции по предмету экзамена.`
+        : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита.';
   // Step 1 is the list alone: one card, its button right under the field. The button always answers:
   // with text it recognises it; on an empty field it puts the cursor there and says what to do.
   const recognizeStep = total === 0;
@@ -666,6 +681,8 @@ export default function ExamEditor() {
             <p className="nx-start-p">
               {glue('Найдёт вопросы, разделы и билеты, а после проверки сверит каждый вопрос с вашими лекциями.')}
             </p>
+            <p className="nx-lbl nx-start-lbl2">Лекции</p>
+            <p className="nx-start-p">{glue(lecturesAhead)}</p>
             <p className="nx-lbl nx-start-lbl2">Где взять список</p>
             <p className="nx-start-p">{glue(LIST_SOURCE_HINT)}</p>
           </aside>
@@ -741,6 +758,24 @@ export default function ExamEditor() {
               </p>
             </div>
 
+            {/* Right after the title: the marks depend on these lectures, and the title ticks them. */}
+            <div className="nx-grp">
+              <p className="nx-lbl">Лекции</p>
+              <MaterialPicker
+                materials={materials}
+                selected={selected}
+                onToggle={toggleMaterial}
+                onSetMany={setManyMaterials}
+                hint={!editing && !selectionTouched ? TICK_HINTS[suggestionReason(materials, title)] : null}
+                onImport={(files) => void importFiles(files)}
+                imports={imports}
+                loading={materialsState === 'loading'}
+                error={materialsState === 'error' ? EXAM_MESSAGES.materials : null}
+                onRetry={() => void loadMaterials()}
+                disabled={saving}
+              />
+            </div>
+
             <div className="nx-grp">
               <p className="nx-lbl">Билеты</p>
               <p className="nx-line">
@@ -773,27 +808,9 @@ export default function ExamEditor() {
               {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
             </div>
 
-            <div className="nx-grp">
-              <p className="nx-lbl">Лекции</p>
-              <MaterialPicker
-                materials={materials}
-                selected={selected}
-                onToggle={toggleMaterial}
-                onSetMany={setManyMaterials}
-                open={pickerOpen}
-                onOpenChange={setPickerOpen}
-                onImport={(files) => void importFiles(files)}
-                imports={imports}
-                loading={materialsState === 'loading'}
-                error={materialsState === 'error' ? EXAM_MESSAGES.materials : null}
-                onRetry={() => void loadMaterials()}
-                disabled={saving}
-              />
-            </div>
-
             <div className="nx-go">
               {frame.side && primary}
-              {!editing && canSave && usableSelected.length > 0 && <p className="ex-meta nx-go-note">{MAP_NEXT}</p>}
+              {!editing && canSave && usableSelected.length > 0 && <p className="ex-meta nx-go-note">{glue(mapNext(usableSelected.length))}</p>}
               {disabledReason && total > 0 && (
                 <p className="ex-note" id={frame.side ? SAVE_WHY_ID : undefined}>
                   {disabledReason}

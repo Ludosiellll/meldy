@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import type { PickerMaterial } from '../../api/exams';
-import MaterialPicker, { chosenTitlesLine, groupBySubject, matchesQuery } from './MaterialPicker';
+import MaterialPicker, { groupBySubject, matchesQuery } from './MaterialPicker';
 
 function material(id: string, title: string, subject: string, overrides: Partial<PickerMaterial> = {}): PickerMaterial {
   return { id, title, subject, created_at: '2026-10-01T10:00:00Z', textLength: 4000, fragments: 12, textOnly: false, ...overrides };
@@ -27,9 +27,8 @@ const LONG = [
   material('t1', 'Лекция без предмета', '', { textOnly: true }),
 ];
 
-function Harness(props: { materials: PickerMaterial[]; initial?: string[]; open?: boolean; onSetMany?: (ids: string[], on: boolean) => void }) {
+function Harness(props: { materials: PickerMaterial[]; initial?: string[]; hint?: string; onSetMany?: (ids: string[], on: boolean) => void }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(props.initial ?? []));
-  const [open, setOpen] = useState(props.open ?? true);
   return (
     <div className="sf-page">
       <MaterialPicker
@@ -54,8 +53,7 @@ function Harness(props: { materials: PickerMaterial[]; initial?: string[]; open?
             return next;
           });
         }}
-        open={open}
-        onOpenChange={setOpen}
+        hint={props.hint}
         onImport={() => {}}
         imports={[]}
         loading={false}
@@ -89,10 +87,12 @@ describe('MaterialPicker: a short list', () => {
     expect(screen.getByRole('button', { name: 'Снять все' })).toBeDisabled();
   });
 
-  it('names the ticked lectures in the folded line', () => {
-    render(<Harness materials={LONG} initial={['p1', 'e1']} open={false} />);
-    expect(summary()).toContain('2 из 9 лекций');
-    expect(screen.getByText('«Тема 4.3 Использование ролей пользователей» и «Спрос и предложение»')).toBeInTheDocument();
+  it('keeps the list in sight, with no button to unfold it, and says why these lectures are ticked', () => {
+    render(<Harness materials={SHORT} initial={['m1', 'm2']} hint="Отмечены лекции, подходящие к названию экзамена." />);
+    expect(screen.getByRole('list', { name: 'Лекции для экзамена' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'изменить' })).toBeNull();
+    expect(screen.getByText('Отмечены лекции, подходящие к названию экзамена.')).toBeInTheDocument();
+    expect(summary()).toContain('Все 2 лекции');
   });
 });
 
@@ -186,11 +186,5 @@ describe('MaterialPicker helpers', () => {
       ['История', 3],
       ['Без предмета', 1],
     ]);
-  });
-
-  it('names at most three lectures', () => {
-    expect(chosenTitlesLine(['А'])).toBe('«А»');
-    expect(chosenTitlesLine(['А', 'Б', 'В'])).toBe('«А», «Б» и «В»');
-    expect(chosenTitlesLine(['А', 'Б', 'В', 'Г', 'Д'])).toBe('«А», «Б», «В» и ещё 2');
   });
 });
