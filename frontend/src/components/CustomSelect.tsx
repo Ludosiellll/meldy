@@ -17,6 +17,20 @@ interface CustomSelectProps {
   icon?: React.ReactNode;
 }
 
+type Tone = 'accent' | 'rose' | 'emerald' | 'amber';
+
+/** The colour of the open state follows the caller's focus ring (rose, emerald, amber); the default is the blue. */
+function toneOf(className: string): Tone {
+  if (className.includes('ring-rose-500')) return 'rose';
+  if (className.includes('ring-emerald-500')) return 'emerald';
+  if (className.includes('ring-amber-500')) return 'amber';
+  return 'accent';
+}
+
+/**
+ * A select with its own menu (Meldy 2026-10-04): the trigger keeps the caller's classes, the menu is a
+ * rounded white card with soft rows; the chosen row is tinted. Styles .ac-sel / .ac-pop in styles/legacy.css.
+ */
 export function CustomSelect({
   value,
   onChange,
@@ -27,6 +41,7 @@ export function CustomSelect({
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const tone = toneOf(className);
 
   const selectedOption = options.find((opt) => opt.value === value);
 
@@ -43,30 +58,21 @@ export function CustomSelect({
   }, [isOpen]);
 
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className="ac-sel" ref={dropdownRef} data-tone={tone}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex items-center justify-between w-full outline-none transition-all ${className} ${
-          isOpen ? (
-            className.includes('ring-rose-500') || className.includes('focus:ring-rose-500') ? 'ring-2 ring-rose-500 border-rose-500' :
-            className.includes('ring-emerald-500') || className.includes('focus:ring-emerald-500') ? 'ring-2 ring-emerald-500 border-emerald-500' :
-            className.includes('ring-amber-500') || className.includes('focus:ring-amber-500') ? 'ring-2 ring-amber-500 border-amber-500' :
-            'ring-2 ring-indigo-500 border-indigo-500'
-          ) : ''
-        }`}
+        aria-expanded={isOpen}
+        className={`ac-sel-trigger flex items-center justify-between w-full outline-none transition-all ${className}`}
+        data-open={isOpen ? '' : undefined}
       >
         <div className="flex items-center gap-2 truncate">
-          {icon && <span className="shrink-0 text-slate-400">{icon}</span>}
+          {icon && <span className="ac-sel-icon shrink-0">{icon}</span>}
           <span className="truncate">
-            {selectedOption ? selectedOption.label : <span className="text-slate-400">{placeholder}</span>}
+            {selectedOption ? selectedOption.label : <span className="ac-sel-placeholder">{placeholder}</span>}
           </span>
         </div>
-        <ChevronDown
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
-        />
+        <ChevronDown className="ac-sel-chevron" aria-hidden="true" />
       </button>
 
       <AnimatePresence>
@@ -75,12 +81,12 @@ export function CustomSelect({
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.1, ease: 'easeOut' }}
-            className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl dark:shadow-slate-950/50 overflow-hidden"
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className="ac-pop ac-sel-menu"
           >
-            <div className="max-h-60 overflow-y-auto custom-scrollbar py-1">
+            <div className="ac-pop-scroll">
               {options.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-slate-500 text-center">Нет вариантов</div>
+                <div className="ac-pop-empty">Нет вариантов</div>
               ) : (
                 options.map((option) => {
                   const isSelected = option.value === value;
@@ -92,33 +98,14 @@ export function CustomSelect({
                         onChange(option.value);
                         setIsOpen(false);
                       }}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
-                        isSelected
-                          ? className.includes('ring-rose-500') || className.includes('focus:ring-rose-500')
-                            ? 'bg-rose-50/50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 font-semibold'
-                            : className.includes('ring-emerald-500') || className.includes('focus:ring-emerald-500')
-                            ? 'bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 font-semibold'
-                            : className.includes('ring-amber-500') || className.includes('focus:ring-amber-500')
-                            ? 'bg-amber-50/50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-semibold'
-                            : 'bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-semibold'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80'
-                      }`}
+                      className="ac-pop-opt"
+                      data-selected={isSelected ? '' : undefined}
                     >
-                      <div className="flex items-center gap-2 truncate">
+                      <span className="flex items-center gap-2 truncate">
                         {option.icon && <span className="shrink-0 opacity-70">{option.icon}</span>}
                         <span className="truncate">{option.label}</span>
-                      </div>
-                      {isSelected && (
-                        <Check className={`w-4 h-4 shrink-0 ${
-                          className.includes('ring-rose-500') || className.includes('focus:ring-rose-500')
-                            ? 'text-rose-600 dark:text-rose-400'
-                            : className.includes('ring-emerald-500') || className.includes('focus:ring-emerald-500')
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : className.includes('ring-amber-500') || className.includes('focus:ring-amber-500')
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : 'text-indigo-600 dark:text-indigo-400'
-                        }`} />
-                      )}
+                      </span>
+                      {isSelected && <Check className="ac-pop-check" aria-hidden="true" />}
                     </button>
                   );
                 })

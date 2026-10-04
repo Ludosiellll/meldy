@@ -1,4 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -8,6 +9,29 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+}
+
+/**
+ * The legacy screens hidden from the main menu (Career, Chat, CoStudy, Courses, Messages, Missions,
+ * MoodTracker, ProfessorExam, SocialHub, TeacherDashboard, AssignmentView). Their markup is the old
+ * Tailwind one; styles/legacy.css maps it onto the Meldy language under [data-legacy], and only here
+ * is that attribute set, so the mapping never reaches the redesigned screens.
+ */
+const LEGACY_SCREENS = /^\/(career|chat|courses|messages|play|mood|exam|network|teacher|co-study|assignment)(\/|$)/;
+
+export function isLegacyScreen(pathname: string): boolean {
+  return LEGACY_SCREENS.test(pathname);
+}
+
+/** Wraps a legacy screen in a box-less scope (display: contents); every other screen renders as is. */
+function LegacyScope({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  if (!isLegacyScreen(pathname)) return <>{children}</>;
+  return (
+    <div className="lg-scope" data-legacy="">
+      {children}
+    </div>
+  );
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -25,26 +49,30 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      // Meldy 2026-10-04: a white card on the canvas, the blue pill back home (.ac-error in styles/legacy.css).
       return (
-        <div className="flex flex-col items-center justify-center p-12 text-center h-full">
-          <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mb-6">
-            <AlertTriangle className="w-8 h-8 text-rose-600" />
+        <div className="ac-error" role="alert">
+          <div className="ac-error-card">
+            <span className="ac-error-mark" aria-hidden="true">
+              <AlertTriangle />
+            </span>
+            <h1 className="ac-error-h">Что-то пошло не так</h1>
+            <p className="ac-error-p">
+              Произошла непредвиденная ошибка при отображении этой страницы.
+              Пожалуйста, обновите страницу или вернитесь на главную.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.href = '/'}
+              className="sf-primary"
+            >
+              Вернуться на главную
+            </button>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Что-то пошло не так</h1>
-          <p className="text-slate-500 max-w-md mx-auto mb-6">
-            Произошла непредвиденная ошибка при отображении этой страницы. 
-            Пожалуйста, обновите страницу или вернитесь на главную.
-          </p>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition"
-          >
-            Вернуться на главную
-          </button>
         </div>
       );
     }
 
-    return this.props.children;
+    return <LegacyScope>{this.props.children}</LegacyScope>;
   }
 }

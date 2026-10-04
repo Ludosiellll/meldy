@@ -5,8 +5,9 @@ export const ROUTE_LOADING_DELAY_MS = 300;
 
 /**
  * Заглушка на время загрузки страницы (Suspense и проверка сессии).
- * Фон — бумажный холст темы, поэтому холодная загрузка не вспыхивает тёмно-синим.
- * Спиннер и подпись появляются только через 300 мс.
+ * Фон — холст темы, поэтому холодная загрузка не вспыхивает тёмно-синим.
+ * Спиннер и подпись появляются только через 300 мс; во весь экран — со словесным знаком Meldy
+ * (Meldy 2026-10-04, стили .ac-loading в styles/legacy.css).
  */
 export default function RouteLoading({ fullScreen = true }: { fullScreen?: boolean }) {
   const [visible, setVisible] = useState(false);
@@ -26,12 +27,17 @@ export default function RouteLoading({ fullScreen = true }: { fullScreen?: boole
       }`}
     >
       {visible && (
-        <div className="flex flex-col items-center gap-3">
+        <div className="ac-loading">
+          {fullScreen && (
+            <span className="au-logo ac-loading-mark" aria-hidden="true">
+              Meldy
+            </span>
+          )}
           <span
             aria-hidden="true"
-            className="h-6 w-6 rounded-full border-2 border-[var(--sf-line)] border-t-[var(--sf-accent-fg)] animate-spin motion-reduce:animate-none"
+            className="ac-loading-ring rounded-full border-[var(--sf-line)] border-t-[var(--sf-accent-fg)] animate-spin motion-reduce:animate-none"
           />
-          <p className="text-sm">Загружаем страницу…</p>
+          <p className="ac-loading-text">Загружаем страницу…</p>
         </div>
       )}
     </div>

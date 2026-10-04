@@ -13,6 +13,8 @@ interface Props {
  * Окно «Дневной лимит ИИ»: сколько единиц осталось и когда лимит обновится
  * (00:00 UTC, показано в местном времени). Без тарифных предложений: оплаты в
  * Meldy нет, у аккаунта с PRO просто написано, что лимит к нему не применяется.
+ * Вид (Meldy 2026-10-04): белая карточка со скруглением 32, остаток — в голубой плашке
+ * с полосой-пилюлей; стили .ac-modal-* в styles/legacy.css.
  */
 export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: Props) {
   const titleId = useId();
@@ -36,40 +38,37 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
   const resetAt = formatLimitReset(nextLimitReset());
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center px-4">
-      <div aria-hidden="true" className="absolute inset-0 bg-black/40" onClick={onClose} />
+    <div className="ac-modal">
+      <div aria-hidden="true" className="ac-modal-dim" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative w-full max-w-sm rounded-2xl border border-[var(--sf-line)] bg-[var(--sf-surface)] p-6 text-[var(--sf-ink)] shadow-xl focus:outline-none"
+        className="ac-modal-card"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть"
-          className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-[var(--sf-muted)] transition-colors hover:bg-[var(--sf-surface-soft)] hover:text-[var(--sf-ink)]"
-        >
-          <X className="h-5 w-5" aria-hidden="true" />
+        <button type="button" onClick={onClose} aria-label="Закрыть" className="ac-modal-x">
+          <X aria-hidden="true" />
         </button>
 
-        <h2 id={titleId} className="pr-10 text-lg font-semibold">Дневной лимит ИИ</h2>
+        <h2 id={titleId} className="ac-modal-h">Дневной лимит ИИ</h2>
 
         {isPro ? (
-          <p className="mt-3 text-sm leading-relaxed text-[var(--sf-muted)]">
+          <p className="ac-modal-p">
             У вашего аккаунта PRO: дневной лимит к нему не применяется.
           </p>
         ) : (
           <>
-            <p className="mt-3 text-base">
-              Осталось на сегодня: <span className="font-semibold">{remaining}</span> из {FREE_DAILY_LIMIT} единиц.
-            </p>
-            <div aria-hidden="true" className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--sf-surface-soft)]">
-              <div data-testid="limit-bar" className="h-full rounded-full bg-[var(--sf-accent-fg)]" style={{ width: `${share}%` }} />
+            <div className="ac-limit">
+              <p className="ac-limit-line">
+                Осталось на сегодня: <span className="ac-limit-n">{remaining}</span> из {FREE_DAILY_LIMIT} единиц.
+              </p>
+              <div aria-hidden="true" className="ac-limit-track">
+                <div data-testid="limit-bar" className="ac-limit-fill" style={{ width: `${share}%` }} />
+              </div>
             </div>
-            <p className="mt-4 text-sm leading-relaxed text-[var(--sf-muted)]">
+            <p className="ac-modal-p">
               {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}{' '}
               Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, разметка экзамена
               по лекциям, ответ на билет, разговор, шпаргалка.
@@ -77,11 +76,7 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
           </>
         )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-6 min-h-[44px] w-full rounded-xl bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)]"
-        >
+        <button type="button" onClick={onClose} className="ac-modal-ok">
           Понятно
         </button>
       </div>

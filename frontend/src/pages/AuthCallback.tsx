@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function AuthCallback() {
@@ -54,26 +55,31 @@ export default function AuthCallback() {
     };
   }, [navigate]);
 
+  // Meldy 2026-10-04: a white card on the canvas with the wordmark; styles .au-wait in styles/legacy.css.
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--sf-canvas)] px-4 text-center">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--sf-canvas)] px-4 text-center text-[var(--sf-ink)]">
       {error ? (
-        <div role="alert" className="flex max-w-sm flex-col items-center gap-4">
-          <p className="text-sm leading-relaxed text-rose-700 dark:text-rose-400">{error}</p>
+        <div role="alert" className="au-wait">
+          <span className="au-mark-bad" aria-hidden="true">
+            <AlertTriangle />
+          </span>
+          <p className="au-wait-text text-rose-700 dark:text-rose-400">{error}</p>
           <button
             type="button"
             onClick={() => navigate('/login', { replace: true })}
-            className="min-h-[44px] rounded-lg bg-[var(--sf-accent)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)]"
+            className="sf-primary"
           >
             Вернуться ко входу
           </button>
         </div>
       ) : (
-        <div role="status" className="flex flex-col items-center gap-3">
+        <div role="status" className="au-wait">
+          <span className="au-logo" aria-hidden="true">Meldy</span>
           <span
             aria-hidden="true"
-            className="h-8 w-8 rounded-full border-2 border-[var(--sf-line)] border-t-[var(--sf-accent-fg)] animate-spin motion-reduce:animate-none"
+            className="au-wait-ring rounded-full border-[var(--sf-line)] border-t-[var(--sf-accent-fg)] animate-spin motion-reduce:animate-none"
           />
-          <p className="text-sm text-[var(--sf-muted)]">Выполняем вход…</p>
+          <p className="au-wait-text text-[var(--sf-muted)]">Выполняем вход…</p>
         </div>
       )}
     </main>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback, useId } from 'react';
 import Cropper from 'react-easy-crop';
 import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,11 +10,14 @@ interface ImageCropperProps {
   onClose: () => void;
 }
 
+/** Обрезка фото профиля (Meldy 2026-10-04): белая карточка на затемнении, синяя пилюля «Применить». */
 export default function ImageCropper({ imageSrc, onCropComplete, onClose }: ImageCropperProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const titleId = useId();
+  const zoomId = useId();
 
   const handleCropComplete = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
     setCroppedAreaPixels(croppedAreaPixels);
@@ -37,28 +40,31 @@ export default function ImageCropper({ imageSrc, onCropComplete, onClose }: Imag
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="ac-modal ac-modal--top">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          className="ac-modal-dim"
         />
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-md bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col"
+          exit={{ opacity: 0, scale: 0.97 }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="ac-modal-card ac-crop"
         >
-          <div className="p-4 flex justify-between items-center border-b border-slate-800">
-            <h3 className="text-lg font-bold text-white">Обрезка фото</h3>
-            <button onClick={onClose} className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-full transition">
-              <X className="w-5 h-5" />
+          <div className="ac-crop-head">
+            <h3 id={titleId} className="ac-modal-h">Обрезка фото</h3>
+            <button type="button" onClick={onClose} aria-label="Закрыть" className="ac-modal-x ac-crop-x">
+              <X aria-hidden="true" />
             </button>
           </div>
-          
-          <div className="relative w-full h-[400px] bg-black">
+
+          <div className="ac-crop-stage">
             <Cropper
               image={imageSrc}
               crop={crop}
@@ -72,30 +78,26 @@ export default function ImageCropper({ imageSrc, onCropComplete, onClose }: Imag
             />
           </div>
 
-          <div className="p-6 bg-slate-900">
-            <div className="flex items-center gap-4 mb-6">
-              <span className="text-sm text-slate-400">Масштаб</span>
+          <div className="ac-crop-foot">
+            <div className="ac-crop-zoom">
+              <label htmlFor={zoomId} className="ac-crop-label">Масштаб</label>
               <input
+                id={zoomId}
                 type="range"
                 value={zoom}
                 min={1}
                 max={3}
                 step={0.1}
-                aria-labelledby="Zoom"
                 onChange={(e) => setZoom(Number(e.target.value))}
-                className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className="ac-range"
               />
             </div>
-            <button
-              onClick={handleSave}
-              disabled={isProcessing}
-              className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition"
-            >
+            <button type="button" onClick={handleSave} disabled={isProcessing} className="ac-modal-ok ac-crop-ok">
               {isProcessing ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="ac-ring ac-ring--light" aria-hidden="true" />
               ) : (
                 <>
-                  <Check className="w-5 h-5" />
+                  <Check aria-hidden="true" />
                   Применить
                 </>
               )}

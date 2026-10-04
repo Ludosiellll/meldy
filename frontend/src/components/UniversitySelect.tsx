@@ -29,9 +29,12 @@ const BELARUS_UNIVERSITIES = [
 interface UniversitySelectProps {
   value: string;
   onChange: (val: string) => void;
+  /** id of the input, for a <label htmlFor>. */
+  id?: string;
 }
 
-export default function UniversitySelect({ value, onChange }: UniversitySelectProps) {
+/** A university field with suggestions (Meldy 2026-10-04: the account field look, .ac-* in styles/legacy.css). */
+export default function UniversitySelect({ value, onChange, id }: UniversitySelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -55,10 +58,11 @@ export default function UniversitySelect({ value, onChange }: UniversitySelectPr
   const filtered = BELARUS_UNIVERSITIES.filter(u => u.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="relative w-full" ref={wrapperRef}>
-      <div className="relative flex items-center">
-        <Building2 className="absolute left-3 w-4 h-4 text-slate-400" />
+    <div className="ac-combo" ref={wrapperRef}>
+      <div className="ac-combo-field">
+        <Building2 className="ac-combo-icon" aria-hidden="true" />
         <input
+          id={id}
           type="text"
           value={search}
           onClick={() => setIsOpen(true)}
@@ -68,12 +72,12 @@ export default function UniversitySelect({ value, onChange }: UniversitySelectPr
             setIsOpen(true);
           }}
           placeholder="ВУЗ или Школа (например, БГУ)"
-          className="w-full pl-9 pr-4 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm placeholder:text-slate-400"
+          className="ac-input ac-combo-input"
         />
       </div>
 
       {isOpen && (
-        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+        <div className="ac-pop ac-combo-list">
           {filtered.length > 0 ? (
             filtered.map((uni, idx) => (
               <div
@@ -83,14 +87,14 @@ export default function UniversitySelect({ value, onChange }: UniversitySelectPr
                   onChange(uni);
                   setIsOpen(false);
                 }}
-                className="px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-sm text-slate-700 dark:text-slate-300 transition border-b border-slate-100 dark:border-slate-800 last:border-0 flex items-center gap-2"
+                className="ac-pop-row"
               >
-                <MapPin className="w-3.5 h-3.5 shrink-0 text-indigo-400" />
-                <span className="truncate">{uni}</span>
+                <MapPin className="ac-pop-pin" aria-hidden="true" />
+                <span className="ac-pop-text">{uni}</span>
               </div>
             ))
           ) : (
-            <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+            <div className="ac-pop-empty">
               Нажмите Enter или кликните вне поля, чтобы сохранить "{search}"
             </div>
           )}
