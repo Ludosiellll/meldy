@@ -31,7 +31,7 @@
     root.classList.remove(dark ? 'light' : 'dark');
     root.classList.add(dark ? 'dark' : 'light');
 
-    var color = dark ? '#1f1e1c' : '#f6f5f4';
+    var color = dark ? '#0b0f16' : '#f3f3f0';
     var metas = document.querySelectorAll('meta[name="theme-color"]');
     for (var i = 0; i < metas.length; i++) {
       metas[i].setAttribute('content', color);

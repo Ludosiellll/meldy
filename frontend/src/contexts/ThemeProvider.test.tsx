@@ -25,8 +25,8 @@ function stubMatchMedia() {
 function addThemeColorMetas() {
   document.head.querySelectorAll('meta[name="theme-color"]').forEach(meta => meta.remove());
   for (const [media, color] of [
-    ['(prefers-color-scheme: light)', '#f6f5f4'],
-    ['(prefers-color-scheme: dark)', '#1f1e1c'],
+    ['(prefers-color-scheme: light)', '#f3f3f0'],
+    ['(prefers-color-scheme: dark)', '#0b0f16'],
   ]) {
     const meta = document.createElement('meta');
     meta.name = 'theme-color';
@@ -73,7 +73,7 @@ describe('ThemeProvider', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(document.documentElement.classList.contains('light')).toBe(false);
     expect(metaColors()).toEqual([THEME_CANVAS.dark, THEME_CANVAS.dark]);
-    expect(THEME_CANVAS).toEqual({ light: '#f6f5f4', dark: '#1f1e1c' });
+    expect(THEME_CANVAS).toEqual({ light: '#f3f3f0', dark: '#0b0f16' });
   });
 
   it('keeps an explicit light choice on a dark OS', () => {
@@ -81,7 +81,7 @@ describe('ThemeProvider', () => {
     window.localStorage.setItem(KEY, 'light');
     renderProvider();
     expect(document.documentElement.classList.contains('light')).toBe(true);
-    expect(metaColors()).toEqual(['#f6f5f4', '#f6f5f4']);
+    expect(metaColors()).toEqual(['#f3f3f0', '#f3f3f0']);
   });
 
   it('follows the OS without a stored choice', () => {
@@ -89,21 +89,21 @@ describe('ThemeProvider', () => {
     renderProvider();
     expect(screen.getByText('Тема: system')).toBeInTheDocument();
     expect(document.documentElement.classList.contains('dark')).toBe(true);
-    expect(metaColors()).toEqual(['#1f1e1c', '#1f1e1c']);
+    expect(metaColors()).toEqual(['#0b0f16', '#0b0f16']);
   });
 
   it('updates class, metas and the same storage key on setTheme', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     renderProvider();
-    expect(metaColors()).toEqual(['#f6f5f4', '#f6f5f4']);
+    expect(metaColors()).toEqual(['#f3f3f0', '#f3f3f0']);
     act(() => setThemeRef!('dark'));
     expect(setItem).toHaveBeenCalledWith(KEY, 'dark');
     expect(window.localStorage.getItem(KEY)).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
-    expect(metaColors()).toEqual(['#1f1e1c', '#1f1e1c']);
+    expect(metaColors()).toEqual(['#0b0f16', '#0b0f16']);
     act(() => setThemeRef!('light'));
     expect(document.documentElement.className).toBe('light');
-    expect(metaColors()).toEqual(['#f6f5f4', '#f6f5f4']);
+    expect(metaColors()).toEqual(['#f3f3f0', '#f3f3f0']);
   });
 
   it('survives blocked storage', () => {

@@ -23,8 +23,8 @@ function stubMatchMedia(present = true) {
 function addThemeColorMetas() {
   document.head.querySelectorAll('meta[name="theme-color"]').forEach(meta => meta.remove());
   for (const [media, color] of [
-    ['(prefers-color-scheme: light)', '#f6f5f4'],
-    ['(prefers-color-scheme: dark)', '#1f1e1c'],
+    ['(prefers-color-scheme: light)', '#f3f3f0'],
+    ['(prefers-color-scheme: dark)', '#0b0f16'],
   ]) {
     const meta = document.createElement('meta');
     meta.name = 'theme-color';
@@ -57,7 +57,7 @@ describe('public/theme-init.js', () => {
     runThemeInit();
     expect(html().contains('dark')).toBe(true);
     expect(html().contains('light')).toBe(false);
-    expect(metaColors()).toEqual(['#1f1e1c', '#1f1e1c']);
+    expect(metaColors()).toEqual(['#0b0f16', '#0b0f16']);
   });
 
   it('stored light wins over a dark OS', () => {
@@ -66,7 +66,7 @@ describe('public/theme-init.js', () => {
     runThemeInit();
     expect(html().contains('light')).toBe(true);
     expect(html().contains('dark')).toBe(false);
-    expect(metaColors()).toEqual(['#f6f5f4', '#f6f5f4']);
+    expect(metaColors()).toEqual(['#f3f3f0', '#f3f3f0']);
   });
 
   it('no stored choice → the OS preference', () => {
@@ -120,8 +120,8 @@ describe('public/theme-init.js', () => {
 
 describe('index.html, offline.html and the manifest', () => {
   it('loads theme-init.js from a file right after two media-scoped theme-color metas', () => {
-    const light = indexHtml.indexOf('<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f5f4" />');
-    const dark = indexHtml.indexOf('<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1f1e1c" />');
+    const light = indexHtml.indexOf('<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f0" />');
+    const dark = indexHtml.indexOf('<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0f16" />');
     const script = indexHtml.indexOf('<script src="/theme-init.js"></script>');
     expect(light).toBeGreaterThan(-1);
     expect(dark).toBeGreaterThan(light);
@@ -133,10 +133,10 @@ describe('index.html, offline.html and the manifest', () => {
     expect(inlineScripts).toEqual([]);
   });
 
-  it('uses the paper canvas for the offline page and the PWA manifest', () => {
-    expect(offlineHtml).toContain('<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f5f4">');
+  it('uses the canvas colour for the offline page and the PWA manifest', () => {
+    expect(offlineHtml).toContain('<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f0">');
     expect(offlineHtml).not.toContain('#0868b2"');
-    expect(viteConfigSource).toContain("theme_color: '#f6f5f4'");
-    expect(viteConfigSource).toContain("background_color: '#f6f5f4'");
+    expect(viteConfigSource).toContain("theme_color: '#f3f3f0'");
+    expect(viteConfigSource).toContain("background_color: '#f3f3f0'");
   });
 });

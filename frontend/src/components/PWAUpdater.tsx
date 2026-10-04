@@ -21,15 +21,15 @@ export default function PWAUpdater() {
     if (needRefresh) {
       toast(
         (t) => (
-          <div className="flex flex-col gap-2">
-            <span className="font-semibold text-slate-900 dark:text-white">Доступно обновление</span>
-            <span className="text-sm text-slate-500 dark:text-slate-400">Обновите страницу, чтобы получить последнюю версию.</span>
-            <button 
+          <div className="flex flex-col gap-1.5">
+            <span className="font-medium text-[var(--sf-ink)]">Доступно обновление</span>
+            <span className="text-sm text-[var(--sf-muted)]">Обновите страницу, чтобы получить последнюю версию.</span>
+            <button
               onClick={() => {
                 updateServiceWorker(true);
                 toast.dismiss(t.id);
               }}
-              className="mt-2 px-4 py-2 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-lg font-semibold w-full transition-colors"
+              className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-full bg-[var(--sf-accent)] px-5 font-medium text-white transition-colors hover:bg-[var(--sf-accent-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sf-accent)]"
             >
               Обновить сейчас
             </button>

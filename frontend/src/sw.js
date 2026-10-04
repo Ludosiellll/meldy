@@ -1,4 +1,4 @@
-import { precacheAndRoute } from 'workbox-precaching';
+import { matchPrecache, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkFirst } from 'workbox-strategies';
 
@@ -21,7 +21,8 @@ const navigationRoute = new NavigationRoute(
     plugins: [
       {
         handlerDidError: async () => {
-          return (await caches.match('/offline.html')) || Response.error();
+          // Precache keys carry ?__WB_REVISION__=…, so caches.match('/offline.html') never finds the page.
+          return (await matchPrecache('/offline.html')) || Response.error();
         }
       }
     ]

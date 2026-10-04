@@ -4,31 +4,36 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Нет сети — Meldy</title>
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f5f4">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1f1e1c">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f0">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0f16">
   <style>
     :root {
-      --sf-canvas: #f6f5f4;
+      --sf-canvas: #f3f3f0;
       --sf-surface: #ffffff;
-      --sf-ink: #20201e;
-      --sf-muted: #696862;
-      --sf-line: #e6e4e1;
-      --sf-accent: #0868b2;
-      --sf-accent-hover: #075b9b;
+      --sf-ink: #0b121c;
+      --sf-muted: #4b515b;
+      --sf-line: #e3e3dd;
+      --sf-accent: #2869dd;
+      --sf-accent-hover: #1c4db1;
+      --sf-accent-soft: #e8effc;
+      --sf-focus: #2869dd;
+      --m-yellow: #f4c45b;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --sf-canvas: #1f1e1c;
-        --sf-surface: #282725;
-        --sf-ink: #f2f0ec;
-        --sf-muted: #b0ada6;
-        --sf-line: #403e3a;
-        --sf-accent: #176dae;
-        --sf-accent-hover: #125c94;
+        --sf-canvas: #0b0f16;
+        --sf-surface: #141a24;
+        --sf-ink: #f3f3f0;
+        --sf-muted: #a7adb7;
+        --sf-line: #262e3b;
+        --sf-accent: #2869dd;
+        --sf-accent-hover: #3b78e6;
+        --sf-accent-soft: #1a2a47;
+        --sf-focus: #8db2f5;
       }
     }
     body {
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Onest Variable', 'Onest', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       margin: 0;
       display: flex;
       align-items: center;
@@ -40,98 +45,87 @@
       padding: 16px;
     }
     .card {
-      max-width: 360px;
+      max-width: 400px;
       width: 100%;
+      box-sizing: border-box;
       background: var(--sf-surface);
       border: 1px solid var(--sf-line);
-      border-radius: 12px;
-      padding: 28px 24px;
+      border-radius: 32px;
+      padding: 36px 28px 32px;
       text-align: center;
+      box-shadow: 0 30px 60px -36px rgba(16, 41, 90, .35);
     }
     .icon {
-      width: 40px;
-      height: 40px;
-      margin: 0 auto 16px;
-      color: var(--sf-muted);
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: var(--sf-accent-soft);
+      color: var(--sf-accent);
     }
+    @media (prefers-color-scheme: dark) {
+      .icon { color: var(--sf-focus); }
+    }
+    .icon svg { width: 26px; height: 26px; }
     h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0 0 8px 0;
+      font-size: 1.6rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px 0;
     }
     p {
       color: var(--sf-muted);
-      margin: 0 0 20px 0;
+      margin: 0 0 24px 0;
       line-height: 1.5;
-      font-size: 0.95rem;
+      font-size: 1rem;
     }
     button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
       background-color: var(--sf-accent);
       color: #ffffff;
       border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-weight: 600;
+      padding: 0 26px;
+      border-radius: 999px;
+      font: inherit;
+      font-weight: 500;
       cursor: pointer;
-      font-size: 0.95rem;
       transition: background-color 0.2s;
     }
     button:hover {
       background-color: var(--sf-accent-hover);
     }
     button:focus-visible {
-      outline: 2px solid var(--sf-accent);
-      outline-offset: 2px;
+      outline: 2px solid var(--sf-focus);
+      outline-offset: 3px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none; }
     }
   </style>
 </head>
 <body>
   <main class="card">
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 20h.01"/>
-      <path d="M8.5 16.43a5 5 0 0 1 7 0"/>
-      <path d="M5 12.86a10 10 0 0 1 5.17-2.69"/>
-      <path d="M19 12.86a10 10 0 0 0-2-1.43"/>
-      <path d="M2 8.82a15 15 0 0 1 4.18-2.65"/>
-      <path d="M22 8.82a15 15 0 0 0-11.29-3.76"/>
-      <path d="m2 2 20 20"/>
-    </svg>
+    <span class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h.01"/>
+        <path d="M8.5 16.43a5 5 0 0 1 7 0"/>
+        <path d="M5 12.86a10 10 0 0 1 5.17-2.69"/>
+        <path d="M19 12.86a10 10 0 0 0-2-1.43"/>
+        <path d="M2 8.82a15 15 0 0 1 4.18-2.65"/>
+        <path d="M22 8.82a15 15 0 0 0-11.29-3.76"/>
+        <path d="m2 2 20 20"/>
+      </svg>
+    </span>
     <h1>Нет подключения</h1>
     <p>Похоже, интернет пропал. Проверьте подключение и обновите страницу.</p>
-    <button type="button" onclick="handleReload()">Обновить страницу</button>
+    <button type="button" id="reload">Обновить страницу</button>
   </main>
-
-  <script>
-    // Self-healing function to recover from Service Worker routing deadlocks when online
-    async function handleReload() {
-      if (navigator.onLine) {
-        try {
-          if ('serviceWorker' in navigator) {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (const registration of registrations) {
-              await registration.unregister();
-            }
-            console.log('Service workers unregistered successfully to resolve deadlock.');
-          }
-        } catch (e) {
-          console.error('Failed to unregister service worker:', e);
-        }
-      }
-      window.location.reload();
-    }
-
-    // Auto-heal on page load if the user is actually online
-    window.addEventListener('load', () => {
-      if (navigator.onLine) {
-        // To avoid infinite redirect loops in edge cases, check if we reloaded recently
-        const lastAutoReload = sessionStorage.getItem('last_auto_reload');
-        const now = Date.now();
-        if (!lastAutoReload || (now - parseInt(lastAutoReload, 10) > 10000)) {
-          sessionStorage.setItem('last_auto_reload', now.toString());
-          handleReload();
-        }
-      }
-    });
-  </script>
+  <!-- Отдельным файлом: CSP сайта (nginx.conf, script-src 'self') запрещает встроенные скрипты и onclick. -->
+  <script src="/offline.js"></script>
 </body>
 </html>

@@ -23,8 +23,8 @@ export default defineConfig({
         short_name: 'Meldy',
         description: 'Конспекты, карточки и тесты из ваших учебных материалов.',
         lang: 'ru',
-        theme_color: '#f6f5f4',
-        background_color: '#f6f5f4',
+        theme_color: '#f3f3f0',
+        background_color: '#f3f3f0',
         display: 'standalone',
         icons: [
           {

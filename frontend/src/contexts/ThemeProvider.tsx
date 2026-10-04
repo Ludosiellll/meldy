@@ -14,10 +14,10 @@ type ThemeProviderState = {
 };
 
 /**
- * Цвет полосы браузера и окна PWA = бумажный холст темы (--sf-canvas в index.css).
+ * Цвет полосы браузера и окна PWA = холст темы (--sf-canvas в index.css).
  * Те же значения ставит public/theme-init.js до первой отрисовки.
  */
-export const THEME_CANVAS = { light: '#f6f5f4', dark: '#1f1e1c' } as const;
+export const THEME_CANVAS = { light: '#f3f3f0', dark: '#0b0f16' } as const;
 
 const THEMES: readonly Theme[] = ['dark', 'light', 'system'];
 
