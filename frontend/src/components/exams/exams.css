@@ -1650,6 +1650,8 @@
 .sf-page .nx-pick-head input[type='checkbox'] { margin-top: 0; }
 .sf-page .nx-pick-subject { font-size: 16px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
 .sf-page .nx-pick-count { font-size: 15px; line-height: 22px; color: var(--sf-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Opened at #lectures (from the sheet): the block stops below the top bar, its label in sight. */
+.sf-page .nx-pickbox { scroll-margin-top: 150px; }
 .sf-page .nx-pickbox > .nx-pick-hint { margin-top: 2px; }
 .sf-page .nx-pickbox > .nx-pick-foot { margin-top: 10px; }
 .sf-page .nx-import { margin-top: 10px; }
