@@ -8,7 +8,9 @@
 .pg-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; }
 .pg-head-link { flex: none; }
 
-.pg-sec { max-width: 1180px; margin-top: 56px; }
+/* Every block spans the page column, the same as the top bar and the header: the left edge with the
+   logo and the title, the right edge with the account button and «Оценки из зачётки». */
+.pg-sec { margin-top: 56px; }
 .pg-sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin-bottom: 18px; }
 .pg-quiet { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .pg-error { margin: 0 0 12px; font-size: 15px; line-height: 22px; color: var(--sf-ink); }
@@ -24,7 +26,6 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
-  max-width: 1180px;
   margin-top: 40px;
 }
 .pg-tile {
@@ -292,7 +293,7 @@
 }
 .pg-row-t { min-width: 0; overflow: hidden; color: var(--sf-ink); white-space: nowrap; text-overflow: ellipsis; }
 .pg-row-n { flex: none; padding-right: 10px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
-.pg-how { max-width: 1180px; margin: 48px 0 0; }
+.pg-how { margin: 48px 0 0; }
 .pg-how-text { max-width: 48em; margin: 8px 0 0; font-size: 15px; line-height: 23px; color: var(--sf-muted); }
 .pg-how-text p { margin: 0 0 10px; text-wrap: pretty; }
 
