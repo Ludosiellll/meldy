@@ -329,6 +329,22 @@ def test_podcast_prompt_asks_for_grounded_two_host_conversation():
     assert sanitize_visual(parsed["podcast"][0]["visual"]) is not None
 
 
+def test_podcast_prompt_opens_with_a_hook_and_a_short_scene():
+    # The owner, 2026-10-04: the first line greeted the other host and said «звучит немного сложно»,
+    # and the opening picture read like a quiz (a question as the caption).
+    prompt = build_podcast_prompt()
+    assert "без обращения к Софье по имени" in prompt
+    assert "«звучит немного сложно»" in prompt  # named as the filler to avoid
+    assert "короткой зацепки" in prompt and "заканчивается вопросом" in prompt
+    assert 'тип — "scene" или "term"' not in prompt
+    for builder in (build_podcast_prompt, build_podcast_visuals_prompt):
+        text = builder()
+        assert 'только "scene"' in text
+        assert "не вопрос и не список вопросов" in text
+        assert "не повторяется в разговоре дважды" in text
+        assert '"scene" или "term"' not in text
+
+
 def test_visuals_prompt_forbids_new_lines():
     prompt = build_podcast_visuals_prompt()
     assert '"visuals": [' in prompt and '"index": 0' in prompt

@@ -19,11 +19,12 @@ import {
   stopTTS,
   type PlayTTSOptions,
 } from '../../utils/tts';
-import ConversationVisual, { type OutlineItem } from './ConversationVisual';
+import ConversationVisual from './ConversationVisual';
 import {
   assignVoices,
   buildConversation,
   conversationMeta,
+  conversationOutline,
   estimateMinutes,
   hasModelVisuals,
   mergeVisualsByIndex,
@@ -48,6 +49,7 @@ import type {
   ConversationLine,
   ConversationSource,
   ConversationTerm,
+  OutlineItem,
   PodcastLine,
 } from './types';
 import './conversation.css';
@@ -85,6 +87,33 @@ const AUDIO_MESSAGES: Record<AudioProblem, string> = {
 
 /** Сколько ждём звук следующей реплики, прежде чем показать загрузку на кнопке. */
 const BUFFERING_DELAY_MS = 400;
+
+/** Звук не пошёл за столько — под плеером «Готовим голос…». */
+export const WAIT_NOTE_MS = 600;
+/** Не пошёл и за столько — говорим, что звук ещё грузится, а реплику уже можно читать. */
+export const SLOW_NOTE_MS = 6000;
+
+type WaitNote = 'wait' | 'slow';
+
+/**
+ * «Медленный интернет» — только когда браузер сам так говорит (navigator.connection в Chrome):
+ * звук часто задерживает синтез на сервере, а не связь, и винить в этом интернет нечестно.
+ */
+function slowConnection(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const connection = (navigator as Navigator & { connection?: { effectiveType?: string } }).connection;
+  return /^(slow-2g|2g|3g)$/.test(connection?.effectiveType ?? '');
+}
+
+export function waitMessage(note: WaitNote): string {
+  if (note === 'wait') return 'Готовим голос…';
+  return slowConnection()
+    ? 'Медленный интернет: звук ещё загружается. Реплика уже на экране — её можно читать.'
+    : 'Звук загружается дольше обычного. Реплика уже на экране — её можно читать.';
+}
+
+/** Звук скольких первых реплик готовим, как только плеер на экране: первое ▶ звучит сразу. */
+const WARM_LINES = 2;
 
 /**
  * Голос ведущего не меняется посреди разговора: звук только с сервера (без голоса
@@ -152,19 +181,20 @@ export function plainLineText(text: string): string {
 }
 
 export interface SheetMetrics {
-  /** Высота листа, px. */
+  /** Высота листа со схемой или графиком, px: столько места (без полей) им отдаём. */
   height: number;
-  /** До скольких px лист растёт ради схемы. */
+  /** До скольких px лист растёт ради высокого изображения. */
   max: number;
   padTop: number;
   padBottom: number;
 }
 
 /**
- * Высота листа «Разговора» и его поля по размеру окна — те же числа, что в conversation.css:
- * 392 от 1024 px, 360 уже, 336 на телефоне; в низком окне (от 1024, не выше 780) лист занимает
- * остаток 100vh под строкой меню, шапкой материала, субтитром в три строки и плеером
- * (не меньше 300 px) и не растёт.
+ * Высота листа «Разговора» для схемы и графика и его поля по размеру окна — те же числа, что
+ * в conversation.css (--cv-h, --cv-max): 392 от 1024 px, 360 уже, 336 на телефоне; в низком окне
+ * (от 1024, не выше 780) — остаток 100vh под строкой меню, шапкой материала, субтитром в три строки
+ * и плеером (не меньше 300 px), и лист не растёт. Разговор из одних терминов и шагов получает лист
+ * ниже — по самому высокому своему изображению, но не ниже --cv-min.
  */
 export function sheetMetrics(width: number, height: number): SheetMetrics {
   if (width >= 1024 && height <= 780) {
@@ -264,16 +294,11 @@ export default function ConversationPlayer({
   const voices = useMemo(() => assignVoices(speakers), [speakers]);
   // Каждое изображение один раз: по ним лист получает высоту самого большого.
   const layers = useMemo(() => conversation.filter(line => !line.carried), [conversation]);
-  // План для заставки начала: что появится на экране дальше.
-  const outline = useMemo<OutlineItem[]>(
-    () =>
-      conversation
-        .map((line, position) => ({ line, position }))
-        .filter(({ line }) => !line.carried && line.visual.type !== 'scene')
-        .slice(0, 5)
-        .map(({ line, position }) => ({ position, caption: visualCaption(line.visual) })),
-    [conversation],
-  );
+  // План для заставки начала: какие темы появятся на листе дальше (без вопросов, цитат и повторов).
+  const outline = useMemo<OutlineItem[]>(() => {
+    const opening = conversation[0]?.visual;
+    return conversationOutline(conversation, opening?.type === 'scene' ? opening.title : '');
+  }, [conversation]);
   const openingFrom = conversation[0]?.visualFrom;
 
   const [current, setCurrent] = useState(0);
@@ -284,12 +309,15 @@ export default function ConversationPlayer({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [announcement, setAnnouncement] = useState({ text: '', flip: false });
   const [fitStep, setFitStep] = useState(0);
+  const [waitNote, setWaitNote] = useState<WaitNote | null>(null);
 
   const runRef = useRef(0);
   const currentRef = useRef(0);
   const restartOnResumeRef = useRef(false);
   const questCountedRef = useRef(false);
   const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waitTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const warmedRef = useRef<string | null>(null);
   const linesRef = useRef<ConversationLine[]>(conversation);
   linesRef.current = conversation;
   const voicesRef = useRef(voices);
@@ -312,6 +340,21 @@ export default function ConversationPlayer({
   const clearBuffering = () => {
     if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
     bufferingTimerRef.current = null;
+  };
+
+  const clearWaitNote = () => {
+    waitTimersRef.current.forEach(timer => clearTimeout(timer));
+    waitTimersRef.current = [];
+    setWaitNote(null);
+  };
+
+  /** Пока звук реплики не пошёл: через 600 мс «Готовим голос…», через 6 с — что её уже можно читать. */
+  const armWaitNote = (run: number) => {
+    clearWaitNote();
+    const show = (note: WaitNote) => () => {
+      if (run === runRef.current) setWaitNote(note);
+    };
+    waitTimersRef.current = [setTimeout(show('wait'), WAIT_NOTE_MS), setTimeout(show('slow'), SLOW_NOTE_MS)];
   };
 
   /** Сообщение для программ чтения с экрана; одинаковый текст подряд тоже должен прозвучать. */
@@ -346,6 +389,7 @@ export default function ConversationPlayer({
       stopTTS();
       setPlayback('idle');
     }
+    clearWaitNote();
     setFinished(false);
     currentRef.current = 0;
     setCurrent(0);
@@ -356,11 +400,46 @@ export default function ConversationPlayer({
     () => () => {
       runRef.current += 1;
       if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
+      waitTimersRef.current.forEach(timer => clearTimeout(timer));
       stopTTS();
       void Promise.resolve(prefetchTTSInOrder([])).catch(() => undefined);
     },
     [],
   );
+
+  // Как только плеер на экране, готовим звук первых двух реплик (по одной, с сохранением):
+  // первое ▶ звучит сразу, а не после загрузки. Уже идущий разговор готовит реплики сам.
+  useEffect(() => {
+    if (!total || warmedRef.current === textsKey) return;
+    const warm = () => {
+      if (warmedRef.current === textsKey) return;
+      warmedRef.current = textsKey;
+      if (playbackRef.current !== 'idle') return;
+      const from = currentRef.current;
+      const first = linesRef.current
+        .slice(from, from + WARM_LINES)
+        .map((line, offset) => ({ text: line.text, role: voiceAt(from + offset) }));
+      if (first.length) void Promise.resolve(prefetchTTSInOrder(first, { persist: true })).catch(() => undefined);
+    };
+    const root = rootRef.current;
+    if (!root || typeof IntersectionObserver === 'undefined') {
+      warm();
+      return;
+    }
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      observer.disconnect();
+      warm();
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [textsKey, total]);
+
+  // Новое изображение видно с начала: лист не остаётся прокрученным от прошлого (или колесом мыши).
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (body && body.scrollTop !== 0) body.scrollTop = 0;
+  }, [active?.visualFrom, textsKey]);
 
   // В открытом тексте разговора текущая реплика всегда видна; прокручивается только сам список.
   useEffect(() => {
@@ -455,6 +534,7 @@ export default function ConversationPlayer({
     currentRef.current = index;
     restartOnResumeRef.current = false;
     clearBuffering();
+    armWaitNote(run);
     setCurrent(index);
     setFinished(false);
     setAudioProblem(null);
@@ -480,6 +560,7 @@ export default function ConversationPlayer({
           } else {
             runRef.current += 1;
             clearBuffering();
+            clearWaitNote();
             setPlayback('idle');
             setFinished(true);
             questCountedRef.current = false;
@@ -490,6 +571,7 @@ export default function ConversationPlayer({
           if (run !== runRef.current) return;
           runRef.current += 1;
           clearBuffering();
+          clearWaitNote();
           setPlayback('idle');
           // Сервер не отдал звук и после повторов ('server') или звук не начался ('timeout') — «Звук не загрузился».
           const loading = isTTSUnavailable(error) && (error.reason === 'timeout' || error.reason === 'server');
@@ -498,6 +580,7 @@ export default function ConversationPlayer({
         () => {
           if (run !== runRef.current) return;
           clearBuffering();
+          clearWaitNote();
           setPlayback('playing');
           prefetchAhead(index);
           // Задание «послушать разговор» засчитывается один раз за прослушивание, когда звук реально пошёл.
@@ -514,6 +597,7 @@ export default function ConversationPlayer({
   const stopAt = (index: number) => {
     runRef.current += 1;
     clearBuffering();
+    clearWaitNote();
     stopTTS();
     restartOnResumeRef.current = false;
     currentRef.current = index;
@@ -524,10 +608,14 @@ export default function ConversationPlayer({
 
   const togglePlay = () => {
     if (!total) return;
-    if (playback === 'loading' || (playback === 'playing' && !isTTSSounding())) {
-      // Звук ещё загружается: останавливаем, а при продолжении начнём реплику заново.
+    // Звук загружается: повторное нажатие (и пробел, и K) ничего не отменяет. На кнопке крутится кольцо,
+    // под плеером сказано, что происходит, — раньше каждый клик начинал загрузку заново.
+    if (playback === 'loading') return;
+    if (playback === 'playing' && !isTTSSounding()) {
+      // Между репликами (кнопка ещё «Пауза»): останавливаем, а при продолжении начнём реплику заново.
       runRef.current += 1;
       clearBuffering();
+      clearWaitNote();
       stopTTS();
       restartOnResumeRef.current = true;
       setPlayback('paused');
@@ -910,8 +998,19 @@ export default function ConversationPlayer({
           >
             <SkipBack aria-hidden="true" strokeWidth={1.75} />
           </button>
-          {/* Единственная объёмная кнопка вкладки: белый круг с синим ▶ и светлым ореолом (язык Meldy). */}
-          <button ref={playRef} type="button" className="cv-play" onClick={togglePlay} aria-label={playLabel} title="K — пауза" data-state={playback}>
+          {/* Единственная объёмная кнопка вкладки: белый круг с синим ▶ и светлым ореолом (язык Meldy).
+              Пока звук грузится, вокруг ▶ крутится кольцо, а нажатия ничего не отменяют. */}
+          <button
+            ref={playRef}
+            type="button"
+            className="cv-play"
+            onClick={togglePlay}
+            aria-label={playLabel}
+            aria-busy={isLoading || undefined}
+            title="K — пауза"
+            data-state={playback}
+          >
+            {isLoading && <span aria-hidden="true" className="cv-play-ring" />}
             {isSpeaking ? (
               <Pause aria-hidden="true" fill="currentColor" strokeWidth={1.5} />
             ) : (
@@ -962,16 +1061,23 @@ export default function ConversationPlayer({
         >
           Текст разговора
         </button>
-      </div>
 
-      {audioProblem && (
-        <p role="status" className="cv-status">
-          <span>{AUDIO_MESSAGES[audioProblem]}</span>
-          <button type="button" onClick={retryAudio} className="sf-link">
-            Повторить
-          </button>
-        </p>
-      )}
+        {/* Отдельной строкой внутри плеера: на телефоне плеер прилипает к низу экрана, и строка видна вместе с ним. */}
+        {audioProblem ? (
+          <p role="status" className="cv-status">
+            <span>{AUDIO_MESSAGES[audioProblem]}</span>
+            <button type="button" onClick={retryAudio} className="sf-link">
+              Повторить
+            </button>
+          </p>
+        ) : (
+          waitNote && (
+            <p role="status" className="cv-status">
+              {waitMessage(waitNote)}
+            </p>
+          )
+        )}
+      </div>
     </section>
   );
 }

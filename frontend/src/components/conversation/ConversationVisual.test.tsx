@@ -203,6 +203,44 @@ describe('pictures on the paper sheet (spec 5.7, step A)', () => {
   });
 });
 
+describe('a term and a scene on the sheet', () => {
+  it('sets a term large with its definition under it, on the shown picture and its measuring copy alike', () => {
+    const [line] = buildConversation([
+      { speaker: 'Софья', text: 'Термин.', visual: { type: 'term', term: 'Эластичный спрос', definition: 'Покупки меняются сильнее, чем цена — и выручка падает.' } },
+    ]);
+    const { container, rerender } = render(<ConversationVisual visual={line.visual} origin={line.origin} provenance={line.provenance} />);
+    expect(screen.getByRole('heading', { name: 'Эластичный спрос' })).toHaveClass('cv-title');
+    // The dash never starts a line: the space before it does not break.
+    expect(container.querySelector('.cv-def')?.textContent).toBe('Покупки меняются сильнее, чем цена\u00a0— и выручка падает.');
+    expect(container.firstElementChild).toHaveClass('cv-visual-term');
+    expect(container.firstElementChild).toHaveAttribute('data-visual-type', 'term');
+    // The invisible copy that gives the sheet its height is styled the same way.
+    rerender(<ConversationVisual visual={line.visual} origin={line.origin} provenance={line.provenance} measure />);
+    expect(container.firstElementChild).toHaveClass('cv-visual-term');
+    expect(container.firstElementChild).not.toHaveAttribute('data-visual-type');
+  });
+
+  it('shows a scene later in the conversation as a title card, without the opening kicker or plan', () => {
+    const outline = [
+      { position: 2, caption: 'Выручка' },
+      { position: 3, caption: 'Цена' },
+    ];
+    const scene = { type: 'scene' as const, title: 'Выручка фирмы', icon: 'chart' as const, caption: 'Что происходит с деньгами, когда растёт цена' };
+    const { rerender } = render(<ConversationVisual visual={scene} origin="model" provenance={{ kind: 'none' }} outline={outline} />);
+    expect(screen.getByRole('heading', { name: 'Выручка фирмы' })).toHaveClass('cv-scene-title');
+    expect(screen.getByText('Что происходит с деньгами, когда растёт цена')).toHaveClass('cv-scene-lede');
+    expect(screen.queryByText('О чём разговор')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+
+    // The same scene on the first line: the kicker and the plan, rows that seek.
+    const onSeek = vi.fn();
+    rerender(<ConversationVisual visual={scene} origin="model" provenance={{ kind: 'none' }} outline={outline} opening onSeek={onSeek} />);
+    expect(screen.getByText('О чём разговор')).toHaveClass('cv-kicker');
+    fireEvent.click(screen.getByRole('button', { name: 'Цена, реплика 4' }));
+    expect(onSeek).toHaveBeenCalledWith(3);
+  });
+});
+
 describe('a diagram of words (spec 5.7, step A)', () => {
   const visual = {
     type: 'diagram' as const,

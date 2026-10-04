@@ -7,6 +7,7 @@ import {
   type DiagramEdge,
   type DiagramNode,
   type FormulaLegendItem,
+  type OutlineItem,
   type PodcastLine,
   type Provenance,
   type SceneIcon,
@@ -826,4 +827,59 @@ export function visualCaption(visual: Visual): string {
     default:
       return visual.title;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * План разговора на первой реплике
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Сколько тем в плане: план — это «что дальше», а не оглавление каждой реплики. */
+export const OUTLINE_LIMIT = 4;
+/** Длиннее этого название темы уже предложение, а не тема. */
+export const OUTLINE_TITLE_MAX = 60;
+
+/**
+ * Ключ темы для сравнения: регистр, ё/е, знаки и окончания не важны —
+ * «Эластичный спрос», «эластичный спрос!» и «Эластичного спроса» — одна тема.
+ */
+export function topicKey(text: string): string {
+  return normalizeForMatch(text).split(' ').filter(Boolean).map(wordStem).join(' ');
+}
+
+/**
+ * Название темы не длиннее OUTLINE_TITLE_MAX: «Эластичность спроса: как цена меняет выручку
+ * у пекарни и у кофейни» → «Эластичность спроса»; без такой границы — обрезка по слову с «…».
+ */
+export function outlineTitle(title: string): string {
+  const text = title.replace(/\s+/g, ' ').trim();
+  if (text.length <= OUTLINE_TITLE_MAX) return text;
+  const head = /^(.{3,60}?)(?::\s|\s[—–-]\s)/u.exec(text);
+  return head ? head[1].trim() : truncateText(text, OUTLINE_TITLE_MAX);
+}
+
+/**
+ * Темы для плана на первой реплике: что появится на листе дальше. Только темы —
+ * без вопросов для самопроверки ('question', иначе план читается как тест с
+ * вариантами ответа) и без цитат и пересказов ('fact'); каждая тема один раз
+ * (см. topicKey), без повтора заголовка самого плана; не больше OUTLINE_LIMIT.
+ * Меньше двух тем — плана нет, на первой реплике остаётся сама заставка.
+ */
+export function conversationOutline(lines: readonly ConversationLine[], heading = ''): OutlineItem[] {
+  const opening = lines[0];
+  if (!opening) return [];
+  const seen = new Set<string>();
+  const headingKey = topicKey(heading);
+  if (headingKey) seen.add(headingKey);
+  const items: OutlineItem[] = [];
+  for (let position = 0; position < lines.length && items.length < OUTLINE_LIMIT; position += 1) {
+    const line = lines[position];
+    if (line.carried || line.visualFrom === opening.visualFrom) continue;
+    if (line.visual.type === 'question' || line.visual.type === 'fact') continue;
+    const caption = outlineTitle(visualCaption(line.visual));
+    const key = topicKey(caption);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push({ position, caption });
+  }
+  return items.length >= 2 ? items : [];
 }

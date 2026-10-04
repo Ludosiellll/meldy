@@ -190,6 +190,14 @@ export interface ConversationLine {
   provenance: Provenance;
 }
 
+/** Тема в плане разговора на первой реплике: куда перейти и как её назвать. */
+export interface OutlineItem {
+  /** Позиция реплики в разговоре, где тема появляется на листе (для перехода). */
+  position: number;
+  /** Название темы, не длиннее OUTLINE_TITLE_MAX. */
+  caption: string;
+}
+
 export interface ConversationTerm {
   term: string;
   definition: string;
