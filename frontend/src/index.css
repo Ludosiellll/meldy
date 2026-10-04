@@ -3,51 +3,72 @@
 @tailwind utilities;
 :root {
   color-scheme: light;
-  --sf-canvas: #f6f5f4;
+  /* Meldy (2026-10-04, notes: 10_Project/Design_Language_2026-10-04): warm paper-white canvas,
+     ink text, one blue for actions; yellow, green, pink and sky only as accents. */
+  --sf-canvas: #f3f3f0;
   --sf-surface: #ffffff;
-  --sf-surface-soft: #f0efed;
-  --sf-ink: #20201e;
-  --sf-muted: #696862;
-  --sf-line: #e6e4e1;
-  --sf-accent: #0868b2;
-  --sf-accent-hover: #075b9b;
-  --sf-accent-soft: #e8f2fb;
+  --sf-surface-soft: #f7f7f3;
+  --sf-ink: #0b121c;
+  --sf-muted: #4b515b;
+  --sf-line: #e3e3dd;
+  --sf-accent: #2869dd;
+  --sf-accent-hover: #1c4db1;
+  --sf-accent-soft: #e8effc;
   /* Акцент для линий, точек и мелкого текста (на заливке кнопок — --sf-accent). */
-  --sf-accent-fg: #0868b2;
-  --sf-workbench: #f0efed;
+  --sf-accent-fg: #1f5bc6;
+  --sf-workbench: #ecece6;
+  --m-yellow: #f4c45b;
+  --m-green: #8acb97;
+  --m-green-soft: #e2f2e5;
+  --m-green-ink: #2c6b3a;
+  --m-yellow-soft: #fcefc9;
+  --m-yellow-ink: #7a5a12;
+  --m-pink: #f3a9c4;
+  --m-sky: #a9c8f7;
+  --m-navy: #10295a;
+  --m-ease: cubic-bezier(.16, 1, .3, 1);
+  --m-card-shadow: 0 1px 2px rgba(11, 18, 28, .04), 0 40px 80px -52px rgba(16, 41, 90, .42);
+  --m-lift-shadow: 0 2px 4px rgba(11, 18, 28, .05), 0 44px 90px -46px rgba(16, 41, 90, .5);
   --toast-bg: #ffffff;
-  --toast-color: #0f172a;
-  --toast-border: #e2e8f0;
-  --toast-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --toast-color: #0b121c;
+  --toast-border: #e3e3dd;
+  --toast-shadow: 0 24px 50px -24px rgba(16, 41, 90, .35);
 
   /* Recharts tooltip - light theme */
   --tooltip-bg: #ffffff;
-  --tooltip-text: #1e293b;
-  --tooltip-border: #e2e8f0;
+  --tooltip-text: #0b121c;
+  --tooltip-border: #e3e3dd;
 }
 
 .dark {
   color-scheme: dark;
-  --sf-canvas: #1f1e1c;
-  --sf-surface: #282725;
-  --sf-surface-soft: #302f2c;
-  --sf-ink: #f2f0ec;
-  --sf-muted: #b0ada6;
-  --sf-line: #403e3a;
-  --sf-accent: #176dae;
-  --sf-accent-hover: #125c94;
-  --sf-accent-soft: #293a49;
-  --sf-accent-fg: #5aa2dc;
-  --sf-workbench: #242320;
-  --toast-bg: #1e293b;
-  --toast-color: #f1f5f9;
-  --toast-border: #334155;
-  --toast-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  /* The same language at night: deep ink canvas, slate cards, the same blue for actions. */
+  --sf-canvas: #0b0f16;
+  --sf-surface: #141a24;
+  --sf-surface-soft: #1b2230;
+  --sf-ink: #f3f3f0;
+  --sf-muted: #a7adb7;
+  --sf-line: #262e3b;
+  --sf-accent: #2869dd;
+  --sf-accent-hover: #3b78e6;
+  --sf-accent-soft: #1a2a47;
+  --sf-accent-fg: #8db2f5;
+  --sf-workbench: #11161f;
+  --m-green-soft: rgba(138, 203, 151, .16);
+  --m-green-ink: #a8dcb2;
+  --m-yellow-soft: rgba(244, 196, 91, .16);
+  --m-yellow-ink: #f4cf7c;
+  --m-card-shadow: 0 0 0 1px #262e3b, 0 30px 60px -40px rgba(0, 0, 0, .7);
+  --m-lift-shadow: 0 0 0 1px #313b4b, 0 36px 70px -36px rgba(0, 0, 0, .8);
+  --toast-bg: #141a24;
+  --toast-color: #f3f3f0;
+  --toast-border: #262e3b;
+  --toast-shadow: 0 24px 50px -20px rgba(0, 0, 0, .6);
 
   /* Recharts tooltip - dark theme */
-  --tooltip-bg: #0f172a;
-  --tooltip-text: #f1f5f9;
-  --tooltip-border: #1e293b;
+  --tooltip-bg: #141a24;
+  --tooltip-text: #f3f3f0;
+  --tooltip-border: #262e3b;
 }
 
 @layer base {
@@ -78,7 +99,7 @@
 
   /* Better tap targets on mobile */
   button, a, [role="button"] {
-    -webkit-tap-highlight-color: rgba(34, 211, 238, 0.14);
+    -webkit-tap-highlight-color: rgba(40, 105, 221, 0.12);
   }
 
   :focus-visible {

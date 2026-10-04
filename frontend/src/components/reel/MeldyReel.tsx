@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
+import { REEL_EVENT, takePendingChapter, type ReelChapter } from '../home/reelJump';
 import { ReelClock } from './clock';
 import { put } from './engine';
 import ReelStage from './ReelStage';
@@ -17,12 +18,12 @@ declare global {
 }
 
 /** The bar under the reel: the opening, the four chapters and the ending, by their length. */
-export const SEGMENTS = [
+export const SEGMENTS: Array<{ label: string; from: number; to: number; id?: ReelChapter }> = [
   { label: 'Начало', from: 0, to: sceneWindow('tickets').from },
-  { label: 'Билеты', from: sceneWindow('tickets').from, to: sceneWindow('oral').from },
-  { label: 'Ответ вслух', from: sceneWindow('oral').from, to: sceneWindow('review').from },
-  { label: 'Повторение', from: sceneWindow('review').from, to: sceneWindow('ready').from },
-  { label: 'Готовность', from: sceneWindow('ready').from, to: sceneWindow('outro').from },
+  { label: 'Билеты', from: sceneWindow('tickets').from, to: sceneWindow('oral').from, id: 'tickets' },
+  { label: 'Ответ вслух', from: sceneWindow('oral').from, to: sceneWindow('review').from, id: 'oral' },
+  { label: 'Повторение', from: sceneWindow('review').from, to: sceneWindow('ready').from, id: 'review' },
+  { label: 'Готовность', from: sceneWindow('ready').from, to: sceneWindow('outro').from, id: 'ready' },
   { label: 'Итог', from: sceneWindow('outro').from, to: TOTAL },
 ];
 
@@ -171,11 +172,29 @@ export default function MeldyReel({ onCta }: { onCta?: () => void }) {
     setUserPaused((paused) => !paused);
   }, [allowed]);
 
-  const jump = (index: number) => {
-    clock.seek(SEGMENTS[index].from + (index === 0 ? 0 : 60));
-    setAsked(true);
-    setUserPaused(false);
-  };
+  const jump = useCallback(
+    (index: number) => {
+      clock.seek(SEGMENTS[index].from + (index === 0 ? 0 : 60));
+      setAsked(true);
+      setUserPaused(false);
+    },
+    [clock],
+  );
+
+  // «Смотреть в ролике» elsewhere on the page plays a chapter here.
+  useEffect(() => {
+    const play = (chapter: ReelChapter | null | undefined) => {
+      const index = SEGMENTS.findIndex((segment) => segment.id === chapter);
+      if (index >= 0) jump(index);
+    };
+    play(takePendingChapter());
+    const onRequest = (event: Event) => {
+      takePendingChapter();
+      play((event as CustomEvent<{ chapter?: ReelChapter }>).detail?.chapter);
+    };
+    window.addEventListener(REEL_EVENT, onRequest);
+    return () => window.removeEventListener(REEL_EVENT, onRequest);
+  }, [jump]);
 
   const ctaStyle = {
     left: `${((OUTRO_CTA.x - OUTRO_CTA.w / 2) / STAGE_W) * 100}%`,

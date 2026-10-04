@@ -1,25 +1,16 @@
-/* Paper kit of the interior («Бумажный стол», redesign spec 3 and 6.1).
+/* The interior kit of Meldy.
  *
- * The canvas is the desk; paper is only what you could hold: the department's list, a lecture
- * fragment, the ticket, the answer sheet, the index card. Meldy speaks in Onest on the desk and
- * marks paper with a blue pencil (components/marks); the student's own hand is graphite.
- *
- * How to use it (wave-2 screens):
- * - the root of a screen carries .sf-page (a page frame with gutters) or, in room mode, the top line
- *   is .sf-room-bar and the room's body is .sf-page too: the new tokens live on these roots, so
- *   nothing outside them changes;
- * - paper is .sf-sheet (radius 2), .sf-index-card (radius 6) or .sf-slip (a cut-out fragment); inside
- *   them the desk tokens point at the paper ones, so --sf-ink, --sf-muted, --sf-line, focus rings and
- *   --ph-pencil-desk stay readable on paper in both themes;
- * - .sf-pnote is Meldy's typeset note on paper (pencil blue), .sf-ref a reference on the desk,
- *   .sf-link the underlined word (add data-muted for the quiet version);
- * - the one primary pill is .sf-primary (from LandingHero.css, imported below).
- *
- * Only new class names and imports: no element selectors and no :root overrides of existing tokens.
- * index.css, components/landing/** and ConfirmContext stay untouched (contracts §0). */
+ * Since 2026-10-04 the look is the new Meldy language (notes: 10_Project/Design_Language_2026-10-04):
+ * a warm canvas, white cards with large radii and long soft shadows, pill controls, one blue for
+ * actions, the yellow dot. The class names are those of the earlier «Бумажный стол» kit, so the
+ * screens did not change: .sf-page frames a screen, .sf-sheet / .sf-index-card / .sf-slip are the
+ * cards (a sheet, an index card, a lecture fragment), .sf-primary is the one blue pill with the circle
+ * arrow, .sf-secondary the white one, .sf-link a quiet underlined word, .sf-pnote Meldy's note.
+ * The rules below the «Meldy 2026-10-04» line at the end of this file give the look; the earlier
+ * rules give structure (grids, sizes, breakpoints).
+ */
 
-@import '../components/landing/PaperHero.css';
-@import '../components/LandingHero.css';
+@import './base.css';
 @import '@fontsource-variable/onest/wght.css';
 @import '@fontsource-variable/literata/opsz.css';
 
@@ -27,20 +18,20 @@
 .sf-shell,
 .sf-page,
 .sf-room-bar {
-  --sf-muted: #62615b;
-  --sf-line-strong: #cfcac2;
-  --sf-control-edge: #8f8a82;
-  --sf-tint: rgba(32, 32, 30, .06);
-  --sf-pop-shadow: 0 0 0 1px var(--sf-line), 0 18px 36px -22px rgba(30, 24, 16, .32);
-  --ph-paper-muted: #6b665e;
-  --ph-paper-rule: #d6d0c5;
-  --ph-edge: rgba(60, 46, 26, .18);
-  --ph-pencil-desk: #2c5fb3;
-  --ph-graphite: #625e57;
-  --ph-graphite-desk: #625e57;
+  --sf-muted: #4b515b;
+  --sf-line-strong: #cfd0c8;
+  --sf-control-edge: #8a8f97;
+  --sf-tint: rgba(11, 18, 28, .05);
+  --sf-pop-shadow: 0 0 0 1px var(--sf-line), 0 30px 60px -30px rgba(16, 41, 90, .38);
+  --ph-paper-muted: #4b515b;
+  --ph-paper-rule: #e3e3dd;
+  --ph-edge: rgba(11, 18, 28, .07);
+  --ph-pencil-desk: #1f5bc6;
+  --ph-graphite: #5a6069;
+  --ph-graphite-desk: #5a6069;
   --sf-g: 48px;
   --sf-page: 1304px;
-  --sf-bar-h: 56px;
+  --sf-bar-h: 76px;
 }
 .sf-page,
 .sf-room-bar {
@@ -55,28 +46,28 @@
   .sf-shell, .sf-page, .sf-room-bar { --sf-g: 40px; }
 }
 @media (max-width: 1023px) {
-  .sf-shell, .sf-page, .sf-room-bar { --sf-g: 32px; --sf-bar-h: 52px; }
+  .sf-shell, .sf-page, .sf-room-bar { --sf-g: 32px; --sf-bar-h: 60px; }
 }
 @media (max-width: 639px) {
   .sf-shell, .sf-page, .sf-room-bar { --sf-g: 16px; }
 }
 
-/* The desk goes dark, the paper stays paper: a sheet under a lamp. */
+/* At night the cards go dark with the page (Meldy 2026-10-04); text and marks keep their contrast. */
 .dark .sf-shell,
 .dark .sf-page,
 .dark .sf-room-bar {
-  --sf-muted: #b0ada6;
-  --sf-line: #3a3835;
-  --sf-line-strong: #504d48;
-  --sf-control-edge: #75716a;
-  --sf-tint: rgba(242, 240, 236, .075);
-  --sf-pop-shadow: 0 0 0 1px var(--sf-line), 0 18px 36px -18px rgba(0, 0, 0, .7);
-  --ph-paper-muted: #524e47;
-  --ph-paper-rule: #a39e94;
-  --ph-edge: rgba(0, 0, 0, .4);
-  --ph-pencil-desk: #7ea8e6;
-  --ph-graphite: #4c4a45;
-  --ph-graphite-desk: #a9a59d;
+  --sf-muted: #a7adb7;
+  --sf-line: #262e3b;
+  --sf-line-strong: #364052;
+  --sf-control-edge: #6b7383;
+  --sf-tint: rgba(243, 243, 240, .07);
+  --sf-pop-shadow: 0 0 0 1px var(--sf-line), 0 30px 60px -30px rgba(0, 0, 0, .75);
+  --ph-paper-muted: #a7adb7;
+  --ph-paper-rule: #2c3544;
+  --ph-edge: rgba(255, 255, 255, .06);
+  --ph-pencil-desk: #8db2f5;
+  --ph-graphite: #b8bdc6;
+  --ph-graphite-desk: #b8bdc6;
 }
 
 /* Stage mode (html[data-stage], switched on by the speaker): the projector washes the paper into
@@ -945,4 +936,332 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   .sf-more,
   .sf-tabs button { transition: none; }
   .sf-deck[data-enter] .sf-flip { animation: none; }
+}
+
+/* ================================================================================================
+   Meldy 2026-10-04 — the look of the kit (notes: 10_Project/Design_Language_2026-10-04).
+   Only visual properties here; structure and breakpoints stay in the rules above.
+   ================================================================================================ */
+
+/* ---------------------------------------------------------------- cards */
+.sf-sheet {
+  border-radius: 36px;
+  box-shadow: 0 0 0 1px var(--ph-edge), var(--m-card-shadow);
+}
+.sf-index-card {
+  border-radius: 28px;
+  box-shadow: 0 0 0 1px var(--ph-edge), var(--m-card-shadow);
+}
+.sf-index-card[data-lifted] { box-shadow: 0 0 0 1px var(--ph-edge), var(--m-lift-shadow); }
+.sf-slip {
+  border-radius: 22px;
+  box-shadow: 0 0 0 1px var(--ph-edge), 0 24px 48px -36px rgba(16, 41, 90, .4);
+}
+.dark .sf-sheet,
+.dark .sf-index-card,
+.dark .sf-slip { color-scheme: dark; }
+
+/* ---------------------------------------------------------------- the top line */
+.sf-bar,
+.sf-room-bar {
+  border-bottom: 0;
+  background: color-mix(in srgb, var(--sf-canvas) 84%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+}
+.sf-room-bar { height: 64px; }
+.sf-wordmark {
+  align-items: baseline;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -.045em;
+}
+.sf-wordmark::after {
+  content: '';
+  display: inline-block;
+  width: .3em;
+  height: .3em;
+  margin-left: .08em;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.sf-bar-nav { gap: 2px; }
+.sf-bar-link {
+  height: 44px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  transition: background-color .45s var(--m-ease), color .3s ease;
+}
+.sf-bar-link:hover { background: var(--sf-tint); }
+.sf-bar-link[aria-current='page'] {
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font-weight: 500;
+}
+.sf-bar-link[aria-current='page']::after { display: none; }
+.sf-bar-link[aria-current='page'] .sf-bar-n { color: color-mix(in srgb, var(--sf-canvas) 72%, transparent); }
+.sf-shell .sf-nav-cta {
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  background: var(--sf-accent);
+  color: #fff;
+  font-weight: 500;
+  transition: background-color .45s var(--m-ease), box-shadow .6s var(--m-ease);
+}
+.sf-shell .sf-nav-cta:hover,
+.sf-shell .sf-nav-cta[aria-current='page'] {
+  background: var(--sf-accent-hover);
+  box-shadow: 0 14px 30px -16px rgba(16, 41, 90, .55);
+}
+.dark .sf-shell .sf-nav-cta,
+.dark .sf-shell .sf-nav-cta:hover,
+.dark .sf-shell .sf-nav-cta[aria-current='page'] { color: #fff; border: 0; }
+.sf-me-hit { width: 48px; height: 48px; }
+.sf-me {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: var(--sf-accent-soft);
+  color: var(--sf-accent-fg);
+  font-size: 16px;
+}
+@media (max-width: 1359px) {
+  .sf-bar-in { gap: 24px; }
+  .sf-bar-link { padding: 0 12px; }
+}
+
+/* Menus: rounded, soft, inset rows. */
+.sf-acct,
+.sf-menu {
+  padding: 8px;
+  border-radius: 24px;
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+}
+.sf-menu { border-radius: 20px; padding: 6px; }
+.sf-acct-item,
+.sf-menu button { border-radius: 14px; }
+.sf-acct-themes button[aria-pressed='true'] { text-decoration-color: var(--m-yellow); text-decoration-thickness: 3px; }
+
+@media (max-width: 1023px) {
+  .sf-tabbar {
+    align-items: center;
+    padding-left: 10px;
+    padding-right: 10px;
+    border-top: 0;
+    background: color-mix(in srgb, var(--sf-canvas) 88%, transparent);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    backdrop-filter: saturate(1.4) blur(14px);
+    box-shadow: 0 -1px 0 var(--sf-line);
+  }
+  .sf-tablink {
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    color: var(--sf-ink);
+  }
+  .sf-tablink[aria-current='page'] {
+    background: var(--sf-ink);
+    color: var(--sf-canvas);
+    font-weight: 500;
+  }
+  .sf-tablink[aria-current='page']::before { display: none; }
+  .sf-wordmark { font-size: 24px; }
+}
+@media (max-width: 374px) {
+  .sf-tablink { padding: 0 10px; }
+}
+
+/* ---------------------------------------------------------------- page header */
+.sf-head { padding-top: 56px; gap: 16px 32px; }
+.sf-h1,
+.dark .sf-h1 {
+  font-size: clamp(40px, 4.2vw, 58px);
+  line-height: 1.04;
+  font-weight: 500;
+  letter-spacing: -.04em;
+}
+.sf-h1-serif,
+.dark .sf-h1-serif {
+  font-family: var(--ph-sans);
+  font-size: clamp(32px, 3.4vw, 48px);
+  line-height: 1.06;
+  font-weight: 500;
+  letter-spacing: -.035em;
+}
+.sf-lede { margin-top: 12px; font-size: 19px; line-height: 1.45; }
+.sf-h2 { font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.028em; }
+@media (min-width: 1024px) and (max-height: 780px) {
+  .sf-head { padding-top: 28px; }
+}
+@media (max-width: 639px) {
+  .sf-head { padding-top: 28px; }
+  .sf-h1,
+  .dark .sf-h1 { font-size: 36px; }
+  .sf-h1-serif,
+  .dark .sf-h1-serif { font-size: 30px; }
+  .sf-lede { font-size: 17px; }
+  .sf-h2 { font-size: 24px; }
+}
+
+/* ---------------------------------------------------------------- buttons */
+.sf-secondary {
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--sf-line);
+  background: var(--sf-surface);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(11, 18, 28, .05);
+  transition: border-color .3s ease, box-shadow .6s var(--m-ease), transform .6s var(--m-ease);
+}
+.sf-secondary:hover { border-color: var(--sf-ink); box-shadow: 0 14px 30px -18px rgba(16, 41, 90, .4); }
+.sf-more:hover,
+.sf-more[aria-expanded='true'] { background: var(--sf-tint); }
+
+/* ---------------------------------------------------------------- fields */
+.sf-input {
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--sf-line);
+  border-radius: 16px;
+  background: var(--sf-surface);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.sf-input:hover { border-color: var(--sf-control-edge); }
+.sf-input:focus-visible {
+  outline: none;
+  border-color: var(--sf-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 22%, transparent);
+}
+
+/* ---------------------------------------------------------------- tabs: pills */
+.sf-tabs { gap: 6px; }
+.sf-tabs button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: var(--sf-ink);
+  transition: background-color .45s var(--m-ease), color .3s ease;
+}
+.sf-tabs button:hover { background: var(--sf-tint); }
+.sf-tabs button[aria-pressed='true'] {
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font-weight: 500;
+  text-decoration: none;
+}
+.sf-tabs button[aria-pressed='true'] .sf-tabs-n { color: inherit; opacity: .7; }
+
+.sf-viewtabs {
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
+  border-bottom: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .04);
+}
+.sf-viewtabs [role='tab'] {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  color: var(--sf-ink);
+  transition: background-color .45s var(--m-ease), color .3s ease;
+}
+.sf-viewtabs [role='tab']:hover { background: var(--sf-tint); }
+.sf-viewtabs [role='tab'][aria-selected='true'] {
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font-weight: 500;
+}
+.sf-viewtabs [role='tab'][aria-selected='true']::after { display: none; }
+.sf-viewtabs [role='tab']:focus-visible { border-radius: 999px; }
+
+.sf-sectabs { gap: 6px; }
+.sf-sectabs button {
+  padding: 0 16px;
+  border-radius: 999px;
+  line-height: 40px;
+  min-height: 40px;
+  align-items: center;
+  color: var(--sf-ink);
+  transition: background-color .45s var(--m-ease), color .3s ease;
+}
+.sf-sectabs button:hover { background: var(--sf-tint); }
+.sf-sectabs button[aria-current='page'] {
+  background: var(--sf-accent-soft);
+  color: var(--sf-accent-fg);
+  font-weight: 500;
+}
+.sf-sectabs button[aria-current='page'] .sf-sectab-label { text-decoration: none; }
+.sf-sectabs button[aria-current='page'] .sf-tabs-n { color: inherit; opacity: .75; }
+.sf-sectabs button:focus-visible { border-radius: 999px; }
+@media (max-width: 639px) {
+  .sf-viewtabs { gap: 2px; }
+  .sf-viewtabs [role='tab'] { padding: 0 14px; }
+  .sf-sectabs { gap: 4px; }
+  .sf-sectabs button { padding: 0 12px; }
+}
+
+/* ---------------------------------------------------------------- lists: rows as cards */
+.sf-toc { display: grid; gap: 10px; border-top: 0; }
+.sf-toc-row {
+  border-bottom: 0;
+  border-radius: 24px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  transition: transform .6s var(--m-ease), box-shadow .6s var(--m-ease);
+}
+.sf-toc-row:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.sf-toc-link { padding: 18px 64px 18px 8px; border-radius: 24px; }
+.sf-toc-link:hover { background: transparent; }
+.sf-toc-n { font-family: var(--ph-sans); font-size: 15px; font-weight: 500; }
+.sf-toc-title { font-family: var(--ph-sans); font-size: 20px; font-weight: 500; letter-spacing: -.018em; }
+.sf-toc-more { top: 12px; right: 10px; }
+@media (max-width: 639px) {
+  .sf-toc-link { padding: 14px 12px 14px 4px; }
+  .sf-toc-title { font-size: 18px; }
+}
+
+.sf-ledger { display: grid; gap: 12px; border-top: 0; }
+.sf-ledger > li {
+  border-bottom: 0;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  transition: transform .6s var(--m-ease), box-shadow .6s var(--m-ease);
+}
+.sf-ledger > li:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.sf-ledger-row { padding: 26px 32px; }
+.sf-ledger-name { font-weight: 500; font-size: 21px; letter-spacing: -.015em; }
+.sf-ledger-fig { font-weight: 500; letter-spacing: -.04em; }
+@media (max-width: 767px) {
+  .sf-ledger-row { padding: 20px; }
+}
+
+.sf-table th { font-size: 14px; letter-spacing: .02em; border-bottom-color: var(--sf-line); }
+.sf-table .sf-cell-title { font-family: var(--ph-sans); font-weight: 500; }
+
+.sf-bars-bar { border-radius: 6px 6px 2px 2px; background: color-mix(in srgb, var(--sf-accent) 78%, transparent); }
+.sf-bars-bar[data-zero] { border-radius: 2px; background: color-mix(in srgb, var(--sf-ink) 16%, transparent); }
+.sf-bars-plot { border-bottom-color: var(--sf-line); }
+
+/* ---------------------------------------------------------------- index-card deck */
+.sf-deck-under[data-n='1'] { transform: translate(10px, 10px) rotate(1.4deg); }
+.sf-deck-under[data-n='2'] { transform: translate(-8px, 14px) rotate(-1.8deg); }
+
+/* ---------------------------------------------------------------- the quiet link */
+.sf-link { text-decoration-color: color-mix(in srgb, currentColor 28%, transparent); }
+.sf-link:hover { text-decoration-color: var(--m-yellow); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-toc-row,
+  .sf-ledger > li,
+  .sf-input { transition: none; }
+  .sf-toc-row:hover,
+  .sf-ledger > li:hover { transform: none; }
 }

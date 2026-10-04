@@ -150,7 +150,7 @@
 }
 .sf-page .km-card > * { transition: opacity 150ms ease; }
 .sf-page .km-card-n {
-  font-family: var(--ph-serif);
+  font-family: 'Literata Variable', Georgia, serif; /* layout.ts measures Literata (textMetrics.ts) */
   font-size: 15px;
   line-height: 21px;
   color: var(--ph-paper-muted);
@@ -160,7 +160,7 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-family: var(--ph-serif);
+  font-family: 'Literata Variable', Georgia, serif; /* layout.ts measures Literata (textMetrics.ts) */
   font-size: 16px;
   line-height: 21px;
   font-weight: 600;
@@ -208,7 +208,7 @@
   height: 20px;
 }
 .sf-page .km-num-t {
-  font-family: var(--ph-serif);
+  font-family: 'Literata Variable', Georgia, serif; /* layout.ts measures Literata (textMetrics.ts) */
   font-size: 15px;
   line-height: 20px;
   color: var(--ph-paper-ink);
@@ -225,7 +225,7 @@
   border: 0;
   border-radius: 4px;
   background: var(--ph-paper);
-  font-family: var(--ph-serif);
+  font-family: 'Literata Variable', Georgia, serif; /* layout.ts measures Literata (textMetrics.ts) */
   font-size: 15px;
   line-height: 20px;
   font-weight: 420;
