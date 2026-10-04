@@ -373,7 +373,7 @@ describe('ExamTicket: before the answer', () => {
     expect(api['/api/oral/rubric'].mock.calls[0][0]).toEqual({ exam_id: EXAM, question_id: Q1, force: false });
     expect(screen.getByRole('heading', { level: 1, name: DEMO_QUESTION })).toBeInTheDocument();
     for (const point of DEMO_RUBRIC.points) expect(container.textContent).not.toContain(point.title);
-    expect(screen.getByText('В эталоне 5 пунктов из ваших лекций. Они откроются, когда вы их назовёте.')).toBeInTheDocument();
+    expect(screen.getByText('Полный ответ — 5 пунктов из ваших лекций. Они откроются, когда вы их назовёте.')).toBeInTheDocument();
     expect(screen.getByText(/Речь распознаёт браузер, в Chrome — через сервис Google/)).toBeInTheDocument();
     const lines = DEMO_RUBRIC.points.map((point) => point.followup.question);
     await waitFor(() =>
@@ -513,13 +513,13 @@ describe('ExamTicket: answering without a check', () => {
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     await renderPage(ticketUrl());
     expect(await screen.findByText(/^Дневной лимит исчерпан\. Обновится в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
-    expect(screen.getByText('Можно ответить без проверки — после ответа сравните его с пунктами эталона сами.')).toBeInTheDocument();
+    expect(screen.getByText('Можно ответить без проверки — после ответа сравните его с пунктами из лекций сами.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(DEMO_ANSWER);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
-    expect(screen.getByText('Проверки на сегодня закончились — сравните ответ с пунктами эталона сами.')).toBeInTheDocument();
-    expect(screen.getByText('Пункты эталона: сравните со своим ответом')).toBeInTheDocument();
+    expect(screen.getByText('Проверки на сегодня закончились — сравните ответ с пунктами из лекций сами.')).toBeInTheDocument();
+    expect(screen.getByText('Пункты ответа из лекций: сравните со своим ответом')).toBeInTheDocument();
     // The titles of the reference open now, for the comparison (they stayed hidden while answering).
     expect(screen.getByText(DEMO_RUBRIC.points[3].title)).toBeInTheDocument();
     expect(callsTo('/api/oral/check')).toHaveLength(0);
@@ -989,7 +989,7 @@ describe('ExamTicket: answering by text', () => {
     await readyToAnswer();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' }));
     expect(window.localStorage.getItem('meldy_oral_live_marks')).toBe('0');
-    expect(screen.getByText('В эталоне 5 пунктов из ваших лекций.')).toBeInTheDocument();
+    expect(screen.getByText('Полный ответ — 5 пунктов из ваших лекций.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(DEMO_ANSWER);
     expect(container.querySelectorAll('[data-named]')).toHaveLength(0);
@@ -1910,7 +1910,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       const { container } = await renderPage(ticketUrl());
       await readyToAnswer();
       expect(screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' })).toBeChecked();
-      expect(screen.getByText('В эталоне 5 пунктов из ваших лекций. Они откроются, когда вы их назовёте.')).toBeInTheDocument();
+      expect(screen.getByText('Полный ответ — 5 пунктов из ваших лекций. Они откроются, когда вы их назовёте.')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
       typeAnswer(DEMO_ANSWER);
       expect(container.querySelectorAll('[data-named]')).toHaveLength(4);

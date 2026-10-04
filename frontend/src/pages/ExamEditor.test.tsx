@@ -192,7 +192,7 @@ describe('ExamEditor: a new exam', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
     expect(screen.getByText(/Распознано 3 вопроса/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
     const [userId, draft] = mocks.createExam.mock.calls[0] as [string, ExamDraft];
     expect(userId).toBe('user-1');
@@ -332,7 +332,7 @@ describe('ExamEditor: a new exam', () => {
 
     // Step 2: the exam's form and its button, which says what the press does.
     expect(screen.getByLabelText('Название экзамена')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Сверить с лекциями' })).toBeEnabled());
     expect(plain(document.querySelector('.nx-go-note')?.textContent)).toBe('Meldy сверит каждый вопрос с 2 выбранными лекциями — пометки появятся на листе экзамена.');
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Проверка и лекции');
   });
@@ -341,7 +341,7 @@ describe('ExamEditor: a new exam', () => {
     await pasteAndParse();
     const title = screen.getByLabelText('Название экзамена');
     fireEvent.change(title, { target: { value: '' } });
-    const main = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    const main = screen.getByRole('button', { name: 'Сверить с лекциями' });
     expect(main).toBeEnabled();
     expect(main).toHaveAccessibleDescription('Назовите экзамен.');
 
@@ -353,7 +353,7 @@ describe('ExamEditor: a new exam', () => {
     fireEvent.change(title, { target: { value: 'Макроэкономика' } });
     expect(title).not.toHaveAttribute('aria-invalid');
     expect(screen.queryByText('Назовите экзамен.')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
   });
 
@@ -362,7 +362,7 @@ describe('ExamEditor: a new exam', () => {
     fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 2:/ }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Текст вопроса' }), { target: { value: 'Да' } });
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
-    const main = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    const main = screen.getByRole('button', { name: 'Сверить с лекциями' });
     expect(main).toHaveAccessibleDescription('Исправьте строки, отмеченные в списке.');
     fireEvent.click(main);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Изменить вопрос 2: Да' })).toHaveFocus());
@@ -427,14 +427,14 @@ describe('ExamEditor: how the tickets are made, by default and by choice', () =>
     fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
     expect(layout()).toHaveAttribute('data-value', 'random');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
     expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1]).toMatchObject({ layoutMode: 'random', perTicket: 2 });
   });
 
   it('saves «по одному из каждого раздела» when the student keeps the default', async () => {
     await parse(SECTIONS_ONLY);
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
     expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1]).toMatchObject({ layoutMode: 'sections', perTicket: 2 });
   });
@@ -469,7 +469,7 @@ describe('ExamEditor: how the tickets are made, by default and by choice', () =>
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(layout()).toHaveAttribute('data-value', 'random');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
     expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1]).toMatchObject({ layoutMode: 'random' });
   });
@@ -497,7 +497,7 @@ describe('ExamEditor: editing a saved exam', () => {
     fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 2:/ }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Текст вопроса' }), { target: { value: 'Инфляция: виды, причины и последствия.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Сохранить и разметить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить и сверить' }));
 
     await waitFor(() => expect(mocks.saveExamEdits).toHaveBeenCalledTimes(1));
     const [input] = mocks.saveExamEdits.mock.calls[0] as [{ exam: { id: string }; draft: ExamDraft; replaceSource: boolean }];
@@ -518,11 +518,11 @@ describe('ExamEditor: editing a saved exam', () => {
     renderEditor('/exams/exam-1/edit#lectures');
     const list = await screen.findByRole('list', { name: 'Лекции для экзамена' });
     fireEvent.click(within(list).getByRole('checkbox', { name: /Лекция 3/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Сохранить и разметить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить и сверить' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Экзамен не сохранён. Проверьте связь и повторите.');
     expect(mocks.startMapping).not.toHaveBeenCalled();
-    const again = screen.getByRole('button', { name: 'Сохранить и разметить' });
+    const again = screen.getByRole('button', { name: 'Сохранить и сверить' });
     expect(again).toBeEnabled();
     expect(within(list).getByRole('checkbox', { name: /Лекция 3/ })).toBeChecked();
 
@@ -537,7 +537,7 @@ describe('ExamEditor: editing a saved exam', () => {
   it('cannot be changed while the mapping runs, but a lock older than five minutes is stale', async () => {
     mocks.loadExamBundle.mockResolvedValue(savedBundle({ mapping_state: 'running', mapping_started_at: new Date().toISOString() }));
     renderEditor('/exams/exam-1/edit');
-    expect(await screen.findAllByText('Идёт разметка — список можно будет изменить, когда она закончится.')).not.toHaveLength(0);
+    expect(await screen.findAllByText('Идёт сверка — список можно будет изменить, когда она закончится.')).not.toHaveLength(0);
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
     cleanup();
 
@@ -546,7 +546,7 @@ describe('ExamEditor: editing a saved exam', () => {
     );
     renderEditor('/exams/exam-1/edit');
     await screen.findByText(/В списке 3 вопроса/);
-    expect(screen.queryByText('Идёт разметка — список можно будет изменить, когда она закончится.')).toBeNull();
+    expect(screen.queryByText('Идёт сверка — список можно будет изменить, когда она закончится.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeEnabled();
   });
 
@@ -558,7 +558,7 @@ describe('ExamEditor: editing a saved exam', () => {
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Удалить экзамен?', type: 'danger' })));
     // Spoken and typed answers count the same: the confirmation says «Ответы», not «Ответы вслух».
     const [options] = mocks.confirm.mock.calls[0] as [{ message: string }];
-    expect(options.message).toBe('«Макроэкономика» и разметка его вопросов будут удалены. Ответы останутся в истории и в «Прогрессе».');
+    expect(options.message).toBe('«Макроэкономика» и сверка его вопросов с лекциями будут удалены. Ответы останутся в истории и в «Прогрессе».');
     expect(options.message).not.toMatch(/вслух/);
     await waitFor(() => expect(mocks.deleteExam).toHaveBeenCalledWith('exam-1'));
     expect(await screen.findByRole('heading', { name: 'Список экзаменов' })).toBeInTheDocument();

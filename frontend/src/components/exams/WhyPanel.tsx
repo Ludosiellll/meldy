@@ -59,7 +59,7 @@ function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount
     case 'checking':
       return { title: 'Проверяем по лекциям…', lead: [] };
     case 'unmapped':
-      return { title: 'Вопрос ещё не сверен с лекциями', lead: ['Пометка появится после разметки по лекциям.'] };
+      return { title: 'Вопрос ещё не сверен с лекциями', lead: ['Пометка появится после сверки с лекциями.'] };
     case 'unverified':
       return {
         title: 'Проверено только по словам',

@@ -564,11 +564,11 @@ describe('ExamDetail: the sheet', () => {
     renderDetail();
     await opened();
     expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toBe(
-      'Экзамен · 40 вопросов, в билете два · 2 лекции · разметка от 21 января, 9:40',
+      'Экзамен · 40 вопросов, в билете два · 2 лекции · сверка от 21 января, 9:40',
     );
     expect(document.body.textContent).not.toContain('25 января');
-    expect(notes()).toEqual(['После разметки добавлено 1 лекция.Обновить разметку']);
-    expect(screen.getByRole('button', { name: 'Обновить разметку' })).toBeInTheDocument();
+    expect(notes()).toEqual(['После сверки добавлено 1 лекция.Сверить заново']);
+    expect(screen.getByRole('button', { name: 'Сверить заново' })).toBeInTheDocument();
   });
 
   it('asks for lectures when the exam has none', async () => {
@@ -576,7 +576,7 @@ describe('ExamDetail: the sheet', () => {
     renderDetail();
     await opened();
     expect(notes()).toEqual(['Без лекций Meldy не сможет отметить покрытие. Список сохранится.Добавить лекции']);
-    expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toContain('разметки ещё нет');
+    expect(plain(document.querySelector('.ex-head .ex-meta')?.textContent)).toContain('сверки ещё нет');
     fireEvent.click(screen.getByRole('button', { name: 'Добавить лекции' }));
     expect(location).toBe('/exams/exam-1/edit#lectures');
   });
@@ -972,7 +972,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     expect(notes()).toEqual(['Вопросы ещё не сверены с лекциями.']);
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10);
     expect(mocks.verifyEnergy).not.toHaveBeenCalled();
@@ -982,7 +982,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [{ id: 'm1', title: 'Денежный рынок', fragments: 12 }], skipped: [] });
     await waitFor(() => expect(row('q1')).toHaveAttribute('data-coverage', 'checking'));
-    expect(within(column()).getByText('Разметка идёт: проверено 0 из 3.')).toBeInTheDocument();
+    expect(within(column()).getByText('Сверка с лекциями идёт: проверено 0 из 3.')).toBeInTheDocument();
     expect(within(column()).queryByText('35 %')).toBeNull();
     expect(screen.getByText('Изменить список').tagName).toBe('SPAN');
 
@@ -1009,7 +1009,7 @@ describe('ExamDetail: mapping by lectures', () => {
     });
     stream.close();
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(notes()).toContain('Часть разметки от 9:40, остальное сейчас.'));
+    await waitFor(() => expect(notes()).toContain('Часть сверки от 9:40, остальное сейчас.'));
     // The run finished on this page: the strike over the question share is drawn in, once.
     expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'live');
     await waitFor(() => expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still'), { timeout: 3000 });
@@ -1025,7 +1025,7 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.loadExamBundle.mockResolvedValueOnce(bundle(unmapped(), notMapped)).mockResolvedValue(bundle([question(1, 'full'), question(2, 'full'), question(3, 'full')]));
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'reused', items: ['q1', 'q2', 'q3'].map((id) => item(id, 'full', { reused: true })) });
@@ -1042,14 +1042,14 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
     renderDetail();
     await opened();
-    const button = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    const button = screen.getByRole('button', { name: 'Сверить с лекциями' });
     button.focus();
     fireEvent.click(button);
     await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: разметка расходует 10 единиц, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
     expect(notes()[0]).not.toMatch(/в 0\d:/);
     expect(document.querySelector('.ex-notes .ex-note[role="status"]')).toHaveTextContent('Дневной лимит исчерпан');
     // The same button, still there, unavailable and focused: nothing to close, nothing to lose the focus to.
-    expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBe(button);
+    expect(screen.getByRole('button', { name: 'Сверить с лекциями' })).toBe(button);
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(button).toHaveFocus();
     expect(mocks.verifyEnergy).not.toHaveBeenCalled();
@@ -1068,7 +1068,7 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(notes()[0]).toMatch(/^Не хватает дневного лимита: разметка расходует 10 единиц, сегодня осталось 4\./));
   });
 
@@ -1080,14 +1080,14 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(unmapped(), notMapped));
     renderDetail();
     await opened();
-    const button = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    const button = screen.getByRole('button', { name: 'Сверить с лекциями' });
     button.focus();
     fireEvent.click(button);
     await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'));
     expect(button).toBeInTheDocument();
     expect(button).toHaveFocus();
     allow({ allowed: true, isPro: false, count: 0, ok: true });
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Разметить по лекциям' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Сверить с лекциями' })).toBeNull());
     await waitFor(() => expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveFocus());
     stream.close();
   });
@@ -1098,13 +1098,13 @@ describe('ExamDetail: mapping by lectures', () => {
     await opened();
     const head = document.querySelector('.ex-head') as HTMLElement;
     expect(head.querySelectorAll('.sf-primary')).toHaveLength(1);
-    expect(within(head).getByRole('button', { name: 'Разметить по лекциям' })).toHaveClass('sf-primary');
+    expect(within(head).getByRole('button', { name: 'Сверить с лекциями' })).toHaveClass('sf-primary');
     expect(within(head).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-link');
     const filter = screen.getByRole('list', { name: 'Показать вопросы' });
     expect(within(filter).getAllByRole('button').map((item) => plain(item.textContent))).toEqual(['Все 3']);
     // The column does not repeat the note under the header.
     expect(within(column()).queryByText('Вопросы ещё не сверены с лекциями.')).toBeNull();
-    expect(plain(column().textContent)).toContain('Доля билетов появится после разметки');
+    expect(plain(column().textContent)).toContain('Доля билетов появится после сверки');
   });
 
   it('offers «Продолжить» after a dropped stream; a 409 then shows «Разметка ещё идёт» and polls until the exam is free', async () => {
@@ -1123,7 +1123,7 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.fetchExamMappingState.mockResolvedValueOnce(RUNNING()).mockResolvedValueOnce(RUNNING()).mockResolvedValue(FINISHED());
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     first.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     first.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });
@@ -1138,10 +1138,10 @@ describe('ExamDetail: mapping by lectures', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(notes()).toContain('Разметка ещё идёт. Лист обновится, когда она закончится.'));
+    await waitFor(() => expect(notes()).toContain('Сверка ещё идёт. Лист обновится, когда она закончится.'));
     expect(screen.getByText('Изменить список').tagName).toBe('SPAN');
     await waitFor(() => expect(mocks.fetchExamMappingState).toHaveBeenCalledTimes(3));
-    await waitFor(() => expect(notes()).not.toContain('Разметка ещё идёт. Лист обновится, когда она закончится.'));
+    await waitFor(() => expect(notes()).not.toContain('Сверка ещё идёт. Лист обновится, когда она закончится.'));
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(3));
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -1155,7 +1155,7 @@ describe('ExamDetail: mapping by lectures', () => {
     mocks.fetchExamMappingState.mockResolvedValueOnce(RUNNING()).mockResolvedValue(FINISHED());
     renderDetail();
     await opened();
-    await waitFor(() => expect(notes()).toContain('Разметка ещё идёт. Лист обновится, когда она закончится.'));
+    await waitFor(() => expect(notes()).toContain('Сверка ещё идёт. Лист обновится, когда она закончится.'));
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(row('q3')).toHaveAttribute('data-coverage', 'none'));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -1171,11 +1171,11 @@ describe('ExamDetail: mapping by lectures', () => {
     );
     renderDetail();
     await opened();
-    expect(notes()).toContain('Разметка прервалась: проверено 1 из 3.Продолжить');
-    // The meta line agrees with the note: how far the run got, never «разметки ещё нет».
+    expect(notes()).toContain('Сверка прервалась: проверено 1 из 3.Продолжить');
+    // The meta line agrees with the note: how far the run got, never «сверки ещё нет».
     const meta = plain(document.querySelector('.ex-head .ex-meta')?.textContent);
-    expect(meta).toContain('проверено 1 из 3, разметка прервалась');
-    expect(meta).not.toContain('разметки ещё нет');
+    expect(meta).toContain('проверено 1 из 3, сверка прервалась');
+    expect(meta).not.toContain('сверки ещё нет');
     fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     stream.close();
@@ -1207,7 +1207,7 @@ describe('ExamDetail: mapping by lectures', () => {
     afterRun();
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'reused', items: [item('q1', 'full', { reused: true })] });
@@ -1241,7 +1241,7 @@ describe('ExamDetail: mapping by lectures', () => {
 
   it('opens the sheet again from the database: a question reworded since the run is not checked, the run’s notes are gone', async () => {
     await mapToTheEnd(() => mocks.loadExamBundle.mockResolvedValue(bundle(mappedRows())));
-    await waitFor(() => expect(notes()).toContain('Часть разметки от 9:40, остальное сейчас.'));
+    await waitFor(() => expect(notes()).toContain('Часть сверки от 9:40, остальное сейчас.'));
     cleanup();
 
     // Question 2 was reworded in the editor (its coverage reset); no new run started.
@@ -1251,7 +1251,7 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(row('q2')).toHaveAttribute('data-coverage', 'unmapped');
     expect(row('q1')).toHaveAttribute('data-coverage', 'full');
     expect(notes().some((note) => note.startsWith('1 вопрос ещё не сверен с лекциями'))).toBe(true);
-    expect(notes()).not.toContain('Часть разметки от 9:40, остальное сейчас.');
+    expect(notes()).not.toContain('Часть сверки от 9:40, остальное сейчас.');
     // The ticket shares count question 2 as unknown, not as «нет».
     expect(plain(column().textContent)).toContain('не сверено — 1');
   });
@@ -1264,7 +1264,7 @@ describe('ExamDetail: mapping by lectures', () => {
       .mockResolvedValue(bundle([question(1, 'full'), question(2, null), question(3, null)], { mapping_state: 'failed' }));
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
     stream.send({ type: 'start', questions: 3, to_check: 3, materials: [], skipped: [] });
     stream.send({ type: 'batch', index: 1, total: 2, items: [item('q1', 'full')] });

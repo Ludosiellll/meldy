@@ -315,11 +315,11 @@ function uncheckedWhy(rubric: RubricState, limitSpent: boolean): { title: string
         fix: 'Добавить лекции',
       };
     }
-    return { title: 'Эталон не составился', text: rubric.message, after: 'Эталон по лекциям не составился.', fix: null };
+    return { title: 'Пункты ответа не собрались', text: rubric.message, after: 'Пункты ответа по лекциям не собрались.', fix: null };
   }
-  if (rubric.status === 'failed') return { title: 'Эталон не готов', text: rubric.message, after: 'Эталон не был готов — сервис не ответил.', fix: null };
-  if (limitSpent) return { title: '', text: '', after: 'Проверки на сегодня закончились — сравните ответ с пунктами эталона сами.', fix: null };
-  return { title: 'Эталона нет', text: rubric.status === 'blocked' ? rubric.message : '', after: '', fix: null };
+  if (rubric.status === 'failed') return { title: 'Пункты ответа не готовы', text: rubric.message, after: 'Пункты ответа не были готовы — сервис не ответил.', fix: null };
+  if (limitSpent) return { title: '', text: '', after: 'Проверки на сегодня закончились — сравните ответ с пунктами из лекций сами.', fix: null };
+  return { title: 'Пунктов ответа нет', text: rubric.status === 'blocked' ? rubric.message : '', after: '', fix: null };
 }
 
 function speakLine(text: string, maxMs = 15_000): Promise<'ended' | 'failed'> {
@@ -1450,7 +1450,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         />
         <main className="sf-page or-room" data-phase="protocol">
           {protocolTitle}
-          <section className="or-left" aria-label="Пункты эталона и ваш ответ">
+          <section className="or-left" aria-label="Пункты ответа и ваш ответ">
             <ProtocolSheet
               heading={sheetHeading}
               points={livePoints(rubricResponse.rubric, state.evaluation.status === 'done' ? state.evaluation.result : null, new Set(state.named))}
@@ -1562,7 +1562,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   if (rubric.status === 'loading') {
     leftState = (
       <p className="or-message or-message-muted" role="status">
-        Готовим эталон по лекциям…
+        Собираем пункты ответа по лекциям…
       </p>
     );
   } else if (rubric.status !== 'ready' && !answering) {
@@ -1724,7 +1724,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         {!checkable ? (
           <p className="or-message or-message-muted">
             {ready
-              ? 'Можно ответить без проверки — после ответа сравните его с пунктами эталона сами.'
+              ? 'Можно ответить без проверки — после ответа сравните его с пунктами из лекций сами.'
               : 'Можно ответить без проверки — голосом или текстом. После ответа отметьте, как получилось: отметка появится на листе экзамена.'}
           </p>
         ) : null}
@@ -1922,7 +1922,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           <>
             {state.closing ? <p className="or-line or-line-ink">{`${state.closing}.`}</p> : null}
             <p className="or-line" role="status">
-              Проверяем ответ по пунктам эталона…
+              Проверяем ответ по пунктам из лекций…
             </p>
           </>
         ) : null}
@@ -1934,8 +1934,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const noteLine =
     ready && points.length > 0 && mode !== 'exam' && !selfCheck
       ? liveMarksOn
-        ? `В эталоне ${pointsWord(points.length)} из ваших лекций. Они откроются, когда вы их назовёте.`
-        : `В эталоне ${pointsWord(points.length)} из ваших лекций.`
+        ? `Полный ответ — ${pointsWord(points.length)} из ваших лекций. Они откроются, когда вы их назовёте.`
+        : `Полный ответ — ${pointsWord(points.length)} из ваших лекций.`
       : null;
 
   // The answer itself: the field while typing, the transcript otherwise (also after an unchecked answer).
@@ -1985,7 +1985,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         }
       />
       <main className="sf-page or-room" data-phase={state.phase}>
-        <section className="or-left" aria-label="Билет и пункты эталона">
+        <section className="or-left" aria-label="Билет и пункты ответа">
           {question ? <TicketCard heading={heading} question={question.text} /> : null}
           {noteLine ? <p className="or-note">{noteLine}</p> : null}
           {selfCheck ? (
@@ -1993,7 +1993,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
               {/* The day's checks spent: the reference is there — its points, marked by key words, to compare with. */}
               {ready && rubricResponse && points.length > 0 ? (
                 <ProtocolSheet
-                  heading="Пункты эталона: сравните со своим ответом"
+                  heading="Пункты ответа из лекций: сравните со своим ответом"
                   points={livePoints(rubricResponse.rubric, null, new Set(state.named))}
                   followup={null}
                   stamp="none"
@@ -2043,7 +2043,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                     )}
                   </div>
                   <button type="button" className="sf-link" data-muted="" aria-expanded={sheetOpen} onClick={() => setSheetOpen((open) => !open)}>
-                    {sheetOpen ? 'Скрыть пункты' : 'Пункты эталона'}
+                    {sheetOpen ? 'Скрыть пункты' : 'Пункты ответа'}
                   </button>
                 </div>
               ) : null}
@@ -2157,7 +2157,7 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
           <h1 className="sr-only or-sr-title">
             {view.protocol.question ? `Протокол ответа на вопрос «${view.protocol.question}»` : 'Протокол ответа'}
           </h1>
-          <section className="or-left" aria-label="Пункты эталона и ответ">
+          <section className="or-left" aria-label="Пункты ответа и ответ">
             <ProtocolSheet
               heading={`Ответ от ${shortDateTime(view.protocol.completedAt)}`}
               points={storedPoints(view.protocol, view.anchors)}

@@ -81,7 +81,7 @@ export default function RubricSlots({ points, materials, named, asked, seed, ann
 
   return (
     <>
-      <ol className="or-pts" aria-label="Пункты эталона">
+      <ol className="or-pts" aria-label="Пункты ответа">
         {points.map((point, index) => {
           const number = index + 1;
           const isNamed = named.has(point.id);

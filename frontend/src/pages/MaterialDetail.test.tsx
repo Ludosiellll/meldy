@@ -700,7 +700,7 @@ describe('text-only materials and review link', () => {
       quiz_json: { quiz: [] },
     };
     renderPage('/library/m1');
-    expect(await screen.findByText('Только текст, конспекта нет. Материал участвует в разметке экзаменов.')).toBeInTheDocument();
+    expect(await screen.findByText('Только текст, конспекта нет. Материал участвует в сверке экзаменов с лекциями.')).toBeInTheDocument();
     expect(screen.queryByText('Нет данных для отображения')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Повторить карточки' })).not.toBeInTheDocument();
   });

@@ -378,7 +378,7 @@ export default function ExamEditor() {
     if (!bundle) return;
     const ok = await confirm({
       title: 'Удалить экзамен?',
-      message: `«${bundle.exam.title}» и разметка его вопросов будут удалены. Ответы останутся в истории и в «Прогрессе».`,
+      message: `«${bundle.exam.title}» и сверка его вопросов с лекциями будут удалены. Ответы останутся в истории и в «Прогрессе».`,
       confirmText: 'Удалить',
       cancelText: 'Отмена',
       type: 'danger',
@@ -443,11 +443,11 @@ export default function ExamEditor() {
       ? 'Сохранить список'
       : editing
         ? needsMapping
-          ? 'Сохранить и разметить'
+          ? 'Сохранить и сверить'
           : 'Сохранить'
-        : 'Разметить по лекциям';
+        : 'Сверить с лекциями';
   const disabledReason = lockedByMapping
-    ? 'Идёт разметка — список можно будет изменить, когда она закончится.'
+    ? 'Идёт сверка — список можно будет изменить, когда она закончится.'
     : total === 0
       ? null
       : titleMissing
@@ -569,7 +569,7 @@ export default function ExamEditor() {
               <span className="nx-step-n" aria-hidden="true">
                 3
               </span>
-              Разметка по лекциям
+              Сверка с лекциями
             </li>
           </ol>
         )}
@@ -577,7 +577,7 @@ export default function ExamEditor() {
 
       {lockedByMapping && (
         <p className="ex-note" role="status">
-          Идёт разметка — список можно будет изменить, когда она закончится.
+          Идёт сверка — список можно будет изменить, когда она закончится.
         </p>
       )}
 

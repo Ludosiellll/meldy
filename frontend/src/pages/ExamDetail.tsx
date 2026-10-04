@@ -691,12 +691,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const mappedAt = !examFresh && ownRun && job.done?.mappedAt ? job.done.mappedAt : exam.mapped_at;
 
   let mappingMeta: string;
-  if (running) mappingMeta = progress ? `проверено ${progress.checked} из ${progress.total}` : 'разметка идёт';
-  else if (job.phase === 'waiting') mappingMeta = 'разметка ещё идёт';
-  else if (mappedAt) mappingMeta = `разметка от ${formatMappedAt(mappedAt)}`;
+  if (running) mappingMeta = progress ? `проверено ${progress.checked} из ${progress.total}` : 'сверка идёт';
+  else if (job.phase === 'waiting') mappingMeta = 'сверка ещё идёт';
+  else if (mappedAt) mappingMeta = `сверка от ${formatMappedAt(mappedAt)}`;
   // A run that stopped half-way left marks but no date: say how far it got, never «разметки ещё нет».
-  else if (runMarks > 0) mappingMeta = `проверено ${runMarks} из ${questions.length}, разметка прервалась`;
-  else mappingMeta = 'разметки ещё нет';
+  else if (runMarks > 0) mappingMeta = `проверено ${runMarks} из ${questions.length}, сверка прервалась`;
+  else mappingMeta = 'сверки ещё нет';
 
   const metaParts = [
     examWhen(exam.kind, exam.exam_date),
@@ -711,15 +711,15 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const removed = exam.mapped_at ? exam.mapped_material_ids.filter((id) => !current.has(id)).length : 0;
   const reusedPart =
     outcome === 'done' && job.done && job.done.reused > 0 && job.received > job.done.reused && job.done.oldestMappedAt
-      ? `Часть разметки от ${formatClock(job.done.oldestMappedAt)}, остальное сейчас.`
+      ? `Часть сверки от ${formatClock(job.done.oldestMappedAt)}, остальное сейчас.`
       : null;
   const skippedLectures = ownRun ? job.start?.skipped.filter((item) => item.reason === 'no_text').length ?? 0 : 0;
 
   const notes: Array<{ key: string; text: string; action?: { label: string; run: () => void; maps?: boolean }; quiet?: boolean; status?: boolean }> = [];
   if (limit) notes.push({ key: 'limit', text: mappingLimitSentence(limit), status: true });
   if (outcome === 'interrupted') notes.push({ key: 'int', text: job.message ?? interruptedMessage(job), action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
-  if (staleRun) notes.push({ key: 'stale', text: `Разметка прервалась: проверено ${runMarks} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
-  if (job.phase === 'waiting') notes.push({ key: 'wait', text: 'Разметка ещё идёт. Лист обновится, когда она закончится.', quiet: true });
+  if (staleRun) notes.push({ key: 'stale', text: `Сверка прервалась: проверено ${runMarks} из ${questions.length}.`, action: { label: 'Продолжить', run: () => startRun(null), maps: true } });
+  if (job.phase === 'waiting') notes.push({ key: 'wait', text: 'Сверка ещё идёт. Лист обновится, когда она закончится.', quiet: true });
   if (outcome === 'failed' && job.message) notes.push({ key: 'fail', text: job.message, action: { label: 'Повторить', run: () => startRun(null), maps: true } });
   if (job.failedMessage && running) notes.push({ key: 'batch', text: `${job.failedMessage}.`, quiet: true });
   if (reusedPart) notes.push({ key: 'reused', text: reusedPart, quiet: true });
@@ -731,13 +731,13 @@ function ExamSheetPage({ examId }: { examId: string }) {
     notes.push({
       key: 'some-unmapped',
       text: unmappedSentence(questions.length - mappedCount, shares),
-      action: { label: 'Разметить', run: () => startRun(null), maps: true },
+      action: { label: 'Сверить', run: () => startRun(null), maps: true },
     });
   if (!running && examFresh && (added > 0 || removed > 0)) {
     const parts: string[] = [];
     if (added > 0) parts.push(`добавлено ${lecturesPhrase(added)}`);
     if (removed > 0) parts.push(`убрано ${lecturesPhrase(removed)}`);
-    notes.push({ key: 'changed', text: `После разметки ${parts.join(', ')}.`, action: { label: 'Обновить разметку', run: () => startRun(null), maps: true } });
+    notes.push({ key: 'changed', text: `После сверки ${parts.join(', ')}.`, action: { label: 'Сверить заново', run: () => startRun(null), maps: true } });
   }
   if (skippedLectures > 0) notes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.`, quiet: true });
   if (eventsState === 'error' && eventsError) notes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) }, quiet: true });
@@ -762,7 +762,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         mapPillFocused.current = false;
       }}
     >
-      Разметить по лекциям
+      Сверить с лекциями
     </button>
   );
   const whyId = `exam-why-${exam.id}`;
@@ -895,7 +895,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
           <p className="ex-meta">{glue(metaParts.join(' · '))}</p>
           <div className="ex-links">
             {editLocked ? (
-              <span className="sf-link" aria-disabled="true" title="Список можно изменить, когда разметка закончится">
+              <span className="sf-link" aria-disabled="true" title="Список можно изменить, когда сверка закончится">
                 Изменить список
               </span>
             ) : (

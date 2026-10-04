@@ -21,7 +21,7 @@ import { glue } from '../../lib/oral/format';
 import { sharedGroups } from '../../lib/oral/rubricMatch';
 
 /** Redesign spec 5.12, word for word. */
-export const TRAINING_NOTE = 'Оценка тренировочная: по пунктам эталона из ваших лекций, а не по требованиям преподавателя.';
+export const TRAINING_NOTE = 'Оценка тренировочная: по пунктам ответа из ваших лекций, а не по требованиям преподавателя.';
 
 /** The stamp of a 4 or a 5 (in the pencil oval) and of a 2 or a 3 (Jury_Check item 11: not «зачтено»). */
 export const STAMP_PASSED = 'Засчитано';
@@ -421,7 +421,7 @@ export function ProtocolSheet({ heading, points, followup, stamp, seed, prelimin
         </p>
       ) : null}
       {preliminary ? <p className="or-prelim">Предварительно: по ключевым словам</p> : null}
-      <ol className="or-ppts" aria-label="Пункты эталона">
+      <ol className="or-ppts" aria-label="Пункты ответа">
         {points.map((point, index) => (
           <PointRow
             key={point.id}

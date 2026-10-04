@@ -425,7 +425,7 @@ describe('quiz journal props', () => {
 describe('text-only materials', () => {
   it('shows the text-only notice instead of empty tabs and offers no export', () => {
     renderPanel({ results: { summarizer: { content: '' }, flashcards: { flashcards: [] }, quiz: { quiz: [] }, text_only: true }, embedded: true });
-    expect(screen.getByText('Только текст, конспекта нет. Материал участвует в разметке экзаменов.')).toBeInTheDocument();
+    expect(screen.getByText('Только текст, конспекта нет. Материал участвует в сверке экзаменов с лекциями.')).toBeInTheDocument();
     expect(screen.queryByText('Нет данных для отображения')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Экспорт' })).not.toBeInTheDocument();
   });

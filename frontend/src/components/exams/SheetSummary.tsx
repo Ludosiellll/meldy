@@ -128,9 +128,9 @@ export function CoverageSummary(props: CoverageSummaryProps) {
     return (
       <div className="ex-summary">
         <p className="ex-stmt">
-          {checking ? glue(`Разметка идёт: проверено ${checking.checked} из ${checking.total}.`) : 'Разметка идёт.'}
+          {checking ? glue(`Сверка с лекциями идёт: проверено ${checking.checked} из ${checking.total}.`) : 'Сверка с лекциями идёт.'}
         </p>
-        <p className="ex-fine">Доли вопросов и билетов появятся, когда разметка закончится. Пометки встают на поле по мере проверки.</p>
+        <p className="ex-fine">Доли вопросов и билетов появятся, когда сверка закончится. Пометки встают на поле по мере проверки.</p>
       </div>
     );
   }
@@ -139,7 +139,7 @@ export function CoverageSummary(props: CoverageSummaryProps) {
     // «Вопросы ещё не сверены с лекциями.» is already the note under the header (redesign critique 7).
     return (
       <div className="ex-summary">
-        <p className="ex-stmt">Доля билетов появится после разметки: Meldy отметит, какие вопросы есть в ваших лекциях.</p>
+        <p className="ex-stmt">Доля билетов появится после сверки с лекциями: Meldy отметит, какие вопросы есть в ваших лекциях.</p>
       </div>
     );
   }

@@ -254,7 +254,7 @@ describe('<ProtocolGrade>', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
     expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 3')).toBeInTheDocument();
     expect(screen.getByText('Здесь оценку ограничил пункт 4: на вопрос экзаменатора о нём не было верного ответа.')).toBeInTheDocument();
-    expect(screen.getByText('Оценка тренировочная: по пунктам эталона из ваших лекций, а не по требованиям преподавателя.')).toBeInTheDocument();
+    expect(screen.getByText('Оценка тренировочная: по пунктам ответа из ваших лекций, а не по требованиям преподавателя.')).toBeInTheDocument();
     // The previous answer is its own line under «Как считается», a grade in words (redesign critique 4, round 2).
     const row = screen.getByRole('button', { name: 'Как считается' }).closest('.or-how-row') as HTMLElement;
     expect(row.textContent).toBe('Как считается');
