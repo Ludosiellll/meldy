@@ -4,6 +4,17 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Прогресс»: blocks centred (from 1f3a4d8)
+
+Adds to c1ba79e (tree of 0bee6cf). The owner, on the live page: the blocks hugged the left with an empty strip on the
+right — «надписи оставить как есть, а блоки и снизу то что под ними центрировать». The tiles, sections and «Как
+считается» now span the page column like the top bar: their left edge meets the logo and the title, their right edge
+the account button and «Оценки из зачётки». Headings, phone and tablet layouts are unchanged. CSS only; no
+migration, no backend change.
+
+Verified before release: production build; Playwright screenshots at 1024, 1440, 1532 and 1920 px — no overflow,
+no console errors, text contrast ≥ 4.5:1.
+
 ## 2026-10-04 — «Прогресс» reworked (from 1d4fff5)
 
 Adds to 6cd8316 (tree of 4ea342b). The owner: «может стоит переработать этот раздел "Прогресс" … читать тяжело и не
