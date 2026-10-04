@@ -177,7 +177,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Спрос. Закон спроса и кривая спроса.' })).toBeInTheDocument();
     expect(plain(document.querySelector('.or-note')?.textContent)).toBe('4 пункта ответа из лекций примера. Они откроются, когда вы их назовёте.');
     expect(screen.getByText(EXAMPLE_PRIVACY_LINE)).toBeInTheDocument();
-    const points = screen.getByRole('list', { name: 'Пункты эталона' });
+    const points = screen.getByRole('list', { name: 'Пункты ответа' });
     expect(within(points).getAllByRole('listitem').map((row) => row.getAttribute('aria-label'))).toEqual([
       'Пункт 1, ещё не назван',
       'Пункт 2, ещё не назван',
@@ -220,7 +220,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(plain(document.querySelector('.or-grade-why')?.textContent)).toBe('Раскрыто 2 пункта из 4, два не названы.');
     expect(screen.getByText(EXAMPLE_GRADE_NOTE)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Пункт 1 не назван — о нём спросил экзаменатор.' })).toBeInTheDocument();
-    const protocol = screen.getByRole('list', { name: 'Пункты эталона' });
+    const protocol = screen.getByRole('list', { name: 'Пункты ответа' });
     const statuses = within(protocol).getAllByRole('listitem').map((row) => row.getAttribute('data-status'));
     expect(statuses).toEqual(['missing', 'covered', 'covered', 'missing']);
     expect(plain(within(protocol).getAllByRole('listitem')[0].textContent)).toContain(
