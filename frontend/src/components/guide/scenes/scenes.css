@@ -25,7 +25,7 @@
 .gs-dot--half { background: #f4c45b; }
 .gs-dot--no { background: #e4e4de; }
 .gs-today-draw { position: absolute; left: 56px; bottom: 52px; }
-.gs-today-ticket { position: absolute; left: 56px; bottom: 166px; height: 64px; font-size: 30px; }
+.gs-today-ticket { position: absolute; left: 430px; bottom: 66px; height: 64px; font-size: 30px; }
 .gs-today-due { left: 920px; top: 296px; width: 440px; height: 690px; padding: 48px 44px; }
 .gs-today-n { margin: 30px 0 0; font-size: 56px; font-weight: 600; line-height: 1.06; letter-spacing: -.03em; color: var(--ink); }
 .gs-today-min { margin: 18px 0 0; font-size: 30px; }

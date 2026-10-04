@@ -63,7 +63,7 @@ function Today() {
   useFrame((l) => {
     all('dot').forEach((dot, index) => focusIn(dot, l, 2600 + index * 45, 300, 6));
     put(one('draw'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, 4300)).toFixed(3)})`);
-    slideIn(one('ticket'), l, 4450, { dy: 90, dur: 640, smear: 12 });
+    slideIn(one('ticket'), l, 4450, { dx: -120, dur: 640, smear: 12 });
   });
   return (
     <div ref={root} className="mr-scene">
