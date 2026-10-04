@@ -2,10 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, BookOpen, Check, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
+import { RegisterStory } from '../components/auth/AuthStory';
 
-/** Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель. */
+/**
+ * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель,
+ * в окне которой по очереди отмечаются части плана подготовки (RegisterStory). Пароль и его повтор
+ * стоят рядом, чтобы форма помещалась на экране ноутбука.
+ */
 export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -190,6 +195,7 @@ export default function Register() {
                     {emailError && <p id="register-email-error" role="alert" className="au-hint au-hint--error">{emailError}</p>}
                   </div>
 
+                  <div className="au-pair">
                   <div className="au-field">
                     <label htmlFor="register-password" className="au-label">Пароль</label>
                     <div className="au-control">
@@ -249,6 +255,7 @@ export default function Register() {
                       </button>
                     </div>
                   </div>
+                  </div>
 
                   <button type="submit" disabled={loading} data-busy={loading ? '' : undefined} className="sf-primary au-submit">
                     {loading ? 'Регистрируем...' : 'Зарегистрироваться'}
@@ -281,23 +288,7 @@ export default function Register() {
             Материал становится<br />планом подготовки
           </h2>
           <div className="au-panel-more">
-            <div className="au-deck">
-              <ul className="au-win">
-                {[
-                  'Конспект с привязкой к источнику',
-                  'Карточки для активного повторения',
-                  'Тест для проверки понимания',
-                  'История материалов и прогресса',
-                ].map((item) => (
-                  <li key={item} className="au-step au-step--ok au-step--one">
-                    <span className="au-step-n" aria-hidden="true">
-                      <Check />
-                    </span>
-                    <span className="au-step-t">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <RegisterStory />
           </div>
         </aside>
       </main>

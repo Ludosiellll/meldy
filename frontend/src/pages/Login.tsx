@@ -4,11 +4,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Eye, EyeOff } from 'lucide-react';
 import { validateEmail } from '../utils/validators';
+import { LoginStory } from '../components/auth/AuthStory';
 
 /**
  * Вход (Meldy 2026-10-04): форма в белой карточке, рядом цветная панель с полутоновыми точками —
- * как плитки первого экрана лендинга. На телефоне панель сжимается до строки над карточкой.
- * Стили — .au-* в styles/legacy.css.
+ * как плитки первого экрана лендинга; в её окне по кругу идут три шага Meldy (LoginStory). Отступы
+ * следуют высоте экрана, чтобы форма целиком помещалась на ноутбуке. На телефоне панель сжимается
+ * до строки над карточкой. Стили — .au-* в styles/legacy.css.
  */
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -99,7 +101,12 @@ export default function Login() {
               </div>
 
               <div className="au-field">
-                <label htmlFor="login-password" className="au-label">Пароль</label>
+                <div className="au-label-row">
+                  <label htmlFor="login-password" className="au-label">Пароль</label>
+                  <button type="button" onClick={() => navigate('/forgot-password')} className="au-link">
+                    Забыли пароль?
+                  </button>
+                </div>
                 <div className="au-control">
                   <input
                     id="login-password"
@@ -122,12 +129,6 @@ export default function Login() {
                   </button>
                 </div>
               </div>
-              <div className="au-forgot">
-                <button type="button" onClick={() => navigate('/forgot-password')} className="au-link">
-                  Забыли пароль?
-                </button>
-              </div>
-
               <button type="submit" disabled={loading} data-busy={loading ? '' : undefined} className="sf-primary au-submit">
                 {loading ? 'Входим…' : 'Войти'}
               </button>
@@ -153,21 +154,7 @@ export default function Login() {
           <p className="au-cap">Как работает Meldy</p>
           <h2 id="login-panel-title" className="au-panel-h">От источника до уверенного ответа.</h2>
           <div className="au-panel-more">
-            <div className="au-deck">
-              <div className="au-win">
-                {[
-                  ['Загрузите материал', 'PDF, DOCX, текст, изображение или запись лекции.'],
-                  ['Разберите главное', 'Получите конспект со ссылками на исходные фрагменты.'],
-                  ['Проверьте себя', 'Закрепите тему карточками и коротким тестом.'],
-                ].map(([title, description], index) => (
-                  <div key={title} className="au-step">
-                    <span className="au-step-n" aria-hidden="true">{index + 1}</span>
-                    <h3 className="au-step-t">{title}</h3>
-                    <p className="au-step-d">{description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <LoginStory />
           </div>
         </aside>
       </main>

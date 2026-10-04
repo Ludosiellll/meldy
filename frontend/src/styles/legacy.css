@@ -25,8 +25,10 @@
   --au-danger: #be123c;
   --au-danger-soft: #fdecf0;
   --au-danger-line: #f7c4d1;
-  display: flex;
-  flex-direction: column;
+  /* Owner 2026-10-04: «не все помещается». The bar and one row for the rest of the screen; spacing
+     inside follows the screen height (dvh), so a laptop screen of ~700 px holds the whole form. */
+  display: grid;
+  grid-template-rows: auto 1fr;
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: clip;
@@ -51,7 +53,7 @@
   align-items: center;
   width: 100%;
   max-width: calc(1360px + 2 * var(--au-g));
-  height: 76px;
+  height: clamp(56px, 8dvh, 76px);
   margin: 0 auto;
   padding: 0 var(--au-g);
 }
@@ -79,14 +81,13 @@
 .au-logo:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 4px; border-radius: 6px; }
 
 .au-main {
-  flex: 1 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   gap: 24px;
   width: 100%;
   max-width: calc(1360px + 2 * var(--au-g));
   margin: 0 auto;
-  padding: 4px var(--au-g) var(--au-g);
+  padding: 0 var(--au-g) clamp(16px, 3dvh, 40px);
 }
 
 /* ---------------------------------------------------------------- the form card */
@@ -95,16 +96,16 @@
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  padding: 56px 48px;
+  padding: clamp(22px, 4.4dvh, 56px) 48px;
   border-radius: 48px;
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
 }
-.au-in { width: 100%; max-width: 420px; margin: 0 auto; }
+.au-in { width: 100%; max-width: 440px; margin: 0 auto; }
 
 .au-h1 {
   margin: 0;
-  font-size: clamp(36px, 3.1vw, 46px);
+  font-size: clamp(30px, min(3.1vw, 5.6dvh), 46px);
   line-height: 1.04;
   font-weight: 500;
   letter-spacing: -.038em;
@@ -112,21 +113,26 @@
   text-wrap: balance;
 }
 .au-lede {
-  margin: 14px 0 0;
-  font-size: 18px;
+  margin: clamp(8px, 1.4dvh, 14px) 0 0;
+  font-size: clamp(16px, 2.4dvh, 18px);
   line-height: 1.45;
   color: var(--sf-muted);
   text-wrap: pretty;
 }
 
-.au-form { display: grid; gap: 18px; margin-top: 32px; }
-.au-field { display: grid; gap: 8px; min-width: 0; }
+.au-form { display: grid; gap: clamp(10px, 1.8dvh, 18px); margin-top: clamp(16px, 3dvh, 32px); }
+.au-field { display: grid; gap: 6px; min-width: 0; }
+/* A label with its link on the right («Забыли пароль?»): one row instead of two. */
+.au-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.au-label-row .au-link { min-height: 24px; font-size: 14px; }
+/* Two fields side by side (the password and its repeat). */
+.au-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .au-label { font-size: 15px; line-height: 20px; font-weight: 500; color: var(--sf-ink); }
 .au-control { position: relative; }
 .au-input {
   display: block;
   width: 100%;
-  height: 52px;
+  height: clamp(44px, 6dvh, 52px);
   padding: 0 18px;
   border: 1px solid var(--sf-line);
   border-radius: 16px;
@@ -151,12 +157,13 @@
 .au-input--eye { padding-right: 56px; }
 .au-eye {
   position: absolute;
-  top: 4px;
+  top: 50%;
   right: 4px;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
+  transform: translateY(-50%);
   padding: 0;
   border: 0;
   border-radius: 12px;
@@ -204,15 +211,16 @@
 }
 .au-link:hover { text-decoration-color: currentColor; }
 .au-link:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; border-radius: 6px; }
-.au-forgot { display: flex; justify-content: flex-end; margin-top: -10px; }
 
 /* The submit: the blue pill of the kit (.sf-primary), full width, the circle on the right. */
 .au-submit.sf-primary {
   width: 100%;
+  height: clamp(46px, 6.4dvh, 56px);
   justify-content: space-between;
-  margin-top: 6px;
+  margin-top: 2px;
   padding-left: 28px;
 }
+.au-submit.sf-primary::after { width: clamp(36px, 5dvh, 40px); height: clamp(36px, 5dvh, 40px); }
 .au-submit.sf-primary[data-busy]:disabled { opacity: .88; cursor: progress; }
 .au-submit.sf-primary[data-busy]::after {
   background-image: none;
@@ -225,7 +233,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 26px 0;
+  margin: clamp(10px, 2dvh, 26px) 0;
   font-size: 14px;
   color: var(--sf-muted);
 }
@@ -239,7 +247,7 @@
   justify-content: center;
   gap: 12px;
   width: 100%;
-  min-height: 56px;
+  min-height: clamp(44px, 6.2dvh, 56px);
   padding: 0 22px;
   border: 0;
   border-radius: 999px;
@@ -256,8 +264,8 @@
 .dark .au-oauth { background: var(--sf-surface-soft); }
 .dark .au-oauth:hover { box-shadow: 0 0 0 1px var(--sf-muted); }
 
-.au-foot { margin: 22px 0 0; text-align: center; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
-.au-foot .au-link { vertical-align: middle; }
+.au-foot { margin: clamp(6px, 1.4dvh, 22px) 0 0; text-align: center; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
+.au-foot .au-link { min-height: 32px; vertical-align: middle; }
 
 /* Password strength: three pills (pink · yellow · green). */
 .au-meter { display: flex; gap: 6px; margin-top: 2px; }
@@ -344,8 +352,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 640px;
-  padding: 48px 52px 56px;
+  padding: clamp(26px, 5dvh, 48px) clamp(30px, 3.6vw, 52px) clamp(26px, 5dvh, 56px);
   overflow: hidden;
   border-radius: 56px;
   color: #fff;
@@ -377,6 +384,14 @@
   mask-image: radial-gradient(circle at 0% 100%, #000, transparent 62%);
 }
 .au-panel--dawn::after { background-image: radial-gradient(#ffffff 1.3px, transparent 1.6px); opacity: .34; }
+/* The halftone flows slowly under its glow while the page is open (owner 2026-10-04: «анимаций нет
+   никаких постоянных»): whole tiles per loop, so the loop has no seam. */
+@media (prefers-reduced-motion: no-preference) {
+  .au-panel::before { animation: as-dots-a 22s linear infinite; }
+  .au-panel::after { animation: as-dots-b 26s linear infinite; }
+}
+@keyframes as-dots-a { to { background-position: -36px 36px; } }
+@keyframes as-dots-b { to { background-position: 28px -28px; } }
 
 .au-cap {
   align-self: flex-start;
@@ -391,8 +406,8 @@
 }
 .au-panel-h {
   max-width: 15ch;
-  margin: 26px 0 0;
-  font-size: clamp(38px, 3.6vw, 56px);
+  margin: clamp(14px, 2.6dvh, 26px) 0 0;
+  font-size: clamp(30px, min(3.6vw, 6.4dvh), 56px);
   line-height: 1.03;
   font-weight: 500;
   letter-spacing: -.04em;
@@ -406,7 +421,7 @@
   line-height: 1.5;
   color: rgba(255, 255, 255, .9);
 }
-.au-panel-more { margin-top: auto; padding-top: 40px; }
+.au-panel-more { margin-top: auto; padding-top: clamp(16px, 3dvh, 40px); }
 
 /* The white «window» with content, two tinted cards peeking from under it. */
 .au-deck { position: relative; max-width: 520px; }
@@ -539,8 +554,8 @@
 /* ---------------------------------------------------------------- narrow screens */
 @media (max-width: 1279px) {
   .au { --au-g: 32px; }
-  .au-card { padding: 48px 36px; border-radius: 44px; }
-  .au-panel { padding: 40px 40px 48px; border-radius: 48px; }
+  .au-card { padding-right: 36px; padding-left: 36px; border-radius: 44px; }
+  .au-panel { border-radius: 48px; }
 }
 /* Below 1024 the panel becomes a short banner above the card: the line about Meldy only. */
 @media (max-width: 1023px) {
@@ -571,6 +586,7 @@
   .au-cap { padding: 6px 13px; font-size: 14px; }
   .au-panel-h { margin-top: 12px; font-size: 25px; line-height: 1.08; letter-spacing: -.03em; }
   .au-card { padding: 30px 20px 26px; border-radius: 32px; }
+  .au-pair { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .au-h1 { font-size: 32px; }
   .au-lede { margin-top: 10px; font-size: 16px; }
   .au-form { margin-top: 24px; gap: 16px; }
