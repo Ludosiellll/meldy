@@ -3,3 +3,4 @@
 Each change to this file runs `.github/workflows/deploy-hf.yml` in check-only mode: it waits until the Space runs its current `main` and smoke-checks `/` and `/api/health`, without pushing.
 
 - 2026-10-04: check the release 77d43d8 (tree of 2938979); the first run pushed it but its wait step failed on API parsing.
+- 2026-10-04 01:35: re-check after following the API redirect (the API answers 307 to /api/spaces/Ludosiel/StudyForge).

@@ -87,7 +87,7 @@ jobs:
           set -u
           STAGE=""; SHA=""
           for i in $(seq 1 100); do
-            J=$(curl -sS -H "Authorization: Bearer $HF_TOKEN" "https://huggingface.co/api/spaces/${SPACE}" 2>/dev/null || true)
+            J=$(curl -sSL -H "Authorization: Bearer $HF_TOKEN" "https://huggingface.co/api/spaces/${SPACE}" 2>/dev/null || true)
             STAGE=$(printf '%s' "$J" | jq -r '.runtime.stage // empty' 2>/dev/null || true)
             SHA=$(printf '%s' "$J" | jq -r '.runtime.sha // .sha // empty' 2>/dev/null || true)
             if [ -z "$STAGE" ]; then echo "[$i] unexpected API answer: $(printf '%s' "$J" | head -c 200)"; fi
@@ -103,5 +103,5 @@ jobs:
       - name: Smoke check
         run: |
           set -euo pipefail
-          curl -fsS -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/"
-          curl -fsS "https://${SPACE_HOST}/api/health" | jq .
+          curl -fsSL -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/"
+          curl -fsSL "https://${SPACE_HOST}/api/health" | jq .
