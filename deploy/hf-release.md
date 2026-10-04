@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — the motion reel on the landing (from d1b7c8e)
+
+Adds to b07ade9: «Meldy за 35 секунд» under the hero — a code-built motion reel in the new style (chapters
+Билеты, Ответ вслух, Повторение, Готовность), muted, plays only while on screen, chapter bar under it, still frame
+under reduced motion. Lazy chunk, no new dependencies, no data read.
+
+Verified before release: tsc -b, Vitest 1545/1545 (100 files), production build; the landing at 1440 and 390 in
+both themes without horizontal overflow; 175 frames of the reel reviewed (5 per second).
+
 ## 2026-10-04 — knowledge map back in the menu (from ce131a8)
 
 Adds to 827588d: «Карта знаний» returns — lecture cards in course order with the concepts they share, readiness
