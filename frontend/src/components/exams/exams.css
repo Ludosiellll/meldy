@@ -1020,6 +1020,8 @@
   padding: 0;
   list-style: none;
 }
+/* An odd last exam takes the whole row: a single exam is not half a page with an empty half beside it. */
+.sf-page .ex-list > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .sf-page[data-frame='m'] .ex-list,
 .sf-page[data-frame='s'] .ex-list { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px; }
 .sf-page .ex-list > li {
@@ -1094,7 +1096,6 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: 40px;
-  max-width: 1080px;
   margin: 44px 0 0;
   padding: 18px 18px 18px 48px;
   border-radius: 48px;

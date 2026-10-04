@@ -655,7 +655,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
-  max-width: 1040px;
   margin-top: 44px;
 }
 .ac-plan {
@@ -767,7 +766,7 @@
 .ac-halo svg { width: 38px; height: 38px; }
 
 /* ---------------------------------------------------------------- Profile */
-.ac-profile { --ac-w: 1040px; }
+.ac-profile { --ac-w: none; } /* the page column, like the top bar */
 .ac-profile > :not(.ac-modal) { max-width: var(--ac-w); }
 .ac-hero {
   position: relative;

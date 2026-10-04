@@ -161,7 +161,8 @@
 .fc-hint svg { width: 16px; height: 16px; flex: none; }
 
 /* ---------------------------------------------------------------- learning: the deck */
-.fc-study { max-width: 860px; }
+/* One card at a time: a centred column, not a narrower one on the left. */
+.fc-study { max-width: 860px; margin-inline: auto; }
 .fc-study-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .fc-count {
   display: inline-flex;
@@ -249,6 +250,7 @@
 /* ---------------------------------------------------------------- the result */
 .fc-result {
   max-width: 640px;
+  margin-inline: auto;
   padding: 44px 44px 40px;
   border-radius: 44px;
   background: var(--sf-surface);

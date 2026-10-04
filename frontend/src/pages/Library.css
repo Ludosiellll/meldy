@@ -4,7 +4,8 @@
    a blue panel, and loading shows the shape of the list. Structure of the rows is the kit's (.sf-toc). */
 
 .lib-page {
-  --lib-w: 1040px;
+  /* The page column, like the top bar (owner 2026-10-04: blocks centred, not a narrower column on the left). */
+  --lib-w: none;
   --lib-tile: 52px;
 }
 

@@ -585,7 +585,6 @@ html[data-stage] .cv-meta { display: none; }
   grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
   align-items: center;
   gap: 32px;
-  max-width: 1040px;
   padding: 14px 14px 14px 48px;
   border-radius: 48px;
   background: var(--sf-surface);

@@ -550,7 +550,7 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 
 /* ---------------------------------------------------------------- a table of contents (Library, spec 5.1) */
 /* Rows on lines: number | title and what the lecture has | date; «⋯» on hover and focus. */
-.sf-toc { max-width: 1040px; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
+.sf-toc { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
 .sf-toc-row { position: relative; border-bottom: 1px solid var(--sf-line); }
 .sf-toc-link {
   display: grid;
@@ -709,7 +709,7 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 .sf-tabs .sf-tabs-n { margin-left: 6px; font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------- a ledger row (Progress «Экзамены», spec 5.17) */
-.sf-ledger { max-width: 1040px; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
+.sf-ledger { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
 .sf-ledger > li { position: relative; border-bottom: 1px solid var(--sf-line); }
 /* Hover underlines the name, as the exam rows do; no tint (it sticks after a tap on phones). */
 .sf-ledger > li:hover .sf-ledger-name { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
@@ -739,7 +739,7 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 }
 
 /* ---------------------------------------------------------------- a plain table (Progress «По лекциям») */
-.sf-table { width: 100%; max-width: 1040px; border-collapse: collapse; }
+.sf-table { width: 100%; border-collapse: collapse; }
 .sf-table th {
   padding: 0 16px 8px 0;
   border-bottom: 1px solid var(--sf-line-strong);
@@ -763,7 +763,7 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
 }
 
 /* ---------------------------------------------------------------- columns by day (Progress «Ответы по дням») */
-.sf-bars { max-width: 1040px; }
+.sf-bars { max-width: none; }
 .sf-bars-plot { display: flex; align-items: flex-end; gap: 3px; height: 128px; padding-top: 20px; border-bottom: 1px solid var(--sf-line-strong); }
 .sf-bars-day { position: relative; display: flex; flex: 1 1 0; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; }
 .sf-bars-bar { width: 100%; max-width: 26px; background: color-mix(in srgb, var(--sf-ink) 55%, transparent); }
