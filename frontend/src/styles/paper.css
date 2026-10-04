@@ -12,7 +12,6 @@
 
 @import './base.css';
 @import '@fontsource-variable/onest/wght.css';
-@import '@fontsource-variable/literata/opsz.css';
 
 /* ---------------------------------------------------------------- tokens (spec 3.2), on the roots */
 .sf-shell,
@@ -1156,7 +1155,7 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   font-weight: 500;
   text-decoration: none;
 }
-.sf-tabs button[aria-pressed='true'] .sf-tabs-n { color: inherit; opacity: .7; }
+.sf-tabs button[aria-pressed='true'] .sf-tabs-n { color: inherit; } /* full strength: dimmed it was 3.4:1 */
 
 .sf-viewtabs {
   gap: 4px;
@@ -1201,7 +1200,7 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   font-weight: 500;
 }
 .sf-sectabs button[aria-current='page'] .sf-sectab-label { text-decoration: none; }
-.sf-sectabs button[aria-current='page'] .sf-tabs-n { color: inherit; opacity: .75; }
+.sf-sectabs button[aria-current='page'] .sf-tabs-n { color: inherit; }
 .sf-sectabs button:focus-visible { border-radius: 999px; }
 @media (max-width: 639px) {
   .sf-viewtabs { gap: 2px; }

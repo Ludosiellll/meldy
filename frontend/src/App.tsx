@@ -5,8 +5,8 @@ import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import PWAUpdater from './components/PWAUpdater';
 import RouteLoading from './components/RouteLoading';
-// Fonts and paper tokens for every route (Onest for the interface, Literata for paper): the app no
-// longer loads Inter from a third-party host, which the production CSP blocks.
+// Fonts and kit tokens for every route (Onest only since the 2026-10-04 redesign): the app does not
+// load fonts from a third-party host, which the production CSP blocks.
 import './styles/paper.css';
 
 const Landing = lazy(() => import('./pages/Landing'));
