@@ -4,6 +4,13 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — «Изменить экзамен» opened at the lectures shows their label (from c87a560)
+
+Adds to 1146f1c (tree of 6a43ce0). From the exam sheet («9 лекций», «Добавить материал к вопросу») the editor
+scrolled the lecture block under the fixed top bar, hiding «Лекции» and «Все 9 лекций»; a scroll margin keeps them in
+sight. CSS only. Verified before release: Vitest of the exam pages and components (161/161), production build, the
+editor at `#lectures` in Chromium at 1366×768 and 390×844.
+
 ## 2026-10-04 — «Новый экзамен»: the lecture checklist in sight (from 8228be2)
 
 Adds to 4215c84 (tree of 1e9e039). The owner: «но выбрать лекцию как-будто тоже возможность должна быть, или как
