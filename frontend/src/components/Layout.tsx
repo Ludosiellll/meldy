@@ -12,6 +12,9 @@ import { supabase } from '../lib/supabase';
 import TokenInfoModal from './TokenInfoModal';
 import RouteLoading from './RouteLoading';
 import { useInstallPWA } from '../hooks/useInstallPWA';
+import { GuideProvider, GUIDE_PROFILE_KEY, useGuide } from './guide/GuideContext';
+import GuidePanel from './guide/GuidePanel';
+import { GUIDE_CHAPTERS } from './guide/chapters';
 import '../styles/paper.css';
 
 /**
@@ -198,14 +201,25 @@ const THEME_CHOICES: Array<{ value: 'light' | 'dark' | 'system'; label: string }
 ];
 
 export default function Layout() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const seenInProfile = profile ? Boolean(profile.onboarding_status?.[GUIDE_PROFILE_KEY]) : null;
+  return (
+    <GuideProvider userId={user?.id} seenInProfile={seenInProfile}>
+      <Shell profile={profile} setProfile={setProfile} />
+    </GuideProvider>
+  );
+}
+
+function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfile: (profile: UserProfile) => void }) {
   const { user, signOut } = useAuth();
+  const guide = useGuide();
   const navigate = useNavigate();
   const location = useLocation();
   const email = user?.email ?? '';
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '';
   const initial = name ? name[0].toUpperCase() : '?';
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadDMs, setUnreadDMs] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -354,6 +368,13 @@ export default function Layout() {
     );
   }
 
+  // The guide lights up the section it talks about: its link in the top line, its tab on a phone,
+  // «Добавить лекцию», or the account button where the section lives in the account menu.
+  const spot = guide?.open ? GUIDE_CHAPTERS[guide.index] : null;
+  const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route === to ? '' : undefined);
+  const spotInMenu = spot ? Boolean(spot.phone) : false;
+  const mapInMenu = spot?.id === 'map';
+
   const avatarUrl = profile?.avatar_url;
   const isTeacher = profile?.role === 'teacher';
   const back = backLinkFor(location.pathname);
@@ -368,6 +389,16 @@ export default function Layout() {
         {email ? <p className="sf-acct-mail">{email}</p> : null}
       </div>
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
+      <button
+        type="button"
+        className="sf-acct-item"
+        onClick={() => {
+          setMenuOpen(false);
+          guide?.start();
+        }}
+      >
+        Как пользоваться Meldy
+      </button>
       {/* The line has room for «Карта знаний» only from 1280 px; narrower, it is here. */}
       <Link className="sf-acct-item min-[1280px]:!hidden" to="/knowledge-map">Карта знаний</Link>
       {/* On a phone these three are not in the tab bar. */}
@@ -464,19 +495,32 @@ export default function Layout() {
           ) : null}
           <nav aria-label="Разделы" className="sf-bar-nav">
             {DESK_LINKS.map((item) => (
-              <NavLink key={item.to} to={item.to} className={item.wide ? 'sf-bar-link max-[1279px]:!hidden' : 'sf-bar-link'}>
+              <NavLink key={item.to} to={item.to} className={item.wide ? 'sf-bar-link max-[1279px]:!hidden' : 'sf-bar-link'} data-guide-spot={spotOn(item.to)}>
                 {item.label}
                 {item.counter ? <NavCount value={counters[item.counter]} /> : null}
               </NavLink>
             ))}
           </nav>
           <div className="sf-bar-right">
-            <Link className="sf-nav-cta" to="/analyze" aria-current={onAnalyze ? 'page' : undefined}>
+            <Link className="sf-nav-cta" to="/analyze" aria-current={onAnalyze ? 'page' : undefined} data-guide-spot={spot?.spot === 'cta' ? '' : undefined}>
               Добавить лекцию
             </Link>
+            {guide ? (
+              <button
+                type="button"
+                className="sf-help"
+                aria-label="Как пользоваться Meldy"
+                aria-expanded={guide.open}
+                onClick={() => (guide.open ? guide.close() : guide.start())}
+              >
+                ?
+              </button>
+            ) : null}
             <button
               ref={menuButtonRef}
               type="button"
+              data-guide-spot-phone={spotInMenu ? '' : undefined}
+              data-guide-spot-menu={mapInMenu ? '' : undefined}
               className="sf-me-hit"
               aria-label={name ? `${name}: профиль, тема, выход` : 'Меню аккаунта'}
               aria-expanded={menuOpen}
@@ -501,10 +545,12 @@ export default function Layout() {
         </ErrorBoundary>
       </main>
 
+      <GuidePanel />
+
       {tabsShown ? (
         <nav aria-label="Разделы" className="sf-tabbar" data-testid="tab-bar">
           {PHONE_TABS.map((item) => (
-            <NavLink key={item.to} to={item.to} className="sf-tablink">
+            <NavLink key={item.to} to={item.to} className="sf-tablink" data-guide-spot={spotOn(item.to)}>
               {item.label}
             </NavLink>
           ))}
