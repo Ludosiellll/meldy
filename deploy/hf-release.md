@@ -4,6 +4,32 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-04 — sign-in and sign-up: a short reel under the panel heading (from f1b01b9)
+
+Adds to 570163b (tree of e35de71). The owner, on the release-9 panels: «мне не нравится что карточка эта сама по
+себе не по центру, слишком большое расстояние от нее до текста, да и в целом анимацию покруче можно было сделать и в
+виде видоса (как ты делал для главного экрана) но похожий но чуть другой».
+
+- The window of the panel is now a 16-second silent reel on the engine of the landing reel (headlines that type and
+  blur in, the corner labels with the chapter and the timecode, a cursor, particles, circle and rising wipes).
+  Sign-in, «Как работает Meldy»: a lecture uploads → a marker finds the main line and a note with «фрагмент 3»
+  slides out → on blue, a card flips, gets «Помню» and its next dates → on dark, «Вспоминайте, а не
+  перечитывайте.» and the wordmark. Sign-up: the materials of a course fall into one dot → the dot opens into the
+  plan and its four parts tick to «План готов» → the days up to next Monday, a card hopping to tomorrow and then a
+  week ahead → a ticket and «К экзамену — с планом.». The repeat dates are the real schedule of «Помню» (SM-2 in
+  `review_flashcard`: 1 day, then 6 more, then about 16 more): «завтра · через неделю · через 3 недели».
+- The frame takes the room under the heading in 16:9 and stands right under it; the heading and the frame are
+  centred together in the panel.
+- A pause button; with reduced motion a still frame and «Смотреть ролик»; a hidden tab pauses it; below 1024 px
+  (the panel is a banner) there is no reel. Screen readers get a caption and the steps as a list.
+
+No migration, no backend change.
+
+Verified before release: tsc -b, Vitest 1502/1502, production build; screenshots of sign-in and sign-up at
+1534×732, 1440×800, 1366×657, 1280×720, 1920×1080, 1024×768 and 390×844 in both themes (the form fits as in
+release 9, no overflow, no console errors, contrast ≥ 4.5:1); reduced-motion still frames; both loops exported
+frame by frame to MP4 and the scene seams checked.
+
 ## 2026-10-04 — sign-in and sign-up fit the screen and stay alive (from e538623)
 
 Adds to 0c13253 (tree of 972453b). The owner, on /login and /register at ~1534×732: «не все помещается, да и
