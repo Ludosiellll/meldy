@@ -175,15 +175,6 @@ h1, h2, h3 { text-wrap: balance; }
   @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm;
 }
 
-.card-hover:hover {
-  @apply shadow-md border-slate-300 dark:border-slate-700;
-}
-
-/* Dark select styling */
-.dark-select {
-  @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition;
-}
-
 /* Markdown styles for Chat and Summaries */
 .markdown-content h1 { @apply text-2xl font-extrabold mt-4 mb-2; }
 .markdown-content h2 { @apply text-xl font-bold mt-3 mb-1.5; }
@@ -309,36 +300,7 @@ h1, h2, h3 { text-wrap: balance; }
   }
 }
 
-.app-shell { background: var(--sf-canvas); color: var(--sf-ink); }
-.auth-page { background: var(--sf-canvas); color: var(--sf-ink); }
-.auth-divider-label { background: var(--sf-canvas); }
-.auth-showcase { background: var(--sf-surface-soft); border-color: var(--sf-line); }
-.auth-showcase > .absolute { display: none; }
-.auth-showcase [class~="text-white"] { color: var(--sf-ink) !important; }
-.auth-showcase [class~="text-slate-300"], .auth-showcase [class~="text-slate-400"] { color: var(--sf-muted) !important; }
-.auth-showcase [class~="text-cyan-300"] { color: var(--sf-accent-fg) !important; }
-.auth-showcase [class~="border-white/10"], .auth-showcase [class~="border-white/20"] { border-color: var(--sf-line) !important; }
-.auth-showcase [class~="bg-white/5"], .auth-showcase [class~="bg-white/20"] { background: var(--sf-surface); }
-.auth-showcase [class~="bg-cyan-300/10"] { background: var(--sf-accent-soft); border-color: var(--sf-line); }
-.auth-showcase-list { border-color: var(--sf-line); --tw-divide-opacity: 1; --tw-divide-color: var(--sf-line); }
-.auth-showcase-note { background: var(--sf-surface); border-color: var(--sf-line); }
-.auth-showcase-eyebrow, .auth-showcase-number { color: var(--sf-accent-fg); }
-.auth-showcase-title { color: var(--sf-ink); }
-.app-logo-mark { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
-.app-sidebar { background: var(--sf-surface); border-color: var(--sf-line); color: var(--sf-ink); }
-.app-sidebar > div:first-child { border-color: var(--sf-line); }
-.app-sidebar .app-logo-mark { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
-.app-sidebar [class~="text-white"], .app-sidebar [class~="text-slate-200"], .app-sidebar [class~="text-slate-300"] { color: var(--sf-ink) !important; }
-.app-sidebar [class~="text-slate-400"], .app-sidebar [class~="text-slate-500"] { color: var(--sf-muted) !important; }
-.app-sidebar [class~="border-slate-800"] { border-color: var(--sf-line); }
-.app-nav-group-title { color: var(--sf-muted); }
-.app-nav-active { color: var(--sf-accent-fg) !important; background: var(--sf-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-accent) 14%, transparent); }
-.app-nav-idle { color: var(--sf-muted); }
-.app-nav-idle:hover { color: var(--sf-ink); background: var(--sf-surface-soft); }
-.app-mobile-header, .app-mobile-nav { color: var(--sf-ink); background: color-mix(in srgb, var(--sf-surface) 94%, transparent); border-color: var(--sf-line); }
 .card { background: var(--sf-surface) !important; border-color: var(--sf-line) !important; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.035); }
-.card-hover:hover { border-color: color-mix(in srgb, var(--sf-ink) 20%, var(--sf-line)) !important; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
-.dark-select { color: var(--sf-ink); background: var(--sf-surface); border-color: var(--sf-line); }
 
 /* Typographic safety net (redesign spec, step 1): no capitals and no letter-spacing set by CSS in the
    interior. Tiny spaced capitals read as a template; a word typed in capitals stays as typed. The

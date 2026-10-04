@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Heart, Bookmark, Volume2, Share2, Play, Pause, X } from 'lucide-react';
+import { ArrowLeft, Volume2, Share2, Play, Pause, X } from 'lucide-react';
 import { getMaterialById } from '../api/materials';
 import { playTTS, stopTTS, pauseTTS, resumeTTS, getTTSPlaybackRate, setTTSPlaybackRate } from '../utils/tts';
 import toast from 'react-hot-toast';
@@ -192,20 +192,6 @@ export default function ShortsPlayer() {
 
               {/* TikTok Style Side Actions */}
               <div className="absolute right-4 bottom-24 md:bottom-32 flex flex-col gap-6 z-20 items-center">
-                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => toast('Сохранено в избранное!', { icon: '❤️' })}>
-                  <div className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-110 group-active:scale-90 border border-white/10 shadow-xl">
-                    <Heart className="w-6 h-6 text-white" />
-                  </div>
-                  <span className="text-white text-xs font-bold drop-shadow-md">{(index * 123 + 456) % 999}</span>
-                </div>
-
-                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => toast('Добавлено в закладки', { icon: '🔖' })}>
-                  <div className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-110 group-active:scale-90 border border-white/10 shadow-xl">
-                    <Bookmark className="w-6 h-6 text-white" />
-                  </div>
-                  <span className="text-white text-xs font-bold drop-shadow-md">Запомнить</span>
-                </div>
-
                 <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => handlePlayTTS(`${slide.title}. ${slide.content}`)}>
                   <div className={`w-12 h-12 rounded-full backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-110 group-active:scale-90 shadow-xl border ${isPlaying && isActive ? 'bg-indigo-600/80 border-indigo-400' : 'bg-black/20 border-white/10'}`}>
                     {isWaitingTTS && isActive ? (
@@ -234,7 +220,13 @@ export default function ShortsPlayer() {
                   <span className="text-white text-xs font-bold drop-shadow-md">Скорость</span>
                 </div>
 
-                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => toast('Ссылка скопирована', { icon: '🔗' })}>
+                {/* Likes and bookmarks were only toasts (nothing was saved) with a made-up like counter: removed. */}
+                <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={() => {
+                  navigator.clipboard?.writeText(window.location.href).then(
+                    () => toast.success('Ссылка скопирована'),
+                    () => toast.error('Не удалось скопировать ссылку'),
+                  ) ?? toast.error('Не удалось скопировать ссылку');
+                }}>
                   <div className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center transition-transform group-hover:scale-110 group-active:scale-90 border border-white/10 shadow-xl">
                     <Share2 className="w-6 h-6 text-white" />
                   </div>
