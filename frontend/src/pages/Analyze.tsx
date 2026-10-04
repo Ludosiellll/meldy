@@ -12,7 +12,8 @@ import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
 import { recordStudyActivity } from '../api/quests';
 import { hasBadWords } from '../utils/moderation';
-import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, incrementAIUsage, nextLimitReset } from '../api/limits';
+import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, nextLimitReset, notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
 import { OCR_NOTICE, OCR_PHOTO_NOTICE } from '../lib/lectureFormats';
@@ -26,7 +27,7 @@ import {
 } from '../utils/analysisSections';
 import './Analyze.css';
 
-const ANALYSIS_COST = 20;
+const ANALYSIS_COST = AI_COSTS.lecture;
 
 const initAgents: AgentStatus[] = SECTION_NAMES.map(id => ({ id, label: SECTION_LABELS[id], status: 'idle', progress: 0 }));
 
@@ -88,12 +89,14 @@ interface QuotaState {
   ok: boolean;
   isPro: boolean;
   count: number;
+  limit: number;
+  resetsAt: Date;
 }
 
 /**
  * Строка о расходе дневного лимита под кнопкой запуска. Читается при открытии
- * страницы и после каждого списания (событие AI_USAGE_EVENT). Если прочитать не
- * удалось, число не показываем; у PRO строки нет.
+ * страницы и после каждого действия с ИИ (событие AI_USAGE_EVENT). Если прочитать не
+ * удалось, число не показываем; у PRO строки нет, пока его 1000 единиц хватает.
  */
 function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?: string; startDisabledReason?: string } {
   const [quota, setQuota] = useState<QuotaState | null>(null);
@@ -107,10 +110,18 @@ function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?
     const load = () => {
       checkAILimit(userId, 0)
         .then(result => {
-          if (!cancelled) setQuota({ ok: result.ok !== false, isPro: Boolean(result.isPro), count: Number(result.count) || 0 });
+          if (!cancelled) {
+            setQuota({
+              ok: result.ok !== false,
+              isPro: Boolean(result.isPro),
+              count: Number(result.count) || 0,
+              limit: Number(result.limit) || FREE_DAILY_LIMIT,
+              resetsAt: result.resetsAt instanceof Date ? result.resetsAt : nextLimitReset(),
+            });
+          }
         })
         .catch(() => {
-          if (!cancelled) setQuota({ ok: false, isPro: false, count: 0 });
+          if (!cancelled) setQuota({ ok: false, isPro: false, count: 0, limit: FREE_DAILY_LIMIT, resetsAt: nextLimitReset() });
         });
     };
     load();
@@ -121,15 +132,16 @@ function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?
     };
   }, [userId]);
 
-  if (!quota || quota.isPro) return {};
-  if (!quota.ok) return { costNote: `Анализ расходует ${cost} единиц дневного лимита (${FREE_DAILY_LIMIT} в сутки).` };
-  const remaining = Math.max(0, FREE_DAILY_LIMIT - quota.count);
-  const resetAt = formatLimitReset(nextLimitReset());
+  if (!quota) return {};
+  if (!quota.ok) return quota.isPro ? {} : { costNote: `Анализ расходует ${cost} единиц дневного лимита (${FREE_DAILY_LIMIT} в сутки).` };
+  const remaining = Math.max(0, quota.limit - quota.count);
+  const resetAt = formatLimitReset(quota.resetsAt);
   if (remaining < cost) {
     return { startDisabledReason: `На сегодня лимит исчерпан, он обновится в ${resetAt}. Демо-текст доступен без лимита.` };
   }
+  if (quota.isPro) return {};
   return {
-    costNote: `Анализ расходует ${cost} из ${FREE_DAILY_LIMIT} единиц дневного лимита. Осталось ${remaining}, лимит обновится в ${resetAt}.`,
+    costNote: `Анализ расходует ${cost} из ${quota.limit} единиц дневного лимита. Осталось ${remaining}, лимит обновится в ${resetAt}.`,
   };
 }
 
@@ -187,7 +199,7 @@ export default function Analyze() {
 
   const isCurrent = (runId: number) => mountedRef.current && runIdRef.current === runId;
 
-  /** Сохраняет годный результат один раз: материал, затем списание, карточки и активность. */
+  /** Сохраняет годный результат один раз: материал, затем остаток лимита на экране, карточки и активность. */
   const saveRun = async (runId: number, context: SaveContext) => {
     const userId = user?.id;
     if (!userId || savedRunsRef.current.has(runId) || savingRunsRef.current.has(runId)) return;
@@ -234,8 +246,8 @@ export default function Analyze() {
       savedRunsRef.current.add(runId);
       if (isCurrent(runId)) setState(prev => ({ ...prev, savedMaterialId: materialId }));
 
-      // Энергия списывается только после сохранения и никогда за демо-текст.
-      if (!context.demo) await incrementAIUsage(userId, ANALYSIS_COST);
+      // Единицы списал сервер до анализа (демо-текст бесплатен): остаток на экранах перечитывается.
+      if (!context.demo) notifyAIUsageChanged();
 
       const cards = flashcardsOf(context.results);
       let cardsFailed: SaveInfo['cardsFailed'];

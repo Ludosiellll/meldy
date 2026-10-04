@@ -4,7 +4,8 @@ import toast from 'react-hot-toast';
 import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEnergyConfirm } from '../../hooks/useEnergyConfirm';
-import { incrementAIUsage } from '../../api/limits';
+import { notifyAIUsageChanged } from '../../api/limits';
+import { AI_COSTS } from '../../lib/plans';
 import { updateQuestProgress } from '../../api/quests';
 import {
   forgetTTSFailures,
@@ -720,13 +721,13 @@ export default function ConversationPlayer({
   /** Проверка энергии ИИ — та же, что у шпаргалки. При отказе общее окно уже показано. */
   const energyAllows = async (userId: string | undefined, action: string) => {
     if (!userId) return true;
-    return verifyEnergy(userId, 5, action);
+    return verifyEnergy(userId, action === 'Подбор схем' ? AI_COSTS.visuals : AI_COSTS.conversation, action);
   };
 
   const chargeEnergy = async (userId: string | undefined) => {
     if (!userId) return;
     try {
-      await incrementAIUsage(userId, 5);
+      notifyAIUsageChanged(); // единицы списал сервер до модели
     } catch (error) {
       // Разговор уже сохранён: ошибка учёта энергии не должна выглядеть как неудача.
       console.warn('incrementAIUsage failed', error);

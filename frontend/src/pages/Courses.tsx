@@ -16,7 +16,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import SummaryView from '../components/SummaryView';
-import { incrementAIUsage } from '../api/limits';
+import { notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 
 interface CourseMaterialItem {
@@ -220,9 +221,8 @@ export default function Courses() {
     }
 
     if (user?.id) {
-      const ok = await verifyEnergy(user.id, 5, 'Генерация курса');
+      const ok = await verifyEnergy(user.id, AI_COSTS.course, 'Генерация курса');
       if (!ok) return;
-      await incrementAIUsage(user.id, 5);
     }
 
     setGenerating(true);
@@ -248,6 +248,7 @@ export default function Courses() {
       if (!res.ok) throw new Error('Ошибка генерации курса');
 
       const data = await res.json();
+      notifyAIUsageChanged(); // единицы списал сервер до модели
       
       setCourseTitle(data.title || 'Новый ИИ-курс');
       setCourseDescription(data.description || 'Создан на основе выбранных материалов.');

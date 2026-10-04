@@ -244,13 +244,15 @@ def test_cache_through_the_middleware(auth, monkeypatch):
 
 # --- /api/health ---------------------------------------------------------------------------
 
-def test_health_is_public_and_unchanged(auth, monkeypatch):
+def test_health_is_public_and_names_the_last_model(auth, monkeypatch):
     from fastapi.testclient import TestClient
 
     monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setattr(base, "_LAST_ANSWER", {})
     response = TestClient(auth.main.app).get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "groq_configured": bool(auth.main.GROQ_API_KEY), "gemini_configured": False}
+    assert response.json() == {"status": "ok", "groq_configured": bool(auth.main.GROQ_API_KEY), "gemini_configured": False,
+                               "ai": {"provider": None, "model": None, "at": None}}
     monkeypatch.setenv("GEMINI_API_KEY", "key")
     assert TestClient(auth.main.app).get("/api/health").json()["gemini_configured"] is True
     assert auth.supabase.calls == 0
@@ -356,7 +358,7 @@ def test_diagnostics_reports_models_with_error_kinds_only(diag, monkeypatch):
     assert isinstance(by_model["gemini-2.5-flash-lite"]["ms"], int)
     assert by_model["gemini-2.0-flash"] == {"model": "gemini-2.0-flash", "fast": False, "thinking": "none", "ok": False,
                                            "ms": by_model["gemini-2.0-flash"]["ms"], "finish_reason": None, "error": "not_found"}
-    assert body["groq"] == {"configured": True, "model": "llama-3.3-70b-versatile", "fast_model": "llama-3.3-70b-versatile",
+    assert body["groq"] == {"configured": True, "model": "openai/gpt-oss-120b", "fast_model": "openai/gpt-oss-20b",
                             "ok": True, "ms": body["groq"]["ms"], "error": None}
     assert body["agent_fast"]["ok"] is True and body["agent_fast"]["provider"] == "gemini"
     assert body["agent_fast"]["model"] == "gemini-2.5-flash-lite"

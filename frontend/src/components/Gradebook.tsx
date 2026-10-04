@@ -5,7 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 import { Camera, Plus, AlertTriangle, Sparkles, ArrowLeft, Trash2, LayoutGrid, Table, X } from 'lucide-react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
-import { checkAILimit, incrementAIUsage } from '../api/limits';
+import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { updateQuestProgress } from '../api/quests';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -205,7 +206,7 @@ export default function Gradebook() {
     
     // Проверка лимитов для AI (1 токен за распознавание по фото)
     if (user?.id) {
-      const ok = await verifyEnergy(user.id, 1, 'Распознавание оценок по фото');
+      const ok = await verifyEnergy(user.id, AI_COSTS.gradebookScan, 'Распознавание оценок по фото');
       if (!ok) return;
     }
 
@@ -237,10 +238,16 @@ export default function Gradebook() {
       });
       const data: any = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(res.status === 401 ? 'Войдите в аккаунт и повторите попытку.' : 'Сервис распознавания временно недоступен.');
+        throw new Error(
+          res.status === 401
+            ? 'Войдите в аккаунт и повторите попытку.'
+            : data?.code === 'ai_limit'
+              ? AI_LIMIT_MESSAGE
+              : 'Сервис распознавания временно недоступен.',
+        );
       }
       failurePhase = 'saving';
-      if (user?.id) await incrementAIUsage(user.id, 1);
+      notifyAIUsageChanged(); // единицу списал сервер до модели
       
       if (data.message) {
         setScanMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
@@ -339,6 +346,7 @@ export default function Gradebook() {
       const knownMessage = err instanceof Error && (
         err.message === 'Войдите в аккаунт и повторите попытку.' ||
         err.message === 'Сервис распознавания временно недоступен.' ||
+        err.message === AI_LIMIT_MESSAGE ||
         err.message === 'Не удалось завершить замену. Старые оценки сохранены, но проверьте список на повторы.'
       )
         ? err.message

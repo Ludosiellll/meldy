@@ -264,6 +264,15 @@ describe('httpErrorFromResponse', () => {
     expect(busy.message).toBe(STREAM_MESSAGES.rateLimited);
   });
 
+  it('the daily AI limit (429 ai_limit) keeps the server words and is not retryable today', async () => {
+    const limit = await httpErrorFromResponse(
+      json(429, { detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 }),
+    );
+    expect(limit).toMatchObject({ kind: 'http', status: 429, code: 'ai_limit', message: 'Дневной лимит ИИ на сегодня исчерпан.', retryable: false });
+    const bare = await httpErrorFromResponse(json(429, { code: 'ai_limit' }));
+    expect(bare.message).toBe(STREAM_MESSAGES.aiLimit);
+  });
+
   it('reads the body only once', async () => {
     const response = json(422, { detail: 'Ни у одной лекции нет текста' });
     const text = vi.spyOn(response, 'text');

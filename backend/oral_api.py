@@ -42,7 +42,9 @@ from typing import Any, Awaitable, Callable
 from fastapi import APIRouter, HTTPException, Request
 
 import oral
+import quota
 from agents.base import AIError, BaseAgent, parse_model_json
+from plans import AI_COSTS
 from ratelimit import limiter, user_or_ip_key
 from supabase_rest import SupabaseRest, SupabaseRestError, bearer_token
 
@@ -272,35 +274,39 @@ async def oral_evaluate(request: Request):
             "errors": [],
             "verdict": EMPTY_ANSWER_VERDICT,
         }
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + EVALUATE_TIMEOUT_SECONDS
-    user_text = oral.build_evaluate_input(question, points, transcript)
-    for attempt in range(2):
-        shorter = attempt > 0
-        meta: dict = {}
-        raw = await _run_model(
-            oral.build_evaluate_prompt(shorter=shorter),
-            user_text,
-            budget=max(0.0, deadline - loop.time()) if shorter else EVALUATE_TIMEOUT_SECONDS,
-            temperature=0.2,
-            max_tokens=EVALUATE_RETRY_MAX_TOKENS if shorter else EVALUATE_MAX_TOKENS,
-            json_mode=True,
-            thinking="low",
-            meta=meta,
-        )
-        if not _cut_off(meta):
-            break
-        # Протокол оборван: пункты, до которых модель не дошла, стали бы unrated, а формула
-        # клиента их не считает — оценка выросла бы за счёт пропусков. Такой ответ не
-        # отдаём и не держим в кэше; один повтор с запасом длины, если хватает времени.
-        BaseAgent.forget(raw)
-        print(f"Oral evaluate answer cut off at the length limit (attempt {attempt + 1})")
-        if shorter or deadline - loop.time() < EVALUATE_RETRY_MIN_SECONDS:
+    # Ответ на билет (быстрые проверки, переспрос и протокол) стоит AI_COSTS["answer"]:
+    # списывается здесь, до модели; протокол не получился — единицы возвращаются.
+    charge = await quota.charge(request, "answer", AI_COSTS["answer"])
+    async with quota.refund_on_failure(charge):
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + EVALUATE_TIMEOUT_SECONDS
+        user_text = oral.build_evaluate_input(question, points, transcript)
+        for attempt in range(2):
+            shorter = attempt > 0
+            meta: dict = {}
+            raw = await _run_model(
+                oral.build_evaluate_prompt(shorter=shorter),
+                user_text,
+                budget=max(0.0, deadline - loop.time()) if shorter else EVALUATE_TIMEOUT_SECONDS,
+                temperature=0.2,
+                max_tokens=EVALUATE_RETRY_MAX_TOKENS if shorter else EVALUATE_MAX_TOKENS,
+                json_mode=True,
+                thinking="low",
+                meta=meta,
+            )
+            if not _cut_off(meta):
+                break
+            # Протокол оборван: пункты, до которых модель не дошла, стали бы unrated, а формула
+            # клиента их не считает — оценка выросла бы за счёт пропусков. Такой ответ не
+            # отдаём и не держим в кэше; один повтор с запасом длины, если хватает времени.
+            BaseAgent.forget(raw)
+            print(f"Oral evaluate answer cut off at the length limit (attempt {attempt + 1})")
+            if shorter or deadline - loop.time() < EVALUATE_RETRY_MIN_SECONDS:
+                raise AIError.failed()
+        result = await asyncio.to_thread(oral.validate_evaluation, _parsed(raw), points, transcript)
+        if result is None:
+            BaseAgent.forget(raw)
             raise AIError.failed()
-    result = await asyncio.to_thread(oral.validate_evaluation, _parsed(raw), points, transcript)
-    if result is None:
-        BaseAgent.forget(raw)
-        raise AIError.failed()
     return result
 
 
@@ -526,7 +532,11 @@ async def _build_rubric(job: RubricJob) -> dict:
         if not selection.fragments or not selection.materials:
             # Без общих слов с вопросом берётся начало первой лекции, так что пусто только без текста.
             raise AIError(422, "no_text", NO_TEXT_DETAIL)
-        rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
+        # Новые пункты ответа стоят AI_COSTS["answerPoints"] (сохранённые — бесплатно). Списание здесь,
+        # в общей задаче: два одновременных запроса одного эталона платят один раз.
+        charge = await quota.reserve(job.token, "answerPoints", AI_COSTS["answerPoints"])
+        async with quota.refund_on_failure(charge):
+            rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
         rubric_id, rubric, saved, cached = await _store_rubric(db, job, rubric, model, selection)
         return _rubric_response(rubric_id, rubric, cached=cached, saved=saved, job=job)
 

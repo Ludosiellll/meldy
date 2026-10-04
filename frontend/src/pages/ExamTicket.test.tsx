@@ -65,7 +65,9 @@ vi.mock('../lib/oral/transcribe', () => ({
 vi.mock('../api/limits', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/limits')>()),
   checkAILimit: mocks.checkAILimit,
-  incrementAIUsage: mocks.incrementAIUsage,
+  // The server charges the checked answer (/api/oral/evaluate); after the save the page only
+  // refreshes the meter — counted here under the old name.
+  notifyAIUsageChanged: mocks.incrementAIUsage,
 }));
 
 // ── Fixtures ────────────────────────────────────────────────────────────────────────
@@ -622,7 +624,7 @@ describe('ExamTicket: answering by text', () => {
     ]);
     expect(payload.points[0]).toMatchObject({ source_ids: ['S12'], material_id: 'mat-1', source_label: '«Нейронные сети», фрагмент 12' });
     expect(mocks.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(mocks.incrementAIUsage).toHaveBeenCalledWith('user-1', 1);
+    expect(mocks.incrementAIUsage).toHaveBeenCalledWith();
     expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(mocks.incrementAIUsage.mock.invocationCallOrder[0]);
     // The exam sheet learns which question changed.
     expect(JSON.parse(window.sessionStorage.getItem(`meldy_exam_peak_${EXAM}`) ?? '[]')).toEqual([{ hash: HASH, question_id: Q1, before: 'untested' }]);

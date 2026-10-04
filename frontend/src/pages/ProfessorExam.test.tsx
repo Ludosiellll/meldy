@@ -54,7 +54,11 @@ vi.mock('../api/quests', () => ({
   updateQuestProgress: (...args: unknown[]) => db.updateQuestProgress(...args),
   recordStudyActivity: (...args: unknown[]) => db.recordStudyActivity(...args),
 }));
-vi.mock('../api/limits', () => ({ incrementAIUsage: (...args: unknown[]) => db.incrementAIUsage(...args) }));
+// The server charges the exam with its first question; the page refreshes the meter after it.
+vi.mock('../api/limits', () => ({
+  notifyAIUsageChanged: (...args: unknown[]) => db.incrementAIUsage(...args),
+  AI_LIMIT_MESSAGE: 'Дневной лимит ИИ на сегодня исчерпан.',
+}));
 vi.mock('../hooks/useEnergyConfirm', () => ({
   useEnergyConfirm: () => ({ verifyEnergy: (...args: unknown[]) => db.verifyEnergy(...args) }),
 }));
@@ -171,7 +175,26 @@ describe('starting an old-format oral exam', () => {
 
     expect(await screen.findByText('Что такое ключевая ставка?')).toBeInTheDocument();
     expect(db.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(db.incrementAIUsage).toHaveBeenCalledWith('user-1', 1);
+    expect(db.incrementAIUsage).toHaveBeenCalledWith();
+    // The server needs the length of the exam to charge it (lib/plans professorExamCost).
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({ history_text: '', exam_length: expect.any(Number) });
+  });
+
+  it('shows no second dialog when the server refuses by the daily limit', async () => {
+    saveState({});
+    fetchMock.mockResolvedValue(jsonResponse(429, { detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 }));
+    const user = userEvent.setup();
+    renderExam();
+
+    await user.click(await screen.findByRole('button', { name: /Войти в аудиторию/ }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // Back at the choice of lecture, after the refusal was handled.
+    await waitFor(() => expect(screen.getByRole('button', { name: /Войти в аудиторию/ })).toBeEnabled());
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(db.alert).not.toHaveBeenCalled(); // the limit dialog (AILimitDialogHost) is the one that opens
+    expect(db.incrementAIUsage).not.toHaveBeenCalled();
   });
 
   it('does not start or charge when the energy check says no', async () => {

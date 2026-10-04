@@ -30,8 +30,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { incrementAIUsage } from '../api/limits';
-import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import { notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
+import { unitsWord, useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import confetti from 'canvas-confetti';
 import toast, { Toaster } from 'react-hot-toast';
 import SkillsRadarChart from '../components/SkillsRadarChart';
@@ -1360,13 +1361,13 @@ export default function Career() {
 
       const contextStr = contextLines.join("\n\n---\n\n").slice(0, 15000);
 
-      const ok = await verifyEnergy(user.id, 5, 'Оцифровка навыков');
+      const ok = await verifyEnergy(user.id, AI_COSTS.careerProfile, 'Оцифровка навыков');
       if (!ok) return;
       
       setIsGenerating(true);
-      await incrementAIUsage(user.id, 5);
 
       const newProfile = await generateCareerProfile(user.id, contextStr);
+      notifyAIUsageChanged(); // единицы списал (или вернул) сервер
       if (newProfile) {
         setProfile(newProfile);
         toast.success('Навыки успешно пересчитаны!');
@@ -1737,15 +1738,14 @@ export default function Career() {
 
     const ok = await confirm({
       title: 'ИИ-экспертное ревью',
-      message: 'Запрос глубокого ИИ-разбора и оценки от экспертного ментора спишет 5 энергии. Продолжить?'
+      message: `Запрос глубокого ИИ-разбора и оценки от экспертного ментора расходует ${AI_COSTS.careerReview} ${unitsWord(AI_COSTS.careerReview)} дневного лимита. Продолжить?`
     });
     if (!ok) return;
 
-    const okEnergy = await verifyEnergy(user.id, 5, 'ИИ Карьерный Эксперт');
+    const okEnergy = await verifyEnergy(user.id, AI_COSTS.careerReview, 'ИИ Карьерный Эксперт');
     if (!okEnergy) return;
 
     setIsEvaluating(true);
-    await incrementAIUsage(user.id, 5);
 
     let solutionData = "";
     if (selectedModule.practice_type === 'algo' || selectedModule.practice_type === 'sql' || selectedModule.practice_type === 'web') {
@@ -1772,6 +1772,7 @@ export default function Career() {
         selectedModule.practice_type,
         solutionData
       );
+      notifyAIUsageChanged(); // единицы списал сервер до модели
 
       const score = evaluation.score;
       const isMastered = score >= 70;

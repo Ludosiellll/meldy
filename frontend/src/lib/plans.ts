@@ -1,7 +1,8 @@
 /**
  * Тарифы и цена действий ИИ в единицах дневного лимита (расчёт 2026-10-04: заметка
- * `10_Project/AI_Limits_2026-10-04` в meldy-notes). Те же числа знает сервер (`backend/plans.py`):
- * списывает единицы он, клиент только показывает остаток и предупреждает заранее.
+ * `10_Project/AI_Limits_2026-10-04` в meldy-notes и docs/ai-limits-2026-10-04.md). Те же числа знает
+ * сервер (`backend/plans.py`): списывает единицы он, клиент только показывает остаток и
+ * предупреждает заранее.
  *
  * Единица ≈ 0,1 ₽ расходов на модель (Gemini 3.1 Flash-Lite по ценам Google на 2026-10-04).
  */
@@ -30,9 +31,43 @@ export const AI_COSTS = {
   cheatsheet: 5,
   /** Сообщение в чате с ИИ. */
   chatMessage: 1,
+  // Прежние разделы: столько же, сколько до 2026-10-04 списывал браузер.
+  /** Учебный курс из материалов библиотеки. */
+  course: 5,
+  /** Игра-квест по лекции (и викторина в учебной сессии). */
+  missions: 2,
+  /** Работа над ошибками. */
+  mistakesPractice: 2,
+  /** Распознавание оценок по фото. */
+  gradebookScan: 1,
+  /** Оцифровка навыков (карьера). */
+  careerProfile: 5,
+  /** Экспертное ревью решения (карьера). */
+  careerReview: 5,
 } as const;
 
 export type AICostKind = keyof typeof AI_COSTS;
+
+/** Сверка списка: AI_COSTS.examMapping за каждые начатые столько новых вопросов. */
+export const EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40;
+
+/** Единицы сверки: 10 за каждые начатые 40 вопросов, которые уходят модели (готовые — бесплатно). */
+export function examMappingCost(questions: number): number {
+  const count = Math.max(0, Math.trunc(Number(questions) || 0));
+  return AI_COSTS.examMapping * Math.ceil(count / EXAM_MAPPING_QUESTIONS_PER_CHARGE);
+}
+
+/** Устный экзамен у «профессора»: весь экзамен по числу вопросов, списывается при первом вопросе. */
+export const PROFESSOR_EXAM_COSTS: Readonly<Record<number, number>> = { 3: 1, 5: 2, 10: 4 };
+
+export function professorExamCost(length: number): number {
+  return PROFESSOR_EXAM_COSTS[length] ?? PROFESSOR_EXAM_COSTS[5];
+}
+
+/** Дневной лимит аккаунта в единицах. */
+export function dailyUnits(isPro: boolean): number {
+  return isPro ? PRO_DAILY_UNITS : FREE_DAILY_UNITS;
+}
 
 /** Окно «Что даёт PRO» открывается этим событием на window (см. components/pro). */
 export const OPEN_PRO_EVENT = 'meldy:open-pro';

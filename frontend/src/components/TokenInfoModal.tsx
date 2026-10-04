@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
-import { FREE_DAILY_LIMIT, formatLimitReset, nextLimitReset } from '../api/limits';
-import { FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../lib/plans';
+import { formatLimitReset, nextLimitReset } from '../api/limits';
+import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
 
 interface Props {
   isOpen: boolean;
@@ -12,17 +12,18 @@ interface Props {
 
 /**
  * Окно «Дневной лимит ИИ»: сколько единиц осталось и когда лимит обновится
- * (00:00 UTC, показано в местном времени). Без тарифных предложений: оплаты в
- * Meldy нет, у аккаунта с PRO написан его дневной лимит (lib/plans.ts, считает сервер).
- * Вид (Meldy 2026-10-04): белая карточка со скруглением 32, остаток — в голубой плашке
- * с полосой-пилюлей; стили .ac-modal-* в styles/legacy.css.
+ * (00:00 UTC, показано в местном времени). Единицы списывает сервер перед обращением к ИИ;
+ * бесплатно — 100 в сутки, у PRO — до 1000 (lib/plans.ts). Без тарифных предложений: оплаты
+ * в Meldy нет. Вид (Meldy 2026-10-04): белая карточка со скруглением 32, остаток — в голубой
+ * плашке с полосой-пилюлей; стили .ac-modal-* в styles/legacy.css.
  */
 export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: Props) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const limit = dailyUnits(Boolean(isPro));
   const used = Math.max(0, Number(usedTokens) || 0);
-  const remaining = Math.max(0, FREE_DAILY_LIMIT - used);
-  const share = Math.min(100, Math.max(0, (remaining / FREE_DAILY_LIMIT) * 100));
+  const remaining = Math.max(0, limit - used);
+  const share = Math.min(100, Math.max(0, (remaining / limit) * 100));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -55,27 +56,22 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
 
         <h2 id={titleId} className="ac-modal-h">Дневной лимит ИИ</h2>
 
-        {isPro ? (
-          <p className="ac-modal-p">
-            У вас PRO: до {PRO_DAILY_UNITS} единиц ИИ в день вместо {FREE_DAILY_UNITS}. Лимит обновится в {resetAt}.
+        <div className="ac-limit">
+          <p className="ac-limit-line">
+            Осталось на сегодня: <span className="ac-limit-n">{remaining}</span> из {limit} единиц.
           </p>
-        ) : (
-          <>
-            <div className="ac-limit">
-              <p className="ac-limit-line">
-                Осталось на сегодня: <span className="ac-limit-n">{remaining}</span> из {FREE_DAILY_LIMIT} единиц.
-              </p>
-              <div aria-hidden="true" className="ac-limit-track">
-                <div data-testid="limit-bar" className="ac-limit-fill" style={{ width: `${share}%` }} />
-              </div>
-            </div>
-            <p className="ac-modal-p">
-              {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}{' '}
-              Единицы расходуются, когда Meldy обращается к ИИ, например: анализ материала, сверка вопросов
-              экзамена с лекциями, ответ на билет, разговор, шпаргалка.
-            </p>
-          </>
-        )}
+          <div aria-hidden="true" className="ac-limit-track">
+            <div data-testid="limit-bar" className="ac-limit-fill" style={{ width: `${share}%` }} />
+          </div>
+        </div>
+        <p className="ac-modal-p">
+          {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}{' '}
+          {isPro ? `У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день. ` : ''}
+          Единицы списываются, когда Meldy обращается к ИИ: анализ материала — {AI_COSTS.lecture}, сверка списка
+          с лекциями — {AI_COSTS.examMapping} за каждые {EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов, ответ на
+          билет — {AI_COSTS.answer}, разговор — {AI_COSTS.conversation}, шпаргалка — {AI_COSTS.cheatsheet}. Если ИИ
+          не справился, единицы возвращаются.
+        </p>
 
         <button type="button" onClick={onClose} className="ac-modal-ok">
           Понятно

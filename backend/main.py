@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import contextlib
 import hashlib
 import json
 import math
@@ -23,6 +24,7 @@ if not os.getenv("SUPABASE_KEY"):
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 import httpx
 
@@ -40,6 +42,8 @@ from ocr import OcrError
 from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from agents.coordinator import CORE_SECTIONS, CoordinatorAgent
+import quota
+from plans import AI_COSTS
 from utils import extract_relevant_paragraphs, scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
@@ -59,9 +63,20 @@ import traceback
 
 @app.exception_handler(AIError)
 async def ai_error_handler(request: Request, exc: AIError):
-    """Provider failures: {detail, code} with the AIError status (429 asks to wait a minute)."""
-    headers = {"Retry-After": "60"} if exc.status_code == 429 else None
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail, "code": exc.code}, headers=headers)
+    """Provider failures: {detail, code} with the AIError status (429 asks to wait a minute).
+
+    The daily limit (quota.AILimitExceeded, code ai_limit) adds used, limit, resets_at and pro,
+    and its Retry-After is the time until the limit renews at 00:00 UTC.
+    """
+    content = {"detail": exc.detail, "code": exc.code}
+    extra = getattr(exc, "extra", None)
+    if isinstance(extra, dict):
+        content.update(extra)
+    headers = None
+    if exc.status_code == 429:
+        retry_after = getattr(exc, "retry_after", None)
+        headers = {"Retry-After": str(retry_after if isinstance(retry_after, int) and retry_after > 0 else 60)}
+    return JSONResponse(status_code=exc.status_code, content=content, headers=headers)
 
 
 @app.exception_handler(Exception)
@@ -241,6 +256,8 @@ async def protect_backend_api(request: Request, call_next):
             request.state.user = await require_authenticated_user(request)
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        # Model calls of this request go to its user's call log (ai_calls), in the background.
+        quota.bind_request(request)
     return await call_next(request)
 
 
@@ -281,18 +298,28 @@ async def shutdown_event():
     scheduler.shutdown()
 
 
+class LastAnswer(BaseModel):
+    """Which model gave the latest real (not cached) answer of this server process; nulls before one."""
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    at: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
     status: str
     groq_configured: bool
     gemini_configured: bool
+    ai: LastAnswer
 
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
+    last = ai_base.last_answer()
     return HealthResponse(
         status="ok",
         groq_configured=bool(GROQ_API_KEY),
         gemini_configured=bool(os.getenv("GEMINI_API_KEY", "").strip()),
+        ai=LastAnswer(provider=last.get("provider"), model=last.get("model"), at=last.get("at")),
     )
 
 
@@ -387,9 +414,15 @@ async def _analysis_events(
         yield _internal_error_event(error_id)
 
 
-async def _guarded(events: AsyncGenerator[dict, None], label: str) -> AsyncGenerator[str, None]:
+async def _guarded(
+    events: AsyncGenerator[dict, None], label: str, charge: Optional["quota.Charge"] = None
+) -> AsyncGenerator[str, None]:
     """SSE frames of ``events``; an unexpected exception becomes one internal error event
-    (or ``done`` when results were already sent), never a second terminal event."""
+    (or ``done`` when results were already sent), never a second terminal event.
+
+    The units reserved for the run (``charge``) go back unless ``results`` was sent: an
+    error event, an exception or a client gone before the results costs nothing.
+    """
     results_sent = False
     terminal_sent = False
     try:
@@ -399,6 +432,8 @@ async def _guarded(events: AsyncGenerator[dict, None], label: str) -> AsyncGener
             kind = event.get("type")
             if kind == "results":
                 results_sent = True
+                if charge is not None:
+                    charge.keep()
             elif kind in ("error", "done"):
                 terminal_sent = True
             yield sse_event(event)
@@ -409,6 +444,9 @@ async def _guarded(events: AsyncGenerator[dict, None], label: str) -> AsyncGener
         if terminal_sent:
             return
         yield sse_event({"type": "done"} if results_sent else _internal_error_event(error_id))
+    finally:
+        if charge is not None and not results_sent:
+            charge.refund_soon()
 
 
 def _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type) -> dict:
@@ -431,6 +469,8 @@ async def event_stream(
     quiz_type: str = "multiple",
     enabled_agents: Optional[str] = None,
     ocr_key: Optional[str] = None,
+    *,
+    charge: Optional["quota.Charge"] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress for an uploaded document (already read by the route).
 
@@ -468,8 +508,9 @@ async def event_stream(
         async for event in _analysis_events(text, settings, enabled_agents, extracted):
             yield event
 
-    async for chunk in _guarded(events(), "Analysis"):
-        yield chunk
+    async with contextlib.aclosing(_guarded(events(), "Analysis", charge)) as frames:
+        async for chunk in frames:
+            yield chunk
 
 
 @app.post("/api/analyze")
@@ -495,15 +536,22 @@ async def analyze(
     _require_ai_configured()
     # Read before the stream starts, so an oversized file is a real 413, not a stream error.
     contents = await read_upload_with_limit(file)
+    # The built-in demo text is free; anything else reserves a lecture's units before the
+    # stream, so the daily limit is a real 429, and gets them back without results.
+    demo = quota.is_demo_upload(contents, file.filename or "")
+    charge = await quota.charge(request, "lecture", 0 if demo else AI_COSTS["lecture"])
 
     return StreamingResponse(
         with_keepalive(event_stream(
             contents, file.filename or "file.txt",
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
+            charge=charge,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
+        # A client gone before the stream ran gets the reserved units back too.
+        background=BackgroundTask(charge.release_unkept),
     )
 
 
@@ -525,6 +573,8 @@ async def event_stream_media(
     quiz_type: str = "multiple",
     enabled_agents: Optional[str] = None,
     ocr_key: Optional[str] = None,
+    *,
+    charge: Optional["quota.Charge"] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream for an audio, video or image file (already read by the route).
 
@@ -578,8 +628,9 @@ async def event_stream_media(
         async for event in _analysis_events(text, settings, enabled_agents, extracted):
             yield event
 
-    async for chunk in _guarded(events(), "Media analysis"):
-        yield chunk
+    async with contextlib.aclosing(_guarded(events(), "Media analysis", charge)) as frames:
+        async for chunk in frames:
+            yield chunk
 
 
 @app.post("/api/analyze/media")
@@ -607,15 +658,19 @@ async def analyze_media(
     content = await read_upload_with_limit(file)
     if not content:
         raise HTTPException(status_code=400, detail="Файл пустой. Выберите другой файл.")
+    charge = await quota.charge(request, "lecture", AI_COSTS["lecture"])
 
     return StreamingResponse(
         with_keepalive(event_stream_media(
             content, file.filename or "", file.content_type,
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
+            charge=charge,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
+        # A client gone before the stream ran gets the reserved units back too.
+        background=BackgroundTask(charge.release_unkept),
     )
 
 
@@ -627,6 +682,8 @@ async def event_stream_url(
     quiz_difficulty: str = "mixed",
     quiz_type: str = "multiple",
     enabled_agents: Optional[str] = None,
+    *,
+    charge: Optional["quota.Charge"] = None,
 ) -> AsyncGenerator[str, None]:
     async def events():
         yield {"type": "status", "message": "Открываем страницу и забираем текст…"}
@@ -643,8 +700,9 @@ async def event_stream_url(
         async for event in _analysis_events(text, settings, enabled_agents):
             yield event
 
-    async for chunk in _guarded(events(), "URL analysis"):
-        yield chunk
+    async with contextlib.aclosing(_guarded(events(), "URL analysis", charge)) as frames:
+        async for chunk in frames:
+            yield chunk
 
 
 @app.post("/api/analyze/url")
@@ -662,13 +720,17 @@ async def analyze_url(
     if not url or not url.strip():
         raise HTTPException(status_code=400, detail="Укажите корректный URL-адрес.")
     _require_ai_configured()
+    charge = await quota.charge(request, "lecture", AI_COSTS["lecture"])
 
     return StreamingResponse(
         with_keepalive(event_stream_url(
             url.strip(), summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
+            charge=charge,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
+        # A client gone before the stream ran gets the reserved units back too.
+        background=BackgroundTask(charge.release_unkept),
     )
 
 
@@ -922,6 +984,7 @@ CHAT_FAILURE_DETAIL = "Не удалось получить ответ. Попр
 PROFESSOR_QUESTION_FAILURE_DETAIL = "Не удалось задать вопрос. Попробуйте ещё раз."
 PROFESSOR_EVALUATE_FAILURE_DETAIL = "Не удалось оценить ответ. Попробуйте ещё раз."
 MISTAKES_PRACTICE_FAILURE_DETAIL = "Не удалось подготовить вопросы по ошибкам. Попробуйте ещё раз."
+COURSE_FAILURE_DETAIL = "Не удалось составить курс. Попробуйте ещё раз."
 
 
 def _ai_failure(exc: Exception, failed_detail: str) -> AIError:
@@ -1085,14 +1148,16 @@ async def chat(request: Request, req: ChatRequest):
 
     system_prompt += "\n\nВАЖНОЕ ПРАВИЛО: Это продолжающийся диалог. НЕ здоровайся заново, не повторяй вступительные слова поддержки из прошлых сообщений. Отвечай сразу по делу, опираясь на историю диалога."
 
-    # A plain-text reply, even when the material itself mentions JSON.
-    try:
-        reply = await agent.run(system_prompt, full_user_query, json_mode=False)
-    except Exception as exc:
-        raise _ai_failure(exc, CHAT_FAILURE_DETAIL)
-    if not isinstance(reply, str) or not reply.strip():
-        BaseAgent.forget(reply)
-        raise AIError.failed(CHAT_FAILURE_DETAIL)
+    charge = await quota.charge(request, "chatMessage", AI_COSTS["chatMessage"])
+    async with quota.refund_on_failure(charge):
+        # A plain-text reply, even when the material itself mentions JSON.
+        try:
+            reply = await agent.run(system_prompt, full_user_query, json_mode=False)
+        except Exception as exc:
+            raise _ai_failure(exc, CHAT_FAILURE_DETAIL)
+        if not isinstance(reply, str) or not reply.strip():
+            BaseAgent.forget(reply)
+            raise AIError.failed(CHAT_FAILURE_DETAIL)
     return {"reply": reply}
 
 
@@ -1138,13 +1203,19 @@ async def generate_course(request: Request, req: CourseGenerateRequest):
   ]
 }}"""
 
-    raw = await agent.run(system_prompt, "Сгенерируй структуру курса в формате JSON.")
-    
-    try:
-        return parse_model_json(raw)
-    except Exception as e:
-        print(f"Failed to generate course: {{e}}, raw: {{raw}}")
-        return {{"title": "Новый курс", "description": "", "structure": []}}
+    charge = await quota.charge(request, "course", AI_COSTS["course"])
+    async with quota.refund_on_failure(charge):
+        try:
+            raw = await agent.run(system_prompt, "Сгенерируй структуру курса в формате JSON.")
+        except Exception as exc:
+            raise _ai_failure(exc, COURSE_FAILURE_DETAIL)
+        try:
+            return parse_model_json(raw)
+        except Exception as exc:
+            # The old stand-in here was a set literal ({{...}}) that crashed with a 500.
+            print(f"Failed to generate course: {type(exc).__name__}")
+            BaseAgent.forget(raw)
+            raise AIError.failed(COURSE_FAILURE_DETAIL)
 
 
 class ProfessorQuestionRequest(BaseModel):
@@ -1155,6 +1226,8 @@ class ProfessorQuestionRequest(BaseModel):
     exam_history: List[dict] = []
     recent_mistakes: List[str] = []
     professor_id: Optional[str] = None
+    # Questions in the whole exam (3, 5 or 10): the first question charges the exam's units.
+    exam_length: Optional[int] = None
 
 
 class ProfessorEvaluateRequest(BaseModel):
@@ -1226,14 +1299,20 @@ async def professor_question(request: Request, req: ProfessorQuestionRequest):
         system_prompt += f"\n\nАДАПТИВНАЯ СЛОЖНОСТЬ (УСПЕВАЕМОСТЬ И ОШИБКИ): {adaptive_instr}"
     system_prompt += socratic_instr
 
-    # The question is plain text even when the lecture itself talks about JSON.
-    try:
-        question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.", json_mode=False)
-    except Exception as exc:
-        raise _ai_failure(exc, PROFESSOR_QUESTION_FAILURE_DETAIL)
-    if not isinstance(question, str) or not question.strip():
-        BaseAgent.forget(question)
-        raise AIError.failed(PROFESSOR_QUESTION_FAILURE_DETAIL)
+    # The whole exam is charged once, with its first question (no history yet); the next
+    # questions and the evaluations of the answers are part of it.
+    new_exam = not (req.history_text or "").strip()
+    units = quota.professor_exam_units(req.exam_length) if new_exam else 0
+    charge = await quota.charge(request, "professorExam", units)
+    async with quota.refund_on_failure(charge):
+        # The question is plain text even when the lecture itself talks about JSON.
+        try:
+            question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.", json_mode=False)
+        except Exception as exc:
+            raise _ai_failure(exc, PROFESSOR_QUESTION_FAILURE_DETAIL)
+        if not isinstance(question, str) or not question.strip():
+            BaseAgent.forget(question)
+            raise AIError.failed(PROFESSOR_QUESTION_FAILURE_DETAIL)
     return {"question": question.strip()}
 
 
@@ -1258,11 +1337,15 @@ async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
 async def generate_missions(request: Request, req: MissionsGenerateRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_missions_prompt()
-    raw = await agent.run(system_prompt, req.context)
-    
+    charge = await quota.charge(request, "missions", AI_COSTS["missions"])
+    async with quota.refund_on_failure(charge):
+        raw = await agent.run(system_prompt, req.context)
+
     try:
         return parse_model_json(raw)
     except Exception as e:
+        # The stand-in below is not a game the model made: its units go back.
+        await charge.refund()
         err_str = str(e)
         if "API_LIMIT_REACHED" in err_str or "429" in err_str:
             expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
@@ -1301,24 +1384,26 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
     if not context:
         raise HTTPException(status_code=400, detail="Недостаточно текста для шпаргалки.")
     agent = BaseAgent(api_key=GROQ_API_KEY)
-    try:
-        raw = await agent.run(build_quick_prep_prompt(), context)
-    except Exception as exc:
-        status = getattr(exc, "status_code", None)
-        print(f"Quick prep model call failed (status={status}): {type(exc).__name__}: {exc}")
-        if status == 429:
-            raise HTTPException(status_code=429, detail="Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.")
-        raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
+    charge = await quota.charge(request, "cheatsheet", AI_COSTS["cheatsheet"])
+    async with quota.refund_on_failure(charge):
+        try:
+            raw = await agent.run(build_quick_prep_prompt(), context)
+        except Exception as exc:
+            status = getattr(exc, "status_code", None)
+            print(f"Quick prep model call failed (status={status}): {type(exc).__name__}: {exc}")
+            if status == 429:
+                raise HTTPException(status_code=429, detail="Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.")
+            raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
 
-    try:
-        parsed = parse_model_json(raw)
-    except Exception as exc:
-        print(f"Quick prep returned invalid JSON: {type(exc).__name__}")
-        parsed = None
-    cheatsheet = parsed.get("cheatsheet") if isinstance(parsed, dict) else None
-    if not isinstance(cheatsheet, str) or not cheatsheet.strip():
-        _forget_cached_response(raw)
-        raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
+        try:
+            parsed = parse_model_json(raw)
+        except Exception as exc:
+            print(f"Quick prep returned invalid JSON: {type(exc).__name__}")
+            parsed = None
+        cheatsheet = parsed.get("cheatsheet") if isinstance(parsed, dict) else None
+        if not isinstance(cheatsheet, str) or not cheatsheet.strip():
+            _forget_cached_response(raw)
+            raise HTTPException(status_code=502, detail=QUICK_PREP_FAILURE_DETAIL)
     return parsed
 
 
@@ -1339,14 +1424,16 @@ async def mistakes_practice(request: Request, req: MistakesPracticeRequest):
         raise HTTPException(status_code=400, detail="Нет ошибок для работы над ошибками.")
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_mistakes_practice_prompt(req.mistakes)
-    try:
-        raw = await agent.run(system_prompt, "Сгенерируй проверочный тест по моим ошибкам.", json_mode=True)
-    except Exception as exc:
-        raise _ai_failure(exc, MISTAKES_PRACTICE_FAILURE_DETAIL)
-    practice = validate_mistakes_practice(raw, allowed_ids)
-    if practice is None:
-        BaseAgent.forget(raw)
-        raise AIError.failed(MISTAKES_PRACTICE_FAILURE_DETAIL)
+    charge = await quota.charge(request, "mistakesPractice", AI_COSTS["mistakesPractice"])
+    async with quota.refund_on_failure(charge):
+        try:
+            raw = await agent.run(system_prompt, "Сгенерируй проверочный тест по моим ошибкам.", json_mode=True)
+        except Exception as exc:
+            raise _ai_failure(exc, MISTAKES_PRACTICE_FAILURE_DETAIL)
+        practice = validate_mistakes_practice(raw, allowed_ids)
+        if practice is None:
+            BaseAgent.forget(raw)
+            raise AIError.failed(MISTAKES_PRACTICE_FAILURE_DETAIL)
     return {"practice": practice}
 
 
@@ -1365,11 +1452,15 @@ async def career_generate(request: Request, req: CareerRequest):
         raise HTTPException(status_code=400, detail="Нет материалов для анализа. Сначала загрузите хотя бы один конспект.")
 
     agent = CareerAgent(api_key=GROQ_API_KEY)
-    try:
-        result = await agent.process(req.materials_context[:60000])
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации карьерного профиля: {str(e)}")
+    charge = await quota.charge(request, "careerProfile", AI_COSTS["careerProfile"])
+    async with quota.refund_on_failure(charge):
+        try:
+            result = await agent.process(req.materials_context[:60000])
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка генерации карьерного профиля: {str(e)}")
+    if isinstance(result, dict) and result.get("error"):
+        await charge.refund()  # CareerAgent's stand-in profile, not the model's
+    return result
 
 
 class CareerCourseGenerateRequest(BaseModel):
@@ -1980,11 +2071,14 @@ async def career_evaluate_task(request: Request, req: CareerTaskEvaluateRequest)
 }}
 """
 
-    raw = await agent.run(system_prompt, "Пожалуйста, проанализируй моё решение.")
+    charge = await quota.charge(request, "careerReview", AI_COSTS["careerReview"])
+    async with quota.refund_on_failure(charge):
+        raw = await agent.run(system_prompt, "Пожалуйста, проанализируй моё решение.")
     try:
         return parse_model_json(raw)
     except Exception as e:
         print(f"Error parsing evaluate_task: {e}, raw: {raw}")
+        await charge.refund()  # the stand-in review below is not the model's
         return {
             "score": 75,
             "verdict": "Ваше решение получено и проверено локальными тестами. AI-анализ завершился с ошибкой, но вы справились с базовым функционалом!",
@@ -3221,14 +3315,16 @@ async def podcast_generate(request: Request, req: PodcastGenerateRequest):
         parts.append(terms_block)
     parts.append("МАТЕРИАЛ:\n" + context)
 
-    parsed, raw = await _run_podcast_model(system_prompt, "\n\n".join(parts))
-    # Charts and timelines survive only if their numbers and dates are in the material.
-    lines = sanitize_podcast_lines(_first_list(parsed, "podcast"), source_text=context)
-    if not lines:
-        _forget_cached_response(raw)
-        raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+    charge = await quota.charge(request, "conversation", AI_COSTS["conversation"])
+    async with quota.refund_on_failure(charge):
+        parsed, raw = await _run_podcast_model(system_prompt, "\n\n".join(parts))
+        # Charts and timelines survive only if their numbers and dates are in the material.
+        lines = sanitize_podcast_lines(_first_list(parsed, "podcast"), source_text=context)
+        if not lines:
+            _forget_cached_response(raw)
+            raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
 
-    enriched = enrich_agent_result("podcast", {"podcast": lines}, source_chunks)
+        enriched = enrich_agent_result("podcast", {"podcast": lines}, source_chunks)
     return {"podcast": enriched["podcast"]}
 
 
@@ -3263,14 +3359,16 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
     if context:
         parts.append("МАТЕРИАЛ ДЛЯ СВЕРКИ:\n" + context)
 
-    parsed, raw = await _run_podcast_model(build_podcast_visuals_prompt(), "\n\n".join(parts))
-    visuals = [
-        item for item in sanitize_podcast_visuals(_first_list(parsed, "visuals"), len(req.lines), source_text=context or None)
-        if item["index"] in usable_indices
-    ]
-    if not visuals:
-        _forget_cached_response(raw)
-        raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
+    charge = await quota.charge(request, "visuals", AI_COSTS["visuals"])
+    async with quota.refund_on_failure(charge):
+        parsed, raw = await _run_podcast_model(build_podcast_visuals_prompt(), "\n\n".join(parts))
+        visuals = [
+            item for item in sanitize_podcast_visuals(_first_list(parsed, "visuals"), len(req.lines), source_text=context or None)
+            if item["index"] in usable_indices
+        ]
+        if not visuals:
+            _forget_cached_response(raw)
+            raise HTTPException(status_code=502, detail=PODCAST_FAILURE_DETAIL)
     # Charts, timelines and quotes carry the fragments that really back them; the
     # client stores these ids on the line instead of its old word-matched ones.
     chunks = build_source_chunks(context) if context else []
@@ -3328,17 +3426,20 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
         user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Ответь на последнее сообщение пользователя.")
     
     raw = None
+    charge = await quota.charge(request, "gradebookScan", AI_COSTS["gradebookScan"])
     try:
         if all_images:
             raw = await agent.run_with_images(system_prompt, user_prompt, all_images, req.mime_type)
         else:
             raw = await agent.run(system_prompt, user_prompt)
-            
+
         return parse_model_json(raw)
     except Exception as e:
         err_str = str(e)
         print(f"Academic Scan Error: {err_str}")
-        
+        if not raw:
+            await charge.refund()  # the model did not answer: nothing was recognised
+
         if raw:
             # Parsing failed, but we got a response from AI
             return {"message": f"Я распознал текст, но не смог автоматически занести оценки в таблицу. Вот что удалось прочитать:\n\n{raw}", "grades": []}

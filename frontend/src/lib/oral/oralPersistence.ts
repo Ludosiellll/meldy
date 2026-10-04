@@ -4,8 +4,9 @@
  * One save per answer: record_oral_attempt writes the exam_sessions row (kind oral_ticket), the
  * journal events, the mistakes and the review card in one transaction. A retry reuses the
  * attempt_id, so the server answers it with the first result (duplicate: true) and nothing is
- * written twice. One unit of the daily limit is charged only after a successful save, once per
- * attempt.
+ * written twice. The daily limit is charged by the server when it evaluates the answer
+ * (AI_COSTS.answer, given back if the evaluation fails); after a successful save the top-bar
+ * meter is told to read the remaining units again, once per attempt.
  *
  * Browser storage (every access in try/catch; nothing here is the source of truth):
  * - localStorage meldy_answer_draft_<questionId> — the answer text while it is being given;
@@ -16,7 +17,8 @@
  *   before, so the exam sheet can draw the change (redesign spec 5.9).
  */
 import { supabase } from '../supabase';
-import { incrementAIUsage } from '../../api/limits';
+import { notifyAIUsageChanged } from '../../api/limits';
+import { AI_COSTS } from '../plans';
 import { localDate } from '../../api/learning';
 import type { Readiness } from '../learning/readiness';
 import type { Evaluation, Rubric, RubricPoint } from './oralApi';
@@ -27,8 +29,8 @@ export const ATTEMPT_KEY = 'meldy_oral_attempt';
 export const LIVE_MARKS_KEY = 'meldy_oral_live_marks';
 export const PEAK_PREFIX = 'meldy_exam_peak_';
 
-/** Cost of one answer aloud in units of the daily limit (contracts §6.3). */
-export const ORAL_ANSWER_COST = 1;
+/** Cost of one checked answer in units of the daily limit (lib/plans.ts; the server charges it). */
+export const ORAL_ANSWER_COST = AI_COSTS.answer;
 
 export type AnswerInput = 'speech' | 'text' | 'mixed';
 
@@ -220,8 +222,8 @@ function count(value: unknown): number {
 const charged = new Set<string>();
 
 /**
- * Saves the attempt once (a retry reuses payload.attempt_id) and then charges one unit of the
- * daily limit. A failed save throws OralSaveError and charges nothing.
+ * Saves the attempt once (a retry reuses payload.attempt_id); after the first successful save the
+ * remaining daily limit is read again (the server charged it). A failed save throws OralSaveError.
  */
 export async function saveOralAttempt(userId: string | null, payload: OralAttemptPayload): Promise<SaveResult> {
   let response: { data: unknown; error: unknown };
@@ -240,7 +242,7 @@ export async function saveOralAttempt(userId: string | null, payload: OralAttemp
   if (typeof row.session_id !== 'string' || !row.session_id) throw new OralSaveError('no_result');
   if (userId && !charged.has(payload.attempt_id)) {
     charged.add(payload.attempt_id);
-    await incrementAIUsage(userId, ORAL_ANSWER_COST);
+    notifyAIUsageChanged();
   }
   return {
     sessionId: row.session_id,

@@ -12,10 +12,12 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import re
 from typing import Any
 
+import quota
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
@@ -352,7 +354,8 @@ async def _frames(events):
 async def map_exam(exam_id: str, request: Request):
     """Разметка вопросов экзамена по лекциям — поток SSE (события start … done | error)."""
     question_ids, force = _map_options(await request.body())
-    db = SupabaseRest(bearer_token(request))
+    token = bearer_token(request)
+    db = SupabaseRest(token)
     try:
         job = await prepare_mapping(db, exam_id, question_ids, force)
     except MapError as exc:
@@ -361,10 +364,19 @@ async def map_exam(exam_id: str, request: Request):
     except BaseException:
         await db.aclose()
         raise
+    # Сверка списывает дневной лимит перед судьёй: за вопросы, которые уходят модели.
+    job.reserve_units = functools.partial(quota.reserve, token, "examMapping")
     return StreamingResponse(
         with_keepalive(_frames(run_mapping(job))),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
         # Клиент ушёл раньше, чем поток начался: блокировка не должна висеть 5 минут.
-        background=BackgroundTask(release_unstarted, job),
+        background=BackgroundTask(_after_mapping, job),
     )
+
+
+async def _after_mapping(job) -> None:
+    """Фон ответа: снять блокировку не начавшегося потока и дождаться возврата единиц, если он идёт."""
+    await release_unstarted(job)
+    if job.charge is not None:
+        await job.charge.wait_refund()

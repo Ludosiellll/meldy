@@ -35,7 +35,8 @@ vi.mock('../hooks/useSound', () => ({
   }),
 }));
 vi.mock('../api/quests', () => ({ addXP: api.addXP }));
-vi.mock('../api/limits', () => ({ incrementAIUsage: api.incrementAIUsage }));
+// The server charges the practice before the model; the page only refreshes the meter afterwards.
+vi.mock('../api/limits', () => ({ notifyAIUsageChanged: api.incrementAIUsage, AI_LIMIT_MESSAGE: 'Дневной лимит ИИ на сегодня исчерпан.' }));
 vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
 const mistakes = [
@@ -143,7 +144,7 @@ describe('Mistake diary practice', () => {
     expect(await screen.findByText('Проверочный вопрос 1')).toBeInTheDocument();
     expect(api.verifyEnergy).toHaveBeenCalledWith('user-1', 2, 'Работа над ошибками');
     expect(api.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(api.incrementAIUsage).toHaveBeenCalledWith('user-1', 2);
+    expect(api.incrementAIUsage).toHaveBeenCalledWith();
   });
 
   it('starts one practice and charges once when the button is pressed again during the limit check', async () => {
@@ -167,7 +168,7 @@ describe('Mistake diary practice', () => {
     expect(api.verifyEnergy).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(api.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(api.incrementAIUsage).toHaveBeenCalledWith('user-1', 2);
+    expect(api.incrementAIUsage).toHaveBeenCalledWith();
   });
 
   it('lets the practice start again after the limit check said no', async () => {
@@ -194,6 +195,18 @@ describe('Mistake diary practice', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.');
     expect(api.alert).not.toHaveBeenCalled();
+    expect(api.incrementAIUsage).not.toHaveBeenCalled();
+  });
+
+  it('says that the daily AI limit is spent on a 429 ai_limit (not «busy»)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false, status: 429, json: async () => ({ detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 }),
+    }));
+    const user = userEvent.setup();
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+    await beginPractice(user);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Дневной лимит ИИ на сегодня исчерпан.');
     expect(api.incrementAIUsage).not.toHaveBeenCalled();
   });
 

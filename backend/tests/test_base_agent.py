@@ -274,9 +274,9 @@ def test_groq_models_come_from_env(monkeypatch):
     calls, _ = install_groq(monkeypatch, lambda kwargs: ("ок", "stop"))
     agent = BaseAgent(api_key="groq-key")
     run(agent, PROMPT, "один")
-    assert calls[-1]["model"] == "llama-3.3-70b-versatile"
+    assert calls[-1]["model"] == "openai/gpt-oss-120b"  # llama-3.3-70b-versatile was retired on 2026-08-16
     run(agent, PROMPT, "два", fast=True)
-    assert calls[-1]["model"] == "llama-3.3-70b-versatile"  # GROQ_FAST_MODEL defaults to GROQ_MODEL
+    assert calls[-1]["model"] == "openai/gpt-oss-20b"  # GROQ_FAST_MODEL unset: the smaller gpt-oss
     monkeypatch.setenv("GROQ_MODEL", "groq-main")
     monkeypatch.setenv("GROQ_FAST_MODEL", "groq-quick")
     run(agent, PROMPT, "три")
@@ -313,10 +313,29 @@ def test_json_mode_heuristic_and_explicit_override(monkeypatch):
 
 
 def test_groq_json_mode_always_mentions_json(monkeypatch):
+    monkeypatch.setenv("GROQ_MODEL", "llama-like-model")
     calls, _ = install_groq(monkeypatch, lambda kwargs: ("{}", "stop"))
     run(BaseAgent(api_key="groq-key"), "Ответь списком.", "текст", json_mode=True)
     assert calls[-1]["response_format"] == {"type": "json_object"}
     assert "json" in calls[-1]["messages"][0]["content"].lower()
+    assert "extra_body" not in calls[-1] and calls[-1]["max_tokens"] == 8192
+
+
+def test_groq_gpt_oss_gets_low_reasoning_room_for_it_and_no_json_mode(monkeypatch):
+    """gpt-oss reasons from the same max_tokens; Groq's JSON mode refuses its good answers (400
+    json_validate_failed), so the prompt asks for JSON and the parser reads it."""
+    calls, _ = install_groq(monkeypatch, lambda kwargs: ('{"ok": true}', "stop"))
+    agent = BaseAgent(api_key="groq-key")
+    assert run(agent, "Ответь списком.", "текст", json_mode=True, max_tokens=200, fast=True) == '{"ok": true}'
+    call = calls[-1]
+    assert call["model"] == "openai/gpt-oss-20b"
+    assert "response_format" not in call
+    assert call["extra_body"] == {"reasoning_effort": "low", "include_reasoning": False}
+    assert call["max_tokens"] == 200 + base.GROQ_REASONING_ALLOWANCE
+    assert "json" in call["messages"][0]["content"].lower()
+    run(agent, PROMPT, "обычный ответ")
+    assert calls[-1]["model"] == "openai/gpt-oss-120b" and calls[-1]["extra_body"]["reasoning_effort"] == "low"
+    assert base.groq_reasoning_model("openai/gpt-oss-120b") and not base.groq_reasoning_model("llama-3.3-70b-versatile")
 
 
 # --- clients and the skip list ------------------------------------------------------------------

@@ -16,6 +16,7 @@ import {
 import { fetchQuestionEvents, fetchSessionPoints, localDate, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
 import { checkAILimit, FREE_DAILY_LIMIT, nextLimitReset } from '../api/limits';
+import { EXAM_MAPPING_QUESTIONS_PER_CHARGE } from '../lib/plans';
 import { pluralRu } from '../components/conversation/visuals';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState, type Readiness } from '../lib/learning/readiness';
@@ -124,11 +125,12 @@ export interface MappingLimit {
   resetAt: number;
 }
 
-/** «Дневной лимит исчерпан: разметка расходует 10 единиц, сегодня осталось 0. Обновится в 3:00.» */
+/** «Дневной лимит исчерпан: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 0. Обновится в 3:00.» */
 export function mappingLimitSentence(limit: MappingLimit): string {
   const head = limit.remaining === 0 ? 'Дневной лимит исчерпан' : 'Не хватает дневного лимита';
   const at = formatClock(new Date(limit.resetAt).toISOString());
-  return `${head}: разметка расходует ${MAPPING_COST} ${pluralRu(MAPPING_COST, ['единицу', 'единицы', 'единиц'])}, сегодня осталось ${limit.remaining}. Обновится в ${at}.`;
+  const units = pluralRu(MAPPING_COST, ['единицу', 'единицы', 'единиц']);
+  return `${head}: сверка с лекциями расходует ${MAPPING_COST} ${units} за каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов, сегодня осталось ${limit.remaining}. Обновится в ${at}.`;
 }
 
 /** One page state per exam: opening another exam's sheet starts from scratch. */
@@ -522,11 +524,14 @@ function ExamSheetPage({ examId }: { examId: string }) {
    */
   const verifyMappingLimit = useCallback(async (uid: string, cost: number): Promise<boolean> => {
     const status = await checkAILimit(uid, cost);
-    if (status.isPro || !status.ok || status.allowed) {
+    // PRO is limited too (1000 units a day); the server decides in the end and refuses with ai_limit.
+    if (!status.ok || status.allowed) {
       setLimit(null);
       return true;
     }
-    setLimit({ remaining: Math.max(0, FREE_DAILY_LIMIT - (Number(status.count) || 0)), resetAt: nextLimitReset().getTime() });
+    const dayLimit = Number(status.limit) || FREE_DAILY_LIMIT;
+    const resetAt = status.resetsAt instanceof Date ? status.resetsAt : nextLimitReset();
+    setLimit({ remaining: Math.max(0, dayLimit - (Number(status.count) || 0)), resetAt: resetAt.getTime() });
     return false;
   }, []);
 

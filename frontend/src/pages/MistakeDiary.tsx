@@ -7,7 +7,8 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { useSound } from '../hooks/useSound';
 import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
-import { incrementAIUsage } from '../api/limits';
+import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
+import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import SectionCrumb from '../components/SectionCrumb';
 import '../styles/paper.css';
@@ -98,7 +99,7 @@ export default function MistakeDiary() {
     setPracticeError(null);
     try {
       if (user?.id) {
-        const ok = await verifyEnergy(user.id, 2, 'Работа над ошибками');
+        const ok = await verifyEnergy(user.id, AI_COSTS.mistakesPractice, 'Работа над ошибками');
         if (!ok) return;
       }
 
@@ -108,7 +109,9 @@ export default function MistakeDiary() {
         body: JSON.stringify({ mistakes: toPractice }),
       });
       if (res.status === 429) {
-        setPracticeError(PRACTICE_BUSY);
+        const body = await res.json().catch(() => null);
+        // Дневной лимит ИИ (сервер списывает единицы до модели) — не «сервис занят».
+        setPracticeError(body?.code === 'ai_limit' ? AI_LIMIT_MESSAGE : PRACTICE_BUSY);
         return;
       }
       if (!res.ok) throw new Error(`practice ${res.status}`);
@@ -130,8 +133,8 @@ export default function MistakeDiary() {
 
       if (!isValidPractice) throw new Error('Invalid practice response');
 
-      // Энергия списывается только за задания, которые действительно можно пройти.
-      if (user?.id) await incrementAIUsage(user.id, 2);
+      // Единицы списал сервер до модели (и вернул бы за негодный ответ): остаток перечитывается.
+      notifyAIUsageChanged();
 
       setPracticeQuestions(questions);
       setIsPracticing(true);

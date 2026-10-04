@@ -43,7 +43,8 @@ vi.mock('../api/learning', async (importOriginal) => {
 });
 vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
-  return { ...actual, incrementAIUsage: mocks.incrementAIUsage, checkAILimit: mocks.checkAILimit };
+  // The server charges the check of the list; the page only refreshes the meter (counted by incrementAIUsage here).
+  return { ...actual, notifyAIUsageChanged: mocks.incrementAIUsage, checkAILimit: mocks.checkAILimit };
 });
 // The draw and answer screens are preloaded while the sheet is idle; not in these tests.
 vi.mock('../components/exams/preload', () => ({
@@ -1014,7 +1015,7 @@ describe('ExamDetail: mapping by lectures', () => {
     expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'live');
     await waitFor(() => expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still'), { timeout: 3000 });
     expect(mocks.incrementAIUsage).toHaveBeenCalledTimes(1);
-    expect(mocks.incrementAIUsage).toHaveBeenCalledWith('user-1', 10);
+    expect(mocks.incrementAIUsage).toHaveBeenCalledWith();
     expect(document.querySelectorAll('.ex-cov svg[data-drawn="live"]')).toHaveLength(0);
     expect(screen.getByRole('link', { name: 'Изменить список' })).toHaveAttribute('href', '/exams/exam-1/edit');
   });
@@ -1045,7 +1046,7 @@ describe('ExamDetail: mapping by lectures', () => {
     const button = screen.getByRole('button', { name: 'Сверить с лекциями' });
     button.focus();
     fireEvent.click(button);
-    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: разметка расходует 10 единиц, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
+    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан: разметка расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 0\. Обновится в \d{1,2}:\d{2}\.$/));
     expect(notes()[0]).not.toMatch(/в 0\d:/);
     expect(document.querySelector('.ex-notes .ex-note[role="status"]')).toHaveTextContent('Дневной лимит исчерпан');
     // The same button, still there, unavailable and focused: nothing to close, nothing to lose the focus to.
@@ -1069,7 +1070,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
-    await waitFor(() => expect(notes()[0]).toMatch(/^Не хватает дневного лимита: разметка расходует 10 единиц, сегодня осталось 4\./));
+    await waitFor(() => expect(notes()[0]).toMatch(/^Не хватает дневного лимита: сверка с лекциями расходует 10 единиц за каждые 40 новых вопросов, сегодня осталось 4\./));
   });
 
   it('keeps «Разметить по лекциям» in place while the limit is checked and hands the focus to «Тянуть билет» when the run starts', async () => {

@@ -20,6 +20,8 @@ export const AI_UNAVAILABLE_MESSAGE = 'ИИ-сервис сейчас не от�
 /** The server's own limiter (no model involved): too many calls in a minute. */
 export const RATE_LIMITED_MESSAGE = 'Слишком много запросов. Подождите минуту и повторите.';
 export const NETWORK_MESSAGE = 'Связь с сервером прервалась. Проверьте интернет и повторите попытку.';
+/** The daily AI limit, checked by the server (429 ai_limit); the limit dialog opens as well. */
+export const AI_LIMIT_MESSAGE = 'Дневной лимит ИИ на сегодня исчерпан.';
 
 export type OralErrorKind = 'http' | 'timeout' | 'network' | 'aborted' | 'invalid';
 
@@ -39,7 +41,13 @@ export class OralApiError extends Error {
   /** The model or the service did not answer: «Повторить» may help; the lectures are not to blame. */
   get outage(): boolean {
     if (this.kind === 'timeout' || this.kind === 'network' || this.kind === 'invalid') return true;
+    if (this.limitReached) return false;
     return this.status !== null && (this.status === 429 || this.status >= 500);
+  }
+
+  /** The daily AI limit is spent (429 ai_limit): not an outage, a repeat today will not help. */
+  get limitReached(): boolean {
+    return this.status === 429 && this.code === 'ai_limit';
   }
 }
 
@@ -122,6 +130,7 @@ export interface Evaluation {
 // ── Transport ───────────────────────────────────────────────────────────────────
 
 function messageFor(status: number, code: string | undefined, fallback: string): string {
+  if (status === 429 && code === 'ai_limit') return AI_LIMIT_MESSAGE;
   if (status === 429) return code ? AI_UNAVAILABLE_MESSAGE : RATE_LIMITED_MESSAGE;
   if (status === 502 || status === 503 || status === 504) return AI_UNAVAILABLE_MESSAGE;
   return fallback;

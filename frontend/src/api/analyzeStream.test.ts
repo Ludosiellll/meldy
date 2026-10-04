@@ -194,6 +194,13 @@ describe('runAnalyzeStream outcomes', () => {
     expect((await run().catch(e => e)).message).toBe(STREAM_MESSAGES.rateLimited);
   });
 
+  it('the daily AI limit before the stream: the server words and no retry today', async () => {
+    mockFetch(() => new Response(JSON.stringify({ detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 }), { status: 429 }));
+    const error = await run().catch(e => e);
+    expect(error).toBeInstanceOf(AnalyzeError);
+    expect(error).toMatchObject({ kind: 'rate_limited', retryable: false, message: 'Дневной лимит ИИ на сегодня исчерпан.' });
+  });
+
   it('a user abort resolves as aborted, never as an error', async () => {
     mockFetch(() => sseResponse([ev(TEXT), ev(DONE_SUMMARY)], 'hang'));
     const controller = new AbortController();
