@@ -2,14 +2,19 @@ import { useEffect, useState } from 'react';
 import { Check, Star, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { formatLimitReset, nextLimitReset } from '../api/limits';
+import { useProWindow } from '../components/pro/ProWindow';
+import { freeLimitLine, proLede, proLimitLine } from '../components/pro/planCopy';
 
 /**
  * Тарифы (Meldy 2026-10-04): две карточки с цветными панелями, как карточки «Как это работает» на
- * лендинге. Честность прежняя: оплаты нет, цены PRO нет, кнопки — состояния, а не покупка.
- * Стили — .ac-* в styles/legacy.css.
+ * лендинге. Честность прежняя: оплаты нет, цены PRO нет. Числа лимитов — из lib/plans.ts; кнопка
+ * PRO открывает окно «Что даёт PRO» (components/pro), а не покупку.
+ * Стили — .ac-* в styles/legacy.css, кнопка окна — .pw-open в components/pro/proWindow.css.
  */
 export default function Pricing() {
   const { user } = useAuth();
+  const openPro = useProWindow();
   const userId = user?.id;
   const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -105,7 +110,12 @@ export default function Pricing() {
               </li>
               <li>
                 <span className="ac-feat-i ac-feat-i--limit" aria-hidden="true"><Zap /></span>
-                <span>До 100 единиц ИИ-лимита в день</span>
+                <span>
+                  {freeLimitLine()}
+                  <small className="pw-feat-note">
+                    Лимит считает сервер, новый день начинается в {formatLimitReset(nextLimitReset())}.
+                  </small>
+                </span>
               </li>
             </ul>
 
@@ -131,8 +141,18 @@ export default function Pricing() {
                 </span>
               )}
             </div>
-            <p className="ac-plan-sub">Для аккаунтов PRO дневной лимит ИИ не применяется</p>
-            <p className="ac-plan-sub ac-plan-sub--gap">Стоимость появится после подключения оплаты</p>
+            <p className="ac-plan-sub">{proLede()}</p>
+
+            <ul className="ac-feats">
+              <li>
+                <span className="ac-feat-i ac-feat-i--ok" aria-hidden="true"><Check /></span>
+                <span>Всё, что есть в тарифе «Студент»</span>
+              </li>
+              <li>
+                <span className="ac-feat-i ac-feat-i--limit" aria-hidden="true"><Zap /></span>
+                <span>{proLimitLine()}</span>
+              </li>
+            </ul>
             <div className="ac-grow" />
 
             {isPro ? (
@@ -141,11 +161,11 @@ export default function Pricing() {
               </button>
             ) : (
               <div>
-                <button type="button" disabled className="ac-state">
-                  Оплата пока недоступна
+                <button type="button" className="sf-primary pw-open" onClick={() => openPro('pricing')}>
+                  Что даёт PRO
                 </button>
                 <p className="ac-note" role="note">
-                  Подключение оплаты ещё не настроено.
+                  Оплата пока не подключена — стоимость появится вместе с ней.
                 </p>
               </div>
             )}

@@ -1,0 +1,235 @@
+/* The PRO reel (ProReel.tsx, ReelScenes.tsx). The stage is the reels' 1920 × 1080 (reel.css) scaled
+ * into the PRO window — about a third on a computer, a fifth on a phone — so the type here is large.
+ * Monochrome film style (components/film): paper, white, ink and greys; blue only on the app's main
+ * button; the yellow dot of the wordmark. */
+
+/* ------------------------------------------------------------------ the frame in the window */
+.pr { position: relative; margin: 0; }
+.pr-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 28px;
+  background: #fbfbf9;
+  isolation: isolate;
+}
+.pr-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(11, 18, 28, .07);
+  pointer-events: none;
+}
+.pr-stage { background: #fbfbf9; }
+
+/* Pause and play: a small white disc in the corner of the frame. */
+.pr-play {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .92);
+  color: #0b121c;
+  box-shadow: 0 8px 18px -10px rgba(0, 0, 0, .5);
+  cursor: pointer;
+  opacity: .8;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.pr-box:hover .pr-play,
+.pr-play:focus-visible,
+.pr-box[data-playing='false'] .pr-play { opacity: 1; }
+.pr-play:hover { transform: scale(1.06); }
+.pr-play svg { width: 16px; height: 16px; }
+.pr-play:focus-visible { outline: 3px solid var(--sf-accent-fg); outline-offset: 2px; }
+
+/* With reduced motion: the still frame and one pill to play it. */
+.pr-start {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 6px 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b121c;
+  font: 500 15px/1 var(--ph-sans);
+  white-space: nowrap;
+  translate: -50% 0;
+  box-shadow: 0 12px 26px -14px rgba(0, 0, 0, .55);
+  cursor: pointer;
+}
+.pr-start i { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #2869dd; color: #fff; }
+.pr-start svg { width: 14px; height: 14px; }
+.pr-start:focus-visible { outline: 3px solid var(--sf-accent-fg); outline-offset: 2px; }
+
+@media (max-width: 639px) {
+  .pr-box { border-radius: 24px; }
+  .pr-play { right: 8px; bottom: 8px; width: 44px; height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-play { transition: none; }
+}
+
+/* ------------------------------------------------------------------ statements and the dot */
+.pr-say-box { position: absolute; inset: 0; z-index: 40; }
+.pr-say { left: 0; right: 0; text-align: center; }
+.pr-say--intro { top: 380px; font-size: 132px; }
+.pr-say--pro { top: 440px; font-size: 210px; }
+.pr-say--end { top: 380px; font-size: 172px; }
+.pr-home { left: 0; top: 0; z-index: 50; width: 34px; height: 34px; }
+.pr-mark { position: absolute; left: 0; right: 0; top: 400px; z-index: 45; display: flex; justify-content: center; }
+.pr-mark-w { font-size: 230px; color: var(--ink); }
+
+/* ------------------------------------------------------------------ 1 · the long list behind the words */
+.pr-ilist { left: 470px; top: 90px; width: 980px; padding: 30px 56px; filter: blur(12px); }
+.pr-irow {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  height: 96px;
+  margin: 0;
+  border-bottom: 1px solid #ecece6;
+  font-size: 38px;
+  color: var(--ink);
+}
+.pr-irow b { width: 56px; font-weight: 500; color: var(--muted); }
+
+/* ------------------------------------------------------------------ the Meldy window and its top line */
+.pr-win { left: 150px; top: 150px; width: 1620px; height: 980px; transform-origin: 78% 6%; }
+.pr-bar { position: relative; z-index: 2; height: 124px; padding: 0 48px; gap: 28px; font-size: 32px; }
+.pr-bar .fm-wordmark { margin-right: 10px; font-size: 52px; }
+.pr-nav span { padding: 16px 26px; }
+.pr-meter {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-sizing: border-box;
+  width: 500px;
+  height: 88px;
+  margin-left: auto;
+  padding: 0 30px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #e4e4de;
+}
+.pr-meter-l { font-size: 28px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.pr-meter-n {
+  display: inline-block;
+  min-width: 2.4ch;
+  font-size: 64px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  transform-origin: 50% 60%;
+}
+.pr-meter-track { flex: 1; height: 14px; overflow: hidden; border-radius: 7px; background: #efefea; }
+.pr-meter-fill { display: block; width: 100%; height: 100%; border-radius: 7px; background: var(--ink); transform-origin: 0 50%; }
+.pr-me { width: 68px; height: 68px; font-size: 30px; }
+
+/* The price of an action, flying into the meter. */
+.pr-chips { position: absolute; inset: 0; z-index: 30; }
+.pr-chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 84px;
+  padding: 0 32px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  translate: -50% -50%;
+  box-shadow: 0 24px 40px -24px rgba(11, 18, 28, .6);
+}
+
+/* ------------------------------------------------------------------ 2 · the free day */
+.pr-page { position: absolute; left: 0; right: 0; top: 124px; bottom: 0; }
+.pr-file { left: 70px; width: 480px; }
+.pr-ticket { left: 640px; top: 56px; width: 900px; height: 540px; }
+.pr-tv { position: absolute; left: 56px; right: 56px; top: 52px; }
+.pr-tq { margin-top: 30px; font-size: 68px; }
+.pr-btn { position: absolute; left: 56px; bottom: 52px; }
+.pr-lines { display: grid; gap: 22px; margin-top: 36px; }
+.pr-lines i { display: block; width: 640px; height: 18px; border-radius: 9px; background: #efefea; }
+.pr-lines i:nth-child(2) { width: 560px; }
+.pr-lines i:nth-child(3) { width: 380px; }
+.pr-btn.is-off { background: #e4e4de; color: #6b7079; }
+.pr-btn.is-off i { background: #d3d3cc; }
+.pr-limit {
+  left: 300px;
+  top: 330px;
+  width: 1020px;
+  padding: 64px 72px 60px;
+  text-align: center;
+  box-shadow: 0 0 0 1px #e4e4de, 0 60px 120px -50px rgba(16, 41, 90, .5);
+}
+.pr-limit-h { font-size: 88px; }
+.pr-limit-p { margin: 22px 0 0; font-size: 38px; color: var(--muted); }
+
+/* ------------------------------------------------------------------ 3 · the PRO day */
+.pr-strip { position: absolute; left: 0; top: 124px; bottom: 0; width: 4860px; }
+.pr-panel { position: absolute; top: 0; bottom: 0; left: 0; width: 1620px; }
+.pr-panel--2 { left: 1620px; }
+.pr-panel--3 { left: 3240px; }
+
+.pr-deck { position: absolute; left: 370px; top: 70px; width: 900px; height: 540px; }
+.pr-pcard { left: 0; top: 0; width: 900px; height: 540px; padding: 52px 56px; transform-origin: 50% 0; }
+.pr-stamp {
+  position: absolute;
+  right: 56px;
+  bottom: 48px;
+  display: grid;
+  place-items: center;
+  width: 330px;
+  height: 132px;
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pr-stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.pr-stamp path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+
+.pr-sheet { left: 170px; top: 40px; width: 1280px; height: 920px; overflow: hidden; }
+.pr-sheet-head { display: flex; align-items: baseline; gap: 28px; padding: 44px 56px 30px; border-bottom: 1px solid #ecece6; }
+.pr-sheet-h { font-size: 54px; }
+.pr-sheet-c { margin: 0; font-size: 32px; color: var(--muted); }
+.pr-rows-view { position: absolute; left: 0; right: 0; top: 134px; bottom: 0; overflow: hidden; }
+.pr-rows { padding: 0 56px; }
+.pr-row { display: flex; align-items: center; gap: 28px; height: 88px; border-bottom: 1px solid #ecece6; }
+.pr-row-n { width: 56px; font-size: 30px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr-row-t { flex: 1; overflow: hidden; font-size: 38px; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
+.pr-row .fm-st { height: 58px; font-size: 29px; }
+
+.pr-talk { left: 220px; top: 70px; width: 1180px; height: 640px; padding: 52px 60px; }
+.pr-talk-c { margin: 0; font-size: 30px; color: var(--muted); }
+.pr-talk-who { margin: 46px 0 0; font-size: 32px; font-weight: 600; color: var(--muted); }
+.pr-talk-line { margin: 14px 0 0; font-size: 60px; font-weight: 600; line-height: 1.16; letter-spacing: -.025em; color: #c3c5be; }
+.pr-player { position: absolute; left: 60px; right: 60px; bottom: 56px; display: flex; align-items: center; gap: 30px; }
+.pr-pause { display: flex; flex: none; align-items: center; justify-content: center; gap: 12px; width: 96px; height: 96px; border-radius: 50%; background: var(--ink); }
+.pr-pause i { width: 11px; height: 34px; border-radius: 3px; background: #fff; }
+.pr-wave { display: flex; flex: none; align-items: center; gap: 8px; height: 84px; }
+.pr-wave i { width: 7px; height: 84px; border-radius: 4px; background: var(--ink); transform-origin: 50% 50%; }
+.pr-segs { display: flex; flex: 1; gap: 8px; }
+.pr-segs i { flex: 1; height: 12px; border-radius: 6px; background: #e4e4de; }
