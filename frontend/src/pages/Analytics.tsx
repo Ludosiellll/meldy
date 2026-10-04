@@ -16,6 +16,7 @@ import { percent } from '../lib/exams/ticketMath';
 import { daysUntil, formatDay, KIND_WORDS, relativeDays, subjectOf } from '../lib/exams/format';
 import { READINESS_LABELS } from '../lib/learning/readiness';
 import '../styles/paper.css';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
  * «Прогресс» (redesign spec 5.17): measured counters, dated, in the order a student preparing for an
@@ -647,7 +648,7 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
                     <tr key={material.id} data-material={material.id}>
                       <td>
                         <Link to={`/library/${material.id}`} className="sf-cell-title">
-                          {material.title || 'Без названия'}
+                          {displayMaterialTitle(material.title)}
                         </Link>
                       </td>
                       <td data-label="Карточки">

@@ -85,6 +85,7 @@ import {
   type TicketState,
 } from '../lib/oral/ticketMachine';
 import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -197,7 +198,7 @@ function nearestFromRubric(rubric: Rubric): NearestDisplay[] {
   return rubric.nearest.slice(0, 3).map((item) => {
     const [key, sid] = item.source_id.includes(':') ? item.source_id.split(':') : [null, item.source_id];
     const material = rubric.materials.find((entry) => entry.key === key || entry.material_id === item.material_id);
-    return { title: material?.title ?? '', fragment: fragmentWord(sid), text: item.text, matched: [] };
+    return { title: displayMaterialTitle(material?.title, ''), fragment: fragmentWord(sid), text: item.text, matched: [] };
   });
 }
 

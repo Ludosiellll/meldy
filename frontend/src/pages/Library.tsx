@@ -12,6 +12,7 @@ import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
 import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
 import '../styles/paper.css';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
  * The Library as the course's table of contents (redesign spec 5.1): the lectures grouped by the
@@ -431,7 +432,7 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
                     {index + 1}
                   </span>
                   <span>
-                    <span className="sf-toc-title">{entry.title || 'Без названия'}</span>
+                    <span className="sf-toc-title">{displayMaterialTitle(entry.title)}</span>
                     {meta || date ? (
                       <span className="sf-toc-meta">
                         {meta}

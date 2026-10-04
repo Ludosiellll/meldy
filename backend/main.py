@@ -2785,14 +2785,157 @@ class TTSRequest(BaseModel):
     role: str = "professor"  # professor | male | female
 
 
-TTS_TIMEOUT_SECONDS = float(os.getenv("TTS_TIMEOUT_SECONDS", "45"))
+def _tts_env_number(name: str, default: float) -> float:
+    """Positive number from the environment; a typo falls back to the default instead of crashing."""
+    try:
+        value = float(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+# /api/tts. edge-tts now and then drops the stream or returns no audio, so:
+# - one request makes up to TTS_ATTEMPTS attempts with the TTS_RETRY_DELAYS pauses
+#   between them; an attempt has its own limit (TTS_ATTEMPT_SECONDS, more for a long
+#   text) and the whole request is bounded by TTS_TIMEOUT_SECONDS;
+# - a finished clip is remembered in memory (LRU bounded by clips and bytes) and, best
+#   effort, in a bounded folder under the temp dir, so the same line in the same voice
+#   is synthesised once per container; disk errors never fail the request;
+# - identical requests that arrive together wait for one shared synthesis, and at most
+#   TTS_CONCURRENCY syntheses talk to edge-tts at once, so prefetching cannot flood it.
+TTS_RATE = "+20%"
+TTS_ATTEMPTS = 3
+TTS_RETRY_DELAYS = (0.4, 1.2)
+TTS_ATTEMPT_SECONDS = _tts_env_number("TTS_ATTEMPT_TIMEOUT_SECONDS", 15.0)
+TTS_TIMEOUT_SECONDS = _tts_env_number("TTS_TIMEOUT_SECONDS", 40.0)
+TTS_CONCURRENCY = int(_tts_env_number("TTS_CONCURRENCY", 3))
 TTS_FAILURE_DETAIL = "Не удалось озвучить текст"
+# Voice, rate and text fully determine the clip, so the browser may keep it for a day.
+TTS_SUCCESS_HEADERS = {"Cache-Control": "private, max-age=86400"}
+TTS_MEMORY_MAX_CLIPS = 300
+TTS_MEMORY_MAX_BYTES = 64 * 1024 * 1024
+# TTS_CACHE_DIR="" turns the disk cache off.
+TTS_DISK_CACHE_DIR = os.getenv("TTS_CACHE_DIR", os.path.join(tempfile.gettempdir(), "meldy-tts"))
+TTS_DISK_MAX_FILES = 2000
+TTS_DISK_MAX_BYTES = 256 * 1024 * 1024
+# Real edge-tts speech (48 kbit/s mp3) is about 6 KB per second, so an answer under 1 KB
+# is a fragment, not a line: it is returned but never cached, the next request tries again.
+TTS_MIN_CACHED_BYTES = 1024
+
+
+class _TTSClipCache:
+    """In-memory LRU of finished clips: at most max_clips clips and max_bytes bytes."""
+
+    def __init__(self, max_clips: int, max_bytes: int):
+        self.max_clips = max_clips
+        self.max_bytes = max_bytes
+        self.total_bytes = 0
+        self._clips: "OrderedDict[str, bytes]" = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._clips)
+
+    def get(self, key: str) -> Optional[bytes]:
+        audio = self._clips.get(key)
+        if audio is not None:
+            self._clips.move_to_end(key)
+        return audio
+
+    def put(self, key: str, audio: bytes) -> None:
+        if len(audio) < TTS_MIN_CACHED_BYTES or len(audio) > self.max_bytes:
+            return
+        previous = self._clips.pop(key, None)
+        if previous is not None:
+            self.total_bytes -= len(previous)
+        self._clips[key] = audio
+        self.total_bytes += len(audio)
+        while len(self._clips) > self.max_clips or self.total_bytes > self.max_bytes:
+            _, evicted = self._clips.popitem(last=False)
+            self.total_bytes -= len(evicted)
+
+
+_tts_memory_cache = _TTSClipCache(TTS_MEMORY_MAX_CLIPS, TTS_MEMORY_MAX_BYTES)
+_tts_inflight: dict = {}
+_tts_slot_state: dict = {}
+
+
+def _tts_cache_key(voice_id: str, text: str) -> str:
+    return hashlib.sha256(f"{voice_id}\n{TTS_RATE}\n{text}".encode("utf-8")).hexdigest()
+
+
+def _tts_disk_read(directory: str, key: str) -> Optional[bytes]:
+    path = os.path.join(directory, f"{key}.mp3")
+    try:
+        with open(path, "rb") as handle:
+            audio = handle.read()
+    except OSError:
+        return None
+    if len(audio) < TTS_MIN_CACHED_BYTES:
+        return None
+    try:
+        os.utime(path)  # a clip in use survives the next pruning longer
+    except OSError:
+        pass
+    return audio
+
+
+def _tts_disk_prune(directory: str) -> None:
+    """Oldest clips go first once the folder holds too many files or bytes."""
+    clips = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if not entry.name.endswith(".mp3"):
+                continue
+            try:
+                stat = entry.stat()
+            except OSError:
+                continue  # removed by a parallel prune
+            clips.append((stat.st_mtime, stat.st_size, entry.path))
+    clips.sort()
+    total = sum(size for _, size, _ in clips)
+    while clips and (len(clips) > TTS_DISK_MAX_FILES or total > TTS_DISK_MAX_BYTES):
+        _, size, path = clips.pop(0)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        total -= size
+
+
+def _tts_disk_write(directory: str, key: str, audio: bytes) -> None:
+    """Best effort: write atomically, prune, ignore every disk error."""
+    temporary = None
+    try:
+        os.makedirs(directory, exist_ok=True)
+        handle, temporary = tempfile.mkstemp(dir=directory, prefix=".clip-", suffix=".tmp")
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(audio)
+        os.replace(temporary, os.path.join(directory, f"{key}.mp3"))
+        temporary = None
+        _tts_disk_prune(directory)
+    except OSError as e:
+        print(f"TTS disk cache skipped: {type(e).__name__}")
+    finally:
+        if temporary:
+            try:
+                os.remove(temporary)
+            except OSError:
+                pass
+
+
+def _tts_slots() -> asyncio.Semaphore:
+    """The TTS_CONCURRENCY semaphore of the running event loop (tests run requests in their own loops)."""
+    loop = asyncio.get_running_loop()
+    if _tts_slot_state.get("loop") is not loop:
+        _tts_slot_state["loop"] = loop
+        _tts_slot_state["semaphore"] = asyncio.Semaphore(TTS_CONCURRENCY)
+    return _tts_slot_state["semaphore"]
 
 
 async def _synthesize_edge_tts(text: str, voice_id: str) -> bytes:
     import edge_tts
 
-    communicate = edge_tts.Communicate(text, voice_id, rate="+20%")
+    communicate = edge_tts.Communicate(text, voice_id, rate=TTS_RATE)
     chunks: list[bytes] = []
     async for chunk in communicate.stream():
         if chunk.get("type") == "audio" and chunk.get("data"):
@@ -2800,29 +2943,92 @@ async def _synthesize_edge_tts(text: str, voice_id: str) -> bytes:
     return b"".join(chunks)
 
 
+async def _tts_attempt(text: str, voice_id: str, timeout: float) -> bytes:
+    async with _tts_slots():
+        return await asyncio.wait_for(_synthesize_edge_tts(text, voice_id), timeout=timeout)
+
+
+async def _synthesize_with_retries(text: str, voice_id: str) -> Optional[bytes]:
+    """The clip, or None when every attempt failed (an error, the time limit or no audio)."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + TTS_TIMEOUT_SECONDS
+    # A long text gets a longer attempt: about a second per 40 characters.
+    attempt_seconds = max(TTS_ATTEMPT_SECONDS, len(text) / 40)
+    for attempt in range(1, TTS_ATTEMPTS + 1):
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            break
+        try:
+            # The outer limit also covers the wait for a free edge-tts slot.
+            audio = await asyncio.wait_for(_tts_attempt(text, voice_id, min(attempt_seconds, remaining)), timeout=remaining)
+        except Exception as e:
+            print(f"Edge-TTS attempt {attempt}/{TTS_ATTEMPTS} failed: {type(e).__name__}: {e}")
+        else:
+            if audio:
+                return audio
+            print(f"Edge-TTS attempt {attempt}/{TTS_ATTEMPTS} failed: empty audio")
+        if attempt < TTS_ATTEMPTS:
+            delay = TTS_RETRY_DELAYS[min(attempt, len(TTS_RETRY_DELAYS)) - 1]
+            if loop.time() + delay >= deadline:
+                break
+            await asyncio.sleep(delay)
+    return None
+
+
+async def _tts_fetch_clip(key: str, text: str, voice_id: str) -> Optional[bytes]:
+    """The clip from the disk cache or from edge-tts; a finished clip lands in both caches."""
+    directory = TTS_DISK_CACHE_DIR
+    if directory:
+        audio = await asyncio.to_thread(_tts_disk_read, directory, key)
+        if audio:
+            _tts_memory_cache.put(key, audio)
+            return audio
+    audio = await _synthesize_with_retries(text, voice_id)
+    if audio:
+        _tts_memory_cache.put(key, audio)
+        if directory and len(audio) >= TTS_MIN_CACHED_BYTES:
+            await asyncio.to_thread(_tts_disk_write, directory, key, audio)
+    return audio
+
+
+async def _tts_shared_clip(key: str, text: str, voice_id: str) -> Optional[bytes]:
+    """One synthesis per clip at a time: identical requests (a retry after a client
+    timeout, two tabs, a class on the same material) wait for the same task."""
+    loop = asyncio.get_running_loop()
+    task = _tts_inflight.get(key)
+    if task is None or task.done() or task.get_loop() is not loop:
+        task = loop.create_task(_tts_fetch_clip(key, text, voice_id))
+        _tts_inflight[key] = task
+
+        def _forget(finished, done_key=key):
+            if _tts_inflight.get(done_key) is finished:
+                _tts_inflight.pop(done_key, None)
+
+        task.add_done_callback(_forget)
+    # A client that went away does not cancel the clip that others (or its own retry) wait for.
+    return await asyncio.shield(task)
+
+
 @app.post("/api/tts")
-@limiter.limit("30/minute", key_func=user_or_ip_key)
+@limiter.limit("120/minute", key_func=user_or_ip_key)
 async def text_to_speech(request: Request, req: TTSRequest):
     voice_id = EDGE_TTS_VOICES.get(req.role, EDGE_TTS_VOICES["professor"])
     text = req.text.strip()[:4000]
-    
+
     if not text:
         raise HTTPException(status_code=400, detail="Текст для озвучки пуст")
 
-    # The whole clip is synthesised before responding: a failure in the middle
-    # of the edge-tts stream (or an empty result) must become an error status,
-    # not an empty 200, so the client falls back to browser speech.
-    try:
-        audio = await asyncio.wait_for(_synthesize_edge_tts(text, voice_id), timeout=TTS_TIMEOUT_SECONDS)
-    except Exception as e:
-        print(f"Edge-TTS Error: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=502, detail=TTS_FAILURE_DETAIL)
-
+    # The whole clip is ready before the answer: when every attempt failed (an error in
+    # the middle of the edge-tts stream, the time limit, no audio) the answer is an honest
+    # 502, never an empty 200.
+    key = _tts_cache_key(voice_id, text)
+    audio = _tts_memory_cache.get(key)
+    if audio is None:
+        audio = await _tts_shared_clip(key, text, voice_id)
     if not audio:
-        print("Edge-TTS Error: empty audio")
         raise HTTPException(status_code=502, detail=TTS_FAILURE_DETAIL)
 
-    return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+    return Response(content=audio, media_type="audio/mpeg", headers=dict(TTS_SUCCESS_HEADERS))
 
 
 # --- Разговор по материалу (summary_json.podcast) ------------------------------

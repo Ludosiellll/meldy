@@ -1,4 +1,5 @@
 import type { AnalysisResults } from '../types';
+import { displayMaterialTitle } from './materialTitle';
 
 const GENERIC_TITLES = new Set([
   'без названия',
@@ -63,7 +64,7 @@ export function getResultDisplayTitle(results: AnalysisResults, sourceFileName?:
     return generatedTitle;
   }
 
-  const fileTitle = cleanTitleCandidate(stripFileExtension(sourceFileName || ''));
+  const fileTitle = cleanTitleCandidate(displayMaterialTitle(sourceFileName || '', ''));
   if (fileTitle && fileTitle.length <= 90 && !isGenericMaterialTitle(fileTitle)) {
     return fileTitle;
   }

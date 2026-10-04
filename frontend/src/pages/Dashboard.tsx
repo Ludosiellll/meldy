@@ -18,6 +18,7 @@ import { pluralRu } from '../components/conversation/visuals';
 import type { Flashcard, StudySession } from '../types';
 import '../styles/paper.css';
 import './Dashboard.css';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 /**
  * «Сегодня» on the paper desk (redesign spec 5.15, frame today--1280x720-light, Jury_Check items
@@ -814,7 +815,7 @@ export default function Dashboard() {
 /** The desk: the exam (or today's cards when there is no exam) on the left, the card stack on the right. */
 function Desk({ data, phone, onRetry }: { data: DashboardData; phone: boolean; onRetry: () => void }) {
   const { exam, dueCount, dueCards } = data;
-  const titles = useMemo(() => new Map(data.lectures.map((lecture) => [lecture.id, lecture.title])), [data.lectures]);
+  const titles = useMemo(() => new Map(data.lectures.map((lecture) => [lecture.id, displayMaterialTitle(lecture.title)])), [data.lectures]);
   const firstQuestion = dueCards.find((card) => typeof card.question === 'string' && card.question.trim() !== '')?.question ?? '';
   const lecturesText = dueLecturesText(dueCards, titles, dueCount);
   const examPrimary = Boolean(exam && exam.questions.length > 0);
@@ -992,7 +993,7 @@ function Lectures({
             return (
               <li key={material.id}>
                 <Link className="td-row" to={`/library/${material.id}`}>
-                  <span className="td-row-title">{material.title || 'Без названия'}</span>
+                  <span className="td-row-title">{displayMaterialTitle(material.title)}</span>
                   {meta ? <span className="td-row-meta">{glue(meta)}</span> : null}
                   <span className="td-row-date">{shortDate(material.created_at)}</span>
                 </Link>

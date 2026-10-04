@@ -25,6 +25,7 @@ import {
   getHHAuthUrl, getHHResumes
 } from '../api/career';
 import { getMaterials } from '../api/materials';
+import PaperSelect from '../components/ui/PaperSelect';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -494,18 +495,16 @@ export default function Career() {
               </div>
             ) : resumes.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2.5">
-                <select
+                <PaperSelect
+                  ariaLabel="Резюме на HeadHunter"
                   value={selectedResumeId}
-                  onChange={(e) => {
-                    setSelectedResumeId(e.target.value);
-                    localStorage.setItem('sf_hh_resume_id', e.target.value);
+                  options={resumes.map((r) => ({ value: r.id, label: r.title }))}
+                  onChange={(id) => {
+                    setSelectedResumeId(id);
+                    localStorage.setItem('sf_hh_resume_id', id);
                   }}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold text-slate-750 dark:text-slate-200 focus:outline-none"
-                >
-                  {resumes.map(r => (
-                    <option key={r.id} value={r.id}>{r.title}</option>
-                  ))}
-                </select>
+                  className="text-sm"
+                />
                 <button
                   onClick={handleImportSkills}
                   className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/50 text-xs font-bold rounded-xl transition"

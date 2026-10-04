@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, Maximize2, RotateCcw, X, XCircle } from 'lucide-react';
 import SourceReferences from './SourceReferences';
 import { pluralRu } from './conversation/visuals';
+import { stripSourceMarkers } from './summary/fragmentModel';
 import {
   LearningSaveError,
   SAVE_FAILED_MESSAGE,
@@ -134,15 +135,16 @@ function displayLetter(labels: (string | null)[], index: number): string {
 function normalizeQuestions(quiz: unknown[]): NormalizedQuestion[] {
   return quiz.map((item) => {
     const q = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    // The model sometimes copies the fragment labels «[S02]» of its input into the text: not for the student's eyes.
     const options = Array.isArray(q.options)
-      ? q.options.map((option) => (typeof option === 'string' ? option : String(option ?? '')))
+      ? q.options.map((option) => stripSourceMarkers(typeof option === 'string' ? option : String(option ?? '')))
       : [];
     return {
-      question: typeof q.question === 'string' ? q.question : '',
+      question: typeof q.question === 'string' ? stripSourceMarkers(q.question) : '',
       options,
       labels: optionLabels(options),
-      correctIndex: correctOptionIndex(options, q.correct),
-      explanation: typeof q.explanation === 'string' ? q.explanation : '',
+      correctIndex: correctOptionIndex(options, typeof q.correct === 'string' ? stripSourceMarkers(q.correct) : q.correct),
+      explanation: typeof q.explanation === 'string' ? stripSourceMarkers(q.explanation) : '',
       sourceIds: Array.isArray(q.source_ids) ? q.source_ids.filter((id): id is string => typeof id === 'string') : [],
     };
   });

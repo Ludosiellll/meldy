@@ -15,6 +15,8 @@ import { supabase } from '../lib/supabase';
 import { pluralRu } from '../components/conversation/visuals';
 import { HandPhraseMark, handPhraseFor } from '../components/marks';
 import '../styles/paper.css';
+import { displayMaterialTitle } from '../utils/materialTitle';
+import { stripSourceMarkers } from '../components/summary/fragmentModel';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -76,7 +78,7 @@ async function loadLectureTitles(cards: DueCard[]): Promise<Record<string, strin
     if (error || !Array.isArray(data)) return {};
     const titles: Record<string, string> = {};
     for (const row of data as Array<{ id?: unknown; title?: unknown }>) {
-      if (typeof row.id === 'string' && typeof row.title === 'string' && row.title.trim()) titles[row.id] = row.title.trim();
+      if (typeof row.id === 'string' && typeof row.title === 'string' && row.title.trim()) titles[row.id] = displayMaterialTitle(row.title);
     }
     return titles;
   } catch {
@@ -388,7 +390,7 @@ export default function Review() {
     <div className="sf-page">
       <div className="mx-auto max-w-[600px] pt-10 [@media(min-width:1024px)_and_(max-height:780px)]:pt-5">
         <div className="flex items-baseline justify-between gap-4">
-          <p className="min-w-0 text-[15px] leading-[22px] text-[var(--sf-muted)]">
+          <p className="min-w-0 truncate text-[15px] leading-[22px] text-[var(--sf-muted)]" title={context || undefined}>
             <b className="font-semibold text-[var(--sf-ink)] [font-variant-numeric:tabular-nums]">
               {idx + 1} из {cards.length}
             </b>
@@ -416,15 +418,16 @@ export default function Review() {
                 aria-hidden={flipped}
                 aria-label="Вопрос"
               >
-                <p className="font-[family-name:var(--ph-serif)] text-[15px] leading-[22px] text-[var(--ph-paper-muted)]">
+                <p className="line-clamp-2 font-[family-name:var(--ph-serif)] text-[15px] leading-[22px] text-[var(--ph-paper-muted)] [overflow-wrap:anywhere]">
                   {followUp ? 'Вопрос экзаменатора' : title ?? 'Вопрос'}
                 </p>
                 <div
-                  className={`${PAPER_MD} my-auto max-w-[13em] py-4 font-[family-name:var(--ph-serif)] font-semibold tracking-[-0.012em] text-[var(--ph-paper-ink)] [text-wrap:balance] ${
-                    longQuestion ? 'text-[22px] leading-[1.25] sm:text-[26px]' : 'text-[25px] leading-[1.15] sm:text-[36px] sm:leading-[1.12]'
+                  className={`${PAPER_MD} my-auto py-4 font-[family-name:var(--ph-serif)] font-semibold tracking-[-0.012em] text-[var(--ph-paper-ink)] [text-wrap:balance] ${
+                    // A long question gets a wider measure: 13em of 26 px left half the card empty.
+                    longQuestion ? 'max-w-[21em] text-[22px] leading-[1.25] sm:text-[26px]' : 'max-w-[13em] text-[25px] leading-[1.15] sm:text-[36px] sm:leading-[1.12]'
                   }`}
                 >
-                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{card.question}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(card.question)}</ReactMarkdown>
                 </div>
               </section>
               <section
@@ -440,7 +443,7 @@ export default function Review() {
                       longAnswer ? 'text-[17px] leading-[1.5]' : 'text-[19px] leading-[1.4] sm:text-[22px]'
                     }`}
                   >
-                    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{card.answer}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(card.answer)}</ReactMarkdown>
                   </div>
                 ) : null}
                 {note ? <p className="sf-pnote mt-auto pt-4">{note}</p> : null}

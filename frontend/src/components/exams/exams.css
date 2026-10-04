@@ -837,7 +837,8 @@
 .sf-page .nx-go { margin-top: 28px; }
 .sf-page .nx-go .ex-note { margin-top: 10px; }
 .sf-page .nx-pick { margin: 10px 0 0; padding: 0; list-style: none; }
-.sf-page .nx-pick label {
+.sf-page .nx-pick label,
+.sf-page .nx-pick-head {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   column-gap: 12px;
@@ -846,7 +847,7 @@
   padding: 7px 0;
   cursor: pointer;
 }
-.sf-page .nx-pick input[type='checkbox'] {
+.sf-page .nx-pickbox input[type='checkbox'] {
   -webkit-appearance: none;
   appearance: none;
   display: grid;
@@ -859,17 +860,115 @@
   background: var(--sf-surface);
   cursor: pointer;
 }
-.sf-page .nx-pick input[type='checkbox']:checked { background: var(--sf-ink); border-color: var(--sf-ink); }
-.sf-page .nx-pick input[type='checkbox']:checked::before {
+.sf-page .nx-pickbox input[type='checkbox']:checked,
+.sf-page .nx-pickbox input[type='checkbox']:indeterminate { background: var(--sf-ink); border-color: var(--sf-ink); }
+.sf-page .nx-pickbox input[type='checkbox']:checked::before {
   content: '';
   width: 11px;
   height: 11px;
   background: var(--sf-canvas);
   clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
 }
-.sf-page .nx-pick input[type='checkbox']:disabled { cursor: not-allowed; border-color: var(--sf-line); background: var(--sf-surface-soft); }
+.sf-page .nx-pickbox input[type='checkbox']:indeterminate::before {
+  content: '';
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--sf-canvas);
+}
+.sf-page .nx-pickbox input[type='checkbox']:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+.sf-page .nx-pickbox input[type='checkbox']:disabled { cursor: not-allowed; border-color: var(--sf-line); background: var(--sf-surface-soft); }
 .sf-page .nx-pick-title { font-family: var(--ph-serif); font-size: 17px; line-height: 24px; font-weight: 500; overflow-wrap: anywhere; }
 .sf-page .nx-pick-meta { display: block; font-family: var(--ph-sans); font-size: 15px; line-height: 21px; font-weight: 400; color: var(--sf-muted); }
+/* Folded: which lectures are ticked, in one muted line. */
+.sf-page .nx-pick-chosen { overflow-wrap: anywhere; }
+/* Open: search line, «Выбрать все · Снять все», then the list that scrolls inside the form. */
+.sf-page .nx-pick-panel { margin-top: 8px; }
+.sf-page .nx-pick-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border-bottom: 1.5px solid color-mix(in srgb, var(--sf-ink) 30%, transparent);
+  cursor: text;
+}
+/* The search line shows focus by its line (thicker, in the focus colour), not by a ring around the input. */
+.sf-page .nx-pick-find:focus-within { border-bottom-color: var(--ph-focus); box-shadow: 0 1.5px 0 0 var(--ph-focus); }
+.sf-page .nx-pick-find input:focus-visible,
+.dark .sf-page .nx-pick-find input:focus-visible { outline: none; }
+.sf-page .nx-pick-find > svg { flex: none; width: 16px; height: 16px; color: var(--sf-muted); }
+.sf-page .nx-pick-find input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  color: var(--sf-ink);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.sf-page .nx-pick-find input::placeholder { color: var(--sf-muted); opacity: 1; }
+.sf-page .nx-pick-find input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.sf-page .nx-pick-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+}
+.sf-page .nx-pick-clear:hover { color: var(--sf-ink); }
+.sf-page .nx-pick-clear:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 1px; }
+.sf-page .nx-pick-clear svg { width: 16px; height: 16px; }
+.sf-page .nx-pick-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--sf-muted);
+}
+.sf-page .nx-pick-bulk .sf-link { min-height: 36px; font-size: 15px; }
+.sf-page .nx-pick-bulk .sf-link:disabled { color: var(--sf-muted); text-decoration: none; cursor: default; opacity: .7; }
+.sf-page .nx-pick-found { margin-left: auto; font-variant-numeric: tabular-nums; }
+.sf-page .nx-pick-scroll {
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: 6px;
+  padding-right: 6px;
+  border-top: 1px solid var(--sf-line);
+  border-bottom: 1px solid var(--sf-line);
+  scrollbar-width: thin;
+}
+.sf-page ul.nx-pick-scroll { padding-top: 2px; padding-bottom: 2px; }
+.sf-page .nx-pick-group + .nx-pick-group { margin-top: 4px; }
+.sf-page .nx-pick-group .nx-pick { margin-top: 0; }
+/* The subject line stays on top while its lectures scroll under it. */
+.sf-page .nx-pick-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--sf-line);
+  background: var(--sf-canvas);
+}
+.sf-page .nx-pick-head input[type='checkbox'] { margin-top: 0; }
+.sf-page .nx-pick-subject { font-size: 16px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
+.sf-page .nx-pick-count { font-size: 15px; line-height: 22px; color: var(--sf-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sf-page .nx-import { margin-top: 6px; }
 .sf-page .nx-import-row { margin-top: 4px; font-size: 15px; line-height: 21px; color: var(--sf-muted); }
 

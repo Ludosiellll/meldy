@@ -1,0 +1,93 @@
+/* PaperSelect: слово с карандашной чертой и листок с вариантами (вместо системного <select>). */
+.ps-root {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: baseline;
+}
+.ps-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1.5px solid color-mix(in srgb, var(--sf-ink) 40%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--sf-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.ps-trigger:hover { border-bottom-color: var(--sf-ink); }
+.ps-trigger:disabled { cursor: not-allowed; color: var(--sf-muted); border-bottom-style: dashed; }
+.ps-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-chevron { flex: none; width: 14px; height: 14px; color: var(--sf-muted); transition: transform 140ms ease; }
+.ps-chevron[data-open] { transform: rotate(180deg); }
+
+.ps-list {
+  display: block;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: -8px;
+  min-width: calc(100% + 16px);
+  max-width: min(420px, calc(100vw - 32px));
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--sf-line);
+  border-radius: 10px;
+  background: var(--sf-surface);
+  box-shadow: 0 1px 2px rgba(20, 16, 10, 0.06), 0 14px 32px -14px rgba(20, 16, 10, 0.32);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 400;
+  outline: none;
+  animation: ps-in 120ms ease-out;
+}
+.ps-list[data-above] { top: auto; bottom: calc(100% + 6px); }
+.ps-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 40px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 7px;
+  color: var(--sf-ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ps-label { overflow: hidden; text-overflow: ellipsis; }
+.ps-option[data-active] { background: var(--sf-surface-soft); }
+.ps-option[aria-selected='true'] { font-weight: 600; }
+.ps-option[aria-disabled='true'] { color: var(--sf-muted); cursor: not-allowed; }
+.ps-tick { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--ph-pencil, var(--sf-accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* PaperSuggestInput: the field keeps the whole width of its line, the list hangs under it. */
+.ps-suggest { display: flex; width: 100%; }
+.ps-suggest > input { flex: 1 1 auto; min-width: 0; }
+.ps-suggest .ps-list { min-width: min(320px, 100%); }
+
+/* Пальцем — 44 px, как у остальных полей формы на телефоне и сенсорном экране. */
+.sf-page[data-frame='s'] .ps-trigger,
+.sf-page[data-frame='s'] .ps-option { min-height: 44px; }
+@media (pointer: coarse) {
+  .ps-trigger,
+  .ps-option { min-height: 44px; }
+}
+
+@keyframes ps-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ps-list { animation: none; }
+  .ps-chevron { transition: none; }
+}

@@ -6,10 +6,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import SourceReferences from './SourceReferences';
+import { stripSourceMarkers } from './summary/fragmentModel';
 import 'katex/dist/katex.min.css';
 
 export default function FlashcardsView({ data, sources = [] }: { data: FlashcardsInfo; sources?: { id: string; text: string }[] }) {
-  const cards = data?.flashcards;
+  // Без меток фрагментов «[S02]», которые модель иногда копирует из входа.
+  const cards = data?.flashcards?.map((card) => ({
+    ...card,
+    question: typeof card.question === 'string' ? stripSourceMarkers(card.question) : card.question,
+    answer: typeof card.answer === 'string' ? stripSourceMarkers(card.answer) : card.answer,
+  }));
 
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [studyMode, setStudyMode] = useState(false);

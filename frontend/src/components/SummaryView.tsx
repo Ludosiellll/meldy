@@ -1,12 +1,22 @@
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { SummaryInfo } from '../types';
-import SourceReferences from './SourceReferences';
+import { FragmentRefs, FragmentSlip } from './summary/FragmentSlip';
+import { buildSections, fragmentWord, stemsOf, stripSourceMarkers, type RefKind, type SourceFragment } from './summary/fragmentModel';
+import './summary/summary.css';
 
-/** Извлекает чистый текст конспекта, защищаясь от сырого JSON в content */
-function extractCleanContent(data: any): string {
+export { stripSourceMarkers };
+
+/** From this width of the summary the fragments stand on the margin to the right (spec 5.3: 36em + 64 + margin). */
+const MARGIN_FROM = 980;
+/** The section whose top is above this line is the one being read. */
+const READING_LINE = 0.38;
+
+/** Извлекает текст конспекта, защищаясь от сырого JSON в content (метки фрагментов остаются: они — ссылки разделов). */
+function extractContent(data: any): string {
   // Нормальный случай: объект с полем content
   let raw = data?.content || (data as any)?.raw || '';
 
@@ -37,99 +47,269 @@ function extractCleanContent(data: any): string {
   const jsonTailIdx = raw.search(/\s*[,"]?\s*"terms"\s*:/);
   if (jsonTailIdx > 0) raw = raw.slice(0, jsonTailIdx);
 
-  return stripSourceMarkers(raw).trim();
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
+interface TermItem {
+  term: string;
+  definition: string;
+  source_ids?: string[];
+}
+
+function extractTerms(data: any): TermItem[] {
+  const terms = data?.terms || data?.summary_json?.terms || [];
+  return Array.isArray(terms) ? terms.filter((item: any) => item && typeof item.term === 'string') : [];
+}
+
+/** Width of the summary itself, not of the window: the summary also sits in narrower pages. */
+function useWide(ref: React.RefObject<HTMLElement | null>): boolean {
+  const fallback = () => (typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth - 80 : 0);
+  const [width, setWidth] = useState(fallback);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const measure = () => {
+      const next = element.clientWidth > 0 ? element.clientWidth : fallback();
+      setWidth((previous) => (previous === next ? previous : next));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(measure);
+      observer.observe(element);
+    }
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref]);
+  return width >= MARGIN_FROM;
+}
+
+function captionFor(id: string, kind: RefKind | null, where: { title: string | null; term?: string }): string {
+  const fragment = fragmentWord(id).replace('фрагмент', 'Фрагмент');
+  if (where.term) return `${fragment} лекции — ближайший по словам к термину «${where.term}»`;
+  const place = where.title ? `разделу «${where.title}»` : 'началу конспекта';
+  if (kind === 'marked') return `${fragment} лекции — на него ссылается ${where.title ? `раздел «${where.title}»` : 'начало конспекта'}`;
+  return `${fragment} лекции — ближайший по словам к ${place}`;
+}
+
+interface MarginPick {
+  /** Section index (terms = sections.length). */
+  part: number;
+  id: string;
+  term?: string;
+  /** The section being read when the fragment was chosen: reading on lets the margin follow again. */
+  readingAt: number;
 }
 
 /**
- * Модель иногда повторяет в тексте метки фрагментов «[S02]», которые видела во входе. На экране они выглядят
- * как сырой вывод машины; фрагменты конспекта и так названы ссылками «фрагмент N».
+ * The summary of a lecture (redesign spec 5.3): sections in a reading column of 36em; on a wide
+ * page the margin to the right holds the lecture fragment of the section being read (it follows the
+ * reading, a click on «фрагмент N» chooses another one) and, for a longer summary, the list of its
+ * sections. On a narrow page «фрагмент N» opens the fragment under its section.
  */
-export function stripSourceMarkers(text: string): string {
-  return text.replace(/[ \t]*\[S\d{1,3}\](?:[ \t]*,?[ \t]*\[S\d{1,3}\])*/g, '');
-}
-
-function extractTerms(data: any): { term: string; definition: string }[] {
-  return data?.terms || data?.summary_json?.terms || [];
-}
-
-/**
- * A section of the summary (redesign spec 5.3): its heading in Onest 600 22/28 and the text in a
- * reading column. No «01» numbering: a tiny monospace counter is a template tell, and the headings
- * already order the text.
- */
-function SectionBlock({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="border-b border-[var(--sf-line)] py-8 first:pt-0 last:border-b-0">
-      <h2 className="mb-3 text-[20px] font-semibold leading-[26px] tracking-[-0.01em] text-[var(--sf-ink)] md:text-[22px] md:leading-[28px]">{title}</h2>
-      <div className="max-w-[36em] text-[16px] leading-6 text-[var(--sf-ink)] md:text-[17px] md:leading-7">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-export default function SummaryView({ data, sources = [] }: { data: SummaryInfo; sources?: { id: string; text: string }[] }) {
-  const content = extractCleanContent(data);
+export default function SummaryView({ data, sources = [] }: { data: SummaryInfo; sources?: SourceFragment[] }) {
+  const content = extractContent(data);
   const terms = extractTerms(data);
+  const sections = useMemo(() => buildSections(content, sources), [content, sources]);
+  const termRefs = useMemo(() => {
+    const known = new Set(sources.map((source) => source.id));
+    return terms.map((term) => (Array.isArray(term.source_ids) ? term.source_ids.filter((id) => known.has(id)) : []));
+  }, [terms, sources]);
+  const termStems = useMemo(() => terms.map((term) => [...stemsOf(`${term.term} ${term.definition}`)]), [terms]);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const uid = useId();
+  const wide = useWide(rootRef);
+  const hasFragments = sections.some((section) => section.refs.length > 0) || termRefs.some((refs) => refs.length > 0);
+  const outline = [
+    ...sections.filter((section) => section.title).map((section) => ({ part: section.index, title: section.title as string })),
+    ...(terms.length > 0 ? [{ part: sections.length, title: 'Термины' }] : []),
+  ];
+  const showOutline = outline.length >= 3;
+  const margin = wide && (hasFragments || showOutline);
+
+  const [reading, setReading] = useState(0);
+  const [picked, setPicked] = useState<MarginPick | null>(null);
+
+  // Which section is being read: the last one whose top has passed the reading line.
+  useEffect(() => {
+    if (!margin) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const nodes = rootRef.current?.querySelectorAll<HTMLElement>('[data-sv-part]');
+      if (!nodes || nodes.length === 0) return;
+      const line = Math.max(120, window.innerHeight * READING_LINE);
+      let current = Number(nodes[0].dataset.svPart);
+      nodes.forEach((node) => {
+        if (node.getBoundingClientRect().top <= line) current = Number(node.dataset.svPart);
+      });
+      setReading((previous) => (previous === current ? previous : current));
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    document.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      document.removeEventListener('scroll', schedule, { capture: true });
+      window.removeEventListener('resize', schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [margin, sections.length, terms.length]);
+
+  // Reading on past the section of a chosen fragment hands the margin back to the reading.
+  useEffect(() => {
+    setPicked((current) => (current && current.readingAt !== reading ? null : current));
+  }, [reading]);
 
   if (!content && terms.length === 0) {
     return <p className="text-[var(--sf-muted)]">Нет данных для отображения</p>;
   }
 
-  // Разбиваем по заголовкам уровня 2 (## Название)
-  const sections = content ? content.split(/(?=^## )/gm).filter(Boolean) : [];
+  const partCount = sections.length + (terms.length > 0 ? 1 : 0);
+  const refsOf = (part: number): string[] => (part < sections.length ? sections[part]?.refs ?? [] : termRefs.find((refs) => refs.length > 0) ?? []);
+
+  // The margin: the chosen fragment, or the first fragment of the section being read (or of the nearest section that has one).
+  let shown: { part: number; id: string; term?: string } | null = picked;
+  if (!shown) {
+    for (let step = 0; step < partCount && !shown; step += 1) {
+      for (const part of [reading - step, reading + step]) {
+        if (part >= 0 && part < partCount && refsOf(part).length > 0) {
+          const id = refsOf(part)[0];
+          const term = part >= sections.length ? terms[termRefs.findIndex((refs) => refs.length > 0)]?.term : undefined;
+          shown = { part, id, term };
+          break;
+        }
+      }
+    }
+  }
+  const shownCaption = shown
+    ? shown.term
+      ? captionFor(shown.id, 'near', { title: null, term: shown.term })
+      : captionFor(shown.id, sections[shown.part]?.refKind ?? 'near', { title: sections[shown.part]?.title ?? null })
+    : '';
+  const shownStems = shown
+    ? shown.term
+      ? termStems[terms.findIndex((term) => term.term === shown?.term)] ?? []
+      : sections[shown.part]?.stems ?? []
+    : [];
+  const sourceText = (id: string) => sources.find((source) => source.id === id)?.text;
+  const anchor = (part: number) => `${uid}-part-${part}`;
+  const goTo = (part: number) => {
+    const node = document.getElementById(anchor(part));
+    if (!node) return;
+    const smooth = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    node.scrollIntoView?.({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  };
 
   return (
-    <div>
-      {/* Fragments of the whole summary (it keeps no per-section links): only when there are some. */}
-      {data?.source_ids?.length ? (
-        <div className="mb-4">
-          <SourceReferences ids={data.source_ids} sources={sources} />
-        </div>
-      ) : null}
-      <div>
-      {sections.map((sec: string, i: number) => {
-        const match = sec.match(/^## (.+)/);
-        if (!match) {
-          // Первый блок без заголовка — обычный абзац
-          return (
-            <div key={i} className="markdown-content mb-6 max-w-[36em] text-[16px] leading-6 text-[var(--sf-ink)] md:text-[17px] md:leading-7">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{sec.trim()}</ReactMarkdown>
+    <div ref={rootRef} className="sv-doc" data-margin={margin ? '' : undefined}>
+      <div className="sv-text">
+        {hasFragments && (
+          <p className="sv-origin">
+            {margin ? 'Справа от разделов — фрагменты лекции, ближайшие к ним.' : 'Под разделами — фрагменты лекции, ближайшие к ним.'}
+          </p>
+        )}
+        {sections.map((section) => (
+          <section
+            key={section.index}
+            id={anchor(section.index)}
+            className="sv-sec"
+            data-sv-part={section.index}
+            data-reading={margin && reading === section.index ? '' : undefined}
+          >
+            {section.title && <h2 className="sv-h2">{section.title}</h2>}
+            <div className="markdown-content sv-body">
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {section.body}
+              </ReactMarkdown>
             </div>
-          );
-        }
-        const title = match[1].trim();
-        const body = sec.replace(/^## .+\n?/, '').trim();
-        const cleanTitle = title.replace(/[📌🔑📖📚💡🏁🗂️]/g, '').trim();
-        return (
-          <SectionBlock key={i} title={cleanTitle}>
-            <div className="markdown-content">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{body}</ReactMarkdown>
+            <FragmentRefs
+              ids={section.refs}
+              sources={sources}
+              stems={section.stems}
+              mode={margin ? 'margin' : 'inline'}
+              current={shown && shown.part === section.index ? shown.id : null}
+              onPick={(id) => setPicked({ part: section.index, id, readingAt: reading })}
+              captionFor={(id) => captionFor(id, section.refKind, { title: section.title })}
+            />
+          </section>
+        ))}
+
+        {terms.length > 0 && (
+          <section id={anchor(sections.length)} className="sv-sec sv-terms" data-sv-part={sections.length}>
+            <div className="sv-terms-head">
+              <h2 className="sv-h2">Термины</h2>
+              <span className="sv-terms-n">{terms.length}</span>
             </div>
-          </SectionBlock>
-        );
-      })}
+            <dl className="sv-dl">
+              {terms.map((term, index) => (
+                <div key={`${term.term}-${index}`} className="sv-term">
+                  <dt>{term.term}</dt>
+                  <dd>
+                    {term.definition}
+                    {termRefs[index].length > 0 && (
+                      <FragmentRefs
+                        ids={termRefs[index]}
+                        sources={sources}
+                        stems={termStems[index]}
+                        mode={margin ? 'margin' : 'inline'}
+                        current={shown && shown.term === term.term ? shown.id : null}
+                        onPick={(id) => setPicked({ part: sections.length, id, term: term.term, readingAt: reading })}
+                        captionFor={(id) => captionFor(id, 'near', { title: null, term: term.term })}
+                        compact
+                      />
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
       </div>
 
-      {/* Словарь терминов */}
-      {terms.length > 0 && (
-        <section className="mt-8 border-t border-[var(--sf-line)] pt-7">
-          <div className="mb-4 flex items-baseline justify-between gap-4">
-            <h2 className="text-[20px] font-semibold leading-[26px] text-[var(--sf-ink)] md:text-[22px] md:leading-[28px]">Термины</h2>
-            <span className="text-[15px] tabular-nums text-[var(--sf-muted)]">{terms.length}</span>
-          </div>
-          <dl className="divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
-            {terms.map((t: any, i: number) => (
-              <div key={i} className="grid gap-1 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-6">
-                <dt className="text-[16px] font-semibold leading-6 text-[var(--sf-ink)]">{t.term}</dt>
-                <dd className="text-[16px] leading-6 text-[var(--sf-muted)]">
-                  {t.definition}
-                  <SourceReferences ids={t.source_ids} sources={sources} compact />
-                </dd>
+      {margin && (
+        <aside className="sv-margin" aria-label="Поле конспекта">
+          <div className="sv-margin-in">
+            {showOutline && (
+              <nav className="sv-outline" aria-label="Разделы конспекта">
+                <ol>
+                  {outline.map((entry) => (
+                    <li key={entry.part}>
+                      <a
+                        href={`#${anchor(entry.part)}`}
+                        aria-current={reading === entry.part ? 'true' : undefined}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          goTo(entry.part);
+                        }}
+                      >
+                        {entry.title}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )}
+            {shown && (
+              <div className="sv-margin-slip" key={`${shown.part}:${shown.id}`}>
+                <FragmentSlip
+                  id={shown.id}
+                  text={sourceText(shown.id)}
+                  stems={shownStems}
+                  caption={shownCaption}
+                  onClose={picked ? () => setPicked(null) : undefined}
+                />
               </div>
-            ))}
-          </dl>
-        </section>
+            )}
+          </div>
+        </aside>
       )}
     </div>
   );

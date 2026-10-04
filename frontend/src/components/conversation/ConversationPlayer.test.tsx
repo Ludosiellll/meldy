@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ConversationPlayer, { nextSpeed, sheetMetrics, speedLabel } from './ConversationPlayer';
+import ConversationPlayer, { nextSpeed, plainLineText, sheetMetrics, speedLabel } from './ConversationPlayer';
 import { resetJobsForTests } from './jobs';
 
 const tts = vi.hoisted(() => ({
@@ -9,7 +9,7 @@ const tts = vi.hoisted(() => ({
   pauseTTS: vi.fn(),
   resumeTTS: vi.fn(),
   stopTTS: vi.fn(),
-  prefetchTTS: vi.fn(),
+  prefetchTTSInOrder: vi.fn(),
   isTTSSounding: vi.fn(),
   getTTSPlaybackRate: vi.fn(),
   setTTSPlaybackRate: vi.fn(),
@@ -79,8 +79,10 @@ function activeScene(): HTMLElement {
   return layer;
 }
 
-type PlayCall = [string, string, () => void, (error: unknown) => void, () => void];
+type PlayCall = [string, string, () => void, (error: unknown) => void, () => void, { fallback?: string; persist?: boolean }];
 const lastPlay = () => tts.playTTS.mock.calls[tts.playTTS.mock.calls.length - 1] as PlayCall;
+/** The hosts speak only with the server voice (never the browser's) and their clips are kept for a replay. */
+const HOST_VOICE = { fallback: 'none', persist: true };
 
 /** «Текст разговора» — ссылка в строке плеера; расшифровка открывается панелью поверх листа. */
 function openTranscript(): HTMLElement {
@@ -97,7 +99,7 @@ describe('ConversationPlayer', () => {
     resetJobsForTests();
     tts.getTTSPlaybackRate.mockReturnValue(1);
     tts.isTTSSounding.mockReturnValue(false);
-    tts.prefetchTTS.mockResolvedValue(null);
+    tts.prefetchTTSInOrder.mockResolvedValue(undefined);
     tts.playTTS.mockResolvedValue(undefined);
     limits.incrementAIUsage.mockResolvedValue(undefined);
     quests.updateQuestProgress.mockResolvedValue(true);
@@ -166,6 +168,7 @@ describe('ConversationPlayer', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      HOST_VOICE,
     );
     // Пока звук не пошёл, кнопка честно показывает загрузку.
     expect(screen.getByRole('button', { name: 'Загружаем звук' })).toBeInTheDocument();
@@ -231,8 +234,10 @@ describe('ConversationPlayer', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      HOST_VOICE,
     );
-    expect(tts.prefetchTTS).toHaveBeenCalledWith('А как проверить себя?', 'male');
+    // The next lines are prepared only once this one sounds: they do not compete with it for the server.
+    expect(tts.prefetchTTSInOrder).not.toHaveBeenCalled();
 
     // Нажатие во время загрузки отменяет её; «Продолжить» начнёт реплику заново.
     fireEvent.keyDown(player, { key: 'k' });
@@ -268,6 +273,7 @@ describe('ConversationPlayer', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      HOST_VOICE,
     );
     expect(quests.updateQuestProgress).not.toHaveBeenCalled();
     act(() => lastPlay()[4]());
@@ -280,6 +286,7 @@ describe('ConversationPlayer', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      HOST_VOICE,
     );
     // Между репликами кнопка остаётся «Пауза», а не мигает загрузкой.
     expect(screen.getByRole('button', { name: 'Пауза' })).toBeInTheDocument();
@@ -494,8 +501,16 @@ describe('ConversationPlayer', () => {
     ];
     const { container } = render(<ConversationPlayer lines={latin} />);
     fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
-    expect(tts.playTTS).toHaveBeenLastCalledWith('Hi! Today we talk about entropy.', 'male', expect.any(Function), expect.any(Function), expect.any(Function));
-    expect(tts.prefetchTTS).toHaveBeenCalledWith('Let us start with the definition.', 'female');
+    expect(tts.playTTS).toHaveBeenLastCalledWith(
+      'Hi! Today we talk about entropy.',
+      'male',
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+      HOST_VOICE,
+    );
+    act(() => lastPlay()[4]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledWith([{ text: 'Let us start with the definition.', role: 'female' }], { persist: true });
 
     // Spec 5.7: the speaker's name is ink (Onest 600 16); the host colours --sf-voice-a/b are gone
     // (#a84a22 read as «wrong»).
@@ -733,5 +748,322 @@ describe('ConversationPlayer', () => {
       spy.mockRestore();
       style.remove();
     }
+  });
+
+  it('speaks every line with the server voice only and says honestly when the sound did not load', async () => {
+    const user = userEvent.setup();
+    render(<ConversationPlayer lines={modelLines} />);
+    await user.click(screen.getByRole('button', { name: 'Слушать' }));
+    // fallback 'none': Max is never read by the browser voice; persist: a replay and a revisit need no server.
+    expect(lastPlay()[5]).toEqual(HOST_VOICE);
+
+    // The speech module asked the server three times and gave up: no other voice, an honest message.
+    act(() => lastPlay()[3]({ code: 'unavailable', reason: 'server' }));
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
+    expect(screen.getByRole('button', { name: 'Слушать' })).toBeInTheDocument();
+    expect(tts.prefetchTTSInOrder).not.toHaveBeenCalled();
+
+    // «Повторить» forgets the failures first, then asks for the same line again.
+    await user.click(within(status).getByRole('button', { name: 'Повторить' }));
+    expect(tts.forgetTTSFailures).toHaveBeenCalledTimes(1);
+    expect(tts.playTTS).toHaveBeenCalledTimes(2);
+    expect(tts.forgetTTSFailures.mock.invocationCallOrder[0]).toBeLessThan(tts.playTTS.mock.invocationCallOrder[1]);
+    expect(lastPlay()[0]).toBe(modelLines[0].text);
+    expect(lastPlay()[5]).toEqual(HOST_VOICE);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('prepares the next three lines one plan at a time, once the current line is heard', () => {
+    const six = Array.from({ length: 6 }, (_, index) => ({ speaker: index % 2 ? 'Софья' : 'Макс', text: `Реплика номер ${index + 1}.` }));
+    const line = (number: number) => ({ text: `Реплика номер ${number}.`, role: number % 2 ? 'male' : 'female' });
+    const { unmount } = render(<ConversationPlayer lines={six} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    expect(tts.prefetchTTSInOrder).not.toHaveBeenCalled();
+
+    act(() => lastPlay()[4]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([line(2), line(3), line(4)], { persist: true });
+
+    // The second line starts loading: nothing new until it sounds, then the plan moves one line on.
+    act(() => lastPlay()[2]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
+    act(() => lastPlay()[4]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([line(3), line(4), line(5)], { persist: true });
+
+    // A jump to the fifth line: only what is left after it.
+    fireEvent.click(screen.getByRole('button', { name: 'Реплика 5' }));
+    act(() => lastPlay()[4]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([line(6)], { persist: true });
+
+    // The last line has nothing after it.
+    act(() => lastPlay()[2]());
+    act(() => lastPlay()[4]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(3);
+
+    // Leaving the page stops the queue.
+    unmount();
+    expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith([]);
+  });
+
+  it('shows and speaks the lines without markdown and leaves the saved lines untouched', () => {
+    const marked = [
+      {
+        speaker: 'Софья',
+        text: 'Есть уровни изоляции. Например, `Read Committed` исключает грязное чтение. А `Repeatable Read`, который строже…',
+      },
+      { speaker: 'Макс', text: '## Итог\n**Главное**: *грязное* чтение — это ***плохо***. Подробнее [в лекции](https://example.com/lecture).' },
+    ];
+    const saved = JSON.parse(JSON.stringify(marked));
+    const clean = 'Есть уровни изоляции. Например, Read Committed исключает грязное чтение. А Repeatable Read, который строже…';
+    render(<ConversationPlayer lines={marked} />);
+
+    const subtitles = screen.getByRole('region', { name: 'Субтитры' });
+    expect(within(subtitles).getByText(clean)).toBeInTheDocument();
+    expect(subtitles.textContent).not.toMatch(/[`*#]/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    expect(lastPlay()[0]).toBe(clean);
+    act(() => lastPlay()[4]());
+    expect(tts.prefetchTTSInOrder).toHaveBeenLastCalledWith(
+      [{ text: 'Итог\nГлавное: грязное чтение — это плохо. Подробнее в лекции.', role: 'male' }],
+      { persist: true },
+    );
+
+    const transcript = openTranscript();
+    expect(transcript.textContent).not.toMatch(/[`*#]|https?:/);
+    expect(within(transcript).getByText(/Главное: грязное чтение — это плохо\. Подробнее в лекции\./)).toBeInTheDocument();
+    // Only what is shown and spoken changes; the stored conversation stays as it was.
+    expect(marked).toEqual(saved);
+  });
+
+  it('strips markdown but keeps code, identifiers and arithmetic intact', () => {
+    expect(plainLineText('Например, `Read Committed` исключает…')).toBe('Например, Read Committed исключает…');
+    expect(plainLineText('**жирный**, *курсив*, ***оба***')).toBe('жирный, курсив, оба');
+    expect(plainLineText('**Важно *очень* важно**')).toBe('Важно очень важно');
+    expect(plainLineText('# Заголовок\n- пункт списка')).toBe('Заголовок\nпункт списка');
+    expect(plainLineText('Читайте [главу 2](https://example.com/ch2) и ~~не~~ спешите')).toBe('Читайте главу 2 и не спешите');
+    expect(plainLineText('Пример:\n```python\nprint(1)\n```')).toBe('Пример:\nprint(1)');
+    expect(plainLineText('Инлайн ```Read Committed``` тоже')).toBe('Инлайн Read Committed тоже');
+    // Code keeps its own symbols, words keep their underscores, arithmetic keeps its stars.
+    expect(plainLineText('Метод `__init__` и переменная snake_case_name')).toBe('Метод __init__ и переменная snake_case_name');
+    expect(plainLineText('Аргументы `*args, **kwargs` в Python')).toBe('Аргументы *args, **kwargs в Python');
+    expect(plainLineText('Считаем 2*3*4 и a * b')).toBe('Считаем 2*3*4 и a * b');
+    expect(plainLineText('C# и #хештег остаются')).toBe('C# и #хештег остаются');
+    expect(plainLineText('Обычная реплика без разметки.')).toBe('Обычная реплика без разметки.');
+    // Nothing would be left: the line stays as it was rather than going blank.
+    expect(plainLineText('**')).toBe('**');
+  });
+});
+
+describe('ConversationPlayer with the real speech module', () => {
+  /** Plays at once; the test says when the sound «starts» (playing) or ends. */
+  class FakeAudio {
+    static instances: FakeAudio[] = [];
+    src: string;
+    paused = true;
+    playbackRate = 1;
+    currentTime = 0;
+    onended: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    private listeners = new Map<string, Array<() => void>>();
+
+    constructor(src: string) {
+      this.src = src;
+      FakeAudio.instances.push(this);
+    }
+
+    addEventListener(type: string, listener: () => void) {
+      this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+    }
+
+    emit(type: string) {
+      (this.listeners.get(type) ?? []).forEach(listener => listener());
+    }
+
+    play() {
+      this.paused = false;
+      return Promise.resolve();
+    }
+
+    pause() {
+      this.paused = true;
+    }
+  }
+
+  class FakeUtterance {
+    constructor(readonly text: string) {}
+  }
+
+  class FakeResponse {
+    constructor(private readonly body: Blob) {}
+    async blob() {
+      return this.body;
+    }
+  }
+
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let synth: { speak: ReturnType<typeof vi.fn>; cancel: ReturnType<typeof vi.fn>; getVoices: () => unknown[] };
+  let urls = 0;
+
+  const ttsRequests = () =>
+    fetchMock.mock.calls
+      .filter(([url]) => url === '/api/tts')
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)).text as string);
+
+  /** Every speech function of the mocked module calls the real one. */
+  async function useRealSpeech() {
+    const actual = await vi.importActual<typeof import('../../utils/tts')>('../../utils/tts');
+    tts.playTTS.mockImplementation(actual.playTTS);
+    tts.pauseTTS.mockImplementation(actual.pauseTTS);
+    tts.resumeTTS.mockImplementation(actual.resumeTTS);
+    tts.stopTTS.mockImplementation(actual.stopTTS);
+    tts.prefetchTTSInOrder.mockImplementation(actual.prefetchTTSInOrder);
+    tts.isTTSSounding.mockImplementation(actual.isTTSSounding);
+    tts.getTTSPlaybackRate.mockImplementation(actual.getTTSPlaybackRate);
+    tts.setTTSPlaybackRate.mockImplementation(actual.setTTSPlaybackRate);
+    tts.forgetTTSFailures.mockImplementation(actual.forgetTTSFailures);
+    actual.forgetTTSFailures();
+    return actual;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetJobsForTests();
+    FakeAudio.instances = [];
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('SpeechSynthesisUtterance', FakeUtterance);
+    vi.stubGlobal('Response', FakeResponse);
+    synth = { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [{ name: 'Google русский', lang: 'ru-RU' }] };
+    Object.defineProperty(window, 'speechSynthesis', { value: synth, configurable: true, writable: true });
+    Object.defineProperty(URL, 'createObjectURL', { value: () => `blob:clip-${++urls}`, configurable: true, writable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => undefined, configurable: true, writable: true });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(window, 'speechSynthesis');
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+  });
+
+  it('never lends Max another voice: with the server down it retries, then says the sound did not load', async () => {
+    vi.useFakeTimers();
+    const actual = await useRealSpeech();
+    let serverUp = false;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url !== '/api/tts') throw new Error(`unexpected request ${url}`);
+      return serverUp
+        ? { ok: true, status: 200, blob: async () => new Blob(['mp3']) }
+        : { ok: false, status: 502, headers: new Headers(), blob: async () => new Blob() };
+    });
+    const lines = [
+      { speaker: 'Макс', text: 'Макс начинает разговор о транзакциях.' },
+      { speaker: 'Софья', text: 'Софья рассказывает про уровни изоляции.' },
+    ];
+    render(<ConversationPlayer lines={lines} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    // Three tries for the same line (now, after 1 s, after 3 more s); the browser voice never speaks.
+    expect(ttsRequests()).toEqual(Array(3).fill(lines[0].text));
+    expect(synth.speak).not.toHaveBeenCalled();
+    expect(FakeAudio.instances).toHaveLength(0);
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
+
+    // The server is back: «Повторить» plays Max's line in Max's server voice.
+    serverUp = true;
+    fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(ttsRequests()).toHaveLength(4);
+    expect(FakeAudio.instances).toHaveLength(1);
+    act(() => FakeAudio.instances[0].emit('playing'));
+    expect(screen.getByRole('button', { name: 'Пауза' })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    // Once Max sounds, Sofia's line is prepared — by the server, too.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(ttsRequests()).toEqual([...Array(4).fill(lines[0].text), lines[1].text]);
+    expect(synth.speak).not.toHaveBeenCalled();
+    actual.stopTTS();
+  });
+
+  it('loads the next lines one request at a time once the sound starts, saves them, and a replay needs no server', async () => {
+    await useRealSpeech();
+    const stored = new Map<string, FakeResponse>();
+    const cache = {
+      match: vi.fn(async (url: string) => stored.get(String(url))),
+      put: vi.fn(async (url: string, response: FakeResponse) => {
+        stored.set(String(url), response);
+      }),
+      keys: vi.fn(async () => Array.from(stored.keys())),
+      delete: vi.fn(async (url: string) => stored.delete(String(url))),
+    };
+    vi.stubGlobal('caches', { open: vi.fn(async () => cache) });
+    const pending: Array<() => void> = [];
+    let inFlight = 0;
+    let mostInFlight = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (url !== '/api/tts') throw new Error(`unexpected request ${url}`);
+      inFlight += 1;
+      mostInFlight = Math.max(mostInFlight, inFlight);
+      return new Promise(resolve => {
+        pending.push(() => {
+          inFlight -= 1;
+          resolve({ ok: true, status: 200, blob: async () => new Blob(['mp3']) });
+        });
+      });
+    });
+    const lines = Array.from({ length: 5 }, (_, index) => ({
+      speaker: index % 2 ? 'Софья' : 'Макс',
+      text: `Сохраняемая реплика ${index + 1}.`,
+    }));
+    render(<ConversationPlayer lines={lines} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
+    await waitFor(() => expect(pending).toHaveLength(1));
+    act(() => pending.shift()?.());
+    await waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+    // Nothing else is asked while the first line loads.
+    expect(ttsRequests()).toEqual([lines[0].text]);
+
+    act(() => FakeAudio.instances[0].emit('playing'));
+    for (const next of [1, 2, 3]) {
+      await waitFor(() => expect(pending).toHaveLength(1));
+      expect(ttsRequests()).toEqual(lines.slice(0, next + 1).map(line => line.text));
+      act(() => pending.shift()?.());
+    }
+    await waitFor(() => expect(stored.size).toBe(4));
+    expect(Array.from(stored.keys()).every(key => /^\/__tts\/(male|female)\/[0-9a-f]{64}$/.test(key))).toBe(true);
+
+    // Line 1 ends: line 2 is ready and plays without a request; then line 5 is prepared.
+    act(() => FakeAudio.instances[0].onended?.());
+    await waitFor(() => expect(FakeAudio.instances).toHaveLength(2));
+    expect(ttsRequests()).toHaveLength(4);
+    act(() => FakeAudio.instances[1].emit('playing'));
+    await waitFor(() => expect(pending).toHaveLength(1));
+    expect(ttsRequests()[4]).toBe(lines[4].text);
+    act(() => pending.shift()?.());
+    await waitFor(() => expect(stored.size).toBe(5));
+    expect(mostInFlight).toBe(1);
+
+    // A replay from the first line asks the server for nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Реплика 1' }));
+    await waitFor(() => expect(FakeAudio.instances).toHaveLength(3));
+    act(() => FakeAudio.instances[2].emit('playing'));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    expect(ttsRequests()).toHaveLength(5);
+    expect(synth.speak).not.toHaveBeenCalled();
   });
 });

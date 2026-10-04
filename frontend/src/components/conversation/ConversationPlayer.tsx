@@ -13,10 +13,11 @@ import {
   isTTSUnavailable,
   pauseTTS,
   playTTS,
-  prefetchTTS,
+  prefetchTTSInOrder,
   resumeTTS,
   setTTSPlaybackRate,
   stopTTS,
+  type PlayTTSOptions,
 } from '../../utils/tts';
 import ConversationVisual, { type OutlineItem } from './ConversationVisual';
 import {
@@ -85,6 +86,16 @@ const AUDIO_MESSAGES: Record<AudioProblem, string> = {
 /** Сколько ждём звук следующей реплики, прежде чем показать загрузку на кнопке. */
 const BUFFERING_DELAY_MS = 400;
 
+/**
+ * Голос ведущего не меняется посреди разговора: звук только с сервера (без голоса
+ * браузера — лучше честное «Звук не загрузился», чем чужой голос у Макса), и он
+ * сохраняется, чтобы повтор и новый визит звучали сразу, без сервера.
+ */
+const HOST_VOICE: PlayTTSOptions = { fallback: 'none', persist: true };
+
+/** На сколько реплик вперёд готовим звук: по одной, когда текущая уже зазвучала. */
+const PREFETCH_AHEAD = 3;
+
 const CREATE_FAILED = 'Не удалось создать разговор. Попробуйте ещё раз.';
 const VISUALS_FAILED = 'Не удалось добавить схемы. Попробуйте ещё раз.';
 
@@ -99,6 +110,45 @@ export function speedLabel(rate: number): string {
 export function nextSpeed(rate: number): number {
   const index = SPEEDS.indexOf(rate as (typeof SPEEDS)[number]);
   return SPEEDS[(index + 1) % SPEEDS.length];
+}
+
+/** Код: блок ```…``` (язык в первой строке) или `…` в обратных кавычках любой длины. */
+const CODE_SPAN = /```(?:[^\n`]*\n)?([\s\S]*?)```|(`+)([\s\S]*?)\2/g;
+/** *курсив*, **жирный**, ***оба***: звёздочки снаружи слова, а не внутри (2*3*4 не трогаем). */
+const EMPHASIS = /(^|[^\p{L}\p{N}*])(\*{1,3})(?=[^\s*])([^*\n]*?[^\s*])\2(?![\p{L}\p{N}*])/gu;
+
+/** Разметка вне кода: заголовки, маркеры списка, ссылки, зачёркивание, выделение, лишние `. */
+function plainMarkup(segment: string): string {
+  let plain = segment
+    .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*[-*+][ \t]+/gm, '')
+    .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, '$1')
+    .replace(/~~(?=\S)([^~\n]*?\S)~~/g, '$1');
+  // Вложенное выделение (**a *b* c**) снимается слоями.
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = plain.replace(EMPHASIS, '$1$3');
+    if (next === plain) break;
+    plain = next;
+  }
+  return plain.replace(/`/g, '');
+}
+
+/**
+ * Реплика без markdown: модель иногда пишет `Read Committed`, **жирный**, *курсив*,
+ * # заголовки и [ссылки](…). На экране и в озвучке нужен чистый текст — иначе видны
+ * обратные кавычки, а голос читает звёздочки или запинается. Код внутри кавычек
+ * остаётся как есть (snake_case, **kwargs); сохранённые реплики не меняются.
+ */
+export function plainLineText(text: string): string {
+  let plain = '';
+  let last = 0;
+  for (const match of text.matchAll(CODE_SPAN)) {
+    const at = match.index ?? 0;
+    plain += plainMarkup(text.slice(last, at)) + (match[1] ?? match[3] ?? '').trim();
+    last = at + match[0].length;
+  }
+  plain = (plain + plainMarkup(text.slice(last))).replace(/[ \t]{2,}/g, ' ').trim();
+  return plain || text;
 }
 
 export interface SheetMetrics {
@@ -193,8 +243,13 @@ export default function ConversationPlayer({
   const createJob = useJobStatus('create', materialId);
   const visualsJob = useJobStatus('visuals', materialId);
 
+  // Текст реплик без markdown — и на экране, и в озвучке; изображения подобраны по исходному тексту.
   const conversation = useMemo(
-    () => buildConversation(rawLines, { title, terms, flashcards, sources }),
+    () =>
+      buildConversation(rawLines, { title, terms, flashcards, sources }).map(line => {
+        const text = plainLineText(line.text);
+        return text === line.text ? line : { ...line, text };
+      }),
     [rawLines, title, terms, flashcards, sources],
   );
   const modelVisuals = useMemo(() => hasModelVisuals(rawLines), [rawLines]);
@@ -296,12 +351,13 @@ export default function ConversationPlayer({
     setCurrent(0);
   }, [textsKey]);
 
-  // Останавливаем звук, когда плеер исчезает со страницы.
+  // Останавливаем звук и предзагрузку следующих реплик, когда плеер исчезает со страницы.
   useEffect(
     () => () => {
       runRef.current += 1;
       if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
       stopTTS();
+      void Promise.resolve(prefetchTTSInOrder([])).catch(() => undefined);
     },
     [],
   );
@@ -383,6 +439,14 @@ export default function ConversationPlayer({
     return (line && voicesRef.current.get(line.speaker)) || 'female';
   };
 
+  /** Звук следующих PREFETCH_AHEAD реплик: по одной, сохраняя для повтора. Новый вызов заменяет очередь. */
+  const prefetchAhead = (index: number) => {
+    const upcoming = linesRef.current
+      .slice(index + 1, index + 1 + PREFETCH_AHEAD)
+      .map((line, offset) => ({ text: line.text, role: voiceAt(index + 1 + offset) }));
+    if (upcoming.length) void Promise.resolve(prefetchTTSInOrder(upcoming, { persist: true })).catch(() => undefined);
+  };
+
   const speak = (index: number, continuing = false) => {
     const all = linesRef.current;
     const line = all[index];
@@ -404,7 +468,7 @@ export default function ConversationPlayer({
       setPlayback('loading');
     }
 
-    // Сначала запрос текущей реплики, потом предзагрузка следующей.
+    // Сначала звук текущей реплики; следующие готовим, когда она зазвучала, чтобы не отнимать у неё сервер.
     void Promise.resolve(
       playTTS(
         line.text,
@@ -427,23 +491,24 @@ export default function ConversationPlayer({
           runRef.current += 1;
           clearBuffering();
           setPlayback('idle');
-          setAudioProblem(isTTSUnavailable(error) ? (error.reason === 'timeout' ? 'timeout' : 'unavailable') : 'failed');
+          // Сервер не отдал звук и после повторов ('server') или звук не начался ('timeout') — «Звук не загрузился».
+          const loading = isTTSUnavailable(error) && (error.reason === 'timeout' || error.reason === 'server');
+          setAudioProblem(isTTSUnavailable(error) ? (loading ? 'timeout' : 'unavailable') : 'failed');
         },
         () => {
           if (run !== runRef.current) return;
           clearBuffering();
           setPlayback('playing');
+          prefetchAhead(index);
           // Задание «послушать разговор» засчитывается один раз за прослушивание, когда звук реально пошёл.
           if (!questCountedRef.current && user?.id) {
             questCountedRef.current = true;
             void Promise.resolve(updateQuestProgress(user.id, 'podcast', 1)).catch(() => undefined);
           }
         },
+        HOST_VOICE,
       ),
     ).catch(() => undefined);
-
-    const next = all[index + 1];
-    if (next) void Promise.resolve(prefetchTTS(next.text, voiceAt(index + 1))).catch(() => undefined);
   };
 
   const stopAt = (index: number) => {

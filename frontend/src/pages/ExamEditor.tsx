@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
 import {
   EXAM_KINDS,
   EXAM_MESSAGES,
@@ -26,6 +25,8 @@ import { KIND_WORDS, subjectOf } from '../lib/exams/format';
 import { pluralRu } from '../components/conversation/visuals';
 import QuestionPreview from '../components/exams/QuestionPreview';
 import MaterialPicker, { type ImportStatus } from '../components/exams/MaterialPicker';
+import PaperSelect from '../components/ui/PaperSelect';
+import PaperSuggestInput from '../components/ui/PaperSuggestInput';
 import { startMapping, useMapJob } from '../components/exams/mapJobs';
 import {
   EMPTY_PREVIEW,
@@ -53,10 +54,6 @@ const PARSE_ACCEPT = '.docx,.pdf,.txt,.md';
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
 /** Where a student finds the list before pasting it (Jury_Check item 12, answer 21). */
 const LIST_SOURCE_HINT = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';
-
-function Chevron() {
-  return <ChevronDown aria-hidden="true" strokeWidth={2} />;
-}
 
 /** The most common ticket size of the department's tickets (1…4). */
 function ticketSize(tickets: Array<{ keys: string[] }>): number {
@@ -249,6 +246,18 @@ export default function ExamEditor() {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  };
+
+  const setManyMaterials = (ids: string[], on: boolean) => {
+    setSelectionTouched(true);
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
       return next;
     });
   };
@@ -539,27 +548,24 @@ export default function ExamEditor() {
             <p className="nx-lbl">Экзамен</p>
             <div className="nx-fields">
               <span className="nx-sel nx-sel-title">
-                <input
+                <PaperSuggestInput
                   aria-label="Название экзамена"
                   aria-describedby="exam-title-hint"
                   placeholder="Микроэкономика"
                   value={title}
                   maxLength={200}
-                  list="exam-subjects"
-                  onChange={(event) => setTitle(event.target.value)}
+                  suggestions={subjects}
+                  onValueChange={setTitle}
                   disabled={saving}
                 />
               </span>
-              <span className="nx-sel">
-                <select aria-label="Тип" value={kind} onChange={(event) => setKind(event.target.value as ExamKind)} disabled={saving}>
-                  {EXAM_KINDS.map((value) => (
-                    <option key={value} value={value}>
-                      {KIND_WORDS[value]}
-                    </option>
-                  ))}
-                </select>
-                <Chevron />
-              </span>
+              <PaperSelect
+                ariaLabel="Тип"
+                value={kind}
+                options={EXAM_KINDS.map((value) => ({ value, label: KIND_WORDS[value] }))}
+                onChange={(value) => setKind(value)}
+                disabled={saving}
+              />
               <span className="nx-sel">
                 <input type="date" aria-label="Дата, необязательно" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
               </span>
@@ -567,41 +573,31 @@ export default function ExamEditor() {
             <p className="ex-meta" id="exam-title-hint">
               Только предмет — вид экзамена выбирается рядом
             </p>
-            <datalist id="exam-subjects">
-              {subjects.map((subject) => (
-                <option key={subject} value={subject} />
-              ))}
-            </datalist>
           </div>
 
           <div className="nx-grp">
             <p className="nx-lbl">Билеты</p>
             <p className="nx-line">
               В билете{' '}
-              <span className="nx-sel">
-                <select
-                  aria-label="Вопросов в билете"
-                  value={perTicket}
-                  onChange={(event) => setPerTicket(Number(event.target.value))}
-                  disabled={saving || layoutMode === 'fixed'}
-                >
-                  {sizeOptions.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-                <Chevron />
-              </span>{' '}
+              <PaperSelect
+                ariaLabel="Вопросов в билете"
+                value={perTicket}
+                options={sizeOptions.map((value) => ({ value, label: String(value) }))}
+                onChange={(value) => setPerTicket(value)}
+                disabled={saving || layoutMode === 'fixed'}
+              />{' '}
               {pluralRu(perTicket, QUESTION_FORMS)},{' '}
-              <span className="nx-sel">
-                <select aria-label="Как составлены билеты" value={layoutMode} onChange={(event) => setLayoutChoice(event.target.value as LayoutMode)} disabled={saving}>
-                  <option value="random">случайные</option>
-                  {filledSections > 0 && filledSections === perTicket && <option value="sections">по одному из каждого раздела</option>}
-                  {hasTickets && <option value="fixed">как в списке билетов</option>}
-                </select>
-                <Chevron />
-              </span>
+              <PaperSelect
+                ariaLabel="Как составлены билеты"
+                value={layoutMode}
+                options={[
+                  { value: 'random' as LayoutMode, label: 'случайные' },
+                  ...(filledSections > 0 && filledSections === perTicket ? [{ value: 'sections' as LayoutMode, label: 'по одному из каждого раздела' }] : []),
+                  ...(hasTickets ? [{ value: 'fixed' as LayoutMode, label: 'как в списке билетов' }] : []),
+                ]}
+                onChange={(value) => setLayoutChoice(value)}
+                disabled={saving}
+              />
             </p>
             <p className="ex-meta">
               {layoutMode === 'fixed'
@@ -617,6 +613,7 @@ export default function ExamEditor() {
               materials={materials}
               selected={selected}
               onToggle={toggleMaterial}
+              onSetMany={setManyMaterials}
               open={pickerOpen}
               onOpenChange={setPickerOpen}
               onImport={(files) => void importFiles(files)}

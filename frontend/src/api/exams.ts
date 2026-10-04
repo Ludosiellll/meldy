@@ -17,6 +17,7 @@
  */
 import { supabase } from '../lib/supabase';
 import { httpErrorFromResponse, StreamError } from './sseStream';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 export type ExamKind = 'exam' | 'credit' | 'colloquium';
 export type CoverageValue = 'full' | 'partial' | 'none' | 'unverified';
@@ -292,7 +293,7 @@ function normalizeEvidence(value: unknown): EvidenceItem[] {
     .filter(isRecord)
     .map((item) => ({
       material_id: str(item.material_id),
-      material_title: str(item.material_title),
+      material_title: displayMaterialTitle(str(item.material_title), ''),
       source_id: str(item.source_id),
       excerpt: str(item.excerpt),
     }))
@@ -303,7 +304,7 @@ function normalizeNearest(value: unknown): NearestItem[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((item) => ({
     material_id: str(item.material_id),
-    material_title: str(item.material_title),
+    material_title: displayMaterialTitle(str(item.material_title), ''),
     source_id: str(item.source_id),
     excerpt: str(item.excerpt),
     matched: Array.isArray(item.matched) ? item.matched.filter((word): word is string => typeof word === 'string') : [],
@@ -554,7 +555,7 @@ async function fetchMaterialTitles(ids: string[]): Promise<ExamMaterial[]> {
   const data = await run(supabase.from('materials').select('id, title').in('id', ids), EXAM_MESSAGES.load);
   const byId = new Map<string, ExamMaterial>();
   for (const row of Array.isArray(data) ? data : []) {
-    if (isRecord(row) && typeof row.id === 'string') byId.set(row.id, { id: row.id, title: str(row.title) });
+    if (isRecord(row) && typeof row.id === 'string') byId.set(row.id, { id: row.id, title: displayMaterialTitle(str(row.title)) });
   }
   return ids.map((id) => byId.get(id)).filter((item): item is ExamMaterial => Boolean(item));
 }

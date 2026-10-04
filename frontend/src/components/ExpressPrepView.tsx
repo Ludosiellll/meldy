@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
+import { stripSourceMarkers } from './summary/fragmentModel';
 import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
 import { runJob, useJobStatus } from './conversation/jobs';
 import type { ConversationFlashcard, PodcastLine } from './conversation/types';
@@ -141,7 +142,7 @@ export default function ExpressPrepView({
         </header>
         <div className={MARKDOWN_CLASSES}>
           <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {cheatsheet}
+            {stripSourceMarkers(cheatsheet)}
           </ReactMarkdown>
         </div>
       </article>

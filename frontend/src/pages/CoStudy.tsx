@@ -10,6 +10,7 @@ import SummaryView from '../components/SummaryView';
 import { format } from 'date-fns';
 import { CustomSelect } from '../components/CustomSelect';
 import { getFriends, Friendship, sendMessage } from '../api/chat';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 interface Message {
   id: string;
@@ -495,7 +496,7 @@ export default function CoStudy() {
               </span>
             </div>
             <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
-              {material.title}
+              {displayMaterialTitle(material.title)}
             </h1>
           </div>
         </div>

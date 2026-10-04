@@ -14,6 +14,7 @@ import type {
   SummaryInfo,
 } from '../types';
 import SummaryView from './SummaryView';
+import { stripSourceMarkers } from './summary/fragmentModel';
 import FlashcardsView from './FlashcardsView';
 import QuizView from './QuizView';
 import toast from 'react-hot-toast';
@@ -145,7 +146,7 @@ export function buildHtmlExport(results: AnalysisResults, displayTitle: string):
   const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   
-  const cleanSummary = extractCleanContent(results.summarizer);
+  const cleanSummary = stripSourceMarkers(extractCleanContent(results.summarizer));
   const summaryHtml = parseMarkdownToHtml(cleanSummary) || '<p style="color:#94a3b8">Нет данных</p>';
   
   const flashcards = results.flashcards?.flashcards || [];
@@ -734,7 +735,7 @@ export default function ResultsPanel({
   const hasText = Boolean(originalText?.trim());
 
   const getContent = () => {
-    if (tab === 'summary') return view.summarizer?.content || (view.summarizer as any)?.raw || '';
+    if (tab === 'summary') return stripSourceMarkers(view.summarizer?.content || (view.summarizer as any)?.raw || '');
     if (tab === 'flashcards') return JSON.stringify(view.flashcards?.flashcards || view.flashcards, null, 2);
     if (tab === 'podcast') {
       return conversationLines
@@ -827,6 +828,60 @@ export default function ResultsPanel({
     onRecreate: () => void recreateSection(section),
   });
 
+  // On the material page «Экспорт» stands at the end of the tab row when there is one: a row of its own just for
+  // the link pushed the summary 50 px down (1280×720 projector).
+  const exportInTabs = embedded && !textOnly && tabs.length > 1;
+  const headerHasText = Boolean(
+    !allRequestedOk || (!textOnly && groundingText && tab !== 'summary') || showPartialNotice || cheatsheetFailed || notices,
+  );
+  const exportControl = (
+    <div
+      // The link keeps its 44 px tap height; next to the header text the negative margin lines it up with the first line.
+      className={`export-menu-container relative flex ${exportInTabs ? '' : '-my-[11px]'}`}
+      onKeyDown={event => {
+        if (event.key === 'Escape' && showExport) {
+          event.preventDefault();
+          setShowExport(false);
+          exportButtonRef.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={exportButtonRef}
+        type="button"
+        className="sf-link"
+        data-muted=""
+        aria-haspopup="menu"
+        aria-expanded={showExport}
+        onClick={() => setShowExport(value => !value)}
+      >
+        Экспорт
+      </button>
+      {showExport && (
+        <div className="sf-menu" role="menu" aria-label="Экспорт">
+          <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
+            {copied ? 'Скопировано' : 'Копировать'}
+          </button>
+          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+            <button type="button" role="menuitem" onClick={() => { handlePrintPdf(); setShowExport(false); }}>
+              Печать или PDF
+            </button>
+          )}
+          {tab === 'flashcards' && flashcardCount > 0 && (
+            <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
+              Файл для Anki
+            </button>
+          )}
+          {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
+            <button type="button" role="menuitem" onClick={() => { handleDownloadHtml(); setShowExport(false); }}>
+              Скачать HTML
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className={embedded ? 'pb-6' : 'py-4 md:py-6'}>
       {/* У материала «только текст» на странице материала в шапке нечего показать. */}
@@ -834,63 +889,18 @@ export default function ResultsPanel({
         // На странице материала (критика 12): строка о недостающем разделе, строка о фрагментах и «Экспорт»
         // ссылкой справа. «Новый анализ» здесь не нужен: «Добавить лекцию» есть в верхней строке, а заливная
         // кнопка на экране одна.
-        !(textOnly && !showPartialNotice && !notices) && (
+        (textOnly ? Boolean(showPartialNotice || notices) : headerHasText || !exportInTabs) && (
           <header className="no-print flex flex-wrap items-start justify-between gap-x-6 gap-y-1 pt-5">
             <div className="min-w-0 flex-1 space-y-1 text-[15px] leading-[22px] text-[var(--sf-muted)]">
               {!allRequestedOk && <p className="font-medium text-[var(--sf-ink)]">{statusLabel}</p>}
               {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «наиболее похожий фрагмент». */}
-              {!textOnly && groundingText ? <p>{groundingText}</p> : null}
+              {/* On «Конспект» the fragments stand next to the sections and say so themselves. */}
+              {!textOnly && groundingText && tab !== 'summary' ? <p>{groundingText}</p> : null}
               {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
               {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
               {notices}
             </div>
-            {!textOnly && (
-              <div
-                // The link keeps its 44 px tap height; the negative margin lines its text up with the first line.
-                className="export-menu-container relative -my-[11px] flex"
-                onKeyDown={event => {
-                  if (event.key === 'Escape' && showExport) {
-                    event.preventDefault();
-                    setShowExport(false);
-                    exportButtonRef.current?.focus();
-                  }
-                }}
-              >
-                <button
-                  ref={exportButtonRef}
-                  type="button"
-                  className="sf-link"
-                  data-muted=""
-                  aria-haspopup="menu"
-                  aria-expanded={showExport}
-                  onClick={() => setShowExport(value => !value)}
-                >
-                  Экспорт
-                </button>
-                {showExport && (
-                  <div className="sf-menu" role="menu" aria-label="Экспорт">
-                    <button type="button" role="menuitem" onClick={() => { handleCopy(); setShowExport(false); }}>
-                      {copied ? 'Скопировано' : 'Копировать'}
-                    </button>
-                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                      <button type="button" role="menuitem" onClick={() => { handlePrintPdf(); setShowExport(false); }}>
-                        Печать или PDF
-                      </button>
-                    )}
-                    {tab === 'flashcards' && flashcardCount > 0 && (
-                      <button type="button" role="menuitem" onClick={() => { handleExportAnki(); setShowExport(false); }}>
-                        Файл для Anki
-                      </button>
-                    )}
-                    {(tab === 'summary' || tab === 'flashcards' || tab === 'quiz') && (
-                      <button type="button" role="menuitem" onClick={() => { handleDownloadHtml(); setShowExport(false); }}>
-                        Скачать HTML
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+            {!textOnly && !exportInTabs && exportControl}
           </header>
         )
       ) : (
@@ -1050,7 +1060,8 @@ export default function ResultsPanel({
       ) : (
         <>
           {tabs.length > 1 && (
-            <nav className={`sf-sectabs no-print ${embedded ? 'mt-2' : 'mt-4'}`} aria-label="Разделы результата">
+            <div className={`no-print flex items-center justify-between gap-x-6 ${embedded && headerHasText ? 'mt-2' : 'mt-4'}`}>
+            <nav className="sf-sectabs min-w-0 flex-1" aria-label="Разделы результата">
               {tabs.map(item => {
                 const isActive = tab === item.id;
                 return (
@@ -1066,6 +1077,8 @@ export default function ResultsPanel({
                 );
               })}
             </nav>
+            {exportInTabs && exportControl}
+            </div>
           )}
 
           <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`${tabs.length > 1 ? 'pt-6' : 'pt-7'} min-h-[260px] printable-section`}>
@@ -1073,7 +1086,7 @@ export default function ResultsPanel({
               isFailed('summarizer') ? (
                 <SectionFailure {...failureProps('summarizer')} />
               ) : (
-                <article className="max-w-[820px]">
+                <article>
                   <SummaryView data={view.summarizer} sources={view.grounding?.sources} />
                 </article>
               )

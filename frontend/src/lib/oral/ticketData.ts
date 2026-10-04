@@ -8,6 +8,7 @@
 import { supabase } from '../supabase';
 import { fetchQuestionEvents, type LearningEvent } from '../../api/learning';
 import { questionState, SELF_RATING_CONFIDENCE, type QuestionState } from '../learning/readiness';
+import { displayMaterialTitle } from '../../utils/materialTitle';
 
 export type ExamKind = 'exam' | 'credit' | 'colloquium';
 
@@ -133,7 +134,7 @@ function evidenceOf(value: unknown): EvidenceItem[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((item) => ({
     material_id: str(item.material_id, 64),
-    material_title: str(item.material_title, 200),
+    material_title: displayMaterialTitle(str(item.material_title, 200), ''),
     source_id: str(item.source_id, 16),
     excerpt: str(item.excerpt, 1000),
   }));
@@ -145,7 +146,7 @@ function nearestOf(value: unknown): NearestItem[] {
     .filter(isRecord)
     .map((item) => ({
       material_id: str(item.material_id, 64),
-      material_title: str(item.material_title, 200),
+      material_title: displayMaterialTitle(str(item.material_title, 200), ''),
       source_id: str(item.source_id, 16),
       excerpt: str(item.excerpt, 400),
       matched: Array.isArray(item.matched) ? item.matched.filter((word): word is string => typeof word === 'string').slice(0, 12) : [],

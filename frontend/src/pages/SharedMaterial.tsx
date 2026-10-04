@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 export default function SharedMaterial() {
   const { id } = useParams();
@@ -89,7 +90,7 @@ export default function SharedMaterial() {
 
       <div className="flex-1 max-w-3xl mx-auto w-full p-4 sm:p-6 space-y-6">
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-2">{material.title}</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-2">{displayMaterialTitle(material.title)}</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-500" />
             Сгенерировано ИИ на основе лекции

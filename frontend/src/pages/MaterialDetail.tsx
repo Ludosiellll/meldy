@@ -12,6 +12,7 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
 import { parseSections, sectionHasContent } from '../utils/analysisSections';
 import '../styles/paper.css';
+import { displayMaterialTitle } from '../utils/materialTitle';
 
 type Mode = 'full' | 'express' | 'podcast';
 
@@ -439,7 +440,7 @@ export default function MaterialDetail() {
               </button>
             </form>
           ) : (
-            <h1 className="sf-h1 sf-h1-serif">{material.title}</h1>
+            <h1 className="sf-h1 sf-h1-serif [overflow-wrap:anywhere]">{displayMaterialTitle(material.title)}</h1>
           )}
           {editingSubject ? (
             <form
@@ -545,7 +546,7 @@ export default function MaterialDetail() {
       ) : (
         <ExpressPrepView
           materialId={material.id}
-          materialTitle={material.title}
+          materialTitle={displayMaterialTitle(material.title)}
           originalText={material.original_text || ''}
           summaryJson={material.summary_json}
           flashcards={Array.isArray(material.flashcards_json) ? material.flashcards_json : material.flashcards_json?.flashcards}
