@@ -36,7 +36,7 @@ export const LOGIN_SCRIPT: AuthScript = {
     { id: 'ticket', from: 10200, to: 14000 },
     { id: 'ready', from: 13600, to: 18000 },
   ],
-  poster: 9500,
+  poster: 9400,
   corner: [700, 15200],
   caption: 'Ролик: как работает Meldy, 18 секунд, без звука.',
   transcript: [
@@ -57,7 +57,7 @@ export const REGISTER_SCRIPT: AuthScript = {
     { id: 'exam', from: 11400, to: 15000 },
     { id: 'ready', from: 14600, to: 19000 },
   ],
-  poster: 7100,
+  poster: 7400,
   corner: [700, 16200],
   caption: 'Ролик: материал становится планом подготовки, 19 секунд, без звука.',
   transcript: [

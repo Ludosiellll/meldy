@@ -166,11 +166,11 @@ function Recall() {
       opacity(grade, clamp(seg(l, 1550 + index * 70, 260) * 3));
     });
     // The answered card leaves to the right with motion blur; the next one comes forward.
-    slideOut(one('front'), l, 2380, { dx: 1300, dur: 560, smear: 26 });
-    const next = ease.inOut(seg(l, 2480, 620));
+    slideOut(one('front'), l, 2620, { dx: 1300, dur: 520, smear: 26 });
+    const next = ease.inOut(seg(l, 2700, 560));
     put(one('next'), 'transform', `translate3d(${mix(48, 0, next).toFixed(1)}px,${mix(-48, 0, next).toFixed(1)}px,0) scale(${mix(0.94, 1, next).toFixed(4)})`);
     put(one('next'), 'filter', `blur(${mix(5, 0, next).toFixed(2)}px)`);
-    slideIn(one('when'), l, 2320, { dy: 30, dur: 520, smear: 8 });
+    slideIn(one('when'), l, 2150, { dy: 30, dur: 480, smear: 8 });
   });
   return (
     <div ref={root} className="mr-scene">
