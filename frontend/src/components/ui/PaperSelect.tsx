@@ -18,9 +18,9 @@ interface PaperSelectProps<T extends string | number> {
 }
 
 /**
- * Выпадающий список в языке «Бумажного стола» вместо системного <select>: слово с карандашной
- * чертой, под ним — листок с вариантами. Клавиатура как у списка: стрелки, Home/End, первая
- * буква, Enter/пробел выбирают, Esc закрывает и возвращает фокус.
+ * Выпадающий список вместо системного <select> (язык Meldy от 2026-10-04): мягкая пилюля со
+ * словом и шевроном, под ней — скруглённое меню вариантов. Клавиатура как у списка: стрелки,
+ * Home/End, первая буква, Enter/пробел выбирают, Esc закрывает и возвращает фокус.
  */
 export default function PaperSelect<T extends string | number>(props: PaperSelectProps<T>) {
   const { value, options, onChange, ariaLabel, disabled } = props;

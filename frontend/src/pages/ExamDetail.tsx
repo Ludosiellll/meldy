@@ -28,7 +28,7 @@ import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exam
 import WhyPanel from '../components/exams/WhyPanel';
 import { CoverageSummary, PeakSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, interruptedMessage, MAPPING_COST, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
-import { COVERAGE_MARK, COVERAGE_MARK_SIZE, type SheetCoverage } from '../components/exams/marks';
+import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
   growthSentence,
   peakChange,
@@ -988,10 +988,17 @@ function ExamSheetPage({ examId }: { examId: string }) {
                 const active = filter === item.value;
                 return (
                   <li key={item.value}>
-                    <button type="button" aria-pressed={active} onClick={() => setFilter(active ? 'all' : item.value)}>
+                    {/* A status pill in its colour, with the same pencil mark as the rows' pills. */}
+                    <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => setFilter(active ? 'all' : item.value)}>
                       {kind && size && (
                         <span className="ex-filter-mark" aria-hidden="true">
-                          <Mark kind={kind} seed={301 + item.value.length} width={Math.round(size.width * 0.8)} height={Math.round(size.height * 0.8)} weight={size.weight} />
+                          <Mark
+                            kind={kind}
+                            seed={301 + item.value.length}
+                            width={Math.round(size.width * PILL_MARK_SCALE)}
+                            height={Math.round(size.height * PILL_MARK_SCALE)}
+                            weight={size.weight}
+                          />
                         </span>
                       )}
                       <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{item.count}</span>

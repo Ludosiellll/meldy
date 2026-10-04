@@ -281,7 +281,7 @@ function PointRow({
   const showComment = Boolean(point.comment) && point.status !== 'unrated' && (point.status !== 'covered' || why !== null);
   return (
     // The asked point takes the focus from the line under the sheet's header («Пункт 4 не назван…»).
-    <li className="or-ppt" data-point={point.id} data-status={point.status} tabIndex={asked ? -1 : undefined}>
+    <li className="or-ppt" data-point={point.id} data-status={point.status} data-asked={asked ? '' : undefined} tabIndex={asked ? -1 : undefined}>
       <span className="or-pt-m">
         {kind ? <Mark kind={kind} seed={markSeed} animate={animate} delayMs={(point.number - 1) * 60} /> : null}
         <span className="sr-only">{word}</span>

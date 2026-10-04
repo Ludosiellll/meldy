@@ -36,24 +36,64 @@ export function examCoverageLine(item: ExamListItem, confirmed: number | null, m
   return line;
 }
 
+/**
+ * The exam's status pills, as at the foot of the sheet in the reel: «есть 24 · частично 7 · нет 9»
+ * (and the questions checked only by words or not checked yet). None while a mapping runs or before
+ * the first one: the meta line says so.
+ */
+export function examPills(item: Pick<ExamListItem, 'total' | 'coverage' | 'mapping_state'>, mappingNow: boolean): Array<{ key: string; word: string; count: number }> {
+  const { full, partial, none, unverified, unmapped } = item.coverage;
+  if (item.total === 0 || mappingNow || item.mapping_state === 'running' || unmapped === item.total) return [];
+  const pills = [
+    { key: 'full', word: 'есть', count: full },
+    { key: 'partial', word: 'частично', count: partial },
+    { key: 'none', word: 'нет', count: none },
+  ];
+  if (unverified > 0) pills.push({ key: 'unverified', word: 'только по словам', count: unverified });
+  if (unmapped > 0) pills.push({ key: 'unmapped', word: 'не сверено', count: unmapped });
+  return pills;
+}
+
+const ARROW = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+);
+
 function ExamRow({ item, states }: { item: ExamListItem; states: Map<string, QuestionState> | null }) {
   const job = useMapJob(item.id);
   const confirmed = states ? examSummary(item.hashes, states).confirmed : null;
+  const mappingNow = job.phase === 'running';
+  const pills = examPills(item, mappingNow);
   return (
     <li>
+      {/* The whole card is the link (its ::after covers the card); the pills under it are read after it. */}
       <Link className="ex-row" to={`/exams/${item.id}`}>
         <span className="ex-row-title">{subjectOf(item.title)}</span>
         <span className="ex-row-meta" style={{ display: 'block' }}>
-          {glue(`${examDateLine(item)} · ${examCoverageLine(item, confirmed, job.phase === 'running')}`)}
+          {glue(`${examDateLine(item)} · ${examCoverageLine(item, confirmed, mappingNow)}`)}
         </span>
       </Link>
+      {pills.length > 0 && (
+        <p className="ex-pills">
+          {pills.map((pill) => (
+            <span key={pill.key} className="ex-pill" data-k={pill.key}>
+              {pill.word} <b>{pill.count}</b>
+            </span>
+          ))}
+        </p>
+      )}
+      <span className="ex-row-go" aria-hidden="true">
+        {ARROW}
+      </span>
     </li>
   );
 }
 
 /**
- * «Экзамены»: the student's exams as a plain document list, nearest date first. Each row says when
- * the exam is, how many of its questions are in the lectures and how many are confirmed by answers.
+ * «Экзамены»: the student's exams as cards, nearest date first. Each card says when the exam is, how
+ * many of its questions are in the lectures and how many are confirmed by answers, with the status
+ * pills of the sheet.
  */
 export default function Exams() {
   const { user } = useAuth();
@@ -99,8 +139,13 @@ export default function Exams() {
         </div>
         {items && items.length > 0 && (
           <div className="ex-draw">
-            <Link className="ex-secondary" to="/exams/new">
+            <Link className="ex-secondary ex-new" to="/exams/new">
               Новый экзамен
+              <span className="ex-new-dot" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </span>
             </Link>
           </div>
         )}
@@ -122,11 +167,25 @@ export default function Exams() {
         ) : null
       ) : items.length === 0 ? (
         <div className="ex-empty">
-          <h2>Вставьте список вопросов, который дала кафедра</h2>
-          <p>Meldy отметит, какие вопросы есть в ваших лекциях, и посчитает, какую долю билетов они закрывают.</p>
-          <button type="button" className="sf-primary" onClick={() => navigate('/exams/new')}>
-            Вставить список вопросов
-          </button>
+          <div className="ex-empty-copy">
+            <h2>Вставьте список вопросов, который дала кафедра</h2>
+            <p>Meldy отметит, какие вопросы есть в ваших лекциях, и посчитает, какую долю билетов они закрывают.</p>
+            <button type="button" className="sf-primary" onClick={() => navigate('/exams/new')}>
+              Вставить список вопросов
+            </button>
+          </div>
+          {/* A list with its marks, drawn: no words and no numbers, nothing to mistake for data. */}
+          <div className="ex-empty-art" aria-hidden="true">
+            <div className="ex-empty-win">
+              {[0, 1, 2].map((row) => (
+                <span key={row} className="ex-empty-row">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       ) : (
         <ul className="ex-list" aria-label="Ваши экзамены">

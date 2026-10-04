@@ -73,7 +73,7 @@
 /* Stage mode (html[data-stage], switched on by the speaker): the projector washes the paper into
    the desk, so the sheet ring gets darker. Nothing else changes here. */
 html[data-stage]:not(.dark) .sf-shell,
-html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(60, 46, 26, .34); }
+html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* neutral ring on white cards (was the paper's brown) */
 
 /* Focus: the desk ring on the desk, the pencil on paper (4.76:1 on the dark paper). */
 .sf-shell :focus-visible,

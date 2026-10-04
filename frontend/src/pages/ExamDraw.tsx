@@ -257,7 +257,7 @@ export default function ExamDraw() {
               </button>
               {/* «Как на экзамене»: the ticket is the one drawn, as at the exam itself. */}
               {!examMode && another && (
-                <button type="button" className="sf-link" onClick={draw}>
+                <button type="button" className="ex-secondary" onClick={draw}>
                   Тянуть ещё
                 </button>
               )}

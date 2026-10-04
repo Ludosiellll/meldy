@@ -10,7 +10,7 @@ export interface TicketHeading {
 /**
  * «Билет 12 · вопрос 1 из 2» for a department's ticket; for a drawn pair the question's own number,
  * «Вопрос 12 · 1 из 2», so the number stays on screen from the draw to the protocol (redesign
- * critique 8); «Вопрос 17» for a single question (redesign spec 2.2 #2: Literata, ordinary case).
+ * critique 8); «Вопрос 17» for a single question (redesign spec 2.2 #2: ordinary case, no capitals).
  */
 export function ticketHeading(ticketNumber: string | null, index: number, total: number, questionLabel: string): TicketHeading {
   const label = questionLabel.trim().replace(/[.)]\s*$/, '');
@@ -25,16 +25,22 @@ interface TicketCardProps {
 }
 
 /**
- * The ticket as an index card (redesign spec 5.11): the line «Билет 12 · вопрос 1 из 2» and the
- * question in Literata 600. It never folds while the answer is given — the audience reads it then.
- * The question is shown, never voiced (orchestrator correction 7).
+ * The ticket as a big rounded card (redesign spec 5.11, the reel's «Ответ вслух»): the tag «Билет 12»
+ * with «вопрос 1 из 2» and the question large. It never folds while the answer is given — the
+ * audience reads it then. The question is shown, never voiced (orchestrator correction 7).
  */
 export default function TicketCard({ heading, question }: TicketCardProps) {
   return (
     <article className="sf-index-card or-ticket" aria-label={[heading.strong, heading.rest].filter(Boolean).join(', ')}>
+      {/* The ticket's tag (a navy pill, as in the reel) and «вопрос 1 из 2»; the dot is for reading only. */}
       <p className="or-ticket-no">
         <b>{heading.strong}</b>
-        {heading.rest && glue(` · ${heading.rest}`)}
+        {heading.rest && (
+          <>
+            <span className="or-ticket-sep"> · </span>
+            <span>{glue(heading.rest)}</span>
+          </>
+        )}
       </p>
       <h1 className="or-ticket-q">{question}</h1>
     </article>

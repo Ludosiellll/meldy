@@ -1,6 +1,8 @@
 /* Pencil marks (components/marks). Blue pencil is Meldy, graphite is the student's own hand.
    --ph-pencil-desk is the desk-safe blue; inside paper (.sf-sheet, .sf-index-card, .sf-slip) the
-   paper kit points it at the paper pencil, so one rule serves the legend and the sheet. */
+   paper kit points it at the paper pencil, so one rule serves the legend and the sheet. A status pill
+   or badge points it at its own colour (green «есть», yellow «частично», grey «нет»). Since the Meldy
+   language of 2026-10-04 the strokes are drawn at full strength: crisp, not a faint pencil. */
 
 .sf-mark {
   display: block;
@@ -10,7 +12,7 @@
 
 .sf-ink {
   fill: var(--ph-pencil-desk, var(--ph-pencil, #2c5fb3));
-  opacity: .93;
+  opacity: 1;
 }
 .sf-mark-graphite .sf-ink {
   fill: var(--ph-graphite-desk, var(--ph-graphite, #625e57));

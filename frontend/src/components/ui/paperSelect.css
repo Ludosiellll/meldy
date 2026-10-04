@@ -1,4 +1,6 @@
-/* PaperSelect: слово с карандашной чертой и листок с вариантами (вместо системного <select>). */
+/* PaperSelect: a soft pill with the chosen word and a chevron, and a rounded menu of options under it
+   (instead of the system <select>), in the Meldy language of 2026-10-04. It also stands inside a
+   sentence («В билете (2) вопроса, (случайные)»). */
 .ps-root {
   position: relative;
   display: inline-flex;
@@ -8,86 +10,87 @@
 .ps-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 36px;
+  gap: 8px;
+  min-height: 44px;
   max-width: 100%;
-  padding: 0 2px;
+  padding: 0 12px 0 16px;
   border: 0;
-  border-bottom: 1.5px solid color-mix(in srgb, var(--sf-ink) 40%, transparent);
-  border-radius: 0;
-  background: transparent;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
   color: var(--sf-ink);
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.2;
   cursor: pointer;
   text-align: left;
+  vertical-align: middle;
+  transition: box-shadow .2s ease, background-color .2s ease;
 }
-.ps-trigger:hover { border-bottom-color: var(--sf-ink); }
-.ps-trigger:disabled { cursor: not-allowed; color: var(--sf-muted); border-bottom-style: dashed; }
+.ps-trigger:hover { box-shadow: inset 0 0 0 1px var(--sf-control-edge, #8a8f97); }
+.ps-trigger[aria-expanded='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--sf-accent), 0 0 0 4px color-mix(in srgb, var(--sf-accent) 18%, transparent);
+}
+.ps-trigger:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; }
+.ps-trigger:disabled { cursor: not-allowed; color: var(--sf-muted); background: transparent; box-shadow: inset 0 0 0 1px var(--sf-line); }
 .ps-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ps-chevron { flex: none; width: 14px; height: 14px; color: var(--sf-muted); transition: transform 140ms ease; }
+.ps-chevron { flex: none; width: 16px; height: 16px; color: var(--sf-muted); transition: transform 200ms var(--m-ease, ease); }
 .ps-chevron[data-open] { transform: rotate(180deg); }
 
 .ps-list {
   display: block;
   position: absolute;
   z-index: 40;
-  top: calc(100% + 6px);
-  left: -8px;
-  min-width: calc(100% + 16px);
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: max(100%, 180px);
   max-width: min(420px, calc(100vw - 32px));
   max-height: min(320px, 60vh);
   overflow-y: auto;
   margin: 0;
   padding: 6px;
   list-style: none;
-  border: 1px solid var(--sf-line);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 22px;
   background: var(--sf-surface);
-  box-shadow: 0 1px 2px rgba(20, 16, 10, 0.06), 0 14px 32px -14px rgba(20, 16, 10, 0.32);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow, 0 30px 60px -30px rgba(16, 41, 90, .38));
   font-size: 17px;
   line-height: 24px;
   font-weight: 400;
   outline: none;
-  animation: ps-in 120ms ease-out;
+  animation: ps-in 160ms var(--m-ease, ease) both;
 }
-.ps-list[data-above] { top: auto; bottom: calc(100% + 6px); }
+.ps-list[data-above] { top: auto; bottom: calc(100% + 8px); }
 .ps-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 40px;
-  padding: 8px 10px 8px 12px;
-  border-radius: 7px;
+  min-height: 44px;
+  padding: 8px 12px 8px 14px;
+  border-radius: 16px;
   color: var(--sf-ink);
   cursor: pointer;
   white-space: nowrap;
 }
 .ps-label { overflow: hidden; text-overflow: ellipsis; }
-.ps-option[data-active] { background: var(--sf-surface-soft); }
-.ps-option[aria-selected='true'] { font-weight: 600; }
+.ps-option[data-active] { background: var(--sf-tint, rgba(11, 18, 28, .05)); }
+.ps-option[aria-selected='true'] { font-weight: 600; background: var(--sf-accent-soft); }
+.ps-option[aria-selected='true'][data-active] { background: color-mix(in srgb, var(--sf-accent-soft) 80%, var(--sf-accent) 20%); }
 .ps-option[aria-disabled='true'] { color: var(--sf-muted); cursor: not-allowed; }
-.ps-tick { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--ph-pencil, var(--sf-accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ps-tick { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--sf-accent-fg, var(--sf-accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* PaperSuggestInput: the field keeps the whole width of its line, the list hangs under it. */
 .ps-suggest { display: flex; width: 100%; }
 .ps-suggest > input { flex: 1 1 auto; min-width: 0; }
 .ps-suggest .ps-list { min-width: min(320px, 100%); }
 
-/* Пальцем — 44 px, как у остальных полей формы на телефоне и сенсорном экране. */
-.sf-page[data-frame='s'] .ps-trigger,
-.sf-page[data-frame='s'] .ps-option { min-height: 44px; }
-@media (pointer: coarse) {
-  .ps-trigger,
-  .ps-option { min-height: 44px; }
-}
-
 @keyframes ps-in {
-  from { opacity: 0; transform: translateY(-3px); }
+  from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ps-list { animation: none; }
-  .ps-chevron { transition: none; }
+  .ps-chevron,
+  .ps-trigger { transition: none; }
 }

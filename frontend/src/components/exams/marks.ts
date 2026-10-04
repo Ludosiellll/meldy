@@ -43,6 +43,22 @@ export const COVERAGE_WORDS: Record<SheetCoverage, string> = {
   unmapped: 'ещё не сверено с лекциями',
 };
 
+/**
+ * The words of a status pill on the sheet (the legend's own words); the long words above are what a
+ * screen reader hears. «не сверено» has no pill on a row: before the mapping there is nothing to mark.
+ */
+export const COVERAGE_PILL_WORDS: Record<SheetCoverage, string> = {
+  full: 'есть в лекциях',
+  partial: 'частично',
+  none: 'нет ни в одной',
+  unverified: 'только по словам',
+  checking: 'проверяется',
+  unmapped: 'не сверено',
+};
+
+/** The marks stand inside status pills (Meldy 2026-10-04): this share of their margin size. */
+export const PILL_MARK_SCALE = 0.64;
+
 /** Size of each margin mark on the sheet (spec 3.8); the dash is drawn with the bold weight. */
 export const COVERAGE_MARK_SIZE: Record<CoverageMarkKind, { width: number; height: number; weight?: number }> = {
   tick: { width: 25, height: 21 },

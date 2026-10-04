@@ -38,10 +38,11 @@ export function ExaminerThinking({ text = 'Экзаменатор слушает
 }
 
 /**
- * The examiner on the desk (redesign spec 5.11): a name and a quoted question, no coloured bar —
- * the pencil brace on the sheet ties it to its row. On a desktop the block moves down to the asked
- * row's height, never further than the window allows: its question and its buttons stay in view
- * (at 1280×720 too). It is placed again when it grows (a transcript, a hint) or the window changes.
+ * The examiner on the desk (redesign spec 5.11): a blue-tinted card with the examiner's «Э», the name
+ * and the quoted question, as in the reel — the pencil brace and the flag on the sheet tie it to its
+ * row. On a desktop the block moves down to the asked row's height, never further than the window
+ * allows: its question and its buttons stay in view (at 1280×720 too). It is placed again when it
+ * grows (a transcript, a hint) or the window changes.
  */
 export default function ExaminerLine({ question, onRepeat, alignTo, children }: ExaminerLineProps) {
   const ref = useRef<HTMLElement>(null);

@@ -303,17 +303,26 @@ interface ReadinessBlockProps {
 
 const READINESS_ORDER: Readiness[] = ['confirmed', 'once', 'not_passed', 'untested'];
 
+/** «12» in the number circle of the sheet, filled and marked as the sheet marks that readiness. */
 function LegendNumber({ readiness }: { readiness: Readiness }) {
   const kind = READINESS_MARK[readiness];
   if (!kind)
     return (
-      <span className="ex-k" aria-hidden="true">
-        12
+      <span className="ex-k" data-readiness={readiness} aria-hidden="true">
+        <span className="ex-k-n">12</span>
       </span>
     );
   return (
-    <span className="ex-k" aria-hidden="true">
-      <TextMark kind={kind} seed={311 + READINESS_ORDER.indexOf(readiness) * 2} padX={6} padY={3} weight={kind === 'wave' ? 2.4 : undefined}>
+    <span className="ex-k" data-readiness={readiness} aria-hidden="true">
+      <TextMark
+        kind={kind}
+        seed={311 + READINESS_ORDER.indexOf(readiness) * 2}
+        className="ex-k-n"
+        padX={kind === 'ring' ? 4 : undefined}
+        padY={kind === 'ring' ? 4 : undefined}
+        dy={kind === 'ring' ? undefined : 4}
+        weight={kind === 'wave' ? 2.4 : undefined}
+      >
         12
       </TextMark>
     </span>

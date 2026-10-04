@@ -60,9 +60,15 @@ function FaceContent({ face, examMode = false }: { face: Face; examMode?: boolea
   const single = face.ticketNumber === null && face.questions.length === 1;
   return (
     <>
+      {/* The ticket's tag (navy pill) and its questions' numbers; the dot between them is for reading only. */}
       <p className="dw-no">
         <b>{head.strong}</b>
-        {head.rest && glue(` · ${head.rest}`)}
+        {head.rest && (
+          <>
+            <span className="dw-no-sep"> · </span>
+            <span className="dw-no-rest">{glue(head.rest)}</span>
+          </>
+        )}
       </p>
       <ol className="dw-qs" data-single={single ? '' : undefined}>
         {face.questions.map((question) => (

@@ -6,7 +6,9 @@ import { MarginStroke, Mark, TextMark } from '../marks';
 import {
   COVERAGE_MARK,
   COVERAGE_MARK_SIZE,
+  COVERAGE_PILL_WORDS,
   COVERAGE_WORDS,
+  PILL_MARK_SCALE,
   READINESS_MARK,
   markSeed,
   readinessSeed,
@@ -55,6 +57,7 @@ interface ExamSheetProps {
   sectionTitles: string[];
   selectedId: string | null;
   rateMode: boolean;
+  /** The page frame's width class (the rows reflow by the sheet's own width now; kept for the page). */
   frame: FrameSize;
   whyId: string;
   onOpen: (questionId: string) => void;
@@ -67,25 +70,30 @@ interface ExamSheetProps {
   emptyText: string | null;
 }
 
-const PHONE_SCALE = 0.88;
-
-function CoverageCell({ examId, row, frame }: { examId: string; row: SheetRowView; frame: FrameSize }) {
+/**
+ * The row's status pill: the pencil mark and the legend's word («есть в лекциях», «частично», «нет ни в
+ * одной»…) in the status colour; on a narrow sheet only its round badge. The word on the pill is for
+ * the eye; a screen reader hears the long words.
+ */
+function CoverageCell({ examId, row }: { examId: string; row: SheetRowView }) {
   const kind = COVERAGE_MARK[row.coverage];
   const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
-  const scale = frame === 's' ? PHONE_SCALE : 1;
   return (
     <span className="ex-cov" data-mark={kind ?? undefined}>
       {kind && size && (
         <Mark
           kind={kind}
           seed={markSeed(examId, row.question.position)}
-          width={Math.round(size.width * scale)}
-          height={Math.round(size.height * scale)}
+          width={Math.round(size.width * PILL_MARK_SCALE)}
+          height={Math.round(size.height * PILL_MARK_SCALE)}
           weight={size.weight}
           animate={row.appearance?.animate ?? false}
           delayMs={row.appearance?.delayMs ?? 0}
         />
       )}
+      <span className="ex-cov-word" aria-hidden="true">
+        {COVERAGE_PILL_WORDS[row.coverage]}
+      </span>
       <span className="ex-sr">{COVERAGE_WORDS[row.coverage]}</span>
     </span>
   );
@@ -102,8 +110,10 @@ function NumberCell({ examId, row, drawIn }: { examId: string; row: SheetRowView
           seed={seed}
           className="ex-qn-box"
           animate={drawIn}
-          padX={kind === 'ring' ? 7 : undefined}
-          padY={kind === 'ring' ? 3 : undefined}
+          // The number stands in a circle: the ring goes round it evenly, the line and the wave under it.
+          padX={kind === 'ring' ? 5 : undefined}
+          padY={kind === 'ring' ? 5 : undefined}
+          dy={kind === 'ring' ? undefined : 5}
           weight={kind === 'wave' ? 2.4 : undefined}
         >
           {row.number}
@@ -117,10 +127,10 @@ function NumberCell({ examId, row, drawIn }: { examId: string; row: SheetRowView
 }
 
 /**
- * The department's list as a sheet of paper: an ordered list with the department's numbering in
- * Literata, coverage marks on the left margin, readiness marks on the numbers, the lecture and its
- * fragments on the right margin (or «знаю · плаваю · не знаю» in self-rating mode). A row opens
- * «почему»; the selected row gets a pencil stroke down the margin, never a tint.
+ * The department's list as a card: an ordered list with the department's numbering in circles (the
+ * readiness marks on them), the question, its status pill with the pencil mark, the lecture and its
+ * fragments under the question (or «знаю · плаваю · не знаю» in self-rating mode). A row opens
+ * «почему»; the selected row is tinted and keeps a pencil stroke down its edge.
  */
 /** A first mention this short stays on one line: «Инфляция, фрагмент 1». */
 const ONE_LINE_NOTE = 22;
@@ -205,7 +215,7 @@ export default function ExamSheet(props: ExamSheetProps) {
                 data-coverage={row.coverage}
                 data-readiness={row.readiness}
               >
-                <CoverageCell examId={examId} row={row} frame={props.frame} />
+                <CoverageCell examId={examId} row={row} />
                 <NumberCell examId={examId} row={row} drawIn={Boolean(isPeak && peak?.animate)} />
                 {rateMode ? (
                   <span className="ex-open" style={{ cursor: 'default' }}>

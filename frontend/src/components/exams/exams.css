@@ -1,16 +1,52 @@
-/* «Билеты» screens: exams list, new exam, exam sheet, draw (redesign spec 5.8–5.10; ported from the
-   prototype exam.html / exams-new.html / ticket.html).
+/* «Экзамены»: the exams list, new exam, the exam sheet and the draw room (redesign spec 5.8–5.10), in
+   the Meldy language of 2026-10-04 (notes: 10_Project/Design_Language_2026-10-04): white cards with
+   large radii and long soft shadows, pill controls, status pills «есть / частично / нет» in green /
+   yellow / grey, the blue-tinted panel for what answers confirmed, one blue pill per screen. The
+   pencil marks of the sheet stay (components/marks), set into the pills and number circles.
 
-   Layout follows the width of the page frame, not the window: until the shell redesign the pages
-   live next to the old sidebar, so the frame width (data-frame on the .sf-page root, measured by
-   useFrameWidth) decides the columns: xl ≥ 1280, l 1024–1279, m 640–1023, s < 640 — the spec's
-   breakpoints applied to the frame. Every rule is scoped under .sf-page; nothing here touches
-   other screens. */
+   Layout follows the width of the page frame, not the window: the frame width (data-frame on the
+   .sf-page root, measured by useFrame) decides the columns: xl ≥ 1280, l 1024–1279, m 640–1023,
+   s < 640 — the spec's breakpoints applied to the frame. Every rule is scoped under .sf-page (or the
+   room's top line); nothing here touches other screens. */
 
 .sf-page[data-frame='xl'] { --sf-g: 48px; }
 .sf-page[data-frame='l'] { --sf-g: 40px; }
 .sf-page[data-frame='m'] { --sf-g: 32px; }
 .sf-page[data-frame='s'] { --sf-g: 16px; }
+
+/* Status colours (light): «есть» green, «частично» yellow, «нет» grey, «не засчитано» pink; the
+   blue-tinted panel; the soft fill of number circles and hovered rows. */
+.sf-page,
+.sf-room-bar {
+  --ex-ok-bg: var(--m-green-soft);
+  --ex-ok-fg: var(--m-green-ink);
+  --ex-half-bg: var(--m-yellow-soft);
+  --ex-half-fg: var(--m-yellow-ink);
+  --ex-no-bg: #efefea;
+  --ex-no-fg: #50565f;
+  --ex-pink-bg: #fbe3ec;
+  --ex-pink-fg: #96365d;
+  --ex-figure: #1c4db1;
+  --ex-panel: var(--sf-accent-soft);
+  --ex-panel-edge: #d7e3fa;
+  --ex-hover: #f6f6f2;
+  --ex-num: #f1f1ec;
+  --ex-card: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  --ex-lift: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+}
+.dark .sf-page,
+.dark .sf-room-bar {
+  --ex-no-bg: rgba(243, 243, 240, .09);
+  --ex-no-fg: #bcc1ca;
+  --ex-pink-bg: rgba(243, 169, 196, .16);
+  --ex-pink-fg: #f6bfd3;
+  --ex-figure: #8db2f5;
+  --ex-panel-edge: #24365a;
+  --ex-hover: rgba(243, 243, 240, .05);
+  --ex-num: rgba(243, 243, 240, .09);
+  --ex-card: var(--m-card-shadow);
+  --ex-lift: var(--m-lift-shadow);
+}
 
 .sf-page .ex-sr {
   position: absolute;
@@ -25,82 +61,149 @@
 .sf-page .ex-num { font-variant-numeric: tabular-nums; }
 .sf-page .ex-nb { white-space: nowrap; }
 
+/* A flag: the label with a notch on the right (design language 3), on the cards of the column. */
+.sf-page .ex-why > .ex-why-t:first-child,
+.sf-page .ex-peak > .ex-why-t:first-child,
+.sf-page .ex-ratecol > .ex-why-t:first-child {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin: 0 0 4px;
+  padding: 0 26px 0 14px;
+  background: var(--m-sky);
+  color: #0b121c;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%);
+}
+.sf-page .ex-peak > .ex-why-t:first-child { background: var(--m-green); }
+.sf-page .ex-ratecol > .ex-why-t:first-child { background: var(--m-yellow); }
+
 /* ---------------------------------------------------------------- page header */
 .sf-page .ex-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  padding-top: 28px;
+  gap: 24px 40px;
+  padding-top: 44px;
 }
-.sf-page .ex-crumb { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
-/* On phones and tablets the menu line already says «‹ Экзамены» (spec 4.2): no second crumb. */
+/* The crumb: a white pill with an arrow back (prototype Material.dc.html); on phones and tablets the
+   menu line already says «‹ Экзамены» (spec 4.2): no second crumb. The editor's crumb is two pills,
+   the dot between them is left to screen readers. */
+.sf-page .ex-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+  font-size: 0;
+  line-height: 0;
+  color: var(--sf-muted);
+}
 @media (max-width: 1023px) {
   .sf-shell .sf-page .ex-crumb { display: none; }
 }
 .sf-page .ex-crumb a {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
-  text-underline-offset: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  transition: background-color .45s var(--m-ease);
 }
+.sf-page .ex-crumb a:first-child { padding-left: 12px; }
+.sf-page .ex-crumb a:first-child::before {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.sf-page .ex-crumb a:hover { background: var(--ex-hover); }
 .sf-page .ex-head > :first-child { flex: 1 1 0; min-width: 0; }
-/* A word is never cut in the middle unless it alone is wider than the line (then with a hyphen
-   where the browser knows Russian hyphenation): «anywhere» would also shrink the heading's
-   min-content width and let the header squeeze «Экзамены» into «Экзамен / ы». */
+/* A word is never cut in the middle unless it alone is wider than the line (then with a hyphen where
+   the browser knows Russian hyphenation): «anywhere» would also shrink the heading's min-content
+   width and let the header squeeze «Экзамены» into «Экзамен / ы». */
 .sf-page .ex-h1 {
-  margin: 4px 0 0;
-  font-size: 40px;
-  line-height: 44px;
-  font-weight: 600;
-  letter-spacing: -.028em;
+  margin: 0;
+  font-size: clamp(40px, 4.2vw, 58px);
+  line-height: 1.04;
+  font-weight: 500;
+  letter-spacing: -.04em;
   text-wrap: balance;
   overflow-wrap: break-word;
   -webkit-hyphens: auto;
   hyphens: auto;
 }
-.dark .sf-page .ex-h1 { font-weight: 570; }
-/* Phones (spec 3.3, 4.4): heading 30/34, top field 20, the header's actions go under the heading. */
-.sf-page[data-frame='s'] .ex-head { flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; padding-top: 20px; }
+/* Phones (spec 3.3, 4.4): the header's actions go under the heading. */
+.sf-page[data-frame='s'] .ex-head { flex-wrap: wrap; align-items: flex-start; gap: 16px 24px; padding-top: 24px; }
 .sf-page[data-frame='s'] .ex-head > :first-child { flex-basis: 100%; }
-.sf-page[data-frame='s'] .ex-h1 { font-size: 30px; line-height: 34px; }
+.sf-page[data-frame='s'] .ex-h1 { font-size: 36px; line-height: 1.06; letter-spacing: -.035em; }
 .sf-page[data-frame='s'] .ex-head .ex-draw { justify-items: start; padding-bottom: 0; }
-.sf-page .ex-meta { margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
-.sf-page .ex-links { display: flex; flex-wrap: wrap; gap: 0 24px; margin-top: 2px; }
-.sf-page .ex-links .sf-link { font-size: 15px; color: var(--sf-muted); }
-.sf-page .ex-links .sf-link:hover { color: var(--sf-ink); }
-.sf-page .ex-links .sf-link[aria-pressed='true'] { color: var(--sf-ink); font-weight: 600; text-decoration-color: currentColor; }
-.sf-page .ex-draw { display: grid; justify-items: end; gap: 10px; padding-bottom: 6px; flex: none; }
+.sf-page[data-frame='m'] .ex-head { padding-top: 32px; }
+.sf-page .ex-meta { margin-top: 12px; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page[data-frame='s'] .ex-meta { font-size: 16px; }
+/* «Изменить список · Лекции · Самооценка»: white pills; «Самооценка» is pressed while the mode is on. */
+.sf-page .ex-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.sf-page .ex-links .sf-link {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-decoration: none;
+  transition: background-color .45s var(--m-ease), color .3s ease;
+}
+.sf-page .ex-links .sf-link:hover { background: var(--ex-hover); }
+.sf-page .ex-links .sf-link[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
+.sf-page .ex-links .sf-link[aria-disabled='true'] { background: transparent; color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); }
+.sf-page .ex-draw { display: grid; justify-items: end; gap: 12px; padding-bottom: 6px; flex: none; }
 .sf-page .ex-draw-mode { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-align: right; }
 .sf-page .ex-draw-mode .sf-link { min-height: 0; font-size: 15px; color: var(--sf-ink); }
 .sf-page .ex-mode-menu {
   position: absolute;
   right: 0;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   z-index: 30;
-  width: min(340px, calc(100vw - 32px));
-  padding: 8px 0;
-  border-radius: 8px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 6px;
+  border-radius: 24px;
   background: var(--sf-surface);
-  box-shadow: var(--sf-pop-shadow);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
   text-align: left;
 }
 .sf-page .ex-mode-menu button {
   display: block;
   width: 100%;
   min-height: 44px;
-  padding: 8px 16px;
+  padding: 10px 14px;
+  border-radius: 16px;
   text-align: left;
   font-size: 15px;
   line-height: 21px;
+  font-weight: 500;
   color: var(--sf-ink);
 }
-.sf-page .ex-mode-menu button:hover { background: var(--sf-tint); }
-.sf-page .ex-mode-menu button[aria-checked='true'] { font-weight: 600; }
+.sf-page .ex-mode-menu button:hover,
+.sf-page .ex-mode-menu button:focus-visible { background: var(--ex-hover); outline: none; }
+.sf-page .ex-mode-menu button[aria-checked='true'] { background: var(--sf-accent-soft); }
 .sf-page .ex-mode-menu small { display: block; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--sf-muted); font-weight: 400; }
 /* The way of drawing on phones and tablets: a bottom sheet over the page (the fixed bar under it has
-   no room for a popover). Rows of 52, the chosen one in ink 600. */
+   no room for a popover). Rows of 52, the chosen one on the blue tint. */
 .sf-page .ex-mode { position: relative; }
 .sf-page .ex-mode-sheet {
   position: fixed;
@@ -109,29 +212,31 @@
   max-height: 78vh;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 18px var(--sf-g) calc(16px + env(safe-area-inset-bottom));
-  border-radius: 14px 14px 0 0;
+  padding: 22px 10px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 28px 28px 0 0;
   background: var(--sf-surface);
-  box-shadow: var(--sf-pop-shadow);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
   text-align: left;
-  animation: ex-sheet-up 200ms cubic-bezier(.22, .61, .36, 1) both;
+  animation: ex-sheet-up 260ms var(--m-ease) both;
 }
-.sf-page .ex-mode-sheet-t { margin: 0 0 6px; font-size: 19px; line-height: 26px; font-weight: 600; color: var(--sf-ink); }
+.sf-page .ex-mode-sheet-t { margin: 0 14px 8px; font-size: 21px; line-height: 27px; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); }
 .sf-page .ex-mode-sheet button {
   display: block;
   width: 100%;
   min-height: 52px;
-  padding: 11px 0 12px;
-  border-top: 1px solid var(--sf-line);
+  padding: 11px 14px 12px;
+  border-radius: 18px;
   text-align: left;
   font-size: 17px;
   line-height: 24px;
+  font-weight: 500;
   color: var(--sf-ink);
 }
-.sf-page .ex-mode-sheet button[aria-checked='true'] { font-weight: 600; }
+.sf-page .ex-mode-sheet button + button { margin-top: 2px; }
+.sf-page .ex-mode-sheet button[aria-checked='true'] { background: var(--sf-accent-soft); }
 .sf-page .ex-mode-sheet small { display: block; margin-top: 2px; font-size: 15px; line-height: 22px; color: var(--sf-muted); font-weight: 400; }
 @keyframes ex-sheet-up {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: none; }
 }
 /* Under the fixed «Тянуть билет»: «Как на экзамене · изменить», centred; the link keeps a 44 px target
@@ -143,171 +248,308 @@
   .sf-page .ex-draw-mode .sf-link { min-height: 44px; margin: -11px 0; }
 }
 
-/* Secondary outlined pill (at most one in a screen's content). */
+/* The white pill beside the one blue pill (at most one in a screen's content). */
 .sf-page .ex-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 0 20px;
-  border: 1px solid color-mix(in srgb, var(--sf-ink) 30%, transparent);
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
   border-radius: 999px;
-  background: transparent;
-  font-size: 15px;
-  font-weight: 600;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  font-size: 16px;
+  font-weight: 500;
   line-height: 1;
   color: var(--sf-ink);
   white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
-  transition: border-color 150ms ease;
+  transition: box-shadow .6s var(--m-ease), background-color .45s var(--m-ease);
 }
-.sf-page .ex-secondary:hover { border-color: var(--sf-ink); }
-.sf-page .ex-secondary:disabled { cursor: not-allowed; color: var(--sf-muted); border-color: var(--sf-line); }
-.sf-page .sf-primary:disabled,
-.sf-page .sf-primary[aria-disabled='true'] {
-  background: var(--sf-surface-soft);
-  color: var(--sf-muted);
-  box-shadow: none;
-  cursor: not-allowed;
-  transform: none;
+.sf-page .ex-secondary:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
+.sf-page .ex-secondary:disabled { cursor: not-allowed; color: var(--sf-muted); box-shadow: inset 0 0 0 1px var(--sf-line); background: transparent; }
+/* «Новый экзамен»: the white pill with a dark circle and a plus (prototype .pill.white). */
+.sf-page .ex-new { padding: 0 6px 0 22px; gap: 12px; }
+.sf-page .ex-new-dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  transition: transform .7s var(--m-ease);
 }
+.sf-page .ex-new-dot svg { width: 16px; height: 16px; }
+.sf-page .ex-new:hover .ex-new-dot { transform: rotate(90deg); }
 /* Before the first mapping: «Тянуть билет» is a link under «Разметить по лекциям». */
 .sf-page .ex-draw .ex-draw-alt { font-size: 16px; }
 .sf-page .ex-cta-alt { margin-top: 6px; font-size: 16px; line-height: 22px; text-align: center; }
 .sf-page .ex-cta-alt .sf-link { min-height: 44px; margin: -11px 0; vertical-align: baseline; }
 
-/* Plain lines on the desk: states, banners, errors (no boxes, no red). */
-.sf-page .ex-note { margin-top: 12px; font-size: 15px; line-height: 22px; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page .ex-note .sf-link { min-height: 0; font-size: 15px; margin-left: 6px; }
-.sf-page .ex-note[data-quiet] { color: var(--sf-muted); }
-.sf-page .ex-notes { margin-top: 8px; }
-.sf-page .ex-error h2 { font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -.017em; }
-.sf-page .ex-error p { margin-top: 6px; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
-.sf-page .ex-error { padding-top: 40px; }
-.sf-page .ex-loading { padding-top: 40px; font-size: 17px; color: var(--sf-muted); }
+/* States, banners, errors: a white callout with a yellow dot (no red); a quiet note is a muted line. */
+.sf-page .ex-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin-top: 12px;
+  padding: 13px 18px 13px 16px;
+  border-radius: 20px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--sf-ink);
+  text-wrap: pretty;
+}
+.sf-page .ex-note::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-right: -2px;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.sf-page .ex-note .sf-link {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--sf-accent-soft);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sf-accent-fg);
+  text-decoration: none;
+}
+.sf-page .ex-note .sf-link:hover { background: color-mix(in srgb, var(--sf-accent-soft) 70%, var(--sf-accent) 30%); }
+.sf-page .ex-note .sf-link[aria-disabled='true'] { background: transparent; color: var(--sf-muted); }
+.sf-page .ex-note[data-quiet] { padding: 0 2px; background: none; box-shadow: none; color: var(--sf-muted); }
+.sf-page .ex-note[data-quiet]::before { display: none; }
+.sf-page .ex-notes { display: grid; justify-items: start; gap: 10px; margin-top: 24px; }
+.sf-page .ex-notes .ex-note { margin-top: 0; }
+.sf-page .ex-error { max-width: 560px; padding-top: 56px; }
+.sf-page .ex-error h2 { font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.028em; }
+.sf-page .ex-error p { margin-top: 10px; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
+.sf-page .ex-error .sf-link { margin-top: 8px; }
+.sf-page .ex-loading { padding-top: 56px; font-size: 17px; color: var(--sf-muted); }
 
-/* ---------------------------------------------------------------- body: sheet + Meldy's column */
+/* ---------------------------------------------------------------- body: the sheet + Meldy's column */
 .sf-page .ex-body {
   display: grid;
   grid-template-columns: minmax(0, 760px) minmax(0, 1fr);
-  gap: 56px;
+  gap: 48px;
   align-items: start;
-  margin-top: 24px;
+  margin-top: 32px;
 }
-.sf-page[data-frame='l'] .ex-body { grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; }
+.sf-page[data-frame='l'] .ex-body { grid-template-columns: minmax(0, 1fr) 340px; gap: 36px; }
 .sf-page[data-frame='m'] .ex-body,
-.sf-page[data-frame='s'] .ex-body { grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 18px; }
+.sf-page[data-frame='s'] .ex-body { grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 20px; }
 
-/* The legend is the filter: each mark with its word and count. */
-.sf-page .ex-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; margin: 0 0 14px; padding: 0; list-style: none; }
+/* The legend is the filter: status pills with the sheet's own marks and counts; the chosen one is ink. */
+.sf-page .ex-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
 .sf-page .ex-filter button {
+  --ph-pencil-desk: currentColor;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 44px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
   font-size: 15px;
   font-weight: 500;
-  color: var(--sf-muted);
+  color: var(--sf-ink);
   white-space: nowrap;
   cursor: pointer;
-  transition: color 150ms ease;
+  transition: background-color .45s var(--m-ease), color .3s ease, box-shadow .3s ease;
 }
-.sf-page .ex-filter button:hover { color: var(--sf-ink); }
-.sf-page .ex-filter button[aria-pressed='true'] { color: var(--sf-ink); font-weight: 600; }
-.sf-page .ex-filter button[aria-pressed='true'] .ex-filter-word { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
-.sf-page .ex-filter .ex-count { font-variant-numeric: tabular-nums; }
-.sf-page .ex-filter-mark { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 17px; }
-.sf-page[data-frame='s'] .ex-filter { gap: 0 16px; }
+.sf-page .ex-filter button[data-cov='full'] { background: var(--ex-ok-bg); color: var(--ex-ok-fg); box-shadow: none; }
+.sf-page .ex-filter button[data-cov='partial'] { background: var(--ex-half-bg); color: var(--ex-half-fg); box-shadow: none; }
+.sf-page .ex-filter button[data-cov='none'] { background: var(--ex-no-bg); color: var(--ex-no-fg); box-shadow: none; }
+.sf-page .ex-filter button[data-cov='unverified'] { color: var(--ex-ok-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ex-ok-fg) 45%, transparent); background: transparent; }
+.sf-page .ex-filter button[data-cov='unmapped'] { color: var(--sf-muted); box-shadow: inset 0 0 0 1.5px var(--sf-line); background: transparent; }
+.sf-page .ex-filter button:has(.ex-filter-mark) { padding-left: 12px; }
+.sf-page .ex-filter button:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+.sf-page .ex-filter button[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); box-shadow: none; }
+.sf-page .ex-filter .ex-count { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sf-page .ex-filter-mark { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 16px; }
+.sf-page[data-frame='s'] .ex-filter { gap: 6px; }
+.sf-page[data-frame='s'] .ex-filter button { min-height: 44px; padding: 0 14px; }
+.sf-page[data-frame='s'] .ex-filter button:has(.ex-filter-mark) { padding-left: 11px; }
 
 /* ---------------------------------------------------------------- the sheet: the department's list */
-.sf-page .ex-sheet { padding: 30px 26px 34px 14px; }
-.sf-page .ex-sheet-h { padding-left: 84px; }
+/* A white card; each question a row: the number in a circle (its answers mark it: a ring for
+   подтверждено, a line under it for засчитано, a wave for не засчитано, the circle filled in the
+   colours of «Сегодня»), the question, the status pill with its pencil mark, the lecture and its
+   fragment under the question in Meldy's blue. The rows reflow by the sheet's own width. */
+.sf-page .ex-sheet {
+  container: ex-sheet / inline-size;
+  padding: 30px 24px 24px;
+  border-radius: 40px;
+}
+.sf-page .ex-sheet-h { padding: 0 14px 20px; border-bottom: 1px solid var(--ph-paper-rule); }
 .sf-page .ex-sheet-h h2 {
-  font-family: var(--ph-serif);
-  font-size: 22px;
-  line-height: 28px;
-  font-weight: 600;
-  letter-spacing: -.01em;
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: -.024em;
   text-wrap: balance;
 }
-.sf-page .ex-qs { margin: 10px 0 0; padding: 0; list-style: none; }
+.sf-page .ex-qs { margin: 8px 0 0; padding: 0; list-style: none; }
+/* A section of the department's list: a label, as «БИЛЕТЫ» in the reel. */
 .sf-page .ex-sec {
-  padding: 20px 0 6px 84px;
-  font-family: var(--ph-serif);
-  font-size: 17px;
-  line-height: 24px;
+  margin: 0;
+  padding: 26px 14px 8px;
+  font-size: 15px;
+  line-height: 1.35;
   font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--sf-accent-fg);
+  text-wrap: balance;
   transition: opacity 300ms ease;
 }
+.sf-page .ex-sec:first-child { padding-top: 16px; }
 .sf-page .ex-q {
   position: relative;
   display: grid;
-  grid-template-columns: 44px 40px minmax(0, 1fr) 196px;
+  grid-template-columns: 38px minmax(0, 1fr) 30px;
+  column-gap: 14px;
+  row-gap: 6px;
   align-items: start;
-  min-height: 44px;
-  padding: 7px 0 8px;
-  border-radius: 2px;
-  transition: opacity 300ms ease;
+  padding: 11px 14px 12px;
+  border-radius: 20px;
+  transition: opacity 300ms ease, background-color .3s ease;
 }
-.sf-page[data-frame='l'] .ex-q { grid-template-columns: 44px 40px minmax(0, 1fr) 168px; }
-.sf-page[data-frame='xl'] .ex-sheet[data-rate] .ex-q,
-.sf-page[data-frame='l'] .ex-sheet[data-rate] .ex-q { grid-template-columns: 44px 40px minmax(0, 1fr) 214px; }
-.sf-page .ex-cov { display: flex; justify-content: center; align-items: flex-start; min-height: 26px; padding-top: 3px; }
-.sf-page .ex-cov[data-mark='dash'] { padding-top: 10px; }
-.sf-page .ex-cov[data-mark='cup'] { padding-top: 9px; }
-.sf-page .ex-cov[data-mark='dot'] { padding-top: 8px; }
-.sf-page .ex-qn {
-  padding-top: 1px;
-  font-family: var(--ph-serif);
-  font-size: 16px;
-  line-height: 26px;
-  color: var(--ph-paper-muted);
+.sf-page .ex-q + .ex-q::before {
+  content: '';
+  position: absolute;
+  left: 66px;
+  right: 14px;
+  top: 0;
+  height: 1px;
+  background: var(--ph-paper-rule);
+  transition: opacity .3s ease;
+}
+.sf-page .ex-q:hover,
+.sf-page .ex-q[data-selected],
+.sf-page .ex-q[data-peak] { background: var(--ex-hover); }
+.sf-page .ex-q[data-selected] { background: var(--sf-accent-soft); }
+.sf-page .ex-q:hover::before,
+.sf-page .ex-q:hover + .ex-q::before,
+.sf-page .ex-q[data-selected]::before,
+.sf-page .ex-q[data-selected] + .ex-q::before,
+.sf-page .ex-q[data-peak]::before,
+.sf-page .ex-q[data-peak] + .ex-q::before { opacity: 0; }
+/* Narrow sheet: the number, the question with its note under it, the round status badge on the right. */
+.sf-page .ex-qn { grid-column: 1; grid-row: 1; }
+.sf-page .ex-open { grid-column: 2; grid-row: 1; }
+.sf-page .ex-cov { grid-column: 3; grid-row: 1; justify-self: end; }
+.sf-page .ex-qnote,
+.sf-page .ex-rate { grid-column: 2 / -1; grid-row: 2; }
+.sf-page .ex-because { grid-column: 2 / -1; }
+
+/* The number: a circle; its readiness fills it (blue — подтверждено, yellow — засчитано, pink — не
+   засчитано, as the dots of «Сегодня») and the pencil marks it. */
+.sf-page .ex-qn { display: flex; justify-content: center; padding-top: 0; }
+.sf-page .ex-qn-box {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ex-num);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ph-paper-ink);
   font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
 }
-.sf-page .ex-qn-box { display: inline-block; min-width: 1.45em; text-align: center; }
+.sf-page .ex-q[data-readiness='confirmed'] .ex-qn-box { background: var(--sf-accent); color: #fff; }
+.sf-page .ex-q[data-readiness='once'] .ex-qn-box { background: var(--m-yellow); color: #0b121c; }
+.sf-page .ex-q[data-readiness='not_passed'] .ex-qn-box { background: var(--m-pink); color: #0b121c; }
+
 .sf-page .ex-open {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 0 20px 0 0;
+  padding: 5px 0 0;
   border: 0;
   background: none;
   text-align: left;
-  font-family: var(--ph-serif);
+  font-family: var(--ph-sans);
   font-size: 18px;
-  line-height: 27px;
+  line-height: 26px;
   font-weight: 400;
   color: var(--ph-paper-ink);
   text-wrap: pretty;
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.sf-page .ex-open::after { content: ''; position: absolute; inset: 0; border-radius: 2px; }
+.sf-page .ex-open::after { content: ''; position: absolute; inset: 0; border-radius: 20px; }
 .sf-page .ex-open:focus-visible { outline: none; }
 .sf-page .ex-open:focus-visible::after { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
+
+/* The status: a pill with the pencil mark and its word («есть в лекциях», «частично», «нет ни в
+   одной»…), the same as the legend above; on a narrow sheet only its round badge. The words for
+   screen readers are the long ones (marks.ts). */
+.sf-page .ex-cov {
+  --ph-pencil-desk: currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  margin-top: 3px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sf-page .ex-cov-word { display: none; }
+.sf-page .ex-q[data-coverage='full'] .ex-cov { background: var(--ex-ok-bg); color: var(--ex-ok-fg); }
+.sf-page .ex-q[data-coverage='partial'] .ex-cov { background: var(--ex-half-bg); color: var(--ex-half-fg); }
+.sf-page .ex-q[data-coverage='none'] .ex-cov { background: var(--ex-no-bg); color: var(--ex-no-fg); }
+.sf-page .ex-q[data-coverage='unverified'] .ex-cov { color: var(--ex-ok-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ex-ok-fg) 45%, transparent); }
+.sf-page .ex-q[data-coverage='checking'] .ex-cov { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
+/* Not mapped yet: no badge at all, only the words for screen readers; the question takes its room. */
+.sf-page .ex-q[data-coverage='unmapped'] .ex-cov { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); }
+.sf-page .ex-q[data-coverage='unmapped'] .ex-open { grid-column: 2 / -1; }
+.sf-page .ex-q[data-coverage='checking'] .ex-cov .sf-mark { animation: ex-pulse 1.4s ease-in-out infinite; }
+@keyframes ex-pulse {
+  50% { opacity: .45; }
+}
+
 /* The margin note: «Нейронные сети и глубокое обучение, фрагмент 3» (two lines at most, the full name
    is in title and in «почему»), then «там же, фрагмент 4» while the lecture stays the same. */
 .sf-page .ex-qnote {
   position: relative;
   z-index: 1;
   display: block;
-  padding-top: 3px;
+  padding-top: 0;
   font-size: 15px;
-  line-height: 20px;
+  line-height: 21px;
   font-weight: 500;
   overflow-wrap: break-word;
 }
-/* The lecture's name on its first mention: two lines at most; its fragment always stays visible on the
-   line under it (spec 5.9: the row grows, the note is never cut). */
-.sf-page .ex-qnote-lead {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.sf-page .ex-qnote-frag { display: block; }
-.sf-page .ex-qnote[data-short] .ex-qnote-lead,
-.sf-page .ex-qnote[data-short] .ex-qnote-frag { display: inline; }
+/* Under the question the note has the line's width: the lecture and its fragment are one run of text,
+   so a long name never cuts the fragment off (spec 5.9: the row grows, the note is never cut). */
+.sf-page .ex-qnote-lead,
+.sf-page .ex-qnote-frag { display: inline; }
 .sf-page .ex-qnote[data-fresh] { animation: ex-note-in 150ms ease both; }
 @keyframes ex-note-in {
   from { opacity: 0; }
@@ -316,8 +558,7 @@
 .sf-page .ex-because {
   position: relative;
   z-index: 1;
-  grid-column: 3 / -1;
-  margin-top: 4px;
+  margin-top: 2px;
   font-family: var(--ph-sans);
   font-size: 15px;
   line-height: 22px;
@@ -325,110 +566,164 @@
 }
 .sf-page .ex-sheet[data-dim] .ex-q:not([data-peak]),
 .sf-page .ex-sheet[data-dim] .ex-sec { opacity: .42; }
+/* The selected row keeps its pencil stroke, now inside the tinted row. */
+.sf-page .ex-q .sf-margin-stroke { left: 3px; top: 12px; bottom: 12px; }
 
-/* Self-rating mode: «знаю · плаваю · не знаю» in the right margin, one tap each. */
+/* A sheet wide enough for three columns: the number, the question with its note, the status pill. */
+@container ex-sheet (min-width: 600px) {
+  .sf-page .ex-q { grid-template-columns: 38px minmax(0, 1fr) 176px; column-gap: 16px; }
+  .sf-page .ex-q + .ex-q::before { left: 68px; }
+  .sf-page .ex-qnote,
+  .sf-page .ex-rate { grid-column: 2; }
+  .sf-page .ex-cov {
+    width: auto;
+    height: 32px;
+    margin-top: 2px;
+    padding: 0 13px 0 11px;
+  }
+  .sf-page .ex-cov-word { display: inline; }
+  .sf-page .ex-because { grid-column: 2 / -1; }
+}
+
+/* Self-rating mode: «знаю · плаваю · не знаю» under each question, a segmented pill; the chosen word
+   is underlined in graphite, the student's hand. */
 .sf-page .ex-rate-intro {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 4px 20px;
-  margin: 14px 0 0 84px;
-  padding: 10px 0 0;
-  border-top: 1px solid var(--ph-paper-rule);
-  font-size: 15px;
+  gap: 8px 20px;
+  margin: 16px 0 4px;
+  padding: 12px 12px 12px 18px;
+  border-radius: 22px;
+  background: var(--ex-panel);
+  font-size: 16px;
   line-height: 22px;
-  color: var(--ph-paper-muted);
+  color: var(--ph-paper-ink);
 }
-.sf-page .ex-rate-intro .sf-link { min-height: 36px; font-size: 15px; }
+.sf-page .ex-rate-intro .sf-link {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--ph-paper);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  text-decoration: none;
+}
 .sf-page .ex-rate {
   position: relative;
   z-index: 1;
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 2px;
-  padding-top: 1px;
+  align-items: center;
+  justify-self: start;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 3px;
+  border-radius: 20px;
+  background: var(--ex-num);
   font-size: 15px;
   line-height: 20px;
 }
 .sf-page .ex-rate button {
   min-height: 32px;
-  padding: 0 1px;
+  padding: 0 13px;
+  border-radius: 999px;
   font-family: var(--ph-sans);
   font-size: 15px;
   font-weight: 500;
   color: var(--ph-paper-muted);
   cursor: pointer;
+  transition: background-color .3s ease, color .3s ease;
 }
 .sf-page .ex-rate button:hover { color: var(--ph-paper-ink); }
-.sf-page .ex-rate button[aria-pressed='true'] { color: var(--ph-paper-ink); font-weight: 600; }
+.sf-page .ex-rate button[aria-pressed='true'] {
+  background: var(--ph-paper);
+  color: var(--ph-paper-ink);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--sf-line), 0 2px 6px -3px rgba(11, 18, 28, .25);
+}
 .sf-page .ex-rate button:disabled { cursor: progress; }
-.sf-page .ex-rate .ex-dot { padding: 0 3px; color: var(--ph-paper-muted); }
-.sf-page .ex-rate-error { flex-basis: 100%; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--ph-paper-ink); }
+.sf-page .ex-rate .ex-dot { display: none; }
+.sf-page .ex-rate-error { flex-basis: 100%; margin: 4px 10px 4px; font-size: 14px; line-height: 20px; color: var(--ph-paper-ink); }
 
-/* Phones: number, mark and question in three columns; the note goes under the question. */
-.sf-page[data-frame='s'] .ex-sheet { margin: 0 -6px; padding: 20px 12px 24px 4px; }
-.sf-page[data-frame='s'] .ex-sheet-h,
-.sf-page[data-frame='s'] .ex-sec { padding-left: 64px; }
-.sf-page[data-frame='s'] .ex-sheet-h h2 { font-size: 19px; line-height: 25px; }
-.sf-page[data-frame='s'] .ex-sec { font-size: 16px; }
-.sf-page[data-frame='s'] .ex-q,
-.sf-page[data-frame='m'] .ex-q { grid-template-columns: 32px 32px minmax(0, 1fr); padding: 8px 0 9px; }
-.sf-page[data-frame='m'] .ex-q { grid-template-columns: 44px 40px minmax(0, 1fr); }
-.sf-page[data-frame='s'] .ex-qn { font-size: 15px; line-height: 24px; }
-.sf-page[data-frame='s'] .ex-open { padding-right: 4px; font-size: 17px; line-height: 24px; }
-.sf-page[data-frame='s'] .ex-qnote,
-.sf-page[data-frame='m'] .ex-qnote,
-.sf-page[data-frame='s'] .ex-rate,
-.sf-page[data-frame='m'] .ex-rate { grid-column: 3; padding-top: 3px; }
-/* Under the question on a phone the note has the full width: one run of text. */
-.sf-page[data-frame='s'] .ex-qnote-lead,
-.sf-page[data-frame='m'] .ex-qnote-lead,
-.sf-page[data-frame='s'] .ex-qnote-frag,
-.sf-page[data-frame='m'] .ex-qnote-frag { display: inline; }
+/* Phones: the card runs nearly edge to edge. */
+.sf-page[data-frame='s'] .ex-sheet { margin: 0 -6px; padding: 22px 8px 14px; border-radius: 32px; }
+.sf-page[data-frame='s'] .ex-sheet-h { padding: 0 12px 16px; }
+.sf-page[data-frame='s'] .ex-sheet-h h2 { font-size: 22px; }
+.sf-page[data-frame='s'] .ex-sec { padding-left: 12px; padding-right: 12px; font-size: 14.6px; letter-spacing: .08em; }
+.sf-page[data-frame='s'] .ex-q { column-gap: 12px; padding: 10px 10px 11px; }
+.sf-page[data-frame='s'] .ex-q + .ex-q::before { left: 60px; right: 10px; }
+.sf-page[data-frame='s'] .ex-open { font-size: 17px; line-height: 25px; padding-top: 5px; }
 .sf-page[data-frame='s'] .ex-rate button { min-height: 44px; }
 /* Touch targets: 44 px on a phone-width frame and on any touch screen (desktop keeps the compact rows). */
 .sf-page[data-frame='s'] .ex-rl button,
+.sf-page[data-frame='s'] .ex-links .sf-link,
+.sf-page[data-frame='s'] .ex-note .sf-link,
 .sf-page[data-frame='s'] .ex-rate-intro .sf-link,
 .sf-page[data-frame='s'] .ex-attempts a,
 .sf-page[data-frame='s'] .ex-attempts span,
-.sf-page[data-frame='s'] .nx-sel select,
 .sf-page[data-frame='s'] .nx-sel input { min-height: 44px; }
 @media (pointer: coarse) {
   .sf-page .ex-rl button,
+  .sf-page .ex-links .sf-link,
+  .sf-page .ex-note .sf-link,
+  .sf-page .ex-filter button,
   .sf-page .ex-rate-intro .sf-link,
   .sf-page .ex-rate button,
   .sf-page .ex-attempts a,
   .sf-page .ex-attempts span,
-  .sf-page .nx-sel select,
   .sf-page .nx-sel input { min-height: 44px; }
 }
-.sf-page[data-frame='s'] .ex-rate-intro { margin-left: 64px; }
-.sf-page[data-frame='s'] .ex-because { grid-column: 3; }
-.sf-page[data-frame='s'] .sf-margin-stroke { left: -6px; }
 
-/* ---------------------------------------------------------------- Meldy's column on the desk */
+/* ---------------------------------------------------------------- Meldy's column: cards */
 .sf-page .ex-col {
   position: sticky;
-  /* The window scrolls under the 56 px menu line: the column sticks 24 px below it (spec 3.4). */
-  top: calc(var(--sf-bar-h) + 24px);
-  max-height: calc(100vh - var(--sf-bar-h) - 36px);
+  /* The window scrolls under the menu line: the column sticks below it (spec 3.4). */
+  top: calc(var(--sf-bar-h) + 20px);
+  display: grid;
+  gap: 20px;
+  align-content: start;
+  max-height: calc(100vh - var(--sf-bar-h) - 28px);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  padding: 0 4px 8px 2px;
-  margin-left: -2px;
+  /* Room for the cards' soft shadows inside the scrolling column. */
+  margin: -4px -20px 0;
+  padding: 4px 20px 40px;
 }
 .sf-page[data-frame='m'] .ex-col,
-.sf-page[data-frame='s'] .ex-col { position: static; max-height: none; overflow: visible; margin: 24px 0 20px; padding: 0; }
+.sf-page[data-frame='s'] .ex-col { position: static; gap: 12px; max-height: none; overflow: visible; margin: 24px 0 20px; padding: 0; }
+.sf-page .ex-col > .ex-summary,
+.sf-page .ex-col > .ex-why,
+.sf-page .ex-col > .ex-ratecol {
+  padding: 30px 32px 30px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card);
+}
+.sf-page .ex-col > .ex-blk,
+.sf-page .ex-col > .ex-peak {
+  margin: 0;
+  padding: 28px 32px 28px;
+  border: 0;
+  border-radius: 40px;
+  background: var(--ex-panel);
+  box-shadow: inset 0 0 0 1px var(--ex-panel-edge);
+}
+.sf-page[data-frame='s'] .ex-col > .ex-summary,
+.sf-page[data-frame='s'] .ex-col > .ex-why,
+.sf-page[data-frame='s'] .ex-col > .ex-ratecol,
+.sf-page[data-frame='s'] .ex-col > .ex-blk,
+.sf-page[data-frame='s'] .ex-col > .ex-peak { padding: 24px 22px; border-radius: 32px; }
+/* Phones and tablets: «Подтверждено ответами — 6 из 40» above the sheet is one blue-tinted line. */
+.sf-page .ex-col > .ex-blk[data-part='head'] { padding: 16px 22px; border-radius: 24px; }
 /* Phones: the readiness legend and the confidence line come after the sheet, above «Тянуть билет». */
 .sf-page[data-frame='m'] .ex-col-after,
-.sf-page[data-frame='s'] .ex-col-after { margin: 8px 0 0; }
-.sf-page .ex-col-after .ex-blk { margin-top: 16px; }
-.sf-page .ex-blk[data-part='head'] { margin-top: 16px; padding-top: 14px; }
+.sf-page[data-frame='s'] .ex-col-after { margin: 20px 0 0; }
+.sf-page .ex-col-after .ex-blk { margin-top: 0; }
 .sf-page .ex-caveat[data-inline] .sf-link { min-height: 0; font-size: 15px; }
-.sf-page .ex-pair { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; align-items: baseline; }
+.sf-page .ex-pair { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 18px; align-items: baseline; }
 .sf-page .ex-pair + .ex-pair { margin-top: 14px; }
 /* A range («35–41 %») stacks both pairs the same way: number, then its label 6 px below. */
 .sf-page .ex-pair[data-wide] { grid-template-columns: minmax(0, 1fr); }
@@ -436,14 +731,13 @@
 .sf-page .ex-pair[data-wide] .ex-sub { grid-column: 1; }
 .sf-page .ex-pair[data-wide] + .ex-pair[data-wide] { margin-top: 20px; }
 .sf-page .ex-big {
-  font-size: 56px;
+  font-size: 64px;
   line-height: 1;
-  font-weight: 600;
-  letter-spacing: -.04em;
+  font-weight: 500;
+  letter-spacing: -.045em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.dark .sf-page .ex-big { font-weight: 570; }
 .sf-page .ex-pair[data-first] .ex-big { color: var(--sf-muted); }
 /* Everything the stage script reads aloud is 18 px or more in the 1280×720 window (Jury_Check 9). */
 .sf-page .ex-lbl { font-size: 18px; line-height: 25px; }
@@ -451,9 +745,9 @@
 
 /* Peak 1 (Jury_Check 10), top to bottom: (a) the questions in no lecture, the figure at the size of
    the percentages and a filter of the sheet; (b) the question share struck through by pencil, muted,
-   beside the ticket share in ink, the label and the counts under them; (c) the tickets without
+   beside the ticket share in blue, the label and the counts under them; (c) the tickets without
    «есть»; the caveat, «Как считается» and the action line right under it. */
-.sf-page .ex-pairs:not([data-compact]) .ex-pair + .ex-pair { margin-top: 18px; }
+.sf-page .ex-pairs:not([data-compact]) .ex-pair + .ex-pair { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--sf-line); }
 .sf-page .ex-gap { align-items: baseline; }
 .sf-page .ex-gap-n {
   justify-self: start;
@@ -464,85 +758,103 @@
   color: var(--sf-ink);
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 8px;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 9px;
   text-decoration-color: transparent;
   transition: text-decoration-color 150ms ease;
 }
-.sf-page .ex-gap-n:hover { text-decoration-color: color-mix(in srgb, currentColor 32%, transparent); }
-.sf-page .ex-gap-n[aria-pressed='true'] { text-decoration-color: currentColor; }
-.sf-page .ex-gap-n:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 4px; }
+.sf-page .ex-gap-n:hover { text-decoration-color: color-mix(in srgb, var(--m-yellow) 80%, transparent); }
+.sf-page .ex-gap-n[aria-pressed='true'] { text-decoration-color: var(--m-yellow); }
+.sf-page .ex-gap-n:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 8px; }
 .sf-page .ex-share { display: block; }
 .sf-page .ex-figs { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 20px; row-gap: 4px; }
-.sf-page .ex-figs-was { color: var(--sf-muted); }
-/* A range («43–68 %») is wider: both figures stay on one row at 40 px. */
-.sf-page .ex-figs[data-range] { font-size: 40px; column-gap: 16px; }
-.sf-page .ex-share .ex-lbl { margin-top: 8px; }
-.sf-page .ex-share .ex-sub { margin-top: 2px; }
-.sf-page .ex-gapline { margin-top: 14px; font-size: 18px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; }
-.sf-page .ex-act { margin-top: 6px; font-size: 18px; line-height: 26px; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .ex-figs-was { color: var(--sf-muted); font-size: .72em; }
+.sf-page .ex-figs-now { color: var(--ex-figure); }
+/* A range («43–68 %») is wider: both figures stay on one row at 44 px. */
+.sf-page .ex-figs[data-range] { font-size: 44px; column-gap: 16px; }
+.sf-page .ex-share .ex-lbl { margin-top: 10px; }
+.sf-page .ex-share .ex-sub { margin-top: 4px; }
+.sf-page .ex-gapline { margin-top: 18px; font-size: 18px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .ex-act { margin-top: 8px; font-size: 18px; line-height: 26px; color: var(--sf-ink); text-wrap: pretty; }
 /* Read aloud as part of the sentence: the link keeps the line's size (it sits inside «Как считается»). */
 .sf-page .ex-act .sf-link.ex-act-link { min-height: 0; font-size: inherit; line-height: inherit; font-weight: 600; }
-.sf-page .ex-act .ex-act-link[aria-pressed='true'] { text-decoration-thickness: 2px; text-decoration-color: currentColor; }
+.sf-page .ex-act .ex-act-link[aria-pressed='true'] { text-decoration-thickness: 3px; text-decoration-color: var(--m-yellow); }
 /* The short caveat is for the low window only; the whole assumption then opens the formula. */
 .sf-page .ex-caveat[data-short],
 .sf-page .ex-calc-assume { display: none; }
 .sf-page .ex-summary[data-part='rest'] .ex-gapline:first-child { margin-top: 0; }
-.sf-page .ex-col-after .ex-summary[data-part='rest'] { margin-top: 20px; }
+.sf-page .ex-col-after .ex-summary[data-part='rest'] { margin-top: 0; }
 .sf-page[data-frame='m'] .ex-big,
-.sf-page[data-frame='s'] .ex-big { font-size: 44px; }
+.sf-page[data-frame='s'] .ex-big { font-size: 48px; }
 .sf-page[data-frame='s'] .ex-lbl { font-size: 16px; line-height: 22px; }
 /* Phones and tablets: (a) and (b) side by side (grid 1fr 1fr, gap 16), each figure over its label
-   (44/1, labels 15/20); the struck question share stands smaller beside the ticket share. On a phone
+   (48/1, labels 15/20); the struck question share stands smaller beside the ticket share. On a phone
    the counts under them are left to the legend just above the sheet; line (c) and the action line
    follow the sheet. */
 .sf-page .ex-pairs[data-compact] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .sf-page .ex-pairs[data-compact][data-count='1'] { grid-template-columns: minmax(0, 1fr); }
 .sf-page .ex-pairs[data-compact] .ex-pair { display: block; }
 .sf-page .ex-pairs[data-compact] .ex-pair + .ex-pair { margin-top: 0; }
-.sf-page .ex-pairs[data-compact] .ex-big { font-size: 44px; line-height: 1; }
-.sf-page .ex-pairs[data-compact] .ex-pair[data-wide] .ex-big { font-size: 36px; }
+.sf-page .ex-pairs[data-compact] .ex-big { font-size: 48px; line-height: 1; }
+.sf-page .ex-pairs[data-compact] .ex-pair[data-wide] .ex-big { font-size: 38px; }
 .sf-page .ex-pairs[data-compact] .ex-figs { column-gap: 10px; }
 .sf-page .ex-pairs[data-compact] .ex-figs-was { font-size: 26px; }
 .sf-page .ex-pairs[data-compact] .ex-figs[data-range] { font-size: 30px; }
 .sf-page .ex-pairs[data-compact] .ex-figs[data-range] .ex-figs-was { font-size: 20px; }
-.sf-page .ex-pairs[data-compact] .ex-lbl { margin-top: 6px; font-size: 15px; line-height: 20px; }
+.sf-page .ex-pairs[data-compact] .ex-lbl { margin-top: 8px; font-size: 15px; line-height: 20px; }
 .sf-page .ex-pairs[data-compact] .ex-sub { margin-top: 2px; font-size: 15px; line-height: 20px; }
 .sf-page[data-frame='s'] .ex-pairs[data-compact] .ex-sub { display: none; }
 .sf-page[data-frame='s'] .ex-gapline,
 .sf-page[data-frame='s'] .ex-act { font-size: 16px; line-height: 24px; }
-.sf-page .ex-caveat { margin-top: 16px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; max-width: 26em; }
+.sf-page .ex-caveat { margin-top: 18px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; max-width: 28em; }
 .sf-page .ex-blk { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
 .sf-page .ex-stmt { font-size: 17px; line-height: 25px; text-wrap: pretty; }
 .sf-page .ex-stmt b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.sf-page .ex-fine { margin-top: 4px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .ex-col > .ex-blk > .ex-stmt:first-child { font-size: 20px; line-height: 28px; letter-spacing: -.01em; }
+.sf-page .ex-col > .ex-blk > .ex-stmt:first-child b { color: var(--ex-figure); }
+.sf-page .ex-col > .ex-blk[data-part='head'] > .ex-stmt:first-child { font-size: 18px; line-height: 25px; }
+.sf-page .ex-fine { margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .ex-fine .sf-link { min-height: 0; font-size: 15px; }
-.sf-page .ex-rl { margin: 8px 0 0; padding: 0; list-style: none; }
+/* The readiness legend: rows with the number circle of the sheet, the word and the count; the pressed
+   one stands out white on the blue-tinted panel. */
+.sf-page .ex-rl { display: grid; gap: 2px; margin: 14px -10px 0; padding: 0; list-style: none; }
 .sf-page .ex-rl button {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 36px;
-  font-size: 15px;
-  color: var(--sf-muted);
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 14px 4px 6px;
+  border-radius: 999px;
+  font-size: 16px;
+  color: var(--sf-ink);
+  text-align: left;
   cursor: pointer;
+  transition: background-color .3s ease, box-shadow .3s ease;
 }
-.sf-page .ex-rl button:hover,
-.sf-page .ex-rl button[aria-pressed='true'] { color: var(--sf-ink); }
-.sf-page .ex-rl button[aria-pressed='true'] .ex-rl-word { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
-.sf-page .ex-rl .ex-k {
-  position: relative;
+.sf-page .ex-rl button:hover { background: color-mix(in srgb, var(--sf-surface) 70%, transparent); }
+.sf-page .ex-rl button[aria-pressed='true'] { background: var(--sf-surface); box-shadow: 0 0 0 1.5px var(--sf-ink); font-weight: 600; }
+.sf-page .ex-rl .ex-count { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sf-page .ex-k { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 34px; }
+.sf-page .ex-k-n {
   display: inline-grid;
   place-items: center;
-  min-width: 24px;
-  font-family: var(--ph-serif);
-  font-size: 15px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--sf-surface);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
   color: var(--sf-ink);
+  font-variant-numeric: tabular-nums;
 }
-.sf-page .ex-rl .ex-count { font-variant-numeric: tabular-nums; }
+.sf-page .ex-k[data-readiness='confirmed'] .ex-k-n { background: var(--sf-accent); color: #fff; }
+.sf-page .ex-k[data-readiness='once'] .ex-k-n { background: var(--m-yellow); color: #0b121c; }
+.sf-page .ex-k[data-readiness='not_passed'] .ex-k-n { background: var(--m-pink); color: #0b121c; }
 /* Peak 3: «7 из 40» and, 16 px to the right on the same baseline, «было 6» in Onest 500 24/30, muted; it
    comes in (150 ms) at 950 ms, after the ring is drawn. No strike: a struck-out 0 read as «ø». */
-.sf-page .ex-peak-big { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 16px; }
+.sf-page .ex-peak-big { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 16px; color: var(--ex-figure); }
 .sf-page .ex-peak-big .ex-was {
   font-size: 24px;
   line-height: 30px;
@@ -557,34 +869,38 @@
   to { opacity: 1; }
 }
 .sf-page .ex-because-count { margin-top: 2px; color: var(--ph-paper-ink); }
-.sf-page .ex-peak-big .ex-of { font-weight: 500; }
+.sf-page .ex-peak-big .ex-of { font-weight: 500; color: var(--sf-ink); }
 /* Peak 3 with something confirmed: «0 → 7 из 40», under it «за 3 дня» muted and «+1 сегодня» in ink
    (Onest 500 24/30); the statement and «Второй ответ после разбора» at 18 px (Jury_Check 4, 9). */
-.sf-page .ex-peak-big .ex-now .ex-of { font-size: .5em; letter-spacing: 0; color: var(--sf-muted); }
-.sf-page .ex-peak-growth { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; margin-top: 8px; font-size: 24px; line-height: 30px; font-weight: 500; letter-spacing: -.01em; color: var(--sf-muted); }
+.sf-page .ex-peak-big .ex-now .ex-of { font-size: .45em; letter-spacing: 0; color: var(--sf-muted); }
+.sf-page .ex-peak-growth { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; margin-top: 10px; font-size: 24px; line-height: 30px; font-weight: 500; letter-spacing: -.01em; color: var(--sf-muted); }
 .sf-page .ex-peak-growth:empty { display: none; }
 .sf-page .ex-peak-growth b { font-weight: 600; color: var(--sf-ink); }
-.sf-page .ex-peak .ex-peak-stmt { margin-top: 14px; font-size: 18px; line-height: 26px; }
+.sf-page .ex-peak .ex-peak-stmt { margin-top: 16px; font-size: 18px; line-height: 26px; }
 .sf-page .ex-peak .ex-peak-stmt + .ex-peak-stmt { margin-top: 8px; }
+.sf-page .ex-peak > .sf-link,
+.sf-page .ex-ratecol > .sf-link { margin-top: 8px; }
 /* The readiness block: the growth from history and what is «пора проверить». */
-.sf-page .ex-blk .ex-growth { margin-top: 2px; }
+.sf-page .ex-blk .ex-growth { margin-top: 6px; }
 .sf-page .ex-blk .ex-stale { color: var(--sf-ink); }
 
 /* «Как считается»: a formula under a hairline, no bar and no fill. */
+.sf-page .ex-how { margin-top: 6px; }
 .sf-page .ex-how .sf-link { font-size: 15px; }
-.sf-page .ex-calc { margin-top: 6px; padding: 14px 0 2px; border-top: 1px solid var(--sf-line); }
+.sf-page .ex-calc { margin-top: 8px; padding: 16px 18px 6px; border-radius: 22px; background: var(--sf-surface-soft); }
 .sf-page .ex-formula {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  font-family: var(--ph-serif);
-  font-size: 25px;
+  font-family: var(--ph-sans);
+  font-size: 24px;
   line-height: 1.2;
+  font-weight: 500;
   font-variant-numeric: tabular-nums lining-nums;
 }
 .sf-page .ex-formula[data-small] { margin-top: 14px; font-size: 19px; gap: 6px 9px; }
-.sf-page .ex-formula .ex-w { font-family: var(--ph-sans); font-size: 16px; color: var(--sf-muted); }
+.sf-page .ex-formula .ex-w { font-family: var(--ph-sans); font-size: 16px; font-weight: 400; color: var(--sf-muted); }
 .sf-page .ex-frac { display: inline-grid; justify-items: center; }
 .sf-page .ex-frac > span:first-child { padding: 0 4px 3px; border-bottom: 1.5px solid currentColor; }
 .sf-page .ex-frac > span:last-child { padding-top: 3px; }
@@ -594,161 +910,345 @@
 .sf-page .ex-ix { display: inline-grid; margin-left: 2px; font-size: .62em; line-height: 1.02; text-align: left; }
 .sf-page .ex-op { color: var(--sf-muted); }
 .sf-page .ex-op[data-approx] { font-family: var(--ph-sans); }
-.sf-page .ex-res { font-weight: 600; }
+.sf-page .ex-res { font-weight: 600; color: var(--ex-figure); }
 
 /* «Почему»: the column turns into Meldy's answer about one question. */
-.sf-page .ex-why-t { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.sf-page .ex-why-t { font-size: 15px; line-height: 22px; font-weight: 500; color: var(--sf-muted); }
 .sf-page .ex-why h3 {
-  margin-top: 4px;
-  font-size: 24px;
-  line-height: 30px;
-  font-weight: 600;
-  letter-spacing: -.015em;
+  margin-top: 14px;
+  font-size: 26px;
+  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: -.022em;
   text-wrap: balance;
 }
 .sf-page .ex-why .ex-stmt { margin-top: 10px; font-size: 18px; line-height: 26px; }
 /* Where the question stands by the rule «подтверждено», above its answers. */
 .sf-page .ex-why .ex-why-ready { margin-top: 4px; }
-.sf-page .ex-slip-cap { margin: 18px 0 8px; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
-.sf-page .ex-why-go { margin-top: 24px; }
+.sf-page .ex-why .ex-blk { margin-top: 22px; padding-top: 18px; }
+.sf-page .ex-why .ex-blk > .ex-why-t { font-weight: 600; color: var(--sf-ink); }
+/* A lecture fragment inside a card: a soft block, not a card on a card. */
+.sf-page .ex-why .sf-slip,
+.sf-page .ex-col .sf-slip {
+  border-radius: 22px;
+  background: var(--sf-surface-soft);
+  box-shadow: none;
+  font-size: 16px;
+  line-height: 26px;
+}
+.sf-page .ex-slip-cap { margin: 20px 0 8px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--sf-muted); }
+.sf-page .ex-why-go { margin-top: 26px; }
 .sf-page .ex-why-acts { display: flex; flex-direction: column; align-items: flex-start; margin-top: 12px; }
 .sf-page .ex-why-acts .sf-link { font-size: 16px; }
-.sf-page .ex-attempts { margin: 8px 0 0; padding: 0; list-style: none; }
-/* «3 окт. · 4 · хорошо» at 17/26: the answers are what the stage step points at. */
+/* «3 окт. · 4 · хорошо»: each answer a soft pill that opens its protocol (17 px: the stage step points at it). */
+.sf-page .ex-attempts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
 .sf-page .ex-attempts a,
-.sf-page .ex-attempts span { display: inline-flex; align-items: center; min-height: 36px; font-size: 17px; line-height: 26px; font-variant-numeric: tabular-nums; }
-.sf-page .ex-attempts a { color: var(--sf-ink); text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: color-mix(in srgb, currentColor 32%, transparent); text-underline-offset: 5px; }
+.sf-page .ex-attempts span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 16px;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.sf-page .ex-attempts a { background: var(--sf-accent-soft); color: var(--sf-accent-fg); font-weight: 500; text-decoration: none; transition: box-shadow .3s ease; }
+.sf-page .ex-attempts a:hover { box-shadow: inset 0 0 0 1.5px currentColor; }
+.sf-page .ex-attempts span { background: var(--sf-surface-soft); color: var(--sf-muted); }
 
 /* Phones: «почему» is a bottom sheet with a handle (left and right follow the page frame). */
-.sf-page .ex-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(20, 18, 14, .16); }
+.sf-page .ex-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(11, 18, 28, .32); animation: ex-fade 200ms ease both; }
+@keyframes ex-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 .sf-page .ex-why-sheet {
   position: fixed;
   bottom: 0;
   z-index: 41;
-  max-height: 78vh;
+  max-height: 80vh;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 6px var(--sf-g) calc(20px + env(safe-area-inset-bottom));
-  border-radius: 14px 14px 0 0;
-  background: var(--sf-canvas);
-  box-shadow: var(--sf-pop-shadow);
+  padding: 6px calc(var(--sf-g) + 6px) calc(22px + env(safe-area-inset-bottom));
+  border-radius: 32px 32px 0 0;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+  animation: ex-sheet-up 260ms var(--m-ease) both;
 }
-.sf-page .ex-grip { display: block; width: 40px; height: 4px; margin: 6px auto 8px; border-radius: 2px; background: var(--sf-line-strong); }
+.sf-page .ex-grip { display: block; width: 44px; height: 5px; margin: 8px auto 6px; border-radius: 3px; background: var(--sf-line-strong); }
 .sf-page .ex-why-sheet .ex-sheet-close { display: flex; justify-content: flex-end; }
-.sf-page .ex-why-sheet h3 { font-size: 21px; line-height: 27px; }
+.sf-page .ex-why-sheet > .ex-why-t:first-of-type {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 26px 0 14px;
+  background: var(--m-sky);
+  color: #0b121c;
+  font-size: 15px;
+  line-height: 1;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%);
+}
+.sf-page .ex-why-sheet h3 { font-size: 23px; line-height: 1.18; }
 .sf-page .ex-why-sheet .ex-stmt { font-size: 16px; line-height: 24px; }
 .sf-page .ex-why-sheet .ex-why-acts { flex-direction: row; flex-wrap: wrap; gap: 0 20px; }
-.sf-page .ex-why-sheet .ex-why-go .sf-primary { width: 100%; height: 52px; font-size: 16px; }
+.sf-page .ex-why-sheet .ex-why-go .sf-primary { width: 100%; justify-content: space-between; }
 
-/* Phones: the page's one action sticks to the bottom; it takes its own room, so it never covers
-   the last row. */
+/* Phones: the page's one action sticks to the bottom on the translucent canvas; it takes its own room,
+   so it never covers the last row. */
 .sf-page .ex-cta {
   position: sticky;
   bottom: 0;
   z-index: 20;
   margin: 24px calc(-1 * var(--sf-g)) -96px;
   padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--sf-line);
-  background: var(--sf-canvas);
+  background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  box-shadow: 0 -1px 0 var(--sf-line);
 }
-.sf-page .ex-cta .sf-primary { width: 100%; height: 52px; padding: 0 20px; font-size: 16px; }
+.sf-page .ex-cta .sf-primary { width: 100%; justify-content: space-between; }
 
 /* ---------------------------------------------------------------- exams list */
-.sf-page .ex-list { max-width: 1040px; margin: 24px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
-.sf-page .ex-list > li { border-bottom: 1px solid var(--sf-line); }
-.sf-page .ex-row { display: block; padding: 16px 0 18px; color: var(--sf-ink); }
-.sf-page .ex-row-title {
-  font-size: 20px;
-  line-height: 26px;
-  font-weight: 600;
-  letter-spacing: -.01em;
-  overflow-wrap: anywhere;
+/* Each exam a card: the subject, when and how much is in the lectures, the status pills; the whole
+   card is the link (its circle arrow moves forward on hover). */
+.sf-page .ex-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
 }
-.sf-page .ex-row:hover .ex-row-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
-.sf-page .ex-row-meta { margin-top: 4px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
-.sf-page .ex-empty { max-width: 480px; margin: 72px auto 0; text-align: center; }
-.sf-page .ex-empty h2 { font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -.017em; text-wrap: balance; }
-.sf-page .ex-empty p { margin-top: 10px; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page[data-frame='m'] .ex-list,
+.sf-page[data-frame='s'] .ex-list { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px; }
+.sf-page .ex-list > li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 32px 34px 30px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card);
+  transition: transform .9s var(--m-ease), box-shadow .9s var(--m-ease);
+}
+.sf-page .ex-list > li:hover { transform: translateY(-4px); box-shadow: var(--ex-lift); }
+.sf-page[data-frame='s'] .ex-list > li { gap: 18px; padding: 24px 22px 22px; border-radius: 32px; }
+.sf-page .ex-row { display: block; padding-right: 64px; color: var(--sf-ink); text-decoration: none; }
+.sf-page .ex-row::after { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.sf-page .ex-list > li:has(.ex-row:focus-visible) { box-shadow: var(--ex-lift), 0 0 0 3px var(--ph-focus); }
+.sf-page .ex-row:focus-visible { outline: none; }
+.sf-page .ex-row-title {
+  display: block;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -.028em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.sf-page[data-frame='s'] .ex-row-title { font-size: 26px; }
+.sf-page .ex-row-meta { margin-top: 12px; font-size: 16px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .ex-row-go {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  transition: transform .7s var(--m-ease);
+}
+.sf-page .ex-row-go svg { width: 20px; height: 20px; }
+.sf-page .ex-list > li:hover .ex-row-go { transform: translateX(5px); }
+.sf-page[data-frame='s'] .ex-row-go { top: 20px; right: 18px; width: 44px; height: 44px; }
+/* «есть 24 · частично 7 · нет 9»: the exam's status pills, as at the foot of the sheet in the reel. */
+.sf-page .ex-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: auto 0 0; padding: 0; list-style: none; }
+.sf-page .ex-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sf-page .ex-pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.sf-page .ex-pill b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sf-page .ex-pill[data-k='full'] { background: var(--ex-ok-bg); color: var(--ex-ok-fg); }
+.sf-page .ex-pill[data-k='partial'] { background: var(--ex-half-bg); color: var(--ex-half-fg); }
+.sf-page .ex-pill[data-k='none'] { background: var(--ex-no-bg); color: var(--ex-no-fg); }
+.sf-page .ex-pill[data-k='unverified'],
+.sf-page .ex-pill[data-k='unmapped'] { color: var(--sf-muted); box-shadow: inset 0 0 0 1.5px var(--sf-line); }
+
+/* No exam yet: one card, an illustration of a marked list on a blue panel, the one action. */
+.sf-page .ex-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 40px;
+  max-width: 1080px;
+  margin: 44px 0 0;
+  padding: 18px 18px 18px 48px;
+  border-radius: 48px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card);
+}
+.sf-page .ex-empty-copy { padding: 30px 0; }
+.sf-page .ex-empty h2 { font-size: 34px; line-height: 1.1; font-weight: 500; letter-spacing: -.03em; text-wrap: balance; }
+.sf-page .ex-empty p { margin-top: 14px; font-size: 18px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .ex-empty .sf-primary { margin-top: 28px; }
+.sf-page .ex-empty-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 340px;
+  overflow: hidden;
+  border-radius: 36px;
+  background: linear-gradient(150deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
+}
+.sf-page .ex-empty-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .2;
+  background-image: radial-gradient(#fff 1.4px, transparent 1.6px);
+  background-size: 9px 9px;
+  -webkit-mask-image: linear-gradient(200deg, #000, transparent 70%);
+  mask-image: linear-gradient(200deg, #000, transparent 70%);
+}
+.sf-page .ex-empty-win {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(78%, 340px);
+  padding: 22px 20px;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .55);
+  transform: rotate(-3deg);
+}
+.sf-page .ex-empty-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 54px; align-items: center; gap: 10px; }
+.sf-page .ex-empty-row > span:nth-child(1) { width: 26px; height: 26px; border-radius: 50%; background: #f1f1ec; }
+.sf-page .ex-empty-row > span:nth-child(2) { height: 10px; border-radius: 999px; background: #e9e9e3; }
+.sf-page .ex-empty-row > span:nth-child(3) { height: 20px; border-radius: 999px; background: #e2f2e5; }
+.sf-page .ex-empty-row:nth-child(2) > span:nth-child(3) { background: #fcefc9; }
+.sf-page .ex-empty-row:nth-child(3) > span:nth-child(3) { background: #efefea; }
+.sf-page .ex-empty-row:nth-child(2) > span:nth-child(2) { width: 80%; }
+.sf-page .ex-empty-row:nth-child(3) > span:nth-child(2) { width: 64%; }
+.sf-page[data-frame='m'] .ex-empty,
+.sf-page[data-frame='s'] .ex-empty { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px 12px 28px; border-radius: 36px; }
+.sf-page[data-frame='m'] .ex-empty-art,
+.sf-page[data-frame='s'] .ex-empty-art { order: -1; min-height: 220px; border-radius: 28px; }
+.sf-page[data-frame='m'] .ex-empty-copy,
+.sf-page[data-frame='s'] .ex-empty-copy { padding: 18px 14px 0; }
+.sf-page[data-frame='s'] .ex-empty h2 { font-size: 27px; }
+.sf-page[data-frame='s'] .ex-empty p { font-size: 17px; }
 
 /* ---------------------------------------------------------------- new exam / edit */
 .sf-page .nx-body {
   display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(0, 1fr);
-  gap: 56px;
+  grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+  gap: 40px;
   align-items: start;
-  margin-top: 24px;
+  margin-top: 32px;
 }
-.sf-page[data-frame='l'] .nx-body { grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; }
+.sf-page[data-frame='l'] .nx-body { grid-template-columns: minmax(0, 1fr) 360px; gap: 32px; }
 .sf-page[data-frame='m'] .nx-body,
-.sf-page[data-frame='s'] .nx-body { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-.sf-page .nx-parsed { font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -.015em; }
-.sf-page[data-frame='s'] .nx-parsed { font-size: 21px; line-height: 27px; }
-.sf-page .nx-parsed + .ex-meta { margin-top: 2px; }
-.sf-page .nx-tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--sf-line); }
+.sf-page[data-frame='s'] .nx-body { grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 20px; }
+.sf-page .nx-parsed { font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.026em; }
+.sf-page[data-frame='s'] .nx-parsed { font-size: 24px; }
+.sf-page .nx-parsed + .ex-meta { margin-top: 6px; }
+/* «Вставить текст · Файл»: a segmented pill, the current one ink. */
+.sf-page .nx-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .04);
+}
 .sf-page .nx-tabs button {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 48px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
   font-size: 16px;
   font-weight: 500;
-  color: var(--sf-muted);
+  color: var(--sf-ink);
   cursor: pointer;
+  transition: background-color .45s var(--m-ease), color .3s ease;
 }
-.sf-page .nx-tabs button[aria-selected='true'] { color: var(--sf-ink); font-weight: 600; }
-.sf-page .nx-tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--sf-ink); }
-.sf-page .nx-blank { margin-top: 16px; padding: 20px 24px 18px; }
+.sf-page .nx-tabs button:hover { background: var(--sf-tint); }
+.sf-page .nx-tabs button[aria-selected='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
+.sf-page .nx-blank { margin-top: 18px; padding: 24px 28px 22px; border-radius: 36px; }
 .sf-page .nx-blank textarea {
   display: block;
   width: 100%;
-  min-height: 240px;
+  min-height: 260px;
   padding: 0;
   border: 0;
   outline: none;
   resize: vertical;
   background: transparent;
-  font-family: var(--ph-serif);
-  font-size: 17px;
-  line-height: 26px;
+  font-family: var(--ph-sans);
+  font-size: 18px;
+  line-height: 28px;
   color: var(--ph-paper-ink);
 }
 .sf-page .nx-blank textarea::placeholder { color: var(--ph-paper-muted); opacity: 1; }
-.sf-page .nx-blank:focus-within { box-shadow: 0 0 0 2px var(--ph-pencil), 0 1px 1px var(--ph-sh-contact), 0 14px 32px -16px var(--ph-sh-soft); }
-.sf-page .nx-file { display: grid; place-items: center; gap: 10px; min-height: 200px; padding: 24px; text-align: center; font-size: 17px; line-height: 26px; }
+.sf-page .nx-blank:focus-within { box-shadow: 0 0 0 2px var(--sf-accent), 0 0 0 6px color-mix(in srgb, var(--sf-accent) 18%, transparent), var(--m-card-shadow); }
+.sf-page .nx-file { display: grid; place-items: center; gap: 12px; min-height: 220px; padding: 24px; text-align: center; font-size: 17px; line-height: 26px; }
 .sf-page .nx-file p { color: var(--ph-paper-muted); font-size: 15px; }
-.sf-page .nx-under { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-top: 12px; }
-.sf-page .nx-paste { margin-top: 16px; padding: 24px 24px 18px 14px; }
+.sf-page .nx-under { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-top: 14px; }
+.sf-page .nx-body > section > .ex-meta:first-of-type { margin-top: 14px; font-size: 15px; line-height: 22px; }
+.sf-page .nx-paste { margin-top: 18px; padding: 22px 22px 18px 14px; border-radius: 36px; }
 .sf-page .nx-paste[data-collapsed] {
   max-height: 470px;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 64px), transparent);
 }
 @media (min-width: 1024px) and (max-height: 780px) {
   .sf-page .nx-paste[data-collapsed] { max-height: 420px; }
 }
-.sf-page[data-frame='s'] .nx-paste { padding: 18px 14px 14px 4px; }
+.sf-page[data-frame='s'] .nx-paste { padding: 18px 12px 14px 4px; border-radius: 30px; }
 .sf-page[data-frame='s'] .nx-paste[data-collapsed] { max-height: 360px; }
 .sf-page .nx-list { margin: 0; padding: 0; list-style: none; }
-.sf-page .nx-q { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 8px; padding: 4px 0; }
-.sf-page[data-frame='s'] .nx-q { grid-template-columns: 34px minmax(0, 1fr); }
+.sf-page .nx-q { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 10px; padding: 5px 0; }
+.sf-page[data-frame='s'] .nx-q { grid-template-columns: 36px minmax(0, 1fr); }
 .sf-page .nx-n {
-  text-align: right;
-  font-family: var(--ph-serif);
-  font-size: 16px;
-  line-height: 26px;
-  color: var(--ph-paper-muted);
+  justify-self: end;
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ex-num);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ph-paper-ink);
   font-variant-numeric: tabular-nums lining-nums;
 }
 .sf-page .nx-t {
   display: block;
   width: 100%;
-  padding: 0;
+  padding: 1px 0 0;
   border: 0;
   background: none;
   text-align: left;
-  font-family: var(--ph-serif);
+  font-family: var(--ph-sans);
   font-size: 17px;
   line-height: 26px;
   color: var(--ph-paper-ink);
@@ -757,59 +1257,71 @@
   cursor: text;
 }
 .sf-page[data-frame='s'] .nx-t { font-size: 16px; line-height: 24px; }
-.sf-page .nx-sec { padding: 14px 0 4px 52px; }
-.sf-page .nx-sec .nx-t { font-size: 16px; line-height: 24px; font-weight: 600; }
+.sf-page .nx-sec { padding: 18px 0 6px 54px; }
+.sf-page .nx-sec .nx-t { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--sf-accent-fg); }
 .sf-page[data-frame='s'] .nx-sec,
-.sf-page[data-frame='s'] .nx-skip { padding-left: 42px; }
+.sf-page[data-frame='s'] .nx-skip { padding-left: 46px; }
 .sf-page .nx-warn { display: block; margin-top: 2px; }
 .sf-page .nx-warn .sf-link,
 .sf-page .nx-skip .sf-link { min-height: 0; font-size: 15px; color: var(--ph-paper-ink); margin-left: 4px; }
-.sf-page .nx-skip { padding: 4px 0 6px 52px; text-wrap: pretty; }
+.sf-page .nx-skip { padding: 4px 0 6px 54px; text-wrap: pretty; }
 .sf-page .nx-edit { padding: 6px 0 10px; }
 .sf-page .nx-edit textarea {
   display: block;
   width: 100%;
-  min-height: 78px;
-  padding: 8px 10px;
-  border: 1px solid var(--sf-control-edge);
-  border-radius: 8px;
+  min-height: 82px;
+  padding: 10px 14px;
+  border: 1px solid var(--sf-line);
+  border-radius: 16px;
   background: var(--ph-paper);
-  font-family: var(--ph-serif);
+  font-family: var(--ph-sans);
   font-size: 17px;
   line-height: 26px;
   color: var(--ph-paper-ink);
   resize: vertical;
 }
-.sf-page .nx-edit textarea:focus { outline: 2px solid var(--ph-pencil); outline-offset: 1px; }
+.sf-page .nx-edit textarea:focus { outline: none; border-color: var(--sf-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 20%, transparent); }
 .sf-page .nx-edit-acts { display: flex; flex-wrap: wrap; gap: 0 18px; margin-top: 4px; }
 .sf-page .nx-edit-acts .sf-link { font-size: 15px; }
 .sf-page .nx-problem { display: block; margin-top: 4px; font-family: var(--ph-sans); font-size: 15px; line-height: 20px; color: var(--ph-paper-ink); }
-.sf-page .nx-acts { display: flex; flex-wrap: wrap; gap: 0 24px; margin-top: 6px; }
+.sf-page .nx-acts { display: flex; flex-wrap: wrap; gap: 0 24px; margin-top: 8px; }
 .sf-page .nx-acts .sf-link { font-size: 15px; color: var(--sf-muted); }
 
-.sf-page .nx-form { position: sticky; top: 24px; }
+/* The exam, its tickets and lectures: one white card of groups, the fields in it soft pills. */
+.sf-page .nx-form {
+  position: sticky;
+  top: calc(var(--sf-bar-h) + 20px);
+  padding: 28px 30px 30px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card);
+}
 .sf-page[data-frame='m'] .nx-form,
 .sf-page[data-frame='s'] .nx-form { position: static; }
-.sf-page .nx-grp + .nx-grp { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
-.sf-page .nx-lbl { font-size: 15px; line-height: 22px; color: var(--sf-muted); }
-.sf-page .nx-line { margin-top: 4px; font-size: 19px; line-height: 34px; overflow-wrap: anywhere; }
-.sf-page[data-frame='s'] .nx-line { font-size: 17px; line-height: 30px; }
+.sf-page[data-frame='s'] .nx-form { padding: 24px 20px 26px; border-radius: 32px; }
+.sf-page .nx-grp + .nx-grp { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--sf-line); }
+.sf-page .nx-lbl { font-size: 15px; line-height: 22px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--sf-accent-fg); }
+.sf-page .nx-line { margin-top: 8px; font-size: 18px; line-height: 44px; overflow-wrap: anywhere; }
+.sf-page[data-frame='s'] .nx-line { font-size: 17px; }
 .sf-page .nx-sel {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   max-width: 100%;
-  border-bottom: 1.5px solid color-mix(in srgb, var(--sf-ink) 40%, transparent);
-  font-weight: 600;
+  border-radius: 16px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-weight: 500;
   vertical-align: baseline;
+  transition: box-shadow .2s ease;
 }
-.sf-page .nx-sel:focus-within { border-bottom-color: var(--ph-focus); }
+.sf-page .nx-sel:focus-within { box-shadow: inset 0 0 0 1.5px var(--sf-accent), 0 0 0 4px color-mix(in srgb, var(--sf-accent) 18%, transparent); }
 .sf-page .nx-sel select,
 .sf-page .nx-sel input {
-  min-height: 36px;
+  min-height: 46px;
   max-width: 100%;
-  padding: 0 2px;
+  padding: 0 14px;
   border: 0;
   outline: none;
   background: transparent;
@@ -818,24 +1330,28 @@
   -webkit-appearance: none;
   appearance: none;
 }
-.sf-page .nx-sel select { padding-right: 20px; cursor: pointer; }
-.sf-page .nx-sel svg { position: absolute; right: 0; width: 14px; height: 14px; color: var(--sf-muted); pointer-events: none; }
+.sf-page .nx-sel input:focus-visible,
+.dark .sf-page .nx-sel input:focus-visible { outline: none; }
+.sf-page .nx-sel select { padding-right: 32px; cursor: pointer; }
+.sf-page .nx-sel svg { position: absolute; right: 12px; width: 14px; height: 14px; color: var(--sf-muted); pointer-events: none; }
 .sf-page .nx-sel input[type='date'] { min-width: 9.5em; }
 .sf-page .nx-sel input::placeholder { color: var(--sf-muted); font-weight: 400; opacity: 1; }
 .sf-page .nx-fields {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 20px;
-  margin-top: 4px;
-  font-size: 19px;
-  line-height: 34px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 18px;
+  line-height: 26px;
 }
-.sf-page[data-frame='s'] .nx-fields { font-size: 17px; line-height: 30px; }
+.sf-page[data-frame='s'] .nx-fields { font-size: 17px; }
 .sf-page .nx-sel-title { flex: 1 1 100%; }
 .sf-page .nx-sel-title input { width: 100%; }
-.sf-page .nx-go { margin-top: 28px; }
-.sf-page .nx-go .ex-note { margin-top: 10px; }
+.sf-page .nx-fields + .ex-meta,
+.sf-page .nx-line + .ex-meta { margin-top: 10px; font-size: 15px; line-height: 22px; }
+.sf-page .nx-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 28px; }
+.sf-page .nx-go .ex-note { flex-basis: 100%; margin-top: 0; }
 .sf-page .nx-pick { margin: 10px 0 0; padding: 0; list-style: none; }
 .sf-page .nx-pick label,
 .sf-page .nx-pick-head {
@@ -844,29 +1360,33 @@
   column-gap: 12px;
   align-items: start;
   min-height: 44px;
-  padding: 7px 0;
+  padding: 8px 10px;
+  border-radius: 16px;
   cursor: pointer;
+  transition: background-color .3s ease;
 }
+.sf-page .nx-pick label:hover { background: var(--ex-hover); }
 .sf-page .nx-pickbox input[type='checkbox'] {
   -webkit-appearance: none;
   appearance: none;
   display: grid;
   place-content: center;
-  width: 20px;
-  height: 20px;
-  margin: 3px 0 0;
+  width: 22px;
+  height: 22px;
+  margin: 2px 0 0;
   border: 1.5px solid var(--sf-control-edge);
-  border-radius: 4px;
+  border-radius: 7px;
   background: var(--sf-surface);
   cursor: pointer;
+  transition: background-color .2s ease, border-color .2s ease;
 }
 .sf-page .nx-pickbox input[type='checkbox']:checked,
-.sf-page .nx-pickbox input[type='checkbox']:indeterminate { background: var(--sf-ink); border-color: var(--sf-ink); }
+.sf-page .nx-pickbox input[type='checkbox']:indeterminate { background: var(--sf-accent); border-color: var(--sf-accent); }
 .sf-page .nx-pickbox input[type='checkbox']:checked::before {
   content: '';
-  width: 11px;
-  height: 11px;
-  background: var(--sf-canvas);
+  width: 12px;
+  height: 12px;
+  background: #fff;
   clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
 }
 .sf-page .nx-pickbox input[type='checkbox']:indeterminate::before {
@@ -874,33 +1394,39 @@
   width: 10px;
   height: 2px;
   border-radius: 1px;
-  background: var(--sf-canvas);
+  background: #fff;
 }
 .sf-page .nx-pickbox input[type='checkbox']:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; }
 .sf-page .nx-pickbox input[type='checkbox']:disabled { cursor: not-allowed; border-color: var(--sf-line); background: var(--sf-surface-soft); }
-.sf-page .nx-pick-title { font-family: var(--ph-serif); font-size: 17px; line-height: 24px; font-weight: 500; overflow-wrap: anywhere; }
+.sf-page .nx-pick-title { font-family: var(--ph-sans); font-size: 17px; line-height: 24px; font-weight: 500; overflow-wrap: anywhere; }
 .sf-page .nx-pick-meta { display: block; font-family: var(--ph-sans); font-size: 15px; line-height: 21px; font-weight: 400; color: var(--sf-muted); }
 /* Folded: which lectures are ticked, in one muted line. */
 .sf-page .nx-pick-chosen { overflow-wrap: anywhere; }
+.sf-page .nx-pickbox .ex-meta { font-size: 15px; line-height: 22px; }
+.sf-page .nx-pickbox > .nx-line { line-height: 30px; }
 /* Open: search line, «Выбрать все · Снять все», then the list that scrolls inside the form. */
-.sf-page .nx-pick-panel { margin-top: 8px; }
+.sf-page .nx-pick-panel { margin-top: 10px; }
 .sf-page .nx-pick-find {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  border-bottom: 1.5px solid color-mix(in srgb, var(--sf-ink) 30%, transparent);
+  min-height: 48px;
+  padding: 0 8px 0 16px;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
   cursor: text;
+  transition: box-shadow .2s ease;
 }
-/* The search line shows focus by its line (thicker, in the focus colour), not by a ring around the input. */
-.sf-page .nx-pick-find:focus-within { border-bottom-color: var(--ph-focus); box-shadow: 0 1.5px 0 0 var(--ph-focus); }
+/* The search pill shows focus by its ring, not by a ring around the input. */
+.sf-page .nx-pick-find:focus-within { box-shadow: inset 0 0 0 1.5px var(--sf-accent), 0 0 0 4px color-mix(in srgb, var(--sf-accent) 18%, transparent); }
 .sf-page .nx-pick-find input:focus-visible,
 .dark .sf-page .nx-pick-find input:focus-visible { outline: none; }
 .sf-page .nx-pick-find > svg { flex: none; width: 16px; height: 16px; color: var(--sf-muted); }
 .sf-page .nx-pick-find input {
   flex: 1;
   min-width: 0;
-  min-height: 42px;
+  min-height: 46px;
   padding: 0;
   border: 0;
   outline: none;
@@ -917,16 +1443,16 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 50%;
   background: transparent;
   color: var(--sf-muted);
   cursor: pointer;
 }
-.sf-page .nx-pick-clear:hover { color: var(--sf-ink); }
+.sf-page .nx-pick-clear:hover { color: var(--sf-ink); background: var(--sf-tint); }
 .sf-page .nx-pick-clear:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 1px; }
 .sf-page .nx-pick-clear svg { width: 16px; height: 16px; }
 .sf-page .nx-pick-bulk {
@@ -946,13 +1472,13 @@
   max-height: min(56vh, 520px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  margin-top: 6px;
-  padding-right: 6px;
-  border-top: 1px solid var(--sf-line);
-  border-bottom: 1px solid var(--sf-line);
+  margin-top: 8px;
+  padding: 4px;
+  border-radius: 22px;
+  background: var(--sf-surface-soft);
   scrollbar-width: thin;
 }
-.sf-page ul.nx-pick-scroll { padding-top: 2px; padding-bottom: 2px; }
+.sf-page ul.nx-pick-scroll { padding-top: 4px; padding-bottom: 4px; }
 .sf-page .nx-pick-group + .nx-pick-group { margin-top: 4px; }
 .sf-page .nx-pick-group .nx-pick { margin-top: 0; }
 /* The subject line stays on top while its lectures scroll under it. */
@@ -962,47 +1488,98 @@
   z-index: 1;
   grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  padding: 8px 0 6px;
-  border-bottom: 1px solid var(--sf-line);
-  background: var(--sf-canvas);
+  padding: 10px 10px 8px;
+  border-radius: 18px;
+  background: var(--sf-surface-soft);
 }
 .sf-page .nx-pick-head input[type='checkbox'] { margin-top: 0; }
 .sf-page .nx-pick-subject { font-size: 16px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
 .sf-page .nx-pick-count { font-size: 15px; line-height: 22px; color: var(--sf-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sf-page .nx-import { margin-top: 6px; }
+.sf-page .nx-import { margin-top: 10px; }
 .sf-page .nx-import-row { margin-top: 4px; font-size: 15px; line-height: 21px; color: var(--sf-muted); }
 
-/* ---------------------------------------------------------------- draw (room mode) */
-/* The room's top line, as on the answer screen. «Лист экзамена» never wraps. */
-.sf-room-bar .dw-left { display: flex; align-items: baseline; gap: 18px; min-width: 0; }
-.sf-room-bar .dw-wordmark { font-size: 21px; font-weight: 650; line-height: 1; letter-spacing: -.03em; color: var(--sf-ink); white-space: nowrap; text-decoration: none; }
-.sf-room-bar .dw-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; color: var(--sf-muted); }
+/* ---------------------------------------------------------------- the rooms' top line (draw, ticket) */
+/* The room's top line: the wordmark with its yellow dot, where you are (muted), and the way out as a
+   white pill. «Лист экзамена» never wraps. */
+.sf-room-bar .dw-left { display: flex; align-items: center; gap: 22px; min-width: 0; }
+.sf-room-bar .dw-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.045em;
+  color: var(--sf-ink);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.sf-room-bar .dw-wordmark::after {
+  content: '';
+  display: inline-block;
+  width: .3em;
+  height: .3em;
+  margin-left: .08em;
+  border-radius: 50%;
+  background: var(--m-yellow);
+}
+.sf-room-bar .dw-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; color: var(--sf-muted); }
 .sf-room-bar .dw-short { display: none; }
-.sf-room-bar .sf-link { font-size: 15px; color: var(--sf-muted); white-space: nowrap; flex: none; }
+.sf-room-bar .sf-link.dw-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color .45s var(--m-ease);
+}
+.sf-room-bar .sf-link.dw-exit::before {
+  content: '';
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.sf-room-bar .sf-link.dw-exit:hover { background: var(--ex-hover); }
 @media (max-width: 1023px) {
   .sf-room-bar .dw-wordmark, .sf-room-bar .dw-long { display: none; }
   .sf-room-bar .dw-short { display: inline; }
   .sf-room-bar .dw-where { color: var(--sf-ink); font-weight: 600; }
 }
 
-/* The draw is a single-object screen (redesign critique 8, spec 3.4): the stack in the middle, 760 wide,
-   its top 12vh under the bar; «Отвечать» and «Тянуть ещё» centred 32 px under it, the way of drawing
-   on one muted line under them. */
-.sf-page.dw-room { padding-top: 12vh; padding-bottom: 56px; }
-.sf-page .dw-center { max-width: 760px; margin: 0 auto; }
-.sf-page .dw-stack { position: relative; perspective: 1200px; }
-.sf-page .dw-under { position: absolute; inset: 0; }
-.sf-page .dw-under[data-n='1'] { transform: translate(4px, 4px) rotate(-.8deg); }
-.sf-page .dw-under[data-n='2'] { transform: translate(8px, 9px) rotate(1.2deg); }
+/* ---------------------------------------------------------------- draw (room mode) */
+/* The draw is a single-object screen for a projector (redesign critique 8, spec 3.4): the stack in the
+   middle, 820 wide, its top 10vh under the bar — a big rounded ticket on two coloured cards; «Отвечать»
+   (the blue pill) and «Тянуть ещё» (white) centred under it, the way of drawing on one muted line. */
+.sf-page.dw-room { padding-top: 10vh; padding-bottom: 64px; }
+.sf-page .dw-center { max-width: 820px; margin: 0 auto; }
+.sf-page .dw-stack { position: relative; perspective: 1400px; }
+.sf-page .dw-under { position: absolute; inset: 0; border-radius: 44px; box-shadow: none; }
+.sf-page .dw-under[data-n='1'] { background: #fdf3d8; transform: translate(10px, 12px) rotate(2.2deg); }
+.sf-page .dw-under[data-n='2'] { background: #eaf1fd; transform: translate(-8px, 16px) rotate(-2.6deg); }
+.dark .sf-page .dw-under[data-n='1'] { background: #2b2a22; }
+.dark .sf-page .dw-under[data-n='2'] { background: #1a2a47; }
 .sf-page .dw-card {
   position: relative;
-  min-height: 168px;
+  min-height: 200px;
   overflow: hidden;
-  transform: rotate(-.4deg);
+  border-radius: 44px;
+  background: var(--ph-card);
+  box-shadow: var(--ex-lift);
   transform-origin: 50% 100%;
   backface-visibility: hidden;
 }
-.sf-page .dw-face { padding: 20px 32px 24px; }
+.sf-page .dw-face { padding: 34px 44px 40px; }
 /* The face shown before the draw (the blank back or the last ticket) covers the new one until the card
    is edge-on, then goes. */
 .sf-page .dw-face-old { position: absolute; inset: 0; background: var(--ph-card); }
@@ -1012,71 +1589,142 @@
 .sf-page .dw-card[data-state='lift'] .dw-face:not(.dw-face-old) { animation: dw-face-new 600ms linear both; }
 .sf-page .dw-card[data-state='lift'] .dw-face-old { animation: dw-face-old 600ms linear both; }
 .sf-page .dw-card[data-state='fade'] { animation: dw-fade 150ms ease both; }
-.sf-page .dw-no { font-family: var(--ph-serif); font-size: 17px; line-height: 24px; color: var(--ph-paper-muted); }
-.sf-page .dw-no b { font-weight: 600; color: var(--ph-paper-ink); }
-.sf-page .dw-qs { margin: 10px 0 0; padding: 0; list-style: none; }
-/* The list's numbers hang in a 36 px margin, on the first line of their question. */
-.sf-page .dw-q { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: baseline; }
+/* «Случайный билет · вопросы 12 и 31»: the ticket's tag in navy, as «Билет 7» in the reel. */
+.sf-page .dw-no { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 18px; line-height: 24px; color: var(--ph-paper-muted); }
+.sf-page .dw-no b {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--m-navy);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: .005em;
+}
+.dark .sf-page .dw-no b { background: #2d4f99; }
+.sf-page .dw-no-sep { display: none; }
+.sf-page .dw-qs { margin: 22px 0 0; padding: 0; list-style: none; }
+/* The list's numbers in circles, on the first line of their question. */
+.sf-page .dw-q { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: start; }
 .sf-page .dw-qs[data-single] .dw-q { grid-template-columns: minmax(0, 1fr); }
-.sf-page .dw-q + .dw-q { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ph-paper-rule); }
+.sf-page .dw-q + .dw-q { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--ph-paper-rule); }
 .sf-page .dw-q-n {
-  font-family: var(--ph-serif);
-  font-size: 20px;
-  line-height: 36px;
-  color: var(--ph-paper-muted);
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--ex-num);
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ph-paper-ink);
   font-variant-numeric: tabular-nums lining-nums;
 }
 .sf-page .dw-q-t {
   display: block;
-  font-family: var(--ph-serif);
-  font-size: 30px;
-  line-height: 36px;
+  font-family: var(--ph-sans);
+  font-size: 34px;
+  line-height: 1.18;
   font-weight: 600;
-  letter-spacing: -.016em;
+  letter-spacing: -.026em;
   text-wrap: pretty;
   overflow-wrap: break-word;
 }
-.sf-page .dw-q-none { display: block; grid-column: -2; margin-top: 6px; }
-.sf-page .dw-back { display: grid; place-items: center; min-height: 124px; font-family: var(--ph-serif); font-size: 19px; color: var(--ph-paper-muted); }
-.sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 26px; margin-top: 32px; }
+.sf-page .dw-q-none {
+  display: block;
+  grid-column: -2;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--ex-no-bg);
+  color: var(--ex-no-fg);
+  font-size: 16px;
+  line-height: 22px;
+}
+/* The back of the stack: a navy card with halftone dots and «Билеты». */
+.sf-page .dw-back {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  margin: -34px -44px -40px;
+  padding: 34px 44px 40px;
+  background: linear-gradient(150deg, #2f66de 0%, #1e46a8 58%, #10295a 100%);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  overflow: hidden;
+}
+.sf-page .dw-back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .2;
+  background-image: radial-gradient(#fff 1.4px, transparent 1.6px);
+  background-size: 9px 9px;
+  -webkit-mask-image: linear-gradient(200deg, #000, transparent 70%);
+  mask-image: linear-gradient(200deg, #000, transparent 70%);
+}
+.sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 14px; margin-top: 40px; }
 /* What the card was drawn from (Jury_Check 9, 11): said under the card in every mode, at a size the
    room can read (18 px in the 1280×720 window); «Отвечать» follows it. */
-.sf-page .dw-pool { margin: 26px auto 0; max-width: 36em; font-size: 18px; line-height: 26px; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
-.sf-page .dw-pool + .dw-acts { margin-top: 22px; }
+.sf-page .dw-pool { margin: 40px auto 0; max-width: 38em; font-size: 19px; line-height: 27px; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
+.sf-page .dw-pool + .dw-acts { margin-top: 24px; }
 .sf-page .dw-pool + .dw-msg { margin-top: 14px; }
-.sf-page .dw-mode { margin-top: 10px; }
+.sf-page .dw-mode { margin-top: 16px; }
 .sf-page .dw-mode .ex-draw-mode { text-align: center; font-size: 15px; line-height: 22px; }
 .sf-page .dw-mode .ex-mode-menu { left: 50%; right: auto; transform: translateX(-50%); }
-.sf-page .dw-msg { margin: 32px auto 0; max-width: 34em; font-size: 17px; line-height: 26px; text-align: center; text-wrap: pretty; }
-.sf-page .dw-msg + .dw-acts { margin-top: 18px; }
-.sf-page .dw-note { margin: 14px auto 0; max-width: 34em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
+.sf-page .dw-msg { margin: 40px auto 0; max-width: 34em; font-size: 18px; line-height: 27px; text-align: center; text-wrap: pretty; }
+.sf-page .dw-msg + .dw-acts { margin-top: 20px; }
+.sf-page .dw-note { margin: 16px auto 0; max-width: 34em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .sf-page .dw-face { padding: 18px 30px 22px; }
+  .sf-page.dw-room { padding-top: 6vh; }
+  .sf-page .dw-face { padding: 26px 38px 30px; }
+  .sf-page .dw-back { margin: -26px -38px -30px; padding: 26px 38px 30px; }
+  .sf-page .dw-q-t { font-size: 30px; }
+  .sf-page .dw-pool { margin-top: 30px; }
+  .sf-page .dw-acts { margin-top: 30px; }
 }
 @media (max-width: 1023px) {
-  .sf-page.dw-room { padding-top: 24px; }
+  .sf-page.dw-room { padding-top: 28px; }
 }
 @media (max-width: 639px) {
-  .sf-page.dw-room { padding-top: 16px; }
-  .sf-page .dw-card { transform: none; }
-  .sf-page .dw-face { padding: 16px 18px 18px; }
-  .sf-page .dw-q { grid-template-columns: 28px minmax(0, 1fr); }
-  .sf-page .dw-q-n { font-size: 17px; line-height: 26px; }
-  .sf-page .dw-q-t { font-size: 21px; line-height: 26px; }
-  .sf-page .dw-acts { justify-content: flex-start; }
-  .sf-page .dw-acts .sf-primary { width: 100%; }
-  .sf-page .dw-pool { margin-left: 0; font-size: 16px; line-height: 24px; text-align: left; }
+  .sf-page.dw-room { padding-top: 20px; }
+  .sf-page .dw-card { border-radius: 34px; }
+  .sf-page .dw-under { border-radius: 34px; }
+  .sf-page .dw-under[data-n='1'] { transform: translate(6px, 8px) rotate(1.6deg); }
+  .sf-page .dw-under[data-n='2'] { transform: translate(-5px, 11px) rotate(-1.8deg); }
+  .sf-page .dw-face { padding: 22px 20px 24px; }
+  .sf-page .dw-back { margin: -22px -20px -24px; padding: 22px 20px 24px; min-height: 120px; font-size: 24px; }
+  .sf-page .dw-no { font-size: 16px; }
+  .sf-page .dw-no b { height: 36px; padding: 0 14px; font-size: 16px; }
+  .sf-page .dw-qs { margin-top: 18px; }
+  .sf-page .dw-q { grid-template-columns: 42px minmax(0, 1fr); }
+  .sf-page .dw-q-n { width: 34px; height: 34px; font-size: 15px; }
+  .sf-page .dw-q-t { font-size: 23px; line-height: 1.2; }
+  .sf-page .dw-acts { justify-content: flex-start; margin-top: 28px; }
+  .sf-page .dw-acts .sf-primary { width: 100%; justify-content: space-between; }
+  .sf-page .dw-acts .ex-secondary { width: 100%; }
+  .sf-page .dw-pool { margin: 32px 0 0; font-size: 17px; line-height: 25px; text-align: left; }
   .sf-page .dw-msg { text-align: left; margin-left: 0; }
+  .sf-page .dw-note { text-align: left; margin-left: 0; }
   .sf-page .dw-mode .ex-draw-mode { text-align: left; }
+  .sf-page .dw-mode .ex-mode-menu { left: 0; transform: none; }
 }
+/* The card itself stays straight (crisp text on a projector); only the cards under it are turned. */
 @keyframes dw-lift {
-  0% { transform: translateY(0) rotate(-.4deg) rotateX(0); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft); }
+  0% { transform: translateY(0) rotateX(0); box-shadow: var(--ex-lift); }
   /* 250 ms: lifted and edge-on; the face is swapped here */
-  41.6% { transform: translateY(-12px) rotate(-.4deg) rotateX(90deg); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 28px 42px -16px var(--ph-sh-lift); }
-  41.7% { transform: translateY(-12px) rotate(-.4deg) rotateX(-90deg); }
-  72% { transform: translateY(-6px) rotate(-.4deg) rotateX(8deg); }
-  88% { transform: translateY(-2px) rotate(-.4deg) rotateX(-2deg); }
-  100% { transform: translateY(0) rotate(-.4deg) rotateX(0); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 1.5px 0 var(--ph-card-edge), 0 2px 3px var(--ph-sh-contact), 0 10px 22px -12px var(--ph-sh-soft); }
+  41.6% { transform: translateY(-14px) rotateX(90deg); box-shadow: var(--ex-lift); }
+  41.7% { transform: translateY(-14px) rotateX(-90deg); }
+  72% { transform: translateY(-6px) rotateX(8deg); }
+  88% { transform: translateY(-2px) rotateX(-2deg); }
+  100% { transform: none; box-shadow: var(--ex-lift); }
 }
 @keyframes dw-face-new {
   0%, 41.6% { visibility: hidden; }
@@ -1093,14 +1741,28 @@
 
 /* ---------------------------------------------------------------- low window and stage mode */
 @media (min-width: 1024px) and (max-height: 780px) {
-  .sf-page .ex-head { padding-top: 16px; }
-  .sf-page .ex-head .ex-h1 { margin-top: 0; font-size: 34px; line-height: 40px; }
-  .sf-page .ex-head .ex-meta { margin-top: 2px; }
-  .sf-page .ex-body { margin-top: 14px; }
-  .sf-page .ex-filter { margin-bottom: 8px; }
-  .sf-page .ex-sheet { padding-top: 20px; }
-  .sf-page .ex-big { font-size: 52px; }
-  .sf-page .ex-col { top: calc(var(--sf-bar-h) + 16px); max-height: calc(100vh - var(--sf-bar-h) - 24px); }
+  .sf-page .ex-head { padding-top: 18px; }
+  .sf-page .ex-head .ex-h1 { font-size: 40px; }
+  .sf-page .ex-crumb { margin-bottom: 10px; }
+  .sf-page .ex-head .ex-meta { margin-top: 6px; }
+  .sf-page .ex-links { margin-top: 12px; }
+  .sf-page .ex-body { margin-top: 18px; }
+  .sf-page .ex-filter { margin-bottom: 10px; }
+  .sf-page .ex-sheet { padding-top: 22px; }
+  .sf-page .ex-big { font-size: 46px; }
+  .sf-page .ex-lbl,
+  .sf-page .ex-gapline,
+  .sf-page .ex-act { font-size: 17px; line-height: 23px; }
+  .sf-page .ex-col { top: calc(var(--sf-bar-h) + 12px); max-height: calc(100vh - var(--sf-bar-h) - 20px); gap: 14px; }
+  .sf-page .ex-col > .ex-summary,
+  .sf-page .ex-col > .ex-why,
+  .sf-page .ex-col > .ex-ratecol,
+  .sf-page .ex-col > .ex-blk,
+  .sf-page .ex-col > .ex-peak { padding: 20px 24px 22px; border-radius: 32px; }
+  .sf-page .ex-pairs:not([data-compact]) .ex-pair + .ex-pair { margin-top: 14px; padding-top: 12px; }
+  .sf-page .ex-share .ex-lbl { margin-top: 6px; }
+  .sf-page .ex-gapline { margin-top: 10px; }
+  .sf-page .ex-caveat { margin-top: 10px; }
 }
 html[data-stage] .sf-page .ex-crumb,
 html[data-stage] .sf-page .ex-links,
@@ -1112,11 +1774,24 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .dw-card[data-state='lift'] { animation: dw-fade 150ms ease both; }
   .sf-page .dw-card[data-state='lift'] .dw-face { animation: none; }
   .sf-page .dw-face-old { display: none; }
-  .sf-page .ex-mode-sheet { animation: none; }
+  .sf-page .ex-mode-sheet,
+  .sf-page .ex-why-sheet,
+  .sf-page .ex-scrim { animation: none; }
+  .sf-page .ex-q[data-coverage='checking'] .ex-cov .sf-mark { animation: none; }
   .sf-page .ex-q,
   .sf-page .ex-sec,
   .sf-page .ex-filter button,
-  .sf-page .ex-secondary { transition: none; }
+  .sf-page .ex-secondary,
+  .sf-page .ex-list > li,
+  .sf-page .ex-row-go,
+  .sf-page .ex-new-dot,
+  .sf-page .ex-links .sf-link,
+  .sf-page .ex-crumb a,
+  .sf-page .nx-tabs button,
+  .sf-room-bar .dw-exit { transition: none; }
+  .sf-page .ex-list > li:hover,
+  .sf-page .ex-list > li:hover .ex-row-go,
+  .sf-page .ex-new:hover .ex-new-dot { transform: none; }
 }
 
 /* A lecture fragment's own heading on a slip: its own line, above the text (jury memo 12). */
