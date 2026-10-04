@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -32,7 +32,9 @@ import { analysisCards } from '../utils/lectureCards';
  *   and a dated note about the last two days, «Тянуть билет»). Without an exam the cards lead.
  * - Beside it the task cards: today's review cards (a coloured panel with the first due question)
  *   and two weeks of reviews; below, the four latest lectures as cards.
- * - An empty account is sent to the question list first.
+ * - «Первые шаги» above it all until they are done: a lecture with text, a question list, a ticket
+ *   answered — the first run around the core (owner, 2026-10-04). A new account sees only them. They
+ *   can be folded (remembered per account on this device) and are gone once all three are done.
  * Every number on the page is read from the account; nothing is invented (no ticket numbers, no zeros
  * on an empty account).
  */
@@ -46,6 +48,9 @@ const DUE_SAMPLE = 60;
 /** Seconds per review card in the time estimate. */
 const SECONDS_PER_CARD = 30;
 const LOADING_LINE_MS = 300;
+
+/** «Первые шаги» per account on this device: 'collapsed' while folded, 'done' once all three were done. */
+export const FIRST_STEPS_PREFIX = 'meldy_first_steps_';
 
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
 const CARD_FORMS = ['карточка', 'карточки', 'карточек'] as const;
@@ -91,6 +96,18 @@ export interface TodayExam {
   events: LearningEvent[] | null;
 }
 
+/** The three first steps of a student (the first run around the core). */
+export interface FirstSteps {
+  /** At least one lecture has text (a scan without text cannot be checked against a list). */
+  lecture: boolean;
+  /** At least one exam has questions. */
+  list: boolean;
+  /** At least one answer to a ticket is in the journal (spoken or typed; a self-rating is not an answer). */
+  answer: boolean;
+  /** The exam «Тянуть билет» draws from: the leading exam when it has questions, else one that has; null without one. */
+  drawExamId: string | null;
+}
+
 interface DashboardData {
   lectures: LectureRow[];
   recent: LectureDetail[];
@@ -103,6 +120,34 @@ interface DashboardData {
   /** The account has exams (any date, also ones «Сегодня» does not lead with). */
   hasExams: boolean;
   examFailed: boolean;
+  /** «Первые шаги»; null when they are remembered as done or could not be read (then nothing is claimed). */
+  steps: FirstSteps | null;
+}
+
+type FirstStepsMemory = 'collapsed' | 'done' | null;
+
+function readFirstStepsMemory(userId: string | undefined): FirstStepsMemory {
+  if (!userId) return null;
+  try {
+    const value = window.localStorage.getItem(FIRST_STEPS_PREFIX + userId);
+    return value === 'collapsed' || value === 'done' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeFirstStepsMemory(userId: string, value: FirstStepsMemory) {
+  try {
+    if (value) window.localStorage.setItem(FIRST_STEPS_PREFIX + userId, value);
+    else window.localStorage.removeItem(FIRST_STEPS_PREFIX + userId);
+  } catch {
+    // Private mode: the choice lasts for this page only.
+  }
+}
+
+/** How many of the three steps are done. */
+export function firstStepsDone(steps: FirstSteps): number {
+  return Number(steps.lecture) + Number(steps.list) + Number(steps.answer);
 }
 
 const COVERAGES = new Set(['full', 'partial', 'none', 'unverified']);
@@ -170,7 +215,45 @@ export function pickExam(exams: Array<Pick<ExamRow, 'id' | 'exam_date' | 'create
   return undated.length > 0 ? undated[0].id : null;
 }
 
-async function loadExam(userId: string): Promise<{ exam: TodayExam | null; hasExams: boolean }> {
+/** Whether the account has a lecture with text: one id at most, no text is transferred. */
+async function hasLectureText(userId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('materials').select('id').eq('user_id', userId).neq('original_text', '').limit(1);
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
+
+/** Whether the journal has an answer to a ticket: one id at most. */
+async function hasTicketAnswer(userId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('learning_events').select('id').eq('user_id', userId).eq('kind', 'exam_answer').limit(1);
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
+
+/** For «Первые шаги»: one of these exams that has questions (a single exam_id is read); undefined when unreadable. */
+async function examWithQuestions(examIds: string[]): Promise<string | null | undefined> {
+  if (examIds.length === 0) return null;
+  try {
+    const { data, error } = await supabase.from('exam_questions').select('exam_id').in('exam_id', examIds).limit(1);
+    if (error) throw error;
+    const row = Array.isArray(data) ? (data[0] as { exam_id?: unknown } | undefined) : undefined;
+    return row && typeof row.exam_id === 'string' ? row.exam_id : null;
+  } catch (error) {
+    console.error('Reading the questions of the exams for the first steps failed:', error);
+    return undefined;
+  }
+}
+
+interface ExamLoad {
+  exam: TodayExam | null;
+  hasExams: boolean;
+  /**
+   * For «Первые шаги» (only when asked for): an exam with questions — the leading one when it has
+   * them — or null when no exam has any; undefined when not asked for or not readable.
+   */
+  listExamId?: string | null;
+}
+
+async function loadExam(userId: string, findList: boolean = false): Promise<ExamLoad> {
   const { data, error } = await supabase
     .from('exams')
     .select('id, title, kind, exam_date, mapped_at, ticket_layout, created_at')
@@ -180,7 +263,10 @@ async function loadExam(userId: string): Promise<{ exam: TodayExam | null; hasEx
   const exams = (Array.isArray(data) ? data : []).map(normalizeExam).filter((row): row is ExamRow => row !== null);
   const id = pickExam(exams);
   const row = exams.find((exam) => exam.id === id);
-  if (!row) return { exam: null, hasExams: exams.length > 0 };
+  if (!row) {
+    const listExamId = findList ? await examWithQuestions(exams.map((exam) => exam.id)) : undefined;
+    return { exam: null, hasExams: exams.length > 0, listExamId };
+  }
 
   const { data: rows, error: questionsError } = await supabase
     .from('exam_questions')
@@ -202,8 +288,15 @@ async function loadExam(userId: string): Promise<{ exam: TodayExam | null; hasEx
     }
   }
   const examDate = isDateKey(row.exam_date) ? row.exam_date : null;
+  const listExamId =
+    questions.length > 0
+      ? row.id
+      : findList
+        ? await examWithQuestions(exams.filter((exam) => exam.id !== row.id).map((exam) => exam.id))
+        : undefined;
   return {
     hasExams: true,
+    listExamId,
     exam: {
       id: row.id,
       title: row.title,
@@ -224,14 +317,31 @@ async function loadMaterialsWithCards(userId: string, materialIds: string[]): Pr
   return new Set(((data || []) as Array<{ material_id: string | null }>).map((row) => row.material_id ?? '').filter(Boolean));
 }
 
-async function loadDashboard(userId: string): Promise<DashboardData> {
-  const examPromise = loadExam(userId).then(
+/**
+ * Everything «Сегодня» shows. `withSteps` adds «Первые шаги» from what the page reads anyway (the
+ * lectures, the leading exam's questions and answers) and, only where that says nothing, one id at
+ * most per step: a lecture with text, an exam with questions, an answer in the journal.
+ */
+async function loadDashboard(userId: string, withSteps: boolean): Promise<DashboardData> {
+  const examPromise: Promise<ExamLoad & { failed: boolean }> = loadExam(userId, withSteps).then(
     (result) => ({ ...result, failed: false }),
     (error) => {
       console.error('Loading the exam of «Сегодня» failed:', error);
       return { exam: null, hasExams: false, failed: true };
     },
   );
+  // Step 3 from the leading exam's answers when they show one; the journal is asked only otherwise.
+  const answerPromise: Promise<boolean | null> = withSteps
+    ? examPromise.then((result) => {
+        if (result.failed || result.listExamId === undefined) return null;
+        if (result.exam?.events?.some((event) => event.kind === 'exam_answer')) return true;
+        if (result.listExamId === null) return false;
+        return hasTicketAnswer(userId).catch((error) => {
+          console.error('Reading the journal for the first steps failed:', error);
+          return null;
+        });
+      })
+    : Promise.resolve(null);
   // The stack and the lecture names depend on this read; without it the count still leads.
   const duePromise = getDueCards(userId, { limit: DUE_SAMPLE }).catch((error) => {
     console.error('Reading the due cards failed:', error);
@@ -252,7 +362,8 @@ async function loadDashboard(userId: string): Promise<DashboardData> {
   if (recentResult.error) throw recentResult.error;
   if (sessionsResult.error) throw sessionsResult.error;
   const recent = ((recentResult.data || []) as LectureDetail[]).slice(0, RECENT_LECTURES);
-  const [materialsWithCards, exam, dueCards] = await Promise.all([
+  const lectures = (lecturesResult.data || []) as LectureRow[];
+  const [materialsWithCards, exam, dueCards, lectureText, answered] = await Promise.all([
     // Only the «не добавлены в повторение» notes depend on this read: without it they are left out.
     loadMaterialsWithCards(
       userId,
@@ -263,9 +374,21 @@ async function loadDashboard(userId: string): Promise<DashboardData> {
     }),
     examPromise,
     duePromise,
+    // Step 1: without lectures there is nothing to ask.
+    withSteps && lectures.length > 0
+      ? hasLectureText(userId).catch((error) => {
+          console.error('Reading the lectures for the first steps failed:', error);
+          return null;
+        })
+      : Promise.resolve(false),
+    answerPromise,
   ]);
+  const steps: FirstSteps | null =
+    withSteps && !exam.failed && lectureText !== null && answered !== null && exam.listExamId !== undefined
+      ? { lecture: lectureText, list: exam.listExamId !== null, answer: answered, drawExamId: exam.listExamId }
+      : null;
   return {
-    lectures: (lecturesResult.data || []) as LectureRow[],
+    lectures,
     recent,
     dueCount,
     dueCards,
@@ -274,6 +397,7 @@ async function loadDashboard(userId: string): Promise<DashboardData> {
     exam: exam.exam,
     hasExams: exam.hasExams,
     examFailed: exam.failed,
+    steps,
   };
 }
 
@@ -296,6 +420,12 @@ export function firstName(fullName: unknown): string | null {
 export function greeting(fullName: unknown): string {
   const name = firstName(fullName);
   return name ? `${name}, что повторим?` : 'Что повторим сегодня?';
+}
+
+/** A new account has nothing to repeat yet: «Алина, с чего начнём?». */
+export function startGreeting(fullName: unknown): string {
+  const name = firstName(fullName);
+  return name ? `${name}, с чего начнём?` : 'С чего начнём?';
 }
 
 export function examWhen(daysLeft: number): string {
@@ -366,8 +496,8 @@ export function withoutMaterialLine(none: number): { link: string; note: string 
     link: `${none} ${pluralRu(none, QUESTION_FORMS)} без материала`,
     note:
       none === 1
-        ? 'Добавьте к нему материал — после переразметки он вернётся в тренировку.'
-        : 'Добавьте к ним материал — после переразметки они вернутся в тренировку.',
+        ? 'Добавьте к нему лекцию — после новой сверки он вернётся в тренировку.'
+        : 'Добавьте к ним лекции — после новой сверки они вернутся в тренировку.',
   };
 }
 
@@ -406,13 +536,13 @@ function shareCount(questions: TodayQuestion[], layout: TicketLayout): ShareCoun
 /**
  * The share of tickets whose questions are all in the lectures, for the exam's own layout (random
  * pairs, one per section, or the department's tickets): «Билетов, где оба вопроса есть в ваших
- * лекциях, — 35 %.» A range while some questions were checked only by words or not mapped yet; «Разметки
- * по лекциям ещё нет.» before the first mapping; '' when no share can be counted.
+ * лекциях, — 35 %.» A range while some questions were checked only by words or not mapped yet; «Сверки
+ * с лекциями ещё не было.» before the first check; '' when no share can be counted.
  */
 export function shareSentence(questions: TodayQuestion[], layout: TicketLayout): string {
   const share = shareCount(questions, layout);
   if (!share) return '';
-  if (share.kind === 'unmapped') return 'Разметки по лекциям ещё нет.';
+  if (share.kind === 'unmapped') return 'Сверки с лекциями ещё не было.';
   if (share.kind === 'fixed') return `Билетов кафедры, где ${share.word} есть в ваших лекциях, — ${share.count} из ${share.tickets}.`;
   if (share.perTicket <= 1) return `Вопросов, которые есть в ваших лекциях, — ${share.value}.`;
   return `Билетов, где ${allQuestionsWord(share.perTicket)} есть в ваших лекциях, — ${share.value}.`;
@@ -568,9 +698,9 @@ function PillDot() {
   );
 }
 
-/** The greeting with one hand-drawn yellow line under «повторим» (drawn in once; already there under reduced motion). */
+/** The greeting with one hand-drawn yellow line under «повторим» or «начнём» (drawn in once; already there under reduced motion). */
 function Greeting({ text }: { text: string }) {
-  const word = 'повторим';
+  const word = text.includes('повторим') ? 'повторим' : 'начнём';
   const at = text.indexOf(word);
   if (at < 0) return <>{text}</>;
   return (
@@ -747,13 +877,14 @@ export default function Dashboard() {
   const [loadingLine, setLoadingLine] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [stepsFolded, setStepsFolded] = useState(() => readFirstStepsMemory(user?.id) === 'collapsed');
 
   const load = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     setLoadError(false);
     try {
-      setData(await loadDashboard(user.id));
+      setData(await loadDashboard(user.id, readFirstStepsMemory(user.id) !== 'done'));
     } catch (error) {
       console.error('Loading «Сегодня» failed:', error);
       setLoadError(true);
@@ -765,6 +896,19 @@ export default function Dashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Once all three steps are done they are not read again on this device.
+  const steps = data?.steps ?? null;
+  const stepsFinished = steps !== null && firstStepsDone(steps) === 3;
+  useEffect(() => {
+    if (user?.id && stepsFinished) writeFirstStepsMemory(user.id, 'done');
+  }, [user?.id, stepsFinished]);
+
+  const toggleSteps = () => {
+    const next = !stepsFolded;
+    setStepsFolded(next);
+    if (user?.id) writeFirstStepsMemory(user.id, next ? 'collapsed' : null);
+  };
 
   // Nothing for the first 300 ms, then one quiet line (spec 4.6): no spinner.
   useEffect(() => {
@@ -806,18 +950,22 @@ export default function Dashboard() {
     }
   };
 
+  /** Nothing in the account yet: no lectures, exams or cards. */
+  const newAccount = Boolean(data && data.lectures.length === 0 && !data.hasExams && !data.examFailed && data.dueCount === 0 && !data.exam);
+  const stepsShown = steps !== null && !stepsFinished;
+  /** Unfolded, the steps hold the page's one blue button; the desk's actions step back to white pills. */
+  const stepsLead = stepsShown && !stepsFolded;
+
   const head = (
     <header className="td-head">
       <p className="td-date td-rise">{todayLine()}</p>
       <h1 className="sf-h1 td-h1 td-rise" data-d="1">
-        <Greeting text={greeting(user?.user_metadata?.full_name)} />
+        <Greeting text={newAccount ? startGreeting(user?.user_metadata?.full_name) : greeting(user?.user_metadata?.full_name)} />
       </h1>
     </header>
   );
 
   let content: ReactNode;
-  /** The empty account is one card in the middle of the page (spec 3.4), not on the desk's left edge. */
-  let centered = false;
   if (loading && !data) {
     content = (
       <div className="td-head" role="status" aria-label="Загружаем «Сегодня»">
@@ -839,54 +987,170 @@ export default function Dashboard() {
         </section>
       </>
     );
-  } else if (data.lectures.length === 0 && !data.hasExams && !data.examFailed && data.dueCount === 0 && !data.exam) {
-    // A new account: the question list first (Jury_Check item 6), a lecture when there is no list yet.
-    centered = true;
-    content = (
-      <section className="td-card td-empty td-rise" aria-labelledby="td-empty-h">
-        <div className="td-empty-body">
-          <h1 className="sf-h1 td-empty-h1" id="td-empty-h">
-            {glue('Начните со списка вопросов')}
-          </h1>
-          <p className="td-empty-text">
-            {glue('Вставьте вопросы к экзамену и загрузите лекции — Meldy отметит, какие вопросы есть в ваших лекциях и какую долю билетов они закрывают.')}
-          </p>
-          <div className="td-empty-acts">
-            <Link className="sf-primary td-empty-go" to="/exams/new">
-              Вставить список вопросов
-            </Link>
-            <Link className="sf-link td-empty-alt" data-muted="" to="/analyze">
-              Списка пока нет — добавить лекцию
-            </Link>
-          </div>
-        </div>
-        <EmptyArt />
-      </section>
-    );
   } else {
     content = (
       <>
         {head}
-        <Desk
-          data={data}
-          phone={frame.size === 's'}
-          onRetry={() => void load()}
-          activity={<Activity days={days} streak={streak} />}
-        />
-        <Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />
+        {stepsShown ? <FirstStepsCard steps={steps} folded={stepsFolded} lead={stepsLead} onToggle={toggleSteps} /> : null}
+        {/* A new account has only the steps: the desk would be empty cards and zeros. */}
+        {newAccount && stepsLead ? null : (
+          <>
+            <Desk
+              data={data}
+              phone={frame.size === 's'}
+              lead={!stepsLead}
+              onRetry={() => void load()}
+              activity={<Activity days={days} streak={streak} />}
+            />
+            <Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />
+          </>
+        )}
       </>
     );
   }
 
   return (
     <div className="sf-page td" ref={frame.ref} data-frame={frame.size}>
-      <div className={centered ? 'td-in td-in-centered' : 'td-in'}>{content}</div>
+      <div className="td-in">{content}</div>
     </div>
   );
 }
 
-/** The main card (the exam, or today's cards when there is no exam) and beside it the task cards. */
-function Desk({ data, phone, onRetry, activity }: { data: DashboardData; phone: boolean; onRetry: () => void; activity: ReactNode }) {
+/** The tick of a done step (aria-hidden: «Сделано» says it in words). */
+function TickIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+interface StepView {
+  key: 'lecture' | 'list' | 'answer';
+  title: string;
+  text: string;
+  done: boolean;
+  /** The step's one action; null when it cannot be taken yet (with `wait` saying why). */
+  action: { to: string; label: string } | null;
+  wait?: string;
+}
+
+/** The three steps in their order, with what each one does next. */
+export function firstStepViews(steps: FirstSteps): StepView[] {
+  return [
+    {
+      key: 'lecture',
+      title: 'Добавьте лекцию',
+      text: 'Файл, текст или запись пары. Meldy сделает конспект и карточки, а потом сверит с лекцией вопросы экзамена.',
+      done: steps.lecture,
+      action: { to: '/analyze', label: 'Добавить лекцию' },
+    },
+    {
+      key: 'list',
+      title: 'Вставьте список вопросов к экзамену',
+      text: 'Meldy сверит каждый вопрос с вашими лекциями: есть, частично или нет.',
+      done: steps.list,
+      action: { to: '/exams/new', label: 'Создать экзамен' },
+    },
+    {
+      key: 'answer',
+      title: 'Вытяните билет и ответьте',
+      text: 'Голосом или текстом, как на экзамене. Экзаменатор задаст дополнительный вопрос по тому, что вы пропустили.',
+      done: steps.answer,
+      action: steps.drawExamId ? { to: `/exams/${steps.drawExamId}/draw`, label: 'Тянуть билет' } : null,
+      wait: 'Станет доступно, когда появится список вопросов.',
+    },
+  ];
+}
+
+/**
+ * «Первые шаги»: the three steps of the core with their state and one action each — the next step's
+ * action is the page's blue pill while the card is unfolded. Without lectures, «Попробовать на
+ * примере» opens the sample course. The card folds to one line (remembered on this device).
+ */
+function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; folded: boolean; lead: boolean; onToggle: () => void }) {
+  const listId = useId();
+  const views = firstStepViews(steps);
+  const done = firstStepsDone(steps);
+  const next = views.findIndex((view) => !view.done);
+  return (
+    <section className="td-card td-fs td-rise" data-d="2" data-folded={folded ? '' : undefined} aria-labelledby="td-fs-h">
+      <div className="td-fs-head">
+        <h2 className="td-fs-h" id="td-fs-h">
+          Первые шаги
+        </h2>
+        <p className="td-fs-progress">
+          <span className="td-fs-count">{`Сделано ${done} из ${views.length}`}</span>
+          <span className="td-fs-meter" aria-hidden="true">
+            {views.map((view) => (
+              <i key={view.key} data-done={view.done ? '' : undefined} />
+            ))}
+          </span>
+        </p>
+        <button type="button" className="td-fs-toggle" aria-expanded={!folded} aria-controls={listId} onClick={onToggle}>
+          {folded ? 'Развернуть' : 'Свернуть'}
+        </button>
+      </div>
+      {folded ? null : (
+        <ol className="td-fs-list" id={listId}>
+          {views.map((view, index) => {
+            const state = view.done ? 'done' : index === next ? 'next' : 'later';
+            const primary = lead && state === 'next';
+            return (
+              <li key={view.key} className="td-fs-step" data-state={state}>
+                <span className="td-fs-n" aria-hidden="true">
+                  {view.done ? <TickIcon /> : index + 1}
+                </span>
+                <div className="td-fs-body">
+                  <h3 className="td-fs-step-h">
+                    {glue(view.title)}
+                    <span className="sr-only">{view.done ? ' — сделано' : ' — ещё не сделано'}</span>
+                  </h3>
+                  <p className="td-fs-p">{glue(view.text)}</p>
+                  <div className="td-fs-acts">
+                    {view.done ? (
+                      <span className="td-fs-done" aria-hidden="true">
+                        Сделано
+                      </span>
+                    ) : view.action ? (
+                      <Link className={primary ? 'sf-primary' : 'sf-secondary td-pill'} data-size="s" to={view.action.to}>
+                        {view.action.label}
+                        {primary ? null : <PillDot />}
+                      </Link>
+                    ) : (
+                      <p className="td-fs-wait">{glue(view.wait ?? '')}</p>
+                    )}
+                    {view.key === 'lecture' && !view.done ? (
+                      <Link className="sf-link td-fs-try" data-muted="" to="/try">
+                        Попробовать на примере
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+/** A link as the page's one blue pill, or as the white pill with the dark circle when something else leads. */
+function ActionLink({ to, blue, size, children }: { to: string; blue: boolean; size?: 's'; children: ReactNode }) {
+  return (
+    <Link className={blue ? 'sf-primary' : 'sf-secondary td-pill'} data-size={size} to={to}>
+      {children}
+      {blue ? null : <PillDot />}
+    </Link>
+  );
+}
+
+/**
+ * The main card (the exam, or today's cards when there is no exam) and beside it the task cards.
+ * `lead` false: «Первые шаги» hold the page's blue pill, so the desk's actions are white pills.
+ */
+function Desk({ data, phone, lead, onRetry, activity }: { data: DashboardData; phone: boolean; lead: boolean; onRetry: () => void; activity: ReactNode }) {
   const { exam, dueCount, dueCards } = data;
   const titles = useMemo(() => new Map(data.lectures.map((lecture) => [lecture.id, displayMaterialTitle(lecture.title)])), [data.lectures]);
   const firstQuestion = dueCards.find((card) => typeof card.question === 'string' && card.question.trim() !== '')?.question ?? '';
@@ -907,10 +1171,9 @@ function Desk({ data, phone, onRetry, activity }: { data: DashboardData; phone: 
             <span className="td-count-n">{count}</span> {words.join(' ')}
           </h2>
           <p className="td-meta">{glue([reviewTime(dueCount), lecturesText].filter(Boolean).join(' '))}</p>
-          <Link className={examPrimary ? 'sf-secondary td-pill' : 'sf-primary'} data-size="s" to="/review">
+          <ActionLink to="/review" blue={lead && !examPrimary} size="s">
             Начать повторение
-            {examPrimary ? <PillDot /> : null}
-          </Link>
+          </ActionLink>
         </div>
       </article>
     );
@@ -928,9 +1191,9 @@ function Desk({ data, phone, onRetry, activity }: { data: DashboardData; phone: 
   return (
     <div className="td-grid">
       {exam ? (
-        <ExamBlock exam={exam} phone={phone} />
+        <ExamBlock exam={exam} phone={phone} lead={lead} />
       ) : (
-        <NoExam data={data} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />
+        <NoExam data={data} lead={lead} onRetry={onRetry} firstQuestion={firstQuestion} lecturesText={lecturesText} />
       )}
       <div className="td-side">
         {cards}
@@ -940,14 +1203,14 @@ function Desk({ data, phone, onRetry, activity }: { data: DashboardData; phone: 
   );
 }
 
-function ExamBlock({ exam, phone }: { exam: TodayExam; phone: boolean }) {
+function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lead: boolean }) {
   const tally = coverageTally(exam.questions);
   const total = tally.total;
   const mapped = total > 0 && tally.unmapped < total;
   const gap = mapped && tally.none > 0 ? withoutMaterialLine(tally.none) : null;
   const figure = shareFigure(exam.questions, exam.layout);
   const answers = answersSentence(exam.questions, exam.events);
-  // With the large figure the share is said by it; otherwise («Разметки по лекциям ещё нет.») by the sentence.
+  // With the large figure the share is said by it; otherwise («Сверки с лекциями ещё не было.») by the sentence.
   const sentence = (figure ? [answers] : [shareSentence(exam.questions, exam.layout), answers]).filter(Boolean).join(' ');
   const note = recentNote(exam.questions, exam.events);
   const meta = examMeta({ examDate: exam.examDate, layout: exam.layout, total });
@@ -1004,9 +1267,9 @@ function ExamBlock({ exam, phone }: { exam: TodayExam; phone: boolean }) {
       ) : null}
       <div className="td-actions">
         {total > 0 ? (
-          <Link className="sf-primary" to={`/exams/${exam.id}/draw`}>
+          <ActionLink to={`/exams/${exam.id}/draw`} blue={lead}>
             {drawWord}
-          </Link>
+          </ActionLink>
         ) : null}
         <Link className="sf-secondary td-pill" to={`/exams/${exam.id}`}>
           Лист экзамена
@@ -1023,16 +1286,19 @@ function ExamBlock({ exam, phone }: { exam: TodayExam; phone: boolean }) {
  */
 function NoExam({
   data,
+  lead,
   onRetry,
   firstQuestion,
   lecturesText,
 }: {
   data: DashboardData;
+  lead: boolean;
   onRetry: () => void;
   firstQuestion: string;
   lecturesText: string;
 }) {
   const { dueCount, hasExams, examFailed } = data;
+  // While «Первые шаги» lead (lead false), their step 2 offers the question list: it is not repeated here.
   const examsLink = examFailed ? (
     <p className="td-meta td-retry">
       Экзамены не загрузились.{' '}
@@ -1045,14 +1311,14 @@ function NoExam({
       Экзамены
       <PillDot />
     </Link>
-  ) : (
+  ) : lead ? (
     <Link className="sf-secondary td-pill" to="/exams/new">
       Вставить список вопросов к экзамену
       <PillDot />
     </Link>
-  );
+  ) : null;
   if (dueCount > 0) {
-    const lead = dueLead(dueCount);
+    const words = dueLead(dueCount);
     return (
       <article className="td-card td-main td-lead td-rise" data-d="2" data-split={firstQuestion ? '' : undefined} aria-label="На сегодня">
         <div className="td-lead-body">
@@ -1060,13 +1326,13 @@ function NoExam({
             На сегодня
           </span>
           <p className="td-big">
-            {glue(lead.count)} <span className="td-big-time">{lead.time}</span>
+            {glue(words.count)} <span className="td-big-time">{words.time}</span>
           </p>
           {lecturesText ? <p className="td-meta td-due-from">{glue(lecturesText)}</p> : null}
           <div className="td-actions">
-            <Link className="sf-primary" to="/review">
+            <ActionLink to="/review" blue={lead}>
               Начать повторение
-            </Link>
+            </ActionLink>
             {examsLink}
           </div>
         </div>
@@ -1081,16 +1347,18 @@ function NoExam({
       </span>
       <p className="td-big">Карточек к повторению на сегодня нет.</p>
       {!hasExams && !examFailed ? (
-        <>
-          <p className="td-body td-quiet">
-            {glue('Вставьте вопросы к экзамену — Meldy отметит, какие из них есть в ваших лекциях.')}
-          </p>
-          <div className="td-actions">
-            <Link className="sf-primary" to="/exams/new">
-              Вставить список вопросов
-            </Link>
-          </div>
-        </>
+        lead ? (
+          <>
+            <p className="td-body td-quiet">
+              {glue('Вставьте вопросы к экзамену — Meldy отметит, какие из них есть в ваших лекциях.')}
+            </p>
+            <div className="td-actions">
+              <Link className="sf-primary" to="/exams/new">
+                Вставить список вопросов
+              </Link>
+            </div>
+          </>
+        ) : null
       ) : (
         <div className="td-actions">{examsLink}</div>
       )}
@@ -1138,7 +1406,7 @@ function Lectures({
         </h2>
         {count > 0 ? (
           <Link className="td-more" to="/library">
-            {count > RECENT_LECTURES ? `Все ${count}` : 'Библиотека'}
+            {count > RECENT_LECTURES ? `Все ${count}` : 'Все лекции'}
             <ArrowIcon className="td-arrow" />
           </Link>
         ) : null}
@@ -1188,19 +1456,3 @@ function Lectures({
   );
 }
 
-/** The new account's picture: a question list on a blue panel, its rows with status dots (no words, no numbers). */
-function EmptyArt() {
-  return (
-    <div className="td-panel td-empty-art" aria-hidden="true">
-      <div className="td-empty-win">
-        {(['g', 'g', 'y', 'g', 'n', 'g'] as const).map((tone, index) => (
-          <span key={index} className="td-empty-row">
-            <i className="td-empty-n" />
-            <i className="td-empty-line" style={{ width: `${[62, 48, 70, 44, 58, 52][index]}%` }} />
-            <i className="td-empty-st" data-tone={tone} />
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}

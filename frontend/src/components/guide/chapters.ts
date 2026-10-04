@@ -1,9 +1,11 @@
 /**
- * The guide's chapters: one per section of Meldy, in the order a new student meets them. Each has
- * a short clip (scenes/), a title and a line or two of text in the words the screens use.
+ * The guide's chapters: one per item of the menu, in the order of the menu, with «Добавить лекцию»
+ * after «Сегодня» (that is where a new student starts). Each has a short clip (scenes/), a title and
+ * a line or two of text in the words the screens use. The mistakes diary is told inside «Повторение»
+ * and the knowledge map inside «Прогресс»: that is where they live in the menu.
  */
 
-export type GuideChapterId = 'today' | 'add' | 'library' | 'review' | 'exams' | 'mistakes' | 'map' | 'progress';
+export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'review' | 'progress';
 
 export interface GuideChapter {
   id: GuideChapterId;
@@ -15,9 +17,9 @@ export interface GuideChapter {
   match: RegExp;
   title: string;
   text: string;
-  /** Where the section is on a phone, when it is not one of the four bottom tabs. */
+  /** Where the section is on a phone, when that is not obvious from the tabs. */
   phone?: string;
-  /** What lights up in the top line: the link to the route, or the «Добавить лекцию» button. */
+  /** What lights up: the section's item in the menu, or the «Добавить лекцию» button. */
   spot: 'link' | 'cta';
 }
 
@@ -28,7 +30,7 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     route: '/dashboard',
     match: /^\/dashboard\/?$/,
     title: 'Сегодня',
-    text: 'Главная страница: ближайший экзамен с кнопкой «Тянуть билет», карточки на сегодня — «Начать повторение», ниже ваши лекции.',
+    text: 'Главная страница. Сначала здесь три первых шага: лекция, список вопросов, билет. Потом — ближайший экзамен с кнопкой «Тянуть билет» и карточки на сегодня.',
     spot: 'link',
   },
   {
@@ -38,25 +40,16 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     match: /^\/analyze\/?$/,
     title: 'Добавить лекцию',
     text: 'Файл, текст, ссылка или запись пары. Отметьте, что подготовить — конспект, карточки, тест, шпаргалку или разговор, — и нажмите «Запустить анализ».',
-    phone: 'На телефоне — в меню под кружком профиля.',
+    phone: 'На телефоне — кнопка «+» вверху экрана.',
     spot: 'cta',
   },
   {
     id: 'library',
-    tab: 'Библиотека',
+    tab: 'Лекции',
     route: '/library',
     match: /^\/library(\/|$)/,
-    title: 'Библиотека',
+    title: 'Лекции',
     text: 'Все ваши лекции. В лекции — конспект со ссылками «фрагмент 3» на исходный текст, карточки и тест, а во вкладке «Разговор» лекцию обсуждают Макс и Софья.',
-    spot: 'link',
-  },
-  {
-    id: 'review',
-    tab: 'Повторение',
-    route: '/review',
-    match: /^\/review\/?$/,
-    title: 'Повторение',
-    text: 'Вспомните ответ, переверните карточку и оцените себя: «Не помню», «С трудом» или «Помню». Карточка вернётся, когда её пора вспомнить: завтра, через 6 дней, через 2 недели.',
     spot: 'link',
   },
   {
@@ -65,37 +58,25 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     route: '/exams',
     match: /^\/exams(\/|$)/,
     title: 'Экзамены',
-    text: 'Вставьте список вопросов — Meldy отметит, какие есть в ваших лекциях. Потом «Тянуть билет» и отвечать голосом или текстом: экзаменатор задаст дополнительный вопрос.',
+    text: 'Вставьте список вопросов — Meldy сверит его с вашими лекциями: есть, частично или нет. Потом «Тянуть билет» и отвечать голосом или текстом: экзаменатор задаст дополнительный вопрос.',
     spot: 'link',
   },
   {
-    id: 'mistakes',
-    tab: 'Дневник ошибок',
-    route: '/mistakes',
-    match: /^\/mistakes\/?$/,
-    title: 'Дневник ошибок',
-    text: 'Сюда попадают ошибки из тестов и ответов на билеты. Правильный ответ открывается по нажатию, разобранную ошибку отметьте как исправленную.',
-    phone: 'На телефоне — в меню под кружком профиля.',
-    spot: 'link',
-  },
-  {
-    id: 'map',
-    tab: 'Карта знаний',
-    route: '/knowledge-map',
-    match: /^\/knowledge-map\/?$/,
-    title: 'Карта знаний',
-    text: 'Лекции экзамена по порядку, а между ними — понятия, которые встречаются в нескольких лекциях. Нажмите на понятие или лекцию, чтобы увидеть, где оно и какие вопросы с ним связаны.',
-    phone: 'На телефоне — в меню под кружком профиля.',
+    id: 'review',
+    tab: 'Повторение',
+    route: '/review',
+    match: /^\/(review|mistakes)\/?$/,
+    title: 'Повторение',
+    text: 'Вспомните ответ, переверните карточку и оцените себя: «Не помню», «С трудом» или «Помню» — карточка вернётся, когда её пора вспомнить. Здесь же дневник ошибок из тестов и ответов на билеты.',
     spot: 'link',
   },
   {
     id: 'progress',
     tab: 'Прогресс',
     route: '/analytics',
-    match: /^\/analytics\/?$/,
+    match: /^\/(analytics|knowledge-map)\/?$/,
     title: 'Прогресс',
-    text: 'Сколько карточек закреплено, сколько вы вспомнили и сколько повторений ждёт на неделе. В «Что подтянуть» у каждой строки одна кнопка.',
-    phone: 'На телефоне — в меню под кружком профиля.',
+    text: 'Сколько карточек закреплено, сколько вы вспомнили и что подтянуть. Отсюда открывается карта знаний: лекции экзамена и понятия, которые их связывают.',
     spot: 'link',
   },
 ];

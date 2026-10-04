@@ -26,8 +26,10 @@
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
   -webkit-font-smoothing: antialiased;
 }
-.gd:focus,
-.gd:focus-visible { outline: none; }
+/* The card itself takes the focus when it opens (screen readers announce the dialog); the ring is
+   for its controls. (0,3,1) beats the kit's .dark .sf-shell :focus-visible (0,3,0). */
+.sf-shell section.gd:focus,
+.sf-shell section.gd:focus-visible { outline: none; }
 @media (prefers-reduced-motion: no-preference) {
   .gd { animation: gd-in .6s var(--m-ease) both; }
 }
@@ -218,8 +220,8 @@
     max-height: calc(100dvh - var(--sf-bar-h, 60px) - 16px);
   }
   .sf-shell[data-tabs] .gd {
-    bottom: calc(56px + env(safe-area-inset-bottom) + 8px);
-    max-height: calc(100dvh - var(--sf-bar-h, 60px) - 56px - env(safe-area-inset-bottom) - 24px);
+    bottom: calc(var(--sf-tabs-h, 56px) + env(safe-area-inset-bottom) + 8px);
+    max-height: calc(100dvh - var(--sf-bar-h, 60px) - var(--sf-tabs-h, 56px) - env(safe-area-inset-bottom) - 24px);
   }
   .gd-clip { width: min(100%, max(200px, calc(36dvh * 4 / 3))); }
   .gd-box { border-radius: 18px; }
@@ -235,11 +237,7 @@
 
 /* ------------------------------------------------------------------ in the top line */
 
-/* «?» next to the account button. Between 1024 and 1099 px the top line has no room for it
-   (the links would run under «Добавить лекцию»): there it is in the account menu only. */
-@media (min-width: 1024px) and (max-width: 1099px) {
-  .sf-help { display: none !important; }
-}
+/* «?» next to the account button (the line of five sections has room for it from 1024 px). */
 .sf-help {
   display: inline-grid;
   place-items: center;
@@ -260,26 +258,78 @@
 .sf-help:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 .sf-bar-right .sf-help + .sf-me-hit { margin-left: -6px; }
 
-/* The section the guide talks about: a yellow ring around its link. */
+/* The section the guide talks about: a yellow ring around its item in the menu (every section is in
+   the top line on a computer and in the tabs on a phone), or around «Добавить лекцию». */
 .sf-shell .sf-bar-link[data-guide-spot],
 .sf-shell .sf-nav-cta[data-guide-spot] {
   box-shadow: 0 0 0 3px var(--m-yellow);
 }
-/* «Карта знаний» is in the account menu below 1280 px. */
-@media (max-width: 1279px) {
-  .sf-shell .sf-me-hit[data-guide-spot-menu] { box-shadow: 0 0 0 3px var(--m-yellow); }
-}
 @media (max-width: 1023px) {
-  .sf-shell .sf-tablink[data-guide-spot] {
-    border-radius: 999px;
-    box-shadow: 0 0 0 3px var(--m-yellow);
-  }
-  .sf-shell .sf-me-hit[data-guide-spot-phone] { box-shadow: 0 0 0 3px var(--m-yellow); }
+  .sf-shell .sf-tablink[data-guide-spot] { box-shadow: 0 0 0 3px var(--m-yellow); }
 }
 @media (prefers-reduced-motion: no-preference) {
   .sf-shell .sf-bar-link[data-guide-spot],
-  .sf-shell .sf-nav-cta[data-guide-spot] { animation: gd-spot 1.8s ease-in-out infinite; }
+  .sf-shell .sf-nav-cta[data-guide-spot],
+  .sf-shell .sf-tablink[data-guide-spot] { animation: gd-spot 1.8s ease-in-out infinite; }
 }
 @keyframes gd-spot {
   50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--m-yellow) 45%, transparent); }
+}
+
+/* ------------------------------------------------------------------ the first run */
+
+/* A student's first run: the guide is a dialog in the middle of the screen (a sheet above the tabs on
+   a phone) over the dimmed app; the menu item of the chapter shows through a cut-out. The layer takes
+   every click; the shell under it is inert. */
+.gd-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--sf-bar-h, 76px) + 16px) 24px 24px;
+}
+.gd-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 18, 28, .52);
+}
+.gd-dim[data-hole] { overflow: hidden; background: none; }
+.gd-hole {
+  position: absolute;
+  border-radius: 999px;
+  box-shadow: 0 0 0 200vmax rgba(11, 18, 28, .52);
+  pointer-events: none;
+}
+.dark .gd-dim:not([data-hole]) { background: rgba(0, 0, 0, .62); }
+.dark .gd-hole { box-shadow: 0 0 0 200vmax rgba(0, 0, 0, .62); }
+@media (prefers-reduced-motion: no-preference) {
+  .gd-dim { animation: gd-dim-in .45s ease both; }
+  .gd-hole { transition: left .5s var(--m-ease), top .5s var(--m-ease), width .5s var(--m-ease), height .5s var(--m-ease); }
+}
+@keyframes gd-dim-in {
+  from { opacity: 0; }
+}
+
+.gd-layer > .gd {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  z-index: 1;
+  max-height: 100%;
+  box-shadow: 0 0 0 1px var(--sf-line), 0 40px 90px -30px rgba(0, 0, 0, .55);
+}
+@media (max-width: 1023px) {
+  .gd-layer { align-items: flex-end; padding: calc(var(--sf-bar-h, 60px) + 8px) 8px 8px; }
+  .sf-shell[data-tabs] .gd-layer { padding-bottom: calc(var(--sf-tabs-h, 56px) + env(safe-area-inset-bottom) + 8px); }
+  .gd-layer > .gd,
+  .sf-shell[data-tabs] .gd-layer > .gd {
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    max-height: 100%;
+  }
 }

@@ -297,6 +297,46 @@
 .pg-how-text { max-width: 48em; margin: 8px 0 0; font-size: 15px; line-height: 23px; color: var(--sf-muted); }
 .pg-how-text p { margin: 0 0 10px; text-wrap: pretty; }
 
+/* ---------------------------------------------------------------- the knowledge map */
+/* The way into the map: a small sky panel with two concepts over three lectures, the words, one pill. */
+.pg-map { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 28px 36px; align-items: center; padding: 14px 32px 14px 14px; }
+.pg-map-art {
+  position: relative;
+  height: 172px;
+  overflow: hidden;
+  border-radius: 26px;
+  background: linear-gradient(160deg, #c9dcfa 0%, #a9c8f7 100%);
+}
+.dark .pg-map-art { background: linear-gradient(160deg, #22355a 0%, #1a2a47 100%); }
+/* The lines are drawn on the art's own box (172 px high everywhere), so they meet the pills and cards. */
+.pg-map-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pg-map-lines path { fill: none; stroke: #10295a; stroke-width: 1.6; stroke-linecap: round; opacity: .45; vector-effect: non-scaling-stroke; }
+.dark .pg-map-lines path { stroke: #a9c8f7; }
+.pg-map-pill {
+  position: absolute;
+  top: 30px;
+  width: 64px;
+  height: 22px;
+  margin-left: -32px;
+  border-radius: 999px;
+  background: #10295a;
+}
+.pg-map-lec {
+  position: absolute;
+  top: 100px;
+  width: 64px;
+  height: 46px;
+  margin-left: -32px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 22px -14px rgba(16, 41, 90, .6);
+}
+.dark .pg-map-pill { background: #a9c8f7; }
+.dark .pg-map-lec { background: #e8effc; }
+.pg-map-body { padding: 18px 0; }
+.pg-map-text { max-width: 40em; margin: 0; font-size: 17px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.pg-map-go { margin-top: 20px; }
+
 /* ---------------------------------------------------------------- narrower screens */
 @media (max-width: 1099px) {
   .pg-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -327,6 +367,9 @@
   .pg-todo-row { grid-template-columns: 10px minmax(0, 1fr); padding: 14px 14px 14px 16px; gap: 8px 12px; }
   .pg-todo-row .pg-act { grid-column: 2; justify-self: start; }
   .pg-todo-t { font-size: 16px; }
+  .pg-map { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 10px 10px 24px; }
+  .pg-map-body { padding: 14px 12px 0; }
+  .pg-map-text { font-size: 16px; }
 }
 @media (max-width: 639px) {
   .pg-sec { margin-top: 44px; }

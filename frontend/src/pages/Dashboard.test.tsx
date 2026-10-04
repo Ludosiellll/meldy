@@ -14,6 +14,8 @@ import Dashboard, {
   examHeadingParts,
   examMeta,
   examWhen,
+  firstStepViews,
+  firstStepsDone,
   greeting,
   lectureMeta,
   pickExam,
@@ -21,6 +23,7 @@ import Dashboard, {
   reviewTime,
   shareFigure,
   shareSentence,
+  startGreeting,
   todayLine,
   withoutMaterialLine,
   type TodayQuestion,
@@ -44,7 +47,7 @@ const db = vi.hoisted(() => {
     const entry = { table, select: '', calls: [] as Array<[string, unknown[]]> };
     state.queries.push(entry);
     const builder: Record<string, unknown> = {};
-    for (const method of ['select', 'eq', 'gte', 'lte', 'in', 'order', 'limit']) {
+    for (const method of ['select', 'eq', 'neq', 'gte', 'lte', 'in', 'order', 'limit']) {
       builder[method] = (...args: unknown[]) => {
         entry.calls.push([method, args]);
         if (method === 'select') entry.select = String(args[0]);
@@ -84,7 +87,7 @@ const hash = (position: number) => position.toString(16).padStart(32, '0');
 function questionRows(coverageOf: (position: number) => string | null = (p) => (NONE.has(p) ? 'none' : PARTIAL.has(p) ? 'partial' : 'full')) {
   return Array.from({ length: 40 }, (_, index) => {
     const position = index + 1;
-    return { id: `q${position}`, position, label: String(position), section: position <= 20 ? 1 : 2, question_hash: hash(position), coverage: coverageOf(position) };
+    return { id: `q${position}`, exam_id: 'e-1', position, label: String(position), section: position <= 20 ? 1 : 2, question_hash: hash(position), coverage: coverageOf(position) };
   });
 }
 
@@ -200,6 +203,7 @@ let innerWidth: number;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: NOW });
   innerWidth = window.innerWidth;
+  window.localStorage.clear();
   db.queries.length = 0;
   for (const table of Object.keys(db.tables)) delete db.tables[table];
   db.user = { id: 'user-1', user_metadata: { full_name: 'Алина Соколова' } };
@@ -284,7 +288,7 @@ describe('«Сегодня»: the exam on the desk', () => {
 
     const gap = within(block).getByRole('link', { name: named('9 вопросов без материала') });
     expect(gap).toHaveAttribute('href', '/exams/e-1?filter=cov:none');
-    expect(within(block).getByText(byText('Добавьте к ним материал — после переразметки они вернутся в тренировку.'))).toBeInTheDocument();
+    expect(within(block).getByText(byText('Добавьте к ним лекции — после новой сверки они вернутся в тренировку.'))).toBeInTheDocument();
 
     const ribbon = within(block).getByRole('img', { name: /Пометки у 40 вопросов списка/ });
     const legend = within(block).getByText(byText('24 есть в лекциях, 7 частично, 9 нет ни в одной'));
@@ -366,7 +370,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     db.fetchQuestionEvents.mockResolvedValue([]);
     exam({ mapped_at: null });
     renderDashboard();
-    expect(await screen.findByText(byText('Разметки по лекциям ещё нет. Ответов по билетам ещё не было.'))).toBeInTheDocument();
+    expect(await screen.findByText(byText('Сверки с лекциями ещё не было. Ответов по билетам ещё не было.'))).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /Пометки/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/без материала/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 из 40/)).not.toBeInTheDocument();
@@ -440,7 +444,7 @@ describe('«Сегодня»: the sentences, unit by unit', () => {
     expect(shareSentence([q(1, 'full'), q(2, 'unverified'), q(3, 'none')], { mode: 'random', per_ticket: 2 })).toBe(
       'Билетов, где оба вопроса есть в ваших лекциях, — 0–33 %.',
     );
-    expect(shareSentence([q(1, 'unmapped'), q(2, 'unmapped')], { mode: 'random', per_ticket: 2 })).toBe('Разметки по лекциям ещё нет.');
+    expect(shareSentence([q(1, 'unmapped'), q(2, 'unmapped')], { mode: 'random', per_ticket: 2 })).toBe('Сверки с лекциями ещё не было.');
     expect(shareSentence([], { mode: 'random', per_ticket: 2 })).toBe('');
   });
 
@@ -499,11 +503,11 @@ describe('«Сегодня»: the sentences, unit by unit', () => {
   it('words «без материала» for one question and for many', () => {
     expect(withoutMaterialLine(9)).toEqual({
       link: '9 вопросов без материала',
-      note: 'Добавьте к ним материал — после переразметки они вернутся в тренировку.',
+      note: 'Добавьте к ним лекции — после новой сверки они вернутся в тренировку.',
     });
     expect(withoutMaterialLine(1)).toEqual({
       link: '1 вопрос без материала',
-      note: 'Добавьте к нему материал — после переразметки он вернётся в тренировку.',
+      note: 'Добавьте к нему лекцию — после новой сверки он вернётся в тренировку.',
     });
     expect(withoutMaterialLine(3).link).toBe('3 вопроса без материала');
   });
@@ -562,14 +566,23 @@ describe('«Сегодня»: today’s cards', () => {
   });
 });
 
+const stepsCard = () => screen.queryByRole('region', { name: 'Первые шаги' });
+const stepItem = (title: string) => within(stepsCard()!).getByRole('heading', { level: 3, name: (name) => plain(name).startsWith(title) }).closest('li') as HTMLElement;
+const stepQueries = (table: string, select: string) => db.queries.filter((query) => query.table === table && query.select === select);
+
 describe('«Сегодня»: without an exam, and a new account', () => {
-  it('leads with the cards and offers the question list', async () => {
+  it('leads with the cards; the question list is the next first step', async () => {
     renderDashboard();
     expect(await screen.findByText(byText('11 карточек ждут повторения. Около 6 минут.'))).toBeInTheDocument();
     const start = screen.getByRole('link', { name: named('Начать повторение') });
     expect(start).toHaveAttribute('href', '/review');
-    expect(start).toHaveClass('sf-primary');
-    expect(screen.getByRole('link', { name: named('Вставить список вопросов к экзамену') })).toHaveAttribute('href', '/exams/new');
+    // «Первые шаги» lead: their next step holds the one blue pill, the cards' pill is white.
+    expect(start).toHaveClass('sf-secondary');
+    const create = within(stepItem('Вставьте список вопросов к экзамену')).getByRole('link', { name: named('Создать экзамен') });
+    expect(create).toHaveAttribute('href', '/exams/new');
+    expect(create).toHaveClass('sf-primary');
+    // The cards' card does not repeat the step.
+    expect(screen.queryByRole('link', { name: named('Вставить список вопросов к экзамену') })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: named('Тянуть билет') })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.sf-index-card')).toHaveLength(3);
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
@@ -581,42 +594,182 @@ describe('«Сегодня»: without an exam, and a new account', () => {
     await screen.findByText(byText('11 карточек ждут повторения. Около 6 минут.'));
     expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
     expect(screen.queryByRole('link', { name: named('Вставить список вопросов к экзамену') })).not.toBeInTheDocument();
+    // The exam far ahead has questions: the ticket step draws from it.
+    expect(within(stepItem('Вытяните билет и ответьте')).getByRole('link', { name: named('Тянуть билет') })).toHaveAttribute('href', '/exams/e-1/draw');
   });
 
-  it('sends a new account to the question list first, without zeros or a chart', async () => {
+  it('shows a new account only the first steps: no desk, no zeros, no chart', async () => {
     db.tables.materials = () => ({ data: [] });
     db.countDueCards.mockResolvedValue(0);
     db.getDueCards.mockResolvedValue([]);
     renderDashboard();
-    expect(await screen.findByRole('heading', { level: 1, name: named('Начните со списка вопросов') })).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        byText('Вставьте вопросы к экзамену и загрузите лекции — Meldy отметит, какие вопросы есть в ваших лекциях и какую долю билетов они закрывают.'),
-      ),
-    ).toBeInTheDocument();
-    const go = screen.getByRole('link', { name: named('Вставить список вопросов') });
-    expect(go).toHaveAttribute('href', '/exams/new');
-    expect(go).toHaveClass('sf-primary');
-    expect(screen.getByRole('link', { name: named('Списка пока нет — добавить лекцию') })).toHaveAttribute('href', '/analyze');
+    expect(await screen.findByRole('heading', { level: 1, name: named('Алина, с чего начнём?') })).toBeInTheDocument();
+    const card = stepsCard()!;
+    expect(within(card).getByText('Сделано 0 из 3')).toBeInTheDocument();
+    const add = within(stepItem('Добавьте лекцию')).getByRole('link', { name: named('Добавить лекцию') });
+    expect(add).toHaveAttribute('href', '/analyze');
+    expect(add).toHaveClass('sf-primary');
+    expect(within(stepItem('Добавьте лекцию')).getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
+    expect(within(stepItem('Вставьте список вопросов к экзамену')).getByRole('link', { name: named('Создать экзамен') })).toHaveClass('sf-secondary');
+    const ticket = stepItem('Вытяните билет и ответьте');
+    expect(within(ticket).queryByRole('link')).toBeNull();
+    expect(within(ticket).getByText(byText('Станет доступно, когда появится список вопросов.'))).toBeInTheDocument();
     expect(screen.queryByText(/Повторения за две недели/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Карточек к повторению на сегодня нет.')).not.toBeInTheDocument();
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    // Nothing to ask without lectures and exams: no extra reads for the steps.
+    expect(stepQueries('materials', 'id')).toHaveLength(0);
+    expect(db.queries.some((query) => query.table === 'learning_events' || query.table === 'exam_questions')).toBe(false);
   });
 
-  it('keeps the rest of the page when exams cannot be read', async () => {
+  it('keeps the rest of the page when exams cannot be read, and claims no steps then', async () => {
     db.tables.exams = () => ({ data: null, error: { code: '42P01', message: 'relation does not exist' } });
     const user = userEvent.setup();
     renderDashboard();
     expect(await screen.findByText(byText('11 карточек ждут повторения. Около 6 минут.'))).toBeInTheDocument();
     expect(screen.getByText(/Экзамены не загрузились/)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: named('Начните со списка вопросов') })).not.toBeInTheDocument();
+    expect(stepsCard()).toBeNull();
+    expect(screen.getByRole('link', { name: named('Начать повторение') })).toHaveClass('sf-primary');
 
     exam();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).toBeInTheDocument();
   });
 });
+
+describe('«Сегодня»: «Первые шаги»', () => {
+  it('reads step 1 as a lecture with text: a scan without text does not count', async () => {
+    db.tables.materials = (query) => (query.select === 'id' ? { data: [] } : { data: query.select.includes('summary_json') ? LECTURES : LECTURES.map(({ id, title, created_at }) => ({ id, title, created_at })) });
+    exam();
+    renderDashboard();
+    const lecture = await waitForStep('Добавьте лекцию');
+    expect(within(lecture).getByRole('link', { name: named('Добавить лекцию') })).toHaveClass('sf-primary');
+    const [text] = stepQueries('materials', 'id');
+    expect(text.calls).toEqual([
+      ['select', ['id']],
+      ['eq', ['user_id', 'user-1']],
+      ['neq', ['original_text', '']],
+      ['limit', [1]],
+    ]);
+    // The exam card's «Тянуть билет» steps back to a white pill while the steps lead.
+    const examCard = screen.getByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') }).closest('article')!;
+    expect(within(examCard).getByRole('link', { name: named('Тянуть билет') })).toHaveClass('sf-secondary');
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+  });
+
+  it('asks the journal for one answer when the leading exam shows none, and offers its ticket', async () => {
+    db.fetchQuestionEvents.mockResolvedValue([]);
+    exam();
+    renderDashboard();
+    const ticket = await waitForStep('Вытяните билет и ответьте');
+    expect(within(stepsCard()!).getByText('Сделано 2 из 3')).toBeInTheDocument();
+    const draw = within(ticket).getByRole('link', { name: named('Тянуть билет') });
+    expect(draw).toHaveAttribute('href', '/exams/e-1/draw');
+    expect(draw).toHaveClass('sf-primary');
+    expect(within(stepItem('Добавьте лекцию')).getByText('Сделано')).toBeInTheDocument();
+    expect(within(stepItem('Вставьте список вопросов к экзамену')).getByText('Сделано')).toBeInTheDocument();
+    const [journal] = stepQueries('learning_events', 'id');
+    expect(journal.calls).toEqual([
+      ['select', ['id']],
+      ['eq', ['user_id', 'user-1']],
+      ['eq', ['kind', 'exam_answer']],
+      ['limit', [1]],
+    ]);
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+  });
+
+  it('counts an answer to another exam, and draws from an exam that has questions', async () => {
+    db.fetchQuestionEvents.mockResolvedValue([]);
+    db.tables.exams = () => ({ data: [examRow({ id: 'e-empty', exam_date: '2026-10-10' }), examRow({ id: 'e-2', exam_date: '2026-12-20' })] });
+    db.tables.exam_questions = (query) => {
+      const inCall = query.calls.find(([name]) => name === 'in');
+      if (inCall) return { data: [{ exam_id: 'e-2' }] };
+      return { data: [] };
+    };
+    db.tables.learning_events = () => ({ data: [{ id: 'ev-1' }] });
+    renderDashboard();
+    // All three are done: the card is gone and remembered as done.
+    await screen.findByRole('heading', { level: 2, name: (name) => plain(name).startsWith('Цифровая экономика') });
+    expect(stepsCard()).toBeNull();
+    expect(window.localStorage.getItem('meldy_first_steps_user-1')).toBe('done');
+    expect(args('exam_questions', 'in')).toEqual([['exam_id', ['e-2']]]);
+  });
+
+  it('is gone once all three are done, and is not read again on this device', async () => {
+    exam();
+    const first = renderDashboard();
+    await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
+    expect(stepsCard()).toBeNull();
+    expect(window.localStorage.getItem('meldy_first_steps_user-1')).toBe('done');
+    expect(stepQueries('materials', 'id')).toHaveLength(1);
+    first.unmount();
+
+    db.queries.length = 0;
+    renderDashboard();
+    await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
+    expect(stepsCard()).toBeNull();
+    expect(stepQueries('materials', 'id')).toHaveLength(0);
+    expect(db.queries.some((query) => query.table === 'learning_events')).toBe(false);
+  });
+
+  it('folds to one line, remembers it, and gives the desk its blue pill back', async () => {
+    db.fetchQuestionEvents.mockResolvedValue([]);
+    exam();
+    const user = userEvent.setup();
+    const first = renderDashboard();
+    await waitForStep('Вытяните билет и ответьте');
+    const fold = within(stepsCard()!).getByRole('button', { name: 'Свернуть' });
+    expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await user.click(fold);
+    const unfold = within(stepsCard()!).getByRole('button', { name: 'Развернуть' });
+    expect(unfold).toHaveAttribute('aria-expanded', 'false');
+    expect(within(stepsCard()!).queryByRole('list')).toBeNull();
+    expect(within(stepsCard()!).getByText('Сделано 2 из 3')).toBeInTheDocument();
+    expect(window.localStorage.getItem('meldy_first_steps_user-1')).toBe('collapsed');
+    const examCard = screen.getByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') }).closest('article')!;
+    expect(within(examCard).getByRole('link', { name: named('Тянуть билет') })).toHaveClass('sf-primary');
+    first.unmount();
+
+    renderDashboard();
+    await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
+    expect(within(stepsCard()!).getByRole('button', { name: 'Развернуть' })).toBeInTheDocument();
+    await user.click(within(stepsCard()!).getByRole('button', { name: 'Развернуть' }));
+    expect(window.localStorage.getItem('meldy_first_steps_user-1')).toBeNull();
+    expect(within(stepsCard()!).getByRole('list')).toBeInTheDocument();
+  });
+
+  it('claims nothing when a check cannot be read', async () => {
+    db.fetchQuestionEvents.mockResolvedValue([]);
+    db.tables.learning_events = () => ({ data: null, error: { code: '08006', message: 'offline' } });
+    exam();
+    renderDashboard();
+    await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
+    expect(stepsCard()).toBeNull();
+    expect(window.localStorage.getItem('meldy_first_steps_user-1')).toBeNull();
+    expect(screen.getByRole('link', { name: named('Тянуть билет') })).toHaveClass('sf-primary');
+  });
+
+  it('words the steps and counts them', () => {
+    const steps = { lecture: true, list: false, answer: false, drawExamId: null };
+    expect(firstStepsDone(steps)).toBe(1);
+    expect(firstStepsDone({ lecture: true, list: true, answer: true, drawExamId: 'e-1' })).toBe(3);
+    const views = firstStepViews(steps);
+    expect(views.map((view) => view.title)).toEqual(['Добавьте лекцию', 'Вставьте список вопросов к экзамену', 'Вытяните билет и ответьте']);
+    expect(views.map((view) => view.action?.to ?? null)).toEqual(['/analyze', '/exams/new', null]);
+    expect(firstStepViews({ ...steps, list: true, drawExamId: 'e-7' })[2].action).toEqual({ to: '/exams/e-7/draw', label: 'Тянуть билет' });
+    expect(views.map((view) => `${view.title} ${view.text}`).join(' ')).not.toMatch(/разметк|эталон|Библиотек/i);
+    expect(startGreeting('Алина Соколова')).toBe('Алина, с чего начнём?');
+    expect(startGreeting(undefined)).toBe('С чего начнём?');
+  });
+});
+
+/** The step's list item once «Первые шаги» are on the page. */
+async function waitForStep(title: string): Promise<HTMLElement> {
+  await screen.findByRole('region', { name: 'Первые шаги' });
+  return stepItem(title);
+}
 
 describe('«Сегодня»: an error', () => {
   it('says what is safe and offers to try again', async () => {
@@ -653,7 +806,9 @@ describe('«Сегодня»: below the desk', () => {
     expect(within(rows[0]).getByText(byText('конспект · 8 карточек · тест · разговор'))).toBeInTheDocument();
     expect(within(rows[1]).getByText('только текст, конспекта нет')).toBeInTheDocument();
     expect(within(section).getByRole('link', { name: named('Все 5') })).toHaveAttribute('href', '/library');
-    expect(args('materials', 'limit')).toEqual([[4]]);
+    // The four latest with their details; the first step asks for one lecture with text at most.
+    expect(db.queries.filter((query) => query.table === 'materials' && query.select.includes('summary_json')).flatMap((query) => query.calls.filter(([name]) => name === 'limit').map(([, a]) => a))).toEqual([[4]]);
+    expect(stepQueries('materials', 'id').map((query) => query.calls.find(([name]) => name === 'limit')?.[1])).toEqual([[1]]);
     // No old «label — number» rows, icons or blue bars.
     expect(screen.queryByText('Карточек к повторению')).not.toBeInTheDocument();
     expect(screen.queryByText('Дней подряд')).not.toBeInTheDocument();

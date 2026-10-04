@@ -7,17 +7,17 @@ const mocks = vi.hoisted(() => ({
   checkAILimit: vi.fn(),
   getProfile: vi.fn(),
   countDueCards: vi.fn(),
-  openMistakes: { count: 5 as number | null, error: null as null | { message: string } },
   setTheme: vi.fn(),
   signOut: vi.fn(),
   subscribe: vi.fn(),
   getUnreadCount: vi.fn(),
+  from: vi.fn(),
 }));
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', email: 'alina@example.com', user_metadata: { full_name: 'Алина' } }, signOut: mocks.signOut }),
 }));
-vi.mock('../api/social', () => ({ getProfile: (...args: unknown[]) => mocks.getProfile(...args) }));
+vi.mock('../api/social', () => ({ getProfile: (...args: unknown[]) => mocks.getProfile(...args), markOnboardingTourSeen: vi.fn(async () => undefined) }));
 vi.mock('../api/chat', () => ({
   getUnreadCount: (...args: unknown[]) => mocks.getUnreadCount(...args),
   subscribeToNotifications: (...args: unknown[]) => mocks.subscribe(...args),
@@ -32,20 +32,14 @@ vi.mock('../api/limits', async (importOriginal) => {
   return { ...actual, checkAILimit: (...args: unknown[]) => mocks.checkAILimit(...args) };
 });
 vi.mock('../api/flashcards', () => ({ countDueCards: (...args: unknown[]) => mocks.countDueCards(...args) }));
-vi.mock('../lib/supabase', () => {
-  const chain: Record<string, unknown> = {};
-  chain.select = () => chain;
-  chain.eq = () => chain;
-  chain.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
-    Promise.resolve({ count: mocks.openMistakes.count, error: mocks.openMistakes.error }).then(resolve, reject);
-  return { supabase: { from: () => chain } };
-});
+vi.mock('../lib/supabase', () => ({ supabase: { from: (...args: unknown[]) => mocks.from(...args) } }));
 vi.mock('../contexts/ThemeProvider', () => ({ useTheme: () => ({ theme: 'light', setTheme: mocks.setTheme }) }));
 vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: false }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }) }));
 
 import toast from 'react-hot-toast';
-import Layout, { DESK_LINKS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining } from './Layout';
+import Layout, { DESK_LINKS, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
+import { OPEN_PRO_EVENT } from '../lib/plans';
 
 function renderAt(path: string, page: React.ReactNode = <p>Содержимое страницы</p>) {
   return render(
@@ -63,13 +57,14 @@ const bar = () => document.querySelector('header.sf-bar') as HTMLElement;
 const deskNav = () => within(bar()).getByRole('navigation', { name: 'Разделы' });
 const tabBar = () => screen.queryByTestId('tab-bar');
 const openMenu = () => fireEvent.click(screen.getByRole('button', { name: /Алина: профиль, тема, выход/ }));
+/** The guide was seen, so a student's first run does not cover the shell in these tests (Guide.test.tsx covers it). */
+const profile = (extra: Record<string, unknown> = {}) => ({ is_pro: false, role: 'student', onboarding_status: { guide: true }, ...extra });
 
 beforeEach(() => {
   mocks.checkAILimit.mockReset().mockResolvedValue({ allowed: true, isPro: false, count: 30, ok: true });
-  mocks.getProfile.mockReset().mockResolvedValue({ is_pro: false, role: 'student' });
+  mocks.getProfile.mockReset().mockResolvedValue(profile());
   mocks.countDueCards.mockReset().mockResolvedValue(11);
-  mocks.openMistakes.count = 5;
-  mocks.openMistakes.error = null;
+  mocks.from.mockReset();
   mocks.setTheme.mockReset();
   mocks.signOut.mockReset();
   mocks.getUnreadCount.mockReset().mockResolvedValue(0);
@@ -83,34 +78,19 @@ afterEach(() => {
   document.body.style.overflow = '';
 });
 
-describe('the menu line (spec 4.1)', () => {
-  it('is one line of text links with «Экзамены» second and «Карта знаний» after «Библиотека», and no sidebar', async () => {
+describe('the menu: five sections around the core', () => {
+  it('is one line of the five sections — Сегодня, Экзамены, Лекции, Повторение, Прогресс — and no sidebar', async () => {
     renderAt('/dashboard');
-    const labels = within(deskNav())
-      .getAllByRole('link')
-      .map((link) => link.textContent?.replace(/\d+/g, '').trim());
-    expect(labels).toEqual(['Сегодня', 'Экзамены', 'Библиотека', 'Карта знаний', 'Повторение', 'Дневник ошибок', 'Прогресс']);
-    expect(within(deskNav()).getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
+    const links = within(deskNav()).getAllByRole('link');
+    expect(links.map((link) => link.textContent?.replace(/\d+/g, '').trim())).toEqual(['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/dashboard', '/exams', '/library', '/review', '/analytics']);
+    for (const link of links) expect(link.className).toBe('sf-bar-link');
+    expect(within(bar()).queryByRole('link', { name: /Карта знаний|Дневник ошибок|Библиотека/ })).toBeNull();
     expect(document.querySelector('aside')).toBeNull();
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('shows «Карта знаний» in the line only where it fits (1280 px and wider), else in the account menu', async () => {
-    renderAt('/knowledge-map');
-    const link = within(deskNav()).getByRole('link', { name: 'Карта знаний' });
-    expect(link).toHaveAttribute('href', '/knowledge-map');
-    expect(link).toHaveAttribute('aria-current', 'page');
-    expect(link).toHaveClass('sf-bar-link', 'max-[1279px]:!hidden');
-    // The other six are never hidden: the line of six fits from 1024 px.
-    for (const other of within(deskNav()).getAllByRole('link').filter((item) => item !== link)) expect(other.className).toBe('sf-bar-link');
-    openMenu();
-    const fallback = within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('link', { name: 'Карта знаний' });
-    expect(fallback).toHaveAttribute('href', '/knowledge-map');
-    expect(fallback).toHaveClass('sf-acct-item', 'min-[1280px]:!hidden');
-    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
-  });
-
-  it('has no capitals, group titles, icons or badges', async () => {
+  it('has no capitals, group titles, icons or badges in the top line', async () => {
     renderAt('/dashboard');
     const header = bar();
     expect(header.querySelector('svg')).toBeNull();
@@ -127,30 +107,49 @@ describe('the menu line (spec 4.1)', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('shows real counters next to «Повторение» and «Дневник ошибок»', async () => {
-    renderAt('/dashboard');
-    const nav = deskNav();
-    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Повторение 11' })).toBeInTheDocument());
-    expect(within(nav).getByRole('link', { name: 'Дневник ошибок 5' })).toHaveAttribute('href', '/mistakes');
-    expect(mocks.countDueCards).toHaveBeenCalledWith('user-1');
+  it('keeps the knowledge map in «Прогресс» and the mistakes diary in «Повторение»', async () => {
+    for (const [path, section] of [
+      ['/knowledge-map', 'Прогресс'],
+      ['/analytics', 'Прогресс'],
+      ['/mistakes', 'Повторение'],
+      ['/review', 'Повторение'],
+      ['/library/m1', 'Лекции'],
+    ] as const) {
+      renderAt(path);
+      const current = within(deskNav()).getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page');
+      expect(current.map((link) => link.textContent?.replace(/\d+/g, '').trim())).toEqual([section]);
+      cleanup();
+    }
+    expect(sectionOf('/knowledge-map')?.to).toBe('/analytics');
+    expect(sectionOf('/mistakes')?.to).toBe('/review');
+    expect(sectionOf('/profile')).toBeNull();
+    expect(sectionOf('/analyze')).toBeNull();
   });
 
-  it('shows no counter at all when a count is zero or could not be read', async () => {
+  it('shows the cards due next to «Повторение»', async () => {
+    renderAt('/dashboard');
+    await waitFor(() => expect(within(deskNav()).getByRole('link', { name: 'Повторение 11' })).toBeInTheDocument());
+    expect(mocks.countDueCards).toHaveBeenCalledWith('user-1');
+    // The open mistakes are counted on «Повторение» itself, not by the shell.
+    expect(mocks.from).not.toHaveBeenCalledWith('mistake_diary');
+  });
+
+  it('shows no counter at all when the count is zero or could not be read', async () => {
     mocks.countDueCards.mockRejectedValue(new Error('offline'));
-    mocks.openMistakes.count = 0;
     renderAt('/dashboard');
     await waitFor(() => expect(mocks.countDueCards).toHaveBeenCalled());
     await act(async () => undefined);
     expect(within(deskNav()).getByRole('link', { name: 'Повторение' }).textContent).toBe('Повторение');
-    expect(within(deskNav()).getByRole('link', { name: 'Дневник ошибок' }).textContent).toBe('Дневник ошибок');
   });
 
-  it('keeps «Добавить лекцию» as the outlined button of the line', async () => {
+  it('keeps «Добавить лекцию» as the button of the line, a round «+» with the same name on a phone', async () => {
     renderAt('/analyze');
     const cta = within(bar()).getByRole('link', { name: 'Добавить лекцию' });
     expect(cta).toHaveAttribute('href', '/analyze');
     expect(cta).toHaveClass('sf-nav-cta');
     expect(cta).toHaveAttribute('aria-current', 'page');
+    expect(cta.querySelector('.sf-cta-plus')).toHaveAttribute('aria-hidden', 'true');
+    expect(cta.querySelector('.sf-cta-t')).toHaveTextContent('Добавить лекцию');
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -167,14 +166,20 @@ describe('the menu line (spec 4.1)', () => {
 });
 
 describe('phones and tablets (spec 4.2)', () => {
-  it('has four text tabs at the bottom', async () => {
+  it('has the same five sections as tabs at the bottom, an icon over a word', async () => {
     renderAt('/dashboard');
     const tabs = tabBar()!;
-    expect(within(tabs).getAllByRole('link').map((link) => link.textContent)).toEqual(['Сегодня', 'Экзамены', 'Библиотека', 'Повторение']);
+    const links = within(tabs).getAllByRole('link');
+    expect(links.map((link) => link.textContent)).toEqual(['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']);
     expect(within(tabs).getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
-    expect(tabs.querySelector('svg')).toBeNull();
-    expect(PHONE_TABS.map((item) => item.to)).toEqual(['/dashboard', '/exams', '/library', '/review']);
-    expect(DESK_LINKS.map((item) => item.to)).toContain('/knowledge-map');
+    expect(within(tabs).getByRole('link', { name: 'Сегодня' })).toHaveAttribute('aria-current', 'page');
+    for (const link of links) {
+      expect(link.querySelector('.sf-tab-ico svg')).not.toBeNull();
+      expect(link.querySelector('.sf-tab-ico')).toHaveAttribute('aria-hidden', 'true');
+    }
+    expect(PHONE_TABS.map((item) => item.to)).toEqual(['/dashboard', '/exams', '/library', '/review', '/analytics']);
+    expect(DESK_LINKS).toBe(NAV_ITEMS);
+    expect(PHONE_TABS).toBe(NAV_ITEMS);
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -183,7 +188,7 @@ describe('phones and tablets (spec 4.2)', () => {
       ['/exams/exam-1', 'Экзамены', '/exams'],
       ['/exams/new', 'Экзамены', '/exams'],
       ['/exams/exam-1/edit', 'Лист экзамена', '/exams/exam-1'],
-      ['/library/m1', 'Библиотека', '/library'],
+      ['/library/m1', 'Лекции', '/library'],
     ] as const) {
       renderAt(path);
       expect(tabBar()).toBeNull();
@@ -199,6 +204,20 @@ describe('phones and tablets (spec 4.2)', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
+  it('leads back from the map to «Прогресс» and from the diary to «Повторение», with the tabs still there', async () => {
+    for (const [path, label, href] of [
+      ['/knowledge-map', 'Прогресс', '/analytics'],
+      ['/mistakes', 'Повторение', '/review'],
+    ] as const) {
+      renderAt(path);
+      const back = document.querySelector('.sf-back') as HTMLAnchorElement;
+      expect(back.textContent).toBe(label);
+      expect(back).toHaveAttribute('href', href);
+      expect(within(tabBar()!).getByRole('link', { name: label })).toHaveAttribute('aria-current', 'page');
+      cleanup();
+    }
+  });
+
   it('recognises room, detail and parent paths', () => {
     expect(isRoomPath('/exams/abc/draw')).toBe(true);
     expect(isRoomPath('/exams/abc/ticket')).toBe(true);
@@ -210,9 +229,14 @@ describe('phones and tablets (spec 4.2)', () => {
     expect(hidesBottomNav('/library/abc')).toBe(true);
     expect(hidesBottomNav('/exams')).toBe(false);
     expect(hidesBottomNav('/library')).toBe(false);
+    expect(hidesBottomNav('/knowledge-map')).toBe(false);
+    expect(hidesBottomNav('/mistakes')).toBe(false);
     expect(hidesBottomNav('/exams/abc/draw')).toBe(false);
     expect(backLinkFor('/dashboard')).toBeNull();
     expect(backLinkFor('/exams')).toBeNull();
+    expect(backLinkFor('/analytics')).toBeNull();
+    expect(backLinkFor('/knowledge-map')).toEqual({ to: '/analytics', label: 'Прогресс' });
+    expect(backLinkFor('/mistakes')).toEqual({ to: '/review', label: 'Повторение' });
   });
 });
 
@@ -285,24 +309,17 @@ describe('account menu', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('on a phone also lists «Дневник ошибок», «Прогресс» and «Добавить лекцию»', async () => {
+  it('keeps only the account: the sections are all in the menu line and the tabs', async () => {
     renderAt('/dashboard');
     openMenu();
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
-    for (const [name, href] of [
-      [/Дневник ошибок/, '/mistakes'],
-      [/Прогресс/, '/analytics'],
-      [/Добавить лекцию/, '/analyze'],
-    ] as const) {
-      const link = within(menu).getByRole('link', { name });
-      expect(link).toHaveAttribute('href', href);
-      expect(link).toHaveClass('sf-acct-phone');
-    }
+    expect(within(menu).queryByRole('link', { name: /Карта знаний|Дневник ошибок|Прогресс|Добавить лекцию/ })).toBeNull();
+    expect(within(menu).getByRole('button', { name: 'Как пользоваться Meldy' })).toBeInTheDocument();
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
   it('gives a teacher «Мои группы» and «Диалоги и друзья»', async () => {
-    mocks.getProfile.mockResolvedValue({ is_pro: false, role: 'teacher' });
+    mocks.getProfile.mockResolvedValue(profile({ role: 'teacher' }));
     renderAt('/dashboard');
     await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
     await act(async () => undefined);
@@ -330,6 +347,38 @@ describe('daily limit line', () => {
     await waitFor(() => expect(meter).toHaveTextContent('осталось 0 из 100'));
     expect(meter.textContent).not.toMatch(/-\d/);
     expect(mocks.checkAILimit).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers «Что даёт PRO» next to the limit: it opens the PRO window and closes the menu', async () => {
+    const opened = vi.fn();
+    window.addEventListener(OPEN_PRO_EVENT, opened);
+    try {
+      renderAt('/dashboard');
+      await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+      await act(async () => undefined);
+      openMenu();
+      const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
+      const meter = within(menu).getByTestId('quota-meter');
+      const pro = within(menu).getByRole('button', { name: 'Что даёт PRO' });
+      expect(meter.compareDocumentPosition(pro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      fireEvent.click(pro);
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ reason: 'meter' });
+      expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
+    } finally {
+      window.removeEventListener(OPEN_PRO_EVENT, opened);
+    }
+  });
+
+  it('does not offer PRO to a PRO account', async () => {
+    mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 0, ok: true });
+    renderAt('/dashboard');
+    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+    await act(async () => undefined);
+    openMenu();
+    expect(screen.getByTestId('quota-meter')).toHaveTextContent('без лимита');
+    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
   });
 
   it('does not pretend the limit is full when the counter could not be read', async () => {
@@ -377,9 +426,9 @@ describe('page loading', () => {
     expect(loader.className).toContain('min-h-[40vh]');
     expect(document.querySelector('header.sf-bar')).not.toBeNull();
     await act(async () => {
-      release({ default: () => <p>Библиотека загружена</p> });
+      release({ default: () => <p>Лекции загружены</p> });
     });
-    expect(await screen.findByText('Библиотека загружена')).toBeInTheDocument();
+    expect(await screen.findByText('Лекции загружены')).toBeInTheDocument();
   });
 });
 

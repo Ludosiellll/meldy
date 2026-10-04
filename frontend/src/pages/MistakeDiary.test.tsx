@@ -264,6 +264,16 @@ describe('Mistake diary list', () => {
     expect(screen.getByText('Исправлено').closest('p')).toHaveTextContent(/^Исправлено\s*1$/);
   });
 
+  it('lives in «Повторение»: the crumb over the title leads back there', async () => {
+    api.from.mockReturnValue(listQuery({ data: rows, error: null }));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+
+    const title = await screen.findByRole('heading', { level: 1, name: 'Дневник ошибок' });
+    const crumb = screen.getByRole('link', { name: 'Повторение' });
+    expect(crumb).toHaveAttribute('href', '/review');
+    expect(crumb.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('says in the intro that mistakes come from tests, ticket answers and oral exams', async () => {
     api.from.mockReturnValue(listQuery({ data: rows, error: null }));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);

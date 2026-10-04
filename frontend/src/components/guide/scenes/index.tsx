@@ -68,7 +68,7 @@ function Today() {
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={['Главное', 'на сегодня.']}>
-        <Strip items={['Сегодня', 'Экзамены', 'Библиотека', 'Повторение']} on="Сегодня" />
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Сегодня" />
         <p className="fm-h1 gs-h1">Аня, что повторим?</p>
         <div className="fm-card gs-today-exam">
           <span className="fm-flag">Экзамен через 12 дней</span>
@@ -131,7 +131,7 @@ function Add() {
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={['Загрузите', 'лекцию.']}>
-        <Strip items={['Сегодня', 'Экзамены', 'Библиотека']} cta />
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции']} cta />
         <p className="fm-h1 gs-h1 gs-h1--two">Один материал — полный цикл подготовки</p>
         <div data-a="zone" className="gs-zone">
           <span data-a="hint" className="gs-zone-hint">
@@ -180,7 +180,7 @@ function Add() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// «Библиотека»
+// «Лекции»
 
 const LECTURES = [
   ['Эластичность спроса', 'конспект · 8 карточек · тест · разговор', '2 окт.'],
@@ -208,8 +208,8 @@ function Library() {
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={['Все лекции', 'в одном месте.']}>
-        <Strip items={['Сегодня', 'Экзамены', 'Библиотека', 'Повторение']} on="Библиотека" />
-        <p className="fm-h1 gs-h1">Библиотека</p>
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Лекции" />
+        <p className="fm-h1 gs-h1">Лекции</p>
         <p className="gs-lede fm-muted">9 лекций · 42 карточки</p>
         {LECTURES.map(([title, meta, date], index) => (
           <div key={title} data-a="row" className="fm-card gs-lrow" style={{ top: 360 + index * 160 }}>
@@ -275,7 +275,7 @@ function Review() {
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={['Сначала', 'вспомните.']}>
-        <Strip items={['Сегодня', 'Экзамены', 'Библиотека', 'Повторение']} on="Повторение" />
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Повторение" />
         <p className="gs-review-top fm-muted">1 из 11 · Эластичность спроса</p>
         <div className="fm-card gs-card gs-card--far" />
         <div data-a="next" className="fm-card gs-card">
@@ -353,7 +353,7 @@ function Exams() {
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={['Билет —', 'как на экзамене.']}>
-        <Strip items={['Сегодня', 'Экзамены', 'Библиотека', 'Повторение']} on="Экзамены" />
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Экзамены" />
         <p className="fm-h1 gs-h1">Микроэкономика</p>
         <p className="gs-lede fm-muted">Экзамен 15 октября, через 12 дней · 40 вопросов</p>
         <div className="fm-card gs-sheet">
@@ -401,165 +401,6 @@ function Exams() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// «Дневник ошибок»
-
-function Mistakes() {
-  const root = useRef<HTMLDivElement>(null);
-  const { one, all } = useEls(root);
-  useFrame((l) => {
-    put(one('entry'), 'transform', `scale(${(1 - 0.02 * pressDepth(l, 2700)).toFixed(3)})`);
-    const open = ease.inOut(seg(l, 2800, 600));
-    put(one('entry'), 'height', `${mix(156, 470, open).toFixed(1)}px`);
-    put(one('entry2'), 'top', `${mix(570, 884, open).toFixed(1)}px`);
-    focusIn(one('answers'), l, 3200, 500, 8);
-    focusIn(one('fix'), l, 3450, 500, 8);
-    put(one('fix'), 'transform', `scale(${(1 - 0.06 * pressDepth(l, 4400)).toFixed(3)})`);
-    const fixed = seg(l, 4550, 260);
-    opacity(one('fixed'), fixed);
-    all('cnt').forEach((count) => {
-      const [before, after] = count.children;
-      opacity(before, 1 - fixed);
-      opacity(after, fixed);
-      place(after, 0, mix(20, 0, ease.brand(fixed)));
-    });
-  });
-  return (
-    <div ref={root} className="mr-scene">
-      <Beat lines={['Ошибки', 'не теряются.']}>
-        <Strip items={['Повторение', 'Дневник ошибок', 'Прогресс']} on="Дневник ошибок" />
-        <p className="fm-h1 gs-h1">Дневник ошибок</p>
-        <div className="gs-counts">
-          <span className="gs-count">
-            Открыто{' '}
-            <span data-a="cnt" className="gs-roll">
-              <span>2</span>
-              <span style={{ opacity: 0 }}>1</span>
-            </span>
-          </span>
-          <span className="gs-count">
-            Исправлено{' '}
-            <span data-a="cnt" className="gs-roll">
-              <span>0</span>
-              <span style={{ opacity: 0 }}>1</span>
-            </span>
-          </span>
-        </div>
-        <div data-a="entry" className="fm-card gs-entry" style={{ top: 396, height: 156 }}>
-          <p className="gs-entry-q">Что такое эластичность спроса?</p>
-          <p className="gs-entry-m fm-muted">
-            Тест · Микроэкономика · 3 окт.
-            <span data-a="fixed" style={{ opacity: 0 }}>
-              {' '}
-              · исправлена
-            </span>
-          </p>
-          <div data-a="answers" className="gs-answers" style={{ opacity: 0 }}>
-            <span className="gs-answer">
-              <small className="fm-muted">Ваш ответ</small>
-              Когда цена не меняется
-            </span>
-            <span className="gs-answer gs-answer--right">
-              <small className="fm-muted">Правильный ответ</small>
-              Когда объём меняется сильнее цены
-            </span>
-          </div>
-          <span data-a="fix" className="fm-btn fm-btn--ink gs-fix" style={{ opacity: 0 }}>
-            Отметить как исправленную
-          </span>
-        </div>
-        <div data-a="entry2" className="fm-card gs-entry" style={{ top: 570, height: 156 }}>
-          <p className="gs-entry-q">Виды монополий</p>
-          <p className="gs-entry-m fm-muted">Ответ на билет · Микроэкономика · 2 окт.</p>
-        </div>
-      </Beat>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// «Карта знаний»
-
-const MAP_LECTURES = [
-  ['Лекция 1', 'Рынок и равновесие'],
-  ['Лекция 2', 'Эластичность спроса'],
-  ['Лекция 3', 'Издержки фирмы'],
-];
-/** Concepts and the lectures they appear in. */
-const CONCEPTS: Array<{ word: string; x: number; to: number[] }> = [
-  { word: 'Цена', x: 290, to: [0, 1, 2] },
-  { word: 'Спрос', x: 720, to: [0, 1] },
-  { word: 'Издержки', x: 1150, to: [0, 2] },
-];
-const CARD_X = [280, 720, 1160];
-
-function MapClip() {
-  const root = useRef<HTMLDivElement>(null);
-  const { one, all } = useEls(root);
-  useFrame((l) => {
-    all('line').forEach((line, index) => {
-      put(line, 'stroke-dashoffset', (1 - ease.inOut(seg(l, 2300 + index * 110, 560))).toFixed(4));
-    });
-    const picked = l >= 3900;
-    put(one('pick'), 'transform', `scale(${(1 - 0.08 * pressDepth(l, 3900)).toFixed(3)})`);
-    all('concept').forEach((pill, index) => {
-      put(pill, 'background', picked && index === 1 ? '#0b121c' : '#ffffff');
-      put(pill, 'color', picked && index === 1 ? '#ffffff' : '#0b121c');
-      opacity(pill, picked && index !== 1 ? 0.4 : 1);
-    });
-    all('line').forEach((line) => {
-      const mine = line.getAttribute('data-c') === '1';
-      put(line, 'stroke', picked && mine ? '#0b121c' : '#c9cac3');
-      put(line, 'stroke-width', picked && mine ? '6' : '3');
-      opacity(line, picked && !mine ? 0.35 : 1);
-    });
-    all('lec').forEach((card, index) => {
-      const hit = picked && index < 2;
-      put(card, 'box-shadow', hit ? '0 0 0 4px #0b121c' : '0 0 0 1px #e4e4de');
-      opacity(card, picked && !hit ? 0.45 : 1);
-    });
-    slideIn(one('where'), l, 4150, { dy: 24, dur: 480, smear: 6 });
-  });
-  return (
-    <div ref={root} className="mr-scene">
-      <Beat lines={['Лекции', 'связаны.']}>
-        <Strip items={['Библиотека', 'Карта знаний', 'Повторение']} on="Карта знаний" />
-        <p className="fm-h1 gs-h1">Карта знаний</p>
-        <p className="gs-lede fm-muted">Микроэкономика · 3 лекции · 3 общих понятия</p>
-        <svg className="gs-lines" viewBox="0 0 1440 1080" aria-hidden="true">
-          {CONCEPTS.flatMap((concept, c) =>
-            concept.to.map((lecture) => (
-              <path
-                key={`${c}-${lecture}`}
-                data-a="line"
-                data-c={c}
-                pathLength={1}
-                d={`M${concept.x} 504 C ${concept.x} 600, ${CARD_X[lecture]} 620, ${CARD_X[lecture]} 716`}
-              />
-            )),
-          )}
-        </svg>
-        {CONCEPTS.map((concept, index) => (
-          <span key={concept.word} data-a="concept" className="gs-concept" style={{ left: concept.x }}>
-            <span data-a={index === 1 ? 'pick' : undefined} className="gs-concept-in">
-              {concept.word}
-            </span>
-          </span>
-        ))}
-        <p data-a="where" className="gs-where" style={{ opacity: 0 }}>
-          Где встречается: лекции 1 и 2
-        </p>
-        {MAP_LECTURES.map(([number, title], index) => (
-          <div key={number} data-a="lec" className="fm-card gs-lec" style={{ left: CARD_X[index] - 200 }}>
-            <p className="gs-lec-n fm-muted">{number}</p>
-            <p className="gs-lec-t">{title}</p>
-          </div>
-        ))}
-      </Beat>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
 // «Прогресс»
 
 function Progress() {
@@ -573,7 +414,7 @@ function Progress() {
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={['Видно,', 'что дальше.']}>
-        <Strip items={['Повторение', 'Дневник ошибок', 'Прогресс']} on="Прогресс" />
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']} on="Прогресс" />
         <p className="fm-h1 gs-h1">Прогресс</p>
         <div className="fm-card gs-tile" style={{ left: 80 }}>
           <p className="gs-tile-h">Карточки</p>
@@ -625,7 +466,5 @@ export const GUIDE_SCENES: Record<GuideChapterId, { total: number; poster: numbe
   library: clip(Library),
   review: clip(Review),
   exams: clip(Exams),
-  mistakes: clip(Mistakes),
-  map: clip(MapClip),
   progress: clip(Progress),
 };

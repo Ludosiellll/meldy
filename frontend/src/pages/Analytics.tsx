@@ -270,11 +270,11 @@ const ANSWER_FORMS = ['ответ', 'ответа', 'ответов'] as const;
 /** After «Повторить»: «1 карточку», «2 карточки», «5 карточек». */
 const CARD_ACC = ['карточку', 'карточки', 'карточек'] as const;
 
-/** The date of the mapping in the words of the exam sheet: «Разметка от 21 января, 9:40.» */
+/** The date of the check of the list against the lectures: «Сверка с лекциями от 21 января, 9:40.» */
 export function mappingDateText(mappedAt: string | null | undefined): string | null {
   if (!mappedAt) return null;
   const date = new Date(mappedAt);
-  return Number.isNaN(date.getTime()) ? null : `Разметка от ${format(date, 'd MMMM, H:mm', { locale: ru })}.`;
+  return Number.isNaN(date.getTime()) ? null : `Сверка с лекциями от ${format(date, 'd MMMM, H:mm', { locale: ru })}.`;
 }
 
 /** «экзамен 15 октября, через 12 дней · ответы на билеты с 27 сентября». */
@@ -313,13 +313,13 @@ export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'con
   return parts.join(' ');
 }
 
-/** «Есть в лекциях: 24 из 40 · частично 7 · нет 9», or that the list was not mapped yet. */
+/** «Есть в лекциях: 24 из 40 · частично 7 · нет 9», or that the list was not checked against the lectures yet. */
 function coverageLine(exam: ExamBlock): string {
   if (exam.total === 0) return 'Вопросов в списке пока нет.';
-  if (exam.coverage.unmapped >= exam.total) return 'Разметки по лекциям ещё нет.';
+  if (exam.coverage.unmapped >= exam.total) return 'Сверки с лекциями ещё не было.';
   const parts = [`Есть в ваших лекциях: ${exam.coverage.full} из ${exam.total}`, `частично ${exam.coverage.partial}`, `нет ${exam.coverage.none}`];
   if (exam.coverage.unverified > 0) parts.push(`только по словам ${exam.coverage.unverified}`);
-  if (exam.coverage.unmapped > 0) parts.push(`не размечено ${exam.coverage.unmapped}`);
+  if (exam.coverage.unmapped > 0) parts.push(`не сверено ${exam.coverage.unmapped}`);
   const date = mappingDateText(exam.mappedAt);
   return `${parts.join(' · ')}.${date ? ` ${date}` : ''}`;
 }
@@ -351,6 +351,39 @@ function Section({ title, children, aside, id }: { title: string; children: Reac
 
 function Quiet({ children }: { children: ReactNode }) {
   return <p className="pg-quiet">{children}</p>;
+}
+
+/**
+ * The way into the knowledge map, which lives in «Прогресс» (the exam sheet links to it too): what
+ * the map shows, in words, and one button. The picture is decoration: two concepts over three lectures.
+ */
+function KnowledgeMapCard() {
+  return (
+    <div className="pg-card pg-map">
+      <div className="pg-map-art" aria-hidden="true">
+        <svg className="pg-map-lines" viewBox="0 0 240 172" preserveAspectRatio="none">
+          <path d="M80 52 C 80 78, 40 74, 40 100" />
+          <path d="M80 52 C 80 78, 120 74, 120 100" />
+          <path d="M160 52 C 160 78, 120 74, 120 100" />
+          <path d="M160 52 C 160 78, 200 74, 200 100" />
+        </svg>
+        <i className="pg-map-pill" style={{ left: '33.3%' }} />
+        <i className="pg-map-pill" style={{ left: '66.7%' }} />
+        <b className="pg-map-lec" style={{ left: '16.7%' }} />
+        <b className="pg-map-lec" style={{ left: '50%' }} />
+        <b className="pg-map-lec" style={{ left: '83.3%' }} />
+      </div>
+      <div className="pg-map-body">
+        <p className="pg-map-text">
+          Ваши лекции по порядку, а между ними — понятия, которые встречаются в нескольких лекциях. На каждой лекции видно, какие
+          вопросы экзамена в ней есть и как вы на них отвечали.
+        </p>
+        <Link className="sf-secondary pg-map-go" to="/knowledge-map">
+          Открыть карту знаний
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 /** The exam's questions as dots, as on «Сегодня»: confirmed, once, not passed, then the untested ones. */
@@ -639,7 +672,11 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
         )}
       </Section>
 
-      <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted="">Библиотека</Link>}>
+      <Section title="Карта знаний" id="pg-map">
+        <KnowledgeMapCard />
+      </Section>
+
+      <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted="">Все лекции</Link>}>
         {materials.status === 'error' ? (
           <ErrorLine text="Лекции не загрузились." onRetry={() => reload('materials')} />
         ) : materials.status === 'loading' ? (
@@ -677,7 +714,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
                 <summary>
                   Только текст — {count(textOnly.length, ['лекция', 'лекции', 'лекций'])}
                 </summary>
-                <p className="pg-quiet">Загружены для разметки экзаменов: конспекта, карточек и теста у них нет.</p>
+                <p className="pg-quiet">Загружены для сверки с вопросами экзаменов: конспекта, карточек и теста у них нет.</p>
                 <ul>
                   {textOnly.map((row) => (
                     <li key={row.id}>

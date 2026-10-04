@@ -1,6 +1,6 @@
-import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, GraduationCap, Repeat, Sun, TrendingUp, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, type UserProfile } from '../api/social';
 import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, type Notification, getUnreadDMsGrouped } from '../api/chat';
@@ -8,7 +8,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { useTheme } from '../contexts/ThemeProvider';
 import { AI_USAGE_EVENT, checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
 import { countDueCards } from '../api/flashcards';
-import { supabase } from '../lib/supabase';
+import { openProWindow } from '../lib/plans';
 import TokenInfoModal from './TokenInfoModal';
 import RouteLoading from './RouteLoading';
 import { useInstallPWA } from '../hooks/useInstallPWA';
@@ -16,37 +16,46 @@ import { GuideProvider, GUIDE_PROFILE_KEY, useGuide } from './guide/GuideContext
 import GuidePanel from './guide/GuidePanel';
 import { GUIDE_CHAPTERS } from './guide/chapters';
 import '../styles/paper.css';
+import './layout.css';
 
 /**
- * The shell of the interior (redesign spec 4.1–4.2): one flat top line like the landing's navbar —
- * the wordmark, six text links, «Добавить лекцию» and the account button; on phones a 52 px line
- * and four text tabs at the bottom. No sidebar, no icons in the menu, no capitals, no badges.
- * The window scrolls (not <main>), so a page opens at its top and «назад» returns to where it was.
+ * The shell of the interior: one line on top like the landing's navbar — the wordmark, the five
+ * sections as pills, «Добавить лекцию» and the account button; on phones a short line with «+»
+ * and five tabs at the bottom, an icon over a word. The menu is the core of Meldy: «Сегодня»,
+ * «Экзамены», «Лекции», «Повторение» (with the mistakes diary) and «Прогресс» (with the knowledge
+ * map). The window scrolls (not <main>), so a page opens at its top and «назад» returns to where it was.
  */
-
-type Counter = 'due' | 'mistakes';
 
 interface NavItem {
   to: string;
   label: string;
-  counter?: Counter;
-  /** Only where the line has room for it (1280 px and wider); narrower, it is in the account menu. */
-  wide?: boolean;
+  /** The pages of the section: its item is the current one on any of them. */
+  match: RegExp;
+  /** The tab's picture on a phone (the top line has words only). */
+  icon: LucideIcon;
+  /** «Повторение 11»: the cards due today. */
+  counter?: 'due';
 }
 
-/** The desktop line: «Сегодня · Экзамены · Библиотека · Карта знаний · Повторение 11 · Дневник ошибок 5 · Прогресс» (the map from 1280 px). */
-export const DESK_LINKS: NavItem[] = [
-  { to: '/dashboard', label: 'Сегодня' },
-  { to: '/exams', label: 'Экзамены' },
-  { to: '/library', label: 'Библиотека' },
-  { to: '/knowledge-map', label: 'Карта знаний', wide: true },
-  { to: '/review', label: 'Повторение', counter: 'due' },
-  { to: '/mistakes', label: 'Дневник ошибок', counter: 'mistakes' },
-  { to: '/analytics', label: 'Прогресс' },
+/** The five sections, in the top line on a computer and as the tabs on a phone. */
+export const NAV_ITEMS: NavItem[] = [
+  { to: '/dashboard', label: 'Сегодня', match: /^\/dashboard(\/|$)/, icon: Sun },
+  { to: '/exams', label: 'Экзамены', match: /^\/exams(\/|$)/, icon: GraduationCap },
+  { to: '/library', label: 'Лекции', match: /^\/library(\/|$)/, icon: BookOpen },
+  { to: '/review', label: 'Повторение', match: /^\/(review|mistakes)(\/|$)/, icon: Repeat, counter: 'due' },
+  { to: '/analytics', label: 'Прогресс', match: /^\/(analytics|knowledge-map)(\/|$)/, icon: TrendingUp },
 ];
 
-/** The phone tab bar: the same words, four of them; the rest lives in the account menu. */
-export const PHONE_TABS: NavItem[] = DESK_LINKS.filter((item) => item.to !== '/knowledge-map').slice(0, 4);
+/** The desktop line: «Сегодня · Экзамены · Лекции · Повторение 11 · Прогресс». */
+export const DESK_LINKS = NAV_ITEMS;
+
+/** The phone tabs: the same five sections. */
+export const PHONE_TABS = NAV_ITEMS;
+
+/** The section whose item is current at `pathname`, or null (the profile, the upload page, …). */
+export function sectionOf(pathname: string): NavItem | null {
+  return NAV_ITEMS.find((item) => item.match.test(pathname)) ?? null;
+}
 
 /** «Тянуть билет» and the answer screen are a room: the page draws its own top line, no menu (spec 4.3). */
 export function isRoomPath(pathname: string): boolean {
@@ -58,12 +67,17 @@ export function hidesBottomNav(pathname: string): boolean {
   return /^\/exams\/(new|[^/]+(\/edit)?)\/?$/.test(pathname) || /^\/library\/[^/]+\/?$/.test(pathname);
 }
 
-/** On a phone a detail page shows «‹ Родитель» in place of the wordmark (spec 4.2). */
+/**
+ * On a phone a page inside a section shows «‹ Родитель» in place of the wordmark (spec 4.2): a lecture,
+ * an exam sheet and its editor, the knowledge map (in «Прогресс») and the mistakes diary (in «Повторение»).
+ */
 export function backLinkFor(pathname: string): { to: string; label: string } | null {
-  if (/^\/library\/[^/]+\/?$/.test(pathname)) return { to: '/library', label: 'Библиотека' };
+  if (/^\/library\/[^/]+\/?$/.test(pathname)) return { to: '/library', label: 'Лекции' };
   const edit = /^\/exams\/([^/]+)\/edit\/?$/.exec(pathname);
   if (edit) return { to: `/exams/${edit[1]}`, label: 'Лист экзамена' };
   if (/^\/exams\/[^/]+\/?$/.test(pathname)) return { to: '/exams', label: 'Экзамены' };
+  if (/^\/knowledge-map\/?$/.test(pathname)) return { to: '/analytics', label: 'Прогресс' };
+  if (/^\/mistakes\/?$/.test(pathname)) return { to: '/review', label: 'Повторение' };
   return null;
 }
 
@@ -76,17 +90,6 @@ function isPanePath(pathname: string): boolean {
 export function quotaRemaining(used: number | null): number | null {
   if (used === null || !Number.isFinite(used)) return null;
   return Math.max(0, FREE_DAILY_LIMIT - Math.max(0, used));
-}
-
-/** Open entries of the mistake diary (a HEAD request, no rows are transferred). */
-async function countOpenMistakes(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('mistake_diary')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('is_resolved', false);
-  if (error) throw error;
-  return typeof count === 'number' && count > 0 ? count : 0;
 }
 
 const STAGE_KEY = 'meldy_stage';
@@ -149,9 +152,9 @@ function useWindowScrollMemory(locationKey: string) {
   }, [locationKey]);
 }
 
-/** Due cards and open mistakes for the counters of the line; refreshed after the screens that change them. */
-function useNavCounters(userId: string | undefined, pathname: string) {
-  const [counts, setCounts] = useState<Record<Counter, number | null>>({ due: null, mistakes: null });
+/** The cards due today for «Повторение 11»; read again after the screens that change them. */
+function useDueCount(userId: string | undefined, pathname: string): number | null {
+  const [due, setDue] = useState<number | null>(null);
   const lastFetch = useRef(0);
   const previousPath = useRef(pathname);
   useEffect(() => {
@@ -163,18 +166,19 @@ function useNavCounters(userId: string | undefined, pathname: string) {
     if (lastFetch.current > 0 && fresh && !changedThings) return;
     lastFetch.current = Date.now();
     let cancelled = false;
-    Promise.allSettled([countDueCards(userId), countOpenMistakes(userId)]).then(([due, mistakes]) => {
-      if (cancelled) return;
-      setCounts({
-        due: due.status === 'fulfilled' ? due.value : null,
-        mistakes: mistakes.status === 'fulfilled' ? mistakes.value : null,
-      });
-    });
+    countDueCards(userId).then(
+      (value) => {
+        if (!cancelled) setDue(value);
+      },
+      () => {
+        if (!cancelled) setDue(null);
+      },
+    );
     return () => {
       cancelled = true;
     };
   }, [userId, pathname]);
-  return counts;
+  return due;
 }
 
 function NavCount({ value }: { value: number | null }) {
@@ -202,10 +206,13 @@ const THEME_CHOICES: Array<{ value: 'light' | 'dark' | 'system'; label: string }
 
 export default function Layout() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const seenInProfile = profile ? Boolean(profile.onboarding_status?.[GUIDE_PROFILE_KEY]) : null;
+  // A student's first run is the guide as a blocking dialog; a teacher gets the corner card once.
+  const mandatoryFirstRun = profile ? profile.role !== 'teacher' : null;
   return (
-    <GuideProvider userId={user?.id} seenInProfile={seenInProfile}>
+    <GuideProvider userId={user?.id} seenInProfile={seenInProfile} mandatoryFirstRun={mandatoryFirstRun} shellHidden={isRoomPath(pathname)}>
       <Shell profile={profile} setProfile={setProfile} />
     </GuideProvider>
   );
@@ -233,6 +240,9 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const refetchTokensRef = useRef<(() => void) | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLElement | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const tabsRef = useRef<HTMLElement | null>(null);
   const menuId = useId();
   const remainingUnits = quotaRemaining(usedTokens);
   const quotaLabel = profile?.is_pro
@@ -253,10 +263,14 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     setMenuOpen(false);
     setIsTokenModalOpen(true);
   };
+  const openPro = () => {
+    setMenuOpen(false);
+    openProWindow('meter');
+  };
 
   const { theme, setTheme } = useTheme();
   const { handleInstallClick, showInstall } = useInstallPWA();
-  const counters = useNavCounters(user?.id, location.pathname);
+  const due = useDueCount(user?.id, location.pathname);
 
   useWindowScrollMemory(location.key);
 
@@ -264,6 +278,18 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  // The first run is a dialog over the app: the line, the page and the tabs cannot be reached under it.
+  const blocked = Boolean(guide?.open && guide.mandatory) && !roomMode;
+  const tabsShown = !hidesBottomNav(location.pathname);
+  useEffect(() => {
+    const parts = [barRef.current, mainRef.current, tabsRef.current];
+    for (const part of parts) part?.toggleAttribute('inert', blocked);
+    if (blocked) setMenuOpen(false);
+    return () => {
+      for (const part of parts) part?.removeAttribute('inert');
+    };
+  }, [blocked, tabsShown]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -368,19 +394,17 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     );
   }
 
-  // The guide lights up the section it talks about: its link in the top line, its tab on a phone,
-  // «Добавить лекцию», or the account button where the section lives in the account menu.
+  // The guide lights up the section it talks about: its pill in the top line, its tab on a phone, or
+  // «Добавить лекцию».
   const spot = guide?.open ? GUIDE_CHAPTERS[guide.index] : null;
   const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route === to ? '' : undefined);
-  const spotInMenu = spot ? Boolean(spot.phone) : false;
-  const mapInMenu = spot?.id === 'map';
 
   const avatarUrl = profile?.avatar_url;
   const isTeacher = profile?.role === 'teacher';
   const back = backLinkFor(location.pathname);
-  const tabsShown = !hidesBottomNav(location.pathname);
   const pane = isPanePath(location.pathname);
   const onAnalyze = location.pathname.startsWith('/analyze');
+  const current = sectionOf(location.pathname);
 
   const accountMenu = menuOpen && (
     <div ref={menuRef} id={menuId} className="sf-acct" role="dialog" aria-label="Меню аккаунта" tabIndex={-1}>
@@ -399,15 +423,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       >
         Как пользоваться Meldy
       </button>
-      {/* The line has room for «Карта знаний» only from 1280 px; narrower, it is here. */}
-      <Link className="sf-acct-item min-[1280px]:!hidden" to="/knowledge-map">Карта знаний</Link>
-      {/* On a phone these three are not in the tab bar. */}
-      <Link className="sf-acct-item sf-acct-phone" to="/mistakes">
-        <span>Дневник ошибок</span>
-        <NavCount value={counters.mistakes} />
-      </Link>
-      <Link className="sf-acct-item sf-acct-phone" to="/analytics">Прогресс</Link>
-      <Link className="sf-acct-item sf-acct-phone" to="/analyze">Добавить лекцию</Link>
       {isTeacher ? (
         <>
           <Link className="sf-acct-item" to="/teacher">Мои группы</Link>
@@ -436,6 +451,11 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         <span>Дневной лимит</span>
         <span className="sf-acct-state">{quotaState}</span>
       </button>
+      {profile && !profile.is_pro ? (
+        <button type="button" className="sf-acct-item sf-acct-pro" onClick={openPro}>
+          Что даёт PRO
+        </button>
+      ) : null}
       <button type="button" className="sf-acct-item" aria-expanded={notificationsOpen} onClick={() => void toggleNotifications()}>
         <span>Уведомления</span>
         <NavCount value={unreadCount} />
@@ -482,7 +502,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         isPro={profile?.is_pro}
       />
 
-      <header className="sf-bar">
+      <header ref={barRef} className="sf-bar">
         <div className="sf-bar-in">
           <Link className="sf-wordmark" to="/dashboard">
             Meldy
@@ -495,15 +515,23 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
           ) : null}
           <nav aria-label="Разделы" className="sf-bar-nav">
             {DESK_LINKS.map((item) => (
-              <NavLink key={item.to} to={item.to} className={item.wide ? 'sf-bar-link max-[1279px]:!hidden' : 'sf-bar-link'} data-guide-spot={spotOn(item.to)}>
+              <Link
+                key={item.to}
+                to={item.to}
+                className="sf-bar-link"
+                aria-current={current === item ? 'page' : undefined}
+                data-guide-spot={spotOn(item.to)}
+              >
                 {item.label}
-                {item.counter ? <NavCount value={counters[item.counter]} /> : null}
-              </NavLink>
+                {item.counter ? <NavCount value={due} /> : null}
+              </Link>
             ))}
           </nav>
           <div className="sf-bar-right">
+            {/* On a phone the same link is a round «+» (the words stay for screen readers). */}
             <Link className="sf-nav-cta" to="/analyze" aria-current={onAnalyze ? 'page' : undefined} data-guide-spot={spot?.spot === 'cta' ? '' : undefined}>
-              Добавить лекцию
+              <span className="sf-cta-plus" aria-hidden="true" />
+              <span className="sf-cta-t">Добавить лекцию</span>
             </Link>
             {guide ? (
               <button
@@ -519,8 +547,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
             <button
               ref={menuButtonRef}
               type="button"
-              data-guide-spot-phone={spotInMenu ? '' : undefined}
-              data-guide-spot-menu={mapInMenu ? '' : undefined}
               className="sf-me-hit"
               aria-label={name ? `${name}: профиль, тема, выход` : 'Меню аккаунта'}
               aria-expanded={menuOpen}
@@ -537,7 +563,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         </div>
       </header>
 
-      <main className="sf-main" data-pane={pane ? '' : undefined}>
+      <main ref={mainRef} className="sf-main" data-pane={pane ? '' : undefined}>
         <ErrorBoundary>
           <Suspense fallback={<RouteLoading fullScreen={false} />}>
             <Outlet />
@@ -548,12 +574,24 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       <GuidePanel />
 
       {tabsShown ? (
-        <nav aria-label="Разделы" className="sf-tabbar" data-testid="tab-bar">
-          {PHONE_TABS.map((item) => (
-            <NavLink key={item.to} to={item.to} className="sf-tablink" data-guide-spot={spotOn(item.to)}>
-              {item.label}
-            </NavLink>
-          ))}
+        <nav ref={tabsRef} aria-label="Разделы" className="sf-tabbar" data-testid="tab-bar">
+          {PHONE_TABS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="sf-tablink"
+                aria-current={current === item ? 'page' : undefined}
+                data-guide-spot={spotOn(item.to)}
+              >
+                <span className="sf-tab-ico" aria-hidden="true">
+                  <Icon strokeWidth={1.9} />
+                </span>
+                <span className="sf-tab-t">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       ) : null}
     </div>

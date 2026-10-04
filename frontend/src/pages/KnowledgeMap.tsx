@@ -24,6 +24,7 @@ import {
   type NodeId,
 } from '../components/knowledge/model';
 import { useKnowledgeData } from '../components/knowledge/useKnowledgeData';
+import SectionCrumb from '../components/SectionCrumb';
 import '../styles/paper.css';
 import '../components/knowledge/knowledge.css';
 
@@ -243,6 +244,9 @@ export default function KnowledgeMap() {
   if (base.lectures.length === 0) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
+        <div className="sc-up">
+          <SectionCrumb to="/analytics" label="Прогресс" />
+        </div>
         <div className="km-state">
           <div className="km-state-card" data-center="">
             <div className="km-state-art" aria-hidden="true">
@@ -335,6 +339,7 @@ export default function KnowledgeMap() {
     <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
       <header className="sf-head km-head">
         <div className="min-w-0">
+          <SectionCrumb to="/analytics" label="Прогресс" />
           <h1 className="sf-h1">Карта знаний</h1>
           {lede ? <p className="sf-lede">{lede}</p> : null}
         </div>

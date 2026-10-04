@@ -103,6 +103,52 @@ function cardContext(card: DueCard, titles: Record<string, string>): { followUp:
   return { followUp, title, context };
 }
 
+/** Open entries of the mistakes diary: a HEAD request, no rows are transferred; null when it cannot be read. */
+export async function countOpenMistakes(userId: string): Promise<number | null> {
+  try {
+    const { count, error } = await supabase
+      .from('mistake_diary')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_resolved', false);
+    if (error || typeof count !== 'number') return null;
+    return Math.max(0, count);
+  } catch {
+    return null;
+  }
+}
+
+/** «5 открытых ошибок.», «Открытых ошибок нет.», or nothing when the count is not known. */
+export function openMistakesLine(count: number | null): string {
+  if (count === null) return '';
+  if (count === 0) return 'Открытых ошибок нет.';
+  return `${count} ${pluralRu(count, ['открытая ошибка', 'открытые ошибки', 'открытых ошибок'])}.`;
+}
+
+/**
+ * The mistakes diary lives in «Повторение»: one card at the foot of the page in every state, with
+ * the number of open mistakes when it could be counted.
+ */
+function MistakesEntry({ count }: { count: number | null }) {
+  const line = openMistakesLine(count);
+  return (
+    <section className="rv-diary" aria-labelledby="rv-diary-h">
+      <div className="rv-diary-main">
+        <h2 id="rv-diary-h" className="rv-diary-h">
+          Дневник ошибок
+        </h2>
+        <p className="rv-diary-p">
+          {line ? <b>{line}</b> : null}
+          {line ? ' ' : null}Ошибки из тестов и ответов на билеты, правильный ответ открывается по нажатию.
+        </p>
+      </div>
+      <Link className="sf-secondary rv-diary-go" to="/mistakes">
+        Открыть дневник ошибок
+      </Link>
+    </section>
+  );
+}
+
 /** Titles of the cards' lectures, for the face and the back of a card; nothing when they cannot be read. */
 async function loadLectureTitles(cards: DueCard[]): Promise<Record<string, string>> {
   const ids = Array.from(new Set(cards.map((card) => card.material_id).filter((id): id is string => typeof id === 'string' && UUID.test(id))));
@@ -160,6 +206,19 @@ export default function Review() {
   const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flipButtonRef = useRef<HTMLButtonElement | null>(null);
   const gradesRef = useRef<HTMLDivElement | null>(null);
+  /** Open mistakes for the diary's card; null until counted or when the count cannot be read. */
+  const [openMistakes, setOpenMistakes] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    void countOpenMistakes(user.id).then((value) => {
+      if (!cancelled) setOpenMistakes(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const loadCards = useCallback(async () => {
     if (!user?.id) {
@@ -380,12 +439,13 @@ export default function Review() {
                     Экзамены
                   </Link>
                   <Link className="sf-link" data-muted="" to="/library">
-                    Библиотека
+                    Лекции
                   </Link>
                 </div>
               </>
             )}
           </section>
+          <MistakesEntry count={openMistakes} />
         </div>
       </div>
     );
@@ -423,7 +483,7 @@ export default function Review() {
                   Лист экзамена
                 </Link>
                 <Link className="sf-link" data-muted="" to="/library">
-                  Библиотека
+                  Лекции
                 </Link>
               </div>
             </div>
@@ -463,6 +523,7 @@ export default function Review() {
               </ol>
             </section>
           ) : null}
+          <MistakesEntry count={openMistakes} />
         </div>
       </div>
     );
@@ -585,6 +646,7 @@ export default function Review() {
             </p>
           ) : null}
         </div>
+        <MistakesEntry count={openMistakes} />
       </div>
     </div>
   );
