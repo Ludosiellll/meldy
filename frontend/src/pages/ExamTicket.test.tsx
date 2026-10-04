@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
-import { PRIVACY_LINE, SAVE_WAIT_MS } from './ExamTicket';
+import { CHOSE_SERVER_NOTICE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE } from './ExamTicket';
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown as ReturnType<typeof import('../lib/oral/testing/fakeSupabase').createFakeSupabase>['client'],
@@ -25,6 +25,42 @@ vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: moc
 vi.mock('../api/learning', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/learning')>()),
   recordSelfRating: mocks.recordSelfRating,
+}));
+// The server's recognition: off unless a test turns it on; the test hands out the pieces and their text.
+const media = vi.hoisted(() => ({
+  supported: false,
+  recorders: [] as Array<{ active: boolean; piece: () => void; flushPiece: boolean; options: { onSegment: (piece: unknown) => void } }>,
+  texts: [] as Array<{ resolve: (text: string) => void; hint?: string }>,
+}));
+vi.mock('../lib/oral/recorder', () => ({
+  recorderSupported: () => media.supported,
+  RecorderError: class RecorderError extends Error {},
+  SegmentRecorder: function SegmentRecorder(options: { onSegment: (piece: unknown) => void }) {
+    let next = 0;
+    const recorder = {
+      active: false,
+      flushPiece: false,
+      options,
+      piece: () => options.onSegment({ blob: new Blob(['opus'], { type: 'audio/webm' }), index: next++, speechMs: 900, durationMs: 2600 }),
+      start: async () => {
+        recorder.active = true;
+      },
+      flush: async () => {
+        if (recorder.flushPiece) recorder.piece();
+      },
+      stop: async () => {
+        recorder.active = false;
+      },
+      release: () => {
+        recorder.active = false;
+      },
+    };
+    media.recorders.push(recorder);
+    return recorder;
+  },
+}));
+vi.mock('../lib/oral/transcribe', () => ({
+  transcribeAudio: (_blob: Blob, options: { hint?: string }) => new Promise<string>((resolve) => media.texts.push({ resolve, hint: options.hint })),
 }));
 vi.mock('../api/limits', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/limits')>()),
@@ -1404,6 +1440,72 @@ describe('ExamTicket: answering aloud', () => {
     });
     expect(await screen.findByRole('textbox')).toHaveValue('Обучение — это подбор весов');
     expect(screen.getByText(/Браузер не дал доступ к микрофону/)).toBeInTheDocument();
+  });
+});
+
+describe('ExamTicket: when the browser does not recognise speech', () => {
+  beforeEach(() => {
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    media.supported = true;
+    media.recorders = [];
+    media.texts = [];
+  });
+  afterEach(() => {
+    media.supported = false;
+  });
+
+  it('continues the same answer on the server after a recognition error, and «Готово» waits for the last words', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    act(() => recognition().say([['Обучение — это подбор весов', true]]));
+    act(() => recognition().onerror?.({ error: 'network' }));
+    // No «нужен интернет» and no switch to the text field: the answer goes on, now on the server.
+    expect(screen.getByText(SWITCHED_TO_SERVER_NOTICE)).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /Ваш ответ/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Слушаю. Текст появляется после каждой паузы.')).toBeInTheDocument();
+    expect(media.recorders).toHaveLength(1);
+    act(() => media.recorders[0].piece());
+    expect(screen.getByText('Распознаём сказанное…')).toBeInTheDocument();
+    expect(media.texts[0].hint).toBe(DEMO_QUESTION);
+    await act(async () => {
+      media.texts[0].resolve('которые минимизируют функцию потерь');
+      await Promise.resolve();
+    });
+    expect(document.querySelector('.or-said-text')?.textContent).toContain('Обучение — это подбор весов которые минимизируют функцию потерь');
+    // «Готово»: the phrase still being recorded goes to the server first.
+    media.recorders[0].flushPiece = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await waitFor(() => expect(media.texts).toHaveLength(2));
+    expect(screen.getByText('Распознаём последние слова…')).toBeInTheDocument();
+    expect(callsTo('/api/oral/check')).toHaveLength(0);
+    await act(async () => {
+      media.texts[1].resolve('с помощью градиентного спуска.');
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(callsTo('/api/oral/check')).toHaveLength(1));
+    expect(bodyOf(callsTo('/api/oral/check')[0]).transcript).toBe(
+      'Обучение — это подбор весов которые минимизируют функцию потерь с помощью градиентного спуска.',
+    );
+  });
+
+  it('moves to the server when the browser sends no words, and then says who hears the answer', async () => {
+    seedDatabase();
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    expect(media.recorders).toHaveLength(0);
+    await act(async () => {
+      vi.advanceTimersByTime(7100);
+    });
+    expect(screen.getByText(CHOSE_SERVER_NOTICE)).toBeInTheDocument();
+    expect(media.recorders).toHaveLength(1);
+    expect(recognition().running).toBe(false);
+    expect(screen.getByText('Слушаю. Текст появляется после каждой паузы.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Кто видит ответ' }));
+    expect(screen.getByText(PRIVACY_SERVER_LINE)).toBeInTheDocument();
+    expect(screen.queryByText(PRIVACY_LINE)).not.toBeInTheDocument();
   });
 });
 

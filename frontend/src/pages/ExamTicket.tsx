@@ -8,7 +8,9 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { checkAILimit, nextLimitReset } from '../api/limits';
 import { newEventId, recordSelfRating, type SelfRating as Rating } from '../api/learning';
 import { SELF_RATING_LABELS } from '../lib/learning/readiness';
-import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech, useSpeechAnswer } from '../hooks/useSpeechAnswer';
+import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech } from '../hooks/useSpeechAnswer';
+import { useVoiceAnswer, type VoiceEngine } from '../hooks/useVoiceAnswer';
+import MicLevel from '../components/oral/MicLevel';
 import { isTTSReady, playTTS, prefetchTTS, stopTTS } from '../utils/tts';
 import { Mark, seedFrom } from '../components/marks';
 import TicketCard, { ticketHeading } from '../components/oral/TicketCard';
@@ -112,6 +114,30 @@ export const PRIVACY_LINE =
 /** An answer nobody checks goes nowhere: only the student's own rating is saved. */
 export const PRIVACY_UNCHECKED_LINE =
   'Речь распознаёт браузер, в Chrome — через сервис Google. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
+
+/** The same two lines when the speech is recognised on the server (the browser could not, or there is no Web Speech). */
+export const PRIVACY_SERVER_LINE =
+  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись уходит туда кусками и не сохраняется. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq); в истории остаются оценки по пунктам и короткие отрывки ответа.';
+export const PRIVACY_SERVER_UNCHECKED_LINE =
+  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись не сохраняется. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
+
+export function privacyText(engine: VoiceEngine, checked: boolean): string {
+  if (engine === 'server') return checked ? PRIVACY_SERVER_LINE : PRIVACY_SERVER_UNCHECKED_LINE;
+  return checked ? PRIVACY_LINE : PRIVACY_UNCHECKED_LINE;
+}
+
+/** What the server's recognition is doing, under «Готово». */
+export function serverVoiceLine(settling: boolean, pending: number, paused: boolean, lost: number): string {
+  if (settling) return 'Распознаём последние слова…';
+  if (pending > 0) return 'Распознаём сказанное…';
+  if (paused) return 'Пауза.';
+  if (lost > 0) return 'Часть сказанного не распознана — можно повторить или дописать текстом.';
+  return 'Слушаю. Текст появляется после каждой паузы.';
+}
+
+/** Said once when the server takes over the recognition. */
+export const SWITCHED_TO_SERVER_NOTICE = 'Браузер не смог распознать речь — дальше её распознаёт сервер Meldy. Сказанное сохранено.';
+export const CHOSE_SERVER_NOTICE = 'Браузер не присылает распознанный текст — дальше речь распознаёт сервер Meldy: текст появляется после каждой паузы.';
 
 /** The examiner's voice starts this long after the follow-up appears: the brace, then the words, then the voice. */
 export const FOLLOWUP_VOICE_DELAY_MS = 300;
@@ -345,12 +371,9 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const navigate = useNavigate();
   const { user } = useAuth();
   const { confirm } = useConfirm();
-  const speech = useSpeechAnswer();
   const [state, dispatch] = useReducer(ticketReducer, undefined, initialTicketState);
   const stateRef = useRef<TicketState>(state);
   stateRef.current = state;
-  const speechRef = useRef(speech);
-  speechRef.current = speech;
   // «Как на экзамене» starts with the marks off and never touches the stored preference.
   const [liveMarksOn, setLiveMarksOn] = useState(() => initialLiveMarks(mode));
   const [now, setNow] = useState(() => Date.now());
@@ -374,6 +397,13 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   const focusTextRef = useRef(false);
 
   const question = state.questions[state.index] ?? null;
+  // The question's words help the server's recognition spell its terms.
+  const speech = useVoiceAnswer({ hint: question?.text });
+  const speechRef = useRef(speech);
+  speechRef.current = speech;
+  /** «Готово» waits for the server to recognise the last words: no second press meanwhile. */
+  const [settling, setSettling] = useState(false);
+  const settlingRef = useRef(false);
   // «Билет 12» only for the department's ticket 12 whose questions these are (a forged &n shows nothing).
   const ticketNumber = useMemo(
     () => (state.exam ? departmentTicketNumber(state.exam.layout, requestedNumber, questionIds) : null),
@@ -395,6 +425,23 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   }, []);
 
   const alive = useCallback((run: number) => mountedRef.current && stateRef.current.run === run, []);
+
+  /**
+   * Everything said so far. With the browser's recognition it is there at once; the server gets the
+   * speech in pieces, so the pieces in flight (and the one being recorded) are waited for (≤ 20 s).
+   */
+  const heardSoFar = useCallback(async (): Promise<string> => {
+    const voice = speechRef.current;
+    if (voice.engine !== 'server') return voice.snapshot();
+    settlingRef.current = true;
+    setSettling(true);
+    try {
+      return await voice.settle();
+    } finally {
+      settlingRef.current = false;
+      if (mountedRef.current) setSettling(false);
+    }
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -584,6 +631,15 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [ticking]);
+
+  // ── The server took over the recognition: say so once (the words said so far stay) ──
+  const switchedBecause = speech.switchedBecause;
+  useEffect(() => {
+    if (!switchedBecause || switchedBecause === 'chosen') return;
+    const current = stateRef.current;
+    if (current.phase !== 'answering' && current.phase !== 'followup') return;
+    dispatch({ type: 'notice', text: switchedBecause === 'silence' ? CHOSE_SERVER_NOTICE : SWITCHED_TO_SERVER_NOTICE });
+  }, [switchedBecause]);
 
   // ── Recognition failed: the same answer continues as text ──
   useEffect(() => {
@@ -782,13 +838,23 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   };
 
   const startText = () => {
-    if (!answerableIn(state)) return;
+    if (!answerableIn(state) || settlingRef.current) return;
     choose('text');
     focusTextRef.current = true;
     if (state.phase === 'answering' && voiceAnswer) {
-      const text = speech.snapshot();
-      speech.reset(text);
-      dispatch({ type: 'mode', mode: 'text', typed: text, now: Date.now() });
+      const toText = (text: string) => {
+        speechRef.current.reset(text);
+        dispatch({ type: 'mode', mode: 'text', typed: text, now: Date.now() });
+      };
+      if (speechRef.current.engine === 'server') {
+        // The server's last pieces belong to the answer: the field gets them too.
+        const run = state.run;
+        void heardSoFar().then((text) => {
+          if (alive(run) && stateRef.current.phase === 'answering') toText(text);
+        });
+        return;
+      }
+      toText(speechRef.current.snapshot());
       return;
     }
     dispatch({ type: 'start', mode: 'text', now: Date.now() });
@@ -900,8 +966,14 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   };
 
   const finish = async () => {
+    const before = stateRef.current;
+    if (before.phase !== 'answering' || !question || settlingRef.current) return;
+    if (before.mode === 'voice' && speechRef.current.engine === 'server') {
+      // The last phrase is still on its way to the server: the answer is not complete without it.
+      await heardSoFar();
+      if (!alive(before.run) || stateRef.current.phase !== 'answering') return;
+    }
     const current = stateRef.current;
-    if (current.phase !== 'answering' || !question) return;
     if (current.rubric.status !== 'ready' || current.limit === 'exhausted') {
       finishUnchecked();
       return;
@@ -1017,7 +1089,17 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     askTokenRef.current += 1;
     stopTTS();
     const f = stateRef.current.followup;
-    const text = f?.mode === 'voice' ? speechRef.current.snapshot() : f?.typed ?? '';
+    if (f?.mode === 'voice' && speechRef.current.engine === 'server') {
+      const run = stateRef.current.run;
+      void heardSoFar().then((text) => {
+        if (alive(run) && stateRef.current.phase === 'followup') followupTextWith(text);
+      });
+      return;
+    }
+    followupTextWith(f?.mode === 'voice' ? speechRef.current.snapshot() : f?.typed ?? '');
+  };
+
+  const followupTextWith = (text: string) => {
     speechRef.current.reset('');
     focusTextRef.current = true;
     dispatch({ type: 'followup_mode', mode: 'text', typed: text });
@@ -1025,22 +1107,36 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
 
   const repeatFollowup = () => {
     if (!followup) return;
-    if (followup.stage === 'answering' && followupVoice) {
-      // The microphone must not take the examiner's words: listen again after the repeat.
-      const text = speech.snapshot();
-      speech.reset(text);
+    const question = followup.question;
+    // The microphone must not take the examiner's words: listen again after the repeat.
+    const repeatAndListen = () => {
       dispatch({ type: 'followup_repeat' });
       const token = (askTokenRef.current += 1);
-      void speakLine(followup.question).then((how) => {
+      void speakLine(question).then((how) => {
         if (token !== askTokenRef.current) return;
         later(() => {
           if (token !== askTokenRef.current || stateRef.current.followup?.stage !== 'asking') return;
           if (speechRef.current.start()) dispatch({ type: 'followup_listen' });
         }, how === 'failed' ? 0 : LISTEN_AFTER_AUDIO_MS);
       });
+    };
+    if (followup.stage === 'answering' && followupVoice && speechRef.current.engine === 'server') {
+      // The server's pieces in flight stay in the answer: wait for them, then repeat.
+      const run = stateRef.current.run;
+      void heardSoFar().then((text) => {
+        if (!alive(run) || stateRef.current.phase !== 'followup') return;
+        speechRef.current.reset(text);
+        repeatAndListen();
+      });
       return;
     }
-    askFollowup(followup.question);
+    if (followup.stage === 'answering' && followupVoice) {
+      const text = speechRef.current.snapshot();
+      speechRef.current.reset(text);
+      repeatAndListen();
+      return;
+    }
+    askFollowup(question);
   };
 
   const dontKnow = () => {
@@ -1052,13 +1148,19 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   };
 
   const finishFollowup = async () => {
+    const before = stateRef.current;
+    if (before.phase !== 'followup' || !before.followup || settlingRef.current) return;
+    if (before.followup.mode === 'voice' && speechRef.current.engine === 'server') {
+      await heardSoFar();
+      if (!alive(before.run) || stateRef.current.phase !== 'followup' || stateRef.current.followup?.pointId !== before.followup.pointId) return;
+    }
     const current = stateRef.current;
     const f = current.followup;
     if (current.phase !== 'followup' || !f || current.rubric.status !== 'ready' || !question) return;
     const point = current.rubric.response.rubric.points.find((item) => item.id === f.pointId);
     if (!point) return;
     const voice = f.mode === 'voice';
-    const heard = voice ? speech.snapshot() : f.typed;
+    const heard = voice ? speechRef.current.snapshot() : f.typed;
     if (words(heard).length === 0 && !voice) {
       dispatch({ type: 'notice', text: 'Ответ пустой: напишите ответ или нажмите «Не знаю».' });
       return;
@@ -1583,7 +1685,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             {voiceFirst ? 'Отвечать голосом' : 'Ответить текстом'}
           </button>
         </div>
-        <p className="or-privacy">{PRIVACY_LINE}</p>
+        <p className="or-privacy">{privacyText(speech.engine, true)}</p>
       </>
     );
   } else if (rubric.status === 'blocked') {
@@ -1607,7 +1709,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           </button>
           {sheetLink}
         </div>
-        <p className="or-privacy">{PRIVACY_LINE}</p>
+        <p className="or-privacy">{privacyText(speech.engine, true)}</p>
       </>
     );
   } else if (state.phase === 'ready') {
@@ -1641,7 +1743,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
             Отмечать пункты во время ответа
           </label>
         ) : null}
-        <p className="or-privacy">{checkable ? PRIVACY_LINE : PRIVACY_UNCHECKED_LINE}</p>
+        <p className="or-privacy">{privacyText(speech.engine, checkable)}</p>
       </>
     );
   } else if (answering) {
@@ -1679,10 +1781,22 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           </p>
         ) : null}
         {limitLine ? <p className="or-message">{limitLine}</p> : null}
-        {silence ? <p className="or-hint">Говорите — я слушаю.</p> : null}
+        {voiceAnswer && speech.engine === 'browser' && speech.stuck && !state.paused ? (
+          <p className="or-stuck" role="status">
+            Текст не появляется? Проверьте, что браузеру разрешён нужный микрофон, или ответьте текстом.
+          </p>
+        ) : silence ? (
+          <p className="or-hint">Говорите — я слушаю.</p>
+        ) : null}
+        {voiceAnswer && speech.engine === 'server' ? (
+          <p className="or-voice" role="status">
+            {!state.paused && speech.status === 'listening' ? <MicLevel feed={speech.level} /> : null}
+            <span>{serverVoiceLine(settling, speech.pending, state.paused, speech.lost)}</span>
+          </p>
+        ) : null}
         {elapsed >= LONG_ANSWER_MS ? <p className="or-hint">Обычно на ответ дают 2–3 минуты.</p> : null}
         <div className="or-acts">
-          <button type="button" className="sf-primary" onClick={() => void finish()} data-anchor={voiceAnswer ? '' : undefined}>
+          <button type="button" className="sf-primary" onClick={() => void finish()} data-anchor={voiceAnswer ? '' : undefined} aria-busy={settling || undefined}>
             Готово
           </button>
           {voiceAnswer ? (
@@ -1715,7 +1829,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
         <button type="button" className="sf-link or-privacy-link" onClick={() => setPrivacyOpen(true)}>
           Кто видит ответ
         </button>
-        {privacyOpen ? <PrivacySheet text={checkable ? PRIVACY_LINE : PRIVACY_UNCHECKED_LINE} onClose={() => setPrivacyOpen(false)} /> : null}
+        {privacyOpen ? <PrivacySheet text={privacyText(speech.engine, checkable)} onClose={() => setPrivacyOpen(false)} /> : null}
       </>
     );
   } else {
@@ -1770,6 +1884,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                       emptyText="Говорите — я слушаю."
                     />
                   </div>
+                ) : null}
+                {followup.mode === 'voice' && followup.stage === 'answering' && speech.engine === 'server' ? (
+                  <p className="or-voice" role="status">
+                    {speech.status === 'listening' ? <MicLevel feed={speech.level} /> : null}
+                    <span>{serverVoiceLine(settling, speech.pending, false, speech.lost)}</span>
+                  </p>
                 ) : null}
                 <div className="or-acts">
                   {followup.stage === 'asking' ? (

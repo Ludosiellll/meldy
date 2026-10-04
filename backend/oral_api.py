@@ -587,3 +587,44 @@ async def oral_rubric(request: Request):
     owner = user_id or "token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
     flight = (owner, job.question_hash, job.key, "force" if job.force else "build")
     return await _single_flight(flight, lambda: _build_rubric(job))
+
+
+# ── POST /api/oral/transcribe ───────────────────────────────────────────────────
+
+# Кусок устного ответа: тело — сама запись (Content-Type: audio/webm, audio/ogg, audio/mp4 …),
+# ?hint= — текст вопроса (термины). Браузер режет запись по паузам, так что кусок — секунды.
+TRANSCRIBE_MAX_BYTES = 3 * 1024 * 1024
+TRANSCRIBE_MIN_BYTES = 512
+TRANSCRIBE_TYPES = frozenset(
+    {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav", "audio/aac", "audio/m4a", "audio/x-m4a"}
+)
+TRANSCRIBE_TOO_LARGE_DETAIL = "Кусок записи слишком большой."
+TRANSCRIBE_TYPE_DETAIL = "Такой формат записи не поддерживается."
+
+
+@router.post("/api/oral/transcribe")
+@limiter.limit("40/minute", key_func=user_or_ip_key)
+async def oral_transcribe(request: Request):
+    """Текст куска записи устного ответа: {"text": "..."} ('' — речи не было). Запись не сохраняется."""
+    import stt
+
+    mime = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+    if mime not in TRANSCRIBE_TYPES:
+        raise HTTPException(status_code=415, detail=TRANSCRIBE_TYPE_DETAIL)
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > TRANSCRIBE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail=TRANSCRIBE_TOO_LARGE_DETAIL)
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > TRANSCRIBE_MAX_BYTES:
+            raise HTTPException(status_code=413, detail=TRANSCRIBE_TOO_LARGE_DETAIL)
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if len(data) < TRANSCRIBE_MIN_BYTES:
+        # Меньше полукилобайта — заголовок контейнера без звука: речи не было.
+        return {"text": ""}
+    hint = request.query_params.get("hint", "")
+    text = await stt.transcribe_answer(data, mime, hint if isinstance(hint, str) else "")
+    return {"text": text}

@@ -885,6 +885,19 @@
   .sf-page .or-stamp[data-passed='true'] { font-size: 17px; }
 }
 
+/* Voice recognised on the server: the microphone level and what is happening with the words. */
+.sf-page .or-voice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 12px 0 0; font-size: 16px; line-height: 23px; color: var(--sf-muted); }
+.sf-page .or-voice b { font-weight: 600; color: var(--sf-ink); }
+.or-level { --or-level: 0; display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 2px; }
+.or-level i { display: block; width: 4px; height: 22px; border-radius: 2px; background: var(--sf-accent); transform-origin: 50% 50%; transition: transform 80ms linear; }
+.or-level i:nth-child(1) { transform: scaleY(calc(0.18 + var(--or-level) * 0.45)); }
+.or-level i:nth-child(2) { transform: scaleY(calc(0.18 + var(--or-level) * 0.75)); }
+.or-level i:nth-child(3) { transform: scaleY(calc(0.18 + var(--or-level) * 0.82)); }
+.or-level i:nth-child(4) { transform: scaleY(calc(0.18 + var(--or-level) * 0.68)); }
+.or-level i:nth-child(5) { transform: scaleY(calc(0.18 + var(--or-level) * 0.4)); }
+.sf-page .or-stuck { margin: 12px 0 0; padding: 12px 14px; border-radius: 18px; background: var(--m-yellow-soft, var(--sf-surface-soft)); color: var(--m-yellow-ink, var(--sf-ink)); font-size: 16px; line-height: 23px; }
+.sf-page .or-stuck .sf-link { margin-left: 4px; color: inherit; font-weight: 600; }
+
 @media (prefers-reduced-motion: reduce) {
   .sf-page.or-room .or-note,
   .sf-page.or-room .or-sheet,
@@ -896,6 +909,7 @@
   .sf-page .or-pt[data-fresh] .or-pt-src { animation: none; }
   .sf-room-bar .or-timer::before,
   .sf-page .or-line[role='status']::before { animation: none; }
+  .or-level i { transition: none; }
   .sf-page .or-pt,
   .sf-page .or-switch-track, .sf-page .or-switch-track::after,
   .sf-room-bar .or-bar-right .sf-link { transition: none; }
