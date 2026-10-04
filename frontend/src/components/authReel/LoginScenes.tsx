@@ -209,7 +209,8 @@ function Recall() {
       opacity(grade, clamp(pop * 3) * (1 - gone) * (index === 2 ? 1 : 1 - 0.55 * seg(l, 3020, 200)));
     });
 
-    // The next reviews line up: tomorrow, in three days, in a week.
+    // The next reviews line up as the review schedules them (SM-2 in `review_flashcard`): «Помню» brings
+    // a new card back in 1 day, then in 6 more (a week from now), then in about 16 more (three weeks).
     const line = ease.inOut(seg(l, 3400, 700));
     put(one('wline'), 'transform', `scaleX(${line.toFixed(4)})`);
     opacity(one('when'), 1 - leave);
@@ -258,12 +259,14 @@ function Recall() {
         </div>
         <div data-a="when" className="ar-when">
           <span data-a="wline" className="ar-when-line" style={{ transform: 'scaleX(0)' }} />
-          {['завтра', 'через 3 дня', 'через неделю'].map((label, index) => (
-            <span key={label} data-a="chip" className="ar-when-chip" style={{ left: 520 + index * 440, opacity: 0 }}>
-              <i />
-              {label}
-            </span>
-          ))}
+          <div className="ar-when-row">
+            {['завтра', 'через неделю', 'через 3 недели'].map((label) => (
+              <span key={label} data-a="chip" className="ar-when-chip" style={{ opacity: 0 }}>
+                <i />
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
         <Cursor keys={CURSOR_KEYS} clicks={[2990]} from={2250} to={3550} />
       </div>

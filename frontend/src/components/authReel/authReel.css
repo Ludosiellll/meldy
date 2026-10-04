@@ -280,9 +280,9 @@
 .ar-grade--yes { background: var(--green); }
 .ar-when { position: absolute; left: 0; right: 0; top: 834px; height: 120px; }
 .ar-when-line { position: absolute; left: 380px; right: 380px; top: 58px; height: 0; border-top: 6px dashed rgba(255, 255, 255, .55); transform-origin: left; }
+.ar-when-row { position: absolute; inset: 0; display: flex; justify-content: center; gap: 64px; }
 .ar-when-chip {
-  position: absolute;
-  top: 0;
+  position: relative;
   display: inline-flex;
   align-items: center;
   height: 116px;
@@ -293,7 +293,6 @@
   font-size: 42px;
   font-weight: 600;
   white-space: nowrap;
-  translate: -50% 0;
   box-shadow: 0 24px 46px -26px rgba(4, 12, 34, .7);
 }
 .ar-when-chip i { width: 22px; height: 22px; margin-right: 18px; border-radius: 50%; background: var(--green); }
@@ -354,10 +353,10 @@
 .ar-row-t { color: var(--ink); font-size: 46px; font-weight: 500; letter-spacing: -.01em; }
 
 /* ================================================================== sign-up: the week */
-.ar-week { position: absolute; left: 150px; right: 150px; top: 360px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 22px; }
+.ar-week { position: absolute; left: 150px; right: 150px; top: 350px; display: grid; grid-template-columns: repeat(8, 1fr); gap: 22px; }
 .ar-day {
   position: relative;
-  height: 470px;
+  height: 450px;
   padding: 26px 18px;
   border-radius: 34px;
   background: rgba(255, 255, 255, .14);

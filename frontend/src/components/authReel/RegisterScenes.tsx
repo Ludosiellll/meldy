@@ -196,17 +196,25 @@ function Plan() {
 // ---------------------------------------------------------------------------------------------
 // 3 · The week (8000–12600), on blue
 
-const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-/** Cards per day: today, tomorrow, in three days, in a week. */
-const LOAD: Record<number, string[]> = { 0: [BLUE, YELLOW, GREEN], 1: [PINK, BLUE], 3: [GREEN, YELLOW], 6: [BLUE] };
-const DROP_AT: Record<number, number> = { 0: 1050, 1: 1450, 3: 1850, 6: 2250 };
-const COL = { left: 150, gap: 22, width: (1620 - 6 * 22) / 7 };
+/** Today and the next seven days, up to the same weekday a week later. */
+const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс', 'Пн'];
+/** Cards due per day (the repeats of different cards). */
+const LOAD: Record<number, string[]> = { 0: [BLUE, YELLOW, GREEN], 1: [PINK, BLUE], 3: [GREEN, YELLOW], 5: [PINK], 7: [BLUE, GREEN] };
+const DROP_AT: Record<number, number> = { 0: 1050, 1: 1400, 3: 1700, 5: 1950, 7: 2200 };
+const COL = { left: 150, gap: 22, width: (1620 - 7 * 22) / 8 };
 const colX = (i: number) => COL.left + i * (COL.width + COL.gap) + COL.width / 2;
+/**
+ * One card remembered today, as the review schedules it (SM-2 in `review_flashcard`): «Помню» on a
+ * new card brings it back in 1 day, the next «Помню» in 6 more — a week from today.
+ */
 const HOPS = [
   { from: 0, to: 1, label: 'завтра', at: 2600 },
-  { from: 1, to: 3, label: 'через 3 дня', at: 2850 },
-  { from: 3, to: 6, label: 'через неделю', at: 3100 },
+  { from: 1, to: 7, label: 'через неделю', at: 2950 },
 ];
+/** A hop leaves the column bottoms (y 800) and dips, deeper the farther it goes; its label sits under its lowest point. */
+const HOP_Y = 826;
+const hopDip = (hop: { from: number; to: number }) => HOP_Y + 90 + Math.min(40, (hop.to - hop.from - 1) * 8);
+const hopLabelTop = (hop: { from: number; to: number }) => HOP_Y + 0.75 * (hopDip(hop) - HOP_Y) + 22;
 
 function Week() {
   const root = useRef<HTMLDivElement>(null);
@@ -255,7 +263,7 @@ function Week() {
         </h3>
         <div className="ar-week">
           {DAYS.map((day, index) => (
-            <div key={day} data-a="day" className={`ar-day${index === 0 ? ' ar-day--today' : ''}`} style={{ opacity: 0 }}>
+            <div key={`${day}-${index}`} data-a="day" className={`ar-day${index === 0 ? ' ar-day--today' : ''}`} style={{ opacity: 0 }}>
               <div className="ar-day-n">{day}</div>
               <div className="ar-day-s">{index === 0 ? 'сегодня' : ' '}</div>
               <div className="ar-day-cards">
@@ -270,11 +278,12 @@ function Week() {
           {HOPS.map((hop) => {
             const a = colX(hop.from);
             const b = colX(hop.to);
-            return <path key={hop.label} data-a="hop" pathLength={1} d={`M${a} 860 C ${a} 950, ${b} 950, ${b} 860`} style={{ opacity: 0 }} />;
+            const dip = hopDip(hop);
+            return <path key={hop.label} data-a="hop" pathLength={1} d={`M${a} ${HOP_Y} C ${a} ${dip}, ${b} ${dip}, ${b} ${HOP_Y}`} style={{ opacity: 0 }} />;
           })}
         </svg>
         {HOPS.map((hop) => (
-          <span key={hop.label} data-a="hopt" className="ar-hop-t" style={{ left: (colX(hop.from) + colX(hop.to)) / 2, top: 950, opacity: 0 }}>
+          <span key={hop.label} data-a="hopt" className="ar-hop-t" style={{ left: (colX(hop.from) + colX(hop.to)) / 2, top: hopLabelTop(hop), opacity: 0 }}>
             {hop.label}
           </span>
         ))}
