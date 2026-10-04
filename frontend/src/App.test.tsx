@@ -23,6 +23,7 @@ vi.mock('./pages/ExamDraw', () => ({ default: () => <h1>Тянуть билет<
 vi.mock('./pages/ExamTicket.tsx', () => ({ default: () => <h1>Экран ответа</h1> }));
 vi.mock('./pages/ProfessorExam', () => ({ default: () => <h1>Старый экзамен</h1> }));
 vi.mock('./pages/MoodTracker', () => ({ default: () => <h1>Настроение</h1> }));
+vi.mock('./pages/TryExample', () => ({ default: () => <h1>Пример экзамена</h1> }));
 vi.mock('./api/materials', () => ({
   getMaterials: vi.fn(async () => materials.list),
   deleteMaterial: vi.fn(),
@@ -157,5 +158,17 @@ describe('library', () => {
     expect(within(rows[0]).getByText('конспект · 2 карточки · тест · разговор')).toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/uppercase|tracking-wider|Только для меня|Пакетный выбор|Статистика/);
     expect(screen.queryByText('Экономика')).toBeNull();
+  });
+});
+
+describe('the example exam (/try)', () => {
+  it.each([
+    ['a guest', null],
+    ['a signed-in student', { id: 'user-1', email: 'student@example.com', user_metadata: {} }],
+  ])('opens for %s without the sign-in wall and outside the app layout, its steps included', async (_who, user) => {
+    auth.value = { user, loading: false };
+    openAt('/try/draw');
+    expect(await screen.findByRole('heading', { name: 'Пример экзамена' })).toBeInTheDocument();
+    expect(screen.queryByTestId('layout')).toBeNull();
   });
 });

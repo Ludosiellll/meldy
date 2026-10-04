@@ -203,6 +203,13 @@ export default function Exams() {
             <button type="button" className="sf-primary" onClick={() => navigate('/exams/new')}>
               Вставить список вопросов
             </button>
+            {/* The example exam (/try): its lectures and list are checked already, nothing is saved. */}
+            <p>
+              Сначала посмотреть, как это работает?{' '}
+              <Link className="sf-link" to="/try">
+                Попробовать на примере
+              </Link>
+            </p>
           </div>
           {/* A list with its marks, drawn: no words and no numbers, nothing to mistake for data. */}
           <div className="ex-empty-art" aria-hidden="true">

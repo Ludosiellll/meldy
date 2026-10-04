@@ -46,6 +46,7 @@ const ExamEditor = lazy(() => import('./pages/ExamEditor'));
 const ExamDetail = lazy(() => import('./pages/ExamDetail'));
 const ExamDraw = lazy(() => import('./pages/ExamDraw'));
 const ExamTicket = lazy(loadExamTicket);
+const TryExample = lazy(() => import('./pages/TryExample'));
 
 /**
  * The answer screen («Ответ вслух», /exams/:id/ticket) is built by its own package. The glob keeps
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
+        <Route path="/try/*" element={<TryExample />} />
         <Route path="/" element={
           <PrivateRoute><Layout /></PrivateRoute>
         }>

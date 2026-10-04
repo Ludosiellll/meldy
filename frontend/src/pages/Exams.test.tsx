@@ -165,6 +165,8 @@ describe('Exams', () => {
     renderList();
     expect(await screen.findByRole('heading', { name: 'Вставьте список вопросов, который дала кафедра' })).toBeInTheDocument();
     expect(screen.getByText(/Meldy отметит, какие вопросы есть в ваших лекциях/)).toBeInTheDocument();
+    // The example exam is one quiet link away, for a student who wants to see it work first.
+    expect(screen.getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
     fireEvent.click(screen.getByRole('button', { name: 'Вставить список вопросов' }));
     expect(await screen.findByRole('heading', { name: 'Новый экзамен' })).toBeInTheDocument();
   });

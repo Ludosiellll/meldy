@@ -13,6 +13,8 @@ const MeldyReel = lazy(() => import('../components/reel/MeldyReel'));
 /** The one primary action of the landing; the final call repeats it. */
 export const PRIMARY_LABEL = 'Начать со списка вопросов';
 export const HEADLINE = 'Сессия начинается со списка вопросов';
+/** The second action of the first screen: the example exam (/try), no account needed. */
+export const TRY_LABEL = 'Попробовать на примере';
 
 const KINDS = [
   { id: 'exam', label: 'экзамену' },
@@ -160,10 +162,17 @@ function Hero() {
           <Pill tone="blue" onClick={() => navigate('/register')}>
             {PRIMARY_LABEL}
           </Pill>
-          <Pill tone="white" onClick={() => jumpToReel('oral', !reduce)}>
-            Как проходит ответ
+          {/* A ready example exam, no account needed (/try): the jury's QR code leads there too. */}
+          <Pill tone="white" onClick={() => navigate('/try')}>
+            {TRY_LABEL}
           </Pill>
         </div>
+        <p className="hm-also hm-rise hm-d3">
+          <button type="button" className="hm-more" onClick={() => jumpToReel('oral', !reduce)}>
+            Как проходит ответ
+            <Arrow />
+          </button>
+        </p>
         <div className="hm-formats hm-rise hm-d4">
           <span>Лекции</span>
           {FORMATS.map((format) => (
