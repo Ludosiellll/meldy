@@ -423,57 +423,6 @@
 }
 .au-panel-more { margin-top: auto; padding-top: clamp(16px, 3dvh, 40px); }
 
-/* The white «window» with content, two tinted cards peeking from under it. */
-.au-deck { position: relative; max-width: 520px; }
-.au-deck::before,
-.au-deck::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 30px;
-  box-shadow: 0 20px 40px -26px rgba(0, 0, 0, .45);
-}
-.au-deck::before { background: #eaf1fd; transform: rotate(-4.5deg) translate(-12px, 12px); }
-.au-deck::after { background: #fdf3d8; transform: rotate(3.5deg) translate(14px, 6px); }
-.au-win {
-  position: relative;
-  z-index: 1;
-  margin: 0;
-  padding: 10px 26px;
-  list-style: none;
-  border-radius: 30px;
-  background: #fff;
-  color: #0b121c;
-  box-shadow: 0 26px 56px -28px rgba(0, 0, 0, .5);
-}
-.au-step {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  column-gap: 14px;
-  padding: 16px 0;
-  border-top: 1px solid #efefea;
-}
-.au-step:first-child { border-top: 0; }
-.au-step-n {
-  grid-row: span 2;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #e8effc;
-  color: #1c4db1;
-  font-size: 15px;
-  font-weight: 600;
-}
-.au-step-n svg { width: 18px; height: 18px; }
-.au-step--ok .au-step-n { background: #e2f2e5; color: #2c6b3a; }
-.au-step-t { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; letter-spacing: -.01em; color: #0b121c; }
-.au-step-d { margin: 3px 0 0; font-size: 15px; line-height: 1.45; color: #4b515b; }
-.au-step--one { align-items: center; }
-.au-step--one .au-step-n { grid-row: auto; }
-.au-step--one .au-step-t { font-weight: 500; }
-
 /* A round mark with halo rings (the answer-aloud microphone of the landing, here a shield or a book). */
 .au-badge {
   display: grid;

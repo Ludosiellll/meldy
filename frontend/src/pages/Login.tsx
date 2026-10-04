@@ -4,13 +4,14 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Eye, EyeOff } from 'lucide-react';
 import { validateEmail } from '../utils/validators';
-import { LoginStory } from '../components/auth/AuthStory';
+import AuthReel from '../components/authReel/AuthReel';
 
 /**
  * Вход (Meldy 2026-10-04): форма в белой карточке, рядом цветная панель с полутоновыми точками —
- * как плитки первого экрана лендинга; в её окне по кругу идут три шага Meldy (LoginStory). Отступы
- * следуют высоте экрана, чтобы форма целиком помещалась на ноутбуке. На телефоне панель сжимается
- * до строки над карточкой. Стили — .au-* в styles/legacy.css.
+ * как плитки первого экрана лендинга; под заголовком панели по кругу идёт короткий ролик «Как
+ * работает Meldy» (AuthReel, на движке ролика лендинга). Отступы следуют высоте экрана, чтобы форма
+ * целиком помещалась на ноутбуке. На телефоне панель сжимается до строки над карточкой, без ролика.
+ * Стили — .au-* в styles/legacy.css.
  */
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -150,11 +151,11 @@ export default function Login() {
           </div>
         </section>
 
-        <aside className="au-panel au-rise au-d1" aria-labelledby="login-panel-title">
+        <aside className="au-panel au-panel--reel au-rise au-d1" aria-labelledby="login-panel-title">
           <p className="au-cap">Как работает Meldy</p>
           <h2 id="login-panel-title" className="au-panel-h">От источника до уверенного ответа.</h2>
           <div className="au-panel-more">
-            <LoginStory />
+            <AuthReel variant="login" />
           </div>
         </aside>
       </main>

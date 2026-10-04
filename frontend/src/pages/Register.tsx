@@ -4,12 +4,12 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
-import { RegisterStory } from '../components/auth/AuthStory';
+import AuthReel from '../components/authReel/AuthReel';
 
 /**
- * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель,
- * в окне которой по очереди отмечаются части плана подготовки (RegisterStory). Пароль и его повтор
- * стоят рядом, чтобы форма помещалась на экране ноутбука.
+ * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
+ * с коротким роликом «Материал становится планом подготовки» (AuthReel). Пароль и его повтор стоят
+ * рядом, чтобы форма помещалась на экране ноутбука.
  */
 export default function Register() {
   const [name, setName] = useState('');
@@ -280,7 +280,7 @@ export default function Register() {
           </div>
         </section>
 
-        <aside className="au-panel au-panel--dawn au-rise au-d1" aria-labelledby="register-panel-title">
+        <aside className="au-panel au-panel--dawn au-panel--reel au-rise au-d1" aria-labelledby="register-panel-title">
           <span className="au-badge au-badge--sm" aria-hidden="true">
             <BookOpen />
           </span>
@@ -288,7 +288,7 @@ export default function Register() {
             Материал становится<br />планом подготовки
           </h2>
           <div className="au-panel-more">
-            <RegisterStory />
+            <AuthReel variant="register" />
           </div>
         </aside>
       </main>
