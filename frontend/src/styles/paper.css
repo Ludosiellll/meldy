@@ -84,9 +84,9 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(60, 46, 26, .34); }
 .dark .sf-room-bar :focus-visible {
   outline: 2px solid var(--ph-focus);
   outline-offset: 3px;
-  border-radius: 3px;
 }
-/* A pill keeps its shape when it has the focus: the ring above would square it off (stage QA round 2). */
+/* The ring follows each element's own radius (outlines do in current browsers); setting a radius here
+   squared off every rounded card and pill that had the focus. Pills keep the explicit rule below. */
 .sf-shell .sf-primary:focus-visible,
 .sf-page .sf-primary:focus-visible,
 .sf-page .ex-secondary:focus-visible,
@@ -1057,10 +1057,12 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
     backdrop-filter: saturate(1.4) blur(14px);
     box-shadow: 0 -1px 0 var(--sf-line);
   }
+  /* Four pills on one line from 320 px up: they used to need 434 px at 375–414 and 377 px at 320. */
   .sf-tablink {
-    height: 40px;
-    padding: 0 14px;
+    height: 44px;
+    padding: 0 clamp(6px, 2.2vw, 14px);
     border-radius: 999px;
+    font-size: clamp(13px, 3.6vw, 15px);
     color: var(--sf-ink);
   }
   .sf-tablink[aria-current='page'] {
@@ -1071,8 +1073,9 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   .sf-tablink[aria-current='page']::before { display: none; }
   .sf-wordmark { font-size: 24px; }
 }
-@media (max-width: 374px) {
-  .sf-tablink { padding: 0 10px; }
+@media (max-width: 359px) {
+  .sf-tabbar { padding-left: 4px; padding-right: 4px; }
+  .sf-tablink { padding: 0 5px; font-size: 12px; }
 }
 
 /* ---------------------------------------------------------------- page header */
@@ -1264,4 +1267,12 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   .sf-input { transition: none; }
   .sf-toc-row:hover,
   .sf-ledger > li:hover { transform: none; }
+}
+
+/* ---------------------------------------------------------------- top bar, 1024–1119 px */
+/* Six links and «Добавить лекцию» overlapped by up to 49 px at 1024: tighter pills until 1120. */
+@media (min-width: 1024px) and (max-width: 1119px) {
+  .sf-bar-in { gap: 20px; }
+  .sf-bar-link { padding: 0 11px; font-size: 14px; }
+  .sf-shell .sf-nav-cta { padding: 0 18px; font-size: 14px; }
 }

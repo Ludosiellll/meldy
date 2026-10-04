@@ -50,7 +50,7 @@
   --sf-muted: #a7adb7;
   --sf-line: #262e3b;
   --sf-accent: #2869dd;
-  --sf-accent-hover: #3b78e6;
+  --sf-accent-hover: #1c4db1; /* white text 7.5:1; the lighter #3b78e6 gave 4.19:1 */
   --sf-accent-soft: #1a2a47;
   --sf-accent-fg: #8db2f5;
   --sf-workbench: #11161f;
