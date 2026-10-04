@@ -307,11 +307,12 @@ export default function MaterialPicker(props: MaterialPickerProps) {
             if (files.length > 0) props.onImport(files);
           }}
         />
-        <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
-          Добавить лекции
-        </button>
-        <p className="ex-meta" style={{ marginTop: 0 }}>
-          Текстом, без конспекта и без расхода лимита: PDF, DOCX, TXT, MD.
+        {/* One line: the link and what it costs (nothing). */}
+        <p className="nx-import-line">
+          <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
+            Добавить лекции
+          </button>
+          <span className="ex-meta"> — только текст, без конспекта и без расхода лимита: PDF, DOCX, TXT, MD</span>
         </p>
         {props.imports.map((item) => (
           <p key={item.key} className="nx-import-row" role={item.state === 'error' ? 'alert' : undefined}>

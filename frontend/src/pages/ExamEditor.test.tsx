@@ -167,7 +167,7 @@ describe('ExamEditor: a new exam', () => {
     expect(mocks.parseQuestionList).toHaveBeenCalledWith({ text: PARSE.source_text });
     expect(screen.getByLabelText('Название экзамена')).toHaveValue('Макроэкономика');
     // Only the subject goes here; the kind of exam is chosen next to it.
-    expect(screen.getByLabelText('Название экзамена')).toHaveAttribute('placeholder', 'Микроэкономика');
+    expect(screen.getByLabelText('Название экзамена')).toHaveAttribute('placeholder', 'Например, Микроэкономика');
     expect(screen.getByLabelText('Название экзамена')).toHaveAccessibleDescription('Только предмет — вид экзамена выбирается рядом');
     expect(screen.getByRole('combobox', { name: 'Как составлены билеты' })).toHaveAttribute('data-value', 'fixed');
     expect(screen.getByText(/2 билета из списка кафедры/)).toBeInTheDocument();
@@ -300,29 +300,69 @@ describe('ExamEditor: a new exam', () => {
     expect(screen.queryByText(/рабочей программе дисциплины/)).toBeNull();
   });
 
-  it('never shows a dead main button: before the list it recognises, and says what it waits for', async () => {
+  it('never shows a dead main button: on an empty field it says what to do, with text it recognises', async () => {
     renderEditor();
-    // Nothing pasted yet: the main button names the next step and the line under it says what to do.
-    const main = screen.getByRole('button', { name: 'Распознать вопросы' });
-    expect(main).toBeDisabled();
-    expect(screen.getByText('Сначала вставьте список вопросов слева или перетащите туда файл.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Разметить по лекциям' })).toBeNull();
+    // Step 1 is the list alone: the exam's form comes with step 2.
+    expect(screen.queryByLabelText('Название экзамена')).toBeNull();
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Список вопросов');
+    const field = screen.getByRole('textbox', { name: 'Список вопросов' });
+    expect(field.getAttribute('placeholder')).toMatch(/^Вопросы к экзамену\n1\. /);
+
+    // Pressed on an empty field: the cursor goes into it and a line says why nothing was recognised.
+    const main = screen.getByRole('button', { name: 'Распознать вопросы' });
+    expect(main).toBeEnabled();
+    fireEvent.click(main);
+    expect(screen.getByText('Сначала вставьте сюда список — или выберите файл.')).toBeInTheDocument();
+    expect(field).toHaveFocus();
+    expect(mocks.parseQuestionList).not.toHaveBeenCalled();
 
     // Typed (not pasted) text: the same button recognises it.
-    fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
-    expect(screen.queryByText(/Сначала вставьте список вопросов/)).toBeNull();
+    fireEvent.change(field, { target: { value: PARSE.source_text } });
+    expect(screen.queryByText(/Сначала вставьте сюда список/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
     await screen.findByText(/Распознано 4 вопроса, 2 раздела/);
     expect(mocks.parseQuestionList).toHaveBeenCalledWith({ text: PARSE.source_text });
 
-    // Then it maps, and says what the press does.
+    // Step 2: the exam's form and its button, which says what the press does.
+    expect(screen.getByLabelText('Название экзамена')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Разметить по лекциям' })).toBeEnabled());
     expect(screen.getByText(/Meldy сверит каждый вопрос с выбранными лекциями/)).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Проверка и лекции');
   });
 
-  it('recognises a file dropped on the list field, and one chosen with «выберите файл»', async () => {
+  it('step 2: the main button without a title takes the cursor to the title field instead of staying dead', async () => {
+    await pasteAndParse();
+    const title = screen.getByLabelText('Название экзамена');
+    fireEvent.change(title, { target: { value: '' } });
+    const main = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    expect(main).toBeEnabled();
+    expect(main).toHaveAccessibleDescription('Назовите экзамен.');
+
+    fireEvent.click(main);
+    expect(title).toHaveFocus();
+    expect(title).toHaveAttribute('aria-invalid', 'true');
+    expect(mocks.createExam).not.toHaveBeenCalled();
+
+    fireEvent.change(title, { target: { value: 'Макроэкономика' } });
+    expect(title).not.toHaveAttribute('aria-invalid');
+    expect(screen.queryByText('Назовите экзамен.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+  });
+
+  it('step 2: the main button with a line to fix takes the cursor to that line', async () => {
+    await pasteAndParse();
+    fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 2:/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Текст вопроса' }), { target: { value: 'Да' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    const main = screen.getByRole('button', { name: 'Разметить по лекциям' });
+    expect(main).toHaveAccessibleDescription('Исправьте строки, отмеченные в списке.');
+    fireEvent.click(main);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Изменить вопрос 2: Да' })).toHaveFocus());
+    expect(mocks.createExam).not.toHaveBeenCalled();
+  });
+
+  it('recognises a file dropped on the list card, and one chosen with «Выбрать файл»', async () => {
     renderEditor();
     const field = screen.getByRole('textbox', { name: 'Список вопросов' }).parentElement as HTMLElement;
     const file = new File(['1. Предмет и метод.'], 'Вопросы.docx');

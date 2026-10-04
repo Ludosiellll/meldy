@@ -46,6 +46,8 @@ import {
   type SkippedLine,
 } from '../components/exams/previewModel';
 import { glue } from '../components/exams/sheetModel';
+import { COVERAGE_MARK, COVERAGE_MARK_SIZE, COVERAGE_PILL_WORDS, PILL_MARK_SCALE } from '../components/exams/marks';
+import { Mark } from '../components/marks/PencilSvg';
 import { useFrame } from '../components/exams/useFrame';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
@@ -54,14 +56,35 @@ const PARSE_ACCEPT = '.docx,.pdf,.txt,.md';
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
 /** Where a student finds the list before pasting it (Jury_Check item 12, answer 21). */
 const LIST_SOURCE_HINT = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';
-/** Under the main button while there is nothing to recognise yet: the button says what it waits for. */
-const PASTE_FIRST = 'Сначала вставьте список вопросов слева или перетащите туда файл.';
-/** The same on a phone, where the field is above the button. */
-const PASTE_FIRST_PHONE = 'Сначала вставьте список вопросов в поле выше или выберите файл.';
+/** The empty field shows what a department's list looks like: paste it as it is. */
+const LIST_EXAMPLE = 'Вопросы к экзамену\n1. Предмет и метод экономической теории.\n2. Спрос и закон спроса.\n3. Эластичность спроса и её виды.\n…';
+/** «Распознать вопросы» pressed on an empty field: the cursor goes into it and this line says why. */
+const EMPTY_HINT = 'Сначала вставьте сюда список — или выберите файл.';
+/** The status pills of the sheet the list will become (the legend's words, on drawn rows: no data). */
+const SHEET_PREVIEW: Array<{ coverage: 'full' | 'partial' | 'none'; width: string }> = [
+  { coverage: 'full', width: '78%' },
+  { coverage: 'partial', width: '62%' },
+  { coverage: 'none', width: '70%' },
+];
 /** Under «Разметить по лекциям»: what the press does. */
 const MAP_NEXT = 'Meldy сверит каждый вопрос с выбранными лекциями — пометки появятся на листе экзамена.';
+const TITLE_ID = 'exam-title';
+const SAVE_WHY_ID = 'exam-save-why';
 
 const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+
+/**
+ * Puts the cursor into a field the main button sent the student to; brings it to the middle of the
+ * window when it is off screen or under the phone's bottom bar (which a plain focus() ignores).
+ */
+function reveal(element: HTMLElement | null | undefined) {
+  if (!element) return;
+  element.focus({ preventScroll: true });
+  const box = element.getBoundingClientRect();
+  const bar = document.querySelector('.ex-cta')?.getBoundingClientRect();
+  const bottom = bar && bar.height > 0 ? Math.min(window.innerHeight, bar.top) : window.innerHeight;
+  if (box.top < 0 || box.bottom > bottom - 12) element.scrollIntoView?.({ block: 'center' });
+}
 
 /** The most common ticket size of the department's tickets (1…4). */
 function ticketSize(tickets: Array<{ keys: string[] }>): number {
@@ -104,6 +127,8 @@ export default function ExamEditor() {
   // the list
   const [dragging, setDragging] = useState(false);
   const [pasted, setPasted] = useState('');
+  const [emptyTried, setEmptyTried] = useState(false);
+  const listRef = useRef<HTMLTextAreaElement>(null);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
@@ -136,6 +161,8 @@ export default function ExamEditor() {
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** The main button was pressed without a title: the field is marked until it gets one. */
+  const [titleTried, setTitleTried] = useState(false);
 
   // ------------------------------------------------------------------ loading
   const loadMaterials = useCallback(async () => {
@@ -421,22 +448,58 @@ export default function ExamEditor() {
         : listIssue;
 
   const sizeOptions = [1, 2, 3, 4];
+  // Like «Распознать вопросы», the main button of step 2 always answers: while something is missing
+  // it takes the student there (the title field, or the line of the list to fix) instead of staying
+  // pressed in vain; the line next to it says what is missing.
   const primary = (
-    <button type="button" className="sf-primary" disabled={!canSave} onClick={() => void save()}>
+    <button
+      type="button"
+      className="sf-primary"
+      disabled={saving || lockedByMapping || !user}
+      aria-describedby={disabledReason ? SAVE_WHY_ID : undefined}
+      onClick={() => {
+        if (titleMissing) {
+          setTitleTried(true);
+          reveal(document.getElementById(TITLE_ID));
+          return;
+        }
+        if (listIssue) {
+          // The list opens in full first: the line to fix may be among the folded ones.
+          setCollapsed(false);
+          window.setTimeout(() => {
+            const row = document.querySelector('.nx-problem')?.closest('li');
+            const line = row?.querySelector<HTMLElement>('.nx-t');
+            if (line) reveal(line);
+            else document.querySelector('.nx-list')?.scrollIntoView?.({ block: 'center' });
+          }, 0);
+          return;
+        }
+        void save();
+      }}
+    >
       {primaryLabel}
     </button>
   );
-  // Before the list is recognised the main button recognises it: it is never a dead button that waits
-  // for a step it does not name. With nothing to recognise yet, the line under it says what to do.
+  // Step 1 is the list alone: one card, its button right under the field. The button always answers:
+  // with text it recognises it; on an empty field it puts the cursor there and says what to do.
   const recognizeStep = total === 0;
-  const canRecognize = !parsing && !lockedByMapping && pasted.trim().length > 0;
   const recognize = (
-    <button type="button" className="sf-primary" disabled={!canRecognize} onClick={() => void parse({ text: pasted })}>
+    <button
+      type="button"
+      className="sf-primary"
+      disabled={parsing || lockedByMapping}
+      onClick={() => {
+        if (pasted.trim() === '') {
+          setEmptyTried(true);
+          listRef.current?.focus();
+          return;
+        }
+        void parse({ text: pasted });
+      }}
+    >
       {parsing ? 'Распознаём…' : 'Распознать вопросы'}
     </button>
   );
-  const recognizeNote =
-    recognizeStep && !parsing && pasted.trim() === '' && !lockedByMapping ? (frame.side ? PASTE_FIRST : PASTE_FIRST_PHONE) : null;
   const dropZone = {
     onDragEnter: (event: DragEvent) => {
       if (!hasFiles(event) || parsing || lockedByMapping) return;
@@ -503,205 +566,262 @@ export default function ExamEditor() {
         </p>
       )}
 
-      <div className="nx-body">
-        <section aria-label="Вопросы кафедры" style={{ minWidth: 0 }}>
-          {total === 0 ? (
-            <>
-              {/* One field for the list: paste the text, or drop the department's file on it. */}
-              <div className="sf-sheet nx-blank" data-drag={dragging ? '' : undefined} {...dropZone}>
-                <textarea
-                  aria-label="Список вопросов"
-                  placeholder="Вставьте текст списка из файла кафедры — или перетащите сюда сам файл"
-                  value={pasted}
-                  disabled={parsing || lockedByMapping}
-                  onChange={(event) => setPasted(event.target.value)}
-                  onPaste={(event) => {
-                    const text = event.clipboardData?.getData('text') ?? '';
-                    if (text.trim().length > 20 && pasted.trim() === '') {
-                      const target = event.currentTarget;
-                      window.setTimeout(() => void parse({ text: target.value || text }), 0);
-                    }
-                  }}
-                />
-                {dragging && (
-                  <p className="nx-drop" aria-hidden="true">
-                    Отпустите файл — Meldy распознает список
-                  </p>
-                )}
-              </div>
-              <div className="nx-under">
-                {/* On a phone the button sits here; on a computer the main button of the form recognises. */}
-                {!frame.side && recognize}
-                <p className="nx-or">
-                  {frame.side ? 'Или ' : 'или '}
-                  <button type="button" className="sf-link" disabled={parsing || lockedByMapping} onClick={() => fileRef.current?.click()}>
-                    выберите файл
-                  </button>
-                  {glue(' — DOCX, PDF, TXT или MD, как его дала кафедра.')}
-                </p>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept={PARSE_ACCEPT}
-                  hidden
-                  aria-label="Файл со списком вопросов"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = '';
-                    if (file) void parse({ file });
-                  }}
-                />
-              </div>
-              {!frame.side && recognizeNote && <p className="ex-meta">{recognizeNote}</p>}
-              {parsing && (
-                <p className="ex-meta" role="status">
-                  Распознаём список…
-                </p>
-              )}
-              <p className="ex-meta nx-source">{glue(LIST_SOURCE_HINT)}</p>
-              {parseError && (
-                <p className="ex-note" role="alert">
-                  {parseError}
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="nx-parsed">
-                {glue(
-                  `${replaceSource || !editing ? 'Распознано' : 'В списке'} ${total} ${pluralRu(total, QUESTION_FORMS)}` +
-                    (sections > 0 ? `, ${sections} ${pluralRu(sections, ['раздел', 'раздела', 'разделов'])}` : ''),
-                )}
-              </p>
-              <p className="ex-meta">Строку можно поправить, склеить или удалить.</p>
-              {parseWarnings.map((warning) => (
-                <p key={warning} className="ex-note">
-                  {glue(warning)}
-                </p>
-              ))}
-              <QuestionPreview
-                state={preview}
-                onChange={setPreview}
-                skipped={skipped}
-                onSkippedHandled={(key) => setSkipped((current) => current.filter((line) => line.key !== key))}
-                collapsed={collapsed}
-                onToggleCollapsed={() => setCollapsed((value) => !value)}
-                disabled={lockedByMapping || saving}
+      {recognizeStep ? (
+        // Step 1: the list alone. One card: the field with an example of a department's list, its
+        // button right under it; on the side, quietly, what the list becomes and where to find it.
+        <section
+          className="sf-sheet nx-start"
+          aria-label="Вопросы кафедры"
+          data-drag={dragging ? '' : undefined}
+          {...dropZone}
+        >
+          <div className="nx-start-main">
+            <h2 className="nx-start-h">Вставьте список вопросов</h2>
+            {/* A phone has nothing to drag a file from: there the formats go into this line instead. */}
+            <p className="nx-start-sub">
+              {frame.size === 's'
+                ? 'Скопируйте его из файла кафедры как есть — или выберите сам файл: DOCX, PDF, TXT или MD.'
+                : 'Скопируйте его из файла кафедры как есть — или перетащите сюда сам файл.'}
+            </p>
+            <div className="nx-field">
+              <textarea
+                ref={listRef}
+                aria-label="Список вопросов"
+                placeholder={LIST_EXAMPLE}
+                value={pasted}
+                disabled={parsing || lockedByMapping}
+                onChange={(event) => {
+                  setPasted(event.target.value);
+                  if (event.target.value.trim() !== '') setEmptyTried(false);
+                }}
+                onPaste={(event) => {
+                  const text = event.clipboardData?.getData('text') ?? '';
+                  if (text.trim().length > 20 && pasted.trim() === '') {
+                    const target = event.currentTarget;
+                    window.setTimeout(() => void parse({ text: target.value || text }), 0);
+                  }
+                }}
               />
-              <div className="nx-acts">
-                <button type="button" className="sf-link" onClick={startOver} disabled={lockedByMapping || saving}>
-                  Вставить заново
-                </button>
-              </div>
-            </>
+            </div>
+            <div className="nx-start-acts">
+              {recognize}
+              <button type="button" className="ex-secondary" disabled={parsing || lockedByMapping} onClick={() => fileRef.current?.click()}>
+                Выбрать файл
+              </button>
+              {frame.size !== 's' && <span className="nx-start-fmt">DOCX, PDF, TXT или MD</span>}
+              <input
+                ref={fileRef}
+                type="file"
+                accept={PARSE_ACCEPT}
+                hidden
+                aria-label="Файл со списком вопросов"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) void parse({ file });
+                }}
+              />
+            </div>
+            {emptyTried && !parsing && pasted.trim() === '' && (
+              <p className="ex-note" role="status">
+                {EMPTY_HINT}
+              </p>
+            )}
+            {parsing && (
+              <p className="ex-meta" role="status">
+                Распознаём список…
+              </p>
+            )}
+            {parseError && (
+              <p className="ex-note" role="alert">
+                {parseError}
+              </p>
+            )}
+          </div>
+          <aside className="nx-start-side" aria-label="Что будет дальше">
+            <p className="nx-lbl">Что сделает Meldy</p>
+            <ul className="nx-start-art" aria-hidden="true">
+              {SHEET_PREVIEW.map((row) => {
+                const kind = COVERAGE_MARK[row.coverage];
+                const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
+                return (
+                  <li key={row.coverage}>
+                    <i style={{ width: row.width }} />
+                    <span className="ex-cov" data-mark={kind ?? undefined}>
+                      {kind && size && (
+                        <Mark
+                          kind={kind}
+                          seed={row.coverage.length * 7}
+                          width={Math.round(size.width * PILL_MARK_SCALE)}
+                          height={Math.round(size.height * PILL_MARK_SCALE)}
+                          weight={size.weight}
+                        />
+                      )}
+                      <span className="ex-cov-word">{COVERAGE_PILL_WORDS[row.coverage]}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="nx-start-p">
+              {glue('Найдёт вопросы, разделы и билеты, а после проверки сверит каждый вопрос с вашими лекциями.')}
+            </p>
+            <p className="nx-lbl nx-start-lbl2">Где взять список</p>
+            <p className="nx-start-p">{glue(LIST_SOURCE_HINT)}</p>
+          </aside>
+          {dragging && (
+            <p className="nx-drop" aria-hidden="true">
+              Отпустите файл — Meldy распознает список
+            </p>
           )}
         </section>
+      ) : (
+        <div className="nx-body">
+          <section aria-label="Вопросы кафедры" style={{ minWidth: 0 }}>
+            <p className="nx-parsed">
+              {glue(
+                `${replaceSource || !editing ? 'Распознано' : 'В списке'} ${total} ${pluralRu(total, QUESTION_FORMS)}` +
+                  (sections > 0 ? `, ${sections} ${pluralRu(sections, ['раздел', 'раздела', 'разделов'])}` : ''),
+              )}
+            </p>
+            <p className="ex-meta">Строку можно поправить, склеить или удалить.</p>
+            {parseWarnings.map((warning) => (
+              <p key={warning} className="ex-note">
+                {glue(warning)}
+              </p>
+            ))}
+            <QuestionPreview
+              state={preview}
+              onChange={setPreview}
+              skipped={skipped}
+              onSkippedHandled={(key) => setSkipped((current) => current.filter((line) => line.key !== key))}
+              collapsed={collapsed}
+              onToggleCollapsed={() => setCollapsed((value) => !value)}
+              disabled={lockedByMapping || saving}
+            />
+            <div className="nx-acts">
+              <button type="button" className="sf-link" onClick={startOver} disabled={lockedByMapping || saving}>
+                Вставить заново
+              </button>
+            </div>
+          </section>
 
-        <aside className="nx-form" aria-label="Экзамен, билеты и лекции">
-          <div className="nx-grp">
-            <p className="nx-lbl">Экзамен</p>
-            <div className="nx-fields">
-              <span className="nx-sel nx-sel-title">
-                <PaperSuggestInput
-                  aria-label="Название экзамена"
-                  aria-describedby="exam-title-hint"
-                  placeholder="Микроэкономика"
-                  value={title}
-                  maxLength={200}
-                  suggestions={subjects}
-                  onValueChange={setTitle}
+          <aside className="nx-form" aria-label="Экзамен, билеты и лекции">
+            <div className="nx-grp">
+              <p className="nx-lbl">Экзамен</p>
+              <div className="nx-fields">
+                <span className="nx-sel nx-sel-title" data-missing={titleTried && titleMissing ? '' : undefined}>
+                  <PaperSuggestInput
+                    id={TITLE_ID}
+                    aria-label="Название экзамена"
+                    aria-describedby="exam-title-hint"
+                    aria-invalid={titleTried && titleMissing ? true : undefined}
+                    placeholder="Например, Микроэкономика"
+                    value={title}
+                    maxLength={200}
+                    suggestions={subjects}
+                    onValueChange={setTitle}
+                    disabled={saving}
+                  />
+                </span>
+                <PaperSelect
+                  ariaLabel="Тип"
+                  value={kind}
+                  options={EXAM_KINDS.map((value) => ({ value, label: KIND_WORDS[value] }))}
+                  onChange={(value) => setKind(value)}
                   disabled={saving}
                 />
-              </span>
-              <PaperSelect
-                ariaLabel="Тип"
-                value={kind}
-                options={EXAM_KINDS.map((value) => ({ value, label: KIND_WORDS[value] }))}
-                onChange={(value) => setKind(value)}
-                disabled={saving}
-              />
-              <span className="nx-sel">
-                <input type="date" aria-label="Дата, необязательно" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
-              </span>
-            </div>
-            <p className="ex-meta" id="exam-title-hint">
-              Только предмет — вид экзамена выбирается рядом
-            </p>
-          </div>
-
-          <div className="nx-grp">
-            <p className="nx-lbl">Билеты</p>
-            <p className="nx-line">
-              В билете{' '}
-              <PaperSelect
-                ariaLabel="Вопросов в билете"
-                value={perTicket}
-                options={sizeOptions.map((value) => ({ value, label: String(value) }))}
-                onChange={(value) => setPerTicket(value)}
-                disabled={saving || layoutMode === 'fixed'}
-              />{' '}
-              {pluralRu(perTicket, QUESTION_FORMS)},{' '}
-              <PaperSelect
-                ariaLabel="Как составлены билеты"
-                value={layoutMode}
-                options={[
-                  { value: 'random' as LayoutMode, label: 'случайные' },
-                  ...(filledSections > 0 && filledSections === perTicket ? [{ value: 'sections' as LayoutMode, label: 'по одному из каждого раздела' }] : []),
-                  ...(hasTickets ? [{ value: 'fixed' as LayoutMode, label: 'как в списке билетов' }] : []),
-                ]}
-                onChange={(value) => setLayoutChoice(value)}
-                disabled={saving}
-              />
-            </p>
-            <p className="ex-meta">
-              {layoutMode === 'fixed'
-                ? glue(`${preview.tickets.length} ${pluralRu(preview.tickets.length, ['билет', 'билета', 'билетов'])} из списка кафедры: доли посчитаем по ним.`)
-                : 'Если знаете, какие вопросы стоят в каждом билете, вставьте список билетов — посчитаем по нему.'}
-            </p>
-            {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
-          </div>
-
-          <div className="nx-grp">
-            <p className="nx-lbl">Лекции</p>
-            <MaterialPicker
-              materials={materials}
-              selected={selected}
-              onToggle={toggleMaterial}
-              onSetMany={setManyMaterials}
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
-              onImport={(files) => void importFiles(files)}
-              imports={imports}
-              loading={materialsState === 'loading'}
-              error={materialsState === 'error' ? EXAM_MESSAGES.materials : null}
-              onRetry={() => void loadMaterials()}
-              disabled={saving}
-            />
-          </div>
-
-          <div className="nx-go">
-            {frame.side && (recognizeStep ? recognize : primary)}
-            {frame.side && recognizeNote && <p className="ex-meta nx-go-note">{recognizeNote}</p>}
-            {!editing && canSave && usableSelected.length > 0 && <p className="ex-meta nx-go-note">{MAP_NEXT}</p>}
-            {disabledReason && total > 0 && <p className="ex-note">{disabledReason}</p>}
-            {saveError && (
-              <p className="ex-note" role="alert">
-                {saveError}
+                <span className="nx-sel">
+                  <input type="date" aria-label="Дата, необязательно" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
+                </span>
+              </div>
+              {/* The example in the field («Например, Микроэкономика») shows it; screen readers hear it in words. */}
+              <p className="ex-sr" id="exam-title-hint">
+                Только предмет — вид экзамена выбирается рядом
               </p>
-            )}
-            {editing && bundle && (
-              <button type="button" className="sf-link" data-muted="" onClick={() => void remove()} disabled={saving}>
-                Удалить экзамен
-              </button>
-            )}
-          </div>
-        </aside>
-      </div>
+            </div>
+
+            <div className="nx-grp">
+              <p className="nx-lbl">Билеты</p>
+              <p className="nx-line">
+                В билете{' '}
+                <PaperSelect
+                  ariaLabel="Вопросов в билете"
+                  value={perTicket}
+                  options={sizeOptions.map((value) => ({ value, label: String(value) }))}
+                  onChange={(value) => setPerTicket(value)}
+                  disabled={saving || layoutMode === 'fixed'}
+                />{' '}
+                {pluralRu(perTicket, QUESTION_FORMS)},{' '}
+                <PaperSelect
+                  ariaLabel="Как составлены билеты"
+                  value={layoutMode}
+                  options={[
+                    { value: 'random' as LayoutMode, label: 'случайные' },
+                    ...(filledSections > 0 && filledSections === perTicket ? [{ value: 'sections' as LayoutMode, label: 'по одному из каждого раздела' }] : []),
+                    ...(hasTickets ? [{ value: 'fixed' as LayoutMode, label: 'как в списке билетов' }] : []),
+                  ]}
+                  onChange={(value) => setLayoutChoice(value)}
+                  disabled={saving}
+                />
+              </p>
+              <p className="ex-meta">
+                {layoutMode === 'fixed'
+                  ? glue(`${preview.tickets.length} ${pluralRu(preview.tickets.length, ['билет', 'билета', 'билетов'])} из списка кафедры: доли посчитаем по ним.`)
+                  : 'Знаете состав билетов? Вставьте и их список — посчитаем по нему.'}
+              </p>
+              {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
+            </div>
+
+            <div className="nx-grp">
+              <p className="nx-lbl">Лекции</p>
+              <MaterialPicker
+                materials={materials}
+                selected={selected}
+                onToggle={toggleMaterial}
+                onSetMany={setManyMaterials}
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                onImport={(files) => void importFiles(files)}
+                imports={imports}
+                loading={materialsState === 'loading'}
+                error={materialsState === 'error' ? EXAM_MESSAGES.materials : null}
+                onRetry={() => void loadMaterials()}
+                disabled={saving}
+              />
+            </div>
+
+            <div className="nx-go">
+              {frame.side && primary}
+              {!editing && canSave && usableSelected.length > 0 && <p className="ex-meta nx-go-note">{MAP_NEXT}</p>}
+              {disabledReason && total > 0 && (
+                <p className="ex-note" id={frame.side ? SAVE_WHY_ID : undefined}>
+                  {disabledReason}
+                </p>
+              )}
+              {saveError && (
+                <p className="ex-note" role="alert">
+                  {saveError}
+                </p>
+              )}
+              {editing && bundle && (
+                <button type="button" className="sf-link" data-muted="" onClick={() => void remove()} disabled={saving}>
+                  Удалить экзамен
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
 
       {!frame.side && total > 0 && (
         <div className="ex-cta">
           {/* A phone: why the button is off, right above it (the form with the same line is far below). */}
-          {disabledReason && <p className="ex-cta-why">{disabledReason}</p>}
+          {disabledReason && (
+            <p className="ex-cta-why" id={SAVE_WHY_ID}>
+              {disabledReason}
+            </p>
+          )}
           {primary}
         </div>
       )}
