@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { LearningEvent } from '../../api/learning';
 import {
+  CONFIRM_MIN_HOURS,
+  CONFIRM_STALE_DAYS,
   READINESS_LABELS,
   SELF_RATING_CONFIDENCE,
   SELF_RATING_LABELS,
   confidenceVsConfirmed,
+  emptyQuestionState,
   examSummary,
   questionState,
   statesByHash,
@@ -21,7 +24,7 @@ function answer(
   hash: string,
   at: string,
   grade: number,
-  opts: { localDate?: string; session?: string; score?: number; confidence?: 1 | 2 | 3 | null } = {},
+  opts: { localDate?: string; session?: string; score?: number; confidence?: 1 | 2 | 3 | null; unscored?: boolean } = {},
 ): LearningEvent {
   sequence += 1;
   const score = opts.score ?? (grade >= 5 ? 89 : grade === 4 ? 70 : grade === 3 ? 50 : 30);
@@ -32,7 +35,7 @@ function answer(
     material_id: null,
     kind: 'exam_answer',
     item_key: `q:${hash}`,
-    correct: grade >= 4,
+    correct: opts.unscored ? null : grade >= 4,
     score: score / 100,
     confidence: opts.confidence ?? null,
     source_ids: [],
@@ -63,10 +66,11 @@ describe('labels', () => {
   it('uses the agreed words and the confidence scale', () => {
     expect(READINESS_LABELS).toEqual({
       untested: 'не проверялось',
-      // Two passes on the same day are still 'once': the label must not say «один раз».
-      once: 'зачтено в один день',
+      // Under the 20-hour rule 23:59 and 0:01 are two days and still not a confirmation, so the
+      // label never names a day; a passed answer is «засчитан» (Jury_Check 11).
+      once: 'засчитано, не подтверждено',
       confirmed: 'подтверждено',
-      not_passed: 'не зачтено',
+      not_passed: 'не засчитано',
     });
     expect(SELF_RATING_LABELS).toEqual({ know: 'знаю', unsure: 'плаваю', dont_know: 'не знаю' });
     expect(SELF_RATING_CONFIDENCE).toEqual({ dont_know: 1, unsure: 2, know: 3 });
@@ -75,7 +79,7 @@ describe('labels', () => {
 
 describe('questionState', () => {
   it('is untested without answers', () => {
-    expect(questionState([], [])).toEqual({
+    const empty = {
       readiness: 'untested',
       selfRating: null,
       ratingAtLastAnswer: null,
@@ -86,7 +90,18 @@ describe('questionState', () => {
       lastScorePct: null,
       firstDate: null,
       lastSessionId: null,
-    });
+      seriesStartAt: null,
+      seriesStartDate: null,
+      lastPassAt: null,
+      lastPassDate: null,
+      confirmedAt: null,
+      confirmedOn: null,
+      stale: false,
+      confirmableFrom: null,
+      awaiting: false,
+    };
+    expect(questionState([], [])).toEqual(empty);
+    expect(emptyQuestionState()).toEqual(empty);
   });
 
   it('is not passed when the last answer got a 3', () => {
@@ -204,6 +219,129 @@ describe('questionState', () => {
   });
 });
 
+/** A local wall-clock moment as the server would store it (created_at in UTC), and its local day. */
+function local(day: string, hh: number, mm = 0): { at: string; localDate: string } {
+  const [y, m, d] = day.split('-').map(Number);
+  return { at: new Date(y, m - 1, d, hh, mm).toISOString(), localDate: day };
+}
+
+function pass(hash: string, day: string, hh: number, mm = 0, grade = 4): LearningEvent {
+  const when = local(day, hh, mm);
+  return answer(hash, when.at, grade, { localDate: when.localDate });
+}
+
+function fail(hash: string, day: string, hh: number, mm = 0, grade = 3): LearningEvent {
+  const when = local(day, hh, mm);
+  return answer(hash, when.at, grade, { localDate: when.localDate });
+}
+
+describe('the rule «подтверждено» (Jury_Check item 3)', () => {
+  it('confirms 10:00 and 18:00 on one day and 8:00 the next day: the first and the last are 22 hours and two days apart', () => {
+    const answers = [pass(HASH_A, '2026-10-07', 10), pass(HASH_A, '2026-10-07', 18), pass(HASH_A, '2026-10-08', 8)];
+    expect(questionState(answers.slice(0, 2), []).readiness).toBe('once');
+    const state = questionState(answers, []);
+    expect(state.readiness).toBe('confirmed');
+    expect(READINESS_LABELS[state.readiness]).toBe('подтверждено');
+    expect(state).toMatchObject({
+      seriesStartAt: answers[0].created_at,
+      seriesStartDate: '2026-10-07',
+      lastPassAt: answers[2].created_at,
+      lastPassDate: '2026-10-08',
+      confirmedAt: answers[2].created_at,
+      confirmedOn: '2026-10-08',
+      confirmableFrom: null,
+      awaiting: false,
+    });
+  });
+
+  it('does not confirm 23:59 and 0:01: two days, but two minutes apart', () => {
+    const state = questionState([pass(HASH_A, '2026-10-07', 23, 59), pass(HASH_A, '2026-10-08', 0, 1)], []);
+    expect(state.readiness).toBe('once');
+    expect(READINESS_LABELS[state.readiness]).toBe('засчитано, не подтверждено');
+  });
+
+  it('does not confirm 1:00 and 21:00 of one day: 20 hours, but one day', () => {
+    const state = questionState([pass(HASH_A, '2026-10-07', 1), pass(HASH_A, '2026-10-07', 21)], []);
+    expect(state.readiness).toBe('once');
+  });
+
+  it('starts the series over after a провал: pass, fail, pass the next day is not a confirmation; a later pass 20 hours on is', () => {
+    const first = pass(HASH_A, '2026-10-07', 10);
+    const failed = fail(HASH_A, '2026-10-07', 15);
+    const restart = pass(HASH_A, '2026-10-08', 11);
+    // Without the провал the same passes would confirm the question (25 hours, two days).
+    expect(questionState([first, restart], []).readiness).toBe('confirmed');
+    const restarted = questionState([first, failed, restart], []);
+    expect(restarted.readiness).toBe('once');
+    expect(restarted.seriesStartAt).toBe(restart.created_at);
+    // Exactly 20 hours after the restart, on a later day: confirmed.
+    const later = pass(HASH_A, '2026-10-09', 7);
+    expect(Date.parse(later.created_at) - Date.parse(restart.created_at)).toBe(CONFIRM_MIN_HOURS * 3_600_000);
+    const confirmed = questionState([first, failed, restart, later], []);
+    expect(confirmed.readiness).toBe('confirmed');
+    expect(confirmed.confirmedOn).toBe('2026-10-09');
+    // One minute short of 20 hours is not enough.
+    expect(questionState([first, failed, restart, pass(HASH_A, '2026-10-09', 6, 59)], []).readiness).toBe('once');
+  });
+
+  it('ignores answers without a grade: they neither start nor break a series', () => {
+    const graded = [pass(HASH_A, '2026-10-07', 10), pass(HASH_A, '2026-10-08', 9)];
+    const unscored = (day: string, hh: number) => answer(HASH_A, local(day, hh).at, 3, { localDate: day, unscored: true });
+    const state = questionState([unscored('2026-10-06', 9), graded[0], unscored('2026-10-07', 12), graded[1]], []);
+    expect(state.readiness).toBe('confirmed');
+    expect(state.seriesStartAt).toBe(graded[0].created_at);
+    expect(state.attempts).toBe(4);
+    expect(questionState([unscored('2026-10-06', 9)], []).readiness).toBe('untested');
+    expect(questionState([graded[0], unscored('2026-10-09', 9)], []).readiness).toBe('once');
+  });
+
+  it('takes the hours from the server time and the days from the local day', () => {
+    // 30 hours apart by the server clock, but the browser wrote the same local day: not two days.
+    const sameDay = [
+      answer(HASH_A, '2026-10-07T01:00:00Z', 4, { localDate: '2026-10-07' }),
+      answer(HASH_A, '2026-10-08T07:00:00Z', 4, { localDate: '2026-10-07' }),
+    ];
+    expect(questionState(sameDay, []).readiness).toBe('once');
+    // Two local days, but 19 h 59 min by the server clock.
+    const tooSoon = [
+      answer(HASH_A, '2026-10-07T10:00:00Z', 4, { localDate: '2026-10-07' }),
+      answer(HASH_A, '2026-10-08T05:59:00Z', 4, { localDate: '2026-10-08' }),
+    ];
+    expect(questionState(tooSoon, []).readiness).toBe('once');
+    const enough = [tooSoon[0], answer(HASH_A, '2026-10-08T06:00:00Z', 4, { localDate: '2026-10-08' })];
+    expect(questionState(enough, []).readiness).toBe('confirmed');
+  });
+
+  it('is «пора проверить» exactly 14 days after the last засчитанный answer, and still confirmed', () => {
+    const answers = [pass(HASH_A, '2026-09-20', 10), pass(HASH_A, '2026-09-21', 10), pass(HASH_A, '2026-09-25', 12)];
+    const last = Date.parse(answers[2].created_at);
+    const day = 86_400_000;
+    const before = questionState(answers, [], new Date(last + CONFIRM_STALE_DAYS * day - 1));
+    expect(before).toMatchObject({ readiness: 'confirmed', stale: false });
+    const at = questionState(answers, [], new Date(last + CONFIRM_STALE_DAYS * day));
+    expect(at).toMatchObject({ readiness: 'confirmed', stale: true, lastPassAt: answers[2].created_at, confirmedOn: '2026-09-21' });
+    // Counted from the last засчитанный answer, not from the day it was first confirmed.
+    expect(questionState(answers, [], new Date(Date.parse(answers[1].created_at) + 15 * day)).stale).toBe(false);
+    expect(questionState(answers.slice(0, 2), [], new Date(Date.parse(answers[1].created_at) + 15 * day)).stale).toBe(true);
+  });
+
+  it('names the earliest moment a засчитанный answer would confirm a question passed once, and when that moment has come', () => {
+    const afternoon = pass(HASH_A, '2026-10-07', 14, 2);
+    const state = questionState([afternoon], [], new Date(2026, 9, 8, 10, 1));
+    // The later of 20 hours on and the next local midnight.
+    expect(state.confirmableFrom).toBe(new Date(2026, 9, 8, 10, 2).toISOString());
+    expect(state.awaiting).toBe(false);
+    expect(questionState([afternoon], [], new Date(2026, 9, 8, 10, 2)).awaiting).toBe(true);
+    // An answer at 3:00: 20 hours on is 23:00 the same day, so the next midnight decides.
+    const night = pass(HASH_A, '2026-10-07', 3);
+    expect(questionState([night], []).confirmableFrom).toBe(new Date(2026, 9, 8, 0, 0).toISOString());
+    // A second pass the same day does not move the start of the series.
+    expect(questionState([afternoon, pass(HASH_A, '2026-10-07', 20)], []).confirmableFrom).toBe(new Date(2026, 9, 8, 10, 2).toISOString());
+    // Only a question passed once has it.
+    expect(questionState([afternoon, fail(HASH_A, '2026-10-08', 9)], [])).toMatchObject({ readiness: 'not_passed', confirmableFrom: null, awaiting: false, seriesStartAt: null, lastPassAt: null });
+  });
+});
+
 describe('statesByHash', () => {
   it('groups by question hash and ignores other journal events', () => {
     const quizEvent: LearningEvent = {
@@ -225,12 +363,15 @@ describe('statesByHash', () => {
 
 describe('examSummary', () => {
   it('counts every question row and dates the first answer', () => {
-    const states = statesByHash([
-      answer(HASH_A, '2026-10-07T09:00:00Z', 4),
-      answer(HASH_A, '2026-10-08T09:00:00Z', 5),
-      answer(HASH_B, '2026-10-09T09:00:00Z', 4),
-      answer(HASH_C, '2026-10-06T09:00:00Z', 2),
-    ]);
+    const states = statesByHash(
+      [
+        answer(HASH_A, '2026-10-07T09:00:00Z', 4),
+        answer(HASH_A, '2026-10-08T09:00:00Z', 5),
+        answer(HASH_B, '2026-10-09T09:00:00Z', 4),
+        answer(HASH_C, '2026-10-06T09:00:00Z', 2),
+      ],
+      new Date('2026-10-10T12:00:00Z'),
+    );
     expect(examSummary([HASH_A, HASH_B, HASH_C, HASH_D], states)).toEqual({
       total: 4,
       confirmed: 1,
@@ -238,6 +379,7 @@ describe('examSummary', () => {
       notPassed: 1,
       untested: 1,
       since: '2026-10-06',
+      stale: 0,
     });
   });
 
@@ -249,7 +391,19 @@ describe('examSummary', () => {
       notPassed: 0,
       untested: 2,
       since: null,
+      stale: 0,
     });
+  });
+
+  it('keeps a stale confirmation among the confirmed and counts it as «пора проверить»', () => {
+    const events = [
+      answer(HASH_A, '2026-09-01T09:00:00Z', 4),
+      answer(HASH_A, '2026-09-02T09:00:00Z', 5),
+      answer(HASH_B, '2026-10-01T09:00:00Z', 4),
+      answer(HASH_B, '2026-10-02T09:00:00Z', 4),
+    ];
+    const summary = examSummary([HASH_A, HASH_B], statesByHash(events, new Date('2026-10-05T12:00:00Z')));
+    expect(summary).toMatchObject({ confirmed: 2, stale: 1 });
   });
 });
 

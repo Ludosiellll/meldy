@@ -445,23 +445,72 @@
 }
 .dark .sf-page .ex-big { font-weight: 570; }
 .sf-page .ex-pair[data-first] .ex-big { color: var(--sf-muted); }
-.sf-page .ex-lbl { font-size: 17px; line-height: 24px; }
+/* Everything the stage script reads aloud is 18 px or more in the 1280×720 window (Jury_Check 9). */
+.sf-page .ex-lbl { font-size: 18px; line-height: 25px; }
 .sf-page .ex-sub { grid-column: 2; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+
+/* Peak 1 (Jury_Check 10), top to bottom: (a) the questions in no lecture, the figure at the size of
+   the percentages and a filter of the sheet; (b) the question share struck through by pencil, muted,
+   beside the ticket share in ink, the label and the counts under them; (c) the tickets without
+   «есть»; the caveat, «Как считается» and the action line right under it. */
+.sf-page .ex-pairs:not([data-compact]) .ex-pair + .ex-pair { margin-top: 18px; }
+.sf-page .ex-gap { align-items: baseline; }
+.sf-page .ex-gap-n {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  color: var(--sf-ink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 150ms ease;
+}
+.sf-page .ex-gap-n:hover { text-decoration-color: color-mix(in srgb, currentColor 32%, transparent); }
+.sf-page .ex-gap-n[aria-pressed='true'] { text-decoration-color: currentColor; }
+.sf-page .ex-gap-n:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 4px; }
+.sf-page .ex-share { display: block; }
+.sf-page .ex-figs { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 20px; row-gap: 4px; }
+.sf-page .ex-figs-was { color: var(--sf-muted); }
+/* A range («43–68 %») is wider: both figures stay on one row at 40 px. */
+.sf-page .ex-figs[data-range] { font-size: 40px; column-gap: 16px; }
+.sf-page .ex-share .ex-lbl { margin-top: 8px; }
+.sf-page .ex-share .ex-sub { margin-top: 2px; }
+.sf-page .ex-gapline { margin-top: 14px; font-size: 18px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .ex-act { margin-top: 6px; font-size: 18px; line-height: 26px; color: var(--sf-ink); text-wrap: pretty; }
+/* Read aloud as part of the sentence: the link keeps the line's size (it sits inside «Как считается»). */
+.sf-page .ex-act .sf-link.ex-act-link { min-height: 0; font-size: inherit; line-height: inherit; font-weight: 600; }
+.sf-page .ex-act .ex-act-link[aria-pressed='true'] { text-decoration-thickness: 2px; text-decoration-color: currentColor; }
+/* The short caveat is for the low window only; the whole assumption then opens the formula. */
+.sf-page .ex-caveat[data-short],
+.sf-page .ex-calc-assume { display: none; }
+.sf-page .ex-summary[data-part='rest'] .ex-gapline:first-child { margin-top: 0; }
+.sf-page .ex-col-after .ex-summary[data-part='rest'] { margin-top: 20px; }
 .sf-page[data-frame='m'] .ex-big,
 .sf-page[data-frame='s'] .ex-big { font-size: 44px; }
 .sf-page[data-frame='s'] .ex-lbl { font-size: 16px; line-height: 22px; }
-/* Phones and tablets: 60 % and 35 % side by side (grid 1fr 1fr, gap 16), each number over its label
-   (44/1, labels 15/20). On a phone the counts under them are left to the legend just above the sheet
-   («есть в лекциях 24 · частично 7 · нет ни в одной 9»); «хотя бы один» is in «Как считается». */
+/* Phones and tablets: (a) and (b) side by side (grid 1fr 1fr, gap 16), each figure over its label
+   (44/1, labels 15/20); the struck question share stands smaller beside the ticket share. On a phone
+   the counts under them are left to the legend just above the sheet; line (c) and the action line
+   follow the sheet. */
 .sf-page .ex-pairs[data-compact] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .sf-page .ex-pairs[data-compact][data-count='1'] { grid-template-columns: minmax(0, 1fr); }
 .sf-page .ex-pairs[data-compact] .ex-pair { display: block; }
 .sf-page .ex-pairs[data-compact] .ex-pair + .ex-pair { margin-top: 0; }
 .sf-page .ex-pairs[data-compact] .ex-big { font-size: 44px; line-height: 1; }
 .sf-page .ex-pairs[data-compact] .ex-pair[data-wide] .ex-big { font-size: 36px; }
+.sf-page .ex-pairs[data-compact] .ex-figs { column-gap: 10px; }
+.sf-page .ex-pairs[data-compact] .ex-figs-was { font-size: 26px; }
+.sf-page .ex-pairs[data-compact] .ex-figs[data-range] { font-size: 30px; }
+.sf-page .ex-pairs[data-compact] .ex-figs[data-range] .ex-figs-was { font-size: 20px; }
 .sf-page .ex-pairs[data-compact] .ex-lbl { margin-top: 6px; font-size: 15px; line-height: 20px; }
 .sf-page .ex-pairs[data-compact] .ex-sub { margin-top: 2px; font-size: 15px; line-height: 20px; }
 .sf-page[data-frame='s'] .ex-pairs[data-compact] .ex-sub { display: none; }
+.sf-page[data-frame='s'] .ex-gapline,
+.sf-page[data-frame='s'] .ex-act { font-size: 16px; line-height: 24px; }
 .sf-page .ex-caveat { margin-top: 16px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; max-width: 26em; }
 .sf-page .ex-blk { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
 .sf-page .ex-stmt { font-size: 17px; line-height: 25px; text-wrap: pretty; }
@@ -509,6 +558,17 @@
 }
 .sf-page .ex-because-count { margin-top: 2px; color: var(--ph-paper-ink); }
 .sf-page .ex-peak-big .ex-of { font-weight: 500; }
+/* Peak 3 with something confirmed: «0 → 7 из 40», under it «за 3 дня» muted and «+1 сегодня» in ink
+   (Onest 500 24/30); the statement and «Второй ответ после разбора» at 18 px (Jury_Check 4, 9). */
+.sf-page .ex-peak-big .ex-now .ex-of { font-size: .5em; letter-spacing: 0; color: var(--sf-muted); }
+.sf-page .ex-peak-growth { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; margin-top: 8px; font-size: 24px; line-height: 30px; font-weight: 500; letter-spacing: -.01em; color: var(--sf-muted); }
+.sf-page .ex-peak-growth:empty { display: none; }
+.sf-page .ex-peak-growth b { font-weight: 600; color: var(--sf-ink); }
+.sf-page .ex-peak .ex-peak-stmt { margin-top: 14px; font-size: 18px; line-height: 26px; }
+.sf-page .ex-peak .ex-peak-stmt + .ex-peak-stmt { margin-top: 8px; }
+/* The readiness block: the growth from history and what is «пора проверить». */
+.sf-page .ex-blk .ex-growth { margin-top: 2px; }
+.sf-page .ex-blk .ex-stale { color: var(--sf-ink); }
 
 /* «Как считается»: a formula under a hairline, no bar and no fill. */
 .sf-page .ex-how .sf-link { font-size: 15px; }
@@ -529,6 +589,8 @@
 .sf-page .ex-frac > span:first-child { padding: 0 4px 3px; border-bottom: 1.5px solid currentColor; }
 .sf-page .ex-frac > span:last-child { padding-top: 3px; }
 .sf-page .ex-comb { display: inline-flex; align-items: center; }
+/* «13/20 × 11/20»: the sign keeps its distance from both fractions. */
+.sf-page .ex-formula .ex-comb > .ex-op { margin-right: .48em; }
 .sf-page .ex-ix { display: inline-grid; margin-left: 2px; font-size: .62em; line-height: 1.02; text-align: left; }
 .sf-page .ex-op { color: var(--sf-muted); }
 .sf-page .ex-op[data-approx] { font-family: var(--ph-sans); }
@@ -544,7 +606,9 @@
   letter-spacing: -.015em;
   text-wrap: balance;
 }
-.sf-page .ex-why .ex-stmt { margin-top: 10px; }
+.sf-page .ex-why .ex-stmt { margin-top: 10px; font-size: 18px; line-height: 26px; }
+/* Where the question stands by the rule «подтверждено», above its answers. */
+.sf-page .ex-why .ex-why-ready { margin-top: 4px; }
 .sf-page .ex-slip-cap { margin: 18px 0 8px; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
 .sf-page .ex-why-go { margin-top: 24px; }
 .sf-page .ex-why-acts { display: flex; flex-direction: column; align-items: flex-start; margin-top: 12px; }
@@ -876,6 +940,11 @@
 .sf-page .dw-q-none { display: block; grid-column: -2; margin-top: 6px; }
 .sf-page .dw-back { display: grid; place-items: center; min-height: 124px; font-family: var(--ph-serif); font-size: 19px; color: var(--ph-paper-muted); }
 .sf-page .dw-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 26px; margin-top: 32px; }
+/* What the card was drawn from (Jury_Check 9, 11): said under the card in every mode, at a size the
+   room can read (18 px in the 1280×720 window); «Отвечать» follows it. */
+.sf-page .dw-pool { margin: 26px auto 0; max-width: 36em; font-size: 18px; line-height: 26px; color: var(--sf-muted); text-align: center; text-wrap: pretty; }
+.sf-page .dw-pool + .dw-acts { margin-top: 22px; }
+.sf-page .dw-pool + .dw-msg { margin-top: 14px; }
 .sf-page .dw-mode { margin-top: 10px; }
 .sf-page .dw-mode .ex-draw-mode { text-align: center; font-size: 15px; line-height: 22px; }
 .sf-page .dw-mode .ex-mode-menu { left: 50%; right: auto; transform: translateX(-50%); }
@@ -897,6 +966,8 @@
   .sf-page .dw-q-t { font-size: 21px; line-height: 26px; }
   .sf-page .dw-acts { justify-content: flex-start; }
   .sf-page .dw-acts .sf-primary { width: 100%; }
+  .sf-page .dw-pool { margin-left: 0; font-size: 16px; line-height: 24px; text-align: left; }
+  .sf-page .dw-msg { text-align: left; margin-left: 0; }
   .sf-page .dw-mode .ex-draw-mode { text-align: left; }
 }
 @keyframes dw-lift {

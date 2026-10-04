@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartSourceIds, numberReadings, timelineSourceIds } from './grounding';
+import { chartSourceIds, fragmentText, numberReadings, quoteHeading, timelineSourceIds } from './grounding';
 import type { ChartVisual, TimelineVisual } from './types';
 
 const chart = (values: number[]): ChartVisual => ({
@@ -52,5 +52,35 @@ describe('client-side check of chart numbers and timeline dates', () => {
     expect(timelineSourceIds(timeline(['1885', 'XIX век']), ['S01'], sources)).toEqual(['S03']);
     expect(timelineSourceIds(timeline(['85', '1885']), [], sources)).toEqual([]);
     expect(timelineSourceIds(timeline(['1885', '1968']), ['S03'], sources)).toEqual([]);
+  });
+});
+
+describe('rendering helpers for quotes (jury memo 12)', () => {
+  const fragment = 'Обучение нейронной сети\nОбучение сети заключается в подборе весов.';
+
+  it('finds a fragment by id regardless of case and spaces', () => {
+    const sources = [{ id: ' S04 ', text: ' Текст четвёртого фрагмента. ' }];
+    expect(fragmentText(sources, 's04')).toBe('Текст четвёртого фрагмента.');
+    expect(fragmentText(sources, 'S05')).toBeNull();
+    expect(fragmentText(null, 'S04')).toBeNull();
+    expect(fragmentText([{ id: 'S01', text: '   ' }], 'S01')).toBeNull();
+  });
+
+  it('splits the heading off a quote that starts with it', () => {
+    expect(quoteHeading('Обучение нейронной сети Обучение сети заключается в подборе весов.', fragment)).toEqual({
+      heading: 'Обучение нейронной сети',
+      rest: 'Обучение сети заключается в подборе весов.',
+    });
+    // The sanitizer's «…» stays where it was.
+    expect(quoteHeading('Обучение нейронной сети Обучение сети заключается…', fragment)?.rest).toBe('Обучение сети заключается…');
+  });
+
+  it('leaves the quote alone when it does not start with the fragment heading', () => {
+    expect(quoteHeading('Обучение сети заключается в подборе весов.', fragment)).toBeNull();
+    expect(quoteHeading('Обучение нейронной сетиОбучение', fragment)).toBeNull();
+    expect(quoteHeading('Обучение нейронной сети', fragment)).toBeNull();
+    expect(quoteHeading('Обучение нейронной сети Обучение сети', null)).toBeNull();
+    // A PDF hard wrap is not a heading.
+    expect(quoteHeading('Рост составил 7 % при инфляции.', 'Рост составил\n7 % при инфляции.')).toBeNull();
   });
 });

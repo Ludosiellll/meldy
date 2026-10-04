@@ -11,10 +11,23 @@ import { questionState, SELF_RATING_CONFIDENCE, type QuestionState } from '../le
 
 export type ExamKind = 'exam' | 'credit' | 'colloquium';
 
+/** A ticket of the department's own list (exams.ticket_layout.tickets, written by the exam editor). */
+export interface DepartmentTicket {
+  number: number;
+  questionIds: string[];
+}
+
+/** What the answer screen needs of exams.ticket_layout: whether the tickets are the department's, and which. */
+export interface TicketLayoutInfo {
+  mode: 'random' | 'sections' | 'fixed';
+  tickets: DepartmentTicket[];
+}
+
 export interface TicketExam {
   id: string;
   title: string;
   kind: ExamKind;
+  layout: TicketLayoutInfo;
 }
 
 /** A lecture fragment that answers the question (exam_questions.evidence). */
@@ -77,6 +90,45 @@ function examKind(value: unknown): ExamKind {
   return value === 'credit' || value === 'colloquium' ? value : 'exam';
 }
 
+/** exams.ticket_layout, read defensively: anything unknown is a random draw without department tickets. */
+export function ticketLayoutOf(value: unknown): TicketLayoutInfo {
+  if (!isRecord(value)) return { mode: 'random', tickets: [] };
+  const mode = value.mode === 'fixed' || value.mode === 'sections' ? value.mode : 'random';
+  const tickets = (Array.isArray(value.tickets) ? value.tickets : [])
+    .filter(isRecord)
+    .map((ticket) => ({
+      number: typeof ticket.number === 'number' && Number.isInteger(ticket.number) ? ticket.number : 0,
+      questionIds: (Array.isArray(ticket.question_ids) ? ticket.question_ids : []).filter((id): id is string => typeof id === 'string'),
+    }))
+    .filter((ticket) => ticket.number > 0 && ticket.questionIds.length > 0);
+  return { mode, tickets };
+}
+
+/**
+ * The department's ticket number for this answer (Jury_Check items 4, 9, 11), or null. `&n` is only
+ * honoured when the exam's tickets are the department's own list, ticket N is in it, and the answered
+ * questions are a non-empty part of that ticket in its order — the draw leaves «нет» questions out of
+ * q and keeps &n (ExamDraw). A number typed into the address, or one the list does not back, is never
+ * shown: «Билет 12» on the screen has to be the department's ticket 12.
+ */
+export function departmentTicketNumber(layout: TicketLayoutInfo, requested: string | null, questionIds: readonly string[]): string | null {
+  if (layout.mode !== 'fixed' || !requested || questionIds.length === 0) return null;
+  const raw = requested.trim();
+  if (!/^\d{1,6}$/.test(raw)) return null;
+  const number = Number(raw);
+  const inOrder = (ticket: DepartmentTicket) => {
+    let from = 0;
+    for (const id of questionIds) {
+      const at = ticket.questionIds.indexOf(id, from);
+      if (at < 0) return false;
+      from = at + 1;
+    }
+    return true;
+  };
+  const ticket = layout.tickets.find((item) => item.number === number && inOrder(item));
+  return ticket ? String(ticket.number) : null;
+}
+
 function evidenceOf(value: unknown): EvidenceItem[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((item) => ({
@@ -136,13 +188,13 @@ function decodeURIComponentSafe(value: string): string {
   }
 }
 
-/** The exam row (title for the top line). Null when it is missing or not the user's. */
+/** The exam row (title for the top line, tickets for «Билет N»). Null when it is missing or not the user's. */
 export async function loadExam(examId: string): Promise<TicketExam | null> {
   if (!isUuid(examId)) return null;
-  const { data, error } = await supabase.from('exams').select('id, title, kind').eq('id', examId).maybeSingle();
+  const { data, error } = await supabase.from('exams').select('id, title, kind, ticket_layout').eq('id', examId).maybeSingle();
   if (error) throw new TicketLoadError('failed', TICKET_LOAD_FAILED);
   if (!isRecord(data)) return null;
-  return { id: str(data.id, 64), title: str(data.title, 200), kind: examKind(data.kind) };
+  return { id: str(data.id, 64), title: str(data.title, 200), kind: examKind(data.kind), layout: ticketLayoutOf(data.ticket_layout) };
 }
 
 /** The exam and the ticket's questions in the requested order; a question outside the exam is an error. */

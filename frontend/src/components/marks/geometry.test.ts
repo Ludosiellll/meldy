@@ -27,6 +27,7 @@ const BOXES: Record<MarkKind, [number, number]> = {
   bracket: [14, 40],
   brace: [14, 40],
   vline: [8, 60],
+  strike: [128, 48],
 };
 
 function numbersOf(d: string): number[] {
@@ -118,6 +119,41 @@ describe('shape: one deterministic vocabulary', () => {
     const dash = shape('dash', 25, 10, 3)[0];
     const lighter = shape('dash', 25, 10, 3, { weight: 1.2 })[0];
     expect(widthOf(dash.d)).toBeGreaterThan(widthOf(lighter.d));
+  });
+});
+
+describe('the strike across a replaced figure («60 %» of peak 1)', () => {
+  /** The pencil's own path (center line) as points. */
+  function centerPoints(seed: number, w = 128, h = 48): Array<[number, number]> {
+    const [path] = shape('strike', w, h, seed);
+    const numbers = numbersOf(path.center ?? '');
+    const points: Array<[number, number]> = [];
+    for (let i = 0; i + 1 < numbers.length; i += 2) points.push([numbers[i], numbers[i + 1]]);
+    return points;
+  }
+
+  it('is one rising diagonal across the whole box: from low on the left to high on the right', () => {
+    for (const seed of [1, 7, 311, 98765, 2_000_000_000]) {
+      const paths = shape('strike', 128, 48, seed);
+      expect(paths).toHaveLength(1);
+      const points = centerPoints(seed);
+      const first = points[0];
+      const last = points[points.length - 1];
+      // Across the whole width (the caller's box already holds the overshoot past the figure).
+      expect(first[0]).toBeLessThan(4);
+      expect(last[0]).toBeGreaterThan(124);
+      // Rising: it starts in the lower part and ends in the upper part — never a horizontal
+      // mid-height line (a 0 reads «θ») and never a short slash (a 0 reads «ø»).
+      expect(first[1]).toBeGreaterThan(48 * 0.75);
+      expect(last[1]).toBeLessThan(48 * 0.25);
+      const rise = first[1] - last[1];
+      expect(rise / (last[0] - first[0])).toBeGreaterThan(0.2);
+    }
+  });
+
+  it('is the same stroke for the same seed and another one for another seed', () => {
+    expect(shape('strike', 128, 48, 4242)).toEqual(shape('strike', 128, 48, 4242));
+    expect(shape('strike', 128, 48, 4242)[0].d).not.toBe(shape('strike', 128, 48, 4243)[0].d);
   });
 });
 

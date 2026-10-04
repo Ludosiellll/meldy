@@ -29,6 +29,7 @@ import MaterialPicker, { type ImportStatus } from '../components/exams/MaterialP
 import { startMapping, useMapJob } from '../components/exams/mapJobs';
 import {
   EMPTY_PREVIEW,
+  chosenLayout,
   draftQuestions,
   filledSectionCount,
   keepSavedQuestions,
@@ -50,6 +51,8 @@ import '../components/exams/exams.css';
 
 const PARSE_ACCEPT = '.docx,.pdf,.txt,.md';
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
+/** Where a student finds the list before pasting it (Jury_Check item 12, answer 21). */
+const LIST_SOURCE_HINT = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';
 
 function Chevron() {
   return <ChevronDown aria-hidden="true" strokeWidth={2} />;
@@ -112,7 +115,11 @@ export default function ExamEditor() {
   const [kind, setKind] = useState<ExamKind>('exam');
   const [examDate, setExamDate] = useState('');
   const [perTicket, setPerTicket] = useState(2);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('random');
+  /**
+   * «Как составлены билеты» as the student chose it, or as an edited exam stored it; null until
+   * then, and the list decides (chosenLayout). An explicit choice is never replaced by a default.
+   */
+  const [layoutChoice, setLayoutChoice] = useState<LayoutMode | null>(null);
 
   // lectures
   const [materials, setMaterials] = useState<PickerMaterial[]>([]);
@@ -155,7 +162,8 @@ export default function ExamEditor() {
       setKind(next.exam.kind);
       setExamDate(next.exam.exam_date ?? '');
       setPerTicket(next.exam.ticket_layout.per_ticket);
-      setLayoutMode(next.exam.ticket_layout.mode);
+      // Editing keeps the stored layout: it counts as the student's choice.
+      setLayoutChoice(next.exam.ticket_layout.mode);
       setSourceKind(next.exam.source_kind);
       setSourceText(next.exam.source_text);
       setPreview(previewFromExam(next.questions, next.exam.ticket_layout));
@@ -190,12 +198,10 @@ export default function ExamEditor() {
   const filledSections = filledSectionCount(preview);
   const hasTickets = preview.tickets.length > 0;
   const listIssue = total > 0 ? listProblem(preview) : null;
-
-  // A layout that no longer fits falls back to random tickets.
-  useEffect(() => {
-    if (layoutMode === 'fixed' && !hasTickets) setLayoutMode('random');
-    if (layoutMode === 'sections' && filledSections !== perTicket) setLayoutMode('random');
-  }, [layoutMode, hasTickets, filledSections, perTicket]);
+  // The department's tickets, one question from each section or random tickets: re-evaluated on every
+  // change of the list or of the questions per ticket, unless the student chose (or the exam stored)
+  // a layout that still fits (Jury_Check item 10).
+  const layoutMode = chosenLayout(layoutChoice, preview, perTicket);
 
   const applyParse = (result: ParseResult, from: 'paste' | 'file') => {
     let next = previewFromParse(result);
@@ -211,12 +217,8 @@ export default function ExamEditor() {
     setSourceText(result.source_text);
     setReplaceSource(true);
     setCollapsed(true);
-    if (next.tickets.length > 0) {
-      setLayoutMode('fixed');
-      setPerTicket(ticketSize(next.tickets));
-    } else if (layoutMode === 'fixed') {
-      setLayoutMode('random');
-    }
+    // The department's tickets say how many questions a ticket has; the layout itself follows the list.
+    if (next.tickets.length > 0) setPerTicket(ticketSize(next.tickets));
   };
 
   const parse = async (input: { text?: string; file?: File }) => {
@@ -325,7 +327,7 @@ export default function ExamEditor() {
     if (!bundle) return;
     const ok = await confirm({
       title: 'Удалить экзамен?',
-      message: `«${bundle.exam.title}» и разметка его вопросов будут удалены. Ответы вслух останутся в истории и в «Прогрессе».`,
+      message: `«${bundle.exam.title}» и разметка его вопросов будут удалены. Ответы останутся в истории и в «Прогрессе».`,
       confirmText: 'Удалить',
       cancelText: 'Отмена',
       type: 'danger',
@@ -480,6 +482,7 @@ export default function ExamEditor() {
                   </div>
                 </div>
               )}
+              <p className="ex-meta">{glue(LIST_SOURCE_HINT)}</p>
               <div className="nx-under">
                 {tab === 'paste' && (
                   <button
@@ -592,7 +595,7 @@ export default function ExamEditor() {
               </span>{' '}
               {pluralRu(perTicket, QUESTION_FORMS)},{' '}
               <span className="nx-sel">
-                <select aria-label="Как составлены билеты" value={layoutMode} onChange={(event) => setLayoutMode(event.target.value as LayoutMode)} disabled={saving}>
+                <select aria-label="Как составлены билеты" value={layoutMode} onChange={(event) => setLayoutChoice(event.target.value as LayoutMode)} disabled={saving}>
                   <option value="random">случайные</option>
                   {filledSections > 0 && filledSections === perTicket && <option value="sections">по одному из каждого раздела</option>}
                   {hasTickets && <option value="fixed">как в списке билетов</option>}

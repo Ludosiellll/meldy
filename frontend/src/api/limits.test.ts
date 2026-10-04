@@ -322,11 +322,14 @@ describe('limit reset time', () => {
     expect(nextLimitReset(new Date('2026-12-31T23:59:59Z')).toISOString()).toBe('2027-01-01T00:00:00.000Z');
   });
 
-  it('formats as HH:MM in the viewer’s local time', () => {
+  it('formats as H:mm in the viewer’s local time, the way the sheet and the ticket write it', () => {
     const reset = new Date('2026-10-03T00:00:00Z');
-    const expected = `${String(reset.getHours()).padStart(2, '0')}:${String(reset.getMinutes()).padStart(2, '0')}`;
+    const expected = `${reset.getHours()}:${String(reset.getMinutes()).padStart(2, '0')}`;
     expect(formatLimitReset(reset)).toBe(expected);
-    expect(formatLimitReset(new Date(2026, 9, 3, 7, 5))).toBe('07:05');
-    expect(formatLimitReset(new Date(2026, 9, 3, 0, 0))).toBe('00:00');
+    // No leading zero on the hour (QA r3 #2): «3:00», never «03:00».
+    expect(formatLimitReset(new Date(2026, 9, 3, 3, 0))).toBe('3:00');
+    expect(formatLimitReset(new Date(2026, 9, 3, 7, 5))).toBe('7:05');
+    expect(formatLimitReset(new Date(2026, 9, 3, 0, 0))).toBe('0:00');
+    expect(formatLimitReset(new Date(2026, 9, 3, 13, 30))).toBe('13:30');
   });
 });

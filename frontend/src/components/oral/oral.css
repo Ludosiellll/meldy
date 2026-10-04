@@ -80,6 +80,8 @@
 
 /* ---------------------------------------------------------------- answer sheet: rubric rows */
 .sf-page .or-sheet { padding: 14px 18px 18px 6px; }
+/* «Как на экзамене» has no hint line between the card and the sheet: the sheet keeps its distance. */
+.sf-page .or-ticket + .or-sheet { margin-top: 18px; }
 .sf-page .or-pts { margin: 0; padding: 0; list-style: none; }
 .sf-page .or-pt {
   position: relative;
@@ -90,6 +92,8 @@
   padding: 9px 0 8px;
 }
 .sf-page .or-pt-m { display: flex; justify-content: center; padding-top: 3px; }
+/* A named row's provisional pencil dot sits on the middle of the quote's first line (26 px). */
+.sf-page .or-pt-dot { padding-top: 7px; }
 .sf-page .or-pt-n { font-family: var(--ph-serif); font-size: 16px; line-height: 26px; color: var(--ph-paper-muted); font-variant-numeric: tabular-nums lining-nums; }
 .sf-page .or-pt-t {
   position: relative;
@@ -164,50 +168,49 @@
 .sf-page .or-text-field::placeholder { color: var(--ph-paper-muted); opacity: 1; }
 .sf-page .or-text-field:focus-visible { outline: 2px solid var(--ph-pencil); outline-offset: 2px; }
 
-/* phone strip «Названо 3 из 5 · по ключевым словам» */
+/* phone strip «По ключевым словам: 3 из 5 · итог — после ответа» */
 .sf-page .or-strip { display: none; }
 /* Wide and narrow wordings of the same action (the accessible name is the long one). */
 .sf-page .or-narrow { display: none; }
 
 /* ---------------------------------------------------------------- right column: counter, examiner */
-.sf-page .or-count-label { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
-.sf-page .or-count-big {
-  margin: 2px 0 0;
-  font-size: 64px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: -.045em;
-  font-variant-numeric: tabular-nums;
-  color: var(--sf-ink);
-}
-.sf-page .or-count-big .or-of { font-weight: 500; }
-.dark .sf-page .or-count-big { font-weight: 570; }
-.sf-page .or-count-fine { margin: 8px 0 0; font-size: 16px; line-height: 23px; color: var(--sf-muted); }
-/* From «Готово» on the counter is one line, «По ключевым словам названо 4 из 5» (redesign critique 3,
-   round 2): the examiner's question becomes the largest thing on the desk. A 150 ms cross-fade, no count. */
+/* The key-word count is secondary (Jury_Check item 7): one 17 px line «По ключевым словам: 4 из 5» and the
+   fine line «итог — после ответа»; from «Готово» on the same line stays, so the examiner's question is the
+   largest thing on the desk (redesign critique 3, round 2). A 150 ms cross-fade, no count-up. */
 .sf-page .or-count-line { margin: 0; font-size: 17px; line-height: 24px; color: var(--sf-muted); animation: or-fade 150ms ease both; }
 .sf-page .or-count-line b { font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; }
+.sf-page .or-count-fine { margin: 2px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 .sf-page .or-line { margin: 28px 0 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .or-line-ink { color: var(--sf-ink); }
 .sf-page .or-hint { margin: 10px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 .sf-page .or-readonly-note { margin: 0 0 18px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 /* Peak 2: the brace draws (250 ms), the examiner's block comes in at +200 ms (180 ms, rising 4 px), the
-   voice starts at +300 ms (ExamTicket). The question at 34/42 — three lines at most in the 420 px column. */
+   voice starts at +300 ms (ExamTicket). The question is the largest thing on the desk (Jury_Check item 9):
+   Literata 600 at 40 px up to ~90 characters, 32 px up to ~140, 26 px beyond — about six lines at most
+   in the 420 px column, so the question and its buttons fit a 1280×720 window. */
 .sf-page .or-examiner { position: relative; margin-top: 28px; animation: or-enter 180ms cubic-bezier(.22, .61, .36, 1) 200ms backwards; }
 .sf-page .or-examiner-who { margin: 0; font-size: 15px; line-height: 21px; font-weight: 600; }
 .sf-page .or-examiner-q {
   margin: 6px 0 0;
   font-family: var(--ph-serif);
-  font-size: 34px;
-  line-height: 42px;
+  font-size: 40px;
+  line-height: 47px;
   font-weight: 600;
-  letter-spacing: -.014em;
+  letter-spacing: -.018em;
   text-wrap: pretty;
   overflow-wrap: break-word;
 }
+.sf-page .or-examiner-q[data-size='m'] { font-size: 32px; line-height: 39px; letter-spacing: -.015em; }
+.sf-page .or-examiner-q[data-size='s'] { font-size: 26px; line-height: 33px; letter-spacing: -.012em; }
 .sf-page .or-examiner .or-again { min-height: 36px; }
-.sf-page .or-examiner-answer { margin-top: 14px; }
+/* The answer to the question sits under it, on the desk's own left edge (not the sheet's 72 px). */
+.sf-page .or-examiner .or-said.or-examiner-answer { margin: 14px 0 0; }
 .sf-page .or-examiner-answer .or-said-text { font-size: 17px; }
+/* While the examiner asks, the transcript keeps its place unseen: the block does not move when the microphone opens. */
+.sf-page .or-examiner-listen[data-waiting] { visibility: hidden; }
+@media (min-width: 1024px) {
+  .sf-page .or-examiner-answer .or-said-window { min-height: calc(3 * 28px + 4px); }
+}
 .sf-page .or-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-top: 22px; }
 .sf-page .or-acts .sf-primary:disabled {
   background: var(--sf-surface-soft);
@@ -308,14 +311,27 @@
 .sf-page .or-stamp { flex: none; padding: 2px 10px; margin-right: 8px; font-family: var(--ph-serif); font-size: 18px; line-height: 24px; font-weight: 600; color: var(--ph-paper-ink); }
 .sf-page .or-stamp[data-passed='false'] { font-weight: 500; color: var(--ph-paper-muted); }
 .sf-page .or-prelim { padding: 0 0 6px 72px; font-size: 15px; line-height: 22px; color: var(--ph-paper-muted); }
-/* Why the examiner asked, under the sheet's header: the asked point is clear above the fold. */
-.sf-page .or-asked { margin: 4px 0 0; padding: 0 0 6px 72px; font-size: 15px; line-height: 20px; }
+/* Why the examiner asked, under the sheet's header: above the fold on the stage (18 px), and one click
+   brings the asked point into view (Jury_Check item 9). Pencil blue: Meldy's note on the paper. */
+.sf-page .or-asked { margin: 0; padding: 0 16px 4px 72px; }
+.sf-page .or-asked-link {
+  min-height: 36px;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--ph-pencil-desk);
+  text-wrap: pretty;
+}
 .sf-page .or-ppts { margin: 0; padding: 0; list-style: none; }
-.sf-page .or-ppt { display: grid; grid-template-columns: 44px 28px minmax(0, 1fr); align-items: start; padding: 10px 0 9px; }
+.sf-page .or-ppt { display: grid; grid-template-columns: 44px 28px minmax(0, 1fr); align-items: start; padding: 10px 0 9px; scroll-margin-top: 72px; }
+.sf-page .or-ppt:focus { outline: none; }
+.sf-page .or-ppt:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 2px; border-radius: 6px; }
 .sf-page .or-ppt-body { min-width: 0; padding-right: 16px; }
 .sf-page .or-ppt-t { margin: 0; font-family: var(--ph-serif); font-size: 18px; line-height: 26px; font-weight: 600; color: var(--ph-paper-ink); text-wrap: pretty; overflow-wrap: anywhere; }
 .sf-page .or-ppt-st { margin: 2px 0 0; font-family: var(--ph-sans); font-size: 15px; line-height: 22px; color: var(--ph-paper-muted); }
 .sf-page .or-ppt-cm { margin: 2px 0 0; }
+/* The key-word mark and the check of the whole answer disagree: said in plain words, on the desk's grey. */
+.sf-page .or-ppt-why { margin: 2px 0 0; font-family: var(--ph-sans); font-size: 15px; line-height: 22px; color: var(--ph-paper-muted); text-wrap: pretty; }
 .sf-page .or-q2 {
   position: relative;
   margin: 8px 0 0;
@@ -339,12 +355,17 @@
 .sf-page .or-grade-g { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 2px 0 0; }
 .sf-page .or-grade-digit { font-size: 96px; line-height: .9; font-weight: 600; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
 .sf-page .or-grade-word { font-size: 40px; line-height: 1; font-weight: 600; letter-spacing: -.028em; }
+/* «удовлетворительно», «неудовлетворительно»: on the digit's line, not under it. */
+.sf-page .or-grade-word[data-long] { font-size: 30px; letter-spacing: -.024em; }
 .dark .sf-page .or-grade-digit, .dark .sf-page .or-grade-word { font-weight: 570; }
 .sf-page .or-grade-why { margin: 12px 0 0; max-width: 22em; font-size: 20px; line-height: 28px; text-wrap: pretty; }
 .sf-page .or-grade-fine { margin: 6px 0 0; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+/* A saved answer: how its grade relates to today's formula. */
+.sf-page .or-grade-note { margin: 8px 0 0; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .or-how { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--sf-line); }
 .sf-page .or-how-formula { margin: 0; font-family: var(--ph-serif); font-size: 21px; line-height: 30px; font-variant-numeric: tabular-nums lining-nums; overflow-wrap: anywhere; }
 .sf-page .or-how-text { margin: 6px 0 0; max-width: 32em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .or-how-cap { color: var(--sf-ink); }
 .sf-page .or-back { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--sf-line); }
 .sf-page .or-rcard { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; width: 320px; max-width: 100%; min-height: 192px; padding: 46px 22px 20px; }
 .sf-page .or-rcard-q { margin: 0; font-family: var(--ph-serif); font-size: 22px; line-height: 1.16; font-weight: 600; letter-spacing: -.012em; text-wrap: balance; overflow-wrap: anywhere; }
@@ -373,8 +394,7 @@
   .sf-page .or-pt { min-height: 48px; padding: 7px 0 6px; }
   .sf-page .or-said { margin-top: 4px; padding-top: 8px; }
   .sf-page .or-said-window { max-height: calc(2 * 28px + 4px); }
-  .sf-page .or-count-big { font-size: 56px; }
-  .sf-page .or-examiner-q { font-size: 32px; line-height: 40px; }
+  .sf-page .or-examiner-answer .or-said-window { min-height: calc(2 * 28px + 4px); }
   .sf-page .or-grade-digit { font-size: 88px; }
   .sf-page .or-grade-why { margin-top: 10px; }
   .sf-page .or-back { margin-top: 16px; padding-top: 16px; }
@@ -416,9 +436,10 @@
     gap: 4px 12px;
     padding: 4px 2px 2px 10px;
   }
-  .sf-page .or-strip-count { margin: 0; font-size: 17px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .sf-page .or-strip-count span { font-size: 15px; font-weight: 400; color: var(--ph-paper-muted); }
-  .sf-page .or-strip-marks { display: flex; align-items: center; gap: 6px; }
+  .sf-page .or-strip-count { margin: 0; font-size: 16px; line-height: 23px; color: var(--ph-paper-muted); font-variant-numeric: tabular-nums; }
+  .sf-page .or-strip-count b { font-weight: 600; color: var(--ph-paper-ink); }
+  .sf-page .or-strip-fine { display: block; font-size: 15px; line-height: 21px; }
+  .sf-page .or-strip-marks { display: flex; align-items: center; gap: 8px; }
   .sf-page .or-strip-blank { display: block; width: 18px; height: 10px; border-bottom: 2px dotted color-mix(in srgb, var(--ph-paper-ink) 55%, transparent); }
   .sf-page .or-strip .sf-link { grid-column: 1 / -1; justify-self: start; min-height: 40px; }
   .sf-page .or-sheet[data-collapsed] .or-pts { display: none; }
@@ -433,10 +454,15 @@
   /* Three lines of the answer (3 × 26 px), as on a computer; older lines scroll up under a 24 px fade. */
   .sf-page .or-said-window { max-height: calc(3 * 26px + 4px); overflow-y: auto; justify-content: flex-start; }
   .sf-page .or-said-text { font-size: 16px; line-height: 26px; }
-  .sf-page .or-count { display: none; }
+  /* The strip on the sheet says the count; the desk does not repeat it. */
+  .sf-page .or-count, .sf-page .or-count-line { display: none; }
   .sf-page .or-examiner { margin-top: 18px; }
-  .sf-page .or-examiner-q { font-size: 20px; line-height: 27px; }
-  .sf-page .or-count-line { font-size: 16px; }
+  /* No alignment on a phone: nothing to hold the place of. */
+  .sf-page .or-examiner-listen[data-waiting] { display: none; }
+  /* Phones: 28 / 27 / 26 px, stepping down by the question's length as on a computer. */
+  .sf-page .or-examiner-q { font-size: 28px; line-height: 35px; letter-spacing: -.014em; }
+  .sf-page .or-examiner-q[data-size='m'] { font-size: 27px; line-height: 34px; }
+  .sf-page .or-examiner-q[data-size='s'] { font-size: 26px; line-height: 33px; }
   .sf-page .or-line { margin-top: 18px; }
   .sf-page .or-acts {
     position: fixed;
@@ -468,6 +494,7 @@
   .sf-page .or-ppt { grid-template-columns: 32px 22px minmax(0, 1fr); }
   .sf-page .or-grade-digit { font-size: 72px; }
   .sf-page .or-grade-word { font-size: 32px; }
+  .sf-page .or-grade-word[data-long] { font-size: 25px; }
   .sf-page .or-grade-why { font-size: 18px; line-height: 26px; }
   .sf-page .or-rcard { width: 100%; max-width: 342px; }
 }

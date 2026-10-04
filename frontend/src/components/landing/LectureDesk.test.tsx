@@ -11,9 +11,10 @@ describe('LectureDesk', () => {
     cleanup();
   });
 
-  it('shows the conversation, the concept map and the oral exam under plain headings', () => {
+  it('shows the conversation and the concept map under plain headings', () => {
     const { container } = render(<LectureDesk />);
-    expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual([LABELS.talk, LABELS.map, LABELS.exam]);
+    expect(LABELS).toEqual({ talk: 'Разговор Макса и Софьи', map: 'Карта понятий' });
+    expect(screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)).toEqual([LABELS.talk, LABELS.map]);
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/\d+ из \d+/);
     expect(container.querySelector('svg.lucide')).toBeNull();
@@ -66,9 +67,15 @@ describe('LectureDesk', () => {
     expect(screen.getByRole('img', { name: /^Карта понятий лекции: эластичность спроса → эластичный спрос \(\|E\| > 1\)/ })).toBeInTheDocument();
   });
 
-  it('shows one exam turn: the question, an answer and the examiner’s note', () => {
+  it('has no oral-exam chat: the answer to a ticket has its own section', () => {
     const { container } = render(<LectureDesk />);
-    const turns = Array.from(container.querySelectorAll('.lp-exam .lp-line')).map(p => plain(p.textContent));
-    expect(turns).toEqual([`Экзаменатор${plain(EXAM.question)}`, `Вы${plain(EXAM.answer)}`, `Экзаменатор${plain(EXAM.note)}`]);
+    const text = plain(container.textContent);
+    expect(container.querySelector('.lp-exam, .lp-out-exam')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Устный экзамен' })).not.toBeInTheDocument();
+    expect(text).not.toContain('Экзаменатор');
+    expect(text).not.toContain(plain(EXAM.question));
+    // the conversation and the map stay
+    expect(container.querySelectorAll('.lp-ex')).toHaveLength(TALK.length);
+    expect(container.querySelector('.lp-map')).not.toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ConversationPlayer from './ConversationPlayer';
+import ConversationPlayer, { nextSpeed, sheetMetrics, speedLabel } from './ConversationPlayer';
 import { resetJobsForTests } from './jobs';
 
 const tts = vi.hoisted(() => ({
@@ -82,6 +82,13 @@ function activeScene(): HTMLElement {
 type PlayCall = [string, string, () => void, (error: unknown) => void, () => void];
 const lastPlay = () => tts.playTTS.mock.calls[tts.playTTS.mock.calls.length - 1] as PlayCall;
 
+/** «Текст разговора» — ссылка в строке плеера; расшифровка открывается панелью поверх листа. */
+function openTranscript(): HTMLElement {
+  const link = screen.getByRole('button', { name: 'Текст разговора' });
+  if (link.getAttribute('aria-expanded') !== 'true') fireEvent.click(link);
+  return screen.getByRole('complementary', { name: 'Текст разговора' });
+}
+
 describe('ConversationPlayer', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -106,16 +113,19 @@ describe('ConversationPlayer', () => {
     vi.unstubAllGlobals();
   });
 
-  it('opens with an outline of what will be on screen and the transcript', async () => {
+  it('opens with an outline of what will be on screen; the transcript waits behind its link', async () => {
     const user = userEvent.setup();
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
 
-    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
+    // No permanent 340 px column: the transcript opens from «Текст разговора».
+    expect(screen.queryByRole('complementary', { name: 'Текст разговора' })).not.toBeInTheDocument();
+    const transcript = openTranscript();
     for (const line of modelLines) {
       expect(within(transcript).getByText(line.text)).toBeInTheDocument();
     }
+    fireEvent.click(within(transcript).getByRole('button', { name: 'Закрыть текст разговора' }));
     expect(screen.getByText('Реплика 1 из 4')).toBeInTheDocument();
-    expect(screen.getByText('Макс и Софья · 4 реплики · около 1 мин')).toBeInTheDocument();
+    expect(screen.getByText('Макс и Софья обсуждают лекцию · 4 реплики, около минуты')).toBeInTheDocument();
 
     const scene = activeScene();
     expect(within(scene).getByText('О чём разговор')).toBeInTheDocument();
@@ -134,15 +144,16 @@ describe('ConversationPlayer', () => {
     const user = userEvent.setup();
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
 
-    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
+    const transcript = openTranscript();
     await user.click(within(transcript).getByRole('button', { name: /Посмотрим на цифры из лекции/ }));
 
     const scene = activeScene();
-    expect(within(scene).getByText('График')).toBeInTheDocument();
-    expect(within(scene).getByText('Температура кипения, °C')).toBeInTheDocument();
-    // Подпись как у рисунка: откуда числа, без моноширинных значков-фрагментов. Фрагментов
-    // здесь нет, поэтому и номера нет: «S02» из реплики проверить не по чему.
-    expect(within(scene).getByText('Числа — из материала')).toBeInTheDocument();
+    // No small type label over the picture («График»): the title says what it is.
+    expect(within(scene).queryByText('График')).not.toBeInTheDocument();
+    expect(within(scene).getByRole('heading', { name: 'Температура кипения, °C' })).toBeInTheDocument();
+    // The source note in the corner of the sheet: where the numbers come from. There are no fragments
+    // here, so there is no number either: «S02» of the line cannot be checked against anything.
+    expect(within(scene).getByText('Числа — из лекции')).toHaveClass('sf-pnote');
     expect(within(scene).queryByText(/S02|фрагмент/)).not.toBeInTheDocument();
     expect(within(scene).getByRole('img', { name: /Температура кипения/ })).toBeInTheDocument();
     const subtitles = screen.getByRole('region', { name: 'Субтитры' });
@@ -180,21 +191,21 @@ describe('ConversationPlayer', () => {
 
     await user.click(screen.getByRole('button', { name: 'Реплика 2' }));
     const term = activeScene();
-    expect(within(term).getByText('Энтропия')).toBeInTheDocument();
+    expect(within(term).getByRole('heading', { name: 'Энтропия' })).toBeInTheDocument();
     // Подобранный по словам реплики термин честно подписан: он из конспекта, а не от модели.
-    expect(within(term).getByText('Из конспекта')).toBeInTheDocument();
-    expect(within(term).getByText('Термин')).toBeInTheDocument();
+    expect(within(term).getByText('Из конспекта')).toHaveClass('sf-pnote');
+    expect(within(term).queryByText('Термин')).not.toBeInTheDocument();
   });
 
   it('reveals the answer of a question card', async () => {
     const user = userEvent.setup();
     render(<ConversationPlayer lines={modelLines} />);
 
-    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
+    const transcript = openTranscript();
     await user.click(within(transcript).getByRole('button', { name: /А как проверить себя/ }));
 
     const scene = activeScene();
-    expect(within(scene).getByText('Проверьте себя')).toBeInTheDocument();
+    expect(within(scene).getByRole('heading', { name: 'Что растёт в изолированной системе?' })).toBeInTheDocument();
     expect(within(scene).queryByText('Энтропия.')).not.toBeInTheDocument();
     await user.click(within(scene).getByRole('button', { name: 'Показать ответ' }));
     expect(within(activeScene()).getByText('Энтропия.')).toBeInTheDocument();
@@ -346,7 +357,8 @@ describe('ConversationPlayer', () => {
     expect(onLinesUpdate).toHaveBeenCalledWith(generated);
     expect(toasts.success).toHaveBeenCalledWith('Разговор готов');
 
-    const transcript = await screen.findByRole('complementary', { name: 'Текст разговора' });
+    await screen.findByRole('region', { name: 'Сцена' });
+    const transcript = openTranscript();
     expect(within(transcript).getByText('Энтропия — мера беспорядка.')).toBeInTheDocument();
   });
 
@@ -443,7 +455,7 @@ describe('ConversationPlayer', () => {
     expect(live).toHaveTextContent('Реплика 3 из 4. Макс: А как проверить себя?');
 
     // Пока звук идёт, голос сам читает реплику: говорим только, где мы и что на экране.
-    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
+    const transcript = openTranscript();
     fireEvent.click(within(transcript).getByRole('button', { name: /Посмотрим на цифры из лекции/ }));
     expect(live).toHaveTextContent('Реплика 4 из 4. На экране: График — Температура кипения.');
     expect(live.textContent).not.toContain('Посмотрим на цифры');
@@ -475,34 +487,39 @@ describe('ConversationPlayer', () => {
     expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
   });
 
-  it('gives each host a voice and a colour, even when the names are spelled in Latin', () => {
+  it('gives each host a voice and writes every name in ink, even when the names are spelled in Latin', () => {
     const latin = [
       { speaker: 'Max', text: 'Hi! Today we talk about entropy.' },
       { speaker: 'sofia:', text: 'Let us start with the definition.' },
     ];
-    render(<ConversationPlayer lines={latin} />);
+    const { container } = render(<ConversationPlayer lines={latin} />);
     fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
     expect(tts.playTTS).toHaveBeenLastCalledWith('Hi! Today we talk about entropy.', 'male', expect.any(Function), expect.any(Function), expect.any(Function));
     expect(tts.prefetchTTS).toHaveBeenCalledWith('Let us start with the definition.', 'female');
 
+    // Spec 5.7: the speaker's name is ink (Onest 600 16); the host colours --sf-voice-a/b are gone
+    // (#a84a22 read as «wrong»).
     const subtitles = screen.getByRole('region', { name: 'Субтитры' });
     const name = subtitles.querySelector('[data-speaker]') as HTMLElement;
     expect(name).toHaveTextContent('Макс');
-    expect(name.style.color).toBe('var(--sf-voice-a)');
-    const transcript = screen.getByRole('complementary', { name: 'Текст разговора' });
-    expect(within(transcript).getByText('Софья').style.color).toBe('var(--sf-voice-b)');
-    expect(screen.getByText(/^Макс и Софья · 2 реплики/)).toBeInTheDocument();
+    expect(name).toHaveClass('cv-who');
+    expect(name.getAttribute('style')).toBeNull();
+    const transcript = openTranscript();
+    expect(within(transcript).getByText('Софья').getAttribute('style')).toBeNull();
+    expect(container.innerHTML).not.toMatch(/sf-voice/);
+    expect(screen.getByText(/^Макс и Софья обсуждают лекцию · 2 реплики/)).toBeInTheDocument();
   });
 
-  it('shows the voice bars only while the sound is actually playing', () => {
-    render(<ConversationPlayer lines={modelLines} />);
-    const bars = () => screen.getByRole('region', { name: 'Субтитры' }).querySelector('[data-waveform]') as HTMLElement;
-    expect(bars()).toHaveAttribute('data-waveform', 'off');
-    expect(bars()).toHaveClass('invisible');
-    fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
-    expect(bars()).toHaveAttribute('data-waveform', 'off');
+  it('draws no looping voice bars: the ▶ button alone says whether the sound plays', () => {
+    const { container } = render(<ConversationPlayer lines={modelLines} />);
+    expect(container.querySelector('[data-waveform]')).toBeNull();
+    const play = screen.getByRole('button', { name: 'Слушать' });
+    expect(play).toHaveAttribute('data-state', 'idle');
+    fireEvent.click(play);
+    expect(play).toHaveAttribute('data-state', 'loading');
     act(() => lastPlay()[4]());
-    expect(bars()).toHaveAttribute('data-waveform', 'on');
+    expect(screen.getByRole('button', { name: 'Пауза' })).toHaveAttribute('data-state', 'playing');
+    expect(container.querySelector('.animate-spin')).toBeNull();
   });
 
   it('marks only verified quotes as quotes and says nothing about unchecked pictures', async () => {
@@ -519,26 +536,33 @@ describe('ConversationPlayer', () => {
     render(<ConversationPlayer lines={lines} sources={sources} />);
 
     let scene = activeScene();
-    expect(within(scene).getByText('Цитата')).toBeInTheDocument();
+    // A verified quote: «ёлочки» and the source note in the corner; no «Цитата» label over it.
+    expect(within(scene).queryByText('Цитата')).not.toBeInTheDocument();
     expect(scene.querySelector('blockquote')).toHaveTextContent('«Каждое повторение делает след памяти прочнее…»');
     const fragment = within(scene).getByRole('button', { name: 'фрагмент 2' });
-    expect(scene.querySelector('[data-figure-caption]')).toHaveTextContent('Из материала, фрагмент 2');
+    expect(scene.querySelector('[data-source-note]')).toHaveTextContent('Из лекции, фрагмент 2');
     await user.click(fragment);
     expect(fragment).toHaveAttribute('aria-expanded', 'true');
-    expect(within(scene).getByText(sources[1].text)).toBeInTheDocument();
+    // The fragment opens as a slip over the sheet, so the quote can be checked word for word.
+    const slip = within(scene).getByRole('region', { name: 'Лекция, фрагмент 2' });
+    expect(within(slip).getByText(sources[1].text)).toBeInTheDocument();
+    fireEvent.keyDown(within(slip).getByRole('button', { name: 'Закрыть фрагмент' }), { key: 'Escape' });
+    expect(within(scene).queryByRole('region', { name: 'Лекция, фрагмент 2' })).not.toBeInTheDocument();
+    expect(fragment).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));
     scene = activeScene();
-    expect(within(scene).getByText('Пересказ')).toBeInTheDocument();
+    expect(within(scene).getByText('Пересказ')).toHaveClass('cv-kind');
     expect(scene.querySelector('blockquote')).toBeNull();
     expect(scene.textContent).not.toContain('«');
-    expect(scene.querySelector('[data-figure-caption]')).toBeNull();
+    expect(scene.querySelector('[data-source-note]')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));
     scene = activeScene();
-    expect(within(scene).getByText('Формула')).toBeInTheDocument();
-    expect(scene.querySelector('[data-figure-caption]')).toBeNull();
-    expect(scene.textContent).not.toMatch(/Из материала|S01/);
+    expect(within(scene).getByRole('heading', { name: 'Кривая' })).toBeInTheDocument();
+    expect(within(scene).queryByText('Формула')).not.toBeInTheDocument();
+    expect(scene.querySelector('[data-source-note]')).toBeNull();
+    expect(scene.textContent).not.toMatch(/Из лекции|Из материала|S01/);
   });
 
   it('does not offer paid model work on a material the user cannot change', () => {
@@ -567,5 +591,147 @@ describe('ConversationPlayer', () => {
     const saved = (db.update.mock.calls[0][0] as { summary_json: { podcast: Array<Record<string, unknown>> } }).summary_json.podcast;
     expect(saved[1]).toMatchObject({ source_ids: ['S03'], visual: { type: 'chart' } });
     expect(saved[0]).toMatchObject({ source_ids: ['S01'], visual: { type: 'term' } });
+  });
+
+  it('has one speed button that cycles 1× → 1,25× → 1,5× → 2× with Russian decimals', () => {
+    render(<ConversationPlayer lines={modelLines} />);
+    // One button instead of the four chips.
+    expect(screen.getAllByRole('button', { name: /^Скорость/ })).toHaveLength(1);
+    expect(screen.queryByRole('group', { name: 'Скорость' })).not.toBeInTheDocument();
+    const speed = screen.getByRole('button', { name: 'Скорость 1×, изменить' });
+    expect(speed).toHaveTextContent('1×');
+    for (const [label, rate] of [['1,25×', 1.25], ['1,5×', 1.5], ['2×', 2], ['1×', 1]] as const) {
+      fireEvent.click(speed);
+      expect(speed).toHaveTextContent(label);
+      expect(speed).toHaveAccessibleName(`Скорость ${label}, изменить`);
+      expect(tts.setTTSPlaybackRate).toHaveBeenLastCalledWith(rate);
+    }
+    expect(speedLabel(1.25)).toBe('1,25×');
+    expect(nextSpeed(2)).toBe(1);
+    // A rate stored outside the cycle starts it again from 1×.
+    expect(nextSpeed(1.75)).toBe(1);
+  });
+
+  it('shows one segment per line, marks the current and the heard ones and says «Реплика N из M»', () => {
+    const fourteen = Array.from({ length: 14 }, (_, index) => ({ speaker: index % 2 ? 'Софья' : 'Макс', text: `Реплика номер ${index + 1}.` }));
+    render(<ConversationPlayer lines={fourteen} />);
+    const group = screen.getByRole('group', { name: 'Реплики' });
+    const segments = within(group).getAllByRole('button');
+    expect(segments).toHaveLength(14);
+    segments.forEach((segment, index) => {
+      expect(segment).toHaveAccessibleName(`Реплика ${index + 1}`);
+      // The segments are a pointer shortcut; the keyboard has ← → and the transcript.
+      expect(segment).toHaveAttribute('tabindex', '-1');
+    });
+    expect(screen.getByText('Реплика 1 из 14')).toBeInTheDocument();
+
+    fireEvent.click(segments[7]);
+    expect(screen.getByText('Реплика 8 из 14')).toBeInTheDocument();
+    expect(segments[7]).toHaveAttribute('aria-current', 'step');
+    expect(segments.filter(segment => segment.hasAttribute('data-past'))).toHaveLength(7);
+    expect(segments.slice(8).every(segment => !segment.hasAttribute('data-past') && !segment.hasAttribute('aria-current'))).toBe(true);
+    expect(within(screen.getByRole('region', { name: 'Субтитры' })).getByText('Реплика номер 8.')).toBeInTheDocument();
+    expect(tts.playTTS).not.toHaveBeenCalled();
+  });
+
+  it('opens the transcript as a panel over the sheet from its link; Escape and × close it and give the focus back', async () => {
+    const user = userEvent.setup();
+    render(<ConversationPlayer lines={modelLines} />);
+    const link = screen.getByRole('button', { name: 'Текст разговора' });
+    expect(link).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(link);
+    expect(link).toHaveAttribute('aria-expanded', 'true');
+    const panel = screen.getByRole('complementary', { name: 'Текст разговора' });
+    expect(link).toHaveAttribute('aria-controls', panel.id);
+    // The panel lies over the sheet (inside the stage), not in a column next to it.
+    expect(panel.closest('.cv-stage')).not.toBeNull();
+    expect(within(panel).getAllByRole('listitem')).toHaveLength(4);
+    // The focus goes to the current line: Enter plays it, Escape closes the panel.
+    expect(within(panel).getByRole('button', { name: /Привет! Сегодня разбираем термодинамику/ })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary', { name: 'Текст разговора' })).not.toBeInTheDocument();
+    expect(link).toHaveFocus();
+    expect(link).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(link);
+    await user.click(screen.getByRole('button', { name: 'Закрыть текст разговора' }));
+    expect(screen.queryByRole('complementary', { name: 'Текст разговора' })).not.toBeInTheDocument();
+    expect(link).toHaveFocus();
+
+    // The keys of the player keep working while the panel is open.
+    await user.click(link);
+    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    fireEvent.keyDown(player, { key: 'ArrowRight' });
+    expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
+    expect(within(screen.getByRole('complementary', { name: 'Текст разговора' })).getByRole('button', { name: /Начнём с главного понятия/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+  });
+
+  it('keeps one paper sheet with every picture of an old conversation and no white panel around the player', () => {
+    // Old summary_json.podcast shapes: no visuals, lower-case source ids, a broken visual, a visual of every kind.
+    const old = [
+      { speaker: 'max', text: 'Привет, начинаем.' },
+      { speaker: 'Софья', text: 'Энтропия растёт.', source_ids: ['s01'] },
+      { speaker: 'Макс', text: 'Схема.', visual: { type: 'diagram', title: 'Связь', nodes: [{ id: 1, label: 'Тепло' }, { id: 2, label: 'Работа' }], edges: [{ from: 1, to: 2, label: 'превращается' }] } },
+      { speaker: 'Софья', text: 'Шаги.', visual: { type: 'steps', title: 'Цикл Карно', items: ['Нагрев', 'Расширение', 'Охлаждение'] } },
+      { speaker: 'Макс', text: 'Сломанное.', visual: { type: 'chart', title: 'Нет чисел', data: [{ label: 'А', value: 'много' }] } },
+      { speaker: 'Софья', text: 'Даты.', visual: { type: 'timeline', title: 'История', events: [{ date: '1824', label: 'Карно' }, { date: '1850', label: 'Клаузиус' }] } },
+      { speaker: 'Макс', text: 'Сравним.', visual: { type: 'compare', title: 'Два начала', left: { label: 'Первое', points: ['Энергия сохраняется'] }, right: { label: 'Второе', points: ['Энтропия растёт'] } } },
+    ];
+    const sources = [{ id: 'S01', text: 'Энтропия изолированной системы не убывает.' }];
+    const { container } = render(<ConversationPlayer lines={old} sources={sources} title="Термодинамика" />);
+    const sheet = screen.getByRole('region', { name: 'Сцена' });
+    expect(sheet).toHaveClass('sf-sheet');
+    expect(container.querySelectorAll('.sf-sheet')).toHaveLength(1);
+    expect(container.querySelector('.rounded-xl, .bg-\\[var\\(--sf-surface\\)\\]')).toBeNull();
+    // Every picture of the conversation is laid out once (invisible copies give the sheet its height).
+    const kinds = [...sheet.querySelectorAll('[data-scene-layer="measure"] [class~="min-w-0"]')].length;
+    expect(kinds).toBeGreaterThanOrEqual(5);
+
+    const player = screen.getByRole('region', { name: 'Разговор по материалу' });
+    const shown: string[] = [];
+    for (let index = 0; index < old.length; index += 1) {
+      shown.push(activeScene().querySelector('[data-visual-type]')?.getAttribute('data-visual-type') ?? '');
+      fireEvent.keyDown(player, { key: 'ArrowRight' });
+    }
+    // The cover, the quote found by source_ids, the model's pictures; the broken chart carries the steps.
+    expect(shown).toEqual(['scene', 'fact', 'diagram', 'steps', 'steps', 'timeline', 'compare']);
+    expect(within(activeScene()).getByText('Энергия сохраняется')).toBeInTheDocument();
+  });
+
+  it('knows the height of the sheet for every window, the 1280×720 projector window included', () => {
+    expect(sheetMetrics(1440, 900)).toEqual({ height: 392, max: 520, padTop: 28, padBottom: 26 });
+    expect(sheetMetrics(1024, 900).height).toBe(392);
+    expect(sheetMetrics(800, 900)).toEqual({ height: 360, max: 520, padTop: 28, padBottom: 26 });
+    expect(sheetMetrics(390, 844)).toEqual({ height: 336, max: 520, padTop: 16, padBottom: 14 });
+    // The low window (≥1024 wide, ≤780 high): what is left of 100vh, at least 300, and no growth.
+    expect(sheetMetrics(1280, 720)).toEqual({ height: 344, max: 344, padTop: 22, padBottom: 18 });
+    expect(sheetMetrics(1366, 640)).toEqual({ height: 300, max: 300, padTop: 22, padBottom: 18 });
+    expect(sheetMetrics(1280, 781).height).toBe(392);
+  });
+
+  it('sets a long line a step smaller so that the subtitle keeps to its reserved lines', () => {
+    const style = document.createElement('style');
+    style.textContent = '.cv-line { min-height: 108px; }';
+    document.head.appendChild(style);
+    const heights: Record<string, number> = { '0': 180, '1': 140, '2': 104 };
+    const spy = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('cv-line') ? heights[this.getAttribute('data-fit') ?? '0'] : 0;
+    });
+    try {
+      render(<ConversationPlayer lines={modelLines} />);
+      const line = within(screen.getByRole('region', { name: 'Субтитры' })).getByText(modelLines[0].text);
+      expect(line).toHaveAttribute('data-fit', '2');
+      heights['0'] = 100;
+      fireEvent.keyDown(screen.getByRole('region', { name: 'Разговор по материалу' }), { key: 'ArrowRight' });
+      expect(within(screen.getByRole('region', { name: 'Субтитры' })).getByText(modelLines[1].text)).toHaveAttribute('data-fit', '0');
+    } finally {
+      spy.mockRestore();
+      style.remove();
+    }
   });
 });

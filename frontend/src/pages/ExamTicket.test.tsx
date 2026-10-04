@@ -183,10 +183,16 @@ async function persistClip(text: string) {
 
 type RpcFake = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
 
-function seedDatabase(extra: { events?: Record<string, unknown>[]; sessions?: Record<string, unknown>[]; rpc?: RpcFake } = {}) {
+/** The department's own tickets of the test exam: ticket 12 is questions 7 and 9 (Q1, Q2). */
+const DEPARTMENT_TICKETS = { mode: 'fixed', per_ticket: 2, tickets: [{ number: 12, question_ids: [Q1, Q2] }] };
+
+function seedDatabase(
+  extra: { events?: Record<string, unknown>[]; sessions?: Record<string, unknown>[]; rpc?: RpcFake; layout?: Record<string, unknown> | null } = {},
+) {
+  const layout = extra.layout === undefined ? DEPARTMENT_TICKETS : extra.layout;
   const fake = createFakeSupabase({
     tables: {
-      exams: [{ id: EXAM, title: 'Нейросети', kind: 'exam' }],
+      exams: [{ id: EXAM, title: 'Нейросети', kind: 'exam', ...(layout ? { ticket_layout: layout } : {}) }],
       exam_questions: [
         questionRow(Q1, 7),
         questionRow(Q2, 9, {
@@ -327,7 +333,7 @@ describe('ExamTicket: before the answer', () => {
     expect(screen.getByText(/Речь распознаёт браузер, в Chrome — через сервис Google/)).toBeInTheDocument();
     const lines = DEMO_RUBRIC.points.map((point) => point.followup.question);
     await waitFor(() =>
-      expect(ttsTexts()).toEqual(['Так…', lines[0], lines[1], lines[2], lines[3], lines[4], 'Хорошо, по существу всё', 'Не расслышал ответ']),
+      expect(ttsTexts()).toEqual(['Так…', lines[0], lines[1], lines[2], lines[3], lines[4], 'Хорошо, по существу всё', 'Хорошо, спасибо', 'Не расслышал ответ']),
     );
     // The ticket's question is shown, never voiced.
     expect(ttsTexts()).not.toContain(DEMO_QUESTION);
@@ -426,10 +432,16 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     expect(fetchMock.mock.calls.length).toBe(requests);
 
-    expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
+    // The memo's stage example: «Не знаю» on the follow-up about a missing main point is a 3,
+    // (2 + 2 + 1 + 0 + 1) / 9 = 67, not counted towards readiness (Jury_Check item 3).
+    expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
-    expect(screen.getByText('Зачтено')).toBeInTheDocument();
-    expect(container.querySelector('svg[data-mark="oval"]')).not.toBeNull();
+    expect(screen.getByText('В готовность не засчитано')).toBeInTheDocument();
+    expect(container.querySelector('svg[data-mark="oval"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/[Зз]ачтено/);
+    fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
+    expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 3')).toBeInTheDocument();
+    expect(screen.getByText('Здесь оценку ограничил пункт 4: на вопрос экзаменатора о нём не было верного ответа.')).toBeInTheDocument();
     expect(screen.getByText('Пропущенный пункт стал карточкой — она вернётся в повторении завтра.')).toBeInTheDocument();
     expect(container.querySelector('.or-extra')?.textContent).toContain('ответ: не знаю.');
 
@@ -447,7 +459,7 @@ describe('ExamTicket: answering by text', () => {
       material_id: 'mat-1',
       input: 'text',
       score: 67,
-      grade: 4,
+      grade: 3,
       confidence: null,
       make_card: true,
       verdict: 'Повторите скорость обучения.',
@@ -590,7 +602,8 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByText('Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.')).toBeInTheDocument();
     expect(screen.queryByText('Оценка')).toBeNull();
-    expect(screen.queryByText('Зачтено')).toBeNull();
+    expect(screen.queryByText('Засчитано')).toBeNull();
+    expect(screen.queryByText('В готовность не засчитано')).toBeNull();
     expect(screen.getByText('Предварительно: по ключевым словам')).toBeInTheDocument();
     expect(rpc).not.toHaveBeenCalled();
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
@@ -1014,7 +1027,7 @@ describe('ExamTicket: answering aloud', () => {
     expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «Будут колебания», засчитан частично.`);
   });
 
-  it('stages peak 2: the counter folds into one line at «Готово», the question shows, the voice comes 300 ms later (redesign critique 3, round 2)', async () => {
+  it('stages peak 2: one secondary count line, the question shows, the voice comes 300 ms later (redesign critique 3, round 2; Jury_Check 7, 9)', async () => {
     ttsFailing.add('Так…');
     seedDatabase();
     const { container } = await renderPage(ticketUrl());
@@ -1022,15 +1035,21 @@ describe('ExamTicket: answering aloud', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
     const rec = recognition();
     act(() => rec.say([[DEMO_ANSWER, true]]));
-    // While answering: the big counter.
-    expect(container.querySelector('.or-count-big')?.textContent?.replace(/\s+/g, ' ')).toBe('4 из 5');
+    // While answering: one 17 px line by key words and the fine line, never the 64 px «Названо 4 из 5».
+    expect(container.querySelector('.or-count .or-count-line')?.textContent?.replace(/\s+/g, ' ')).toBe('По ключевым словам: 4 из 5');
+    expect(container.querySelector('.or-count .or-count-fine')?.textContent).toBe('итог — после ответа');
+    expect(container.querySelector('.or-count-big')).toBeNull();
+    expect(container.textContent).not.toMatch(/Названо/);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     act(() => rec.end());
-    // From «Готово» on: one line, no big number.
-    await waitFor(() => expect(container.querySelector('.or-count-big')).toBeNull());
-    expect(container.querySelector('.or-count-line')?.textContent?.replace(/\s+/g, ' ')).toBe('По ключевым словам названо 4 из 5');
+    // From «Готово» on the same line stays.
+    await waitFor(() => expect(container.querySelector('.or-count')).toBeNull());
+    expect(container.querySelector('.or-count-line')?.textContent?.replace(/\s+/g, ' ')).toBe('По ключевым словам: 4 из 5');
     expect(await screen.findByText(`«${Q4}»`)).toBeInTheDocument();
-    expect(container.querySelector('.or-count-big')).toBeNull();
+    // The question is set large (a short question: 40 px) and the privacy text is not on the desk.
+    expect(container.querySelector('.or-examiner-q')).toHaveAttribute('data-size', 'l');
+    expect(document.querySelector('.or-privacy')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Кто видит ответ' })).toBeNull();
     // The question is on screen before the voice: nothing plays in the first 300 ms.
     expect(audiosFor(Q4)).toHaveLength(0);
     await act(async () => {
@@ -1049,8 +1068,11 @@ describe('ExamTicket: answering aloud', () => {
     expect(strip.closest('.or-sheet')).not.toBeNull();
     expect(strip).not.toHaveClass('sf-sheet');
     expect(container.querySelectorAll('.or-left .sf-sheet, .or-left .sf-index-card')).toHaveLength(2);
-    expect(strip.querySelectorAll('svg[data-mark="dtick"]')).toHaveLength(4);
-    expect(strip.querySelector('svg[data-mark="tick"]')).toBeNull();
+    // The same provisional dots as the sheet, and the same words as the desk's count line.
+    expect(strip.querySelectorAll('svg[data-mark="dot"]')).toHaveLength(4);
+    expect(strip.querySelector('svg[data-mark="tick"], svg[data-mark="dtick"]')).toBeNull();
+    expect(strip.querySelector('.or-strip-count')?.textContent?.replace(/\s+/g, ' ')).toBe('По ключевым словам: 4 из 5 итог — после ответа');
+    expect(strip.querySelector('.or-strip-fine')?.textContent).toBe('итог — после ответа');
     // The strip comes first in the sheet, the answer after it.
     expect(strip.compareDocumentPosition(container.querySelector('.or-said') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -1316,8 +1338,10 @@ describe('ExamTicket: a saved protocol, read only', () => {
     seedDatabase({ rpc, sessions: [sessionRow] });
     const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
     expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
+    // A 4 given with «не знаю» before formula v2: shown as saved, with the rule of that day.
     expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
-    expect(screen.getByText('Зачтено')).toBeInTheDocument();
+    expect(screen.getByText('Засчитано')).toBeInTheDocument();
+    expect(screen.getByText('Этот ответ оценён по правилу, которое действовало в день ответа: без потолка за главный пункт, не восстановленный на вопросе экзаменатора.')).toBeInTheDocument();
     for (const point of DEMO_RUBRIC.points) expect(screen.getByText(point.title)).toBeInTheDocument();
     expect(container.querySelector('.or-extra')?.textContent).toContain('ответ: не знаю.');
     expect(container.querySelector('[data-point="p1"] .or-q2 [data-mark="under"]')).not.toBeNull();
@@ -1406,5 +1430,366 @@ describe('ExamTicket: a ticket of two questions', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     await screen.findByText(/Сохранено в историю и/);
     expect(container.querySelector('.or-ph-date')?.textContent?.replace(/\s+/g, ' ')).toMatch(/^Вопрос 7 · ответ 3 октября, \d{1,2}:\d{2}$/);
+  });
+});
+
+describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
+  beforeEach(() => {
+    ttsFailing.add('Так…');
+  });
+
+  /** Answers DEMO_ANSWER by text and waits for the examiner's question about p4. */
+  async function answerAndGetAsked(url = ticketUrl()) {
+    const view = await renderPage(url);
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await screen.findByText(`«${Q4}»`);
+    return view;
+  }
+
+  async function answerFollowup(text: string) {
+    const field = await screen.findByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    fireEvent.change(field, { target: { value: text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+  }
+
+  const savedPayload = (rpc: ReturnType<typeof vi.fn>) =>
+    (rpc.mock.calls[0] as unknown as [string, { p_attempt: { score: number; grade: number; followup: { status: string } | null; points: Array<{ id: string; live: boolean }> } }])[1].p_attempt;
+
+  describe('the cap for a main point not recovered on the follow-up (item 3)', () => {
+    it('caps a model-judged wrong answer to the follow-up at 3', async () => {
+      const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+      seedDatabase({ rpc });
+      api['/api/oral/check'].mockImplementation(async (body) =>
+        body.only ? json(200, { statuses: { p4: 'wrong' }, ask: null }) : json(200, { statuses: { p4: 'missing' }, ask: 'p4' }),
+      );
+      await answerAndGetAsked();
+      await answerFollowup('Веса станут меньше');
+      await screen.findByText(/Сохранено в историю и/);
+      expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
+      expect(screen.getByText('В готовность не засчитано')).toBeInTheDocument();
+      expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 3, followup: { status: 'wrong' } });
+    });
+
+    it('gives a partial answer to it (2 + 2 + 1 + 0,5 + 1) / 9 = 72 → «4 · хорошо», «Засчитано»', async () => {
+      const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+      seedDatabase({ rpc });
+      api['/api/oral/check'].mockImplementation(async (body) =>
+        body.only ? json(200, { statuses: { p4: 'partial' }, ask: null }) : json(200, { statuses: { p4: 'missing' }, ask: 'p4' }),
+      );
+      const { container } = await answerAndGetAsked();
+      await answerFollowup('Будут колебания');
+      await screen.findByText(/Сохранено в историю и/);
+      expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
+      expect(screen.getByText('Засчитано')).toBeInTheDocument();
+      expect(container.querySelector('.or-stamp svg[data-mark="oval"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
+      expect(screen.getByText('(2 + 2 + 1 + 0,5 + 1) / 9 = 72 из 100 → 4')).toBeInTheDocument();
+      expect(savedPayload(rpc)).toMatchObject({ score: 72, grade: 4 });
+    });
+
+    it('adds no cap when the follow-up was judged only by key words (the check timed out), and says so', async () => {
+      const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+      seedDatabase({ rpc });
+      api['/api/oral/check'].mockImplementation(async (body, init) => (body.only ? hang(init) : json(200, { statuses: { p4: 'missing' }, ask: 'p4' })));
+      const { container } = await answerAndGetAsked();
+      // An echo of the question: the browser's rule says «missing», but it cannot tell a paraphrase from a miss.
+      await answerFollowup('Если взять слишком большую скорость обучения');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2600);
+      });
+      await screen.findByText(/Сохранено в историю и/);
+      expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
+      expect(screen.getByText('Засчитано')).toBeInTheDocument();
+      expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам не засчитан');
+      fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
+      expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 4')).toBeInTheDocument();
+      expect(screen.getByText('Ответ на вопрос экзаменатора проверен только по ключевым словам, поэтому этот потолок здесь не применён.')).toBeInTheDocument();
+      expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 4, followup: { status: 'missing' } });
+    });
+
+    it('gives the same 3 when nothing is heard after «Не расслышал ответ»', async () => {
+      vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+      const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+      seedDatabase({ rpc });
+      await renderPage(ticketUrl());
+      await readyToAnswer();
+      await waitFor(() => expect(ttsTexts()).toContain('Не расслышал ответ'));
+      fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+      const rec = recognition();
+      act(() => rec.say([[DEMO_ANSWER, true]]));
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      act(() => rec.end());
+      await waitFor(() => expect(audiosFor(Q4)).toHaveLength(1));
+      act(() => audiosFor(Q4)[0].onended?.());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      expect(rec.starts).toBe(2);
+      // Silence: «Не расслышал ответ», then the microphone opens again.
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      await waitFor(() => expect(audiosFor('Не расслышал ответ')).toHaveLength(1));
+      act(() => audiosFor('Не расслышал ответ')[0].onended?.());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      // Silence again: the follow-up is not answered.
+      fireEvent.click(await screen.findByRole('button', { name: 'Готово' }));
+      await screen.findByText(/Сохранено в историю и/);
+      expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
+      expect(screen.getByText('В готовность не засчитано')).toBeInTheDocument();
+      expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 3, followup: { status: 'missing' } });
+    });
+  });
+
+  describe('the protocol explains key words against the check (item 7) and finds the asked point (item 9)', () => {
+    it('explains p3, named by key words and judged «упомянут», with the check’s comment', async () => {
+      seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+      api['/api/oral/evaluate'].mockImplementation(async () =>
+        json(200, {
+          ...EVALUATION,
+          points: EVALUATION.points.map((point) => (point.id === 'p3' ? { ...point, comment: 'Названо, но без градиента по каждому весу.' } : point)),
+        }),
+      );
+      const { container } = await answerAndGetAsked();
+      fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+      await screen.findByText(/Сохранено в историю и/);
+      const p3 = container.querySelector('[data-point="p3"]') as HTMLElement;
+      expect(p3.querySelector('.or-ppt-st')?.textContent).toBe('главный пункт · упомянут · фрагмент\u00a014');
+      expect(p3.querySelector('.or-ppt-why')?.textContent).toBe('По ключевым словам пункт назван; проверка по всему ответу: упомянут.');
+      expect(within(p3).getByText('Названо, но без градиента по каждому весу.')).toBeInTheDocument();
+      // Where the key words and the check agree, nothing is added.
+      for (const id of ['p1', 'p2', 'p4', 'p5']) expect(container.querySelector(`[data-point="${id}"] .or-ppt-why`)).toBeNull();
+      // Every main point says so; p5 is not one.
+      expect(container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe('главный пункт · не назван; на вопрос экзаменатора — «не знаю»');
+      expect(container.querySelector('[data-point="p5"] .or-ppt-st')?.textContent).toBe('раскрыт · фрагмент\u00a016');
+    });
+
+    it('turns the line about the asked point into a button that brings the point into view and focuses it', async () => {
+      seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+      const scrollTo = vi.fn();
+      vi.stubGlobal('scrollTo', scrollTo);
+      const { container } = await answerAndGetAsked();
+      fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+      await screen.findByText(/Сохранено в историю и/);
+      const line = screen.getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' });
+      // Right under the sheet's header, before the first point.
+      expect(line.compareDocumentPosition(container.querySelector('.or-ppts') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const row = container.querySelector('[data-point="p4"]') as HTMLElement;
+      vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 820, bottom: 900, left: 0, right: 0, width: 0, height: 80, x: 0, y: 820, toJSON: () => ({}) });
+      fireEvent.click(line);
+      expect(document.activeElement).toBe(row);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(scrollTo).toHaveBeenCalled();
+      expect(scrollTo.mock.calls.every((call) => (call[0] as { behavior?: string }).behavior === 'instant')).toBe(true);
+    });
+  });
+
+  describe('peak 2 (item 9)', () => {
+    function rubricWithFollowup(question: string) {
+      return demoRubricResponse({
+        rubric: { ...DEMO_RUBRIC, points: DEMO_RUBRIC.points.map((point) => (point.id === 'p4' ? { ...point, followup: { ...point.followup, question } } : point)) },
+      });
+    }
+
+    it.each([
+      ['a short', Q4, 'l'],
+      ['a longer', `${Q4} И почему тогда веса начинают колебаться вокруг минимума функции потерь?`, 'm'],
+      [
+        'a 200-character',
+        `${Q4} И почему тогда веса начинают колебаться вокруг минимума функции потерь, а не сходятся к нему? Что вы предложите сделать с шагом обучения?`.slice(0, 200),
+        's',
+      ],
+    ])('sets %s question by its length, beside the bracketed row, with no privacy text', async (_label, question, size) => {
+      seedDatabase();
+      api['/api/oral/rubric'].mockImplementation(async () => json(200, rubricWithFollowup(question)));
+      const { container } = await renderPage(ticketUrl());
+      await readyToAnswer();
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      expect(await screen.findByText(`«${question}»`)).toHaveAttribute('data-size', size);
+      expect(container.querySelector('[data-point="p4"] svg[data-mark="brace"]')).not.toBeNull();
+      expect(screen.getByRole('button', { name: 'Не знаю' })).toBeInTheDocument();
+      expect(document.querySelector('.or-privacy')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Кто видит ответ' })).toBeNull();
+    });
+  });
+
+  it('keeps the answer’s place under the question while the examiner asks, so the block does not move when the microphone opens', async () => {
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    seedDatabase();
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    await waitFor(() => expect(ttsTexts()).toContain('Не расслышал ответ'));
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    const rec = recognition();
+    act(() => rec.say([[DEMO_ANSWER, true]]));
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    act(() => rec.end());
+    await screen.findByText(`«${Q4}»`);
+    const waiting = container.querySelector('.or-examiner .or-examiner-listen') as HTMLElement;
+    expect(waiting).toHaveAttribute('data-waiting');
+    expect(waiting).toHaveAttribute('aria-hidden', 'true');
+    await waitFor(() => expect(audiosFor(Q4)).toHaveLength(1));
+    act(() => audiosFor(Q4)[0].onended?.());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+    expect(rec.starts).toBe(2);
+    // The same element, now shown: nothing new was added to the block.
+    expect(container.querySelector('.or-examiner .or-examiner-listen')).toBe(waiting);
+    expect(waiting).not.toHaveAttribute('data-waiting');
+    expect(waiting).not.toHaveAttribute('aria-hidden');
+    expect(within(waiting).getByText('Ваш ответ на вопрос')).toBeInTheDocument();
+  });
+
+  describe('«как на экзамене» (item 11)', () => {
+    const examUrl = () => `/exams/${EXAM}/ticket?q=${Q1}&n=12&mode=exam`;
+
+    it('starts with marks off, no hint and no counter, and never writes the stored preference', async () => {
+      const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
+      seedDatabase({ rpc });
+      window.localStorage.setItem('meldy_oral_live_marks', '1');
+      const { container } = await renderPage(examUrl());
+      await readyToAnswer();
+      const toggle = screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' });
+      expect(toggle).not.toBeChecked();
+      expect(container.textContent).not.toMatch(/В эталоне/);
+      // The switch works for this answer and leaves the training preference alone.
+      fireEvent.click(toggle);
+      expect(toggle).toBeChecked();
+      fireEvent.click(toggle);
+      expect(toggle).not.toBeChecked();
+      expect(window.localStorage.getItem('meldy_oral_live_marks')).toBe('1');
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      expect(container.querySelectorAll('[data-named]')).toHaveLength(0);
+      expect(container.querySelector('.or-count, .or-count-line, .or-strip')).toBeNull();
+      expect(container.querySelector('.or-said .sf-under')).toBeNull();
+      expect(screen.getByText('Отметки во время ответа выключены: пункты откроются в протоколе.')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+      await screen.findByText(/Сохранено в историю и/);
+      expect(container.querySelector('.or-count-line')).toBeNull();
+      // The key words were still counted: the saved answer and the protocol's explanations know them.
+      expect(savedPayload(rpc).points.map((point) => [point.id, point.live])).toEqual([
+        ['p1', true],
+        ['p2', true],
+        ['p3', true],
+        ['p4', false],
+        ['p5', true],
+      ]);
+      expect(container.querySelector('[data-point="p3"] .or-ppt-why')?.textContent).toBe('По ключевым словам пункт назван; проверка по всему ответу: упомянут.');
+      expect(window.localStorage.getItem('meldy_oral_live_marks')).toBe('1');
+    });
+
+    it('keeps today’s behaviour without the parameter: the stored preference, on by default', async () => {
+      seedDatabase();
+      const { container } = await renderPage(ticketUrl());
+      await readyToAnswer();
+      expect(screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' })).toBeChecked();
+      expect(screen.getByText('В эталоне 5 пунктов из ваших лекций. Они откроются, когда вы их назовёте.')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      expect(container.querySelectorAll('[data-named]')).toHaveLength(4);
+      expect(container.querySelector('.or-count-line')?.textContent?.replace(/\s+/g, ' ')).toBe('По ключевым словам: 4 из 5');
+    });
+  });
+
+  describe('«Билет N» only for the department’s ticket (item 11)', () => {
+    const wordsOnScreen = (container: HTMLElement) => container.textContent ?? '';
+
+    it.each([
+      ['an exam without the department’s tickets', null, `q=${Q1}&n=12`],
+      ['a q that is not inside ticket 12', { mode: 'fixed', per_ticket: 2, tickets: [{ number: 12, question_ids: [Q2] }] }, `q=${Q1}&n=12`],
+      ['a pair in another order than ticket 12', { mode: 'fixed', per_ticket: 2, tickets: [{ number: 12, question_ids: [Q2, Q1] }] }, `q=${Q1},${Q2}&n=12`],
+    ])('shows no «Билет 12» for a forged &n=12 on %s: card, top line, protocol', async (_label, layout, query) => {
+      seedDatabase({ layout, rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+      const { container } = await renderPage(`/exams/${EXAM}/ticket?${query}`);
+      await readyToAnswer();
+      expect(wordsOnScreen(container)).not.toMatch(/Билет 12/);
+      const card = container.querySelector('.or-ticket-no')?.textContent?.replace(/\s+/g, ' ');
+      expect(card === 'Вопрос 7' || card === 'Вопрос 7 · 1 из 2').toBe(true);
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+      await screen.findByText(/Сохранено в историю и/);
+      expect(wordsOnScreen(container)).not.toMatch(/Билет 12/);
+      expect(container.querySelector('.or-ph-date')?.textContent?.replace(/\s+/g, ' ')).toMatch(/^Вопрос 7 · ответ/);
+      expect(screen.getByRole('heading', { level: 1, name: /^Протокол ответа, Вопрос 7/ })).toBeInTheDocument();
+    });
+
+    it('keeps «Билет 7» when the draw dropped the ticket’s «нет» question from q', async () => {
+      seedDatabase({ layout: { mode: 'fixed', per_ticket: 2, tickets: [{ number: 7, question_ids: [Q1, Q2] }] }, rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+      const { container } = await renderPage(`/exams/${EXAM}/ticket?q=${Q1}&n=7`);
+      await readyToAnswer();
+      expect(screen.getByRole('article', { name: 'Билет 7' })).toBeInTheDocument();
+      expect(container.querySelector('.or-where .or-long')?.textContent).toBe('Билет 7');
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+      await screen.findByText(/Сохранено в историю и/);
+      expect(container.querySelector('.or-ph-date')?.textContent?.replace(/\s+/g, ' ')).toMatch(/^Билет 7 · ответ/);
+      expect(container.querySelector('.or-where .or-long')?.textContent?.replace(/\s+/g, ' ')).toMatch(/^Билет 7 · протокол ответа/);
+    });
+  });
+
+  describe('the examiner’s closing line (item 12)', () => {
+    function heldEvaluation() {
+      const held: { release: () => void } = { release: () => undefined };
+      api['/api/oral/evaluate'].mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            held.release = () => resolve(json(200, EVALUATION));
+          }),
+      );
+      return held;
+    }
+
+    it('says «Хорошо, спасибо», never «по существу всё», when a row stays closed and nothing is asked', async () => {
+      seedDatabase({ rpc: vi.fn(async () => ({ data: { ...SAVED, card_added: false }, error: null })) });
+      const held = heldEvaluation();
+      // The check finds nothing to ask, but p4 was never named by key words.
+      api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
+      await renderPage(ticketUrl());
+      await readyToAnswer();
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      expect(await screen.findByText('Хорошо, спасибо.')).toBeInTheDocument();
+      expect(screen.queryByText(/по существу всё/)).toBeNull();
+      await waitFor(() => expect(audiosFor('Хорошо, спасибо')).toHaveLength(1));
+      expect(audiosFor('Хорошо, по существу всё')).toHaveLength(0);
+      await act(async () => {
+        held.release();
+      });
+      await screen.findByText(/Сохранено в историю и/);
+    });
+
+    it('says «Хорошо, по существу всё» when every row was named, also with the marks hidden', async () => {
+      seedDatabase({ rpc: vi.fn(async () => ({ data: { ...SAVED, card_added: false }, error: null })) });
+      const held = heldEvaluation();
+      api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
+      await renderPage(`/exams/${EXAM}/ticket?q=${Q1}&mode=exam`);
+      await readyToAnswer();
+      expect(screen.getByRole('checkbox', { name: 'Отмечать пункты во время ответа' })).not.toBeChecked();
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(FULL_ANSWER);
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      expect(await screen.findByText('Хорошо, по существу всё.')).toBeInTheDocument();
+      await waitFor(() => expect(audiosFor('Хорошо, по существу всё')).toHaveLength(1));
+      expect(audiosFor('Хорошо, спасибо')).toHaveLength(0);
+      await act(async () => {
+        held.release();
+      });
+      await screen.findByText(/Сохранено в историю и/);
+    });
   });
 });

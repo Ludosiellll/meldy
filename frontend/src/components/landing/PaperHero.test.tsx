@@ -68,10 +68,22 @@ describe('PaperHero', () => {
     window.sessionStorage.setItem(SEEN_KEY, '1');
     render(<PaperHero />);
     expect(phase()).toBe('done');
-    expect(screen.getByText(INVITE_TEXT)).toHaveClass('ph-invite');
+    expect(screen.getByText(INVITE_TEXT.replace(/\u00A0/g, ' '))).toHaveClass('ph-invite');
     expect(screen.queryByRole('button', { name: /ещё раз/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: STEPS_TEXT })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('says under the card that it holds what the answer missed', () => {
+    window.sessionStorage.setItem(SEEN_KEY, '1');
+    const { container } = render(<PaperHero />);
+    const caption = container.querySelector('.ph-below .ph-invite');
+    expect(caption?.textContent?.replace(/ /g, ' ')).toBe('Что вы пропустили на ответе, Meldy спросит завтра.');
+    expect(caption?.textContent).toBe(INVITE_TEXT);
+    expect(container.textContent).not.toContain('переверните карточку');
+    // the scene itself is the same: the card's question and its answer
+    expect(card()).toHaveAccessibleDescription(FACE_TEXT.question);
+    expect(FACE_TEXT.question).toBe('Вопрос: Когда спрос эластичен?');
   });
 
   it('renders the final frame and offers the stills only when motion is reduced', () => {

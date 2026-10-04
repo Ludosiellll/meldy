@@ -4,7 +4,9 @@ import { EXAM_MESSAGES, examErrorMessage, loadExamBundle, prefetchRubric, type E
 import { fetchQuestionEvents } from '../api/learning';
 import { statesByHash, type QuestionState } from '../lib/learning/readiness';
 import {
+  canDrawAnother,
   drawTicket,
+  poolLine,
   readRecentTickets,
   rememberTicket,
   type DrawMode,
@@ -15,7 +17,7 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import DrawStack, { ticketTitle, type DrawnCardQuestion } from '../components/exams/DrawStack';
 import { preloadTicketScreen, whenIdle } from '../components/exams/preload';
 import DrawModeMenu, { drawModeOf } from '../components/exams/DrawModeMenu';
-import { numberOf } from '../components/exams/sheetModel';
+import { glue, numberOf } from '../components/exams/sheetModel';
 import { subjectOf } from '../lib/exams/format';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
@@ -27,6 +29,21 @@ export function skippedNote(answerable: number, missing: string[]): string {
   return `Отвечать будете на ${head}: ${tail} нет в ваших лекциях.`;
 }
 
+/** «Как на экзамене» drew a ticket with nothing to check an answer against (Jury_Check item 11). */
+export const NO_ANSWERABLE_TICKET = 'В этом билете нет вопросов из ваших лекций — ответ не с чем сверить.';
+export const NO_ANSWERABLE_QUESTION = 'Этого вопроса нет в ваших лекциях — ответ не с чем сверить.';
+
+/**
+ * The answer screen's address: /exams/:id/ticket?q=…[&n=N][&mode=exam]. &n stays the department's
+ * ticket number even when its questions missing from the lectures are left out of q; only «Как на
+ * экзамене» sends a mode (the answer screen then turns the point marks off).
+ */
+export function answerHrefOf(examId: string, questionIds: string[], ticketNumber: number | null, mode: DrawMode): string {
+  const q = questionIds.map((id) => encodeURIComponent(id)).join(',');
+  const n = ticketNumber !== null ? `&n=${encodeURIComponent(String(ticketNumber))}` : '';
+  return `/exams/${examId}/ticket?q=${q}${n}${mode === 'exam' ? '&mode=exam' : ''}`;
+}
+
 interface Drawn {
   key: number;
   result: DrawResult;
@@ -34,8 +51,9 @@ interface Drawn {
 
 /**
  * «Тянуть билет» (room mode, no menu): a single-object screen (redesign critique 8). The stack stands
- * in the middle; the top card lifts and turns over to the drawn ticket, «Отвечать» and «Тянуть ещё»
- * under it, and under them the way of drawing with «изменить» (also on phones: stage QA round 2).
+ * in the middle; the top card lifts and turns over to the drawn ticket, then the line that says what
+ * it was drawn from, «Отвечать» (and «Тянуть ещё» outside «Как на экзамене»: an exam has no second
+ * try), and under them the way of drawing with «изменить» (also on phones: stage QA round 2).
  * The answer keys are requested while the card lifts. Nothing is voiced.
  */
 export default function ExamDraw() {
@@ -63,7 +81,7 @@ export default function ExamDraw() {
       }
       const hashes = next.questions.map((question) => question.question_hash).filter((hash): hash is string => Boolean(hash));
       try {
-        setStates(statesByHash(await fetchQuestionEvents(hashes, ['exam_answer'])));
+        setStates(statesByHash(await fetchQuestionEvents(hashes, ['exam_answer']), new Date()));
         setHistoryFailed(false);
       } catch {
         setStates(new Map());
@@ -93,20 +111,26 @@ export default function ExamDraw() {
         coverage: question.coverage,
         readiness: state?.readiness ?? 'untested',
         attempts: state?.attempts ?? 0,
+        stale: state?.stale ?? false,
+        awaiting: state?.awaiting ?? false,
       };
     });
   }, [bundle, states]);
 
+  const drawLayout = useMemo(() => {
+    const layout = bundle?.exam.ticket_layout ?? { mode: 'random' as const, per_ticket: 2 };
+    return {
+      mode: layout.mode,
+      perTicket: layout.per_ticket,
+      tickets: (layout.tickets ?? []).map((ticket) => ({ number: ticket.number, questionIds: ticket.question_ids })),
+    };
+  }, [bundle]);
+
   const draw = useCallback(() => {
     if (!bundle) return;
-    const layout = bundle.exam.ticket_layout;
     const result = drawTicket({
       mode,
-      layout: {
-        mode: layout.mode,
-        perTicket: layout.per_ticket,
-        tickets: (layout.tickets ?? []).map((ticket) => ({ number: ticket.number, questionIds: ticket.question_ids })),
-      },
+      layout: drawLayout,
       questions: pool,
       recent: readRecentTickets(bundle.exam.id),
     });
@@ -120,7 +144,7 @@ export default function ExamDraw() {
     }
     counter.current += 1;
     setDrawn({ key: counter.current, result });
-  }, [bundle, mode, pool]);
+  }, [bundle, mode, pool, drawLayout]);
 
   // Draw on arrival and whenever the mode changes.
   useEffect(() => {
@@ -143,11 +167,12 @@ export default function ExamDraw() {
 
   const answerable = card ? card.questions.filter((question) => !question.none) : [];
   const answerHref =
-    card && answerable.length > 0
-      ? `/exams/${examId}/ticket?q=${answerable.map((question) => encodeURIComponent(question.id)).join(',')}${
-          card.number !== null ? `&n=${encodeURIComponent(String(card.number))}` : ''
-        }`
-      : null;
+    card && answerable.length > 0 ? answerHrefOf(examId, answerable.map((question) => question.id), card.number, mode) : null;
+  const examMode = mode === 'exam';
+  const pooled = useMemo(() => poolLine({ mode, layout: drawLayout, questions: pool }), [mode, drawLayout, pool]);
+  // «Тянуть ещё» only when another ticket can come out (one question waiting for its confirmation would
+  // only turn over again).
+  const another = useMemo(() => canDrawAnother({ mode, layout: drawLayout, questions: pool }), [mode, drawLayout, pool]);
 
   const drawWord = bundle && bundle.exam.ticket_layout.per_ticket <= 1 && bundle.exam.ticket_layout.mode !== 'fixed' ? 'вопрос' : 'билет';
   const bar = (
@@ -201,10 +226,21 @@ export default function ExamDraw() {
       <main className="sf-page dw-room">
         <div className="dw-center">
         <section aria-label="Билет">
-          <DrawStack drawKey={drawn?.key ?? 0} ticketNumber={card?.number ?? null} questions={card?.questions ?? null} animate={!reduced} />
+          <DrawStack
+            drawKey={drawn?.key ?? 0}
+            ticketNumber={card?.number ?? null}
+            questions={card?.questions ?? null}
+            animate={!reduced}
+            examMode={examMode}
+          />
         </section>
         <section aria-label="Что дальше">
-        {failure && <p className="dw-msg">{failure.message}</p>}
+        {/* What the card was drawn from, in every mode: a drawn question never looks picked by hand. */}
+        {card && pooled && <p className="dw-pool">{glue(pooled)}</p>}
+        {failure && <p className="dw-msg">{glue(failure.message)}</p>}
+        {card && !answerHref && examMode && (
+          <p className="dw-msg">{glue(card.questions.length === 1 && card.number === null ? NO_ANSWERABLE_QUESTION : NO_ANSWERABLE_TICKET)}</p>
+        )}
 
         <div className="dw-acts">
           {answerHref ? (
@@ -219,9 +255,12 @@ export default function ExamDraw() {
               >
                 Отвечать
               </button>
-              <button type="button" className="sf-link" onClick={draw}>
-                Тянуть ещё
-              </button>
+              {/* «Как на экзамене»: the ticket is the one drawn, as at the exam itself. */}
+              {!examMode && another && (
+                <button type="button" className="sf-link" onClick={draw}>
+                  Тянуть ещё
+                </button>
+              )}
             </>
           ) : failure ? (
             failure.code === 'no_questions' ? (
@@ -231,6 +270,13 @@ export default function ExamDraw() {
             ) : (
               <button type="button" className="sf-primary" onClick={() => setParams({}, { replace: true })}>
                 Тянуть как на экзамене
+              </button>
+            )
+          ) : examMode ? (
+            // Only when a different ticket can come out: the department's only ticket would just turn over again.
+            another && (
+              <button type="button" className="sf-primary" onClick={draw}>
+                {card && card.questions.length === 1 && card.number === null ? 'Тянуть другой вопрос' : 'Тянуть другой билет'}
               </button>
             )
           ) : (

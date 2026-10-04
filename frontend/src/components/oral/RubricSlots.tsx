@@ -68,10 +68,11 @@ interface RubricSlotsProps {
 /**
  * The rubric points on the answer sheet (contracts §7.2, redesign spec 5.11). A closed row is a
  * number and a dotted line — its title is not in the page at all until the point is named, so it
- * cannot prompt the answer. A named row gets a dashed tick — named by key words, not yet judged —
- * and the lecture's own words (a quote cut by code), with the words that matched underlined. Marks
- * only add. The examiner's row gets a brace and keeps its title hidden: the question already says
- * what it is about.
+ * cannot prompt the answer. A named row gets a pencil dot — named by key words, not judged: no
+ * tick-shaped mark appears before the evaluation, so nothing here looks like the protocol's «раскрыт»
+ * (Jury_Check item 7) — and the lecture's own words (a quote cut by code), with the words that
+ * matched underlined. Marks only add. The examiner's row gets a brace and keeps its title hidden:
+ * the question already says what it is about.
  */
 export default function RubricSlots({ points, materials, named, asked, seed, announcement, said }: RubricSlotsProps) {
   // Rows named before this sheet appeared (a restored answer) are drawn still; new ones are drawn in.
@@ -116,10 +117,10 @@ export default function RubricSlots({ points, materials, named, asked, seed, ann
           const groups = said === undefined ? undefined : rowQuoteGroups(point.anchors, said, quote);
           return (
             <li key={point.id} className="or-pt" data-point={point.id} data-named="" data-fresh={fresh ? '' : undefined}>
-              <span className="or-pt-m">
-                {/* Provisional: the dashed tick of «только по словам» (redesign critique 1, round 2). The solid
-                    tick, the cup, the dash and the cross are the protocol's, after the check. */}
-                <Mark kind="dtick" seed={markSeed} animate={fresh} />
+              <span className="or-pt-m or-pt-dot">
+                {/* Provisional: a pencil dot, «named by key words». The tick, the cup, the dash and the cross are
+                    the protocol's, after the check of the whole answer (Jury_Check item 7). */}
+                <Mark kind="dot" seed={markSeed} animate={fresh} />
                 <span className="sr-only">{`Пункт ${number} назван по ключевым словам.`}</span>
               </span>
               <span className="or-pt-n" aria-hidden="true">

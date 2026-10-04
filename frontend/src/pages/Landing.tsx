@@ -3,21 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import '@fontsource-variable/literata/opsz.css';
 import { useAuth } from '../hooks/useAuth';
-import LandingHero from '../components/LandingHero';
+import LandingHero, { PRIMARY_LABEL } from '../components/LandingHero';
 import InteractiveDemo from '../components/landing/InteractiveDemo';
 import LectureDesk from '../components/landing/LectureDesk';
 import ScheduleCard from '../components/landing/ScheduleCard';
+import TicketAnswer from '../components/landing/TicketAnswer';
 import { ty } from '../components/landing/typo';
 import '../components/landing/LandingSections.css';
 
 const COPY = {
+  tryHeading: ty('Из каждой лекции — ещё и это'),
   tryLead: ty('Та же лекция: конспект со ссылками на источник и вопрос теста.'),
   method: [
     ty('Каждая попытка достать ответ из памяти закрепляет его — даже неудачная, если потом свериться с ответом. Психологи называют это эффектом тестирования.'),
     ty('Поэтому Meldy сначала спрашивает, а ответ показывает потом. И возвращает карточку всё реже: помните — она придёт позже, забыли — снова завтра.'),
+    ty('Вопрос засчитывается в готовность, когда вы дважды, в разные дни, хорошо на него ответили.'),
   ],
-  formats: ty('PDF, DOCX, TXT, MD или аудиозапись лекции.'),
+  finalHeading: ty('Начните со списка вопросов'),
+  final: ty('Список вопросов кафедры — текстом или файлом. Лекции — PDF, DOCX, TXT, MD или аудио. Списка пока нет — начните с лекции: карточки и тест Meldy сделает и по ней.'),
 };
+
+/** The navbar's anchors, in the order of the sections on the page. */
+const NAV_LINKS = [
+  { href: '#ticket', label: 'Ответ на билет' },
+  { href: '#try', label: 'Пример' },
+  { href: '#method', label: 'Подход' },
+] as const;
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -32,8 +43,8 @@ export default function Landing() {
       <Navbar />
       <main>
         <LandingHero />
+        <TicketSection />
         <TryItSection />
-        <OutputsSection />
         <MethodSection />
         <FinalCall />
       </main>
@@ -51,9 +62,7 @@ function Navbar() {
         <button type="button" className="lp-wordmark" onClick={() => navigate('/')}>Meldy</button>
 
         <div className="landing-nav-links lp-nav-links hidden lg:flex">
-          <a href="#try">Пример</a>
-          <a href="#possibilities">Возможности</a>
-          <a href="#method">Подход</a>
+          {NAV_LINKS.map(link => <a key={link.href} href={link.href}>{link.label}</a>)}
         </div>
 
         <div className="lp-nav-right">
@@ -69,25 +78,27 @@ function Navbar() {
   );
 }
 
-function TryItSection() {
+/** «Ответ на билет»: right after the hero, the answer the session ends with. */
+function TicketSection() {
   return (
-    <section id="try" className="lp-section lp-try" aria-labelledby="try-heading">
-      <div className="lp-wrap lp-try-grid">
-        <div className="lp-try-intro">
-          <h2 id="try-heading" className="lp-h2">Ваша очередь</h2>
-          <p className="lp-lead">{COPY.tryLead}</p>
-        </div>
-        <InteractiveDemo />
+    <section id="ticket" className="lp-section lp-ticket" aria-labelledby="ticket-heading">
+      <div className="lp-wrap">
+        <TicketAnswer />
       </div>
     </section>
   );
 }
 
-function OutputsSection() {
+/** «Из каждой лекции — ещё и это»: the summary and the quiz, then the conversation and the map. */
+function TryItSection() {
   return (
-    <section id="possibilities" className="lp-section lp-outputs" aria-labelledby="possibilities-heading">
+    <section id="try" className="lp-section lp-try" aria-labelledby="try-heading">
       <div className="lp-wrap">
-        <h2 id="possibilities-heading" className="lp-h2">{ty('Что ещё получится из этой лекции')}</h2>
+        <h2 id="try-heading" className="lp-h2">{COPY.tryHeading}</h2>
+        <div className="lp-try-grid">
+          <p className="lp-lead lp-try-lead">{COPY.tryLead}</p>
+          <InteractiveDemo />
+        </div>
         <LectureDesk />
       </div>
     </section>
@@ -113,9 +124,9 @@ function FinalCall() {
   return (
     <section className="lp-section lp-final" aria-labelledby="final-heading">
       <div className="lp-wrap">
-        <h2 id="final-heading" className="lp-h2">Начните со своей лекции</h2>
-        <p className="lp-lead">{COPY.formats}</p>
-        <button type="button" className="sf-primary lp-final-cta" onClick={() => navigate('/register')}>Попробовать на своей лекции</button>
+        <h2 id="final-heading" className="lp-h2">{COPY.finalHeading}</h2>
+        <p className="lp-lead">{COPY.final}</p>
+        <button type="button" className="sf-primary lp-final-cta" onClick={() => navigate('/register')}>{PRIMARY_LABEL}</button>
       </div>
     </section>
   );

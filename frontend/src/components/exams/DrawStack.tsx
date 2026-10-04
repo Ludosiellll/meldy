@@ -11,6 +11,8 @@ export interface DrawnCardQuestion {
 
 export const NONE_QUESTION_MESSAGE =
   'Этого вопроса нет в ваших лекциях — оценить ответ не по чему. Добавьте материал или тяните ещё.';
+/** «Как на экзамене» has no «Тянуть ещё»: the card only says what the question lacks. */
+export const NONE_QUESTION_EXAM_MESSAGE = 'Этого вопроса нет в ваших лекциях.';
 
 interface DrawStackProps {
   /** Changes with every draw, so the top card turns over again. */
@@ -20,6 +22,8 @@ interface DrawStackProps {
   questions: DrawnCardQuestion[] | null;
   /** False under prefers-reduced-motion: the card only fades in (150 ms). */
   animate: boolean;
+  /** «Как на экзамене»: no «тяните ещё» in the card's notes. */
+  examMode?: boolean;
 }
 
 function numbersPhrase(questions: DrawnCardQuestion[]): string {
@@ -37,6 +41,7 @@ export function ticketTitle(ticketNumber: number | null, questions: DrawnCardQue
 
 /**
  * The card's own line: «Случайный билет · вопросы 12 и 31», «Билет 12 · вопросы 3 и 25», «Вопрос 12».
+ * «Билет N» only for a ticket of the department's list: a number is never invented (Jury_Check 9).
  * The numbers stay on the card (redesign critique 8: a random pair used to lose them until the peak).
  */
 export function cardHead(ticketNumber: number | null, questions: DrawnCardQuestion[]): { strong: string; rest: string } {
@@ -49,7 +54,7 @@ interface Face {
   questions: DrawnCardQuestion[] | null;
 }
 
-function FaceContent({ face }: { face: Face }) {
+function FaceContent({ face, examMode = false }: { face: Face; examMode?: boolean }) {
   if (!face.questions) return <p className="dw-back">Билеты</p>;
   const head = cardHead(face.ticketNumber, face.questions);
   const single = face.ticketNumber === null && face.questions.length === 1;
@@ -68,7 +73,7 @@ function FaceContent({ face }: { face: Face }) {
               </span>
             )}
             <span className="dw-q-t">{question.text}</span>
-            {question.none && <span className="dw-q-none sf-pnote">{NONE_QUESTION_MESSAGE}</span>}
+            {question.none && <span className="dw-q-none sf-pnote">{examMode ? NONE_QUESTION_EXAM_MESSAGE : NONE_QUESTION_MESSAGE}</span>}
           </li>
         ))}
       </ol>
@@ -84,7 +89,7 @@ function FaceContent({ face }: { face: Face }) {
  * drawn ticket is in the page at once (an aria-hidden copy of the old face covers it for those 250 ms).
  * Nothing is voiced (correction 7).
  */
-export default function DrawStack({ drawKey, ticketNumber, questions, animate }: DrawStackProps) {
+export default function DrawStack({ drawKey, ticketNumber, questions, animate, examMode = false }: DrawStackProps) {
   // The face shown before this draw: the blank back first, then the previous ticket.
   const faces = useRef<{ key: number; current: Face; previous: Face | null }>({
     key: drawKey,
@@ -109,11 +114,11 @@ export default function DrawStack({ drawKey, ticketNumber, questions, animate }:
         aria-label={questions ? ticketTitle(ticketNumber, questions) : 'Стопка билетов'}
       >
         <div className="dw-face">
-          <FaceContent face={{ ticketNumber, questions }} />
+          <FaceContent face={{ ticketNumber, questions }} examMode={examMode} />
         </div>
         {previous && (
           <div className="dw-face dw-face-old" aria-hidden="true">
-            <FaceContent face={previous} />
+            <FaceContent face={previous} examMode={examMode} />
           </div>
         )}
       </article>

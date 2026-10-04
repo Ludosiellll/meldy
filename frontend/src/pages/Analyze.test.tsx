@@ -88,7 +88,7 @@ vi.mock('../api/limits', () => ({
   checkAILimit: (...args: unknown[]) => s.checkLimit(...args),
   incrementAIUsage: (...args: unknown[]) => s.increment(...args),
   nextLimitReset: () => new Date('2026-10-04T00:00:00Z'),
-  formatLimitReset: () => '03:00',
+  formatLimitReset: () => '3:00',
 }));
 vi.mock('../api/flashcards', () => ({ syncFlashcards: (...args: unknown[]) => s.sync(...args) }));
 vi.mock('../api/quests', () => ({ recordStudyActivity: (...args: unknown[]) => s.activity(...args) }));
@@ -700,7 +700,7 @@ describe('demo text', () => {
     s.checkLimit = vi.fn(async () => ({ allowed: false, isPro: false, count: 100, ok: true }));
     renderAnalyze();
     await chooseFile();
-    expect(await screen.findByText('На сегодня лимит исчерпан, он обновится в 03:00. Демо-текст доступен без лимита.')).toBeInTheDocument();
+    expect(await screen.findByText('На сегодня лимит исчерпан, он обновится в 3:00. Демо-текст доступен без лимита.')).toBeInTheDocument();
     expect(startButton()).toBeDisabled();
     const demo = screen.getByRole('button', { name: 'Попробовать на демо-тексте' });
     expect(demo).toBeEnabled();
@@ -883,7 +883,7 @@ describe('cost note', () => {
     renderAnalyze();
     await chooseFile();
     expect(
-      await screen.findByText('Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 03:00.'),
+      await screen.findByText('Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00.'),
     ).toBeInTheDocument();
     expect(s.checkLimit).toHaveBeenCalledWith('user-1', 0);
   });

@@ -1,4 +1,5 @@
 import type { ChartVisual, ConversationSource, TimelineVisual } from './types';
+import { splitFragmentHeading } from '../../utils/fragmentText';
 
 /**
  * Какие фрагменты исходника действительно содержат числа графика или даты
@@ -143,4 +144,32 @@ export function timelineSourceIds(visual: TimelineVisual, ids: string[], sources
     ids,
     sources,
   );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Показ цитат (только отрисовка: что сохранено, не меняется)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Текст фрагмента по id (S03, s03, « S03 »), или null, если его нет. */
+export function fragmentText(sources: ConversationSource[] | null | undefined, id: string): string | null {
+  const wanted = id.trim().toUpperCase();
+  const match = (sources ?? []).find(source => source && typeof source.id === 'string' && source.id.trim().toUpperCase() === wanted);
+  return match && typeof match.text === 'string' && match.text.trim() ? match.text.trim() : null;
+}
+
+/**
+ * Заголовок лекции в сверенной цитате — отдельной строкой (записка жюри, п. 12).
+ *
+ * Перевод строки после заголовка теряется ещё до показа: sanitizeVisual склеивает пробелы
+ * («Обучение нейронной сети Обучение сети заключается…»). Поэтому заголовок ищем в самом
+ * фрагменте, откуда взята цитата: если фрагмент начинается с заголовка, а сохранённый текст
+ * цитаты — с того же заголовка и пробела, заголовок встаёт своей строкой, остальное — под
+ * ним (обрезка «…» остаётся как есть). Иначе null, и цитата показывается как прежде.
+ */
+export function quoteHeading(text: string, fragment: string | null | undefined): { heading: string; rest: string } | null {
+  if (!fragment) return null;
+  const { heading } = splitFragmentHeading(fragment);
+  if (!heading || !text.startsWith(`${heading} `)) return null;
+  const rest = text.slice(heading.length + 1).trim();
+  return rest ? { heading, rest } : null;
 }

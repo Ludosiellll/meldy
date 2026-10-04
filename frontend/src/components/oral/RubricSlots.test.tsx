@@ -31,13 +31,13 @@ describe('<RubricSlots>', () => {
     expect(container.querySelectorAll('.or-pt-blank')).toHaveLength(5);
   });
 
-  it('opens a named row with a provisional dashed tick and the lecture’s own words, underlined where they matched', () => {
+  it('opens a named row with a provisional pencil dot and the lecture’s own words, underlined where they matched', () => {
     const { container } = render(slots(['p1'], { announcement: `Пункт 1 назван: ${titles[0]}` }));
     const row = container.querySelector('[data-point="p1"]')!;
-    // Named by key words, not judged yet: the dashed tick of «только по словам»; the solid tick, the cup,
-    // the dash and the cross belong to the protocol (redesign critique 1, round 2).
-    expect(row.querySelector('svg[data-mark="dtick"]')).not.toBeNull();
-    expect(container.querySelector('svg[data-mark="tick"]')).toBeNull();
+    // Named by key words, not judged yet: a pencil dot. No tick-shaped mark before the evaluation — the
+    // tick, the cup, the dash and the cross belong to the protocol (Jury_Check item 7).
+    expect(row.querySelector('svg[data-mark="dot"]')).not.toBeNull();
+    expect(container.querySelector('svg[data-mark="tick"], svg[data-mark="dtick"]')).toBeNull();
     expect(row.querySelector('.sr-only')?.textContent).toBe('Пункт 1 назван по ключевым словам.');
     expect(row.textContent).toContain('Обучение сети заключается в подборе');
     expect(row.querySelectorAll('[data-mark="under"]').length).toBeGreaterThan(0);
@@ -60,10 +60,10 @@ describe('<RubricSlots>', () => {
 
   it('draws in only the rows named after it appeared', () => {
     const { container, rerender } = render(slots(['p1']));
-    expect(container.querySelector('[data-point="p1"] svg[data-mark="dtick"]')).toHaveAttribute('data-drawn', 'still');
+    expect(container.querySelector('[data-point="p1"] svg[data-mark="dot"]')).toHaveAttribute('data-drawn', 'still');
     rerender(slots(['p1', 'p2']));
     expect(container.querySelector('[data-point="p2"]')).toHaveAttribute('data-fresh');
-    expect(container.querySelector('[data-point="p2"] svg[data-mark="dtick"]')).toHaveAttribute('data-drawn', 'live');
+    expect(container.querySelector('[data-point="p2"] svg[data-mark="dot"]')).toHaveAttribute('data-drawn', 'live');
     expect(container.querySelector('[data-point="p1"]')).not.toHaveAttribute('data-fresh');
   });
 
@@ -86,6 +86,19 @@ describe('<RubricSlots>', () => {
     expect(underlined('p5')).toEqual(['Adam']);
     // Four rows, four lines: never one under every key word.
     expect(container.querySelectorAll('.sf-under')).toHaveLength(4);
+  });
+
+  it('draws no tick, dashed tick, cup, dash or cross anywhere before the evaluation, also on the asked row', () => {
+    const { container } = render(slots(['p1', 'p2', 'p3', 'p5'], { asked: 'p4' }));
+    expect(container.querySelectorAll('svg[data-mark="dot"]')).toHaveLength(4);
+    for (const kind of ['tick', 'dtick', 'cup', 'dash', 'cross']) expect(container.querySelector(`svg[data-mark="${kind}"]`)).toBeNull();
+    // Every named row says it in words, for screen readers.
+    expect(Array.from(container.querySelectorAll('[data-named] .sr-only')).map((node) => node.textContent)).toEqual([
+      'Пункт 1 назван по ключевым словам.',
+      'Пункт 2 назван по ключевым словам.',
+      'Пункт 3 назван по ключевым словам.',
+      'Пункт 5 назван по ключевым словам.',
+    ]);
   });
 
   it('marks only add: a row stays open while it stays in the set', () => {

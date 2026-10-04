@@ -9,27 +9,20 @@ export function formatChartValue(value: number): string {
   return numberFormat.format(value);
 }
 
-const PAD_TOP = 26;
-const PAD_BOTTOM = 42;
-const PAD_X = 8;
-const RADIUS = 4;
-const TICK_FONT = 11;
-/** Средняя ширина символа подписи оси при 11px Inter (кириллица). */
-const TICK_CHAR_WIDTH = 6.1;
-const VALUE_FONT = 12.5;
-/** Подпись значения обведена цветом фона, чтобы линия графика её не перечёркивала. */
-const HALO = { stroke: 'var(--sf-surface)', strokeWidth: 4, strokeLinejoin: 'round', paintOrder: 'stroke' } as const;
-
-/** Столбец со скруглённым концом данных и прямым основанием. */
-function barPath(x: number, width: number, valueY: number, baseY: number): string {
-  const height = Math.abs(baseY - valueY);
-  if (height < 0.5) return `M${x},${baseY}H${x + width}`;
-  const r = Math.min(RADIUS, width / 2, height);
-  if (valueY <= baseY) {
-    return `M${x},${baseY}V${valueY + r}Q${x},${valueY} ${x + r},${valueY}H${x + width - r}Q${x + width},${valueY} ${x + width},${valueY + r}V${baseY}Z`;
-  }
-  return `M${x},${baseY}V${valueY - r}Q${x},${valueY} ${x + r},${valueY}H${x + width - r}Q${x + width},${valueY} ${x + width},${valueY - r}V${baseY}Z`;
-}
+/* Линия на листе (спека 5.7): чернилами, без заливки; значения Onest 16/600, подписи оси 15 приглушённые. */
+const PAD_TOP = 30;
+const PAD_BOTTOM = 52;
+const PAD_X = 10;
+const TICK_FONT = 15;
+const TICK_LINE = 19;
+/** Средняя ширина символа подписи оси: Onest 15, кириллица (замер 0,575 em). */
+const TICK_CHAR_WIDTH = 8.8;
+const VALUE_FONT = 16;
+const LINE_HEIGHT_MAX = 236;
+const LINE_HEIGHT_MIN = 180;
+const INK_LINE = 'color-mix(in srgb, var(--sf-ink) 72%, transparent)';
+/** Подпись значения обведена цветом бумаги, чтобы линия графика её не перечёркивала. */
+const HALO = { stroke: 'var(--ph-paper)', strokeWidth: 4, strokeLinejoin: 'round', paintOrder: 'stroke' } as const;
 
 const CLOCK = /^(\d{1,2})[:.](\d{2})$/;
 
@@ -129,19 +122,66 @@ export function chartScale(kind: ChartVisual['kind'], values: number[]): ChartSc
   return { min, max, fromZero: min === 0, grid: min === 0 ? [] : gridValues(min, max) };
 }
 
-export default function ChartView({ visual }: { visual: ChartVisual }) {
+/** Где столбик начинается и какой он длины, в долях ширины дорожки; zero — где ноль (если есть отрицательные). */
+export function barSpans(values: number[]): { spans: { start: number; size: number }[]; zero: number | null } {
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = max - min || 1;
+  return {
+    spans: values.map(value => ({ start: (Math.min(value, 0) - min) / span, size: Math.abs(value) / span })),
+    zero: min < 0 ? (0 - min) / span : null,
+  };
+}
+
+/** Столбики: горизонтально, чернилами 55 %, значение справа, подпись слева; немного столбиков — посередине листа. */
+function BarsView({ visual, description, maxHeight }: { visual: ChartVisual; description: string; maxHeight?: number }) {
+  const percent = isPercentUnit(visual.unit);
+  const { spans, zero } = barSpans(visual.data.map(point => point.value));
+  return (
+    <div className="cv-bars-room" style={maxHeight ? { minHeight: Math.floor(maxHeight) } : undefined}>
+      <div
+        className="cv-bars"
+        role="img"
+        aria-label={`${visual.title}${visual.unit ? ` (${visual.unit})` : ''}: ${description}`}
+        data-many={visual.data.length > 5 ? '' : undefined}
+        data-chart-scale="zero"
+      >
+        {visual.data.map((point, index) => (
+          <div key={`${point.label}-${index}`} className="cv-bar-row" aria-hidden="true">
+            <span className="cv-bar-label" title={point.label}>
+              {point.label}
+            </span>
+            <span className="cv-bar-track">
+              {zero !== null && <span className="cv-bar-zero" style={{ left: `${(zero * 100).toFixed(2)}%` }} />}
+              <span
+                className="cv-bar"
+                data-chart-bar=""
+                style={{ left: `${(spans[index].start * 100).toFixed(2)}%`, width: `${(spans[index].size * 100).toFixed(2)}%` }}
+              />
+            </span>
+            <span className="cv-bar-value" data-chart-value="">
+              {`${formatChartValue(point.value)}${percent ? '%' : ''}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Линия: чернилами, без заливки и без голубого; подписи значений — у крайних и особых точек. */
+function LineView({ visual, description, maxHeight }: { visual: ChartVisual; description: string; maxHeight?: number }) {
   const [ref, measured] = useElementWidth<HTMLDivElement>(560);
   const reactId = useId().replace(/:/g, '');
   const titleId = `chart-title-${reactId}`;
   const descId = `chart-desc-${reactId}`;
 
   const width = Math.max(260, measured);
-  // На телефоне график ниже, чтобы рядом поместились субтитры.
-  const chartHeight = width < 420 ? 200 : 236;
-  const { data, kind, unit } = visual;
+  const chartHeight = Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, Math.floor(maxHeight ?? LINE_HEIGHT_MAX)));
+  const { data, unit } = visual;
   const percent = isPercentUnit(unit);
   const values = data.map(point => point.value);
-  const scale = chartScale(kind, values);
+  const scale = chartScale('line', values);
   const span = scale.max - scale.min || 1;
   const plotTop = PAD_TOP;
   const plotBottom = chartHeight - PAD_BOTTOM;
@@ -150,31 +190,27 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
   const baseY = scale.fromZero ? y(0) : plotBottom;
   const band = (width - PAD_X * 2) / data.length;
   const centerX = (index: number) => PAD_X + band * index + band / 2;
-  const barWidth = Math.max(6, Math.min(24, band * 0.6));
   const labelChars = Math.max(4, Math.floor((band - 6) / TICK_CHAR_WIDTH));
   const valueText = (value: number) => `${formatChartValue(value)}${percent ? '%' : ''}`;
-  const suffix = unit && !percent ? ` ${unit}` : '';
 
   const minIndex = values.indexOf(Math.min(...values));
   const maxIndex = values.indexOf(Math.max(...values));
   const showValue = (index: number) =>
-    kind === 'bar' || data.length <= 6 || index === 0 || index === data.length - 1 || index === minIndex || index === maxIndex;
+    data.length <= 6 || index === 0 || index === data.length - 1 || index === minIndex || index === maxIndex;
 
   /** Подпись значения: над точкой, а у «ямы» линии — под ней, если там есть место. */
   const valueLabelY = (index: number) => {
     const vy = y(data[index].value);
-    if (kind === 'bar') return data[index].value < 0 ? vy + 15 : vy - 9;
     const previous = data[index - 1]?.value;
     const next = data[index + 1]?.value;
     const valley = previous !== undefined && next !== undefined && data[index].value < previous && data[index].value < next;
-    return valley && vy + 19 + 6 < plotBottom ? vy + 19 : vy - 9;
+    return valley && vy + 24 + 6 < plotBottom ? vy + 24 : vy - 12;
   };
 
   // Подпись отметки шкалы не должна лечь на подпись крайней точки: слева, иначе справа, иначе без неё.
   const clashes = (gridY: number, index: number) => {
     if (!showValue(index)) return false;
-    const labelY = valueLabelY(index);
-    return Math.abs(gridY - 4 - labelY) < 14;
+    return Math.abs(gridY - 5 - valueLabelY(index)) < 18;
   };
   const gridSide = (value: number): 'start' | 'end' | null => {
     const gridY = y(value);
@@ -183,12 +219,7 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
     return null;
   };
 
-  const description = data.map(point => `${point.label}: ${valueText(point.value)}${suffix}`).join('; ');
   const linePoints = data.map((point, index) => `${centerX(index)},${y(point.value)}`).join(' ');
-  const areaPath =
-    kind === 'line' && scale.fromZero
-      ? `M${centerX(0)},${baseY} ${data.map((point, index) => `L${centerX(index)},${y(point.value)}`).join(' ')} L${centerX(data.length - 1)},${baseY} Z`
-      : null;
 
   return (
     <div ref={ref} className="w-full">
@@ -198,7 +229,7 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
         viewBox={`0 0 ${width} ${chartHeight}`}
         role="img"
         aria-labelledby={`${titleId} ${descId}`}
-        className="block max-w-full overflow-visible"
+        className="cv-chart"
         data-chart-scale={scale.fromZero ? 'zero' : 'data'}
       >
         <title id={titleId}>{`${visual.title}${unit ? ` (${unit})` : ''}`}</title>
@@ -221,10 +252,10 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
               {side && (
                 <text
                   x={side === 'start' ? PAD_X : width - PAD_X}
-                  y={gridY - 4}
+                  y={gridY - 5}
                   textAnchor={side}
                   fontSize={TICK_FONT}
-                  style={{ fill: 'var(--sf-muted)', fontVariantNumeric: 'tabular-nums', ...HALO }}
+                  style={{ fill: 'var(--sf-muted)', fontFamily: 'var(--ph-sans)', fontVariantNumeric: 'tabular-nums', ...HALO }}
                 >
                   {valueText(value)}
                 </text>
@@ -239,24 +270,13 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
             x2={width - PAD_X}
             y1={baseY}
             y2={baseY}
-            style={{ stroke: 'color-mix(in srgb, var(--sf-ink) 22%, var(--sf-surface))' }}
+            style={{ stroke: 'color-mix(in srgb, var(--sf-ink) 30%, transparent)' }}
             strokeWidth={1}
             shapeRendering="crispEdges"
           />
         )}
 
-        {areaPath && <path d={areaPath} style={{ fill: 'color-mix(in srgb, var(--sf-accent-fg) 10%, transparent)' }} />}
-
-        {kind === 'line' && (
-          <polyline
-            points={linePoints}
-            fill="none"
-            style={{ stroke: 'var(--sf-accent-fg)' }}
-            strokeWidth={2.25}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        )}
+        <polyline points={linePoints} fill="none" style={{ stroke: INK_LINE }} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
 
         {data.map((point, index) => {
           const cx = centerX(index);
@@ -264,15 +284,9 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
           const tickLines = wrapLabel(point.label, labelChars, 2);
           return (
             <g key={`${point.label}-${index}`}>
-              {kind === 'bar' ? (
-                <path d={barPath(cx - barWidth / 2, barWidth, vy, baseY)} style={{ fill: 'var(--sf-accent-fg)' }}>
-                  <title>{`${point.label}: ${valueText(point.value)}${suffix}`}</title>
-                </path>
-              ) : (
-                <circle cx={cx} cy={vy} r={4} strokeWidth={2} style={{ fill: 'var(--sf-accent-fg)', stroke: 'var(--sf-surface)' }}>
-                  <title>{`${point.label}: ${valueText(point.value)}${suffix}`}</title>
-                </circle>
-              )}
+              <circle cx={cx} cy={vy} r={4} strokeWidth={2} style={{ fill: 'var(--sf-ink)', stroke: 'var(--ph-paper)' }}>
+                <title>{`${point.label}: ${valueText(point.value)}${unit && !percent ? ` ${unit}` : ''}`}</title>
+              </circle>
               {showValue(index) && (
                 <text
                   x={cx}
@@ -281,14 +295,14 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
                   fontSize={VALUE_FONT}
                   fontWeight={600}
                   data-chart-value=""
-                  style={{ fill: 'var(--sf-ink)', fontVariantNumeric: 'tabular-nums', ...HALO }}
+                  style={{ fill: 'var(--sf-ink)', fontFamily: 'var(--ph-sans)', fontVariantNumeric: 'tabular-nums', ...HALO }}
                 >
                   {valueText(point.value)}
                 </text>
               )}
-              <text x={cx} y={plotBottom + 18} textAnchor="middle" fontSize={TICK_FONT} style={{ fill: 'var(--sf-muted)' }}>
+              <text x={cx} y={plotBottom + 22} textAnchor="middle" fontSize={TICK_FONT} style={{ fill: 'var(--sf-muted)', fontFamily: 'var(--ph-sans)' }}>
                 {tickLines.map((line, lineIndex) => (
-                  <tspan key={lineIndex} x={cx} dy={lineIndex === 0 ? 0 : 14}>
+                  <tspan key={lineIndex} x={cx} dy={lineIndex === 0 ? 0 : TICK_LINE}>
                     {line}
                   </tspan>
                 ))}
@@ -299,4 +313,19 @@ export default function ChartView({ visual }: { visual: ChartVisual }) {
       </svg>
     </div>
   );
+}
+
+/**
+ * График на листе «Разговора» (спека 5.7): столбики — горизонтальные полосы чернилами 55 %
+ * (как .lp-bars лендинга), линия — чернилами без заливки. Голубого нет: синий на бумаге —
+ * только карандаш Meldy.
+ */
+export default function ChartView({ visual, maxHeight }: { visual: ChartVisual; maxHeight?: number }) {
+  const percent = isPercentUnit(visual.unit);
+  const suffix = visual.unit && !percent ? ` ${visual.unit}` : '';
+  const description = visual.data
+    .map(point => `${point.label}: ${formatChartValue(point.value)}${percent ? '%' : ''}${suffix}`)
+    .join('; ');
+  if (visual.kind === 'bar') return <BarsView visual={visual} description={description} maxHeight={maxHeight} />;
+  return <LineView visual={visual} description={description} maxHeight={maxHeight} />;
 }

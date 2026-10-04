@@ -158,11 +158,11 @@ export function nextLimitReset(now: Date = new Date()): Date {
 }
 
 /**
- * Время сброса в местном часовом поясе пользователя, «ЧЧ:ММ» (как ru-RU, 24 часа).
- * Собирается вручную: результат не зависит от сборки ICU в браузере.
+ * Время сброса в местном часовом поясе пользователя, «Ч:ММ» без ведущего нуля у часа
+ * («3:00», «7:05», «0:00»), как на листе экзамена и в билете (QA r3 № 2): одно время пишется
+ * на всех экранах одинаково. Собирается вручную: результат не зависит от сборки ICU в браузере.
  */
 export function formatLimitReset(date: Date): string {
-  const hh = String(date.getHours()).padStart(2, '0');
   const mm = String(date.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+  return `${date.getHours()}:${mm}`;
 }

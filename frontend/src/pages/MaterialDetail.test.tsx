@@ -420,7 +420,11 @@ describe('sharing a material', () => {
     renderPage('/library/m1');
     await chooseFromMenu('Поделиться');
     await waitFor(() => expect(state.confirm).toHaveBeenCalledTimes(1));
-    expect(state.confirm.mock.calls[0][0].message).toMatch(/смогут открыть и скопировать другие студенты/);
+    // A public material is readable without an account: the question says so (jury memo 13).
+    expect(state.confirm.mock.calls[0][0].message).toBe(
+      'Материал появится в открытых материалах: его полный текст, конспект и карточки сможет открыть и скопировать любой, у кого есть ссылка. Закрыть доступ можно в любой момент.',
+    );
+    expect(state.confirm.mock.calls[0][0].message).not.toMatch(/другие студенты/);
     expect(state.writes).toHaveLength(0);
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
     expect(screen.getByText(/только для меня/)).toBeInTheDocument();
@@ -711,5 +715,24 @@ describe('text-only materials and review link', () => {
     const link = await screen.findByRole('link', { name: 'Повторить карточки' });
     expect(link).toHaveAttribute('href', '/review?material=m1');
     expect(link).toHaveClass('sf-secondary');
+  });
+});
+
+describe('«Разговор» on the 1280×720 projector window (spec 5.7)', () => {
+  it('marks only the talk tab, so that the low window folds the header there and nowhere else', async () => {
+    state.material = makeMaterial({ podcast: legacyLines });
+    const { container } = renderPage('/library/m1');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Энтропия' })).toBeInTheDocument();
+    const page = container.querySelector('.sf-page') as HTMLElement;
+    expect(page).not.toHaveAttribute('data-tab');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Разговор' }));
+    expect(page).toHaveAttribute('data-tab', 'talk');
+    expect(await screen.findByRole('region', { name: 'Сцена' })).toBeInTheDocument();
+    // The meta line stays in the page for screen readers; only the low window hides it from sight.
+    expect(screen.getByText(/Физика · только для меня/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Материал' }));
+    expect(page).not.toHaveAttribute('data-tab');
   });
 });

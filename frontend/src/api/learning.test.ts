@@ -11,6 +11,7 @@ import {
   type QuizAttemptAnswer,
   fetchMaterialEvents,
   fetchQuestionEvents,
+  fetchSessionPoints,
   localDate,
   newEventId,
   recordQuizAttempt,
@@ -504,5 +505,50 @@ describe('fetchMaterialEvents', () => {
     expect(await fetchMaterialEvents({ materialIds: [], kinds: ['quiz_answer'] })).toEqual([]);
     expect(await fetchMaterialEvents({ kinds: [] })).toEqual([]);
     expect(database.from).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchSessionPoints', () => {
+  const sessionId = (n: number) => `e0000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
+
+  it('reads the oral_point rows of the given sessions in chunks of 100, oldest first', async () => {
+    const ids = Array.from({ length: 230 }, (_, n) => sessionId(n + 1));
+    const queries = mockQueries((calls) => {
+      const sessions = argsOf(calls, 'in').find(([column]) => column === 'session_id')?.[1] as string[];
+      const chunk = ids.indexOf(sessions[0]) / 100;
+      // Later chunks hold older rows: the result is sorted across chunks.
+      return {
+        data: [row(`p-${chunk}`, `2026-10-07T10:${50 - chunk * 10}:00+00:00`, 'oral:r1:p1', { kind: 'oral_point', session_id: sessions[0], payload: { status: 'covered' } })],
+        error: null,
+      };
+    });
+
+    const points = await fetchSessionPoints([...ids, ids[0].toUpperCase(), 'not-a-session', '']);
+
+    expect(queries).toHaveLength(3);
+    const chunks = queries.map((calls) => argsOf(calls, 'in').find(([column]) => column === 'session_id')?.[1] as string[]);
+    expect(chunks.map((part) => part.length)).toEqual([100, 100, 30]);
+    expect(new Set(chunks.flat()).size).toBe(230);
+    for (const calls of queries) {
+      expect(calls[0]).toEqual({ method: 'from', args: ['learning_events'] });
+      expect(argsOf(calls, 'eq')).toEqual([['kind', 'oral_point']]);
+      expect(argsOf(calls, 'order')[0]).toEqual(['created_at', { ascending: true }]);
+      expect(argsOf(calls, 'range')[0]).toEqual([0, 999]);
+    }
+    expect(points.map((event) => event.id)).toEqual(['p-2', 'p-1', 'p-0']);
+    expect(points[0]).toMatchObject({ kind: 'oral_point', payload: { status: 'covered' } });
+  });
+
+  it('asks nothing without a valid session id', async () => {
+    expect(await fetchSessionPoints([])).toEqual([]);
+    expect(await fetchSessionPoints(['session-1', ''])).toEqual([]);
+    expect(database.from).not.toHaveBeenCalled();
+  });
+
+  it('raises LearningLoadError with a Russian message', async () => {
+    mockQueries(() => ({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }));
+    const failed = fetchSessionPoints([sessionId(1)]);
+    await expect(failed).rejects.toBeInstanceOf(LearningLoadError);
+    await expect(failed).rejects.toThrow(LOAD_FAILED_MESSAGE);
   });
 });

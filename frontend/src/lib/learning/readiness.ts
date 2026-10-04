@@ -1,11 +1,27 @@
 /**
- * Readiness of exam questions, computed from the learning journal (contracts §6.5).
+ * Readiness of exam questions, computed from the learning journal (contracts §6.5, Jury_Check
+ * 2026-10-03 item 3).
  *
  * History belongs to the normalised question text: events are keyed `q:<question_hash>`, so a
- * new exam with the same question sees earlier answers. Only answers given aloud
- * (`exam_answer`, written by record_oral_attempt) decide readiness. A self-rating
- * («знаю · плаваю · не знаю», kind `self_rating`) is shown next to it and never counts as an
- * answer. Pure module: no network, no storage.
+ * new exam with the same question sees earlier answers. Only answers to exam tickets
+ * (`exam_answer`, written by record_oral_attempt, spoken or typed) decide readiness. A
+ * self-rating («знаю · плаваю · не знаю», kind `self_rating`) is shown next to it and never counts
+ * as an answer. Pure module: no network, no storage.
+ *
+ * The rule «подтверждено», in words. Graded answers are taken in the order of the server's
+ * created_at. An answer of 4 or 5 is засчитан, a 2 or 3 is a провал; an answer without a grade
+ * (correct null) neither starts nor breaks anything. The current series is the засчитанные
+ * answers after the last провал: a провал starts the series over. The question is подтверждён
+ * when the first and the last answer of the series are on different local days (local_date) and
+ * at least 20 hours apart by the server clock (created_at). The memo's examples:
+ * - засчитано at 10:00 and 18:00 on day 1 and at 8:00 on day 2: 22 hours and two days → подтверждено;
+ * - засчитано at 23:59 and at 0:01: two days but two minutes → засчитано, не подтверждено;
+ * - засчитано at 1:00 and at 21:00 of one day: 20 hours but one day → засчитано, не подтверждено;
+ * - засчитано, провал, засчитано the next day → засчитано, не подтверждено (the series started
+ *   over); one more засчитанный answer on a later day at least 20 hours after the restart →
+ *   подтверждено.
+ * Fourteen days after the last засчитанный answer a подтверждённый question is «пора проверить»
+ * (`stale`): it still counts as подтверждён, the sheet says how old the confirmation is.
  */
 import type { LearningEvent, SelfRating } from '../../api/learning';
 
@@ -13,18 +29,27 @@ export type { SelfRating } from '../../api/learning';
 
 export type Readiness = 'untested' | 'once' | 'confirmed' | 'not_passed';
 
+/** The first and the last засчитанный answer of a series must be at least this far apart (server time). */
+export const CONFIRM_MIN_HOURS = 20;
+/** A confirmation whose last засчитанный answer is this old is «пора проверить». */
+export const CONFIRM_STALE_DAYS = 14;
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+
 /**
- * 'once' covers every pass made on a single local day (two passes today are still 'once'), so its
- * label names the day, not the number of answers; 'confirmed' needs passes on two different days.
+ * 'once' is «засчитано, не подтверждено» and never names a day: under the 20-hour rule answers at
+ * 23:59 and 0:01 are on two days and still not a confirmation (Jury_Check, critique of the plan).
+ * A passed answer is «засчитан» on screen; «зачёт» is a kind of exam.
  */
 export const READINESS_LABELS: Record<Readiness, string> = {
   untested: 'не проверялось',
-  once: 'зачтено в один день',
+  once: 'засчитано, не подтверждено',
   confirmed: 'подтверждено',
-  not_passed: 'не зачтено',
+  not_passed: 'не засчитано',
 };
 
-/** «Плаваю» is only a self-rating word; the readiness mark for a failed answer reads «не зачтено». */
+/** «Плаваю» is only a self-rating word; the readiness mark for a failed answer reads «не засчитано». */
 export const SELF_RATING_LABELS: Record<SelfRating, string> = {
   know: 'знаю',
   unsure: 'плаваю',
@@ -49,9 +74,9 @@ export interface QuestionState {
    * answers or without an earlier rating.
    */
   ratingAtLastAnswer: SelfRating | null;
-  /** Answers given aloud (exam_answer events). */
+  /** Answers to the question's tickets (exam_answer events, graded or not). */
   attempts: number;
-  /** Distinct local days with a passed answer (grade 4 or 5). */
+  /** Distinct local days with a passed answer (grade 4 or 5), over the whole history. */
   passedDays: number;
   /** Local day of the latest answer. */
   lastDate: string | null;
@@ -61,6 +86,27 @@ export interface QuestionState {
   firstDate: string | null;
   /** exam_sessions.id of the latest answer: the read-only protocol of that attempt. */
   lastSessionId: string | null;
+  /** created_at of the first засчитанный answer of the current series (null when the series is empty). */
+  seriesStartAt: string | null;
+  /** local_date of that answer. */
+  seriesStartDate: string | null;
+  /** created_at of the last засчитанный answer of the current series: the age of a confirmation counts from it. */
+  lastPassAt: string | null;
+  /** local_date of that answer. */
+  lastPassDate: string | null;
+  /** created_at of the first answer of the series that met both conditions (null unless confirmed). */
+  confirmedAt: string | null;
+  /** local_date of that answer: «Был подтверждён с 29 сентября». */
+  confirmedOn: string | null;
+  /** Confirmed, and the last засчитанный answer is CONFIRM_STALE_DAYS or more days old: «пора проверить». */
+  stale: boolean;
+  /**
+   * 'once' only: the earliest moment a засчитанный answer would confirm the question — the later of
+   * seriesStartAt + 20 hours and the local midnight after seriesStartDate (ISO). Null otherwise.
+   */
+  confirmableFrom: string | null;
+  /** 'once' and that moment has come: a good answer now confirms the question. */
+  awaiting: boolean;
 }
 
 /** Chronological order: server time, then the raw timestamp (microseconds), then id. */
@@ -86,25 +132,88 @@ function ratingFromConfidence(confidence: unknown): SelfRating | null {
   return null;
 }
 
+/** Server time of an event in ms, or null when it cannot be read (then no hour condition is met). */
+function serverTime(event: Pick<LearningEvent, 'created_at'>): number | null {
+  const ms = Date.parse(event.created_at);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Local midnight after a 'yyyy-MM-dd' day, in ms (browser time zone), or null. */
+function midnightAfter(key: string | null): number | null {
+  const match = typeof key === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(key) : null;
+  if (!match) return null;
+  const next = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1);
+  return Number.isNaN(next.getTime()) ? null : next.getTime();
+}
+
+/** Both conditions of the rule between the first answer of a series and a later one. */
+function meetsRule(first: LearningEvent, later: LearningEvent): boolean {
+  if (!first.local_date || !later.local_date || later.local_date === first.local_date) return false;
+  const from = serverTime(first);
+  const to = serverTime(later);
+  return from !== null && to !== null && to - from >= CONFIRM_MIN_HOURS * HOUR_MS;
+}
+
+function timeOf(now: Date | number | undefined): number {
+  if (typeof now === 'number') return now;
+  if (now instanceof Date) return now.getTime();
+  return Date.now();
+}
+
 /**
  * State of one question from its exam_answer events and its self_rating events (any order).
  *
- * Readiness, by answers in time order: none → untested; the last answer failed → not_passed;
- * at least two passed answers on at least two different local days and the last one passed →
- * confirmed; otherwise → once.
+ * Readiness, by graded answers in server time: none → untested; the last one failed → not_passed;
+ * the first and the last засчитанный answer of the current series (the passes after the last
+ * провал) on different local days and at least 20 hours apart → confirmed; otherwise → once.
+ * `now` decides only `stale` and `awaiting`.
  */
-export function questionState(answers: LearningEvent[], ratings: LearningEvent[]): QuestionState {
+export function questionState(answers: LearningEvent[], ratings: LearningEvent[], now: Date | number = new Date()): QuestionState {
   const spoken = answers.filter((event) => event && event.kind === 'exam_answer').sort(compareEventTime);
   const graded = spoken.filter((event) => event.correct === true || event.correct === false);
   const passed = graded.filter((event) => event.correct === true);
   const passedDays = new Set(passed.map((event) => event.local_date)).size;
   const lastGraded = graded.length > 0 ? graded[graded.length - 1] : null;
 
+  // The current series: the засчитанные answers after the last провал.
+  let lastFail = -1;
+  for (let i = graded.length - 1; i >= 0; i -= 1) {
+    if (graded[i].correct === false) {
+      lastFail = i;
+      break;
+    }
+  }
+  const series = graded.slice(lastFail + 1);
+  const start = series.length > 0 ? series[0] : null;
+  const end = series.length > 0 ? series[series.length - 1] : null;
+
   let readiness: Readiness;
   if (!lastGraded) readiness = 'untested';
   else if (lastGraded.correct === false) readiness = 'not_passed';
-  else if (passed.length >= 2 && passedDays >= 2) readiness = 'confirmed';
+  else if (start && end && meetsRule(start, end)) readiness = 'confirmed';
   else readiness = 'once';
+
+  const at = timeOf(now);
+  let confirmedAt: string | null = null;
+  let confirmedOn: string | null = null;
+  let stale = false;
+  let confirmableFrom: string | null = null;
+  let awaiting = false;
+  if (readiness === 'confirmed' && start && end) {
+    const first = series.find((event) => event !== start && meetsRule(start, event)) ?? end;
+    confirmedAt = first.created_at;
+    confirmedOn = first.local_date;
+    const last = serverTime(end);
+    stale = last !== null && at - last >= CONFIRM_STALE_DAYS * DAY_MS;
+  } else if (readiness === 'once' && start) {
+    const begin = serverTime(start);
+    const midnight = midnightAfter(start.local_date);
+    if (begin !== null || midnight !== null) {
+      const from = Math.max(begin !== null ? begin + CONFIRM_MIN_HOURS * HOUR_MS : -Infinity, midnight ?? -Infinity);
+      confirmableFrom = new Date(from).toISOString();
+      awaiting = at >= from;
+    }
+  }
 
   const first = spoken.length > 0 ? spoken[0] : null;
   const last = spoken.length > 0 ? spoken[spoken.length - 1] : null;
@@ -135,11 +244,25 @@ export function questionState(answers: LearningEvent[], ratings: LearningEvent[]
     lastScorePct: last ? finiteNumber(lastPayload.score_pct) ?? scoreFromEvent : null,
     firstDate: first?.local_date ?? null,
     lastSessionId: last?.session_id ?? null,
+    seriesStartAt: start?.created_at ?? null,
+    seriesStartDate: start?.local_date ?? null,
+    lastPassAt: end?.created_at ?? null,
+    lastPassDate: end?.local_date ?? null,
+    confirmedAt,
+    confirmedOn,
+    stale,
+    confirmableFrom,
+    awaiting,
   };
 }
 
+/** The state of a question nobody answered or rated (for rows without journal events). */
+export function emptyQuestionState(): QuestionState {
+  return questionState([], []);
+}
+
 /** One state per question hash; the key is the item_key without its 'q:' prefix. */
-export function statesByHash(events: LearningEvent[]): Map<string, QuestionState> {
+export function statesByHash(events: LearningEvent[], now: Date | number = new Date()): Map<string, QuestionState> {
   const groups = new Map<string, { answers: LearningEvent[]; ratings: LearningEvent[] }>();
   for (const event of events) {
     if (!event || typeof event.item_key !== 'string' || !event.item_key.startsWith('q:')) continue;
@@ -155,28 +278,31 @@ export function statesByHash(events: LearningEvent[]): Map<string, QuestionState
     else group.ratings.push(event);
   }
   const states = new Map<string, QuestionState>();
-  for (const [hash, group] of groups) states.set(hash, questionState(group.answers, group.ratings));
+  for (const [hash, group] of groups) states.set(hash, questionState(group.answers, group.ratings, now));
   return states;
 }
 
 /**
  * Counts for an exam sheet. `hashes` holds one entry per question row, so the four counts always
- * add up to `total`. `since` is the earliest local day of an answer among these questions.
+ * add up to `total`. `since` is the earliest local day of an answer among these questions. `stale`
+ * counts the confirmed questions that are «пора проверить»; they stay in `confirmed`.
  */
 export function examSummary(
   hashes: string[],
   states: Map<string, QuestionState>,
-): { total: number; confirmed: number; once: number; notPassed: number; untested: number; since: string | null } {
+): { total: number; confirmed: number; once: number; notPassed: number; untested: number; since: string | null; stale: number } {
   let confirmed = 0;
   let once = 0;
   let notPassed = 0;
   let untested = 0;
+  let stale = 0;
   let since: string | null = null;
   for (const hash of hashes) {
     const state = states.get(hash);
     switch (state?.readiness ?? 'untested') {
       case 'confirmed':
         confirmed += 1;
+        if (state?.stale) stale += 1;
         break;
       case 'once':
         once += 1;
@@ -189,17 +315,17 @@ export function examSummary(
     }
     if (state?.firstDate && (since === null || state.firstDate < since)) since = state.firstDate;
   }
-  return { total: hashes.length, confirmed, once, notPassed, untested, since };
+  return { total: hashes.length, confirmed, once, notPassed, untested, since, stale };
 }
 
 /**
- * Self-assessment against answers given aloud (the illusion of knowing).
+ * Self-assessment against answers (the illusion of knowing).
  * - `ratedKnow`: questions whose current self-rating is «знаю».
- * - `ratedKnowAnswered`: questions answered aloud while rated «знаю», judged by the rating in force
- *   at the latest graded answer (`ratingAtLastAnswer`). A rating changed after seeing the result
+ * - `ratedKnowAnswered`: questions answered while rated «знаю», judged by the rating in force at
+ *   the latest graded answer (`ratingAtLastAnswer`). A rating changed after seeing the result
  *   neither hides a failed «знаю» answer nor turns an earlier pass into a confident one, so this
  *   is not a subset of `ratedKnow`.
- * - `ratedKnowPassed`: of those, the questions whose latest answer passed (readiness once or
+ * - `ratedKnowPassed`: of those, the questions whose latest answer was засчитан (readiness once or
  *   confirmed).
  * Enough data means at least three such answered questions.
  */

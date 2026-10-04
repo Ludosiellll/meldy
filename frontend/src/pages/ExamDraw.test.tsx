@@ -20,7 +20,7 @@ vi.mock('../api/learning', async (importOriginal) => {
   return { ...actual, fetchQuestionEvents: mocks.fetchQuestionEvents };
 });
 
-import ExamDraw, { skippedNote } from './ExamDraw';
+import ExamDraw, { NO_ANSWERABLE_TICKET, answerHrefOf, skippedNote } from './ExamDraw';
 
 const hash = (n: number) => n.toString(16).padStart(32, 'b');
 
@@ -68,15 +68,15 @@ function bundle(questions: ExamQuestion[], layout: ExamBundle['exam']['ticket_la
   };
 }
 
-function answer(n: number): LearningEvent {
+function answer(n: number, day = '2026-10-02', correct = true): LearningEvent {
   return {
-    id: `a${n}`,
-    created_at: '2026-10-02T10:00:00Z',
-    local_date: '2026-10-02',
+    id: `a${n}-${day}`,
+    created_at: `${day}T10:00:00Z`,
+    local_date: day,
     material_id: null,
     kind: 'exam_answer',
     item_key: `q:${hash(n)}`,
-    correct: true,
+    correct,
     score: 0.8,
     confidence: null,
     source_ids: [],
@@ -117,14 +117,27 @@ afterEach(() => {
 });
 
 describe('ExamDraw', () => {
-  it('draws a ticket on arrival and opens the answer screen with its questions', async () => {
+  it('draws a ticket on arrival and opens the answer screen with its questions in exam mode', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
     renderDraw();
     const card = await screen.findByRole('article', { name: /Случайный билет: вопросы 1 и 2/ });
     expect(card).toHaveTextContent('Вопрос номер 1 о рынке');
     expect(card).toHaveTextContent('Вопрос номер 2 о рынке');
     fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
+    // «Как на экзамене» hands the answer screen its mode: no point marks while answering.
+    expect(location).toBe('/exams/exam-1/ticket?q=q1,q2&mode=exam');
+  });
+
+  it('sends a mode only from «Как на экзамене»', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1), answer(2)]);
+    renderDraw('/exams/exam-1/draw?mode=answered');
+    await screen.findByRole('article', { name: /Случайный билет: вопросы 1 и 2/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
     expect(location).toBe('/exams/exam-1/ticket?q=q1,q2');
+    expect(answerHrefOf('e', ['a', 'b'], 7, 'exam')).toBe('/exams/e/ticket?q=a,b&n=7&mode=exam');
+    expect(answerHrefOf('e', ['a'], null, 'weak')).toBe('/exams/e/ticket?q=a');
+    expect(answerHrefOf('e', ['a'], null, 'awaiting')).toBe('/exams/e/ticket?q=a');
   });
 
   it('passes the department’s ticket number for a known ticket', async () => {
@@ -134,10 +147,10 @@ describe('ExamDraw', () => {
     renderDraw();
     expect(await screen.findByRole('article', { name: 'Билет 12: вопросы 1 и 3' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
-    expect(location).toBe('/exams/exam-1/ticket?q=q1,q3&n=12');
+    expect(location).toBe('/exams/exam-1/ticket?q=q1,q3&n=12&mode=exam');
   });
 
-  it('prepares answer keys only for drawn questions that are in the lectures, and says which one is not', async () => {
+  it('keeps &n of a department’s ticket whose question missing from the lectures is left out of q, and says which one', async () => {
     mocks.loadExamBundle.mockResolvedValue(
       bundle([question(1, 'full'), question(2, 'none')], { mode: 'fixed', per_ticket: 2, tickets: [{ number: 3, question_ids: ['q1', 'q2'] }] }),
     );
@@ -145,19 +158,150 @@ describe('ExamDraw', () => {
     await screen.findByRole('article', { name: 'Билет 3: вопросы 1 и 2' });
     expect(mocks.prefetchRubric).toHaveBeenCalledTimes(1);
     expect(mocks.prefetchRubric).toHaveBeenCalledWith('exam-1', 'q1');
-    expect(screen.getByText(/Этого вопроса нет в ваших лекциях — оценить ответ не по чему/)).toBeInTheDocument();
+    // «Как на экзамене» has no «тяните ещё»: the card only says what the question lacks.
+    expect(screen.getByText('Этого вопроса нет в ваших лекциях.')).toBeInTheDocument();
     expect(screen.getByText('Отвечать будете на один вопрос: вопроса 2 нет в ваших лекциях.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
-    expect(location).toBe('/exams/exam-1/ticket?q=q1&n=3');
+    expect(location).toBe('/exams/exam-1/ticket?q=q1&n=3&mode=exam');
   });
 
-  it('offers only another draw when every drawn question is missing from the lectures', async () => {
-    mocks.loadExamBundle.mockResolvedValue(bundle([question(1, 'none')], { mode: 'random', per_ticket: 1 }));
+  it('in exam mode a ticket without answerable questions says so and offers only another ticket', async () => {
+    mocks.loadExamBundle.mockResolvedValue(
+      bundle([question(1, 'none'), question(2, 'none'), question(3, 'none'), question(4, 'none'), question(5, 'full')], {
+        mode: 'fixed',
+        per_ticket: 2,
+        tickets: [
+          { number: 5, question_ids: ['q1', 'q2'] },
+          { number: 6, question_ids: ['q3', 'q4'] },
+        ],
+      }),
+    );
     renderDraw();
+    await screen.findByRole('article', { name: /^Билет [56]: вопросы (1 и 2|3 и 4)$/ });
+    expect(mocks.prefetchRubric).not.toHaveBeenCalled();
+    expect(screen.getByText(NO_ANSWERABLE_TICKET)).toBeInTheDocument();
+    expect(NO_ANSWERABLE_TICKET).toBe('В этом билете нет вопросов из ваших лекций — ответ не с чем сверить.');
+    const actions = document.querySelector('.dw-acts') as HTMLElement;
+    expect(Array.from(actions.querySelectorAll('button, a')).map((item) => item.textContent)).toEqual(['Тянуть другой билет']);
+    expect(screen.queryByRole('button', { name: 'Отвечать' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Тянуть ещё' })).toBeNull();
+  });
+
+  it('does not offer another ticket when the department has only this one: it would just turn over again', async () => {
+    mocks.loadExamBundle.mockResolvedValue(
+      bundle([question(1, 'none'), question(2, 'none'), question(3, 'full'), question(4, 'full')], {
+        mode: 'fixed',
+        per_ticket: 2,
+        tickets: [{ number: 5, question_ids: ['q1', 'q2'] }],
+      }),
+    );
+    renderDraw();
+    await screen.findByRole('article', { name: 'Билет 5: вопросы 1 и 2' });
+    expect(screen.getByText(NO_ANSWERABLE_TICKET)).toBeInTheDocument();
+    const actions = document.querySelector('.dw-acts') as HTMLElement;
+    expect(actions.querySelectorAll('button, a')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /Тянуть другой/ })).toBeNull();
+    // The way of drawing stays changeable right under the card.
+    expect(screen.getByRole('button', { name: /изменить/ })).toBeInTheDocument();
+  });
+
+  it('keeps «Тянуть ещё» as the only action outside exam mode when every drawn question is missing from the lectures', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1, 'none')], { mode: 'random', per_ticket: 1 }));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1)]);
+    renderDraw('/exams/exam-1/draw?mode=answered');
     await screen.findByRole('article', { name: 'Вопрос 1' });
     expect(mocks.prefetchRubric).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Отвечать' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Тянуть ещё' })).toBeInTheDocument();
+    expect(screen.getByText(/Этого вопроса нет в ваших лекциях — оценить ответ не по чему/)).toBeInTheDocument();
+    expect(screen.queryByText(NO_ANSWERABLE_TICKET)).toBeNull();
+  });
+
+  it('a single question without material in exam mode offers «Тянуть другой вопрос»', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1, 'none'), question(2, 'none')], { mode: 'random', per_ticket: 1 }));
+    renderDraw();
+    await screen.findByRole('article', { name: /^Вопрос [12]$/ });
+    expect(screen.getByText('Этого вопроса нет в ваших лекциях — ответ не с чем сверить.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Тянуть другой вопрос' })).toHaveClass('sf-primary');
+  });
+
+  it('has no «Тянуть ещё» beside «Отвечать» in exam mode: the drawn ticket is the one to answer', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)]));
+    renderDraw();
+    await screen.findByRole('article', { name: /Случайный билет/ });
+    expect(screen.getByRole('button', { name: 'Отвечать' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Тянуть ещё' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Тянуть другой/ })).toBeNull();
+  });
+
+  it('says what each way of drawing takes its questions from, under the card', async () => {
+    const list = [question(1), question(2), question(3, 'none'), question(4)];
+    mocks.loadExamBundle.mockResolvedValue(bundle(list));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1), answer(2), answer(4, '2026-10-01'), answer(4, '2026-10-02')]);
+    const pool = () => document.querySelector('.dw-pool')?.textContent?.replace(/\u00a0/g, ' ');
+    const first = renderDraw();
+    await screen.findByRole('article', { name: /Случайный билет/ });
+    expect(pool()).toBe('Случайно из 4 вопросов.');
+    first.unmount();
+    const second = renderDraw('/exams/exam-1/draw?mode=weak');
+    await screen.findByRole('article', { name: /Случайный билет/ });
+    expect(pool()).toBe('Чаще слабые: из 3 вопросов, кроме тех, которых нет в лекциях.');
+    second.unmount();
+    const third = renderDraw('/exams/exam-1/draw?mode=answered');
+    await screen.findByRole('article', { name: /Случайный билет/ });
+    expect(pool()).toBe('Случайно из 3 вопросов, на которые вы уже отвечали.');
+    // The card under the line comes first (the line is about the card).
+    const card = screen.getByRole('article', { name: /Случайный билет/ });
+    expect(card.compareDocumentPosition(document.querySelector('.dw-pool') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    third.unmount();
+    mocks.loadExamBundle.mockResolvedValue(
+      bundle(list, { mode: 'fixed', per_ticket: 2, tickets: [{ number: 7, question_ids: ['q1', 'q2'] }, { number: 8, question_ids: ['q3', 'q4'] }] }),
+    );
+    renderDraw();
+    await screen.findByRole('article', { name: /^Билет [78]/ });
+    expect(pool()).toBe('Как на экзамене: случайный билет из 2 билетов кафедры.');
+  });
+
+  it('numbers a card «Билет N» only for the department’s ticket, never for a random pair', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(12), question(31)]));
+    const random = renderDraw();
+    const card = await screen.findByRole('article', { name: 'Случайный билет: вопросы 12 и 31' });
+    expect(card.querySelector('.dw-face:not(.dw-face-old) .dw-no')?.textContent?.replace(/\s+/g, ' ')).toBe('Случайный билет · вопросы 12 и 31');
+    expect(card.textContent).not.toMatch(/Билет \d/);
+    random.unmount();
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(12), question(31)], { mode: 'fixed', per_ticket: 2, tickets: [{ number: 7, question_ids: ['q12', 'q31'] }] }));
+    renderDraw();
+    const known = await screen.findByRole('article', { name: 'Билет 7: вопросы 12 и 31' });
+    expect(known.querySelector('.dw-face:not(.dw-face-old) .dw-no b')?.textContent).toBe('Билет 7');
+  });
+
+  it('offers «Тянуть ещё» only when another ticket can come out', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)]));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1), answer(2)]);
+    // Two answered questions and two per ticket: the same pair every time.
+    renderDraw('/exams/exam-1/draw?mode=answered');
+    await screen.findByRole('article', { name: 'Случайный билет: вопросы 1 и 2' });
+    expect(screen.getByRole('button', { name: 'Отвечать' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Тянуть ещё' })).toBeNull();
+  });
+
+  it('draws from the questions waiting for a confirmation, or says there are none', async () => {
+    const yesterday = new Date(Date.now() - 2 * 86_400_000);
+    const day = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const passed = { ...answer(2, day), created_at: yesterday.toISOString() };
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)], { mode: 'random', per_ticket: 1 }));
+    mocks.fetchQuestionEvents.mockResolvedValue([passed]);
+    const first = renderDraw('/exams/exam-1/draw?mode=awaiting');
+    expect(await screen.findByRole('article', { name: 'Вопрос 2' })).toBeInTheDocument();
+    expect(document.querySelector('.dw-pool')?.textContent).toBe('Единственный вопрос, который ждёт подтверждения.');
+    expect(screen.getByText('Из вопросов, которые ждут подтверждения')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
+    expect(location).toBe('/exams/exam-1/ticket?q=q2');
+    first.unmount();
+    mocks.fetchQuestionEvents.mockResolvedValue([]);
+    renderDraw('/exams/exam-1/draw?mode=awaiting');
+    expect(await screen.findByText('Сейчас нет вопросов, которые ждут подтверждения. Выберите «Как на экзамене».')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Тянуть как на экзамене' })).toBeInTheDocument();
   });
 
   it('draws only from answered questions in that mode and says the mode under the actions', async () => {
@@ -175,8 +319,8 @@ describe('ExamDraw', () => {
   });
 
   it('is a single-object screen: the card, then «Отвечать» and «Тянуть ещё», then the way of drawing (redesign critique 8)', async () => {
-    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
-    renderDraw();
+    mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)]));
+    renderDraw('/exams/exam-1/draw?mode=weak');
     const card = await screen.findByRole('article', { name: /Случайный билет/ });
     const center = document.querySelector('main.dw-room > .dw-center') as HTMLElement;
     expect(center.contains(card)).toBe(true);
@@ -186,7 +330,7 @@ describe('ExamDraw', () => {
     expect(card.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const mode = document.querySelector('.dw-mode .ex-draw-mode') as HTMLElement;
     expect(answer.compareDocumentPosition(mode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(mode.textContent?.replace(/\s+/g, ' ')).toBe('Как на экзамене · изменить');
+    expect(mode.textContent?.replace(/\s+/g, ' ')).toBe('Чаще слабые · изменить');
   });
 
   it('keeps the question numbers on a random pair: «Случайный билет · вопросы 1 и 2», each number hung beside its question', async () => {
@@ -200,7 +344,7 @@ describe('ExamDraw', () => {
 
   it('turns over from the blank back, and «Тянуть ещё» from the last ticket: the old face is shown until the card is edge-on', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4), question(5)], { mode: 'random', per_ticket: 1 }));
-    renderDraw();
+    renderDraw('/exams/exam-1/draw?mode=weak');
     const first = await screen.findByRole('article', { name: /Вопрос \d/ });
     const firstLabel = first.getAttribute('aria-label');
     // The first draw turns the blank back over.
@@ -230,7 +374,8 @@ describe('ExamDraw', () => {
   it('explains an empty answered pool and offers the exam mode', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2)]));
     renderDraw('/exams/exam-1/draw?mode=answered');
-    expect(await screen.findByText(/Вы ещё не отвечали вслух ни на один вопрос этого экзамена/)).toBeInTheDocument();
+    expect(await screen.findByText('Вы ещё не отвечали ни на один вопрос этого экзамена. Выберите «Как на экзамене».')).toBeInTheDocument();
+    expect(document.querySelector('.dw-pool')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Тянуть как на экзамене' }));
     expect(await screen.findByRole('article', { name: /Случайный билет/ })).toBeInTheDocument();
     expect(location).toBe('/exams/exam-1/draw');
@@ -238,7 +383,7 @@ describe('ExamDraw', () => {
 
   it('«Тянуть ещё» never repeats the last three tickets', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3), question(4), question(5)], { mode: 'random', per_ticket: 1 }));
-    renderDraw();
+    renderDraw('/exams/exam-1/draw?mode=weak');
     await screen.findByRole('article', { name: /Вопрос \d/ });
     const seen: string[] = [];
     for (let i = 0; i < 6; i += 1) {

@@ -96,6 +96,8 @@ export interface LayoutBox {
   y: number;
   w: number;
   h: number;
+  /** Слой в порядке чтения (колонка, строка или место на кольце): по нему схема проявляется. */
+  layer: number;
 }
 
 export type Curve = [Point, Point, Point, Point];
@@ -119,6 +121,8 @@ export interface LayoutEdge {
   routed: boolean;
   /** Кубическая кривая между блоками соседних слоёв. */
   curve?: Curve;
+  /** Радиусы дуги кольца (у связей круговорота). */
+  arc?: { rx: number; ry: number };
 }
 
 export interface DiagramLayout {
@@ -127,15 +131,54 @@ export interface DiagramLayout {
   height: number;
   boxes: LayoutBox[];
   edges: LayoutEdge[];
+  /** Кегль узлов (Literata), px. */
+  fontSize: number;
+  /** Кегль подписей связей, px. */
+  labelSize: number;
+  /** Высота строки узла, px. */
+  lineHeight: number;
+  /** Во сколько раз раскладка крупнее базовой сетки (все отступы растут вместе с кеглем). */
+  unit: number;
 }
 
 /* ── Константы ──────────────────────────────────────────────────────────── */
 
-const CHAR_WIDTH = 7.4; // ~13px Inter для кириллицы
-const LABEL_CHAR_WIDTH = 6.2; // ~11px подписи связей
-const LABEL_MAX_CHARS = 22;
-const LABEL_HALF_HEIGHT = 7;
+/*
+ * Схема «Разговора» на листе (спека интерьера 5.7, шаг А): узлы — слова Literata без рамок,
+ * прямоугольники узлов — невидимая геометрия. Раскладка считается в базовой сетке (строка
+ * узла — 17 единиц) и затем масштабируется под кегль: при Literata 20 одна единица — 24/17 px,
+ * строка узла — 24 px, все промежутки растут в той же пропорции.
+ *
+ * Ширина букв замерена в Chromium (Literata 420, кириллица, оптический размер по кеглю):
+ * в среднем 0,60 em, в худшем слове 0,62 em; полужирный корень — 0,62–0,64 em. Оценка
+ * спеки (10,5 px при кегле 20, то есть 0,525 em) слова не вмещала, поэтому здесь 0,63 em:
+ * CHAR_WIDTH 8,93 единицы = 12,6 px при кегле 20. Подписи связей — Literata 400 кеглем 0,875
+ * от узла (17,5 px при 20, 14 px при 16), 0,62 em на букву.
+ */
+
+/** Кегль узлов на листе компьютера и телефона, px. */
+export const DIAGRAM_FONT = { desktop: 20, phone: 16.5, min: 16 } as const;
+/** Подписи связей — 0,875 кегля узла: 17,5 px при 20, 14,4 при 16,5, 14 при 16. */
+export const DIAGRAM_LABEL_RATIO = 0.875;
+/** Высота строки узла к кеглю (Literata 20/24). */
+export const DIAGRAM_LINE_RATIO = 1.2;
+/** Не мельче этого после уменьшения схемы через viewBox. */
+export const DIAGRAM_MIN_NODE_PX = 16;
+export const DIAGRAM_MIN_LABEL_PX = 14;
+/** Уже этого лист телефонный: узлы набираются кеглем 16,5. */
+export const DIAGRAM_PHONE_WIDTH = 480;
+
+/** Строка узла в базовой сетке. */
 const LINE_HEIGHT = 17;
+const CHAR_EM = 0.63;
+const LABEL_CHAR_EM = 0.62;
+/** Кегль узла в базовой сетке: строка 17 = 1,2 кегля. */
+const BASE_FONT = LINE_HEIGHT / DIAGRAM_LINE_RATIO;
+const CHAR_WIDTH = CHAR_EM * BASE_FONT; // 8,93
+const LABEL_CHAR_WIDTH = LABEL_CHAR_EM * DIAGRAM_LABEL_RATIO * BASE_FONT; // 7,69
+const LABEL_MAX_CHARS = 22;
+/** Половина строки подписи (1,2 её кегля). */
+const LABEL_HALF_HEIGHT = (DIAGRAM_LINE_RATIO * DIAGRAM_LABEL_RATIO * BASE_FONT) / 2; // 7,44
 const BOX_PADDING_X = 8;
 const BOX_PADDING_Y = 10;
 const GAP_X = 44;
@@ -145,13 +188,16 @@ const ROW_GAP = 36;
 const ROW_GAP_LABELED = 50;
 const MARGIN = 6;
 const MIN_BOX_W = 96;
-const MAX_ROW_BOX_W = 220;
+/** Узел не шире 12em: 12 кеглей текста и поля. */
+const MAX_BOX_W = Math.round(12 * BASE_FONT + 2 * 8);
 const HYPHENATE_FROM = 16;
 const PARALLEL_OFFSET = 5;
 const RECIPROCAL_LABEL_OFFSET = 10;
 const LABEL_OFFSET = 8;
 /** Наконечник стрелки (шеврон) кончается в 2 px от блока. */
 const ARROW_GAP = 2;
+/** Обходная линия идёт по промежутку между колонками на этом расстоянии от узла (промежуток не уже 44). */
+const GAP_ROUTE = 14;
 /** Наконечники, сходящиеся к одному блоку, — не ближе этого друг к другу. */
 const MIN_SLOT_GAP = 10;
 const CURVE_SAMPLES = 24;
@@ -363,11 +409,51 @@ function longestWord(label: string): number {
   return Math.max(0, ...label.split(/\s+/).map(word => word.length));
 }
 
-function makeBox(node: DiagramNode, width: number, maxLines: number): Omit<LayoutBox, 'x' | 'y' | 'h'> {
+/**
+ * Те же строки, но ровнее: слова переносятся так, чтобы самая длинная строка была как можно
+ * короче («Подорожание / снижает выручку», а не «Подорожание снижает / выручку»). Только для
+ * подписей, которые уже легли целыми словами, без переносов и многоточия; число строк не меняется.
+ */
+export function balanceLines(lines: string[], capacity: number): string[] {
+  if (lines.length < 2) return lines;
+  const words = lines.join(' ').split(' ');
+  const count = lines.length;
+  if (words.length < count || lines.some(line => line.endsWith('-') || line.endsWith('…'))) return lines;
+  const limit = Math.max(4, Math.floor(capacity));
+  // best[i][k]: самая короткая «самая длинная строка», если первые i слов разложены на k строк.
+  const width = (from: number, to: number) => words.slice(from, to).join(' ').length;
+  const best: number[][] = Array.from({ length: words.length + 1 }, () => Array(count + 1).fill(Infinity));
+  const cut: number[][] = Array.from({ length: words.length + 1 }, () => Array(count + 1).fill(-1));
+  best[0][0] = 0;
+  for (let k = 1; k <= count; k += 1) {
+    for (let i = 1; i <= words.length; i += 1) {
+      for (let j = k - 1; j < i; j += 1) {
+        if (!Number.isFinite(best[j][k - 1])) continue;
+        const line = width(j, i);
+        if (line > limit) continue;
+        const worst = Math.max(best[j][k - 1], line);
+        if (worst < best[i][k]) {
+          best[i][k] = worst;
+          cut[i][k] = j;
+        }
+      }
+    }
+  }
+  if (!Number.isFinite(best[words.length][count])) return lines;
+  const result: string[] = [];
+  for (let i = words.length, k = count; k > 0; k -= 1) {
+    const j = cut[i][k];
+    result.unshift(words.slice(j, i).join(' '));
+    i = j;
+  }
+  return result;
+}
+
+function makeBox(node: DiagramNode, width: number, maxLines: number): Omit<LayoutBox, 'x' | 'y' | 'h' | 'layer'> {
   const capacity = (width - BOX_PADDING_X * 2) / CHAR_WIDTH;
   // Перенос внутри слова — только для очень длинных слов или если слово иначе не влезает, и только по слогам.
   const hyphenateFrom = longestWord(node.label) > capacity ? 0 : HYPHENATE_FROM;
-  const lines = wrapLabel(node.label, capacity, maxLines, hyphenateFrom);
+  const lines = balanceLines(wrapLabel(node.label, capacity, maxLines, hyphenateFrom), capacity);
   return { id: node.id, label: node.label, lines, w: width };
 }
 
@@ -570,23 +656,42 @@ function connect(boxes: LayoutBox[], edges: DiagramEdge[], options: ConnectOptio
           where = 'bottom';
         }
       }
-      // Обход не нашёлся — всё равно верхний коридор: он хотя бы не прячет стрелку.
+      // Сверху и снизу узла мешают соседи по колонке: линия выходит вбок, в промежуток между
+      // колонками (там узлов не бывает), поднимается над всеми узлами и опускается к цели тоже
+      // по промежутку. Так линия не идёт через слова ни при какой раскладке колонок.
+      let lane = 1;
       if (!points) {
         const y = minTop - 18 - topLanes * 14;
-        points = [
-          { x: fc.x, y: from.y },
-          { x: fc.x, y },
-          { x: tc.x, y },
-          { x: tc.x, y: to.y - ARROW_GAP },
+        const outX = from.x + from.w + GAP_ROUTE;
+        const inX = to.x - GAP_ROUTE;
+        const side = [
+          { x: from.x + from.w, y: fc.y },
+          { x: outX, y: fc.y },
+          { x: outX, y },
+          { x: inX, y },
+          { x: inX, y: tc.y },
+          { x: to.x - ARROW_GAP, y: tc.y },
         ];
+        if (!polylineHitsBoxes(side, boxes, skip)) {
+          points = side;
+          lane = 2;
+        } else {
+          // Обход не нашёлся и так — всё равно верхний коридор: он хотя бы не прячет стрелку.
+          points = [
+            { x: fc.x, y: from.y },
+            { x: fc.x, y },
+            { x: tc.x, y },
+            { x: tc.x, y: to.y - ARROW_GAP },
+          ];
+        }
         where = 'top';
       }
       if (where === 'top') topLanes += 1;
       else bottomLanes += 1;
       const laid: LayoutEdge = { ...base, points, d: pathFromPoints(points, 10), routed: true };
-      const text = edge.label ? fitLabel(edge.label, Math.abs(points[2].x - points[1].x) + 40) : undefined;
-      const laneY = points[1].y;
-      const midX = (points[1].x + points[2].x) / 2;
+      const text = edge.label ? fitLabel(edge.label, Math.abs(points[lane + 1].x - points[lane].x) + 40) : undefined;
+      const laneY = points[lane].y;
+      const midX = (points[lane].x + points[lane + 1].x) / 2;
       const outward = where === 'top' ? -1 : 1;
       const candidates: LabelCandidate[] = text
         ? [
@@ -737,11 +842,15 @@ function curveLabelCandidates(curve: Curve, horizontal: boolean, fromDegree: num
   return [...middle, ...near.source, ...near.target, ...along];
 }
 
-/** Прямоугольник текста подписи (11px) с ореолом фона. */
-export function labelRect(text: string, x: number, y: number, anchor: 'start' | 'middle' | 'end'): Rect {
-  const w = text.length * LABEL_CHAR_WIDTH;
+/**
+ * Прямоугольник текста подписи с ореолом фона. unit — масштаб раскладки (layout.unit), если
+ * координаты взяты из готовой схемы; в базовой сетке — 1.
+ */
+export function labelRect(text: string, x: number, y: number, anchor: 'start' | 'middle' | 'end', unit = 1): Rect {
+  const w = text.length * LABEL_CHAR_WIDTH * unit;
+  const half = LABEL_HALF_HEIGHT * unit;
   const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
-  return { x: x0 - 2, y: y - LABEL_HALF_HEIGHT - 1, w: w + 4, h: LABEL_HALF_HEIGHT * 2 + 2 };
+  return { x: x0 - 2 * unit, y: y - half - unit, w: w + 4 * unit, h: half * 2 + 2 * unit };
 }
 
 /** Полоса самих букв подписи, без ореола: линия через неё перечёркивает текст. */
@@ -756,29 +865,60 @@ function labelInkRect(text: string, x: number, y: number, anchor: 'start' | 'mid
  * ложится ни на одну линию, ни на блок, ни на другую подпись и не выходит за
  * ширину схемы. Если чистого места нет, — место с наименьшим ущербом.
  */
+/**
+ * Запасные места подписи вдоль самой линии: на пяти точках ломаной по обе стороны, дальше и ближе.
+ * Нужны, когда ни одно обычное место не свободно от узлов (тесный телефонный лист).
+ */
+function alongCandidates(points: Point[]): LabelCandidate[] {
+  if (points.length < 2) return [];
+  const result: LabelCandidate[] = [];
+  for (const share of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+    const index = Math.min(points.length - 2, Math.max(0, Math.floor(share * (points.length - 1))));
+    const a = points[index];
+    const b = points[index + 1];
+    const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const nx = -(b.y - a.y) / length;
+    const ny = (b.x - a.x) / length;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    for (const offset of [LABEL_OFFSET + 4, -(LABEL_OFFSET + 4), LABEL_OFFSET + 16, -(LABEL_OFFSET + 16)]) {
+      result.push({ x: mid.x + nx * offset, y: mid.y + ny * offset, anchor: anchorFor(Math.sign(offset) * nx) });
+    }
+  }
+  return result;
+}
+
+/** Подпись на узле или за краем схемы не читается: такой цены место не годится вовсе. */
+const UNREADABLE = 50;
+
 function placeLabels(pending: PendingEdge[], boxes: LayoutBox[], width: number): LayoutEdge[] {
   const placed: Rect[] = [];
   const strokes = pending.map(item => item.edge.points);
+  const costOf = (text: string, candidate: LabelCandidate) => {
+    const rect = labelRect(text, candidate.x, candidate.y, candidate.anchor);
+    const ink = labelInkRect(text, candidate.x, candidate.y, candidate.anchor);
+    let cost = 0;
+    if (rect.x < 0 || rect.x + rect.w > width) cost += 100;
+    if (boxes.some(box => rectsOverlap(rect, box, 1))) cost += 50;
+    if (placed.some(other => rectsOverlap(rect, other))) cost += 20;
+    // Линия через буквы хуже, чем линия, которую только прикрывает ореол подписи.
+    for (const points of strokes) {
+      if (polylineHitsRect(points, ink)) cost += 5;
+      else if (polylineHitsRect(points, rect)) cost += 1;
+    }
+    return cost;
+  };
   for (const item of pending) {
     const { edge, text } = item;
     if (!text || item.candidates.length === 0) continue;
     let best: { candidate: LabelCandidate; cost: number } | null = null;
-    for (const candidate of item.candidates) {
-      const rect = labelRect(text, candidate.x, candidate.y, candidate.anchor);
-      const ink = labelInkRect(text, candidate.x, candidate.y, candidate.anchor);
-      let cost = 0;
-      if (rect.x < 0 || rect.x + rect.w > width) cost += 100;
-      if (boxes.some(box => rectsOverlap(rect, box, 1))) cost += 50;
-      if (placed.some(other => rectsOverlap(rect, other))) cost += 20;
-      // Линия через буквы хуже, чем линия, которую только прикрывает ореол подписи.
-      for (const points of strokes) {
-        if (polylineHitsRect(points, ink)) cost += 5;
-        else if (polylineHitsRect(points, rect)) cost += 1;
-      }
+    for (const candidate of [...item.candidates, ...alongCandidates(edge.points)]) {
+      const cost = costOf(text, candidate);
       if (!best || cost < best.cost) best = { candidate, cost };
       if (cost === 0) break;
     }
-    if (!best) continue;
+    // Ни одного места вне узлов и в пределах схемы: подпись не рисуется поверх слов, она остаётся
+    // в подсказке и в описании схемы для программ чтения с экрана.
+    if (!best || best.cost >= UNREADABLE) continue;
     edge.labelText = text;
     edge.labelX = best.candidate.x;
     edge.labelY = best.candidate.y;
@@ -877,7 +1017,7 @@ function layoutRing(nodes: DiagramNode[], edges: DiagramEdge[], width: number, o
   const at = (theta: number): Point => ({ x: cx + rx * Math.cos(theta), y: cy + ry * Math.sin(theta) });
   const boxes: LayoutBox[] = prepared.map((box, index) => {
     const p = at(angle(index));
-    return { ...box, x: p.x - boxW / 2, y: p.y - boxH / 2, h: boxH };
+    return { ...box, x: p.x - boxW / 2, y: p.y - boxH / 2, h: boxH, layer: index };
   });
   for (let i = 0; i < boxes.length; i += 1) {
     if (boxes[i].x < 0 || boxes[i].x + boxes[i].w > width) return null;
@@ -926,6 +1066,7 @@ function layoutRing(nodes: DiagramNode[], edges: DiagramEdge[], width: number, o
       points,
       d: `M${fmt(p0.x)},${fmt(p0.y)}A${fmt(rx)} ${fmt(ry)} 0 0 1 ${fmt(p1.x)},${fmt(p1.y)}`,
       routed: false,
+      arc: { rx, ry },
     };
     if (edge.label) {
       result.label = edge.label;
@@ -960,20 +1101,28 @@ function layoutRing(nodes: DiagramNode[], edges: DiagramEdge[], width: number, o
     if (laid.some(other => polylineHitsRect(other.points, rect))) return null;
     rects.push(rect);
   }
-  return { kind: 'cycle', width, height, boxes, edges: laid };
+  return { kind: 'cycle', width, height, boxes, edges: laid, ...BASE_METRICS };
 }
 
 /* ── Раскладка ─────────────────────────────────────────────────────────── */
 
+/** Типографика базовой сетки (unit 1): кегль узла 14,17, строка 17. */
+const BASE_METRICS = {
+  fontSize: BASE_FONT,
+  labelSize: DIAGRAM_LABEL_RATIO * BASE_FONT,
+  lineHeight: LINE_HEIGHT,
+  unit: 1,
+} as const;
+
 /**
- * Раскладка схемы. Простой цикл из 3–6 узлов — кольцом, если он так читается
+ * Раскладка в базовой сетке. Простой цикл из 3–6 узлов — кольцом, если он так читается
  * целиком. Остальное — слоями в порядке чтения: слева направо, а если не
  * помещается — сверху вниз. Связи между соседними слоями — плавные кривые от
  * своих мест на сторонах блоков; связь, которая замыкает цикл или пропускает
  * слой, идёт в обход. Встречные связи (A → B и B → A) — две параллельные линии,
  * подписи по разные стороны.
  */
-export function layoutDiagram(nodes: DiagramNode[], edges: DiagramEdge[], availableWidth: number): DiagramLayout {
+function layoutBase(nodes: DiagramNode[], edges: DiagramEdge[], availableWidth: number): DiagramLayout {
   const width = Math.max(260, Math.floor(availableWidth));
 
   const ringOrder = simpleCycleOrder(nodes, edges);
@@ -999,7 +1148,7 @@ export function layoutDiagram(nodes: DiagramNode[], edges: DiagramEdge[], availa
   );
   const gapX = Math.max(GAP_X, Math.ceil(adjacentLabelChars * LABEL_CHAR_WIDTH + 16));
   const columns = layers.length;
-  const horizontalBoxW = Math.min(200, Math.floor((width - MARGIN * 2 - gapX * (columns - 1)) / columns));
+  const horizontalBoxW = Math.min(MAX_BOX_W, Math.floor((width - MARGIN * 2 - gapX * (columns - 1)) / columns));
   const capacity = (horizontalBoxW - BOX_PADDING_X * 2) / CHAR_WIDTH;
 
   if (horizontalBoxW >= MIN_BOX_W && wordChars <= capacity) {
@@ -1020,12 +1169,12 @@ export function layoutDiagram(nodes: DiagramNode[], edges: DiagramEdge[], availa
       const top = (height - columnH) / 2;
       layer.forEach((id, index) => {
         const box = prepared.get(id) ?? makeBox(nodeById.get(id) as DiagramNode, boxW, 3);
-        boxes.push({ ...box, x: offsetX + layerIndex * (boxW + columnGap), y: top + index * (h + GAP_Y), h });
+        boxes.push({ ...box, x: offsetX + layerIndex * (boxW + columnGap), y: top + index * (h + GAP_Y), h, layer: layerIndex });
       });
     });
     const laid = placeLabels(connect(boxes, edges, { orientation: 'horizontal', width, layerOf }), boxes, width);
     const fitted = fitVertically(boxes, laid, height);
-    return { kind: 'layered-horizontal', width, height: fitted, boxes, edges: laid };
+    return { kind: 'layered-horizontal', width, height: fitted, boxes, edges: laid, ...BASE_METRICS };
   }
 
   // Сверху вниз: каждый слой — строка. У каждой строки своя ширина блоков:
@@ -1037,25 +1186,36 @@ export function layoutDiagram(nodes: DiagramNode[], edges: DiagramEdge[], availa
 
   const place = (reserve: number, leftAligned: boolean) => {
     const rowBoxW = (count: number) =>
-      Math.max(72, Math.min(MAX_ROW_BOX_W, Math.floor((width - MARGIN * 2 - reserve - gapBetween * (count - 1)) / count)));
-    const prepared = new Map<string, Omit<LayoutBox, 'x' | 'y' | 'h'>>();
-    layers.forEach(layer => {
-      const boxW = rowBoxW(layer.length);
-      layer.forEach(id => prepared.set(id, makeBox(nodeById.get(id) as DiagramNode, boxW, 2)));
+      Math.max(72, Math.min(MAX_BOX_W, Math.floor((width - MARGIN * 2 - reserve - gapBetween * (count - 1)) / count)));
+    // Слой шире листа (на телефоне шесть узлов без связей в одном слое) переносится на следующие
+    // строки: узлы не выходят за край. Строки и есть слои для линий: связь через строку идёт в обход.
+    const perRow = Math.max(1, Math.floor((width - MARGIN * 2 - reserve + gapBetween) / (72 + gapBetween)));
+    const rows: { ids: string[]; layer: number }[] = [];
+    layers.forEach((layer, layerIndex) => {
+      for (let start = 0; start < layer.length; start += perRow) rows.push({ ids: layer.slice(start, start + perRow), layer: layerIndex });
+    });
+    const rowOf = new Map<string, number>();
+    rows.forEach((row, rowIndex) => row.ids.forEach(id => rowOf.set(id, rowIndex)));
+    const prepared = new Map<string, Omit<LayoutBox, 'x' | 'y' | 'h' | 'layer'>>();
+    rows.forEach(row => {
+      const boxW = rowBoxW(row.ids.length);
+      // Три строки, как у колонок: подпись узла не обрезается многоточием (на телефоне «Подорожание
+      // снижает выручку» в две строки по 13 букв не влезает).
+      row.ids.forEach(id => prepared.set(id, makeBox(nodeById.get(id) as DiagramNode, boxW, 3)));
     });
     const h = boxHeight(Math.max(...[...prepared.values()].map(box => box.lines.length)));
-    const height = layers.length * h + (layers.length - 1) * rowGap + MARGIN * 2;
+    const height = rows.length * h + (rows.length - 1) * rowGap + MARGIN * 2;
     const boxes: LayoutBox[] = [];
-    layers.forEach((layer, layerIndex) => {
-      const boxW = rowBoxW(layer.length);
-      const rowW = layer.length * boxW + (layer.length - 1) * gapBetween;
+    rows.forEach((row, rowIndex) => {
+      const boxW = rowBoxW(row.ids.length);
+      const rowW = row.ids.length * boxW + (row.ids.length - 1) * gapBetween;
       const left = leftAligned ? MARGIN : (width - reserve - rowW) / 2;
-      layer.forEach((id, index) => {
-        const box = prepared.get(id) as Omit<LayoutBox, 'x' | 'y' | 'h'>;
-        boxes.push({ ...box, x: left + index * (boxW + gapBetween), y: MARGIN + layerIndex * (h + rowGap), h });
+      row.ids.forEach((id, index) => {
+        const box = prepared.get(id) as Omit<LayoutBox, 'x' | 'y' | 'h' | 'layer'>;
+        boxes.push({ ...box, x: left + index * (boxW + gapBetween), y: MARGIN + rowIndex * (h + rowGap), h, layer: row.layer });
       });
     });
-    const pending = connect(boxes, edges, { orientation: 'vertical', width, layerOf, rowGap });
+    const pending = connect(boxes, edges, { orientation: 'vertical', width, layerOf: rowOf, rowGap });
     return { boxes, pending, height };
   };
 
@@ -1078,5 +1238,102 @@ export function layoutDiagram(nodes: DiagramNode[], edges: DiagramEdge[], availa
   }
   const laid = placeLabels(attempt.pending, attempt.boxes, width);
   const fitted = fitVertically(attempt.boxes, laid, attempt.height);
-  return { kind: 'layered-vertical', width, height: fitted, boxes: attempt.boxes, edges: laid };
+  return { kind: 'layered-vertical', width, height: fitted, boxes: attempt.boxes, edges: laid, ...BASE_METRICS };
+}
+
+/* ── Кегль ──────────────────────────────────────────────────────────────── */
+
+/** Во сколько раз раскладка при этом кегле крупнее базовой сетки. */
+export function diagramUnit(fontSize: number): number {
+  return (fontSize * DIAGRAM_LINE_RATIO) / LINE_HEIGHT;
+}
+
+const scalePoint = (point: Point, k: number): Point => ({ x: point.x * k, y: point.y * k });
+/** Кегли без хвоста плавающей точки: 20, а не 20,000000000000004. */
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/** Та же схема, крупнее в k раз: геометрия растёт целиком, поэтому ничего не начинает пересекаться. */
+function scaleLayout(base: DiagramLayout, k: number): DiagramLayout {
+  const boxes = base.boxes.map(box => ({ ...box, x: box.x * k, y: box.y * k, w: box.w * k, h: box.h * k }));
+  const edges = base.edges.map(edge => {
+    const points = edge.points.map(point => scalePoint(point, k));
+    const scaled: LayoutEdge = { ...edge, points };
+    if (edge.labelX !== undefined) scaled.labelX = edge.labelX * k;
+    if (edge.labelY !== undefined) scaled.labelY = edge.labelY * k;
+    if (edge.curve) {
+      scaled.curve = edge.curve.map(point => scalePoint(point, k)) as Curve;
+      scaled.d = bezierPath(scaled.curve);
+    } else if (edge.arc) {
+      scaled.arc = { rx: edge.arc.rx * k, ry: edge.arc.ry * k };
+      const p0 = points[0];
+      const p1 = points[points.length - 1];
+      scaled.d = `M${fmt(p0.x)},${fmt(p0.y)}A${fmt(scaled.arc.rx)} ${fmt(scaled.arc.ry)} 0 0 1 ${fmt(p1.x)},${fmt(p1.y)}`;
+    } else {
+      scaled.d = pathFromPoints(points, (edge.routed ? 10 : 6) * k);
+    }
+    return scaled;
+  });
+  return {
+    kind: base.kind,
+    width: base.width * k,
+    height: Math.ceil(base.height * k),
+    boxes,
+    edges,
+    fontSize: round2(base.fontSize * k),
+    labelSize: round2(base.labelSize * k),
+    lineHeight: round2(base.lineHeight * k),
+    unit: k,
+  };
+}
+
+/**
+ * Раскладка схемы под ширину листа и кегль узлов (по умолчанию Literata 20). Алгоритм
+ * считает в базовой сетке и масштабирует результат, поэтому при любом кегле схема та же:
+ * узлы не пересекаются, линии не идут через чужие узлы, подписи не ложатся на линии.
+ */
+export function layoutDiagram(
+  nodes: DiagramNode[],
+  edges: DiagramEdge[],
+  availableWidth: number,
+  fontSize: number = DIAGRAM_FONT.desktop,
+): DiagramLayout {
+  const k = diagramUnit(fontSize);
+  return scaleLayout(layoutBase(nodes, edges, availableWidth / k), k);
+}
+
+export interface DiagramFit {
+  layout: DiagramLayout;
+  /** Уменьшение через viewBox (1 — без уменьшения). */
+  scale: number;
+  /** Размер схемы на экране, px. */
+  width: number;
+  height: number;
+  /** Схема выше отведённого места: лист растёт (до 520 px), а дальше прокручивается. */
+  overflow: boolean;
+}
+
+/**
+ * Правило масштаба (спека 5.7, шаг А). Лист фиксирован по высоте, поэтому схема в 4 уровня и
+ * больше может не влезть:
+ * 1. влезает при своём кегле (20, на телефоне 16,5) — как есть;
+ * 2. иначе уменьшаем через viewBox, пока узлы не мельче 16 px, а подписи связей — 14 px
+ *    (на компьютере масштаб не ниже 0,8, на телефоне уменьшать почти некуда);
+ * 3. иначе раскладываем заново кеглем 16; не влезает и так — лист растёт по высоте
+ *    (overflow), а последнее средство — прокрутка внутри листа.
+ */
+export function fitDiagram(nodes: DiagramNode[], edges: DiagramEdge[], width: number, height: number): DiagramFit {
+  const available = Math.max(1, Math.floor(width));
+  const room = Math.max(1, Math.floor(height));
+  const fontSize = available < DIAGRAM_PHONE_WIDTH ? DIAGRAM_FONT.phone : DIAGRAM_FONT.desktop;
+  const first = layoutDiagram(nodes, edges, available, fontSize);
+  const scale = Math.min(1, available / first.width, room / first.height);
+  if (scale >= 1) return { layout: first, scale: 1, width: first.width, height: first.height, overflow: false };
+  if (first.fontSize * scale >= DIAGRAM_MIN_NODE_PX - 1e-9 && first.labelSize * scale >= DIAGRAM_MIN_LABEL_PX - 1e-9) {
+    return { layout: first, scale, width: first.width * scale, height: first.height * scale, overflow: false };
+  }
+  const small = layoutDiagram(nodes, edges, available, DIAGRAM_FONT.min);
+  // Уже 260 единиц сетки раскладка не бывает: на самом узком телефоне её сжимает ширина.
+  const narrow = Math.min(1, available / small.width);
+  const shown = small.height * narrow;
+  return { layout: small, scale: narrow, width: small.width * narrow, height: shown, overflow: shown > room + 0.5 };
 }

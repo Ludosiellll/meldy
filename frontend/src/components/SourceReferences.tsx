@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { splitFragmentHeading } from '../utils/fragmentText';
 
 interface SourceReferencesProps {
   ids?: string[];
@@ -48,12 +49,27 @@ export default function SourceReferences({ ids, sources = [], compact = false }:
       </button>
       {open && (
         <div id={contentId} className="mt-2 space-y-3">
-          {ids.map((id, index) => (
-            <p key={`${id}-${index}`} className="max-w-[36em] text-[15px] leading-[22px] text-[var(--sf-ink)]">
-              <span className="mr-1.5 font-medium text-[var(--sf-muted)]">Фрагмент {fragmentNumber(id)}.</span>
-              {sourceMap.get(id) || 'Текст фрагмента недоступен.'}
-            </p>
-          ))}
+          {ids.map((id, index) => {
+            const text = sourceMap.get(id);
+            // A lecture heading keeps its own line (jury memo 12): «Фрагмент 4. Обучение нейронной сети»,
+            // the fragment's text below. Without a heading the fragment reads exactly as before.
+            const parts = text ? splitFragmentHeading(text) : null;
+            return (
+              <p key={`${id}-${index}`} className="max-w-[36em] text-[15px] leading-[22px] text-[var(--sf-ink)]">
+                <span className="mr-1.5 font-medium text-[var(--sf-muted)]">Фрагмент {fragmentNumber(id)}.</span>
+                {parts?.heading ? (
+                  <>
+                    <span className="font-semibold" data-fragment-heading="">
+                      {parts.heading}
+                    </span>
+                    <span className="block">{parts.body}</span>
+                  </>
+                ) : (
+                  text || 'Текст фрагмента недоступен.'
+                )}
+              </p>
+            );
+          })}
         </div>
       )}
     </div>

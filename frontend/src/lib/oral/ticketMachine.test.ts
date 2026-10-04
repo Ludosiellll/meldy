@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { answerTime, hasUnsavedAnswer, initialTicketState, protocolState, ticketReducer, type TicketAction, type TicketState } from './ticketMachine';
+import {
+  ALL_COVERED_LINE,
+  THANKS_LINE,
+  answerTime,
+  closingLine,
+  hasUnsavedAnswer,
+  initialTicketState,
+  protocolState,
+  ticketReducer,
+  type TicketAction,
+  type TicketState,
+} from './ticketMachine';
 import { demoRubricResponse } from './testing/fixtures';
 import { elapsedLabel } from './format';
 import type { TicketQuestion } from './ticketData';
@@ -20,7 +31,8 @@ function run(actions: TicketAction[], from: TicketState = initialTicketState()):
   return actions.reduce(ticketReducer, from);
 }
 
-const loaded = (): TicketState => run([{ type: 'loaded', exam: { id: 'e1', title: 'Нейросети', kind: 'exam' }, questions: [question, { ...question, id: 'q2' }] }]);
+const loaded = (): TicketState =>
+  run([{ type: 'loaded', exam: { id: 'e1', title: 'Нейросети', kind: 'exam', layout: { mode: 'random', tickets: [] } }, questions: [question, { ...question, id: 'q2' }] }]);
 
 function answering(): TicketState {
   const state = loaded();
@@ -147,7 +159,7 @@ describe('ticket state machine', () => {
     const saved = run(
       [
         { type: 'finalize', attemptId: 'a', snapshot: 's', live: [], input: 'text', now: 2_000, startedAt: 't' },
-        { type: 'no_followup' },
+        { type: 'no_followup', closing: THANKS_LINE },
         { type: 'evaluation_done', run: state.run, result: { points: [], errors: [], verdict: '' } },
         { type: 'protocol' },
       ],
@@ -155,6 +167,28 @@ describe('ticket state machine', () => {
     );
     expect(hasUnsavedAnswer(saved, '')).toBe(true);
     expect(hasUnsavedAnswer(run([{ type: 'save_done', at: 't', result: { sessionId: 's', duplicate: false, events: 1, mistakesAdded: 0, mistakesExisting: 0, cardAdded: false } }], saved), '')).toBe(false);
+  });
+
+  it('says «Хорошо, по существу всё» only when every row was named by key words, otherwise «Хорошо, спасибо» (Jury_Check item 12)', () => {
+    const points = demoRubricResponse().rubric.points;
+    expect(closingLine(points, ['p1', 'p2', 'p3', 'p4', 'p5'])).toBe(ALL_COVERED_LINE);
+    expect(ALL_COVERED_LINE).toBe('Хорошо, по существу всё');
+    // A row stayed closed: the check found nothing to ask, but the examiner does not say «по существу всё».
+    expect(closingLine(points, new Set(['p1', 'p2', 'p3', 'p5']))).toBe(THANKS_LINE);
+    expect(THANKS_LINE).toBe('Хорошо, спасибо');
+    expect(closingLine(points, [])).toBe(THANKS_LINE);
+    expect(closingLine([], [])).toBe(THANKS_LINE);
+    const said = run(
+      [
+        { type: 'finalize', attemptId: 'a', snapshot: 's', live: ['p1'], input: 'text', now: 2_000, startedAt: 't' },
+        { type: 'examiner' },
+        { type: 'no_followup', closing: closingLine(points, ['p1']) },
+      ],
+      answering(),
+    );
+    expect(said).toMatchObject({ phase: 'evaluating', closing: THANKS_LINE, followup: null });
+    // A new question starts without a closing line.
+    expect(run([{ type: 'question', index: 1 }], said).closing).toBeNull();
   });
 
   it('starts over without reloading the rubric', () => {

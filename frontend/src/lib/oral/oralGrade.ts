@@ -1,12 +1,22 @@
 /**
- * The training grade of an answer, formula v1 (contracts §7.6). Client only: no endpoint ever
- * returns a score or a grade, so nothing can stand in for a missing evaluation.
+ * The training grade of an answer, formula v2 (contracts §7.6 with Jury_Check 2026-10-03, item 3).
+ * Client only: no endpoint ever returns a score or a grade, so nothing can stand in for a missing
+ * evaluation.
  *
  * w = 2 for an essential point, 1 otherwise; c: covered 1, partial 0.5, missing 0, wrong 0;
  * unrated points are left out. The follow-up point gets c = max(c, 0.5) when the follow-up answer
  * is covered and max(c, 0.25) when it is partial. score = floor(100·Σw·c / Σw + 0.5), null when
  * Σw = 0 (then there is no grade and nothing is saved). Grade 5 from 85, 4 from 65, 3 from 45,
- * else 2; an essential point said wrong caps it at 4, two or more wrong points cap it at 3.
+ * else 2. Caps:
+ * - essential_unrecovered (v2, the memo's rule): the examiner asked about an essential point that
+ *   was not named or was said wrong, and the answer to the question is missing or wrong → at most 3.
+ *   Only on a trustworthy verdict: the model's check, the «Не знаю» button or nothing heard after
+ *   «Не расслышал ответ». A verdict of the browser's key-word rule (the check did not answer in
+ *   time) cannot tell a paraphrase from a miss, so the cap is not applied and capSkipped says so;
+ * - essential_wrong: an essential point said wrong → at most 4 (also when put right on the follow-up);
+ * - two_wrong: two or more points said wrong → at most 3.
+ * A partial answer to the follow-up lifts essential_unrecovered (the point gets 0.25). The grade is
+ * the lowest of the caps that apply; `cap` names the one that set it.
  */
 
 export type PointStatus = 'covered' | 'partial' | 'missing' | 'wrong' | 'unrated';
@@ -52,11 +62,24 @@ export interface GradeCounts {
   total: number;
 }
 
+export interface GradeFollowup {
+  point_id: string;
+  status: FollowupStatus | string;
+  /**
+   * How the answer to the follow-up was judged: the model's check, the browser's key words (the
+   * check did not answer in time), or null / absent — nothing to judge: the «Не знаю» button, or
+   * nothing heard after «Не расслышал ответ».
+   */
+  judgedBy?: 'check' | 'keywords' | null;
+}
+
+export type GradeCap = 'essential_unrecovered' | 'essential_wrong' | 'two_wrong';
+
 export interface GradeResult {
   score: number | null;
   grade: Grade | null;
   word: string | null;
-  /** «Зачтено»: grade 4 or 5. */
+  /** «Засчитано» (counts towards readiness): grade 4 or 5. */
   passed: boolean;
   /** One term per rated point, rubric order. */
   terms: GradeTerm[];
@@ -66,7 +89,14 @@ export interface GradeResult {
   sumWeighted: number;
   counts: GradeCounts;
   /** Which cap lowered the grade, if any. */
-  cap: 'essential_wrong' | 'two_wrong' | null;
+  cap: GradeCap | null;
+  /**
+   * keywords: essential_unrecovered would have applied, but the follow-up was judged only by key
+   * words, so it was not (and it would have lowered the grade).
+   */
+  capSkipped: 'keywords' | null;
+  /** The follow-up point of essential_unrecovered (applied or skipped) and its number in the rubric. */
+  capPoint: { id: string; number: number } | null;
 }
 
 function isStatus(value: unknown): value is PointStatus {
@@ -84,11 +114,14 @@ export function gradeFromScore(score: number): Grade {
   return 2;
 }
 
-/** Formula v1 over the points (rubric order) and the follow-up, if one was asked. */
-export function gradeAnswer(
-  points: readonly GradedPoint[],
-  followup: { point_id: string; status: FollowupStatus | string } | null,
-): GradeResult {
+const GRADE_CAPS: Record<GradeCap, Grade> = { essential_unrecovered: 3, essential_wrong: 4, two_wrong: 3 };
+/** The order caps are reported in when two of them set the same grade. */
+const CAP_ORDER: readonly GradeCap[] = ['essential_unrecovered', 'two_wrong', 'essential_wrong'];
+
+const UNRECOVERED = new Set<string>(['missing', 'wrong']);
+
+/** Formula v2 over the points (rubric order) and the follow-up, if one was asked. */
+export function gradeAnswer(points: readonly GradedPoint[], followup: GradeFollowup | null): GradeResult {
   const counts: GradeCounts = { covered: 0, partial: 0, missing: 0, wrong: 0, unrated: 0, total: points.length };
   const terms: GradeTerm[] = [];
   const credits: Record<string, number | null> = {};
@@ -96,13 +129,21 @@ export function gradeAnswer(
   let sumWeighted = 0;
   let essentialWrong = false;
   let wrongs = 0;
+  let unrecovered: { id: string; number: number } | null = null;
 
-  for (const point of points) {
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
     const status: PointStatus = isStatus(point.status) ? point.status : 'unrated';
     counts[status] += 1;
     if (status === 'wrong') {
       wrongs += 1;
       if (point.essential) essentialWrong = true;
+    }
+    const asked = followup !== null && followup.point_id === point.id ? followup : null;
+    // The examiner asked about a main point that was not named or was said wrong, and the answer
+    // to the question did not put it right («не знаю», silence, missing or wrong again).
+    if (asked && point.essential && UNRECOVERED.has(status) && UNRECOVERED.has(String(asked.status))) {
+      unrecovered = { id: point.id, number: index + 1 };
     }
     if (status === 'unrated') {
       credits[point.id] = null;
@@ -110,9 +151,9 @@ export function gradeAnswer(
     }
     const weight: 1 | 2 = point.essential ? 2 : 1;
     let credit = CREDIT[status];
-    if (followup && followup.point_id === point.id) {
-      if (followup.status === 'covered') credit = Math.max(credit, 0.5);
-      else if (followup.status === 'partial') credit = Math.max(credit, 0.25);
+    if (asked) {
+      if (asked.status === 'covered') credit = Math.max(credit, 0.5);
+      else if (asked.status === 'partial') credit = Math.max(credit, 0.25);
     }
     credits[point.id] = credit;
     terms.push({ id: point.id, weight, credit });
@@ -120,21 +161,38 @@ export function gradeAnswer(
     sumWeighted += weight * credit;
   }
 
-  if (sumWeights === 0) {
-    return { score: null, grade: null, word: null, passed: false, terms, credits, sumWeights, sumWeighted, counts, cap: null };
-  }
+  const empty = { terms, credits, sumWeights, sumWeighted, counts, capSkipped: null, capPoint: null };
+  if (sumWeights === 0) return { score: null, grade: null, word: null, passed: false, cap: null, ...empty };
+
   const score = Math.floor((100 * sumWeighted) / sumWeights + 0.5);
-  let grade = gradeFromScore(score);
-  let cap: GradeResult['cap'] = null;
-  if (essentialWrong && grade > 4) {
-    grade = 4;
-    cap = 'essential_wrong';
-  }
-  if (wrongs >= 2 && grade > 3) {
-    grade = 3;
-    cap = 'two_wrong';
-  }
-  return { score, grade, word: GRADE_WORDS[grade], passed: grade >= 4, terms, credits, sumWeights, sumWeighted, counts, cap };
+  const base = gradeFromScore(score);
+  const trusted = followup !== null && followup.judgedBy !== 'keywords';
+  const applies: Record<GradeCap, boolean> = {
+    essential_unrecovered: unrecovered !== null && trusted,
+    essential_wrong: essentialWrong,
+    two_wrong: wrongs >= 2,
+  };
+  let grade: Grade = base;
+  for (const cap of CAP_ORDER) if (applies[cap] && GRADE_CAPS[cap] < grade) grade = GRADE_CAPS[cap];
+  // The cap that set the grade (on a tie, the first in CAP_ORDER); none when no cap lowered it.
+  const cap = grade < base ? (CAP_ORDER.find((name) => applies[name] && GRADE_CAPS[name] === grade) ?? null) : null;
+  // A key-word verdict: say that the cap was left out, when it would have lowered the grade.
+  const capSkipped = unrecovered !== null && !trusted && GRADE_CAPS.essential_unrecovered < grade ? 'keywords' : null;
+  const capPoint = unrecovered !== null && (cap === 'essential_unrecovered' || capSkipped !== null) ? unrecovered : null;
+  return {
+    score,
+    grade,
+    word: GRADE_WORDS[grade],
+    passed: grade >= 4,
+    terms,
+    credits,
+    sumWeights,
+    sumWeighted,
+    counts,
+    cap,
+    capSkipped,
+    capPoint,
+  };
 }
 
 /** «0,5» — a Russian decimal comma, no trailing zeros. */
@@ -185,9 +243,12 @@ export function gradeLine(grade: number | null | undefined): string | null {
   return word ? `${grade} · ${word}` : null;
 }
 
-/** «(2 + 2 + 2 + 0 + 1) / 9 = 78 из 100 → 4» — the formula with this answer's numbers. */
+/**
+ * «(2 + 2 + 2 + 0 + 1) / 9 = 78 из 100 → 4» — the formula with this answer's numbers; null without
+ * a grade or without terms (a saved grade the formula no longer gives has none: never «() / 9»).
+ */
 export function formulaLine(result: GradeResult): string | null {
-  if (result.score === null || result.grade === null) return null;
+  if (result.score === null || result.grade === null || result.terms.length === 0) return null;
   const terms = result.terms.map((term) => ruNumber(term.weight * term.credit));
   return `(${terms.join(' + ')}) / ${ruNumber(result.sumWeights)} = ${result.score} из 100 → ${result.grade}`;
 }

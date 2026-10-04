@@ -136,18 +136,20 @@
   text-wrap: pretty;
 }
 /* Anchors land under the fixed navbar, on the section's hairline. */
+#ticket,
 #try,
-#possibilities,
 #method { scroll-margin-top: 72px; }
 
-/* «Ваша очередь» */
+/* «Из каждой лекции — ещё и это»: the heading across the section, its lead beside the summary and
+   the quiz; the conversation and the map follow below (LectureDesk.css). */
 .lp-try-grid {
   display: grid;
   grid-template-columns: minmax(0, .62fr) minmax(0, 1.38fr);
   gap: 64px;
   align-items: start;
+  margin-top: 36px;
 }
-.lp-try-intro { min-width: 0; }
+.lp-try-lead { min-width: 0; margin: 0; }
 
 /* «Подход»: the argument on the left, the card that comes back on the right. */
 .lp-method {
@@ -198,6 +200,7 @@
   .lp-section { padding: 88px 0; }
   .lp-try-grid,
   .lp-method { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .lp-try-grid { margin-top: 16px; }
 }
 @media (max-width: 639px) {
   .lp-section { padding: 64px 0; }

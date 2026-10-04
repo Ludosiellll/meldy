@@ -37,7 +37,8 @@ export const FACE_TEXT = {
   answer: `Ответ: ${plain(KEY_SENTENCE)}`,
 };
 const CAPTION = `Пример. На странице лекции «${HERO_PAGE.title}» Meldy подчёркивает главную фразу «${plain(KEY_SENTENCE).replace(/\.$/, '')}» и переносит её на карточку. На лицевой стороне карточки вопрос «${HERO_QUESTION}», на обороте эта фраза. Карточка вернётся на повторение завтра.`;
-export const INVITE_TEXT = ty('Сначала вспомните ответ, потом переверните карточку.');
+/** Under the card: the card is what the answer missed (Jury_Check section 4, step 1). */
+export const INVITE_TEXT = ty('Что вы пропустили на ответе, Meldy спросит завтра.');
 export const STEPS_TEXT = 'Показать по шагам';
 
 export const SEEN_KEY = 'meldy:landing-hero-seen';

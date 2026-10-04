@@ -10,11 +10,12 @@ import {
 import { Link } from 'react-router-dom';
 import type { EvidenceItem, ExamQuestion, NearestItem } from '../../api/exams';
 import type { LearningEvent } from '../../api/learning';
-import { formatShortDay, fragmentNumber, GRADE_WORDS } from '../../lib/exams/format';
+import { compareEventTime, questionState, type QuestionState } from '../../lib/learning/readiness';
+import { formatShortDay, formatShortMoment, fragmentNumber, GRADE_WORDS } from '../../lib/exams/format';
 import { normalizeForMatch } from '../conversation/visuals';
 import { PencilUnder, seedFrom } from '../marks';
 import type { SheetCoverage } from './marks';
-import { glue, lecturesGenitive, NBSP } from './sheetModel';
+import { confirmedAgeSentence, glue, lecturesGenitive, NBSP } from './sheetModel';
 import type { FrameBox } from './useFrame';
 
 const REASON_NO_OVERLAP = 'Ни одного фрагмента с этими словами';
@@ -42,6 +43,8 @@ export interface WhyPanelProps {
   manualError: string | null;
   /** «Проверить снова» for a question checked only by words (null when a run is going). */
   onRecheck: (() => void) | null;
+  /** The moment the ages are counted from (the page passes the time the journal was read). */
+  now?: Date;
 }
 
 interface Verdict {
@@ -159,6 +162,34 @@ export function attemptLabel(event: LearningEvent): string {
 }
 
 /**
+ * Where the question stands by the rule «подтверждено» (Jury_Check items 3 and 6):
+ * - confirmed: «Подтверждено 3 октября — 2 дня назад.» counted from the last засчитанный answer (the
+ *   moment the 14-day rule uses), «Подтверждено 16 дней назад — пора проверить.» when it is stale;
+ * - once: «Засчитано 3 окт., 14:02. Подтвердит засчитанный ответ на другой день, не раньше 4 окт., 10:02.»;
+ * - not_passed: «Последний ответ 3 окт. — «удовлетворительно», не засчитано. Серия начнётся заново
+ *   со следующего засчитанного ответа.»
+ * Null for a question that has no graded answer.
+ */
+export function readinessLine(state: QuestionState, answers: LearningEvent[], now: Date = new Date()): string | null {
+  if (state.readiness === 'confirmed') return confirmedAgeSentence(state, now);
+  if (state.readiness === 'once') {
+    const passed = state.seriesStartAt ? `Засчитано ${formatShortMoment(state.seriesStartAt, now)}.` : 'Засчитано.';
+    if (state.awaiting) return `${passed} Засчитанный ответ сейчас подтвердит вопрос.`;
+    const from = formatShortMoment(state.confirmableFrom, now);
+    return `${passed} Подтвердит засчитанный ответ на другой день${from ? `, не раньше ${from}` : ''}.`;
+  }
+  if (state.readiness === 'not_passed') {
+    const failed = answers.filter((event) => event.kind === 'exam_answer' && event.correct === false).sort(compareEventTime);
+    const last = failed[failed.length - 1];
+    const grade = last ? gradeOf(last) : null;
+    const day = last ? formatShortDay(last.local_date, now) : '';
+    const head = grade !== null ? `Последний ответ${day ? ` ${day}` : ''} — «${GRADE_WORDS[grade]}», не засчитано.` : 'Последний ответ не засчитан.';
+    return `${head} Серия начнётся заново со следующего засчитанного ответа.`;
+  }
+  return null;
+}
+
+/**
  * «Почему»: what the mapping found for one question — the verdict in words, the whole lecture
  * fragment with its lecture and number, or for a gap the nearest fragment and the word that
  * matched — the answers aloud with dates (each opens its protocol) and what to do next.
@@ -233,6 +264,8 @@ export default function WhyPanel(props: WhyPanelProps) {
   };
 
   const verdict = verdictOf(question, coverage, props.lectureCount);
+  const now = props.now ?? new Date();
+  const ready = props.answersError ? null : readinessLine(questionState(props.answers, [], now), props.answers, now);
   const evidence = coverage === 'full' || coverage === 'partial' ? question.evidence : [];
   const nearest = coverage === 'none' || coverage === 'unverified' ? question.nearest : [];
   const answers = [...props.answers].reverse();
@@ -290,6 +323,7 @@ export default function WhyPanel(props: WhyPanelProps) {
         <div className="ex-blk">
           {/* «Ответы»: a written answer counts as much as a spoken one (Jury_Check 11). */}
           <p className="ex-why-t">Ответы</p>
+          {ready && <p className="ex-stmt ex-why-ready">{glue(ready)}</p>}
           {props.answersError ? (
             <p className="ex-fine">{props.answersError}</p>
           ) : (

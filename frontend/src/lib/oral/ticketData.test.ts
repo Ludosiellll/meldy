@@ -11,6 +11,7 @@ vi.mock('../supabase', () => ({
 
 import {
   TicketLoadError,
+  departmentTicketNumber,
   historyFrom,
   loadOralSession,
   loadQuestionHistory,
@@ -18,6 +19,7 @@ import {
   loadTicket,
   parseQuestionIds,
   protocolFromRow,
+  ticketLayoutOf,
 } from './ticketData';
 import type { LearningEvent } from '../../api/learning';
 
@@ -86,7 +88,7 @@ describe('loading a ticket', () => {
     });
     state.client = fake.client;
     const { exam, questions } = await loadTicket(EXAM, [Q2, Q1]);
-    expect(exam).toEqual({ id: EXAM, title: 'Микроэкономика', kind: 'exam' });
+    expect(exam).toEqual({ id: EXAM, title: 'Микроэкономика', kind: 'exam', layout: { mode: 'random', tickets: [] } });
     expect(questions.map((item) => item.id)).toEqual([Q2, Q1]);
     expect(questions[0].nearest[0]).toMatchObject({ source_id: 'S07', matched: ['ставка'] });
     expect(questions[1].evidence[0]).toMatchObject({ material_id: 'm1', source_id: 'S12' });
@@ -110,6 +112,70 @@ describe('loading a ticket', () => {
     const error = await loadTicket(EXAM, [Q1]).catch((caught) => caught);
     expect(error).toBeInstanceOf(TicketLoadError);
     expect(error.kind).toBe('failed');
+  });
+});
+
+describe('the department’s tickets (Jury_Check items 4, 9, 11)', () => {
+  const Q4 = '0a000000-0000-4000-8000-000000000004';
+  const fixed = ticketLayoutOf({
+    mode: 'fixed',
+    per_ticket: 2,
+    tickets: [
+      { number: 7, question_ids: [Q1, Q2] },
+      { number: 12, question_ids: [Q3, Q4] },
+    ],
+  });
+
+  it('reads ticket_layout and drops what it cannot use', () => {
+    expect(fixed).toEqual({
+      mode: 'fixed',
+      tickets: [
+        { number: 7, questionIds: [Q1, Q2] },
+        { number: 12, questionIds: [Q3, Q4] },
+      ],
+    });
+    expect(ticketLayoutOf(null)).toEqual({ mode: 'random', tickets: [] });
+    expect(ticketLayoutOf({ mode: 'sections', per_ticket: 2 })).toEqual({ mode: 'sections', tickets: [] });
+    expect(ticketLayoutOf({ mode: 'fixed', tickets: [{ number: 0, question_ids: [Q1] }, { number: 3, question_ids: [] }, { number: '4', question_ids: [Q1] }, 'x'] })).toEqual({
+      mode: 'fixed',
+      tickets: [],
+    });
+  });
+
+  it('honours n only for a non-empty part of that ticket in its order', () => {
+    expect(departmentTicketNumber(fixed, '7', [Q1, Q2])).toBe('7');
+    // The draw leaves a «нет» question out of q and keeps &n.
+    expect(departmentTicketNumber(fixed, '7', [Q2])).toBe('7');
+    expect(departmentTicketNumber(fixed, '7', [Q1])).toBe('7');
+    expect(departmentTicketNumber(fixed, ' 12 ', [Q3, Q4])).toBe('12');
+    // Out of order, another ticket's question, nothing answered.
+    expect(departmentTicketNumber(fixed, '7', [Q2, Q1])).toBeNull();
+    expect(departmentTicketNumber(fixed, '7', [Q1, Q3])).toBeNull();
+    expect(departmentTicketNumber(fixed, '7', [])).toBeNull();
+  });
+
+  it('ignores a forged or missing number', () => {
+    // A ticket number on an exam without the department's tickets.
+    expect(departmentTicketNumber(ticketLayoutOf({ mode: 'random', per_ticket: 2 }), '12', [Q1, Q2])).toBeNull();
+    expect(departmentTicketNumber(ticketLayoutOf({ mode: 'sections', per_ticket: 2, tickets: [{ number: 12, question_ids: [Q1, Q2] }] }), '12', [Q1, Q2])).toBeNull();
+    // A ticket that is not on the list, or whose questions are not the answered ones.
+    expect(departmentTicketNumber(fixed, '13', [Q1, Q2])).toBeNull();
+    expect(departmentTicketNumber(fixed, '12', [Q1, Q2])).toBeNull();
+    expect(departmentTicketNumber(fixed, '7а', [Q1, Q2])).toBeNull();
+    expect(departmentTicketNumber(fixed, null, [Q1, Q2])).toBeNull();
+  });
+
+  it('loads the layout with the exam', async () => {
+    const fake = createFakeSupabase({
+      tables: {
+        exams: [{ id: EXAM, title: 'Микроэкономика', kind: 'exam', ticket_layout: { mode: 'fixed', per_ticket: 2, tickets: [{ number: 7, question_ids: [Q1, Q2] }] } }],
+        exam_questions: [question(Q1, EXAM, 1), question(Q2, EXAM, 2)],
+      },
+    });
+    state.client = fake.client;
+    const { exam } = await loadTicket(EXAM, [Q1, Q2]);
+    expect(exam.layout).toEqual({ mode: 'fixed', tickets: [{ number: 7, questionIds: [Q1, Q2] }] });
+    expect(fake.calls.find((call) => call.table === 'exams')?.columns).toBe('id, title, kind, ticket_layout');
   });
 });
 

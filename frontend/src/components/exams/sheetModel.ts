@@ -4,9 +4,17 @@
  * mapping run; nothing here reads the network or storage.
  */
 import type { ExamQuestion, TicketLayout } from '../../api/exams';
-import type { QuestionState, Readiness, SelfRating } from '../../lib/learning/readiness';
-import { layoutShares, percent, type LayoutShares, type ShareQuestion, type ShareResult } from '../../lib/exams/ticketMath';
-import { fragmentNumber, questionNumber } from '../../lib/exams/format';
+import { emptyQuestionState, READINESS_LABELS, type QuestionState, type Readiness, type SelfRating } from '../../lib/learning/readiness';
+import {
+  layoutShares,
+  layoutSharesIf,
+  percent,
+  type LayoutShares,
+  type ShareInput,
+  type ShareQuestion,
+  type ShareResult,
+} from '../../lib/exams/ticketMath';
+import { daysUntil, formatDay, fragmentNumber, questionNumber } from '../../lib/exams/format';
 import { pluralRu } from '../conversation/visuals';
 import { ty } from '../landing/typo';
 import type { SheetCoverage } from './marks';
@@ -171,14 +179,22 @@ export const FILTER_NAMES: Record<SheetFilter, string> = {
   'cov:unverified': 'найдено только по словам',
   'cov:unmapped': 'ещё не сверено',
   'rd:confirmed': 'подтверждено',
-  'rd:once': 'зачтено в один день',
-  'rd:not_passed': 'не зачтено',
+  'rd:once': 'засчитано, не подтверждено',
+  'rd:not_passed': 'не засчитано',
   'rd:untested': 'не проверялось',
   'sr:know': '«знаю»',
   'sr:unsure': '«плаваю»',
   'sr:dont_know': '«не знаю»',
   'sr:none': 'без самооценки',
 };
+
+/** Every value a sheet filter can take: `/exams/:id?filter=cov:none` is checked against this list. */
+export const SHEET_FILTERS = Object.keys(FILTER_NAMES) as SheetFilter[];
+
+/** A filter from the address (`?filter=…`); anything that is not a known filter shows every question. */
+export function sheetFilterOf(value: string | null | undefined): SheetFilter {
+  return typeof value === 'string' && (SHEET_FILTERS as string[]).includes(value) ? (value as SheetFilter) : 'all';
+}
 
 export interface CoverageCounts {
   total: number;
@@ -225,23 +241,36 @@ function ticketsOf(layout: TicketLayout) {
   return (layout.tickets ?? []).map((ticket) => ({ number: ticket.number, questionIds: ticket.question_ids }));
 }
 
-/**
- * Shares by coverage: full (also marked by hand) qualifies. A question checked only by words, not
- * mapped yet or being checked right now is unknown, so it widens the range instead of counting as
- * absent.
- */
-export function coverageShares(questions: ShareSubject[], layout: TicketLayout): LayoutShares {
+/** A question whose coverage is not known yet: it widens a range instead of counting as absent. */
+function unknownCoverage(coverage: SheetCoverage): boolean {
+  return coverage === 'unverified' || coverage === 'unmapped' || coverage === 'checking';
+}
+
+function coverageInput(questions: ShareSubject[], layout: TicketLayout): ShareInput {
   const shareQuestions: ShareQuestion[] = questions.map((question) => ({
     id: question.id,
     section: question.section,
-    status:
-      question.coverage === 'full'
-        ? 'yes'
-        : question.coverage === 'unverified' || question.coverage === 'unmapped' || question.coverage === 'checking'
-          ? 'maybe'
-          : 'no',
+    status: question.coverage === 'full' ? 'yes' : unknownCoverage(question.coverage) ? 'maybe' : 'no',
   }));
-  return layoutShares({ mode: layout.mode, perTicket: layout.per_ticket, questions: shareQuestions, tickets: ticketsOf(layout) });
+  return { mode: layout.mode, perTicket: layout.per_ticket, questions: shareQuestions, tickets: ticketsOf(layout) };
+}
+
+/**
+ * Shares by coverage: full (also marked by hand) qualifies. A question checked only by words, not
+ * mapped yet or being checked right now is unknown, so it widens the range instead of counting as
+ * absent. «Частично» counts as «нет».
+ */
+export function coverageShares(questions: ShareSubject[], layout: TicketLayout): LayoutShares {
+  return layoutShares(coverageInput(questions, layout));
+}
+
+/**
+ * The same shares if every «частично» question were closed (counted as «есть»): the number of the
+ * action line «Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов».
+ */
+export function closedPartialShares(questions: ShareSubject[], layout: TicketLayout): LayoutShares {
+  const partial = questions.filter((question) => question.coverage === 'partial').map((question) => question.id);
+  return layoutSharesIf(coverageInput(questions, layout), partial);
 }
 
 /** Shares by answers: only confirmed questions qualify. */
@@ -299,6 +328,90 @@ export function shareText(shares: LayoutShares, which: 'all' | 'atLeastOne'): st
   return pct(low);
 }
 
+/** Genitive after «из» and «нет»: «из 21 вопроса», «9 вопросов нет». */
+export function genitiveOf(count: number, one: string, many: string): string {
+  return count % 10 === 1 && count % 100 !== 11 ? one : many;
+}
+
+/**
+ * The share of questions as shown (Jury_Check item 12): «60 %», or «43–68 %» while some questions
+ * were checked only by words or are not checked yet — the same unknowns that widen the ticket range.
+ */
+export function questionShareText(counts: CoverageCounts): string {
+  if (counts.total <= 0) return pct(0);
+  const low = Math.round((counts.full / counts.total) * 100);
+  const high = Math.round(((counts.full + counts.unverified + counts.unmapped + counts.checking) / counts.total) * 100);
+  return high !== low ? `${low}–${high}${NBSP}%` : pct(low);
+}
+
+/** «вопросов нет ни в одной лекции» beside the figure «9» (one: «вопроса»). */
+export function noneLabel(count: number): string {
+  return `${genitiveOf(count, 'вопроса', 'вопросов')} нет ни в одной лекции`;
+}
+
+/** The accessible name of the figure that filters the sheet: «9 вопросов нет ни в одной лекции. Показать их». */
+export function noneFigureName(count: number): string {
+  return `${count} ${noneLabel(count)}. Показать ${count === 1 ? 'его' : 'их'}`;
+}
+
+/**
+ * Line (c) of peak 1, in place of «хотя бы один — 85 %»: «в 15 % билетов нет ни одного вопроса с
+ * отметкой «есть»» (known tickets: «в 3 из 20 билетов …»; a range while some questions are unknown).
+ * «Частично» counts as «нет» here, so the line never says «ни одного вопроса из ваших лекций». Null
+ * for one question per ticket (the question share says it) and when there is no ticket share.
+ */
+export function noneTicketsLine(shares: LayoutShares): string | null {
+  const { low, high } = shares;
+  if (!low.ok) return null;
+  const tail = `нет ни одного вопроса с отметкой «есть»`;
+  if (low.mode === 'fixed') {
+    // The low bound counts unknown questions as absent: it has the most tickets without «есть».
+    const most = low.tickets - low.anyCount;
+    const least = high.ok && high.mode === 'fixed' ? high.tickets - high.anyCount : most;
+    const count = least !== most ? `${least}–${most}` : String(most);
+    return `в ${count} из ${low.tickets} ${genitiveOf(low.tickets, 'билета', 'билетов')} ${tail}`;
+  }
+  if (low.q <= 1) return null;
+  const most = percent(low.none);
+  const least = shares.isRange && high.ok ? percent(high.none) : most;
+  const share = least !== most ? `${least}–${most}${NBSP}%` : pct(most);
+  return `в ${share} билетов ${tail}`;
+}
+
+export interface ClosePartialLine {
+  /** «7 вопросов «частично»»: a link that filters the sheet to «частично». */
+  link: string;
+  /** «— оба вопроса будут в лекциях в 60 % билетов.» */
+  rest: string;
+  /** The whole sentence, «Закройте 7 вопросов «частично» — …». */
+  text: string;
+}
+
+/**
+ * The action line under «Как считается» (Jury_Check item 10): «Закройте 7 вопросов «частично» — оба
+ * вопроса будут в лекциях в 60 % билетов.» It is computed by the same layout with «частично» counted
+ * as «есть» (a range while some questions are unknown); one question per ticket reads «… — в лекциях
+ * будет 78 % вопросов». Null without «частично» questions and when closing them does not raise the
+ * share.
+ */
+export function closePartialLine(partial: number, shares: LayoutShares, closed: LayoutShares): ClosePartialLine | null {
+  if (partial <= 0 || !shares.low.ok || !closed.low.ok) return null;
+  const link = `${partial} ${pluralRu(partial, ['вопрос', 'вопроса', 'вопросов'])} «частично»`;
+  let rest: string;
+  if (closed.low.mode === 'fixed' && shares.low.mode === 'fixed') {
+    if (closed.low.allCount <= shares.low.allCount) return null;
+    const most = closed.high.ok && closed.high.mode === 'fixed' ? closed.high.allCount : closed.low.allCount;
+    const count = most !== closed.low.allCount ? `${closed.low.allCount}–${most}` : String(closed.low.allCount);
+    rest = `— все вопросы будут в лекциях в ${count} из ${closed.low.tickets} ${genitiveOf(closed.low.tickets, 'билета', 'билетов')}.`;
+  } else {
+    if (percent(closed.low.all) <= percent(shares.low.all)) return null;
+    const value = shareText(closed, 'all') ?? pct(percent(closed.low.all));
+    const q = perTicketOf(closed.low, 2);
+    rest = q <= 1 ? `— в лекциях будет ${value} вопросов.` : `— ${allQuestionsWord(q)} будут в лекциях в ${value} билетов.`;
+  }
+  return { link, rest, text: `Закройте ${link} ${rest}` };
+}
+
 /** The caveat under the pair: what a «ticket» is in this calculation. Always visible. */
 export function caveatSentence(shares: LayoutShares, total: number): string {
   const head = 'Это доля билетов, а не вероятность сдать';
@@ -349,15 +462,50 @@ export function confirmedSentence(summary: AnswerSummary): string | null {
 }
 
 export const NO_ANSWERS_SENTENCE = 'Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.';
-export const CONFIRMED_MEANING = 'Подтверждено — значит, зачтено дважды, в разные дни.';
+/** A passed answer is «засчитан» («зачёт» is a kind of exam), and a typed answer counts as a spoken one. */
+export const CONFIRMED_MEANING = 'Подтверждено — значит, засчитано дважды, в разные дни.';
 export const NOT_ENOUGH_CONFIDENCE =
   'Сравнить уверенность с ответами пока нельзя: нужно хотя бы три ответа на вопросы с отметкой «знаю».';
 
-/** «Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили вслух, зачтено 8.» — only with enough data. */
+/** «Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили, засчитано 8.» — only with enough data. */
 export function confidenceSentence(value: { ratedKnow: number; ratedKnowAnswered: number; ratedKnowPassed: number; enoughData: boolean }): string {
   if (!value.enoughData) return NOT_ENOUGH_CONFIDENCE;
-  const genitive = value.ratedKnow % 10 === 1 && value.ratedKnow % 100 !== 11 ? 'вопроса' : 'вопросов';
-  return `Вы отметили «знаю» у ${value.ratedKnow} ${genitive}. Из ${value.ratedKnowAnswered} таких, на которые вы ответили вслух, зачтено ${value.ratedKnowPassed}.`;
+  const genitive = genitiveOf(value.ratedKnow, 'вопроса', 'вопросов');
+  return `Вы отметили «знаю» у ${value.ratedKnow} ${genitive}. Из ${value.ratedKnowAnswered} таких, на которые вы ответили, засчитано ${value.ratedKnowPassed}.`;
+}
+
+/** Calendar days from a local day to today (0 for today), or null. */
+export function daysAgo(key: string | null | undefined, now: Date = new Date()): number | null {
+  const days = daysUntil(key, now);
+  return days === null ? null : -days;
+}
+
+/**
+ * The age of a confirmation, counted from the last засчитанный answer (the moment the 14-day rule
+ * uses): «Подтверждено сегодня.», «Подтверждено вчера.», «Подтверждено 3 октября — 2 дня назад.»,
+ * and when it is stale «Подтверждено 16 дней назад — пора проверить.» Null unless confirmed.
+ */
+export function confirmedAgeSentence(state: Pick<QuestionState, 'readiness' | 'lastPassDate' | 'stale'>, now: Date = new Date()): string | null {
+  if (state.readiness !== 'confirmed') return null;
+  const days = daysAgo(state.lastPassDate, now);
+  if (days === null) return 'Подтверждено.';
+  if (state.stale) return `Подтверждено ${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад — пора проверить.`;
+  if (days <= 0) return 'Подтверждено сегодня.';
+  if (days === 1) return 'Подтверждено вчера.';
+  return `Подтверждено ${formatDay(state.lastPassDate, now)} — ${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад.`;
+}
+
+/**
+ * What a screen reader hears after a question's number: «подтверждено 2 дня назад», «подтверждено 16
+ * дней назад, пора проверить», «засчитано, не подтверждено»; '' for a question never answered.
+ */
+export function readinessWords(state: Pick<QuestionState, 'readiness' | 'lastPassDate' | 'stale'>, now: Date = new Date()): string {
+  if (state.readiness === 'untested') return '';
+  if (state.readiness !== 'confirmed') return READINESS_LABELS[state.readiness];
+  const days = daysAgo(state.lastPassDate, now);
+  if (days === null) return READINESS_LABELS.confirmed;
+  const age = days <= 0 ? 'сегодня' : days === 1 ? 'вчера' : `${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад`;
+  return `подтверждено ${age}${state.stale ? ', пора проверить' : ''}`;
 }
 
 /** Question states with the student's latest self-rating taps applied over the journal. */
@@ -369,18 +517,7 @@ export function withRatingOverrides(
   if (entries.length === 0) return states;
   const next = new Map(states);
   for (const [hash, rating] of entries) {
-    const base: QuestionState = next.get(hash) ?? {
-      readiness: 'untested',
-      selfRating: null,
-      ratingAtLastAnswer: null,
-      attempts: 0,
-      passedDays: 0,
-      lastDate: null,
-      lastGrade: null,
-      lastScorePct: null,
-      firstDate: null,
-      lastSessionId: null,
-    };
+    const base: QuestionState = next.get(hash) ?? emptyQuestionState();
     next.set(hash, { ...base, selfRating: rating });
   }
   return next;

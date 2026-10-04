@@ -20,6 +20,7 @@ import {
   ProtocolSheet,
   ReviewCard,
   livePoints,
+  stampFor,
   storedGrade,
   storedPoints,
   type ProtocolFollowup,
@@ -45,17 +46,19 @@ import {
   clearDraft,
   clearStashedAttempt,
   createDraftWriter,
+  initialLiveMarks,
   readDraft,
-  readLiveMarks,
   readStashedAttempt,
+  rememberLiveMarks,
   saveOralAttempt,
   stashAttempt,
-  writeLiveMarks,
   type AnswerInput,
   type FollowupRecord,
+  type TicketMode,
 } from '../lib/oral/oralPersistence';
 import {
   TICKET_LOAD_FAILED,
+  departmentTicketNumber,
   isUuid,
   loadExam,
   loadOralSession,
@@ -68,7 +71,10 @@ import {
   type TicketQuestion,
 } from '../lib/oral/ticketData';
 import {
+  ALL_COVERED_LINE,
+  THANKS_LINE,
   answerTime,
+  closingLine,
   hasUnsavedAnswer,
   initialTicketState,
   protocolState,
@@ -82,7 +88,7 @@ import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, 
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
-export const ALL_COVERED_LINE = 'Хорошо, по существу всё';
+export { ALL_COVERED_LINE, THANKS_LINE };
 export const NOT_HEARD_LINE = 'Не расслышал ответ';
 
 /** Recognition of the answer to the follow-up starts this long after the question's audio ended. */
@@ -107,11 +113,14 @@ export const FOLLOWUP_VOICE_DELAY_MS = 300;
 const EVALUATION_FAILED_MESSAGE = 'Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.';
 const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
 
-/** The examiner's lines in the order they are prefetched (contracts §7.2). */
+/**
+ * The examiner's lines in the order they are prefetched (contracts §7.2): «Так…», the follow-ups,
+ * the two closing lines («Хорошо, по существу всё», «Хорошо, спасибо»), «Не расслышал ответ».
+ */
 export function examinerLines(points: RubricPoint[]): string[] {
   const essential = points.filter((point) => point.essential).map((point) => point.followup.question);
   const others = points.filter((point) => !point.essential).map((point) => point.followup.question);
-  const lines = [FILLER_LINE, ...essential, ...others, ALL_COVERED_LINE, NOT_HEARD_LINE].map((line) => line.trim()).filter(Boolean);
+  const lines = [FILLER_LINE, ...essential, ...others, ALL_COVERED_LINE, THANKS_LINE, NOT_HEARD_LINE].map((line) => line.trim()).filter(Boolean);
   return Array.from(new Set(lines));
 }
 
@@ -120,20 +129,27 @@ function pointsWord(n: number): string {
   return `${n} ${plural(n, 'пункт', 'пункта', 'пунктов')}`;
 }
 
-function sanitizeTicketNumber(raw: string | null): string | null {
-  const value = (raw ?? '').trim();
-  return /^[0-9A-Za-zА-Яа-яЁё.\-/]{1,12}$/.test(value) ? value : null;
-}
-
 export default function ExamTicket() {
   const { id: examId = '' } = useParams();
   const [params] = useSearchParams();
   const sessionId = params.get('session');
   const rawIds = params.get('q');
   const questionIds = useMemo(() => parseQuestionIds(rawIds), [rawIds]);
-  const ticketNumber = sanitizeTicketNumber(params.get('n'));
+  // «Билет N» only when the exam's own list of tickets backs it (checked once the exam is loaded).
+  const requestedNumber = params.get('n');
+  // Sent only by the draw's «Как на экзамене»: marks off by default, no hint, no counter.
+  const mode: TicketMode = params.get('mode') === 'exam' ? 'exam' : 'training';
+  // The read-only protocol ignores both.
   if (sessionId !== null) return <ReadOnlyProtocol examId={examId} sessionId={sessionId} />;
-  return <TicketRoom key={`${examId}|${questionIds.join(',')}`} examId={examId} questionIds={questionIds} ticketNumber={ticketNumber} />;
+  return (
+    <TicketRoom
+      key={`${examId}|${questionIds.join(',')}|${mode}`}
+      examId={examId}
+      questionIds={questionIds}
+      requestedNumber={requestedNumber}
+      mode={mode}
+    />
+  );
 }
 
 // ── The top line of the room ───────────────────────────────────────────────────────
@@ -249,10 +265,12 @@ function inputOf(usedSpeech: boolean, usedText: boolean): AnswerInput {
 interface TicketRoomProps {
   examId: string;
   questionIds: string[];
-  ticketNumber: string | null;
+  /** &n of the address: a department ticket's number, honoured only when the exam's tickets back it. */
+  requestedNumber: string | null;
+  mode: TicketMode;
 }
 
-function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
+function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { confirm } = useConfirm();
@@ -262,7 +280,8 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   stateRef.current = state;
   const speechRef = useRef(speech);
   speechRef.current = speech;
-  const [liveMarksOn, setLiveMarksOn] = useState(readLiveMarks);
+  // «Как на экзамене» starts with the marks off and never touches the stored preference.
+  const [liveMarksOn, setLiveMarksOn] = useState(() => initialLiveMarks(mode));
   const [now, setNow] = useState(() => Date.now());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -283,6 +302,11 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   const focusTextRef = useRef(false);
 
   const question = state.questions[state.index] ?? null;
+  // «Билет 12» only for the department's ticket 12 whose questions these are (a forged &n shows nothing).
+  const ticketNumber = useMemo(
+    () => (state.exam ? departmentTicketNumber(state.exam.layout, requestedNumber, questionIds) : null),
+    [questionIds, requestedNumber, state.exam],
+  );
   const rubricResponse = state.rubric.status === 'ready' ? state.rubric.response : null;
   const points = useMemo(() => rubricResponse?.rubric.points ?? [], [rubricResponse]);
   const voiceAnswer = state.mode === 'voice';
@@ -540,7 +564,12 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   const grade: GradeResult | null = useMemo(() => {
     if (!rubricResponse || state.evaluation.status !== 'done') return null;
     const evaluated = new Map(state.evaluation.result.points.map((point) => [point.id, point.status]));
-    const f = state.followup && state.followup.status ? { point_id: state.followup.pointId, status: state.followup.status } : null;
+    // How the follow-up was judged decides whether the cap for an unrecovered main point applies:
+    // the model's check, «Не знаю» or silence (null) are trusted; the key-word fallback is not.
+    const f =
+      state.followup && state.followup.status
+        ? { point_id: state.followup.pointId, status: state.followup.status, judgedBy: state.followup.judgedBy }
+        : null;
     return gradeAnswer(
       rubricResponse.rubric.points.map((point) => ({ id: point.id, essential: point.essential, status: evaluated.get(point.id) ?? 'unrated' })),
       f,
@@ -825,8 +854,11 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
       }, FOLLOWUP_VOICE_DELAY_MS);
       return;
     }
-    dispatch({ type: 'no_followup' });
-    void speakLine(ALL_COVERED_LINE);
+    // «Хорошо, по существу всё» only over an answer that named every row by key words; a closed row
+    // gets «Хорошо, спасибо» (Jury_Check item 12).
+    const closing = closingLine(rubricPoints, live);
+    dispatch({ type: 'no_followup', closing });
+    void speakLine(closing);
   };
 
   // ── The follow-up ──
@@ -992,7 +1024,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   };
 
   const toggleLiveMarks = (on: boolean) => {
-    writeLiveMarks(on);
+    rememberLiveMarks(mode, on);
     setLiveMarksOn(on);
   };
 
@@ -1186,7 +1218,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
               heading={sheetHeading}
               points={livePoints(rubricResponse.rubric, state.evaluation.status === 'done' ? state.evaluation.result : null, new Set(state.named))}
               followup={followupForProtocol}
-              stamp={result.grade === null ? 'none' : result.passed ? 'passed' : 'not_passed'}
+              stamp={stampFor(result.grade)}
               seed={seed}
               animate={!state.attempt?.restored}
             />
@@ -1375,13 +1407,18 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
   } else if (answering) {
     side = (
       <>
+        {/* Secondary on purpose: a count by key words, not the result (Jury_Check item 7). */}
         {liveMarksOn ? (
           <div className="or-count">
-            <p className="or-count-label">Названо</p>
-            <p className="or-count-big">
-              {namedCount} <span className="or-of">из</span> {points.length}
+            <p className="or-count-line">
+              По ключевым словам:{' '}
+              <b>
+                {namedCount}
+                {'\u00a0'}из{'\u00a0'}
+                {points.length}
+              </b>
             </p>
-            <p className="or-count-fine">по ключевым словам, итог — после ответа</p>
+            <p className="or-count-fine">итог — после ответа</p>
           </div>
         ) : (
           <p className="or-message or-message-muted">Отметки во время ответа выключены: пункты откроются в протоколе.</p>
@@ -1440,13 +1477,13 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
       </>
     );
   } else {
-    // finalizing, examiner, followup, evaluating: from «Готово» on the counter is one line, so the
-    // examiner's question is the largest thing on the desk (redesign critique 3, round 2).
+    // finalizing, examiner, followup, evaluating: the same line as during the answer stays, so the
+    // examiner's question is the largest thing on the desk (redesign critique 3, round 2; Jury_Check 9).
     side = (
       <>
         {liveMarksOn ? (
           <p className="or-count-line">
-            По ключевым словам названо{' '}
+            По ключевым словам:{' '}
             <b>
               {state.named.length}
               {'\u00a0'}из{'\u00a0'}
@@ -1473,16 +1510,24 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
                     data-anchor=""
                   />
                 ) : null}
-                {followup.stage === 'answering' && followup.mode === 'voice' ? (
-                  <LiveTranscript
-                    className="or-examiner-answer"
-                    label="Ваш ответ на вопрос"
-                    finalText={speech.finalText}
-                    interimText={speech.interimText}
-                    underlined={new Set()}
-                    seed={seedFrom(seedBase, 'followup')}
-                    emptyText="Говорите — я слушаю."
-                  />
+                {/* One transcript from the question on: while the examiner asks it keeps its place unseen, so the
+                    block does not move when the microphone opens (peak 2 on the stage). */}
+                {followup.mode === 'voice' && (followup.stage === 'answering' || followup.stage === 'asking') ? (
+                  <div
+                    className="or-examiner-listen"
+                    data-waiting={followup.stage === 'asking' ? '' : undefined}
+                    aria-hidden={followup.stage === 'asking' ? true : undefined}
+                  >
+                    <LiveTranscript
+                      className="or-examiner-answer"
+                      label="Ваш ответ на вопрос"
+                      finalText={speech.finalText}
+                      interimText={speech.interimText}
+                      underlined={new Set()}
+                      seed={seedFrom(seedBase, 'followup')}
+                      emptyText="Говорите — я слушаю."
+                    />
+                  </div>
                 ) : null}
                 <div className="or-acts">
                   {followup.stage === 'asking' ? (
@@ -1513,7 +1558,7 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
         ) : null}
         {state.phase === 'evaluating' ? (
           <>
-            {state.allCovered ? <p className="or-line or-line-ink">{`${ALL_COVERED_LINE}.`}</p> : null}
+            {state.closing ? <p className="or-line or-line-ink">{`${state.closing}.`}</p> : null}
             <p className="or-line" role="status">
               Проверяем ответ по пунктам эталона…
             </p>
@@ -1523,8 +1568,9 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
     );
   }
 
+  // «Как на экзамене»: no «В эталоне N пунктов» hint (Jury_Check item 11).
   const noteLine =
-    ready && points.length > 0
+    ready && points.length > 0 && mode !== 'exam'
       ? liveMarksOn
         ? `В эталоне ${pointsWord(points.length)} из ваших лекций. Они откроются, когда вы их назовёте.`
         : `В эталоне ${pointsWord(points.length)} из ваших лекций.`
@@ -1555,18 +1601,24 @@ function TicketRoom({ examId, questionIds, ticketNumber }: TicketRoomProps) {
           {leftState}
           {ready && points.length > 0 ? (
             <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''} data-empty={transcriptShown ? undefined : ''}>
-              {/* Phones: the strip «Названо 3 из 5 · по ключевым словам» heads the answer sheet itself — two
-                  paper objects instead of three (redesign critique 10, round 2). Hidden on wide screens. */}
+              {/* Phones: the strip «По ключевым словам: 3 из 5 · итог — после ответа» heads the answer sheet
+                  itself — two paper objects instead of three (redesign critique 10, round 2); its marks are the
+                  provisional dots of the sheet (Jury_Check item 7). Hidden on wide screens. */}
               {state.phase !== 'ready' && liveMarksOn ? (
                 <div className="or-strip">
                   <p className="or-strip-count">
-                    {`Названо ${namedCount} из ${points.length} `}
-                    <span>· по ключевым словам</span>
+                    По ключевым словам:{' '}
+                    <b>
+                      {namedCount}
+                      {'\u00a0'}из{'\u00a0'}
+                      {points.length}
+                    </b>{' '}
+                    <span className="or-strip-fine">итог — после ответа</span>
                   </p>
                   <div className="or-strip-marks" aria-hidden="true">
                     {points.map((point) =>
                       shownNamed.has(point.id) ? (
-                        <Mark key={point.id} kind="dtick" seed={seedFrom(seedBase, point.id)} width={20} height={17} />
+                        <Mark key={point.id} kind="dot" seed={seedFrom(seedBase, point.id)} />
                       ) : (
                         <span key={point.id} className="or-strip-blank" />
                       ),
@@ -1687,6 +1739,8 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
 
   // The exam's title as it is now, or as it was when the answer was saved (exam_sessions.subject).
   const course = view.status === 'ready' ? subjectOf(view.exam?.title || view.protocol.subject || '') : '';
+  // The saved grade against today's formula: like a fresh protocol, or with the rule of that day.
+  const graded = view.status === 'ready' ? storedGrade(view.protocol) : { result: gradeAnswer([], null), note: null };
   const date = view.status === 'ready' ? view.protocol.completedAt : null;
   const sheetPath = `/exams/${view.status === 'ready' ? view.sheetExamId : examId}`;
   const sheetLink = (
@@ -1725,13 +1779,13 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
                     }
                   : null
               }
-              stamp={view.protocol.grade === null ? 'none' : view.protocol.grade >= 4 ? 'passed' : 'not_passed'}
+              stamp={stampFor(view.protocol.grade)}
               seed={view.protocol.sessionId}
             />
           </section>
           <section className="or-side" aria-label="Оценка">
             <p className="or-readonly-note">{`Ответ от ${shortDateTime(view.protocol.completedAt)}. Протокол только для чтения.`}</p>
-            <ProtocolGrade result={storedGrade(view.protocol)}>
+            <ProtocolGrade result={graded.result} note={graded.note}>
               <div className="or-acts" data-wide="">
                 <button type="button" className="sf-link" onClick={() => navigate(sheetPath)}>
                   Лист экзамена

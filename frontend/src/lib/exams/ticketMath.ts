@@ -270,3 +270,16 @@ export function layoutShares(input: ShareInput): LayoutShares {
   }
   return { ...ticketShareRange(input), mode: input.mode, fallbackReason: null };
 }
+
+/**
+ * The same shares if the `promoted` questions qualified too: «Закройте 7 вопросов «частично» —
+ * оба вопроса будут в лекциях в 60 % билетов» (C(31, 2) / C(40, 2) = 465 / 780). Questions whose
+ * status is still unknown keep widening the range, exactly as in layoutShares.
+ */
+export function layoutSharesIf(input: ShareInput, promoted: Iterable<string>): LayoutShares {
+  const ids = new Set(promoted);
+  return layoutShares({
+    ...input,
+    questions: input.questions.map((question) => (ids.has(question.id) ? { ...question, status: 'yes' as const } : question)),
+  });
+}

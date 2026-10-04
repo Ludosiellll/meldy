@@ -18,6 +18,9 @@ type Mode = 'full' | 'express' | 'podcast';
 const PANEL_ID = 'material-mode-panel';
 const tabId = (mode: Mode) => `material-mode-${mode}`;
 const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Разговор' };
+/** What opening a material means, said plainly: a public material is readable without an account. */
+export const PUBLISH_MESSAGE =
+  'Материал появится в открытых материалах: его полный текст, конспект и карточки сможет открыть и скопировать любой, у кого есть ссылка. Закрыть доступ можно в любой момент.';
 /** Spec 4.6: nothing for the first 300 ms, then one quiet line instead of a spinner. */
 const LOADING_LINE_MS = 300;
 
@@ -250,15 +253,15 @@ export default function MaterialDetail() {
   };
 
   /**
-   * Открыть материал всем — заметное решение: текст, конспект и карточки смогут
-   * открыть и скопировать другие студенты. Поэтому сначала спрашиваем, а ссылку
-   * копируем и «В открытых материалах» показываем только после удачной записи.
+   * Открыть материал всем — заметное решение: открытый материал читается без входа,
+   * поэтому полный текст, конспект и карточки сможет открыть и скопировать любой, у кого
+   * есть ссылка («другие студенты» это преуменьшало, записка жюри, п. 13). Поэтому сначала
+   * спрашиваем, а ссылку копируем и «В открытых материалах» показываем только после удачной записи.
    */
   const confirmPublish = () =>
     confirm({
       title: 'Открыть материал по ссылке?',
-      message:
-        'Материал появится в открытых материалах: его текст, конспект и карточки смогут открыть и скопировать другие студенты. Закрыть доступ можно в любой момент.',
+      message: PUBLISH_MESSAGE,
       confirmText: 'Открыть',
       cancelText: 'Отмена',
       type: 'warning',
@@ -400,7 +403,9 @@ export default function MaterialDetail() {
   };
 
   return (
-    <div className="sf-page">
+    // On «Разговор» a low window (1280×720 projector) folds the crumb and the meta line and shrinks the title, so the
+    // sheet, the subtitle and the player fit without page scroll (components/conversation/conversation.css).
+    <div className="sf-page" data-tab={mode === 'podcast' ? 'talk' : undefined}>
       {/* Spec 5.2 and design critique 12: crumb, the title in Literata, one meta line; «Повторить карточки» and «⋯»
           on the right. No chips, no icon buttons and no second filled button. */}
       <header className="sf-head sf-detail-head">

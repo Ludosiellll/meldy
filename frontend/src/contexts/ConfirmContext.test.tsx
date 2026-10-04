@@ -72,7 +72,7 @@ describe('confirm dialog semantics', () => {
     let closed = false;
     act(() => {
       void host.api
-        .alert({ title: 'Дневной лимит исчерпан', message: 'Лимит обновится в 03:00.', confirmText: 'Понятно' })
+        .alert({ title: 'Дневной лимит исчерпан', message: 'Лимит обновится в 3:00.', confirmText: 'Понятно' })
         .then(() => {
           closed = true;
         });

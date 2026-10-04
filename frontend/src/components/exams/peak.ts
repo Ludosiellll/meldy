@@ -1,8 +1,14 @@
 /**
- * Peak 3 (redesign spec 5.9): after an answer is saved, the answer screen leaves a flag in
- * sessionStorage `meldy_exam_peak_<examId>` (the question hash and its state before the answer).
- * Back on the sheet the journal is read again, the states are compared, and only then the row
- * scrolls into view and its new readiness mark is drawn — never on a timer, never twice.
+ * Peak 3 (redesign spec 5.9, Jury_Check items 4 and 9): after an answer is saved, the answer screen
+ * leaves a flag in sessionStorage `meldy_exam_peak_<examId>` (the question hash and its state
+ * before the answer). Back on the sheet the journal is read again, the states are compared, and
+ * only then the row scrolls into view and its new readiness mark is drawn — never on a timer,
+ * never twice.
+ *
+ * The column carries the stage's finale: when something is confirmed now, the growth from history
+ * («0 → 7 за 3 дня», also after a 3, so a bad answer still shows the way so far), the net change of
+ * the day («+1 сегодня», only when it is positive), the statement about the answer just given, and
+ * «Второй ответ после разбора»: how many rubric points were раскрыты the first time and the second.
  *
  * The flag is read tolerantly (one hash, an object or a list), and the «before» state is
  * recomputed from the journal when the flag does not carry it.
@@ -10,8 +16,9 @@
 import type { LearningEvent } from '../../api/learning';
 import { localDate } from '../../api/learning';
 import { compareEventTime, questionState, type QuestionState, type Readiness } from '../../lib/learning/readiness';
-import { formatDay, GRADE_WORDS } from '../../lib/exams/format';
-import { pct } from './sheetModel';
+import { formatDay, formatShortMoment, GRADE_WORDS } from '../../lib/exams/format';
+import { pluralRu } from '../conversation/visuals';
+import { CONFIRMED_MEANING, daysAgo, pct } from './sheetModel';
 
 export function peakKey(examId: string): string {
   return `meldy_exam_peak_${examId}`;
@@ -100,12 +107,17 @@ export interface PeakChange {
  * The state before and after the latest answer of a question. `beforeHint` (from the flag) wins over
  * the recomputed one. Null when the question has no answer in the journal.
  */
-export function peakChange(answers: LearningEvent[], ratings: LearningEvent[], beforeHint: Readiness | null): PeakChange | null {
+export function peakChange(
+  answers: LearningEvent[],
+  ratings: LearningEvent[],
+  beforeHint: Readiness | null,
+  now: Date = new Date(),
+): PeakChange | null {
   const spoken = answers.filter((event) => event.kind === 'exam_answer').sort(compareEventTime);
   if (spoken.length === 0) return null;
   const latest = spoken[spoken.length - 1];
-  const after = questionState(spoken, ratings);
-  const recomputed = questionState(spoken.slice(0, -1), ratings);
+  const after = questionState(spoken, ratings, now);
+  const recomputed = questionState(spoken.slice(0, -1), ratings, now);
   const before = beforeHint ? { ...recomputed, readiness: beforeHint } : recomputed;
   return { before, after, latest };
 }
@@ -124,29 +136,29 @@ function capitalize(text: string): string {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
 
-/** The pass before the latest answer: «29 сентября — зачтено». */
-function previousPassDay(answers: LearningEvent[], latest: LearningEvent): string | null {
-  const earlier = answers
-    .filter((event) => event.kind === 'exam_answer' && event.id !== latest.id && event.correct === true)
-    .sort(compareEventTime);
-  return earlier.length > 0 ? earlier[earlier.length - 1].local_date : null;
-}
-
-/** The first day the question became confirmed, for «Был подтверждён с 29 сентября». */
-function confirmedSinceDay(answers: LearningEvent[], latest: LearningEvent): string | null {
-  const passes = answers
-    .filter((event) => event.kind === 'exam_answer' && event.id !== latest.id && event.correct === true)
-    .sort(compareEventTime);
-  const days = Array.from(new Set(passes.map((event) => event.local_date)));
-  return days.length >= 2 ? days[1] : null;
-}
-
 export interface PeakCounts {
   total: number;
   confirmed: number;
   once: number;
   notPassed: number;
   since: string | null;
+  /**
+   * Confirmed by the same rule over this exam's events with a local day before today: «+1 сегодня»
+   * is the net change against it. Null when unknown (then no «+N сегодня»).
+   */
+  confirmedBeforeToday?: number | null;
+}
+
+/** «0 → 7 за 3 дня · +1 сегодня»: shown only when something is confirmed now (never «0 → 0»). */
+export interface PeakGrowth {
+  /** Confirmed now. */
+  to: number;
+  /** Questions of the exam: «0 → 7 из 40». */
+  total: number;
+  /** Days from the first answer among these questions to today; 0 → no «за K дней». */
+  days: number;
+  /** Net change of the day: confirmed now minus confirmed before today; shown only when positive. */
+  today: number;
 }
 
 export interface PeakText {
@@ -157,13 +169,51 @@ export interface PeakText {
   before: number | null;
   after: number;
   total: number | null;
+  /** About the answer just given, 18 px. */
   statement: string;
   fine: string[];
   /** A new mark is drawn (false when nothing visible changes). */
   draws: boolean;
+  growth: PeakGrowth | null;
 }
 
-/** Words of the five transitions of the spec's table (and the neighbours they imply). */
+/** The growth from history for the column: null without confirmed questions. */
+export function peakGrowth(counts: PeakCounts, now: Date = new Date()): PeakGrowth | null {
+  if (counts.confirmed <= 0) return null;
+  const days = Math.max(0, daysAgo(counts.since, now) ?? 0);
+  const before = counts.confirmedBeforeToday;
+  const today = typeof before === 'number' ? Math.max(0, counts.confirmed - before) : 0;
+  return { to: counts.confirmed, total: counts.total, days, today };
+}
+
+/** «за 3 дня» ('' for 0 days). */
+export function daysPhrase(days: number): string {
+  return days > 0 ? `за ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}` : '';
+}
+
+/**
+ * The readiness block without a peak: «С 1 октября: 0 → 7 за 3 дня.» when something is confirmed and
+ * the history spans more than one day; null otherwise.
+ */
+export function growthSentence(summary: { confirmed: number; since: string | null }, now: Date = new Date()): string | null {
+  if (summary.confirmed <= 0 || !summary.since) return null;
+  const days = daysAgo(summary.since, now);
+  if (days === null || days <= 0) return null;
+  return `С ${formatDay(summary.since, now)}: 0 → ${summary.confirmed} ${daysPhrase(days)}.`;
+}
+
+/** «Пора проверить: 2 — подтверждены больше 14 дней назад.» or null. */
+export function staleSentence(stale: number): string | null {
+  if (stale <= 0) return null;
+  const verb = stale % 10 === 1 && stale % 100 !== 11 ? 'подтверждён' : 'подтверждены';
+  return `Пора проверить: ${stale} — ${verb} больше 14 дней назад.`;
+}
+
+/**
+ * Words of every transition (Jury_Check item 4): untested → once, once → once, once → confirmed,
+ * confirmed → confirmed, any → not_passed, confirmed → not_passed, not_passed → once and
+ * not_passed → not_passed. A passed answer is «засчитан», never «зачёт».
+ */
 export function peakText(input: {
   change: PeakChange;
   answers: LearningEvent[];
@@ -172,7 +222,7 @@ export function peakText(input: {
   confirmedTicketsPct: number | null;
   now?: Date;
 }): PeakText {
-  const { change, answers, number, counts } = input;
+  const { change, number, counts } = input;
   const now = input.now ?? new Date();
   const today = localDate(now);
   const latestDay = change.latest.local_date || today;
@@ -182,69 +232,83 @@ export function peakText(input: {
   const from = change.before.readiness;
   const to = change.after.readiness;
   const confirmedTickets = input.confirmedTicketsPct !== null ? ` Билетов, где подтверждены оба вопроса, — ${pct(input.confirmedTicketsPct)}.` : '';
+  const meaning = `${CONFIRMED_MEANING}${confirmedTickets}`;
+  const growth = peakGrowth(counts, now);
+  const passed = `Вопрос ${number}: ответ, который вы дали только что, засчитан.`;
+  const failed = `Вопрос ${number}: ответ, который вы дали только что, не засчитан.`;
 
   if (to === 'confirmed' && from !== 'confirmed') {
-    const passDay = previousPassDay(answers, change.latest);
-    const head = passDay ? `${capitalize(formatDay(passDay, now))} — зачтено. ` : '';
+    const start = change.after.seriesStartDate;
+    const head = start && start !== latestDay ? `${capitalize(formatDay(start, now))} — засчитано. ` : '';
     return {
-      because: `${head}${capitalize(when)} снова ${gradeWord}: два зачёта в разные дни, вопрос подтверждён.`,
+      because: `${head}${capitalize(when)} снова ${gradeWord}: засчитано дважды, в разные дни, — вопрос подтверждён.`,
       title: 'Подтверждено ответами',
       before: Math.max(0, counts.confirmed - 1),
       after: counts.confirmed,
       total: counts.total,
-      // The growth belongs to the statement (redesign critique 2, round 2): «… только что. С 27 сентября: 0 → 7.»
-      statement: `Вопрос ${number} подтверждён ответом, который вы дали только что.${counts.since ? ` С ${formatDay(counts.since, now)}: 0 → ${counts.confirmed}.` : ''}`,
-      fine: [`Подтверждено — значит, зачтено дважды, в разные дни.${confirmedTickets}`],
+      statement: `Вопрос ${number} подтверждён ответом, который вы дали только что.`,
+      fine: [meaning],
       draws: true,
+      growth,
     };
   }
   if (to === 'not_passed' && from === 'confirmed') {
-    const since = confirmedSinceDay(answers, change.latest);
+    const since = change.before.confirmedOn;
     return {
-      because: `Был подтверждён${since ? ` с ${formatDay(since, now)}` : ''}, ${when} — ${gradeWord}. Подтверждение снято.`,
+      because: `Был подтверждён${since ? ` с ${formatDay(since, now)}` : ''}, ${when} — ${gradeWord}. Подтверждение снято, серия начнётся заново.`,
       title: 'Подтверждено ответами',
       before: counts.confirmed + 1,
       after: counts.confirmed,
       total: counts.total,
-      statement: `Вопрос ${number}: последний ответ не зачтён, подтверждение снято.`,
-      fine: ['Подтверждено — значит, зачтено дважды, в разные дни, и последний ответ зачтён.'],
+      statement: `${failed} Подтверждение снято.`,
+      fine: [meaning],
       draws: true,
+      growth,
     };
   }
   if (to === 'not_passed') {
     return {
-      because: `${capitalize(when)} — ${gradeWord}, вопрос пока не зачтён. В режиме «Чаще слабые» он будет выпадать чаще.`,
-      title: 'Не зачтено',
+      because: `${capitalize(when)} — ${gradeWord}, в готовность не засчитано. В режиме «Чаще слабые» вопрос будет выпадать чаще.`,
+      title: 'Не засчитано',
       before: from === 'not_passed' ? counts.notPassed : Math.max(0, counts.notPassed - 1),
       after: counts.notPassed,
       total: null,
-      statement: `Вопрос ${number}: ответ, который вы дали только что, не зачтён.`,
-      fine: [],
+      statement: failed,
+      fine: growth ? [meaning] : [],
       draws: from !== 'not_passed',
+      growth,
     };
   }
   if (to === 'once' && from === 'once') {
+    const at = formatShortMoment(change.after.confirmableFrom, now);
     return {
-      because: 'Снова зачтено, но в тот же день. Для подтверждения нужен зачёт в другой день.',
-      title: 'Зачтено в один день',
+      because: `Снова засчитано, но с первого засчитанного ответа прошло меньше 20 часов или это тот же день.${
+        at ? ` Подтвердит засчитанный ответ не раньше ${at}.` : ''
+      }`,
+      title: 'Засчитано, не подтверждено',
       before: null,
       after: counts.once,
       total: null,
-      statement: `Вопрос ${number} снова зачтён.`,
-      fine: [],
+      statement: passed,
+      fine: growth ? [meaning] : [],
       draws: false,
+      growth,
     };
   }
   if (to === 'once') {
     return {
-      because: `Зачтено ${when}. Второй зачёт в другой день подтвердит вопрос.`,
-      title: 'Зачтено в один день',
+      because:
+        from === 'not_passed'
+          ? `Засчитано ${when}. После провала серия началась заново.`
+          : `Засчитано ${when}. Подтвердит засчитанный ответ на другой день, не раньше чем через 20 часов.`,
+      title: 'Засчитано, не подтверждено',
       before: Math.max(0, counts.once - 1),
       after: counts.once,
       total: null,
-      statement: `Вопрос ${number} зачтён ответом, который вы дали только что.`,
-      fine: [],
+      statement: passed,
+      fine: growth ? [meaning] : [],
       draws: true,
+      growth,
     };
   }
   // Still confirmed: one more good answer.
@@ -255,7 +319,102 @@ export function peakText(input: {
     after: counts.confirmed,
     total: counts.total,
     statement: `Вопрос ${number} остаётся подтверждённым.`,
-    fine: [],
+    fine: [meaning],
     draws: false,
+    growth,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// «Второй ответ после разбора»
+
+const RATED = new Set(['covered', 'partial', 'missing', 'wrong']);
+
+function graded(event: LearningEvent): boolean {
+  return event.kind === 'exam_answer' && (event.correct === true || event.correct === false);
+}
+
+/** The first and the second graded answer of every question answered at least twice, oldest first. */
+function firstTwoAnswers(answers: LearningEvent[]): Array<[LearningEvent, LearningEvent]> {
+  const byQuestion = new Map<string, LearningEvent[]>();
+  for (const event of answers) {
+    if (!event || !graded(event) || typeof event.item_key !== 'string') continue;
+    byQuestion.set(event.item_key, [...(byQuestion.get(event.item_key) ?? []), event]);
+  }
+  const pairs: Array<[LearningEvent, LearningEvent]> = [];
+  for (const list of byQuestion.values()) {
+    if (list.length < 2) continue;
+    const sorted = [...list].sort(compareEventTime);
+    pairs.push([sorted[0], sorted[1]]);
+  }
+  return pairs;
+}
+
+/** The sessions whose rubric points «Второй ответ после разбора» needs (fetchSessionPoints). */
+export function secondAnswerSessions(answers: LearningEvent[]): string[] {
+  const ids = new Set<string>();
+  for (const [first, second] of firstTwoAnswers(answers)) {
+    if (first.session_id && second.session_id) {
+      ids.add(first.session_id);
+      ids.add(second.session_id);
+    }
+  }
+  return Array.from(ids);
+}
+
+export interface SecondAnswer {
+  /** Questions answered at least twice whose two first answers both have rated points. */
+  questions: number;
+  /** Σ раскрыто / Σ rated points over the first answers, in percent. */
+  firstPct: number;
+  /** The same over the second answers. */
+  secondPct: number;
+}
+
+/**
+ * «Второй ответ после разбора» (Jury_Check item 4): for every question with at least two graded
+ * answers, the first and the second one in time order; the question counts only when both sessions
+ * have at least one rated rubric point (oral_point with payload.status other than 'unrated'). The
+ * shares are pooled: Σ раскрыто / Σ rated over the first answers, then over the second ones.
+ * «Раскрыто» is the protocol's word for a point the model judged covered. Null without such data.
+ * It is not retention: the second answer comes after the protocol with the lecture's quotes.
+ */
+export function secondAnswerAfterReview(answers: LearningEvent[], points: LearningEvent[]): SecondAnswer | null {
+  const bySession = new Map<string, { rated: number; covered: number }>();
+  for (const point of points) {
+    if (!point || point.kind !== 'oral_point' || !point.session_id) continue;
+    const status = point.payload?.status;
+    if (typeof status !== 'string' || !RATED.has(status)) continue;
+    const entry = bySession.get(point.session_id) ?? { rated: 0, covered: 0 };
+    entry.rated += 1;
+    if (status === 'covered') entry.covered += 1;
+    bySession.set(point.session_id, entry);
+  }
+  let questions = 0;
+  let firstRated = 0;
+  let firstCovered = 0;
+  let secondRated = 0;
+  let secondCovered = 0;
+  for (const [first, second] of firstTwoAnswers(answers)) {
+    const a = first.session_id ? bySession.get(first.session_id) : undefined;
+    const b = second.session_id ? bySession.get(second.session_id) : undefined;
+    if (!a || !b || a.rated === 0 || b.rated === 0) continue;
+    questions += 1;
+    firstRated += a.rated;
+    firstCovered += a.covered;
+    secondRated += b.rated;
+    secondCovered += b.covered;
+  }
+  if (questions === 0) return null;
+  return {
+    questions,
+    firstPct: Math.round((firstCovered / firstRated) * 100),
+    secondPct: Math.round((secondCovered / secondRated) * 100),
+  };
+}
+
+/** «Второй ответ после разбора: по 5 вопросам в первый раз раскрыто 48 % пунктов, во второй — 81 %.» */
+export function secondAnswerSentence(value: SecondAnswer): string {
+  const questions = value.questions % 10 === 1 && value.questions % 100 !== 11 ? 'вопросу' : 'вопросам';
+  return `Второй ответ после разбора: по ${value.questions} ${questions} в первый раз раскрыто ${pct(value.firstPct)} пунктов, во второй — ${pct(value.secondPct)}.`;
 }

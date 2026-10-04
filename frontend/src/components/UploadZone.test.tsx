@@ -163,8 +163,8 @@ describe('UploadZone demo text', () => {
 
 describe('UploadZone start states', () => {
   it('shows the cost note under the start button and links it for screen readers', () => {
-    render(<Harness onUpload={vi.fn()} initialText={lecture(400)} costNote="Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 03:00." />);
-    const note = screen.getByText('Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 03:00.');
+    render(<Harness onUpload={vi.fn()} initialText={lecture(400)} costNote="Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00." />);
+    const note = screen.getByText('Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00.');
     expect(startButton()).toHaveAttribute('aria-describedby', note.id);
   });
 
@@ -173,11 +173,11 @@ describe('UploadZone start states', () => {
       <Harness
         onUpload={vi.fn()}
         initialText={lecture(400)}
-        startDisabledReason="На сегодня лимит исчерпан, он обновится в 03:00. Демо-текст доступен без лимита."
+        startDisabledReason="На сегодня лимит исчерпан, он обновится в 3:00. Демо-текст доступен без лимита."
       />,
     );
     expect(startButton()).toBeDisabled();
-    expect(screen.getByText('На сегодня лимит исчерпан, он обновится в 03:00. Демо-текст доступен без лимита.')).toBeInTheDocument();
+    expect(screen.getByText('На сегодня лимит исчерпан, он обновится в 3:00. Демо-текст доступен без лимита.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Попробовать на демо-тексте' })).toBeEnabled();
   });
 

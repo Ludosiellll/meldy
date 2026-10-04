@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import type { ExamQuestion } from '../../api/exams';
 import type { LearningEvent } from '../../api/learning';
-import WhyPanel, { attemptLabel, nearestSentence, type WhyPanelProps } from './WhyPanel';
+import WhyPanel, { attemptLabel, nearestSentence, readinessLine, type WhyPanelProps } from './WhyPanel';
+import { questionState } from '../../lib/learning/readiness';
 import type { SheetCoverage } from './marks';
 
 const EXCERPT = 'Потребитель делает выбор между наборами благ, сравнивая их полезность при заданном бюджете.';
@@ -172,7 +173,7 @@ describe('WhyPanel: a question that is in the lectures', () => {
   });
 });
 
-describe('WhyPanel: answers aloud', () => {
+describe('WhyPanel: answers', () => {
   it('lists every attempt with its date and grade, newest first, each opening its protocol', () => {
     renderPanel({
       question: question({ coverage: 'full', evidence: [], nearest: [] }),
@@ -194,6 +195,58 @@ describe('WhyPanel: answers aloud', () => {
 
   it('formats an attempt without a grade honestly', () => {
     expect(attemptLabel({ ...answer('e9', '2026-10-07', 4, 's'), payload: {} })).toBe('7 окт. · без оценки');
+  });
+});
+
+describe('WhyPanel: where the question stands by the rule «подтверждено»', () => {
+  const NOW = new Date(2026, 9, 5, 12, 0);
+  /** An answer at a local wall-clock time. */
+  function at(day: string, hh: number, mm: number, grade: number, id = `${day}-${hh}`): LearningEvent {
+    const [y, m, d] = day.split('-').map(Number);
+    return { ...answer(id, day, grade, `s-${id}`), created_at: new Date(y, m - 1, d, hh, mm).toISOString() };
+  }
+  const plain = (text: string | null) => (text ?? '').replace(/[\u00a0\u202f]/g, ' ');
+  const line = (answers: LearningEvent[], now = NOW) => plain(readinessLine(questionState(answers, [], now), answers, now));
+
+  it('dates a confirmation by the last засчитанный answer, the moment the 14-day rule counts from', () => {
+    const answers = [at('2026-09-29', 14, 2, 4), at('2026-10-01', 9, 0, 5), at('2026-10-03', 10, 0, 4)];
+    expect(line(answers)).toBe('Подтверждено 3 октября — 2 дня назад.');
+    expect(line(answers, new Date(2026, 9, 3, 18, 0))).toBe('Подтверждено сегодня.');
+    expect(line(answers, new Date(2026, 9, 4, 18, 0))).toBe('Подтверждено вчера.');
+  });
+
+  it('says «пора проверить» 14 days after the last засчитанный answer', () => {
+    const answers = [at('2026-09-17', 10, 0, 4), at('2026-09-19', 10, 0, 5)];
+    expect(line(answers)).toBe('Подтверждено 16 дней назад — пора проверить.');
+  });
+
+  it('names the earliest moment a question passed once can be confirmed', () => {
+    const answers = [at('2026-10-03', 14, 2, 4)];
+    expect(line(answers, new Date(2026, 9, 3, 18, 0))).toBe(
+      'Засчитано 3 окт., 14:02. Подтвердит засчитанный ответ на другой день, не раньше 4 окт., 10:02.',
+    );
+    // That moment has come: a good answer now confirms it.
+    expect(line(answers, new Date(2026, 9, 4, 11, 0))).toBe('Засчитано 3 окт., 14:02. Засчитанный ответ сейчас подтвердит вопрос.');
+  });
+
+  it('says a failed answer is not засчитан and the series starts over', () => {
+    const answers = [at('2026-10-01', 10, 0, 4), at('2026-10-03', 10, 0, 3)];
+    expect(line(answers)).toBe(
+      'Последний ответ 3 окт. — «удовлетворительно», не засчитано. Серия начнётся заново со следующего засчитанного ответа.',
+    );
+    expect(readinessLine(questionState([], []), [], NOW)).toBeNull();
+  });
+
+  it('shows the line above the answers of the question', () => {
+    renderPanel({
+      question: question({ coverage: 'full', evidence: [], nearest: [] }),
+      coverage: 'full',
+      answers: [at('2026-10-01', 10, 0, 4), at('2026-10-03', 10, 0, 5)],
+      now: NOW,
+    });
+    const ready = document.querySelector('.ex-why-ready') as HTMLElement;
+    expect(plain(ready.textContent)).toBe('Подтверждено 3 октября — 2 дня назад.');
+    expect(ready.compareDocumentPosition(screen.getByRole('list')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

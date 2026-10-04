@@ -28,6 +28,11 @@ export interface SheetRowView {
   number: string;
   coverage: SheetCoverage;
   readiness: Readiness;
+  /**
+   * What a screen reader hears after the number: «подтверждено 2 дня назад», «подтверждено 16 дней
+   * назад, пора проверить»; the readiness label when absent.
+   */
+  readinessWords?: string;
   selfRating: Rating | null;
   footnote: Footnote | null;
   appearance: MarkAppearanceView | null;
@@ -106,7 +111,7 @@ function NumberCell({ examId, row, drawIn }: { examId: string; row: SheetRowView
       ) : (
         <span className="ex-qn-box">{row.number}</span>
       )}
-      {row.readiness !== 'untested' && <span className="ex-sr">, {READINESS_LABELS[row.readiness]}</span>}
+      {row.readiness !== 'untested' && <span className="ex-sr">, {row.readinessWords || READINESS_LABELS[row.readiness]}</span>}
     </span>
   );
 }

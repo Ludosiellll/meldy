@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sheetHeader, subjectOf } from './format';
+import { formatShortMoment, sheetHeader, subjectOf } from './format';
 
 describe('subjectOf', () => {
   it.each([
@@ -29,5 +29,15 @@ describe('sheetHeader', () => {
   it('keeps a title that still says what kind of exam it is', () => {
     expect(sheetHeader('Экзамен по микроэкономике', 'exam')).toBe('Экзамен по микроэкономике');
     expect(sheetHeader('Вопросы к зачёту по праву', 'credit')).toBe('Вопросы к зачёту по праву');
+  });
+});
+
+describe('formatShortMoment', () => {
+  it('dates a moment with the short month and the clock, the year only when it is not this year', () => {
+    const now = new Date(2026, 9, 5, 12, 0);
+    expect(formatShortMoment(new Date(2026, 9, 3, 14, 2).toISOString(), now)).toBe('3 окт., 14:02');
+    expect(formatShortMoment(new Date(2026, 8, 29, 9, 5).toISOString(), now)).toBe('29 сент., 9:05');
+    expect(formatShortMoment(new Date(2025, 9, 3, 14, 2).toISOString(), now)).toBe('3 окт. 2025, 14:02');
+    expect(formatShortMoment(null, now)).toBe('');
   });
 });

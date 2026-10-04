@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Analytics, { accuracyLabel, cardsCell, mappingDateText, progressLede } from './Analytics';
+import Analytics, { accuracyLabel, cardsCell, ledgerFoot, mappingDateText, progressLede } from './Analytics';
 
 const db = vi.hoisted(() => {
   const state = {
@@ -63,9 +63,9 @@ const demoQuiz = [
   ...[true, true, true, true, true].map((ok, i) => quizEvent('s2', i, ok, '2026-10-03', true)),
 ];
 
-function examAnswer(hash: string, day: string, correct: boolean, id: string) {
+function examAnswer(hash: string, day: string, correct: boolean, id: string, createdAt = `${day}T12:00:00Z`) {
   return {
-    id, created_at: `${day}T12:00:00Z`, local_date: day, material_id: null, kind: 'exam_answer', item_key: `q:${hash}`,
+    id, created_at: createdAt, local_date: day, material_id: null, kind: 'exam_answer', item_key: `q:${hash}`,
     correct, score: correct ? 0.8 : 0.3, confidence: null, source_ids: [], session_id: `session-${id}`, payload: { grade: correct ? 4 : 2 },
   };
 }
@@ -351,13 +351,55 @@ describe('Progress sources', () => {
     expect(within(row).getByText('Есть в ваших лекциях: 1 из 3 · частично 1 · нет 1.')).toBeInTheDocument();
     expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
     expect(within(row).getByText('вопросов подтверждено ответами')).toBeInTheDocument();
-    // C(1, 2) / C(3, 2): no ticket has both questions confirmed yet.
-    expect(within(row).getByText('0 %')).toBeInTheDocument();
-    expect(within(row).getByText('билетов, где подтверждены оба вопроса')).toBeInTheDocument();
-    expect(within(row).getByText(/Зачтено в один день — 0, не зачтено — 1\. Самооценка против ответов вслух: мало данных\./)).toBeInTheDocument();
+    // C(1, 2) / C(3, 2): no ticket has both questions confirmed yet — a small line of the foot, no big «0 %».
+    expect(row.querySelectorAll('.sf-ledger-fig')).toHaveLength(1);
+    expect(within(row).queryByText('билетов, где подтверждены оба вопроса')).toBeNull();
+    expect((row.querySelector('.sf-ledger-foot')?.textContent ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'Засчитано, не подтверждено — 0, не засчитано — 1. Билетов, где подтверждены оба вопроса, — 0 %. Самооценка против ответов: мало данных.',
+    );
+    expect(row.textContent).not.toMatch(/зачт[её]н|вслух/i);
     // Three answers aloud in the lede, next to the ten test answers of the demo tests.
     expect(screen.getByText(/^По 3 ответам на билеты и 10 ответам в тестах с 1 октября\.$/)).toBeInTheDocument();
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith([a, b, c]);
+  });
+
+  it('counts «подтверждено» by the rule: two days and 20 hours between the first and the last засчитанный answer', async () => {
+    const [a, b, c] = ['a', 'b', 'c'].map((ch) => ch.repeat(32));
+    setTable('exams', () => ({ data: [{ id: 'e1', title: 'Микроэкономика', kind: 'exam', exam_date: '2026-10-15', ticket_layout: { mode: 'random', per_ticket: 2 } }] }));
+    setTable('exam_questions', () => ({
+      data: [a, b, c].map((hash, index) => ({ id: `q${index}`, exam_id: 'e1', section: null, question_hash: hash, coverage: 'full' })),
+    }));
+    db.fetchQuestionEvents.mockResolvedValue([
+      // 23:59 and 0:01: two days, two minutes — засчитано, не подтверждено.
+      examAnswer(a, '2026-10-01', true, '1', '2026-10-01T20:59:00Z'),
+      examAnswer(a, '2026-10-02', true, '2', '2026-10-01T21:01:00Z'),
+      // 1:00 and 21:00 of one day — засчитано, не подтверждено.
+      examAnswer(b, '2026-10-02', true, '3', '2026-10-01T22:00:00Z'),
+      examAnswer(b, '2026-10-02', true, '4', '2026-10-02T18:00:00Z'),
+      // 10:00, 18:00 and 8:00 the next day — подтверждено.
+      examAnswer(c, '2026-10-01', true, '5', '2026-10-01T07:00:00Z'),
+      examAnswer(c, '2026-10-01', true, '6', '2026-10-01T15:00:00Z'),
+      examAnswer(c, '2026-10-02', true, '7', '2026-10-02T05:00:00Z'),
+    ]);
+    renderProgress();
+    const row = (await screen.findByRole('link', { name: 'Микроэкономика' })).closest('li') as HTMLElement;
+    expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
+    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Засчитано, не подтверждено — 2, не засчитано — 0\. /);
+  });
+
+  it('words the ledger foot with «засчитано» and «ответили», and the confirmed tickets as a small line', () => {
+    const summary = { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 0 };
+    const confidence = { ratedKnow: 18, ratedKnowAnswered: 10, ratedKnowPassed: 8, enoughData: true };
+    expect(ledgerFoot({ summary, confidence, confirmedTickets: 3, perTicket: 2 }).replace(/\u00a0/g, ' ')).toBe(
+      'Засчитано, не подтверждено — 3, не засчитано — 2. Билетов, где подтверждены оба вопроса, — 3 %. Вы отметили «знаю» у 18 вопросов; из 10 таких, на которые вы ответили, засчитано 8.',
+    );
+    expect(ledgerFoot({ summary: { ...summary, confirmed: 0 }, confidence, confirmedTickets: 0, perTicket: 2 })).not.toContain('Билетов');
+    expect(ledgerFoot({ summary, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 1 })).toBe(
+      'Засчитано, не подтверждено — 3, не засчитано — 2. Самооценка против ответов: мало данных.',
+    );
+    expect(ledgerFoot({ summary: { ...summary, confirmed: 0, once: 0, notPassed: 0 }, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 2 })).toBe(
+      'Ответов по билетам ещё не было. Самооценка против ответов: мало данных.',
+    );
   });
 
   it('keeps the other blocks when exams fail', async () => {

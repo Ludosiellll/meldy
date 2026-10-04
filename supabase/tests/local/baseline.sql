@@ -9,6 +9,15 @@
 -- post-apply report of 20261003083154); exam_sessions.duration_seconds is NOT NULL DEFAULT 0 there.
 -- Order: this file, then the migration (twice, to prove it is re-runnable), then
 -- supabase/tests/local/journal_rpc_behaviour.sql and supabase/tests/journal_exams_rls.sql.
+-- Added for *_jury_trust_reads.sql (2026-10-04): minimal groups / group_members / study_sessions
+-- with their owner and teacher read policies (the shapes 20260924061025 leaves behind), so
+-- 20260924062645_secure_group_weekly_scores.sql can be created on top of this file; an
+-- approximation of the live SELECT policy «Teachers can read exam sessions of their students»
+-- (its live text was never read: only its name and command are quoted in the oral-ticket spec);
+-- and the supabase_migrations.schema_migrations table that apply_migration writes, so
+-- supabase/tests/jury_trust_reads.sql runs here. Order for that migration: this file,
+-- 20260924062645, 20261003083154, the new migration (twice), journal_rpc_behaviour.sql,
+-- jury_trust_behaviour.sql, jury_trust_reads.sql.
 
 -- Roles (exist on Supabase already).
 do $$
@@ -82,6 +91,48 @@ create table public.mistake_diary (
   created_at timestamptz not null default now());
 alter table public.mistake_diary enable row level security;
 create policy "Users can manage own mistakes" on public.mistake_diary for all using (auth.uid() = user_id);
+
+-- Classes (approximation): a teacher owns a group, students are its members. The live tables have
+-- more columns (name, invite code, nickname, join date); get_group_weekly_scores reads only these.
+create table public.groups (
+  id uuid primary key default gen_random_uuid(),
+  teacher_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default '');
+alter table public.groups enable row level security;
+revoke all on table public.groups from anon;
+create policy "Teachers can manage their groups" on public.groups for all to authenticated
+  using ((select auth.uid()) = teacher_id) with check ((select auth.uid()) = teacher_id);
+
+create table public.group_members (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.groups(id) on delete cascade,
+  student_id uuid not null references auth.users(id) on delete cascade,
+  unique (group_id, student_id));
+alter table public.group_members enable row level security;
+revoke all on table public.group_members from anon;
+create policy "Students can view their memberships" on public.group_members for select to authenticated
+  using ((select auth.uid()) = student_id);
+create policy "Teachers can view their group members" on public.group_members for select to authenticated
+  using (exists (select 1 from public.groups g where g.id = group_id and g.teacher_id = (select auth.uid())));
+
+create table public.study_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date date not null default current_date,
+  cards_reviewed int not null default 0,
+  materials_added int not null default 0);
+alter table public.study_sessions enable row level security;
+create policy "Users can manage own study sessions" on public.study_sessions for all using (auth.uid() = user_id);
+
+-- Approximation of the live permissive policy (name and command quoted in the oral-ticket spec,
+-- body assumed): the teacher of a student's group reads that student's exam sessions.
+create policy "Teachers can read exam sessions of their students" on public.exam_sessions for select
+  using (exists (select 1 from public.group_members gm join public.groups g on g.id = gm.group_id
+                  where gm.student_id = exam_sessions.user_id and g.teacher_id = auth.uid()));
+
+-- Migration history written by apply_migration on Supabase (version, name; read by the reports).
+create schema supabase_migrations;
+create table supabase_migrations.schema_migrations (version text primary key, statements text[], name text);
 
 insert into auth.users values ('aaaaaaaa-0000-0000-0000-000000000001'), ('bbbbbbbb-0000-0000-0000-000000000002');
 insert into public.materials(id, user_id, title, subject, original_text) values

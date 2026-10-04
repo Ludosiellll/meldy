@@ -127,6 +127,13 @@ export function formatMappedAt(iso: string | null | undefined, now: Date = new D
   return format(date, date.getFullYear() === now.getFullYear() ? 'd MMMM, H:mm' : 'd MMMM yyyy, H:mm', { locale: ru });
 }
 
+/** «3 окт., 14:02» in local time (with the year when it is not this year). */
+export function formatShortMoment(iso: string | null | undefined, now: Date = new Date()): string {
+  const date = parseInstant(iso);
+  if (!date) return '';
+  return format(date, date.getFullYear() === now.getFullYear() ? 'd MMM, H:mm' : 'd MMM yyyy, H:mm', { locale: ru });
+}
+
 /** «9:40» in local time. */
 export function formatClock(iso: string | null | undefined): string {
   const date = parseInstant(iso);

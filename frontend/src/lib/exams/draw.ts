@@ -1,12 +1,18 @@
 /**
- * «Тянуть билет» (contracts §8, tickets spec 3.6): which questions come out of the stack.
+ * «Тянуть билет» (contracts §8, tickets spec 3.6, Jury_Check items 4, 9 and 11): which questions
+ * come out of the stack, and from what.
  *
- * Three modes:
+ * Modes:
  * - «Как на экзамене» (exam): uniform. Known tickets are drawn whole by their question ids; one
- *   question per section when the layout says so; otherwise q distinct questions at random.
- * - «Чаще слабые» (weak): weights by readiness — not checked 3, not passed 3, passed on one day 2,
- *   confirmed 1. Questions that are not in the lectures (coverage none) never come out.
- * - «Из уже отвеченных» (answered): only questions with at least one answer aloud, uniform.
+ *   question per section when the layout says so; otherwise q distinct questions at random. The
+ *   answer screen gets &mode=exam (no point marks while answering, no «Тянуть ещё»).
+ * - «Чаще слабые» (weak): weights by readiness — not checked 3, not засчитан 3, засчитан but not
+ *   confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
+ *   lectures (coverage none) never come out.
+ * - «Из уже отвеченных» (answered): only questions with at least one answer, uniform.
+ * - «Ждут подтверждения» (awaiting): questions засчитаны earlier, at least 20 hours and a day
+ *   ago, so a good answer now confirms them; uniform.
+ * Every mode says what it draws from (poolLine), so a drawn question never looks picked by hand.
  *
  * The last three tickets are not repeated (sessionStorage meldy_exam_last_tickets_<examId>).
  * Randomness comes from crypto.getRandomValues; tests inject a seeded generator.
@@ -15,14 +21,15 @@
 import type { Readiness } from '../learning/readiness';
 import { sectionsOf, type LayoutMode } from './ticketMath';
 
-export type DrawMode = 'exam' | 'weak' | 'answered';
+export type DrawMode = 'exam' | 'weak' | 'answered' | 'awaiting';
 
-export const DRAW_MODES: DrawMode[] = ['exam', 'weak', 'answered'];
+export const DRAW_MODES: DrawMode[] = ['exam', 'weak', 'answered', 'awaiting'];
 
 export const DRAW_MODE_LABELS: Record<DrawMode, string> = {
   exam: 'Как на экзамене',
   weak: 'Чаще слабые',
   answered: 'Из уже отвеченных',
+  awaiting: 'Ждут подтверждения',
 };
 
 /** Weights of «Чаще слабые». */
@@ -33,6 +40,9 @@ export const WEAK_WEIGHTS: Record<Readiness, number> = {
   confirmed: 1,
 };
 
+/** A confirmation older than 14 days («пора проверить») comes up as often as a question passed once. */
+export const STALE_WEIGHT = 2;
+
 export const RECENT_LIMIT = 3;
 const MAX_REDRAWS = 60;
 
@@ -41,8 +51,18 @@ export interface DrawQuestion {
   section: number | null;
   coverage: string | null;
   readiness: Readiness;
-  /** Answers aloud given to this question (exam_answer events). */
+  /** Answers given to this question (exam_answer events, spoken or typed). */
   attempts: number;
+  /** Confirmed, but the last засчитанный answer is 14 or more days old. */
+  stale?: boolean;
+  /** Засчитан once, and a good answer now would confirm it (QuestionState.awaiting). */
+  awaiting?: boolean;
+}
+
+/** The weight of a question in «Чаще слабые». */
+export function weakWeight(question: Pick<DrawQuestion, 'readiness' | 'stale'>): number {
+  if (question.readiness === 'confirmed' && question.stale) return STALE_WEIGHT;
+  return WEAK_WEIGHTS[question.readiness] ?? 1;
 }
 
 export interface DrawLayout {
@@ -60,14 +80,16 @@ export interface DrawnTicket {
   questionIds: string[];
 }
 
-export type DrawFailureCode = 'no_questions' | 'no_weak' | 'no_answered';
+export type DrawFailureCode = 'no_questions' | 'no_weak' | 'no_answered' | 'no_awaiting';
 
 export type DrawResult = { ok: true; ticket: DrawnTicket } | { ok: false; code: DrawFailureCode; message: string };
 
 export const DRAW_FAILURE_MESSAGES: Record<DrawFailureCode, string> = {
   no_questions: 'В списке нет вопросов, которые можно вытянуть.',
   no_weak: 'Тянуть не из чего: всех вопросов этого экзамена нет в ваших лекциях.',
-  no_answered: 'Вы ещё не отвечали вслух ни на один вопрос этого экзамена. Выберите «Как на экзамене».',
+  // A typed answer counts as much as a spoken one: «отвечали», not «отвечали вслух» (Jury_Check 11).
+  no_answered: 'Вы ещё не отвечали ни на один вопрос этого экзамена. Выберите «Как на экзамене».',
+  no_awaiting: 'Сейчас нет вопросов, которые ждут подтверждения. Выберите «Как на экзамене».',
 };
 
 /** A uniform number in [0, 1) from crypto.getRandomValues (Math.random only without crypto). */
@@ -198,14 +220,15 @@ export function drawTicket(input: {
     const pool = questions.filter((question) => question.attempts > 0);
     if (pool.length === 0) return { ok: false, code: 'no_answered', message: DRAW_FAILURE_MESSAGES.no_answered };
     plan = { pool, q: perTicket, weight: null, sections: null };
+  } else if (input.mode === 'awaiting') {
+    const pool = questions.filter((question) => question.awaiting === true);
+    if (pool.length === 0) return { ok: false, code: 'no_awaiting', message: DRAW_FAILURE_MESSAGES.no_awaiting };
+    plan = { pool, q: perTicket, weight: null, sections: null };
   } else if (input.mode === 'weak') {
     const pool = questions.filter((question) => question.coverage !== 'none');
     if (pool.length === 0) return { ok: false, code: 'no_weak', message: DRAW_FAILURE_MESSAGES.no_weak };
-    const weight = (question: DrawQuestion) => WEAK_WEIGHTS[question.readiness] ?? 1;
-    const sections = input.layout.mode === 'sections' ? sectionsOf(questions) : [];
-    const usable =
-      sections.length === perTicket && sections.every((section) => pool.some((question) => question.section === section));
-    plan = { pool, q: perTicket, weight, sections: usable ? sections : null };
+    const sections = weakSections(input.layout, questions, pool, perTicket);
+    plan = { pool, q: perTicket, weight: weakWeight, sections };
   } else {
     if (input.layout.mode === 'fixed' && input.layout.tickets && input.layout.tickets.length > 0) {
       const drawn = drawKnownTicket(input.layout.tickets, questions, recent, rng);
@@ -227,6 +250,87 @@ export function drawTicket(input: {
   }
   if (ids.length === 0) return { ok: false, code: 'no_questions', message: DRAW_FAILURE_MESSAGES.no_questions };
   return { ok: true, ticket: { key: ticketKey(ids), number: null, questionIds: ids } };
+}
+
+/** One question from each section in «Чаще слабые», when the layout says so and every section has one. */
+function weakSections(layout: DrawLayout, questions: DrawQuestion[], pool: DrawQuestion[], perTicket: number): number[] | null {
+  const sections = layout.mode === 'sections' ? sectionsOf(questions) : [];
+  const usable = sections.length === perTicket && sections.every((section) => pool.some((question) => question.section === section));
+  return usable ? sections : null;
+}
+
+function genitive(count: number, one: string, many: string): string {
+  return count % 10 === 1 && count % 100 !== 11 ? one : many;
+}
+
+/**
+ * What a draw takes its questions from, said under the card in every mode (Jury_Check items 9 and
+ * 11), e.g. «Случайно из 40 вопросов.», «По одному случайному вопросу из каждого из 2 разделов.»,
+ * «Как на экзамене: случайный билет из 20 билетов кафедры.», «Случайно из 6 вопросов, на которые вы
+ * уже отвечали.», «Чаще слабые: из 31 вопроса, кроме тех, которых нет в лекциях.» Null when nothing
+ * can be drawn (the failure message says why).
+ */
+export function poolLine(input: { mode: DrawMode; layout: DrawLayout; questions: DrawQuestion[] }): string | null {
+  const { mode, layout, questions } = input;
+  const perTicket = Math.min(Math.max(Math.trunc(layout.perTicket) || 1, 1), 4);
+  if (questions.length === 0) return null;
+  if (mode === 'answered' || mode === 'awaiting') {
+    const pool = questions.filter((question) => (mode === 'answered' ? question.attempts > 0 : question.awaiting === true));
+    if (pool.length === 0) return null;
+    if (mode === 'answered') {
+      return pool.length === 1
+        ? 'Единственный вопрос, на который вы уже отвечали.'
+        : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, на которые вы уже отвечали.`;
+    }
+    return pool.length === 1
+      ? 'Единственный вопрос, который ждёт подтверждения.'
+      : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, которые ждут подтверждения.`;
+  }
+  if (mode === 'weak') {
+    const pool = questions.filter((question) => question.coverage !== 'none');
+    if (pool.length === 0) return null;
+    const left = pool.length < questions.length ? ', кроме тех, которых нет в лекциях' : '';
+    const bySection = weakSections(layout, questions, pool, perTicket) ? ', по одному из каждого раздела' : '';
+    return `Чаще слабые${bySection}: из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}${left}.`;
+  }
+  if (layout.mode === 'fixed' && layout.tickets && layout.tickets.length > 0) {
+    const known = new Set(questions.map((question) => question.id));
+    const tickets = layout.tickets.filter((ticket) => ticket.questionIds.some((id) => known.has(id))).length;
+    if (tickets > 0) return `Как на экзамене: случайный билет из ${tickets} ${genitive(tickets, 'билета', 'билетов')} кафедры.`;
+  }
+  const sections = layout.mode === 'sections' ? sectionsOf(questions) : [];
+  if (sections.length === perTicket && perTicket > 1) {
+    return `По одному случайному вопросу из каждого из ${sections.length} ${genitive(sections.length, 'раздела', 'разделов')}.`;
+  }
+  return questions.length === 1 ? 'Единственный вопрос списка.' : `Случайно из ${questions.length} ${genitive(questions.length, 'вопроса', 'вопросов')}.`;
+}
+
+/**
+ * Whether «Тянуть ещё» can give another ticket in this mode: a pool no larger than a ticket (one
+ * question waiting for its confirmation, two answered questions and two per ticket) or a single
+ * department ticket would only show the same card again.
+ */
+export function canDrawAnother(input: { mode: DrawMode; layout: DrawLayout; questions: DrawQuestion[] }): boolean {
+  const { mode, layout, questions } = input;
+  const perTicket = Math.min(Math.max(Math.trunc(layout.perTicket) || 1, 1), 4);
+  if (mode === 'exam' && layout.mode === 'fixed' && layout.tickets && layout.tickets.length > 0) {
+    const known = new Set(questions.map((question) => question.id));
+    const tickets = layout.tickets.filter((ticket) => ticket.questionIds.some((id) => known.has(id))).length;
+    if (tickets > 0) return tickets > 1;
+  }
+  const pool =
+    mode === 'answered'
+      ? questions.filter((question) => question.attempts > 0)
+      : mode === 'awaiting'
+        ? questions.filter((question) => question.awaiting === true)
+        : mode === 'weak'
+          ? questions.filter((question) => question.coverage !== 'none')
+          : questions;
+  const sections = layout.mode === 'sections' && (mode === 'exam' || mode === 'weak') ? sectionsOf(questions) : [];
+  if (sections.length === perTicket && sections.length > 0 && sections.every((section) => pool.some((question) => question.section === section))) {
+    return sections.some((section) => pool.filter((question) => question.section === section).length > 1);
+  }
+  return pool.length > perTicket;
 }
 
 export function recentTicketsKey(examId: string): string {

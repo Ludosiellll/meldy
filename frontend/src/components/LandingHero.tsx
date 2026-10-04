@@ -5,20 +5,22 @@ import { usePrefersReducedMotion } from './landing/usePrefersReducedMotion';
 import { ty } from './landing/typo';
 import './LandingHero.css';
 
-const HEADLINE = ty('Запомнить лекцию, а не перечитывать её в пятый раз');
-const DESCRIPTION = ty('Загрузите лекцию — Meldy подчеркнёт главное, сделает из него карточки и спросит вас о нём завтра.');
+const HEADLINE = ty('Сессия начинается со списка вопросов');
+const DESCRIPTION = ty('Вставьте вопросы к экзамену и загрузите лекции. Meldy покажет, где в лекциях ответ на каждый вопрос, чего в них нет и какую долю билетов они закрывают. Потом тяните билет и отвечайте вслух — экзаменатор спросит о том, что вы пропустили.');
+/** The one tactile action of the landing; the final call repeats it. */
+export const PRIMARY_LABEL = 'Начать со списка вопросов';
+const TICKET_LINK = ty('Как проходит ответ на билет');
 
 export default function LandingHero() {
   const navigate = useNavigate();
   const reduceMotion = usePrefersReducedMotion();
 
-  // The hero scene already shows a card being made, so the secondary action leads to the
-  // hands-on example below instead of restarting it.
-  const goToExample = (event: MouseEvent<HTMLAnchorElement>) => {
-    const target = document.getElementById('try');
+  // The scene shows a card; the secondary action leads to how the answer to a ticket goes.
+  const goToTicket = (event: MouseEvent<HTMLAnchorElement>) => {
+    const target = document.getElementById('ticket');
     if (!target) return;
     event.preventDefault();
-    target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    target.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'start' });
   };
 
   return (
@@ -28,8 +30,8 @@ export default function LandingHero() {
           <h1 id="sf-headline">{HEADLINE}</h1>
           <p className="sf-description">{DESCRIPTION}</p>
           <div className="sf-actions">
-            <button type="button" className="sf-primary" onClick={() => navigate('/register')}>Попробовать на своей лекции</button>
-            <a className="sf-watch" href="#try" onClick={goToExample}>Пройти пример без регистрации</a>
+            <button type="button" className="sf-primary" onClick={() => navigate('/register')}>{PRIMARY_LABEL}</button>
+            <a className="sf-watch" href="#ticket" onClick={goToTicket}>{TICKET_LINK}</a>
           </div>
         </div>
 

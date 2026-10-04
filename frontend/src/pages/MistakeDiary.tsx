@@ -19,17 +19,21 @@ interface Mistake {
   is_resolved: boolean;
   created_at: string;
   material_id: string | null;
-  /** 'quiz' (a test), 'oral_ticket' (an answer aloud to an exam ticket), 'professor' (the old oral exam). */
+  /** 'quiz' (a test), 'oral_ticket' (an answer to an exam ticket, spoken or typed), 'professor' (the old oral exam). */
   origin?: string | null;
 }
 
 const PRACTICE_BUSY = 'Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.';
 const PRACTICE_FAILED = 'Не удалось подготовить задания. Попробуйте ещё раз.';
 
-/** Where a mistake came from, in the words of the screens that made it. */
+/**
+ * Where a mistake came from, in the words of the screens that made it. A ticket can be answered by
+ * voice or in writing and both count the same, so the label names the ticket, not the voice
+ * (Jury_Check item 11).
+ */
 export function mistakeOriginLabel(origin: string | null | undefined): string {
   if (origin === 'quiz') return 'Тест';
-  if (origin === 'oral_ticket') return 'Ответ вслух';
+  if (origin === 'oral_ticket') return 'Ответ на билет';
   return 'Устный экзамен';
 }
 
@@ -443,7 +447,7 @@ export default function MistakeDiary() {
           <header className="mb-6 border-b border-[var(--sf-line)] pb-4">
             <h1 className="text-xl font-semibold text-[var(--sf-ink)]">Дневник ошибок</h1>
             <p className="mt-1 text-sm text-[var(--sf-muted)]">
-              Ошибки из тестов, ответов вслух и устных экзаменов. Правильный ответ открывается по нажатию.
+              Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.
             </p>
             {!loading && !loadError && mistakes.length > 0 && (
               <p className="mt-2 text-sm text-[var(--sf-ink)]">

@@ -768,6 +768,51 @@ export function provenanceLead(provenance: Provenance): string | null {
   }
 }
 
+/**
+ * Заметка-источник в правом углу листа (спека 5.7, .sf-pnote): «Числа — из лекции, фрагмент 4»,
+ * «Из лекции, фрагмент 3». Говорит только то, что проверено (см. Provenance); null — сказать нечего.
+ */
+export function sourceNote(provenance: Provenance): string | null {
+  const ids = 'ids' in provenance ? provenance.ids : [];
+  const where = ids.length ? `, ${fragmentWords(ids)}` : '';
+  switch (provenance.kind) {
+    case 'numbers':
+      return `Числа — из лекции${where}`;
+    case 'dates':
+      return `Даты — из лекции${where}`;
+    case 'quote':
+      return `Из лекции${where}`;
+    case 'summary':
+      return 'Из конспекта';
+    case 'cards':
+      return 'Из карточек';
+    default:
+      return null;
+  }
+}
+
+/** «около минуты», «около 3 минут», «около 21 минуты». */
+export function minutesPhrase(minutes: number): string {
+  if (minutes <= 1) return 'около минуты';
+  return `около ${minutes} ${pluralRu(minutes, ['минуты', 'минут', 'минут'])}`;
+}
+
+/**
+ * Строка над листом: «Макс и Софья обсуждают лекцию · 14 реплик, около минуты».
+ * Имена — как в репликах, не больше трёх.
+ */
+export function conversationMeta(speakers: readonly string[], lineCount: number, minutes: number): string {
+  const names = speakers.filter(Boolean).slice(0, 3);
+  const who =
+    names.length === 0
+      ? 'Разговор по лекции'
+      : names.length === 1
+        ? `${names[0]} рассказывает о лекции`
+        : `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]} обсуждают лекцию`;
+  const length = minutes > 0 ? `${pluralLines(lineCount)}, ${minutesPhrase(minutes)}` : pluralLines(lineCount);
+  return `${who} · ${length}`;
+}
+
 /** Короткая подпись изображения для списка реплик и подсказок. */
 export function visualCaption(visual: Visual): string {
   switch (visual.type) {
@@ -775,6 +820,9 @@ export function visualCaption(visual: Visual): string {
       return visual.term;
     case 'question':
       return visual.question;
+    case 'fact':
+      // «Из источника S03» — служебное название подобранной цитаты: показываем начало самой цитаты.
+      return /^из источника(\s+S\d+)?$/i.test(visual.title.trim()) ? truncateText(visual.text, 60) : visual.title;
     default:
       return visual.title;
   }

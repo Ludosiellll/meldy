@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   binom,
   layoutShares,
+  layoutSharesIf,
   percent,
   reduce,
   sectionsOf,
@@ -183,5 +184,90 @@ describe('layoutShares', () => {
     expect(shares.mode).toBe('fixed');
     expect(shares.fallbackReason).toBeNull();
     expect(shares.low).toMatchObject({ ok: true, allCount: 1, anyCount: 1 });
+  });
+});
+
+/**
+ * The seeded test list of the stage (Jury_Check item 10): 40 questions, 24 «есть», 7 «частично»,
+ * 9 «нет»; section 1 (1–20): 13 · 4 · 3, section 2 (21–40): 11 · 3 · 6; two questions per ticket.
+ */
+const NONE = new Set([5, 8, 17, 22, 26, 29, 35, 38, 40]);
+const PARTIAL = new Set([3, 9, 14, 19, 24, 33, 37]);
+function seeded(maybe: Set<number> = new Set()): ShareQuestion[] {
+  return Array.from({ length: 40 }, (_, index) => {
+    const position = index + 1;
+    return {
+      id: `q${position}`,
+      section: position <= 20 ? 1 : 2,
+      status: maybe.has(position) ? 'maybe' : NONE.has(position) || PARTIAL.has(position) ? 'no' : 'yes',
+    };
+  });
+}
+const partialIds = Array.from(PARTIAL, (position) => `q${position}`);
+const departmentTickets = Array.from({ length: 20 }, (_, index) => ({ number: index + 1, questionIds: [`q${index + 1}`, `q${index + 21}`] }));
+
+describe('«ни одного вопроса с отметкой «есть»» and «Закройте вопросы «частично»» on the seeded list', () => {
+  it('random pairs: 276/780 both, 120/780 none, 465/780 with «частично» closed', () => {
+    const input = { mode: 'random' as const, perTicket: 2, questions: seeded() };
+    const shares = layoutShares(input);
+    if (!shares.low.ok || shares.low.mode !== 'random') throw new Error('expected a random share');
+    expect(shares.low.all).toEqual({ num: 276, den: 780 });
+    expect(shares.low.none).toEqual({ num: 120, den: 780 });
+    expect(percent(shares.low.none)).toBe(15);
+    const closed = layoutSharesIf(input, partialIds);
+    if (!closed.low.ok) throw new Error(closed.low.reason);
+    expect(closed.low.all).toEqual({ num: 465, den: 780 });
+    expect(percent(closed.low.all)).toBe(60);
+    expect(closed.isRange).toBe(false);
+  });
+
+  it('one question per section: 13/20 × 11/20, none 7/20 × 9/20, closed 17/20 × 14/20', () => {
+    const input = { mode: 'sections' as const, perTicket: 2, questions: seeded() };
+    const shares = layoutShares(input);
+    if (!shares.low.ok || shares.low.mode !== 'sections') throw new Error('expected a sections share');
+    expect(shares.low.sections).toEqual([
+      { section: 1, n: 20, k: 13 },
+      { section: 2, n: 20, k: 11 },
+    ]);
+    expect(shares.low.all).toEqual({ num: 143, den: 400 });
+    expect(percent(shares.low.all)).toBe(36);
+    expect(shares.low.none).toEqual({ num: 63, den: 400 });
+    expect(percent(shares.low.none)).toBe(16);
+    const closed = layoutSharesIf(input, partialIds);
+    if (!closed.low.ok || closed.low.mode !== 'sections') throw new Error('expected a sections share');
+    expect(closed.low.all).toEqual({ num: 238, den: 400 });
+    expect(percent(closed.low.all)).toBe(60);
+  });
+
+  it('the department’s tickets: a direct count, also with «частично» closed', () => {
+    const input = { mode: 'fixed' as const, perTicket: 2, questions: seeded(), tickets: departmentTickets };
+    const shares = layoutShares(input);
+    if (!shares.low.ok || shares.low.mode !== 'fixed') throw new Error('expected a fixed share');
+    expect(shares.low).toMatchObject({ tickets: 20, allCount: 6, anyCount: 18 });
+    expect(shares.low.none).toEqual({ num: 2, den: 20 });
+    const closed = layoutSharesIf(input, partialIds);
+    if (!closed.low.ok || closed.low.mode !== 'fixed') throw new Error('expected a fixed share');
+    expect(closed.low).toMatchObject({ allCount: 11, anyCount: 20 });
+    expect(closed.low.none).toEqual({ num: 0, den: 20 });
+  });
+
+  it('keeps the range of questions checked only by words, before and after closing «частично»', () => {
+    // Questions 1–4 were checked only by words: unknown, so both shares become ranges.
+    const input = { mode: 'random' as const, perTicket: 2, questions: seeded(new Set([1, 2, 3, 4])) };
+    const shares = layoutShares(input);
+    if (!shares.low.ok || !shares.high.ok || shares.low.mode !== 'random' || shares.high.mode !== 'random') throw new Error('expected random shares');
+    expect(shares.isRange).toBe(true);
+    // Low: 21 yes (1, 2 and 4 were «есть», 3 was «частично»: all four unknown now). High: 25 yes.
+    expect(shares.low.all).toEqual({ num: binom(21, 2), den: 780 });
+    expect(shares.high.all).toEqual({ num: binom(25, 2), den: 780 });
+    // «Ни одного» is widest when the unknown questions are absent (the low bound).
+    expect(shares.low.none).toEqual({ num: binom(19, 2), den: 780 });
+    expect(shares.high.none).toEqual({ num: binom(15, 2), den: 780 });
+    const closed = layoutSharesIf(input, partialIds);
+    if (!closed.low.ok || !closed.high.ok) throw new Error('expected shares');
+    expect(closed.isRange).toBe(true);
+    // Question 3 is promoted (it was «частично»): it is no longer unknown in either bound.
+    expect(closed.low.all).toEqual({ num: binom(28, 2), den: 780 });
+    expect(closed.high.all).toEqual({ num: binom(31, 2), den: 780 });
   });
 });

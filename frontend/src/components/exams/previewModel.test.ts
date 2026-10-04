@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { ExamQuestion, ParseResult } from '../../api/exams';
 import {
+  chosenLayout,
+  defaultLayoutMode,
   draftQuestions,
   filledSectionCount,
   insertQuestion,
   keepSavedQuestions,
+  layoutFits,
   listProblem,
   mergeWithNext,
   previewFromExam,
@@ -228,5 +231,53 @@ describe('suggestions', () => {
     expect(suggestedMaterialIds(course, suggestedTitle({ source_text: 'Вопросы к экзамену по курсу «Микроэкономика»\n1. Спрос' }))).toEqual(
       course.map((material) => material.id),
     );
+  });
+});
+
+describe('ticket layout of the editor (Jury_Check item 10)', () => {
+  const withTickets = previewFromParse(PARSE);
+  const sectionsOnly = previewFromParse({ ...PARSE, tickets: [] });
+  const plain = previewFromParse({
+    ...PARSE,
+    questions: PARSE.questions.map((question) => ({ ...question, section: null })),
+    sections: [],
+    tickets: [],
+  });
+  const oneSection = previewFromParse({
+    ...PARSE,
+    questions: PARSE.questions.map((question) => ({ ...question, section: 1 })),
+    tickets: [],
+  });
+
+  it('defaults to the department’s tickets, then to one question per section, then to random tickets', () => {
+    expect(defaultLayoutMode(withTickets, 2)).toBe('fixed');
+    expect(defaultLayoutMode(sectionsOnly, 2)).toBe('sections');
+    expect(defaultLayoutMode(sectionsOnly, 3)).toBe('random');
+    expect(defaultLayoutMode(plain, 2)).toBe('random');
+    // One section is the same as random tickets: «по одному из каждого раздела» would only confuse.
+    expect(defaultLayoutMode(oneSection, 1)).toBe('random');
+  });
+
+  it('says which layouts fit the list', () => {
+    expect(layoutFits('random', plain, 2)).toBe(true);
+    expect(layoutFits('fixed', withTickets, 2)).toBe(true);
+    expect(layoutFits('fixed', sectionsOnly, 2)).toBe(false);
+    expect(layoutFits('sections', sectionsOnly, 2)).toBe(true);
+    expect(layoutFits('sections', sectionsOnly, 3)).toBe(false);
+    expect(layoutFits('sections', plain, 2)).toBe(false);
+  });
+
+  it('keeps an explicit or stored choice while it fits and falls back to the default when it does not', () => {
+    expect(chosenLayout(null, sectionsOnly, 2)).toBe('sections');
+    expect(chosenLayout('random', sectionsOnly, 2)).toBe('random');
+    expect(chosenLayout('random', withTickets, 2)).toBe('random');
+    expect(chosenLayout('sections', withTickets, 2)).toBe('sections');
+    // A choice that no longer fits gives way to the default, and comes back when it fits again.
+    expect(chosenLayout('sections', sectionsOnly, 3)).toBe('random');
+    expect(chosenLayout('sections', sectionsOnly, 2)).toBe('sections');
+    expect(chosenLayout('fixed', sectionsOnly, 2)).toBe('sections');
+    // Removing the second section's questions turns «sections» into random tickets.
+    const shrunk = removeRow(removeRow(sectionsOnly, 'p3'), 'p4');
+    expect(chosenLayout(null, shrunk, 2)).toBe('random');
   });
 });

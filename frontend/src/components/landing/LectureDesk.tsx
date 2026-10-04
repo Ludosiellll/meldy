@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
-import { EXAM, MAP, TALK, type BarsVisual, type CompareVisual, type FormulaVisual, type TalkVisual } from './lecture';
+import { MAP, TALK, type BarsVisual, type CompareVisual, type FormulaVisual, type TalkVisual } from './lecture';
 import { ty } from './typo';
 import './LectureDesk.css';
 
-export const LABELS = { talk: 'Разговор Макса и Софьи', map: 'Карта понятий', exam: 'Устный экзамен' };
+export const LABELS = { talk: 'Разговор Макса и Софьи', map: 'Карта понятий' };
 /** The outgoing visual fades this long; the incoming one starts this much later. */
 const VIS_OUT_MS = 90;
 const VIS_IN_DELAY_MS = 60;
@@ -307,30 +307,10 @@ function ConceptMap() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* (c) The oral exam                                                    */
-/* ------------------------------------------------------------------ */
-
-function Exam() {
-  const turns: Array<[string, string]> = [['Экзаменатор', EXAM.question], ['Вы', EXAM.answer], ['Экзаменатор', EXAM.note]];
-  return (
-    <section className="lp-out lp-out-exam" aria-labelledby="lp-exam-h">
-      <h3 className="lp-out-h" id="lp-exam-h">{LABELS.exam}</h3>
-      <div className="lp-exam">
-        {turns.map(([who, text], i) => (
-          <p key={i} className={i === 0 ? 'lp-line lp-exam-q' : 'lp-line'}>
-            <span className="lp-who">{who}</span>
-            <span className="lp-said">{text}</span>
-          </p>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /**
- * «Что ещё получится из этой лекции»: the conversation of the two hosts, with the visual Meldy
- * shows for each exchange, then the concept map and an oral exam turn. All from the same lecture.
+ * Under «Из каждой лекции — ещё и это», after the summary and the quiz: the conversation of the two
+ * hosts, with the visual Meldy shows for each exchange, then the concept map. All from the same
+ * lecture. The answer to a ticket has its own section («Ответ на билет»), so there is no exam here.
  */
 export default function LectureDesk() {
   const reduced = usePrefersReducedMotion();
@@ -339,7 +319,6 @@ export default function LectureDesk() {
       <Talk reduced={reduced} />
       <div className="lp-desk-row">
         <ConceptMap />
-        <Exam />
       </div>
     </div>
   );

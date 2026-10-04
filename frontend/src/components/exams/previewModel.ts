@@ -6,7 +6,7 @@
  *
  * Pure functions: the editor keeps the state, tests call them directly.
  */
-import type { DraftQuestion, DraftTicket, ExamQuestion, ParseResult, TicketLayout } from '../../api/exams';
+import type { DraftQuestion, DraftTicket, ExamQuestion, LayoutMode, ParseResult, TicketLayout } from '../../api/exams';
 import { LABEL_MAX_CHARS, MAX_QUESTIONS, MAX_SECTIONS, QUESTION_MAX_CHARS, QUESTION_MIN_CHARS } from '../../api/exams';
 import { normalizeForMatch, wordStem } from '../conversation/visuals';
 
@@ -226,6 +226,40 @@ export function questionCount(state: PreviewState): number {
 /** Sections that actually hold questions (what «one from each section» can use). */
 export function filledSectionCount(state: PreviewState): number {
   return new Set(draftQuestions(state).map((question) => question.section).filter((section) => section !== null)).size;
+}
+
+/** Whether a ticket layout can be used for this list: known tickets need tickets, sections need one section per question. */
+export function layoutFits(mode: LayoutMode, state: PreviewState, perTicket: number): boolean {
+  if (mode === 'fixed') return state.tickets.length > 0;
+  if (mode === 'sections') {
+    const sections = filledSectionCount(state);
+    return sections > 0 && sections === perTicket;
+  }
+  return true;
+}
+
+/**
+ * «Как составлены билеты» while the student has not chosen it (Jury_Check item 10, answer 7):
+ * the department's tickets when the list had «Билет № N» blocks; one question from each section
+ * when the list has as many sections with questions as a ticket has questions (two or more: with a
+ * single section it is the same as random tickets); otherwise random tickets.
+ */
+export function defaultLayoutMode(state: PreviewState, perTicket: number): LayoutMode {
+  if (state.tickets.length > 0) return 'fixed';
+  const sections = filledSectionCount(state);
+  if (sections >= 2 && sections === perTicket) return 'sections';
+  return 'random';
+}
+
+/**
+ * The layout in force: the student's explicit choice (or the layout stored with an exam being
+ * edited) while it still fits the list, otherwise the default for the list as it is now. It is
+ * recomputed whenever the list or the number of questions per ticket changes, and a choice that
+ * stops fitting comes back when it fits again.
+ */
+export function chosenLayout(choice: LayoutMode | null, state: PreviewState, perTicket: number): LayoutMode {
+  if (choice && layoutFits(choice, state, perTicket)) return choice;
+  return defaultLayoutMode(state, perTicket);
 }
 
 /** A plain problem with a row that blocks saving, or null. */

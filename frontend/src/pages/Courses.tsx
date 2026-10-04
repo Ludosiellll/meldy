@@ -5,7 +5,7 @@ import { CustomSelect } from '../components/CustomSelect';
 import { 
   Layers, Sparkles, BookOpen, Trash2, ArrowLeft, ArrowRight, CheckCircle2, 
   Plus, ChevronDown, ChevronUp, HelpCircle, Search, Check, X, Eye, 
-  ArrowUp, ArrowDown, ExternalLink, Award, FileText, Zap, Edit3, Trash, Play
+  ArrowUp, ArrowDown, ExternalLink, FileText, Zap, Edit3, Trash, Play
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -483,13 +483,11 @@ export default function Courses() {
     }
   };
 
-  // Переход на устный экзамен
-  const startExam = (materialId: string) => {
-    sessionStorage.setItem('studyforge_professor_exam_state', JSON.stringify({
-      selectedMaterialId: materialId,
-      phase: 'select',
-    }));
-    navigate('/exam');
+  // «Проверить себя» ведёт на «Экзамены»: список вопросов кафедры и ответы на билеты (Jury_Check п. 5).
+  // Прежний устный экзамен /exam открывается только по прямой ссылке, поэтому его состояние здесь
+  // больше не записывается.
+  const checkYourself = () => {
+    navigate('/exams');
   };
 
   // Фильтрация материалов в Step 1
@@ -1257,11 +1255,11 @@ export default function Courses() {
                       </button>
 
                       <button
-                        onClick={() => startExam(previewMaterial.id)}
-                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-xs font-bold transition"
+                        type="button"
+                        onClick={checkYourself}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition"
                       >
-                        <Award className="w-3.5 h-3.5" />
-                        Устный экзамен ИИ
+                        Проверить себя
                       </button>
                     </div>
                   </div>

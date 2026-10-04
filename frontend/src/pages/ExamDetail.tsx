@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import {
   EXAM_MESSAGES,
@@ -13,7 +13,7 @@ import {
   type ExamBundle,
   type ExamQuestion,
 } from '../api/exams';
-import { fetchQuestionEvents, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
+import { fetchQuestionEvents, fetchSessionPoints, localDate, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
 import { checkAILimit, FREE_DAILY_LIMIT, nextLimitReset } from '../api/limits';
 import { pluralRu } from '../components/conversation/visuals';
@@ -29,9 +29,20 @@ import WhyPanel from '../components/exams/WhyPanel';
 import { CoverageSummary, PeakSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, interruptedMessage, MAPPING_COST, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, type SheetCoverage } from '../components/exams/marks';
-import { peakChange, peakText, takePeakFlags, type PeakFlag } from '../components/exams/peak';
+import {
+  growthSentence,
+  peakChange,
+  peakText,
+  secondAnswerAfterReview,
+  secondAnswerSentence,
+  secondAnswerSessions,
+  staleSentence,
+  takePeakFlags,
+  type PeakFlag,
+} from '../components/exams/peak';
 import { preloadDrawScreen, preloadTicketScreen, whenIdle } from '../components/exams/preload';
 import {
+  closedPartialShares,
   confidenceSentence,
   confirmedShares,
   coverageCounts,
@@ -43,7 +54,9 @@ import {
   matchesFilter,
   numberOf,
   ratingCounts,
+  readinessWords,
   sheetCoverage,
+  sheetFilterOf,
   unmappedSentence,
   withRatingOverrides,
   type SheetFilter,
@@ -126,6 +139,10 @@ export default function ExamDetail() {
 
 function ExamSheetPage({ examId }: { examId: string }) {
   const { user } = useAuth();
+  // /exams/:id?filter=cov:none opens the sheet filtered (the «Сегодня» link «9 вопросов без материала»);
+  // anything that is not a known filter shows every question.
+  const [searchParams] = useSearchParams();
+  const [openedFilter] = useState<SheetFilter>(() => sheetFilterOf(searchParams.get('filter')));
   const userId = user?.id ?? null;
   const navigate = useNavigate();
   const { confirm } = useConfirm();
@@ -139,9 +156,10 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [events, setEvents] = useState<LearningEvent[]>([]);
   const [eventsState, setEventsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [eventsError, setEventsError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<SheetFilter>('all');
+  const [filter, setFilter] = useState<SheetFilter>(openedFilter);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [rateMode, setRateMode] = useState(false);
+  // A self-rating filter is pressed in the self-rating column: that mode opens with it.
+  const [rateMode, setRateMode] = useState(() => openedFilter.startsWith('sr:'));
   const [howOpen, setHowOpen] = useState(false);
   const [ratingOverrides, setRatingOverrides] = useState<Record<string, Rating>>({});
   const [ratingPending, setRatingPending] = useState<Set<string>>(() => new Set());
@@ -154,6 +172,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const mapPillFocused = useRef(false);
   const drawPillRef = useRef<HTMLAnchorElement>(null);
   const [peak, setPeak] = useState<PeakRun | null>(null);
+  // Rubric points of the first two answers of each question: «Второй ответ после разбора».
+  const [points, setPoints] = useState<{ events: LearningEvent[]; state: 'idle' | 'ready' | 'error' }>({ events: [], state: 'idle' });
+  const pointsSeq = useRef(0);
   const peakFlags = useRef<PeakFlag[] | null>(null);
   const lastSeq = useRef(job.finishedSeq);
   const watching = useRef(false);
@@ -174,6 +195,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [takenSeq, setTakenSeq] = useState(job.finishedSeq);
   // finishedSeq of the newest run that ended before the rows on screen were read.
   const [readSeq, setReadSeq] = useState(job.finishedSeq);
+  // finishedSeq whose strike over the question share was drawn in already: a saved mapping shows it
+  // still; only a run that finishes on this page draws it in, once (Jury_Check item 9).
+  const [strikeSeen, setStrikeSeen] = useState(job.finishedSeq);
   // Rows marked by hand during a run, with the live mark they replace (a newer mark wins again).
   const [manualMarks, setManualMarks] = useState<ReadonlyMap<string, CoverageItem | undefined>>(NO_MANUAL_MARKS);
 
@@ -188,6 +212,21 @@ function ExamSheetPage({ examId }: { examId: string }) {
       setEvents(next);
       setEventsState('ready');
       setEventsError(null);
+      // The points of the first and the second answer of each question answered twice; a failed read
+      // only hides «Второй ответ после разбора».
+      const sessions = secondAnswerSessions(next);
+      const pointSeq = ++pointsSeq.current;
+      if (sessions.length === 0) {
+        setPoints({ events: [], state: 'ready' });
+        return;
+      }
+      fetchSessionPoints(sessions)
+        .then((rows) => {
+          if (pointSeq === pointsSeq.current) setPoints({ events: rows, state: 'ready' });
+        })
+        .catch(() => {
+          if (pointSeq === pointsSeq.current) setPoints({ events: [], state: 'error' });
+        });
     } catch (error) {
       if (seq !== eventsSeq.current) return;
       setEventsState('error');
@@ -311,7 +350,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return new Set(targets.filter((id) => !job.items.has(id)));
   }, [running, job.requested, job.items, questions]);
 
-  const states = useMemo(() => withRatingOverrides(statesByHash(events), ratingOverrides), [events, ratingOverrides]);
+  // «Пора проверить» and «ждут подтверждения» depend on the moment: taken when the journal is read.
+  const now = useMemo(() => new Date(), [events]);
+  const states = useMemo(() => withRatingOverrides(statesByHash(events, now), ratingOverrides), [events, ratingOverrides, now]);
   const answersByHash = useMemo(() => {
     const map = new Map<string, LearningEvent[]>();
     for (const event of events) {
@@ -332,11 +373,14 @@ function ExamSheetPage({ examId }: { examId: string }) {
       questions.map((question) => {
         const state = states.get(hashKey(question));
         const coverage = sheetCoverage(question, checkingIds.has(question.id));
+        const readiness = peakReadiness(question, state);
         return {
           question,
           number: numberOf(question),
           coverage,
-          readiness: peakReadiness(question, state),
+          readiness,
+          // «подтверждено 2 дня назад» for a screen reader, the age the 14-day rule counts.
+          readinessWords: state && state.readiness === readiness ? readinessWords(state, now) : undefined,
           selfRating: state?.selfRating ?? null,
           footnote: footnoteOf(question),
           // Only a judgement arriving now is drawn in; marks of a finished or earlier run are simply there.
@@ -344,7 +388,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [questions, states, checkingIds, job.marks, peak, running],
+    [questions, states, checkingIds, job.marks, peak, running, now],
   );
   const rows = useMemo(
     () => allRows.filter((row) => matchesFilter(filter, { coverage: row.coverage, readiness: row.readiness, selfRating: row.selfRating })),
@@ -353,12 +397,30 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   const layout = bundle?.exam.ticket_layout ?? { mode: 'random' as const, per_ticket: 2 };
   const counts = useMemo(() => coverageCounts(allRows), [allRows]);
-  const shares = useMemo(
-    () => coverageShares(allRows.map((row) => ({ id: row.question.id, section: row.question.section, coverage: row.coverage })), layout),
-    [allRows, layout],
+  const shareSubjects = useMemo(
+    () => allRows.map((row) => ({ id: row.question.id, section: row.question.section, coverage: row.coverage })),
+    [allRows],
   );
+  const shares = useMemo(() => coverageShares(shareSubjects, layout), [shareSubjects, layout]);
+  // The same layout with every «частично» closed: «Закройте 7 вопросов «частично» — …».
+  const closed = useMemo(() => closedPartialShares(shareSubjects, layout), [shareSubjects, layout]);
   const hashes = useMemo(() => questions.map(hashKey), [questions]);
   const summary = useMemo(() => examSummary(hashes, states), [hashes, states]);
+  const today = localDate(now);
+  // Confirmed by the same rule before today: «+1 сегодня» is the net change of the day.
+  const confirmedBeforeToday = useMemo(
+    () => examSummary(hashes, statesByHash(events.filter((event) => event.local_date && event.local_date < today), now)).confirmed,
+    [hashes, events, today, now],
+  );
+  const examAnswers = useMemo(() => {
+    const own = new Set(hashes.map((hash) => `q:${hash}`));
+    return events.filter((event) => event.kind === 'exam_answer' && own.has(event.item_key));
+  }, [events, hashes]);
+  const secondAnswer = useMemo(() => {
+    if (points.state !== 'ready') return null;
+    const value = secondAnswerAfterReview(examAnswers, points.events);
+    return value ? secondAnswerSentence(value) : null;
+  }, [examAnswers, points]);
   const confidence = useMemo(() => confidenceVsConfirmed(hashes, states), [hashes, states]);
   const confirmed = useMemo(
     () =>
@@ -388,8 +450,16 @@ function ExamSheetPage({ examId }: { examId: string }) {
         change,
         answers,
         number: numberOf(question),
-        counts: { total: summary.total, confirmed: summary.confirmed, once: summary.once, notPassed: summary.notPassed, since: summary.since },
+        counts: {
+          total: summary.total,
+          confirmed: summary.confirmed,
+          once: summary.once,
+          notPassed: summary.notPassed,
+          since: summary.since,
+          confirmedBeforeToday,
+        },
         confirmedTicketsPct: confirmed.low.ok && confirmed.low.mode !== 'fixed' && layout.per_ticket === 2 ? percent(confirmed.low.all) : null,
+        now,
       });
       setFilter('all');
       setPeak({
@@ -398,13 +468,29 @@ function ExamSheetPage({ examId }: { examId: string }) {
         before: change.before.readiness,
         phase: text.draws ? 'scroll' : 'still',
         dim: true,
-        view: { title: text.title, before: text.before, after: text.after, total: text.total, statement: text.statement, fine: text.fine },
+        view: {
+          title: text.title,
+          before: text.before,
+          after: text.after,
+          total: text.total,
+          statement: text.statement,
+          fine: text.fine,
+          growth: text.growth,
+        },
         because: text.because,
         draws: text.draws,
       });
       break;
     }
-  }, [eventsState, bundle, answersByHash, events, summary, confirmed, layout.per_ticket]);
+  }, [eventsState, bundle, answersByHash, events, summary, confirmed, layout.per_ticket, confirmedBeforeToday, now]);
+
+  // A mapping run that finished on this page draws the strike over the question share in, once.
+  const strikeLive = job.phase === 'done' && job.finishedSeq !== openedSeq && job.finishedSeq !== strikeSeen;
+  useEffect(() => {
+    if (!strikeLive) return;
+    const timer = window.setTimeout(() => setStrikeSeen(job.finishedSeq), 1200);
+    return () => window.clearTimeout(timer);
+  }, [strikeLive, job.finishedSeq]);
 
   useEffect(() => {
     if (!peak || peak.phase !== 'scroll') return;
@@ -700,32 +786,44 @@ function ExamSheetPage({ examId }: { examId: string }) {
         setSelectedId(null);
         setRateMode(true);
       }}
+      growth={growthSentence(summary, now)}
+      staleLine={staleSentence(summary.stale)}
+      secondAnswer={secondAnswer}
     />
   );
-  const coverage = (compact: boolean) => (
+  const coverage = (part: 'all' | 'head' | 'rest') => (
     <CoverageSummary
-      compact={compact}
+      part={part}
       counts={counts}
       checking={running ? progress ?? { checked: 0, total: questions.length } : null}
       shares={shares}
+      closed={closed}
       layout={exam.ticket_layout}
       howOpen={howOpen}
       onHow={() => setHowOpen((open) => !open)}
       howId={`${whyId}-how`}
       onRecheck={recheck}
+      filter={filter}
+      onFilter={(next) => {
+        setRateMode(false);
+        setFilter(next);
+      }}
+      strikeLive={strikeLive}
+      seedKey={exam.id}
     />
   );
   const summaryColumn = (
     <>
-      {coverage(false)}
+      {coverage('all')}
       {readiness('all')}
     </>
   );
-  // Phones and tablets: only the pair, the short caveat and «Подтверждено ответами» above the sheet,
-  // so the paper starts on the first screen; the legend and the confidence line go under it.
+  // Phones and tablets: only (a) and (b), the short caveat and «Подтверждено ответами» above the
+  // sheet, so the paper starts on the first screen; line (c), the action line, the legend and the
+  // confidence line go under it.
   const compactColumn = (
     <>
-      {coverage(true)}
+      {coverage('head')}
       {readiness('head')}
     </>
   );
@@ -744,7 +842,11 @@ function ExamSheetPage({ examId }: { examId: string }) {
     />
   );
   const peakColumn = peak ? (
-    <PeakSummary peak={peak.view} confidence={eventsState === 'ready' && confidence.enoughData ? confidenceSentence(confidence) : null} onClose={() => setPeak(null)} />
+    <PeakSummary
+      peak={{ ...peak.view, second: secondAnswer }}
+      confidence={eventsState === 'ready' && confidence.enoughData ? confidenceSentence(confidence) : null}
+      onClose={() => setPeak(null)}
+    />
   ) : null;
   const whyPanel = (variant: 'column' | 'sheet') =>
     selectedRow ? (
@@ -758,6 +860,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         examMaterialIds={current}
         answers={answersByHash.get(selectedRow.question.question_hash ?? '') ?? []}
         answersError={eventsState === 'error' ? eventsError : null}
+        now={now}
         variant={variant}
         frameBox={frame.box}
         headingId={`${whyId}-title`}
@@ -940,6 +1043,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       {!frame.side && !rateMode && !showPeak && (
         <section className="ex-col ex-col-after" aria-label="Ответы по билетам">
+          {coverage('rest')}
           {readiness('rest')}
         </section>
       )}

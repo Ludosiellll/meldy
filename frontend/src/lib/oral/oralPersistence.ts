@@ -10,7 +10,8 @@
  * Browser storage (every access in try/catch; nothing here is the source of truth):
  * - localStorage meldy_answer_draft_<questionId> — the answer text while it is being given;
  * - sessionStorage meldy_oral_attempt — an answer whose evaluation failed, for «Проверить снова»;
- * - localStorage meldy_oral_live_marks — '0' / '1', marks during the answer (on by default);
+ * - localStorage meldy_oral_live_marks — '0' / '1', marks during the answer in training (on by
+ *   default); an answer «как на экзамене» (?mode=exam) starts with them off and never writes it;
  * - sessionStorage meldy_exam_peak_<examId> — the questions answered just now and their state
  *   before, so the exam sheet can draw the change (redesign spec 5.9).
  */
@@ -436,6 +437,22 @@ export function writeLiveMarks(on: boolean): void {
   } catch {
     // the switch still works for this page
   }
+}
+
+/** Training (the stored preference) or «как на экзамене» (the draw's mode, ?mode=exam). */
+export type TicketMode = 'training' | 'exam';
+
+/**
+ * Marks during the answer when the screen opens (Jury_Check item 11): off «как на экзамене», without
+ * reading or writing the stored preference; otherwise the preference, on by default.
+ */
+export function initialLiveMarks(mode: TicketMode): boolean {
+  return mode === 'exam' ? false : readLiveMarks();
+}
+
+/** The switch «Отмечать пункты во время ответа»: remembered in training only; «как на экзамене» it lasts for this answer. */
+export function rememberLiveMarks(mode: TicketMode, on: boolean): void {
+  if (mode !== 'exam') writeLiveMarks(on);
 }
 
 /** Adds a just-saved question to the sheet's flag: its hash and its readiness before the answer. */

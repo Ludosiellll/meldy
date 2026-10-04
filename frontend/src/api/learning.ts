@@ -414,6 +414,34 @@ export async function fetchQuestionEvents(
 }
 
 /**
+ * The rubric points (kind 'oral_point') of these answer sessions (exam_sessions ids, written by
+ * record_oral_attempt with the answer), read in chunks of 100 session ids, oldest first. Ids that
+ * are not UUIDs are dropped; none left returns nothing without a request. Failures raise
+ * LearningLoadError. Used by «Второй ответ после разбора» on the exam sheet.
+ */
+export async function fetchSessionPoints(sessionIds: string[]): Promise<LearningEvent[]> {
+  const ids = unique(
+    sessionIds.map((id) => (typeof id === 'string' ? id.trim().toLowerCase() : '')).filter((id) => UUID.test(id)),
+  );
+  if (ids.length === 0) return [];
+  const parts = await Promise.all(
+    chunks(ids, KEYS_PER_REQUEST).map((part) =>
+      readAllPages((from, to) =>
+        supabase
+          .from('learning_events')
+          .select(EVENT_COLUMNS)
+          .eq('kind', 'oral_point')
+          .in('session_id', part)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+    ),
+  );
+  return chronological(parts.flat());
+}
+
+/**
  * The caller's journal events of these kinds, optionally only for some materials (in chunks of
  * 100 ids; an empty list returns nothing) and only for the last `sinceDays` days. Oldest first.
  */

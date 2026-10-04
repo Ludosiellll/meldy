@@ -1,0 +1,253 @@
+/* «Сегодня» on the paper desk (redesign spec 5.15, frame today--1280x720-light, prototype today.html).
+ *
+ * The page root is .sf-page (the paper kit's frame and tokens) with .td. The desk is two columns
+ * 1.2fr / 1fr with a rule under it; paper appears only where something could be held: the ribbon of the
+ * question list (.sf-sheet) and the stack of review cards (.sf-index-card). Meldy's words stay on the
+ * desk in Onest; the pencil marks the paper and, in the legend that explains them, the desk. */
+
+.td { --td-gap: 72px; }
+.td-in { max-width: 1120px; }
+.td-in-centered { max-width: none; }
+
+/* ---------------------------------------------------------------- header */
+.td-head { padding-top: 40px; }
+.td-date { margin: 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.td-head .sf-h1 { margin-top: 6px; text-wrap: balance; }
+.td-loading { margin: 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- shared type */
+.td-meta { margin: 4px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.td-body { margin: 12px 0 0; max-width: 31em; font-size: 17px; line-height: 26px; text-wrap: pretty; }
+.td-quiet { color: var(--sf-muted); }
+.td-h3 { margin: 0; font-size: 19px; line-height: 26px; font-weight: 600; letter-spacing: -.01em; color: var(--sf-ink); }
+.td-big {
+  margin: 0;
+  max-width: 15em;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--sf-ink);
+  text-wrap: balance;
+}
+.dark .td-big { font-weight: 570; }
+/* «Около 6 минут.» under the count, on its own line on a computer. */
+.td-big-time { display: block; }
+
+/* ---------------------------------------------------------------- the desk */
+.td-desk {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--td-gap);
+  margin-top: 40px;
+  padding-bottom: 48px;
+  border-bottom: 1px solid var(--sf-line);
+}
+.td-exam,
+.td-due { min-width: 0; }
+.td-exam .sf-h2 { text-wrap: balance; }
+
+/* «9 вопросов без материала»: the first line of the exam, a link into the sheet filtered to them. */
+.td-gap { margin-top: 16px; }
+/* A 44 px tap target that takes only its 26 px line in the layout. */
+.td-gap .td-gap-link { min-height: 44px; margin: -9px 0; font-size: 17px; line-height: 26px; font-weight: 500; }
+.td-gap-note { margin: 2px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+
+/* The list in miniature: the sheet's left margin, question by question. Numbers are data (1, 20, 21, 40). */
+.td-strip {
+  display: inline-grid;
+  row-gap: 6px;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 20px 0 0;
+  padding: 14px 16px 14px 10px;
+}
+.td-strip-row {
+  display: grid;
+  grid-template-columns: 26px repeat(var(--td-n), 22px) 26px;
+  align-items: center;
+}
+.td-strip-n {
+  padding-right: 8px;
+  font-family: var(--ph-serif);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ph-paper-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+}
+.td-strip-n[data-end] { padding: 0 0 0 6px; text-align: left; }
+.td-strip-cell { display: grid; place-items: center; height: 24px; }
+
+/* The legend line: the same marks on the desk, each with its count. */
+.td-tally { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 16px 0 0; font-size: 16px; line-height: 24px; color: var(--sf-ink); }
+.td-tally > span { display: inline-flex; align-items: center; gap: 8px; }
+.td-tally .sf-mark { margin-right: 0; }
+.td-tally b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.td-note { margin: 6px 0 0; max-width: 34em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.td-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; margin-top: 26px; }
+.td-big + .td-actions,
+.td-big + .td-body { margin-top: 20px; }
+.td-big + .td-body + .td-actions { margin-top: 22px; }
+.td-retry { margin: 0; }
+.td-retry .sf-link { min-height: 0; font-size: 15px; }
+
+/* Today's cards: the landing's index card, three deep. */
+.td-stack { position: relative; width: 340px; max-width: 100%; height: 204px; margin: 4px 0 0 2px; }
+.td-stack .sf-index-card { position: absolute; inset: 0; }
+.td-stack .sf-index-card[data-n='3'] { transform: translate(9px, 10px) rotate(1.7deg); }
+.td-stack .sf-index-card[data-n='2'] { transform: translate(4px, 5px) rotate(-1.1deg); }
+.td-stack-q {
+  position: absolute;
+  top: 50%;
+  left: 28px;
+  right: 28px;
+  max-width: 9.4em;
+  margin: 0;
+  transform: translateY(-54%);
+  font-family: var(--ph-serif);
+  font-size: 27px;
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -.016em;
+  color: var(--ph-paper-ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.td-stack-q[data-long] { max-width: 12.5em; font-size: 21px; line-height: 1.18; -webkit-line-clamp: 5; }
+.td-due .td-h3 { margin-top: 34px; }
+.td-due .td-stack + .td-meta { margin-top: 30px; }
+.td-due .td-meta { max-width: 25em; }
+.td-due .sf-secondary,
+.td-due .sf-primary { margin-top: 20px; }
+.td-due > .td-body:first-child { margin-top: 4px; }
+
+/* ---------------------------------------------------------------- below the desk */
+.td-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--td-gap);
+  margin-top: 36px;
+}
+.td-lectures,
+.td-activity { min-width: 0; }
+.td-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.td-sec-head .sf-link { min-height: 44px; margin: -12px 0; font-size: 15px; }
+.td-inline-link.sf-link { min-height: 0; font-size: 15px; }
+
+.td-rows { margin: 10px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
+.td-rows > li { border-bottom: 1px solid var(--sf-line); }
+.td-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 20px;
+  padding: 12px 0 13px;
+  color: var(--sf-ink);
+  text-decoration: none;
+}
+.td-row:hover .td-row-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.td-row-title {
+  font-family: var(--ph-serif);
+  font-size: 18px;
+  line-height: 25px;
+  font-weight: 500;
+  letter-spacing: -.005em;
+  overflow-wrap: anywhere;
+}
+.dark .td-row-title { font-weight: 470; }
+.td-row-meta { grid-column: 1; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+.td-row-date {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--sf-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.td-row-note { margin: -4px 0 0; padding-bottom: 10px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
+.td-row-note .sf-link { min-height: 0; font-size: 15px; }
+
+/* Two weeks of reviews: ink columns at 55 %, today at full ink, a 2 px stub for a day without reviews. */
+.td-activity .td-meta { margin-top: 4px; }
+.td-bars {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  height: 140px;
+  margin-top: 18px;
+}
+.td-bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.td-bar-v { margin-bottom: 6px; font-size: 14px; line-height: 1; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.td-bar-b {
+  width: 100%;
+  max-width: 22px;
+  border-radius: 2px 2px 1px 1px;
+  background: color-mix(in srgb, var(--sf-ink) 55%, transparent);
+}
+.td-bar[data-zero] .td-bar-b { height: 2px; background: color-mix(in srgb, var(--sf-ink) 22%, transparent); }
+.td-bar[data-today] .td-bar-b { background: var(--sf-ink); }
+.td-bar[data-today] .td-bar-v { color: var(--sf-ink); font-weight: 600; }
+.td-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sf-line-strong);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--sf-muted);
+}
+
+/* ---------------------------------------------------------------- a new account, an error */
+.td-empty { max-width: 560px; margin: 0 auto; padding-top: 64px; text-align: center; }
+.td-empty .sf-h1 { text-wrap: balance; }
+.td-empty-text { margin: 12px auto 0; max-width: 32em; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
+.td-empty .td-empty-go { margin-top: 28px; }
+.td-empty-alt { margin: 10px 0 0; }
+
+.td-error { max-width: 480px; padding-top: 32px; }
+.td-error-text { margin: 8px 0 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
+.td-error .sf-link { margin-top: 4px; }
+
+/* ---------------------------------------------------------------- sizes */
+@media (max-width: 1279px) {
+  .td { --td-gap: 48px; }
+}
+@media (max-width: 1023px) {
+  .td-desk,
+  .td-lower { grid-template-columns: minmax(0, 1fr); gap: 44px; }
+}
+@media (max-width: 639px) {
+  .td-head { padding-top: 24px; }
+  .td-desk { margin-top: 28px; padding-bottom: 36px; gap: 40px; }
+  .td-strip { margin-top: 16px; padding: 12px 10px 12px 6px; }
+  .td-strip-row { grid-template-columns: 28px repeat(var(--td-n), 27px) 28px; }
+  .td-strip-cell { height: 26px; }
+  .td-tally { gap: 4px 16px; font-size: 15px; }
+  .td-big { font-size: 24px; line-height: 30px; }
+  .td-actions { flex-direction: column; align-items: stretch; gap: 6px; margin-top: 22px; }
+  .td-actions .sf-link { align-self: flex-start; }
+  .td-stack { width: 300px; height: 180px; }
+  .td-stack-q { left: 24px; right: 24px; font-size: 24px; }
+  .td-stack-q[data-long] { font-size: 19px; }
+  .td-due .td-h3 { margin-top: 30px; }
+  .td-lower { margin-top: 32px; gap: 40px; }
+  .td-bars { gap: 5px; height: 128px; }
+  .td-empty { padding-top: 40px; }
+  .td-empty .td-empty-go { margin-top: 24px; }
+}
+/* Narrow phones (360): a ribbon row of ten still fits between the 16 px gutters. */
+@media (max-width: 374px) {
+  .td-strip { padding: 10px 8px 10px 4px; }
+  .td-strip-row { grid-template-columns: 24px repeat(var(--td-n), 24px) 24px; }
+  .td-strip-n { padding-right: 6px; }
+  .td-strip-n[data-end] { padding-left: 4px; }
+}

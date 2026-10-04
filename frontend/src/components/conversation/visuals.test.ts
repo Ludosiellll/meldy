@@ -4,7 +4,11 @@ import {
   buildConversation,
   cleanSourceIds,
   estimateMinutes,
+  conversationMeta,
   fragmentWords,
+  minutesPhrase,
+  sourceNote,
+  visualCaption,
   hasModelVisuals,
   mergeVisualsByIndex,
   normalizeForMatch,
@@ -520,5 +524,35 @@ describe('steps', () => {
     expect(splitStep('Хранение — удерживаем след')).toEqual({ head: 'Хранение', tail: 'удерживаем след' });
     expect(splitStep('Свет поглощается хлорофиллом')).toBeNull();
     expect(splitStep('Очень длинное начало шага без двоеточия долго тянется: и только потом пояснение')).toBeNull();
+  });
+});
+
+describe('words on the paper sheet (spec 5.7)', () => {
+  it('writes the source note of the corner only for what was checked', () => {
+    expect(sourceNote({ kind: 'numbers', ids: ['S04'] })).toBe('Числа — из лекции, фрагмент 4');
+    expect(sourceNote({ kind: 'numbers', ids: [] })).toBe('Числа — из лекции');
+    expect(sourceNote({ kind: 'dates', ids: ['S02', 'S05'] })).toBe('Даты — из лекции, фрагменты 2 и 5');
+    expect(sourceNote({ kind: 'quote', ids: ['S01'] })).toBe('Из лекции, фрагмент 1');
+    expect(sourceNote({ kind: 'summary' })).toBe('Из конспекта');
+    expect(sourceNote({ kind: 'cards' })).toBe('Из карточек');
+    // A paraphrase, a diagram or a formula of the model says nothing about the lecture.
+    expect(sourceNote({ kind: 'none' })).toBeNull();
+  });
+
+  it('says who talks, how many lines and how long, in one line above the sheet', () => {
+    expect(conversationMeta(['Макс', 'Софья'], 14, 1)).toBe('Макс и Софья обсуждают лекцию · 14 реплик, около минуты');
+    expect(conversationMeta(['Макс', 'Софья', 'Анна', 'Борис'], 3, 2)).toBe('Макс, Софья и Анна обсуждают лекцию · 3 реплики, около 2 минут');
+    expect(conversationMeta(['Софья'], 1, 0)).toBe('Софья рассказывает о лекции · 1 реплика');
+    expect(conversationMeta([], 21, 21)).toBe('Разговор по лекции · 21 реплика, около 21 минуты');
+    expect(minutesPhrase(1)).toBe('около минуты');
+    expect(minutesPhrase(5)).toBe('около 5 минут');
+  });
+
+  it('never shows the internal «Из источника S03» title of a found quote', () => {
+    const quote = { type: 'fact' as const, title: 'Из источника S03', text: 'Эластичность показывает, на сколько процентов изменится величина спроса при изменении цены на один процент.' };
+    expect(visualCaption(quote)).not.toMatch(/S03|Из источника/);
+    expect(visualCaption(quote)).toMatch(/^Эластичность показывает/);
+    expect(visualCaption(quote).length).toBeLessThanOrEqual(60);
+    expect(visualCaption({ type: 'fact', title: 'Определение', text: 'Текст.' })).toBe('Определение');
   });
 });

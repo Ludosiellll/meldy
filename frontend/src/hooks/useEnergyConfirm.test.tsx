@@ -91,7 +91,7 @@ describe('verifyEnergy', () => {
     expect(h.alert).toHaveBeenCalledTimes(1);
     const options = h.alert.mock.calls[0][0];
     const resetAt = formatLimitReset(nextLimitReset());
-    expect(resetAt).toMatch(/^\d{2}:\d{2}$/);
+    expect(resetAt).toMatch(/^\d{1,2}:\d{2}$/);
     // Осталось 10 из 100: лимит не «исчерпан», его не хватает на это действие.
     expect(options.title).toBe('Не хватает дневного лимита');
     expect(options.message).toBe(`Анализ материала расходует 20 единиц, а на сегодня осталось 10. Лимит обновится в ${resetAt}.`);
@@ -106,7 +106,7 @@ describe('verifyEnergy', () => {
     await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
     const options = h.alert.mock.calls[0][0];
     expect(options.title).toBe('Дневной лимит исчерпан');
-    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 0\. Лимит обновится в \d{2}:\d{2}\.$/);
+    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 0\. Лимит обновится в \d{1,2}:\d{2}\.$/);
 
     h.alert.mockClear();
     h.check.mockResolvedValue({ allowed: false, isPro: false, count: 130, ok: true }); // старый клиент мог перерасходовать
@@ -148,7 +148,7 @@ describe('verifyEnergy', () => {
     });
     expect(await screen.findByText('Не хватает дневного лимита')).toBeInTheDocument();
     expect(screen.queryByText('Дневной лимит исчерпан')).not.toBeInTheDocument();
-    expect(screen.getByText(/Разметка по лекциям расходует 10 единиц, а на сегодня осталось 5\. Лимит обновится в \d{2}:\d{2}\./)).toBeInTheDocument();
+    expect(screen.getByText(/Разметка по лекциям расходует 10 единиц, а на сегодня осталось 5\. Лимит обновится в \d{1,2}:\d{2}\./)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Отмена|PRO/ })).not.toBeInTheDocument();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Понятно' }));
@@ -197,7 +197,7 @@ describe('TokenInfoModal', () => {
   it('clamps an overspent counter at zero', () => {
     render(<TokenInfoModal isOpen onClose={() => {}} usedTokens={130} />);
     expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 0 из 100 единиц.');
-    expect(screen.getByText(/На сегодня лимит исчерпан, он обновится в \d{2}:\d{2}\./)).toBeInTheDocument();
+    expect(screen.getByText(/На сегодня лимит исчерпан, он обновится в \d{1,2}:\d{2}\./)).toBeInTheDocument();
     expect(screen.queryByText(/^Лимит обновится/)).not.toBeInTheDocument();
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '0%' });
   });

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   markQuestionManual: vi.fn(),
   fetchExamMappingState: vi.fn(),
   fetchQuestionEvents: vi.fn(),
+  fetchSessionPoints: vi.fn(),
   recordSelfRating: vi.fn(),
   incrementAIUsage: vi.fn(),
   checkAILimit: vi.fn(),
@@ -33,7 +34,12 @@ vi.mock('../api/exams', async (importOriginal) => {
 });
 vi.mock('../api/learning', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/learning')>();
-  return { ...actual, fetchQuestionEvents: mocks.fetchQuestionEvents, recordSelfRating: mocks.recordSelfRating };
+  return {
+    ...actual,
+    fetchQuestionEvents: mocks.fetchQuestionEvents,
+    fetchSessionPoints: mocks.fetchSessionPoints,
+    recordSelfRating: mocks.recordSelfRating,
+  };
 });
 vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
@@ -182,9 +188,9 @@ function Where() {
   return null;
 }
 
-function renderDetail(options: { strict?: boolean } = {}) {
+function renderDetail(options: { strict?: boolean; path?: string } = {}) {
   const tree = (
-    <MemoryRouter initialEntries={['/exams/exam-1']}>
+    <MemoryRouter initialEntries={[options.path ?? '/exams/exam-1']}>
       <Routes>
         <Route path="/exams/:id" element={<ExamDetail />} />
         <Route path="*" element={<p>Другая страница</p>} />
@@ -240,6 +246,7 @@ beforeEach(() => {
   window.sessionStorage.clear();
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.fetchQuestionEvents.mockResolvedValue([]);
+  mocks.fetchSessionPoints.mockResolvedValue([]);
   mocks.recordSelfRating.mockResolvedValue(undefined);
   mocks.incrementAIUsage.mockResolvedValue(undefined);
   mocks.verifyEnergy.mockResolvedValue(true);
@@ -290,7 +297,10 @@ describe('ExamDetail: the sheet', () => {
 
     await waitFor(() => expect(row('q1')).toHaveAttribute('data-readiness', 'confirmed'));
     expect(row('q1').querySelector('.ex-qn [data-mark="ring"]')).not.toBeNull();
-    expect(row('q1').querySelector('.ex-qn')).toHaveTextContent('1, подтверждено');
+    // The screen reader hears the age of the confirmation, counted from the last засчитанный answer.
+    expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, подтверждено вчера');
+    expect(plain(row('q2').querySelector('.ex-qn')?.textContent)).toBe('2, засчитано, не подтверждено');
+    expect(plain(row('q4').querySelector('.ex-qn')?.textContent)).toBe('4, не засчитано');
     expect(row('q2')).toHaveAttribute('data-readiness', 'once');
     expect(row('q2').querySelector('.ex-qn [data-mark="under"]')).not.toBeNull();
     expect(row('q4')).toHaveAttribute('data-readiness', 'not_passed');
@@ -307,23 +317,117 @@ describe('ExamDetail: the sheet', () => {
     expect(row('q3').querySelector('.ex-qnote')).toBeNull();
   });
 
-  it('words the shares with real numbers: 60 % of questions, 35 % of tickets, 85 % with at least one', async () => {
+  it('starts peak 1 from the gap and ends it with an action: «9», «60 %» struck beside «35 %», «в 15 % …», «Закройте 7 вопросов «частично»»', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     renderDetail();
     await opened();
     const side = column();
-    expect(within(side).getByText('60 %')).toBeInTheDocument();
-    expect(within(side).getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
-    expect(within(side).getByText('24 из 40 · частично — 7, нет ни в одной — 9')).toBeInTheDocument();
-    expect(within(side).getByText('35 %')).toBeInTheDocument();
+    // (a) the questions that are in no lecture, at the size of the percentages, as a filter.
+    const gap = within(side).getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') });
+    expect(gap).toHaveTextContent('9');
+    expect(gap).toHaveClass('ex-big');
+    expect(within(side).getByText('вопросов нет ни в одной лекции')).toBeInTheDocument();
+    // (b) «60 %» muted and struck through by pencil beside «35 %»; the strike is still on a saved mapping.
+    const was = side.querySelector('.ex-figs-was') as HTMLElement;
+    expect(plain(was.textContent)).toBe('60 %');
+    expect(was).toHaveAttribute('aria-hidden', 'true');
+    expect(was.querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still');
+    expect(plain(side.querySelector('.ex-figs-now')?.textContent)).toBe('35 %');
+    expect(plain(side.querySelector('.ex-figs .ex-sr')?.textContent)).toBe('вместо 60 % вопросов —');
     expect(within(side).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
-    expect(within(side).getByText('хотя бы один — 85 %')).toBeInTheDocument();
+    expect(within(side).getByText(named('24 из 40 · частично — 7'))).toBeInTheDocument();
+    // (c) in place of «хотя бы один — 85 %».
+    expect(within(side).getByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
+    expect(plain(side.textContent)).not.toContain('хотя бы один');
     expect(within(side).getByText('Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.')).toBeInTheDocument();
+    // The action line right under «Как считается», closed and open.
+    const how = within(side).getByRole('button', { name: 'Как считается' });
+    const action = side.querySelector('.ex-act') as HTMLElement;
+    expect(plain(action.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
+    expect(how.nextElementSibling).toBe(action);
     expect(await within(side).findByText('Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/шанс сдать|вы выучили|ИИ понимает/i);
 
+    fireEvent.click(how);
+    expect(how.nextElementSibling).toBe(side.querySelector('.ex-act'));
+    const formulas = within(side).getAllByRole('math');
+    expect(plain(formulas[0].getAttribute('aria-label'))).toBe('Сочетания из 24 по 2, делённые на сочетания из 40 по 2: 276 из 780, примерно 35 %');
+    expect(plain(formulas[1].textContent)).toContain('120780≈15 %');
+  });
+
+  it('filters the sheet from the figure «9» and from «7 вопросов «частично»», with the legend item pressed', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    const side = column();
+    fireEvent.click(within(side).getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') }));
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(9);
+    expect(Array.from(document.querySelectorAll('.ex-q')).every((item) => item.getAttribute('data-coverage') === 'none')).toBe(true);
+    const legend = screen.getByRole('list', { name: 'Показать вопросы' });
+    expect(within(legend).getByRole('button', { name: 'нет ни в одной 9' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(side).getByRole('button', { name: named('9 вопросов нет ни в одной лекции. Показать их') })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(within(side).getByRole('button', { name: named('7 вопросов «частично»') }));
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(7);
+    expect(within(legend).getByRole('button', { name: 'частично 7' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(side).getByRole('button', { name: named('7 вопросов «частично»') }));
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(40);
+  });
+
+  it('counts the numbers by the exam’s own layout: one question from each section', async () => {
+    // Section 1: 13 «есть» · 4 «частично» · 3 «нет»; section 2: 11 · 3 · 6 (the seeded stage list).
+    const none = new Set([5, 8, 17, 22, 26, 29, 35, 38, 40]);
+    const partial = new Set([3, 9, 14, 19, 24, 33, 37]);
+    const list = Array.from({ length: 40 }, (_, index) => {
+      const n = index + 1;
+      return question(n, none.has(n) ? 'none' : partial.has(n) ? 'partial' : 'full', { section: n <= 20 ? 1 : 2 });
+    });
+    mocks.loadExamBundle.mockResolvedValue(bundle(list, { ticket_layout: { mode: 'sections', per_ticket: 2, section_titles: ['Первый', 'Второй'] } }));
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(plain(side.querySelector('.ex-figs-now')?.textContent)).toBe('36 %');
+    expect(plain(side.querySelector('.ex-figs-was')?.textContent)).toBe('60 %');
+    expect(within(side).getByText(named('в 16 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
+    expect(plain(side.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
     fireEvent.click(within(side).getByRole('button', { name: 'Как считается' }));
-    expect(within(side).getAllByRole('math')[0]).toHaveAccessibleName(/^Сочетания из 24 по 2, делённые на сочетания из 40 по 2: 276 из 780, примерно 35\s%$/);
+    const [main, gap] = within(side).getAllByRole('math').map((formula) => plain(formula.textContent));
+    expect(main).toBe('1320×1120≈36 %');
+    expect(gap).toBe('ни одного с отметкой «есть»:720×920≈16 %');
+  });
+
+  it('shows the question share as a range while questions are found only by words: 17 «есть», 10 «только по словам» → 43–68 %', async () => {
+    const list = Array.from({ length: 40 }, (_, index) => question(index + 1, index < 17 ? 'full' : index < 27 ? 'unverified' : 'none'));
+    mocks.loadExamBundle.mockResolvedValue(bundle(list));
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(plain(side.querySelector('.ex-figs-was')?.textContent)).toBe('43–68 %');
+    expect(side.querySelector('.ex-figs')).toHaveAttribute('data-range');
+    expect(plain(side.querySelector('.ex-figs .ex-sr')?.textContent)).toBe('вместо 43–68 % вопросов —');
+  });
+
+  it('opens the sheet filtered by ?filter=cov:none with the legend item pressed; anything else shows all', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    const first = renderDetail({ path: '/exams/exam-1?filter=cov:none' });
+    await opened();
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(9);
+    expect(within(screen.getByRole('list', { name: 'Показать вопросы' })).getByRole('button', { name: 'нет ни в одной 9' })).toHaveAttribute('aria-pressed', 'true');
+    first.unmount();
+    renderDetail({ path: '/exams/exam-1?filter=garbage' });
+    await opened();
+    expect(document.querySelectorAll('.ex-q')).toHaveLength(40);
+    expect(within(screen.getByRole('list', { name: 'Показать вопросы' })).getByRole('button', { name: 'Все 40' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('opens a readiness filter from the address too', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(3, dayKey(-1), false, 's3')]);
+    renderDetail({ path: '/exams/exam-1?filter=rd:not_passed' });
+    await opened();
+    await waitFor(() => expect(document.querySelectorAll('.ex-q')).toHaveLength(1));
+    const legend = await within(column()).findByRole('list', { name: 'Показать вопросы по ответам' });
+    expect(within(legend).getByRole('button', { name: 'не засчитано 1' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('counts confirmed questions from the journal, with no date after the number', async () => {
@@ -337,13 +441,40 @@ describe('ExamDetail: the sheet', () => {
     const statement = await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
     expect(plain(statement.textContent)).toBe('Подтверждено ответами — 6 из 40.');
     expect(plain(column().textContent)).not.toContain(since);
-    expect(within(column()).getByText('Подтверждено — значит, зачтено дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 2 %.')).toBeInTheDocument();
+    expect(within(column()).getByText(named('Подтверждено — значит, засчитано дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 2 %.'))).toBeInTheDocument();
+    // The growth from history, once the history spans more than a day.
+    expect(within(column()).getByText(named(`С ${formatDay(dayKey(-9))}: 0 → 6 за 9 дней.`))).toBeInTheDocument();
 
     const legend = within(column()).getByRole('list', { name: 'Показать вопросы по ответам' });
+    expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent).replace(/^12/, ''))).toEqual([
+      'подтверждено 6',
+      'засчитано, не подтверждено 0',
+      'не засчитано 0',
+      'не проверялось 34',
+    ]);
     fireEvent.click(within(legend).getByRole('button', { name: 'подтверждено 6' }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(6);
     fireEvent.click(within(legend).getByRole('button', { name: 'не проверялось 34' }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(34);
+  });
+
+  it('keeps a confirmation older than 14 days among the confirmed and says it is «пора проверить»', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([
+      answer(1, dayKey(-30), true, 's1a'),
+      answer(1, dayKey(-20), true, 's1b'),
+      answer(2, dayKey(-3), true, 's2a'),
+      answer(2, dayKey(-1), true, 's2b'),
+    ]);
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(await within(side).findByText(named('Пора проверить: 1 — подтверждён больше 14 дней назад.'))).toBeInTheDocument();
+    const statement = within(side).getByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    expect(plain(statement.textContent)).toBe('Подтверждено ответами — 2 из 40.');
+    expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, подтверждено 20 дней назад, пора проверить');
+    fireEvent.click(screen.getByRole('button', { name: 'Вопрос 1 о денежном рынке' }));
+    expect(await within(column()).findByText(named('Подтверждено 20 дней назад — пора проверить.'))).toBeInTheDocument();
   });
 
   it('filters the sheet by a coverage mark and back', async () => {
@@ -471,7 +602,7 @@ describe('ExamDetail: the sheet', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(within(side).getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
+    expect(within(side).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
     expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Сравнить уверенность|Вы отметили/);
     expect(within(side).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
     // After 300 ms one quiet line says what is going on.
@@ -553,7 +684,7 @@ describe('ExamDetail: «почему»', () => {
     fireEvent.click(within(side).getByRole('button', { name: 'Закрыть' }));
     expect(screen.getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
     expect(screen.queryByRole('heading', { name: named('Есть в ваших лекциях') })).toBeNull();
-    expect(within(column()).getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
+    expect(within(column()).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
   });
 
   it('explains a gap with the nearest fragment and marks it by hand only after a confirmation', async () => {
@@ -660,22 +791,23 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
 
     const side = column();
     expect(await within(side).findByText('Подтверждено ответами')).toBeInTheDocument();
-    // «1 из 40» and beside it «было 0» — no struck-out figure (redesign critique 2, round 2).
+    // The growth from history: «0 → 1 из 40», «за 3 дня», «+1 сегодня» — no struck-out figure.
     const big = side.querySelector('.ex-peak-big') as HTMLElement;
-    expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('1 из 40');
-    expect(plain(big.querySelector('.ex-was')?.textContent)).toBe('было 0');
+    expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('0 → 1 из 40');
     expect(big.querySelector('s, del')).toBeNull();
-    expect(plain(big.querySelector('.ex-sr')?.textContent)).toBe('Подтверждено ответами: 1 из 40, было 0.');
-    expect(plain(side.querySelector('.ex-peak .ex-stmt')?.textContent)).toBe(
-      `Вопрос 1 подтверждён ответом, который вы дали только что. С ${formatDay(dayKey(-3))}: 0 → 1.`,
+    expect(plain(big.querySelector('.ex-sr')?.textContent)).toBe(
+      'Подтверждено ответами: 1 из 40, было 0. Подтверждено ответами: от 0 до 1 из 40 за 3 дня, плюс 1 сегодня.',
     );
+    expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('за 3 дня+1 сегодня');
+    expect(plain(side.querySelector('.ex-peak .ex-peak-stmt')?.textContent)).toBe('Вопрос 1 подтверждён ответом, который вы дали только что.');
+    expect(within(side).getByText(named('Подтверждено — значит, засчитано дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 0 %.'))).toBeInTheDocument();
     // Not enough «знаю» answers to compare confidence with results: no such line.
     expect(screen.queryByText(/Вы отметили «знаю»/)).toBeNull();
     expect(within(side).queryByText(/Сравнить уверенность с ответами пока нельзя/)).toBeNull();
 
     expect(row('q1')).toHaveAttribute('data-peak');
     expect(plain(row('q1').querySelector('.ex-because')?.textContent)).toBe(
-      `${formatDay(dayKey(-3))} — зачтено. Сегодня снова «хорошо»: два зачёта в разные дни, вопрос подтверждён.`,
+      `${formatDay(dayKey(-3))} — засчитано. Сегодня снова «хорошо»: засчитано дважды, в разные дни, — вопрос подтверждён.`,
     );
     expect(screen.getByRole('article', { name: 'Список вопросов кафедры с пометками' })).toHaveAttribute('data-dim');
     // The old mark first, then the new one is drawn.
@@ -683,7 +815,7 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     expect(row('q1').querySelector('.ex-qn [data-mark="ring"]')).not.toBeNull();
 
     fireEvent.click(within(side).getByRole('button', { name: 'Вся сводка' }));
-    expect(within(column()).getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
+    expect(within(column()).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
   });
 
   it('plays under React’s development double run of effects too (the flag is read once)', async () => {
@@ -716,7 +848,101 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     ]);
     renderDetail();
     await opened();
-    expect(await within(column()).findByText('Вы отметили «знаю» у 3 вопросов. Из 3 таких, на которые вы ответили вслух, зачтено 3.')).toBeInTheDocument();
+    expect(await within(column()).findByText('Вы отметили «знаю» у 3 вопросов. Из 3 таких, на которые вы ответили, засчитано 3.')).toBeInTheDocument();
+  });
+
+  it('after a 3 shows the wavy line, «Не засчитано», the growth from history and no «+1»', async () => {
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(9), before: 'untested' }));
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([
+      // Two questions confirmed before today.
+      ...[1, 2].flatMap((n) => [answer(n, dayKey(-6), true, `s${n}a`), answer(n, dayKey(-2), true, `s${n}b`)]),
+      // A 3 just now.
+      answer(9, dayKey(0), false, 's9', { payload: { grade: 3 } }),
+    ]);
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(await within(side).findByText('Не засчитано')).toBeInTheDocument();
+    expect(plain(side.querySelector('.ex-peak-big .ex-now')?.textContent)).toBe('0 → 2 из 40');
+    expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('подтвержденоза 6 дней');
+    expect(side.querySelector('.ex-peak-growth b')).toBeNull();
+    expect(plain(side.querySelector('.ex-peak-stmt')?.textContent)).toBe('Вопрос 9: ответ, который вы дали только что, не засчитан.');
+    expect(plain(row('q9').querySelector('.ex-because')?.textContent)).toBe(
+      'Сегодня — «удовлетворительно», в готовность не засчитано. В режиме «Чаще слабые» вопрос будет выпадать чаще.',
+    );
+    await waitFor(() => expect(row('q9').querySelector('.ex-qn [data-mark="wave"]')).not.toBeNull(), { timeout: 2000 });
+  });
+
+  it('never shows «+1» for a day that lost one confirmation and gained another', async () => {
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(1), before: 'once' }));
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([
+      // Question 2 was confirmed and failed today; question 1 got confirmed today.
+      answer(2, dayKey(-6), true, 's2a'),
+      answer(2, dayKey(-3), true, 's2b'),
+      answer(2, dayKey(0), false, 's2c', { created_at: `${dayKey(0)}T08:00:00Z` }),
+      ...confirmingAnswer(),
+    ]);
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(await within(side).findByText(/^Вопрос 1 подтверждён ответом/)).toBeInTheDocument();
+    expect(plain(side.querySelector('.ex-peak-big .ex-now')?.textContent)).toBe('0 → 1 из 40');
+    expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('за 6 дней');
+    expect(side.textContent).not.toMatch(/\+\d+ сегодня/);
+  });
+
+  it('never says «0 → 0»: with nothing confirmed the column keeps the count of the transition', async () => {
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(4), before: 'untested' }));
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(4, dayKey(0), true, 's4')]);
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(await within(side).findByText('Засчитано, не подтверждено')).toBeInTheDocument();
+    const big = side.querySelector('.ex-peak-big') as HTMLElement;
+    expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('1');
+    expect(plain(big.querySelector('.ex-was')?.textContent)).toBe('было 0');
+    expect(plain(side.textContent)).not.toContain('0 → 0');
+    expect(plain(row('q4').querySelector('.ex-because')?.textContent)).toBe(
+      'Засчитано сегодня. Подтвердит засчитанный ответ на другой день, не раньше чем через 20 часов.',
+    );
+  });
+
+  it('adds «Второй ответ после разбора» from the points of the first two answers', async () => {
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(1), before: 'once' }));
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    const sessions = ['e0000000-0000-4000-8000-00000000000a', 'e0000000-0000-4000-8000-00000000000b'];
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, sessions[0]), answer(1, dayKey(0), true, sessions[1])]);
+    const point = (session: string, status: string, n: number): LearningEvent => ({
+      ...answer(1, dayKey(0), true, session),
+      id: `${session}-${n}`,
+      kind: 'oral_point',
+      item_key: `oral:r:p${n}`,
+      payload: { status },
+    });
+    mocks.fetchSessionPoints.mockResolvedValue([
+      ...['covered', 'missing', 'partial', 'missing', 'unrated'].map((status, n) => point(sessions[0], status, n)),
+      ...['covered', 'covered', 'covered', 'partial'].map((status, n) => point(sessions[1], status, n)),
+    ]);
+    renderDetail();
+    await opened();
+    const side = column();
+    expect(await within(side).findByText(named('Второй ответ после разбора: по 1 вопросу в первый раз раскрыто 25 % пунктов, во второй — 75 %.'))).toBeInTheDocument();
+    expect(mocks.fetchSessionPoints).toHaveBeenCalledWith(expect.arrayContaining(sessions));
+    expect(side.textContent).not.toContain('названо');
+  });
+
+  it('hides «Второй ответ после разбора» when the points cannot be read', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
+    mocks.fetchSessionPoints.mockRejectedValue(new Error('offline'));
+    renderDetail();
+    await opened();
+    await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    await waitFor(() => expect(mocks.fetchSessionPoints).toHaveBeenCalled());
+    expect(plain(column().textContent)).not.toContain('Второй ответ после разбора');
   });
 
   it('plays nothing without a flag or without an answer in the journal', async () => {
@@ -726,7 +952,7 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     await opened();
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
     expect(document.querySelector('[data-peak]')).toBeNull();
-    expect(within(column()).getByText('вопросов есть в ваших лекциях')).toBeInTheDocument();
+    expect(within(column()).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
   });
 });
 
@@ -784,6 +1010,9 @@ describe('ExamDetail: mapping by lectures', () => {
     stream.close();
     await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(notes()).toContain('Часть разметки от 9:40, остальное сейчас.'));
+    // The run finished on this page: the strike over the question share is drawn in, once.
+    expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'live');
+    await waitFor(() => expect(column().querySelector('svg[data-mark="strike"]')).toHaveAttribute('data-drawn', 'still'), { timeout: 3000 });
     expect(mocks.incrementAIUsage).toHaveBeenCalledTimes(1);
     expect(mocks.incrementAIUsage).toHaveBeenCalledWith('user-1', 10);
     expect(document.querySelectorAll('.ex-cov svg[data-drawn="live"]')).toHaveLength(0);
@@ -1101,15 +1330,25 @@ describe('ExamDetail on a phone', () => {
     await waitFor(() => expect(change).toHaveFocus());
   });
 
-  it('sets the two shares side by side above the sheet on a phone (redesign critique 10)', async () => {
+  it('sets (a) and (b) side by side above the sheet on a phone, (c) and the action line under it (redesign critique 10)', async () => {
     setWidth(390);
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     renderDetail();
     await opened();
-    const pairs = within(screen.getByRole('region', { name: 'Сводка' })).getAllByText((_, element) => element?.classList.contains('ex-pairs') === true)[0];
+    const summary = screen.getByRole('region', { name: 'Сводка' });
+    const pairs = summary.querySelector('.ex-pairs') as HTMLElement;
     expect(pairs).toHaveAttribute('data-compact');
     expect(pairs).toHaveAttribute('data-count', '2');
-    expect(Array.from(pairs.querySelectorAll('.ex-pair > .ex-big')).map((item) => plain(item.textContent))).toEqual(['60 %', '35 %']);
+    expect(plain(pairs.querySelector('.ex-gap-n')?.textContent)).toBe('9');
+    expect(plain(pairs.querySelector('.ex-figs-was')?.textContent)).toBe('60 %');
+    expect(plain(pairs.querySelector('.ex-figs-now')?.textContent)).toBe('35 %');
+    expect(within(summary).queryByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeNull();
+    expect(summary.querySelector('.ex-act')).toBeNull();
+    const after = screen.getByRole('region', { name: 'Ответы по билетам' });
+    const sheet = document.querySelector('.ex-sheet') as HTMLElement;
+    expect(sheet.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(after).getByText(named('в 15 % билетов нет ни одного вопроса с отметкой «есть»'))).toBeInTheDocument();
+    expect(plain(after.querySelector('.ex-act')?.textContent)).toBe('Закройте 7 вопросов «частично» — оба вопроса будут в лекциях в 60 % билетов.');
   });
 
   it('closes the phone menu with Escape and gives the focus back', async () => {

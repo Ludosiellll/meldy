@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { AlertCircle, ChevronDown, LoaderCircle, Pause, Play, Shapes, SkipBack, SkipForward } from 'lucide-react';
+import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEnergyConfirm } from '../../hooks/useEnergyConfirm';
 import { incrementAIUsage } from '../../api/limits';
@@ -22,11 +22,11 @@ import ConversationVisual, { type OutlineItem } from './ConversationVisual';
 import {
   assignVoices,
   buildConversation,
+  conversationMeta,
   estimateMinutes,
   hasModelVisuals,
   mergeVisualsByIndex,
   parseGeneratedLines,
-  pluralLines,
   visualCaption,
   visualLabel,
   type HostVoice,
@@ -49,6 +49,7 @@ import type {
   ConversationTerm,
   PodcastLine,
 } from './types';
+import './conversation.css';
 
 export interface ConversationPlayerProps {
   /** summary_json.podcast как есть (старые реплики тоже подходят). */
@@ -72,7 +73,8 @@ export interface ConversationPlayerProps {
 type Playback = 'idle' | 'loading' | 'playing' | 'paused';
 type AudioProblem = 'unavailable' | 'timeout' | 'failed';
 
-const SPEEDS = [1, 1.25, 1.5, 2] as const;
+/** Одна кнопка скорости по кругу (спека 5.7) вместо четырёх чипов. */
+export const SPEEDS = [1, 1.25, 1.5, 2] as const;
 
 const AUDIO_MESSAGES: Record<AudioProblem, string> = {
   unavailable: 'Звук недоступен в этом браузере. Реплики можно читать в тексте разговора.',
@@ -88,60 +90,76 @@ const VISUALS_FAILED = 'Не удалось добавить схемы. Поп�
 
 const NBSP = String.fromCharCode(160);
 
-/** Цвет ведущего: один и тот же у имени над субтитрами и в тексте разговора. */
-const VOICE_COLORS: Record<HostVoice, string> = {
-  male: 'var(--sf-voice-a)',
-  female: 'var(--sf-voice-b)',
-};
-
-function speedLabel(rate: number): string {
+/** «1×», «1,25×», «1,5×», «2×» — с запятой, как пишут по-русски. */
+export function speedLabel(rate: number): string {
   return `${String(rate).replace('.', ',')}×`;
 }
 
-/** Полоски голоса — только пока звук идёт; место под них занято всегда, чтобы имя не прыгало. */
-function Waveform({ speaking, reduceMotion }: { speaking: boolean; reduceMotion: boolean }) {
-  const heights = [5, 9, 12, 8, 6];
-  return (
-    <span aria-hidden="true" data-waveform={speaking ? 'on' : 'off'} className={`flex h-3 items-center gap-[2px] ${speaking ? '' : 'invisible'}`}>
-      {heights.map((height, index) =>
-        speaking && !reduceMotion ? (
-          <motion.span
-            key={index}
-            className="block w-[2px] rounded-full bg-current"
-            style={{ height: 12 }}
-            initial={{ scaleY: height / 12 }}
-            animate={{ scaleY: [height / 12, 1, 0.4, 0.85, height / 12] }}
-            transition={{ duration: 0.9 + index * 0.13, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        ) : (
-          <span key={index} className="block w-[2px] rounded-full bg-current" style={{ height }} />
-        ),
-      )}
-    </span>
-  );
+/** Следующая скорость по кругу. */
+export function nextSpeed(rate: number): number {
+  const index = SPEEDS.indexOf(rate as (typeof SPEEDS)[number]);
+  return SPEEDS[(index + 1) % SPEEDS.length];
 }
 
-function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
-  return <LoaderCircle aria-hidden="true" className={`${className} animate-spin motion-reduce:animate-none`} />;
+export interface SheetMetrics {
+  /** Высота листа, px. */
+  height: number;
+  /** До скольких px лист растёт ради схемы. */
+  max: number;
+  padTop: number;
+  padBottom: number;
 }
 
-const SECONDARY_BUTTON =
-  'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--sf-line)] px-3 text-sm font-medium text-[var(--sf-ink)] transition-colors [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]';
+/**
+ * Высота листа «Разговора» и его поля по размеру окна — те же числа, что в conversation.css:
+ * 392 от 1024 px, 360 уже, 336 на телефоне; в низком окне (от 1024, не выше 780) лист занимает
+ * остаток 100vh под строкой меню, шапкой материала, субтитром в три строки и плеером
+ * (не меньше 300 px) и не растёт.
+ */
+export function sheetMetrics(width: number, height: number): SheetMetrics {
+  if (width >= 1024 && height <= 780) {
+    const low = Math.max(300, height - 376);
+    return { height: low, max: low, padTop: 22, padBottom: 18 };
+  }
+  if (width >= 1024) return { height: 392, max: 520, padTop: 28, padBottom: 26 };
+  if (width >= 640) return { height: 360, max: 520, padTop: 28, padBottom: 26 };
+  return { height: 336, max: 520, padTop: 16, padBottom: 14 };
+}
+
+/** Размер окна (для высоты листа и подгонки субтитра). */
+function useViewport(): { width: number; height: number } {
+  const read = () =>
+    typeof window === 'undefined' ? { width: 1280, height: 800 } : { width: window.innerWidth, height: window.innerHeight };
+  const [size, setSize] = useState(read);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setSize(previous => {
+      const next = read();
+      return next.width === previous.width && next.height === previous.height ? previous : next;
+    });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
+}
 
 function JobError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[var(--sf-ink)]">
-      <span className="inline-flex items-center gap-1.5">
-        <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--sf-muted)]" />
-        {message}
-      </span>
-      <button type="button" onClick={onRetry} className={SECONDARY_BUTTON}>
+    <p role="alert" className="cv-error">
+      <span>{message}</span>
+      <button type="button" onClick={onRetry} className="sf-link">
         Повторить
       </button>
-    </div>
+    </p>
   );
 }
 
+/**
+ * «Разговор» на «Бумажном столе» (спека интерьера 5.7, шаг А): лист бумаги с тем, что показывают
+ * ведущие, под ним субтитр — имя ведущего чернилами и реплика крупно, — и плеер одной строкой:
+ * ← ▶ →, сегменты реплик, «Реплика 8 из 14», одна кнопка скорости и ссылка «Текст разговора»,
+ * которая открывает расшифровку панелью справа поверх листа.
+ */
 export default function ConversationPlayer({
   lines,
   title,
@@ -156,6 +174,10 @@ export default function ConversationPlayer({
   const { user } = useAuth();
   const { verifyEnergy } = useEnergyConfirm();
   const reduceMotion = Boolean(useReducedMotion());
+  const transcriptId = `cv-transcript-${useId().replace(/:/g, '')}`;
+  const viewport = useViewport();
+  const sheet = sheetMetrics(viewport.width, viewport.height);
+  const budget = sheet.height - sheet.padTop - sheet.padBottom;
 
   // Локальная копия реплик после создания разговора или добавления схем,
   // пока родитель не передаст обновлённые реплики.
@@ -185,8 +207,7 @@ export default function ConversationPlayer({
     return unique;
   }, [conversation]);
   const voices = useMemo(() => assignVoices(speakers), [speakers]);
-  const voiceOf = (line: ConversationLine): HostVoice => voices.get(line.speaker) ?? 'female';
-  // Каждое изображение один раз: по ним сцена получает высоту самого большого.
+  // Каждое изображение один раз: по ним лист получает высоту самого большого.
   const layers = useMemo(() => conversation.filter(line => !line.carried), [conversation]);
   // План для заставки начала: что появится на экране дальше.
   const outline = useMemo<OutlineItem[]>(
@@ -207,6 +228,7 @@ export default function ConversationPlayer({
   const [audioProblem, setAudioProblem] = useState<AudioProblem | null>(null);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [announcement, setAnnouncement] = useState({ text: '', flip: false });
+  const [fitStep, setFitStep] = useState(0);
 
   const runRef = useRef(0);
   const currentRef = useRef(0);
@@ -222,7 +244,10 @@ export default function ConversationPlayer({
   const listRef = useRef<HTMLOListElement | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const lineRef = useRef<HTMLParagraphElement | null>(null);
   const playRef = useRef<HTMLButtonElement | null>(null);
+  const textLinkRef = useRef<HTMLButtonElement | null>(null);
   const revealedRef = useRef(false);
 
   const total = conversation.length;
@@ -281,7 +306,7 @@ export default function ConversationPlayer({
     [],
   );
 
-  // Активная реплика всегда видна в списке; прокручивается только сам список.
+  // В открытом тексте разговора текущая реплика всегда видна; прокручивается только сам список.
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -292,7 +317,52 @@ export default function ConversationPlayer({
     else list.scrollTop = top;
   }, [safeIndex, transcriptOpen, reduceMotion]);
 
-  // Переход по ссылке на разговор: если сцена или кнопка «Слушать» за краем экрана — прокручиваем к плееру.
+  // Текст разговора открылся — фокус на текущей реплике (Enter её проигрывает, Escape закрывает).
+  useEffect(() => {
+    if (!transcriptOpen) return;
+    const item = listRef.current?.querySelector<HTMLButtonElement>(`[data-line="${currentRef.current}"] button`);
+    item?.focus({ preventScroll: true });
+  }, [transcriptOpen]);
+
+  // Лист прокручивается внутри, если изображение выше него: низ листа затухает, пока ниже что-то есть.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const update = () => {
+      const more = body.scrollHeight - body.clientHeight - body.scrollTop > 2;
+      if (more) body.setAttribute('data-more', '');
+      else body.removeAttribute('data-more');
+    };
+    update();
+    body.addEventListener('scroll', update, { passive: true });
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(update);
+      observer.observe(body);
+      if (body.firstElementChild) observer.observe(body.firstElementChild);
+    }
+    return () => {
+      body.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, [total, active?.visualFrom]);
+
+  // Длинная реплика набирается на ступень мельче, чтобы субтитр уместился в отведённые строки
+  // и плеер не уехал за край окна проектора.
+  useLayoutEffect(() => {
+    const element = lineRef.current;
+    if (!element || typeof getComputedStyle !== 'function') return;
+    const reserved = parseFloat(getComputedStyle(element).minHeight) || 0;
+    let step = 0;
+    element.setAttribute('data-fit', '0');
+    while (reserved > 0 && step < 2 && element.scrollHeight > reserved + 1) {
+      step += 1;
+      element.setAttribute('data-fit', String(step));
+    }
+    setFitStep(step);
+  }, [active?.text, viewport.width, viewport.height]);
+
+  // Переход по ссылке на разговор: если лист или кнопка ▶ за краем экрана — прокручиваем к плееру.
   useEffect(() => {
     if (!revealOnMount || revealedRef.current || !total) return;
     if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return;
@@ -300,10 +370,10 @@ export default function ConversationPlayer({
       revealedRef.current = true;
       const root = rootRef.current;
       if (!root || typeof root.scrollIntoView !== 'function') return;
-      const viewport = window.innerHeight;
+      const viewportHeight = window.innerHeight;
       const playBottom = playRef.current?.getBoundingClientRect().bottom ?? 0;
       const sceneTop = sceneRef.current?.getBoundingClientRect().top ?? 0;
-      if (playBottom > viewport - 8 || sceneTop > viewport * 0.4) root.scrollIntoView({ block: 'start' });
+      if (playBottom > viewportHeight - 8 || sceneTop > viewportHeight * 0.4) root.scrollIntoView({ block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [revealOnMount, total]);
@@ -440,7 +510,7 @@ export default function ConversationPlayer({
     rootRef.current?.focus({ preventScroll: true });
   };
 
-  // На телефоне список реплик ниже сцены: после нажатия показываем, что сменилось на экране.
+  // На телефоне текст разговора закрывает лист: после выбора реплики показываем, что сменилось.
   const revealScene = () => {
     if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
     const scene = sceneRef.current;
@@ -450,14 +520,15 @@ export default function ConversationPlayer({
     }
   };
 
-  const changeRate = (next: number) => {
+  const cycleRate = () => {
+    const next = nextSpeed(rate);
     setTTSPlaybackRate(next);
     setRate(next);
   };
 
-  const cycleRate = () => {
-    const index = SPEEDS.indexOf(rate as (typeof SPEEDS)[number]);
-    changeRate(SPEEDS[(index + 1) % SPEEDS.length]);
+  const closeTranscript = () => {
+    setTranscriptOpen(false);
+    textLinkRef.current?.focus();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -466,7 +537,10 @@ export default function ConversationPlayer({
     const tag = target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
     const key = event.key;
-    if (key === ' ' || key === 'Spacebar') {
+    if (key === 'Escape' && transcriptOpen) {
+      event.preventDefault();
+      closeTranscript();
+    } else if (key === ' ' || key === 'Spacebar') {
       // На кнопке пробел нажимает саму кнопку.
       if (tag === 'BUTTON') return;
       event.preventDefault();
@@ -587,36 +661,21 @@ export default function ConversationPlayer({
   if (!total || !active) {
     const creating = createJob.state === 'working';
     return (
-      <section
-        aria-label="Разговор по материалу"
-        className="rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] px-6 py-8 text-[var(--sf-ink)]"
-      >
-        <h2 className="text-lg font-semibold leading-snug">Для этого материала разговор ещё не создан</h2>
-        <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-[var(--sf-muted)]">
-          Два ведущих, Макс и Софья, обсудят материал простыми словами, а на экране будут появляться схемы, графики и
-          термины из него.
+      <section aria-label="Разговор по материалу" className="cv cv-empty">
+        <h2>Для этого материала разговор ещё не создан</h2>
+        <p>
+          Два ведущих, Макс и Софья, обсудят лекцию простыми словами, а на листе рядом будут появляться схемы, графики и
+          термины из неё.
         </p>
         {materialId && canEdit ? (
-          <div className="mt-6 flex flex-col items-start gap-4">
-            <button
-              type="button"
-              onClick={createConversation}
-              disabled={creating}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--sf-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)] disabled:cursor-wait disabled:opacity-70"
-            >
-              {creating ? (
-                <>
-                  <Spinner />
-                  Составляем разговор…
-                </>
-              ) : (
-                'Создать разговор'
-              )}
+          <>
+            <button type="button" onClick={createConversation} disabled={creating} className="sf-primary">
+              {creating ? 'Составляем разговор…' : 'Создать разговор'}
             </button>
             {createJob.state === 'error' && <JobError message={createJob.message} onRetry={createConversation} />}
-          </div>
+          </>
         ) : (
-          <p className="mt-5 text-sm text-[var(--sf-muted)]">
+          <p>
             {materialId
               ? 'Разговор может создать только автор материала.'
               : 'Разговор можно создать на странице материала в библиотеке.'}
@@ -633,14 +692,7 @@ export default function ConversationPlayer({
   const canAddVisuals = Boolean(materialId) && canEdit && !modelVisuals;
   const addingVisuals = visualsJob.state === 'working';
   const playLabel = isLoading ? 'Загружаем звук' : isSpeaking ? 'Пауза' : playback === 'paused' ? 'Продолжить' : 'Слушать';
-  const activeColor = VOICE_COLORS[voiceOf(active)];
-  const meta = [
-    speakers.length ? speakers.slice(0, 3).join(' и ') : null,
-    pluralLines(total),
-    minutes ? `около ${minutes} мин` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const meta = conversationMeta(speakers, total, minutes);
 
   return (
     <section
@@ -649,51 +701,34 @@ export default function ConversationPlayer({
       aria-keyshortcuts="Space K ArrowLeft ArrowRight"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="group/player scroll-mt-4 overflow-clip rounded-xl border border-[var(--sf-line)] bg-[var(--sf-surface)] text-[var(--sf-ink)] outline-none [--sf-voice-a:#0868b2] [--sf-voice-b:#a84a22] focus-visible:ring-2 focus-visible:ring-[var(--sf-accent-fg)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sf-canvas)] dark:[--sf-voice-a:#6cb0e6] dark:[--sf-voice-b:#e5936d]"
+      className="cv"
     >
-      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-[var(--sf-line)] px-4 py-2.5 sm:px-5">
-        <h2 className="sr-only">Разговор по материалу</h2>
-        <p className="min-w-0 text-[13px] leading-8 text-[var(--sf-muted)]">{meta}</p>
+      <h2 className="sr-only">Разговор по материалу</h2>
+      <div className="cv-meta-row">
+        <p className="cv-meta">{meta}</p>
         {canAddVisuals && (
-          <button
-            type="button"
-            onClick={addVisuals}
-            disabled={addingVisuals}
-            className={`${SECONDARY_BUTTON} disabled:cursor-wait disabled:opacity-70`}
-          >
-            {addingVisuals ? <Spinner /> : <Shapes aria-hidden="true" className="h-4 w-4" />}
+          <button type="button" onClick={addVisuals} disabled={addingVisuals} className="sf-link">
             {addingVisuals ? 'Подбираем схемы…' : 'Добавить схемы'}
           </button>
         )}
-      </header>
-
-      {visualsJob.state === 'error' && canAddVisuals && (
-        <div className="border-b border-[var(--sf-line)] px-4 py-2.5 sm:px-5">
-          <JobError message={visualsJob.message} onRetry={addVisuals} />
-        </div>
-      )}
+      </div>
+      {visualsJob.state === 'error' && canAddVisuals && <JobError message={visualsJob.message} onRetry={addVisuals} />}
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement.text}
         {announcement.flip ? NBSP : ''}
       </p>
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 lg:border-r lg:border-[var(--sf-line)]">
-          <section ref={sceneRef} aria-label="Сцена" className="scroll-mt-3 px-4 py-5 sm:px-6 sm:py-6">
+      <div className="cv-stage">
+        <section ref={sceneRef} aria-label="Сцена" className="sf-sheet cv-sheet">
+          <div ref={bodyRef} className="cv-sheet-body">
             {/*
               Все изображения разговора лежат в одной ячейке сетки невидимыми копиями,
-              поэтому сцена сразу получает высоту самого большого и не прыгает между репликами.
-              Изображения прижаты к верху: заголовок каждого стоит на одном месте.
+              поэтому лист сразу получает высоту самого большого и не прыгает между репликами.
             */}
-            <div className="grid grid-cols-1 grid-rows-1">
+            <div className="cv-layers">
               {layers.map(layer => (
-                <div
-                  key={`measure-${layer.visualFrom}`}
-                  aria-hidden="true"
-                  data-scene-layer="measure"
-                  className="invisible col-start-1 row-start-1 min-w-0"
-                >
+                <div key={`measure-${layer.visualFrom}`} aria-hidden="true" data-scene-layer="measure" data-measure="" className="cv-layer">
                   <ConversationVisual
                     visual={layer.visual}
                     origin={layer.origin}
@@ -701,17 +736,16 @@ export default function ConversationPlayer({
                     sources={sources}
                     outline={outline}
                     opening={layer.visualFrom === openingFrom}
+                    budget={budget}
                     measure
                   />
                 </div>
               ))}
-              <motion.div
+              <div
                 key={active.visualFrom}
                 data-scene-layer="active"
-                className="col-start-1 row-start-1 min-w-0"
-                initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
+                data-enter={reduceMotion ? undefined : ''}
+                className="cv-layer"
               >
                 <ConversationVisual
                   visual={active.visual}
@@ -720,200 +754,146 @@ export default function ConversationPlayer({
                   sources={sources}
                   outline={outline}
                   opening={active.visualFrom === openingFrom}
+                  budget={budget}
+                  reveal={!reduceMotion}
                   onSeek={position => {
                     seek(position);
                     // Строка плана исчезает вместе со сценой: фокус остаётся в плеере, клавиши работают.
                     focusPlayer();
                   }}
                 />
-              </motion.div>
-            </div>
-          </section>
-
-          <section aria-label="Субтитры" className="border-t border-[var(--sf-line)] px-4 py-4 sm:px-6">
-            <p data-speaker={active.speaker || 'Ведущий'} className="flex items-center gap-2 text-[13px] font-semibold leading-5" style={{ color: activeColor }}>
-              <span>{active.speaker || 'Ведущий'}</span>
-              <Waveform speaking={isSpeaking} reduceMotion={reduceMotion} />
-            </p>
-            <p className="mt-1.5 min-h-[calc(4*1.6*1.0625rem)] max-w-[62ch] text-[17px] leading-[1.6] text-[var(--sf-ink)] sm:min-h-[calc(3*1.6*1.25rem)] sm:text-xl">
-              {active.text}
-            </p>
-          </section>
-
-          {/*
-            На телефоне кнопки управления прилипают к низу экрана над нижним меню
-            (<main> уже оставляет под него отступ), поэтому «Слушать» всегда под рукой.
-          */}
-          <div className="sticky bottom-[env(safe-area-inset-bottom)] z-10 border-t border-[var(--sf-line)] bg-[var(--sf-surface)] px-4 pb-3 pt-1.5 sm:px-6 md:bottom-0 lg:static">
-            <div className="flex h-6 items-center gap-[3px]" role="group" aria-label="Реплики">
-              {conversation.map((line, index) => (
-                <button
-                  key={line.index}
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => seek(index)}
-                  aria-label={`Реплика ${index + 1}`}
-                  aria-current={index === safeIndex ? 'step' : undefined}
-                  className="group/seg flex h-6 min-w-[3px] flex-1 items-center"
-                >
-                  <span
-                    className={`block w-full rounded-full transition-colors ${
-                      index === safeIndex
-                        ? 'h-1.5 bg-[var(--sf-accent-fg)]'
-                        : index < safeIndex
-                          ? 'h-1 bg-[color-mix(in_srgb,var(--sf-ink)_30%,var(--sf-surface))]'
-                          : 'h-1 bg-[var(--sf-line)] [@media(hover:hover)]:group-hover/seg:bg-[color-mix(in_srgb,var(--sf-ink)_30%,var(--sf-surface))]'
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-1.5 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => seek(safeIndex - 1)}
-                disabled={safeIndex === 0}
-                aria-label="Предыдущая реплика"
-                className="grid h-10 w-10 place-items-center rounded-full text-[var(--sf-ink)] transition-colors disabled:opacity-40 [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)] [@media(hover:hover)]:disabled:hover:bg-transparent"
-              >
-                <SkipBack aria-hidden="true" className="h-5 w-5" />
-              </button>
-              {/* Главное действие плеера — с ощутимым нажатием, как у главных кнопок приложения. */}
-              <button
-                ref={playRef}
-                type="button"
-                onClick={togglePlay}
-                aria-label={playLabel}
-                title="K — пауза"
-                className="grid h-12 w-12 place-items-center rounded-full bg-[var(--sf-accent)] text-white shadow-[0_3px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] transition-[transform,box-shadow,background-color] duration-100 hover:bg-[var(--sf-accent-hover)] active:translate-y-[2px] active:shadow-[0_1px_0_color-mix(in_srgb,var(--sf-accent)_72%,#111)] motion-reduce:transition-none motion-reduce:active:translate-y-0 dark:shadow-[0_2px_0_color-mix(in_srgb,var(--sf-accent)_60%,var(--sf-canvas))] dark:active:shadow-none"
-              >
-                {isLoading ? (
-                  <Spinner className="h-5 w-5" />
-                ) : isSpeaking ? (
-                  <Pause aria-hidden="true" className="h-5 w-5 fill-current" />
-                ) : (
-                  <Play aria-hidden="true" className="ml-0.5 h-5 w-5 fill-current" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => seek(safeIndex + 1)}
-                disabled={safeIndex >= total - 1}
-                aria-label="Следующая реплика"
-                className="grid h-10 w-10 place-items-center rounded-full text-[var(--sf-ink)] transition-colors disabled:opacity-40 [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)] [@media(hover:hover)]:disabled:hover:bg-transparent"
-              >
-                <SkipForward aria-hidden="true" className="h-5 w-5" />
-              </button>
-
-              {/* На телефоне скорость — одна кнопка по кругу, на широком экране — переключатель. */}
-              <button
-                type="button"
-                onClick={cycleRate}
-                aria-label={`Скорость ${speedLabel(rate)}, изменить`}
-                className="ml-auto h-9 min-w-[3.25rem] rounded-lg border border-[var(--sf-line)] px-2 text-sm font-medium tabular-nums text-[var(--sf-ink)] lg:hidden"
-              >
-                {speedLabel(rate)}
-              </button>
-              <div
-                role="group"
-                aria-label="Скорость"
-                className="ml-auto hidden rounded-lg border border-[var(--sf-line)] p-0.5 lg:flex"
-              >
-                {SPEEDS.map(speed => (
-                  <button
-                    key={speed}
-                    type="button"
-                    onClick={() => changeRate(speed)}
-                    aria-pressed={rate === speed}
-                    aria-label={`Скорость ${speedLabel(speed)}`}
-                    className={`h-8 rounded-md px-2 text-xs font-medium tabular-nums transition-colors ${
-                      rate === speed
-                        ? 'bg-[var(--sf-surface-soft)] text-[var(--sf-ink)]'
-                        : 'text-[var(--sf-muted)] hover:text-[var(--sf-ink)]'
-                    }`}
-                  >
-                    {speedLabel(speed)}
-                  </button>
-                ))}
               </div>
             </div>
-
-            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-[var(--sf-muted)]">
-              <span className="tabular-nums">
-                Реплика {safeIndex + 1} из {total}
-              </span>
-              <span className="hidden lg:group-focus-within/player:inline">K — пауза · ← → — реплики</span>
-            </div>
-            {audioProblem && (
-              <div role="status" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-[var(--sf-ink)]">
-                <span className="inline-flex items-start gap-1.5">
-                  <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--sf-muted)]" />
-                  {AUDIO_MESSAGES[audioProblem]}
-                </span>
-                <button type="button" onClick={retryAudio} className={SECONDARY_BUTTON}>
-                  Повторить
-                </button>
-              </div>
-            )}
           </div>
-        </div>
+        </section>
 
-        <aside aria-label="Текст разговора" className="border-t border-[var(--sf-line)] lg:relative lg:border-t-0">
+        {transcriptOpen && (
+          <aside
+            id={transcriptId}
+            aria-label="Текст разговора"
+            className="sf-sheet cv-panel"
+            onKeyDown={event => {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              closeTranscript();
+            }}
+          >
+            <div className="cv-panel-head">
+              <h3 className="cv-panel-title">Текст разговора</h3>
+              <button type="button" className="cv-ico" onClick={closeTranscript} aria-label="Закрыть текст разговора">
+                <X aria-hidden="true" strokeWidth={1.75} />
+              </button>
+            </div>
+            <ol ref={listRef} className="cv-panel-list">
+              {conversation.map((line, index) => {
+                const isActive = index === safeIndex;
+                const onScreen = line.carried ? null : `${visualLabel(line.visual, line.provenance)} — ${visualCaption(line.visual)}`;
+                return (
+                  <li key={line.index} data-line={index}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        seek(index, true);
+                        revealScene();
+                      }}
+                      aria-current={isActive ? 'true' : undefined}
+                      title={onScreen ? `На экране: ${onScreen}` : undefined}
+                    >
+                      <span className="cv-panel-who">{line.speaker || 'Ведущий'}</span>
+                      <span className="cv-panel-text">{line.text}</span>
+                      {onScreen && <span className="sr-only">{`На экране: ${onScreen}`}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </aside>
+        )}
+      </div>
+
+      <section aria-label="Субтитры" className="cv-sub">
+        <p data-speaker={active.speaker || 'Ведущий'} className="cv-who">
+          {active.speaker || 'Ведущий'}
+        </p>
+        <p ref={lineRef} className="cv-line" data-fit={fitStep}>
+          {active.text}
+        </p>
+      </section>
+
+      <div className="cv-player" role="group" aria-label="Плеер">
+        <div className="cv-transport">
           <button
             type="button"
-            onClick={() => setTranscriptOpen(open => !open)}
-            aria-expanded={transcriptOpen}
-            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-[var(--sf-ink)] lg:hidden"
+            className="cv-ico"
+            onClick={() => seek(safeIndex - 1)}
+            disabled={safeIndex === 0}
+            aria-label="Предыдущая реплика"
           >
-            Текст разговора
-            <ChevronDown
-              aria-hidden="true"
-              className={`h-4 w-4 text-[var(--sf-muted)] transition-transform motion-reduce:transition-none ${transcriptOpen ? 'rotate-180' : ''}`}
-            />
+            <SkipBack aria-hidden="true" strokeWidth={1.75} />
           </button>
-          <p className="hidden border-b border-[var(--sf-line)] px-4 py-3 text-xs font-medium text-[var(--sf-muted)] lg:block">
-            Текст разговора
-          </p>
-          <ol
-            ref={listRef}
-            className={`relative max-h-[420px] overflow-y-auto overscroll-contain border-t border-[var(--sf-line)] lg:absolute lg:inset-x-0 lg:bottom-0 lg:top-[41px] lg:block lg:max-h-none lg:border-t-0 ${
-              transcriptOpen ? 'block' : 'hidden'
-            }`}
+          {/* Единственная объёмная кнопка вкладки: заливной круг с кромкой 4 px. */}
+          <button ref={playRef} type="button" className="cv-play" onClick={togglePlay} aria-label={playLabel} title="K — пауза" data-state={playback}>
+            {isSpeaking ? (
+              <Pause aria-hidden="true" fill="currentColor" strokeWidth={1.5} />
+            ) : (
+              <Play aria-hidden="true" fill="currentColor" strokeWidth={1.5} className="ml-0.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            className="cv-ico"
+            onClick={() => seek(safeIndex + 1)}
+            disabled={safeIndex >= total - 1}
+            aria-label="Следующая реплика"
           >
-            {conversation.map((line, index) => {
-              const isActive = index === safeIndex;
-              const color = VOICE_COLORS[voiceOf(line)];
-              const onScreen = line.carried ? null : `${visualLabel(line.visual, line.provenance)} — ${visualCaption(line.visual)}`;
-              return (
-                <li key={line.index} data-line={index} className="border-b border-[var(--sf-line)] last:border-b-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      seek(index, true);
-                      revealScene();
-                    }}
-                    aria-current={isActive ? 'true' : undefined}
-                    title={onScreen ? `На экране: ${onScreen}` : undefined}
-                    className={`block w-full border-l-2 px-4 py-3 text-left transition-colors ${
-                      isActive
-                        ? 'bg-[var(--sf-surface-soft)]'
-                        : 'border-transparent [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]'
-                    }`}
-                    style={isActive ? { borderLeftColor: color } : undefined}
-                  >
-                    <span className="block text-xs font-semibold" style={{ color }}>
-                      {line.speaker || 'Ведущий'}
-                    </span>
-                    <span className="mt-0.5 block text-sm leading-relaxed text-[var(--sf-ink)]">{line.text}</span>
-                    {onScreen && <span className="sr-only">{`На экране: ${onScreen}`}</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </aside>
+            <SkipForward aria-hidden="true" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <div className="cv-segs" role="group" aria-label="Реплики">
+          {conversation.map((line, index) => (
+            <button
+              key={line.index}
+              type="button"
+              tabIndex={-1}
+              className="cv-seg"
+              onClick={() => seek(index)}
+              aria-label={`Реплика ${index + 1}`}
+              aria-current={index === safeIndex ? 'step' : undefined}
+              data-past={index < safeIndex ? '' : undefined}
+            >
+              <span aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+
+        <span className="cv-pos">
+          Реплика {safeIndex + 1} из {total}
+        </span>
+        <button type="button" className="cv-speed" onClick={cycleRate} aria-label={`Скорость ${speedLabel(rate)}, изменить`}>
+          {speedLabel(rate)}
+        </button>
+        <button
+          ref={textLinkRef}
+          type="button"
+          className="sf-link cv-text-link"
+          onClick={() => (transcriptOpen ? closeTranscript() : setTranscriptOpen(true))}
+          aria-expanded={transcriptOpen}
+          aria-controls={transcriptOpen ? transcriptId : undefined}
+        >
+          Текст разговора
+        </button>
       </div>
+
+      {audioProblem && (
+        <p role="status" className="cv-status">
+          <span>{AUDIO_MESSAGES[audioProblem]}</span>
+          <button type="button" onClick={retryAudio} className="sf-link">
+            Повторить
+          </button>
+        </p>
+      )}
     </section>
   );
 }

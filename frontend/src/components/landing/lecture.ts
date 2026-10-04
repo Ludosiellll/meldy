@@ -1,7 +1,7 @@
 /**
  * The one lecture the whole landing is built from: «Эластичность спроса», a microeconomics
- * topic. Every sample output on the page (the hero card, the summary, the quiz, the
- * conversation, the concept map and the oral exam) comes from this text, and every sentence
+ * topic. Every sample output on the page (the hero card, the answer to a ticket, the summary,
+ * the quiz, the conversation and the concept map) comes from this text, and every sentence
  * appears on the page once.
  */
 import { NBSP, ty } from './typo';
@@ -23,7 +23,7 @@ export const HERO_PAGE = {
 export const KEY_SENTENCE = `Спрос эластичен, если объём покупок меняется сильнее, чем${NB}цена.`;
 export const CARD_QUESTION = 'Когда спрос эластичен?';
 
-/* ---------- «Ваша очередь»: the next part of the same lecture ---------- */
+/* ---------- «Из каждой лекции — ещё и это»: the next part of the same lecture ---------- */
 
 export const DEMO_SHEET = {
   title: 'Эластичность и выручка',
@@ -51,7 +51,70 @@ export const QUIZ = {
   wrong: ty(`Посчитайте: цена выросла в 1,1 раза, а продажи составили 0,75 от прежних. 1,1${NB}×${NB}0,75${NB}≈${NB}0,83, значит, выручка уменьшилась.`),
 };
 
-/* ---------- «Что ещё получится»: the conversation, the map, the oral exam ---------- */
+/* ---------- the lecture as Meldy numbers it: fragments in order ---------- */
+
+/**
+ * The lecture's paragraphs in order: the hero page, then its next part «Эластичность и выручка».
+ * Meldy numbers a lecture's fragments by paragraph, so «фрагмент 3» is the third entry here.
+ * Headings are not fragments.
+ */
+export const LECTURE_FRAGMENTS: readonly string[] = [
+  `${HERO_PAGE.p1}${HERO_PAGE.p1more}`,
+  KEY_SENTENCE,
+  HERO_PAGE.more,
+  `${DEMO_SHEET.sources[0]} ${DEMO_SHEET.aside}`,
+  DEMO_SHEET.sources[1],
+  DEMO_SHEET.sources[2],
+];
+
+/** Text without the typesetting glue of ty(): non-breaking spaces read as plain ones. */
+const flat = (text: string) => text.replace(/\u00A0/g, ' ');
+
+/** The «фрагмент N» of a quote: the position of the paragraph it was cut from, 0 when none holds it. */
+export function fragmentOf(quote: string): number {
+  const cut = flat(quote).trim();
+  if (!cut) return 0;
+  return LECTURE_FRAGMENTS.findIndex(paragraph => flat(paragraph).includes(cut)) + 1;
+}
+
+/* ---------- «Ответ на билет»: one question of a ticket, answered on paper ---------- */
+
+export interface TicketPoint {
+  id: string;
+  /** How the protocol titles the point. Never on the sheet while the row is closed. */
+  title: string;
+  /** The lecture's own words, cut from one paragraph: a verbatim piece, never a whole sentence. */
+  quote: string;
+  /** Named during the answer: the row is open. */
+  named: boolean;
+}
+
+/** The ticket question of «Ответ на билет». */
+export const EXAM = {
+  question: ty('Почему пекарня, подняв цену на хлеб, может заработать больше, а кофейня, подняв цену на капучино, — меньше?'),
+};
+
+/**
+ * The answer sheet of the ticket question, in lecture order. Four points were named, the main one
+ * was not: the examiner asks one question, about it. The protocol excerpt shows point 2 with the
+ * student's words next to the lecture's.
+ */
+export const TICKET = {
+  question: EXAM.question,
+  points: [
+    { id: 'p1', title: ty('Спрос эластичен, если объём покупок меняется сильнее цены'), quote: ty('объём покупок меняется сильнее, чем цена'), named: false },
+    { id: 'p2', title: ty('Кофе легко заменить — спрос на него эластичен'), quote: ty('легко найти замену: подорожал один сорт кофе — берут другой'), named: true },
+    { id: 'p3', title: ty('Хлеб покупают почти столько же — спрос неэластичен'), quote: ty('Хлеб и лекарства покупают почти в прежнем количестве'), named: true },
+    { id: 'p4', title: ty('При эластичном спросе подорожание уменьшает выручку'), quote: ty('повышение цены уменьшает выручку'), named: true },
+    { id: 'p5', title: ty('При неэластичном спросе подорожание увеличивает выручку'), quote: ty('продажи падают меньше, чем растёт цена, и выручка увеличивается'), named: true },
+  ] as TicketPoint[],
+  /** The examiner's one question, about the main point that was not named. */
+  examiner: { point: 'p1', question: ty('Хорошо. А когда спрос называют эластичным?') },
+  /** The protocol after the answer, for one point: what the student said and the stems both share. */
+  protocol: { point: 'p2', said: ty('у кофе много замен, поэтому после подорожания часть покупателей уходит'), shared: ['кофе', 'замен'] },
+};
+
+/* ---------- «Из каждой лекции — ещё и это»: the conversation and the map ---------- */
 
 export type Speaker = 'Макс' | 'Софья';
 
@@ -148,11 +211,6 @@ export const MAP = {
   ] as MapEdge[],
 };
 
-export const EXAM = {
-  question: ty('Почему пекарня, подняв цену на хлеб, может заработать больше, а кофейня, подняв цену на капучино, — меньше?'),
-  answer: ty('У кофе много замен, поэтому после подорожания часть покупателей уходит.'),
-  note: ty('Хорошо, что вспомнили про замены. Не хватает вывода про пекарню: продажи хлеба падают меньше, чем растёт цена, поэтому выручка увеличивается.'),
-};
 
 /* ---------- «Подход»: when the card comes back ---------- */
 

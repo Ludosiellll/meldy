@@ -11,8 +11,11 @@
  * - cup (an open lower half of an ellipse): «частично», a point only mentioned;
  * - dash (the boldest mark, 3.4): «нет ни в одной лекции», a point not named;
  * - cross: said wrong; dot: being checked now;
- * - ring / under / wave around a question number: confirmed / passed once / not passed;
- * - under (per line of words): the words that matched; oval: «Зачтено»;
+ * - ring / under / wave around a question number: confirmed / засчитано, не подтверждено / не засчитано;
+ * - under (per line of words): the words that matched; oval: «Засчитано»;
+ * - strike: a figure crossed out by hand — one rising diagonal across the whole figure, past both
+ *   ends («60 %» of peak 1). Never a horizontal mid-height line (it turns 0 into «θ») and never a
+ *   short slash (it turns 0 into «ø»);
  * - brace / bracket: «об этом спросил экзаменатор»; vline: the selected line, down the margin;
  * - arrow: a diagram edge (reserve).
  * Blue pencil is Meldy; graphite is the student's own hand (only the chosen self-rating word).
@@ -34,7 +37,8 @@ export type MarkKind =
   | 'wave'
   | 'bracket'
   | 'brace'
-  | 'vline';
+  | 'vline'
+  | 'strike';
 
 export const MARK_KINDS: readonly MarkKind[] = [
   'tick',
@@ -50,6 +54,7 @@ export const MARK_KINDS: readonly MarkKind[] = [
   'bracket',
   'brace',
   'vline',
+  'strike',
 ];
 
 /** One filled piece of a mark. `center` is the pencil's path (it drives the draw-on mask); a shaded blob has none. */
@@ -356,6 +361,17 @@ export function shape(kind: MarkKind, w: number, h: number, seed: number, option
       // The margin stroke beside a selected line, as a teacher marks a passage.
       const points = sample([[w * 0.55, 1], [w * 0.45, h - 1]], seed, { step: 9, amp: 0.9 });
       out.push(stroke(points, options.weight || 2.4, 0.7));
+      break;
+    }
+    case 'strike': {
+      // A figure crossed out by hand: one stroke from below the left end to above the right end,
+      // bowed a little, the whole box wide (the caller's box already holds the overshoot).
+      const rs = seededRandom(seed);
+      const y0 = h * (0.86 + (rs() - 0.5) * 0.06);
+      const y1 = h * (0.14 + (rs() - 0.5) * 0.06);
+      const bow = h * (0.05 + rs() * 0.04);
+      const points = sample(quad([0.5, y0], [w * 0.52, (y0 + y1) / 2 + bow], [w - 0.5, y1], 14), seed, { step: 6, amp: 0.7 });
+      out.push(stroke(points, options.weight || 2.6, 0.8));
       break;
     }
     default:

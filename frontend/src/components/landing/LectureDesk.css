@@ -1,7 +1,7 @@
-/* «Что ещё получится из этой лекции»: the conversation is the main object; the concept map and
-   the oral exam sit under it in a straight row. These are Meldy's screens: sans, ink, hairlines. */
+/* «Из каждой лекции — ещё и это», after the summary and the quiz: the conversation, then the
+   concept map under it. These are Meldy's screens: sans, ink, hairlines. */
 
-.lp-desk { margin-top: 48px; }
+.lp-desk { margin-top: 104px; }
 .lp-out { min-width: 0; margin: 0; }
 .lp-out-h {
   margin: 0 0 14px;
@@ -12,7 +12,7 @@
   color: var(--sf-ink);
 }
 
-/* Name column and text, like a script. Shared by the conversation and the exam. */
+/* Name column and text, like a script. */
 .lp-line {
   display: grid;
   grid-template-columns: 4.7em minmax(0, 1fr);
@@ -169,14 +169,10 @@
 .lp-bar-value { grid-area: value; font-size: 16px; font-weight: 600; color: var(--sf-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lp-bar-note { grid-area: note; font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
 
-/* ---------- (b) the concept map and (c) the oral exam ---------- */
+/* ---------- (b) the concept map: as wide as the conversation's lines ---------- */
 
 .lp-desk-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 56px;
-  align-items: start;
-  max-width: 1060px;
+  max-width: 560px;
   margin-top: 72px;
 }
 .lp-map { position: relative; height: 268px; }
@@ -222,22 +218,17 @@
   transform: translate(-50%, -50%);
 }
 
-.lp-exam { margin: 0; border-top: 1px solid var(--sf-line); }
-.lp-exam .lp-line { margin: 0; padding: 14px 0 15px; border-bottom: 1px solid var(--sf-line); }
-.lp-exam .lp-who { font-weight: 500; color: var(--sf-muted); }
-.lp-exam .lp-line { grid-template-columns: 7.2em minmax(0, 1fr); }
-
 /* ---------- smaller screens ---------- */
 
 @media (max-width: 1023px) {
   .lp-talk { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .lp-talk-screen { order: -1; min-height: 0; }
-  .lp-desk-row { grid-template-columns: minmax(0, 1fr); gap: 56px; margin-top: 64px; }
+  .lp-desk { margin-top: 88px; }
+  .lp-desk-row { margin-top: 64px; }
 }
 @media (max-width: 639px) {
-  .lp-desk { margin-top: 32px; }
+  .lp-desk { margin-top: 64px; }
   .lp-line { grid-template-columns: 4.3em minmax(0, 1fr); column-gap: 10px; font-size: 16px; }
-  .lp-exam .lp-line { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
   .lp-talk-screen { padding: 20px 18px 22px; }
   .lp-vis-sides { gap: 16px; }
   .lp-formula { font-size: 22px; gap: 8px 10px; }

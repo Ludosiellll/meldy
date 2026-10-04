@@ -1,7 +1,8 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import katex from 'katex';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
+import { X } from 'lucide-react';
 import type {
   CompareVisual,
   ConversationSource,
@@ -11,14 +12,17 @@ import type {
   QuestionVisual,
   SceneVisual,
   StepsVisual,
-  TermVisual,
   TimelineVisual,
   Visual,
   VisualOrigin,
 } from './types';
-import { fragmentWords, provenanceLead, visualLabel } from './visuals';
+import { fragmentWords, sourceNote, visualLabel } from './visuals';
+import { fragmentText, quoteHeading } from './grounding';
+import { splitFragmentHeading } from '../../utils/fragmentText';
 import ChartView, { chartNotes, isPercentUnit } from './ChartView';
 import DiagramView from './DiagramView';
+import { useElementHeight } from './useElementWidth';
+import './conversation.css';
 
 /**
  * Пределы для разметки из материала: \rule{1pt}{199em} или \kern растянули бы
@@ -34,20 +38,8 @@ function renderLatex(latex: string, displayMode: boolean): string {
   }
 }
 
-function Heading({ children }: { children: ReactNode }) {
-  return (
-    <h3 className="text-[21px] font-semibold leading-[1.25] tracking-[-0.01em] text-[var(--sf-ink)] sm:text-2xl">{children}</h3>
-  );
-}
-
-function TermView({ visual }: { visual: TermVisual }) {
-  return (
-    <div>
-      <h3 className="text-[30px] font-semibold leading-[1.1] tracking-[-0.02em] text-[var(--sf-ink)] sm:text-[36px]">{visual.term}</h3>
-      <p className="mt-3 max-w-[36ch] text-lg leading-[1.5] text-[var(--sf-ink)] sm:text-[19px]">{visual.definition}</p>
-    </div>
-  );
-}
+/** Примечание под графиком занимает строку: столько же места у графика меньше. */
+const FOOT_PX = 32;
 
 /** «Кодирование: превращаем впечатление в след» → заголовок пункта и пояснение. */
 export function splitStep(item: string): { head: string; tail: string } | null {
@@ -56,61 +48,62 @@ export function splitStep(item: string): { head: string; tail: string } | null {
   return { head: match[1].trim(), tail: match[2].trim() };
 }
 
-function StepsView({ visual }: { visual: StepsVisual }) {
+/** «Из источника S03» — служебное название подобранной цитаты, его не показываем. */
+function ownTitle(title: string): string | null {
+  return /^из источника(\s+S\d+)?$/i.test(title.trim()) ? null : title;
+}
+
+/** Заголовок изображения на листе (Literata 600 24/30). */
+export function visualTitle(visual: Visual): string | null {
+  switch (visual.type) {
+    case 'term':
+      return visual.term;
+    case 'question':
+      return visual.question;
+    case 'chart':
+      return visual.unit && !isPercentUnit(visual.unit) ? `${visual.title}, ${visual.unit}` : visual.title;
+    case 'fact':
+      return ownTitle(visual.title);
+    default:
+      return visual.title;
+  }
+}
+
+function StepsBody({ visual }: { visual: StepsVisual }) {
   return (
-    <div>
-      <Heading>{visual.title}</Heading>
-      <ol className="mt-4 divide-y divide-[var(--sf-line)] border-y border-[var(--sf-line)]">
-        {visual.items.map((item, index) => {
-          const parts = splitStep(item);
-          return (
-            <li key={index} className="flex items-baseline gap-2 py-3">
-              <span className="w-7 shrink-0 text-[15px] font-semibold tabular-nums text-[var(--sf-accent-fg)]">{index + 1}</span>
-              <span className="min-w-0 text-[15px] leading-[1.5] text-[var(--sf-ink)] sm:text-base">
-                {parts ? (
-                  <>
-                    <span className="font-semibold">{parts.head}</span>
-                    <span className="text-[var(--sf-muted)]"> — {parts.tail}</span>
-                  </>
-                ) : (
-                  item
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
+    <ol className="cv-steps" data-columns={visual.items.length >= 4 ? '' : undefined}>
+      {visual.items.map((item, index) => {
+        const parts = splitStep(item);
+        return (
+          <li key={index}>
+            {parts ? (
+              <>
+                <span className="cv-steps-head">{parts.head}</span>
+                <span className="cv-muted"> — {parts.tail}</span>
+              </>
+            ) : (
+              item
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
-function CompareView({ visual }: { visual: CompareVisual }) {
+function CompareBody({ visual }: { visual: CompareVisual }) {
   return (
-    <div>
-      <Heading>{visual.title}</Heading>
-      <div className="mt-4 grid gap-5 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-[var(--sf-line)]">
-        {[visual.left, visual.right].map((side, index) => (
-          <div key={index} className="min-w-0 py-1 sm:px-6 sm:first:pl-0 sm:last:pr-0">
-            <p
-              className={`border-t-2 pt-3 text-base font-semibold text-[var(--sf-ink)] ${
-                index === 0 ? 'border-[var(--sf-ink)]' : 'border-[var(--sf-accent-fg)]'
-              }`}
-            >
-              {side.label}
-            </p>
-            <ul className="mt-2.5 space-y-1.5">
-              {side.points.map((point, pointIndex) => (
-                <li key={pointIndex} className="flex gap-2 text-[15px] leading-[1.5] text-[var(--sf-ink)]">
-                  <span aria-hidden="true" className="w-3 shrink-0 text-[var(--sf-muted)]">
-                    –
-                  </span>
-                  <span className="min-w-0">{point}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+    <div className="cv-sides">
+      {[visual.left, visual.right].map((side, index) => (
+        <div key={index} className="cv-side" data-first={index === 0 ? '' : undefined}>
+          <p className="cv-side-label">{side.label}</p>
+          <ul className="cv-side-points">
+            {side.points.map((point, pointIndex) => (
+              <li key={pointIndex}>{point}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
@@ -122,8 +115,7 @@ function LegendSymbol({ symbol }: { symbol: string }) {
     // Обрезаем: \llap и \rlap не должны вылезать на соседние строки.
     return <span className="inline-block max-w-[14rem] overflow-hidden align-middle" dangerouslySetInnerHTML={{ __html: html }} />;
   }
-  const letters = /^[A-Za-zΑ-Ωα-ω]{1,3}$/.test(symbol);
-  return <span className={letters ? 'font-serif italic' : undefined}>{symbol}</span>;
+  return <span>{symbol}</span>;
 }
 
 const FORMULA_MIN_SCALE = 0.62;
@@ -157,7 +149,7 @@ function useFitFormula(wrapperRef: { current: HTMLDivElement | null }, innerRef:
       inner.style.fontSize = '';
       const available = wrapper.clientWidth;
       if (!available) return;
-      const base = parseFloat(getComputedStyle(inner).fontSize) || 22;
+      const base = parseFloat(getComputedStyle(inner).fontSize) || 28;
       // Небольшой запас: глифы KaTeX чуть свешиваются за свою рамку.
       const target = available - 4;
       let scale = 1;
@@ -199,7 +191,7 @@ function useFitFormula(wrapperRef: { current: HTMLDivElement | null }, innerRef:
   }, [wrapperRef, innerRef, html]);
 }
 
-function FormulaView({ visual }: { visual: FormulaVisual }) {
+function FormulaBody({ visual }: { visual: FormulaVisual }) {
   const html = useMemo(() => renderLatex(visual.latex, true), [visual.latex]);
   const legend = visual.legend ?? [];
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -207,26 +199,21 @@ function FormulaView({ visual }: { visual: FormulaVisual }) {
   useFitFormula(wrapperRef, innerRef, html);
   return (
     <div>
-      <Heading>{visual.title}</Heading>
-      <div ref={wrapperRef} data-formula="" className="mt-2 max-h-48 overflow-x-auto overflow-y-hidden py-3 text-[var(--sf-ink)]">
+      <div ref={wrapperRef} data-formula="" className="cv-formula">
         {html ? (
-          <div
-            ref={innerRef}
-            className="w-max min-w-full text-[22px] sm:text-[28px] [&_.katex-display]:m-0"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          <div ref={innerRef} className="w-max min-w-full" dangerouslySetInnerHTML={{ __html: html }} />
         ) : (
-          <code className="block text-center text-sm">{visual.latex}</code>
+          <code className="block text-center text-base">{visual.latex}</code>
         )}
       </div>
       {legend.length > 0 && (
-        <dl className="mt-1 grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2.5 text-[15px]">
+        <dl className="cv-legend">
           {legend.map((item, index) => (
             <div key={index} className="contents">
-              <dt className="text-[var(--sf-ink)]">
+              <dt>
                 <LegendSymbol symbol={item.symbol} />
               </dt>
-              <dd className="leading-relaxed text-[var(--sf-muted)]">{item.meaning}</dd>
+              <dd>{item.meaning}</dd>
             </div>
           ))}
         </dl>
@@ -235,55 +222,60 @@ function FormulaView({ visual }: { visual: FormulaVisual }) {
   );
 }
 
-function TimelineView({ visual }: { visual: TimelineVisual }) {
+function TimelineBody({ visual }: { visual: TimelineVisual }) {
   return (
-    <div>
-      <Heading>{visual.title}</Heading>
-      <ol className="relative mt-5 grid gap-4 before:absolute before:bottom-2 before:left-[4px] before:top-2 before:w-px before:bg-[color-mix(in_srgb,var(--sf-ink)_22%,var(--sf-surface))] sm:auto-cols-fr sm:grid-flow-col sm:gap-4 sm:before:bottom-auto sm:before:left-0 sm:before:right-0 sm:before:top-[4px] sm:before:h-px sm:before:w-auto">
-        {visual.events.map((event, index) => (
-          <li key={index} className="relative pl-6 sm:pl-0 sm:pt-6">
-            <span
-              aria-hidden="true"
-              className="absolute left-0 top-2 h-[9px] w-[9px] rounded-full bg-[var(--sf-accent-fg)] ring-4 ring-[var(--sf-surface)] sm:top-0"
-            />
-            <p className="text-xl font-semibold tabular-nums tracking-[-0.01em] text-[var(--sf-ink)] sm:text-[22px]">{event.date}</p>
-            <p className="mt-1 text-sm leading-[1.45] text-[color-mix(in_srgb,var(--sf-ink)_78%,var(--sf-surface))]">{event.label}</p>
-          </li>
-        ))}
-      </ol>
-    </div>
+    <ol className="cv-timeline" data-dense={visual.events.length > 4 ? '' : undefined}>
+      {visual.events.map((event, index) => (
+        <li key={index}>
+          <span className="cv-date">{event.date}</span>
+          <span className="cv-event block">{event.label}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
-function FactView({ visual, quote }: { visual: FactVisual; quote: boolean }) {
-  // «Из источника S03» уже сказано подписью — заголовок показываем, только если он свой.
-  const customTitle = /^из источника(\s+S\d+)?$/i.test(visual.title.trim()) ? null : visual.title;
+/**
+ * Факт: сверенная цитата — в «ёлочках», заголовок лекции своей строкой (записка жюри, п. 12);
+ * пересказ — без кавычек: в лекции его слово в слово нет, и над ним остаётся слово «Пересказ».
+ */
+function FactBody({ visual, quote, fragment }: { visual: FactVisual; quote: boolean; fragment: string | null }) {
+  const split = quote ? quoteHeading(visual.text, fragment) : null;
+  if (!quote) return <p className="cv-text">{visual.text}</p>;
   return (
-    <figure>
-      {customTitle && <Heading>{customTitle}</Heading>}
-      {quote ? (
-        <blockquote className={`${customTitle ? 'mt-3' : ''} -indent-[0.42em] text-[19px] leading-[1.45] text-[var(--sf-ink)] sm:text-[22px]`}>
-          <span aria-hidden="true" className="text-[var(--sf-accent-fg)]">
+    <blockquote className="cv-quote">
+      {split ? (
+        <>
+          <span className="cv-quote-head" data-quote-heading="">
+            <span aria-hidden="true" className="cv-quote-mark">
+              «
+            </span>
+            {split.heading}
+          </span>
+          <span className="cv-quote-rest">
+            {split.rest}
+            <span aria-hidden="true">»</span>
+          </span>
+        </>
+      ) : (
+        <>
+          <span aria-hidden="true" className="cv-quote-mark">
             «
           </span>
           {visual.text}
           <span aria-hidden="true">»</span>
-        </blockquote>
-      ) : (
-        // Пересказ не оформляется как цитата: в исходнике его слово в слово нет.
-        <p className={`${customTitle ? 'mt-3' : ''} text-[19px] leading-[1.45] text-[var(--sf-ink)] sm:text-[22px]`}>{visual.text}</p>
+        </>
       )}
-    </figure>
+    </blockquote>
   );
 }
 
-function QuestionView({ visual, forceRevealed, interactive }: { visual: QuestionVisual; forceRevealed: boolean; interactive: boolean }) {
+function QuestionBody({ visual, forceRevealed, interactive }: { visual: QuestionVisual; forceRevealed: boolean; interactive: boolean }) {
   const [revealed, setRevealed] = useState(false);
   const shown = revealed || forceRevealed;
   const answerId = useId();
   return (
     <div>
-      <Heading>{visual.question}</Heading>
       {/* Кнопка остаётся на месте и не пропадает: фокус клавиатуры не теряется. */}
       <button
         type="button"
@@ -291,27 +283,20 @@ function QuestionView({ visual, forceRevealed, interactive }: { visual: Question
         aria-expanded={shown}
         aria-controls={answerId}
         tabIndex={interactive ? undefined : -1}
-        className="mt-4 inline-flex h-9 items-center rounded-lg border border-[var(--sf-line)] px-3 text-sm font-medium text-[var(--sf-ink)] transition-colors [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]"
+        className="sf-link"
       >
         {shown ? 'Скрыть ответ' : 'Показать ответ'}
       </button>
       <div id={answerId} aria-live="polite">
-        {shown && (
-          <p className="mt-3 border-l-2 border-[var(--sf-accent-fg)] pl-4 text-[17px] leading-[1.5] text-[var(--sf-ink)]">{visual.answer}</p>
-        )}
+        {shown && <p className="cv-answer">{visual.answer}</p>}
       </div>
     </div>
   );
 }
 
-function SceneView({ visual }: { visual: SceneVisual }) {
+function SceneBody({ visual }: { visual: SceneVisual }) {
   // Иконка темы остаётся в данных, но не рисуется: стоковая пиктограмма ничего не объясняет.
-  return (
-    <div>
-      <Heading>{visual.title}</Heading>
-      {visual.caption && <p className="mt-2 max-w-[44ch] text-base leading-relaxed text-[var(--sf-muted)]">{visual.caption}</p>}
-    </div>
-  );
+  return visual.caption ? <p className="cv-text cv-muted">{visual.caption}</p> : null;
 }
 
 export interface OutlineItem {
@@ -321,7 +306,7 @@ export interface OutlineItem {
 }
 
 /** Заставка начала: что будет на экране дальше, с переходом к нужной реплике. */
-function OutlineView({
+function OutlineBody({
   caption,
   items,
   onSeek,
@@ -334,22 +319,20 @@ function OutlineView({
 }) {
   return (
     <div>
-      <Heading>О чём разговор</Heading>
-      {caption && <p className="mt-1.5 max-w-[52ch] text-[15px] leading-relaxed text-[var(--sf-muted)]">{caption}</p>}
-      <ol className="mt-4 border-t border-[var(--sf-line)]">
+      {caption && <p className="cv-text cv-muted mb-2">{caption}</p>}
+      <ol className="cv-outline">
         {items.map((item, number) => (
-          <li key={item.position} className="border-b border-[var(--sf-line)]">
+          <li key={item.position}>
             <button
               type="button"
               tabIndex={interactive ? undefined : -1}
               onClick={() => onSeek?.(item.position)}
               title={`Перейти к реплике ${item.position + 1}`}
-              className="-mx-2 flex w-[calc(100%+1rem)] items-baseline gap-3 rounded-md px-2 py-2.5 text-left text-[var(--sf-ink)] transition-colors [@media(hover:hover)]:hover:bg-[var(--sf-surface-soft)]"
             >
-              <span aria-hidden="true" className="w-5 shrink-0 text-[13px] tabular-nums text-[var(--sf-muted)]">
+              <span aria-hidden="true" className="cv-outline-n">
                 {number + 1}
               </span>
-              <span className="line-clamp-2 min-w-0 flex-1 text-[15px] leading-snug">{item.caption}</span>
+              <span className="line-clamp-2 min-w-0">{item.caption}</span>
               <span className="sr-only">, реплика {item.position + 1}</span>
             </button>
           </li>
@@ -359,126 +342,100 @@ function OutlineView({
   );
 }
 
-function VisualBody({
-  visual,
-  provenance,
-  forceRevealed,
-  interactive,
-}: {
-  visual: Visual;
-  provenance: Provenance;
-  forceRevealed: boolean;
-  interactive: boolean;
-}) {
-  switch (visual.type) {
-    case 'term':
-      return <TermView visual={visual} />;
-    case 'steps':
-      return <StepsView visual={visual} />;
-    case 'compare':
-      return <CompareView visual={visual} />;
-    case 'formula':
-      return <FormulaView visual={visual} />;
-    case 'chart':
-      return (
-        <div>
-          <Heading>{visual.unit && !isPercentUnit(visual.unit) ? `${visual.title}, ${visual.unit}` : visual.title}</Heading>
-          <div className="mt-3">
-            <ChartView visual={visual} />
-          </div>
-        </div>
-      );
-    case 'timeline':
-      return <TimelineView visual={visual} />;
-    case 'diagram':
-      return (
-        <div>
-          <Heading>{visual.title}</Heading>
-          <div className="mt-4">
-            <DiagramView visual={visual} />
-          </div>
-        </div>
-      );
-    case 'fact':
-      return <FactView visual={visual} quote={provenance.kind === 'quote'} />;
-    case 'question':
-      return <QuestionView visual={visual} forceRevealed={forceRevealed} interactive={interactive} />;
-    case 'scene':
-      return <SceneView visual={visual} />;
-    default:
-      return null;
-  }
-}
-
-function sourceText(sources: ConversationSource[] | null | undefined, id: string): string | null {
-  const match = (sources ?? []).find(
-    source => source && typeof source.id === 'string' && source.id.trim().toUpperCase() === id.toUpperCase(),
-  );
-  return match && typeof match.text === 'string' && match.text.trim() ? match.text.trim() : null;
-}
-
 /**
- * Подпись под изображением, как у рисунка в учебнике: примечания и откуда оно
- * взято. «фрагмент 3» раскрывает сам фрагмент исходника, чтобы его можно было проверить.
+ * Заметка-источник в правом углу листа (.sf-pnote): «Числа — из лекции, фрагмент 4».
+ * «фрагмент 4» раскрывает сам фрагмент лекции вырезкой поверх листа, чтобы его можно было
+ * сверить; заголовок лекции во вырезке — своей строкой.
  */
-function FigureCaption({
-  notes,
+function SourceNote({
   provenance,
   sources,
   interactive,
+  slipTop = 0,
 }: {
-  notes: string[];
   provenance: Provenance;
   sources?: ConversationSource[] | null;
   interactive: boolean;
+  /** Вырезка ложится под заголовком листа и не закрывает саму заметку. */
+  slipTop?: number;
 }) {
   const [open, setOpen] = useState(false);
-  const panelId = useId();
-  const lead = provenanceLead(provenance);
+  const slipId = useId();
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const note = sourceNote(provenance);
+  if (!note) return null;
   const ids = 'ids' in provenance ? provenance.ids : [];
-  const texts = ids.map(id => sourceText(sources, id)).filter((text): text is string => Boolean(text));
-  const expandable = interactive && ids.length > 0 && texts.length === ids.length;
-  if (!lead && notes.length === 0) return null;
+  const texts = ids.map(id => fragmentText(sources, id));
+  const expandable = interactive && ids.length > 0 && texts.every(Boolean);
+  const words = ids.length ? fragmentWords(ids) : '';
+  const lead = words && note.endsWith(words) ? note.slice(0, note.length - words.length) : note;
+
+  const close = () => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
+  const onSlipKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    close();
+  };
+
   return (
-    <div className="mt-4" data-figure-caption="">
-      <p className="text-[13px] leading-snug text-[var(--sf-muted)]">
-        {notes.map(note => (
-          <span key={note}>
-            {note}
-            {lead ? '. ' : ''}
-          </span>
-        ))}
-        {lead}
-        {lead && ids.length > 0 && (
+    <>
+      <p className="sf-pnote cv-src" data-source-note="">
+        {expandable ? (
           <>
-            {', '}
-            {expandable ? (
-              <button
-                type="button"
-                onClick={() => setOpen(value => !value)}
-                aria-expanded={open}
-                aria-controls={panelId}
-                className="border-b border-dotted border-[color-mix(in_srgb,var(--sf-muted)_65%,transparent)] leading-[1.15] transition-colors [@media(hover:hover)]:hover:text-[var(--sf-ink)]"
-              >
-                {fragmentWords(ids)}
-              </button>
-            ) : (
-              fragmentWords(ids)
-            )}
+            {lead}
+            <button
+              ref={buttonRef}
+              type="button"
+              className="cv-src-button"
+              onClick={() => setOpen(value => !value)}
+              aria-expanded={open}
+              aria-controls={slipId}
+            >
+              {words}
+            </button>
           </>
+        ) : (
+          note
         )}
       </p>
       {expandable && open && (
         <div
-          id={panelId}
-          className="mt-2 max-h-40 space-y-2 overflow-y-auto border-l-2 border-[var(--sf-line)] pl-3 text-[13px] leading-relaxed text-[var(--sf-muted)]"
+          id={slipId}
+          className="sf-slip cv-slip"
+          role="region"
+          aria-label={`Лекция, ${words}`}
+          onKeyDown={onSlipKey}
+          style={slipTop ? { top: slipTop, maxHeight: `calc(100% - ${slipTop}px)` } : undefined}
         >
-          {texts.map((text, index) => (
-            <p key={ids[index]}>{text}</p>
-          ))}
+          <div className="cv-slip-head">
+            <p>{`Лекция, ${words}`}</p>
+            <button type="button" className="cv-ico" onClick={close} aria-label="Закрыть фрагмент">
+              <X aria-hidden="true" strokeWidth={1.75} />
+            </button>
+          </div>
+          {texts.map((text, index) => {
+            const parts = splitFragmentHeading(text as string);
+            return (
+              <p key={ids[index]} className={index > 0 ? 'mt-3' : undefined}>
+                {ids.length > 1 && <span className="cv-slip-n">{`Фрагмент ${ids[index].replace(/^S0*/i, '')}`}</span>}
+                {parts.heading ? (
+                  <>
+                    <span className="cv-slip-heading">{parts.heading}</span>
+                    {parts.body}
+                  </>
+                ) : (
+                  text
+                )}
+              </p>
+            );
+          })}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -487,7 +444,7 @@ export interface ConversationVisualProps {
   origin: VisualOrigin;
   /** Что сказать об источнике изображения. */
   provenance: Provenance;
-  /** Фрагменты исходника (для раскрытия «фрагмент 3»). */
+  /** Фрагменты исходника (для раскрытия «фрагмент 3» и заголовка цитаты). */
   sources?: ConversationSource[] | null;
   /** Для заставки начала: изображения, которые появятся дальше. */
   outline?: OutlineItem[];
@@ -499,9 +456,13 @@ export interface ConversationVisualProps {
    * вопрос раскрыт (так выше), кнопки не получают фокус.
    */
   measure?: boolean;
+  /** Сколько места на листе по высоте, px: схема и график подстраиваются под него. */
+  budget?: number;
+  /** Проявить схему по слоям (первая реплика с этим изображением). */
+  reveal?: boolean;
 }
 
-/** Изображение к реплике, как рисунок в учебнике: тип, заголовок, само изображение и подпись. */
+/** Изображение к реплике на листе бумаги: заголовок, заметка-источник в углу и само изображение. */
 export default function ConversationVisual({
   visual,
   origin,
@@ -511,29 +472,80 @@ export default function ConversationVisual({
   opening = false,
   onSeek,
   measure = false,
+  budget,
+  reveal = false,
 }: ConversationVisualProps) {
   const asOutline = visual.type === 'scene' && (origin === 'cover' || opening) && outline.length >= 2;
   const interactive = !measure;
+  const [leadRef, leadHeight] = useElementHeight<HTMLDivElement>(48);
+  const quote = provenance.kind === 'quote';
+  // Над изображением остаётся только слово «Пересказ»: остальные типы видны и так.
+  const kind = visual.type === 'fact' && !quote ? visualLabel(visual, provenance) : null;
+  const title = asOutline ? 'О чём разговор' : visualTitle(visual);
+  const notes = visual.type === 'chart' ? chartNotes(visual) : [];
+  const room = budget && budget > 0 ? Math.max(120, budget - leadHeight - (notes.length ? FOOT_PX : 0)) : undefined;
 
   let body: ReactNode;
   if (asOutline && visual.type === 'scene') {
-    body = (
-      <OutlineView caption={origin === 'cover' ? '' : visual.caption} items={outline} onSeek={onSeek} interactive={interactive} />
-    );
+    body = <OutlineBody caption={origin === 'cover' ? '' : visual.caption} items={outline} onSeek={onSeek} interactive={interactive} />;
   } else {
-    body = <VisualBody visual={visual} provenance={provenance} forceRevealed={measure} interactive={interactive} />;
+    switch (visual.type) {
+      case 'term':
+        body = <p className="cv-text">{visual.definition}</p>;
+        break;
+      case 'steps':
+        body = <StepsBody visual={visual} />;
+        break;
+      case 'compare':
+        body = <CompareBody visual={visual} />;
+        break;
+      case 'formula':
+        body = <FormulaBody visual={visual} />;
+        break;
+      case 'chart':
+        body = <ChartView visual={visual} maxHeight={room} />;
+        break;
+      case 'timeline':
+        body = <TimelineBody visual={visual} />;
+        break;
+      case 'diagram':
+        body = <DiagramView visual={visual} maxHeight={room} reveal={reveal && interactive} />;
+        break;
+      case 'fact': {
+        // Цитата начинается во фрагменте, который указан первым (quoteSourceIds идёт по порядку фрагментов).
+        const fragment = quote && provenance.ids.length ? fragmentText(sources, provenance.ids[0]) : null;
+        body = <FactBody visual={visual} quote={quote} fragment={fragment} />;
+        break;
+      }
+      case 'question':
+        body = <QuestionBody visual={visual} forceRevealed={measure} interactive={interactive} />;
+        break;
+      case 'scene':
+        body = <SceneBody visual={visual} />;
+        break;
+      default:
+        body = null;
+    }
   }
 
+  const hasNote = !asOutline && sourceNote(provenance) !== null;
   return (
     <div className="min-w-0" data-visual-type={measure ? undefined : visual.type}>
-      {!asOutline && <p className="mb-1.5 text-[13px] leading-5 text-[var(--sf-muted)]">{visualLabel(visual, provenance)}</p>}
-      {body}
-      <FigureCaption
-        notes={visual.type === 'chart' ? chartNotes(visual) : []}
-        provenance={provenance}
-        sources={sources}
-        interactive={interactive}
-      />
+      {(kind || title || hasNote) && (
+        <div ref={leadRef} className="cv-lead">
+          {kind && <p className="cv-kind">{kind}</p>}
+          <div className="cv-head">
+            {title && <h3 className="cv-title">{title}</h3>}
+            {!asOutline && <SourceNote provenance={provenance} sources={sources} interactive={interactive} slipTop={leadHeight} />}
+          </div>
+        </div>
+      )}
+      <div className="cv-body">{body}</div>
+      {notes.map(note => (
+        <p key={note} className="cv-foot">
+          {note}
+        </p>
+      ))}
     </div>
   );
 }

@@ -25,7 +25,8 @@ import '../styles/paper.css';
  * Every block reads its own source and fails on its own: a failed query shows a plain line with
  * «Повторить», never zeros. Card numbers come from flashcard_progress, test numbers from the
  * journal (the first attempt of a test, never a retake), exam numbers from exam_questions and the
- * answers aloud in the journal. Old-format oral exams are only the exam_sessions rows of kind
+ * answers to tickets in the journal (spoken or typed; «подтверждено» by the rule of
+ * lib/learning/readiness). Old-format oral exams are only the exam_sessions rows of kind
  * 'professor'; answers to exam tickets are counted in «Экзамены», not twice. No tabs, no spinner.
  */
 
@@ -74,7 +75,7 @@ interface ExamBlock {
   coverage: { full: number; partial: number; none: number; unverified: number; unmapped: number };
   summary: ReturnType<typeof examSummary>;
   confidence: ReturnType<typeof confidenceVsConfirmed>;
-  /** Answers aloud to this exam's questions (every attempt counts). */
+  /** Answers to this exam's tickets, spoken or typed (every attempt counts). */
   answers: number;
   /** Share of tickets whose every question is confirmed, in percent; null when it says nothing new. */
   confirmedTickets: number | null;
@@ -326,6 +327,33 @@ function examLine(exam: ExamBlock): string {
   return `${when} · ${answers}`;
 }
 
+/**
+ * The ledger foot of an exam (Jury_Check items 4 and 11): «Засчитано, не подтверждено — 2, не
+ * засчитано — 1.», then the share of tickets with every question confirmed as a small line
+ * («Билетов, где подтверждены оба вопроса, — 3 %.»), then self-assessment against answers.
+ */
+export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'confirmedTickets' | 'perTicket'>): string {
+  const { summary, confidence } = exam;
+  const answered = summary.confirmed + summary.once + summary.notPassed > 0;
+  const parts: string[] = [];
+  if (answered) {
+    const once = READINESS_LABELS.once;
+    parts.push(`${once[0].toUpperCase()}${once.slice(1)} — ${summary.once}, ${READINESS_LABELS.not_passed} — ${summary.notPassed}.`);
+  } else {
+    parts.push('Ответов по билетам ещё не было.');
+  }
+  if (summary.confirmed > 0 && exam.confirmedTickets !== null && exam.perTicket > 1) {
+    const word = exam.perTicket === 2 ? 'оба вопроса' : exam.perTicket === 3 ? 'все три вопроса' : 'все четыре вопроса';
+    parts.push(`Билетов, где подтверждены ${word}, — ${exam.confirmedTickets}\u00a0%.`);
+  }
+  parts.push(
+    confidence.enoughData
+      ? `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${confidence.ratedKnowAnswered} таких, на которые вы ответили, засчитано ${confidence.ratedKnowPassed}.`
+      : 'Самооценка против ответов: мало данных.',
+  );
+  return parts.join(' ');
+}
+
 /** «Есть в лекциях: 24 из 40 · частично 7 · нет 9», or that the list was not mapped yet. */
 function coverageLine(exam: ExamBlock): string {
   if (exam.total === 0) return 'Вопросов в списке пока нет.';
@@ -553,50 +581,32 @@ function ProgressBody({ sources, reload }: { sources: Sources; reload: (key: Sou
           <Quiet>Экзаменов пока нет. Добавьте список вопросов, и здесь появится, что из него подтверждено ответами.</Quiet>
         ) : (
           <ul className="sf-ledger">
-            {exams.data.map((exam) => {
-              const answered = exam.summary.confirmed + exam.summary.once + exam.summary.notPassed > 0;
-              const ticketWord = exam.perTicket === 2 ? 'оба вопроса' : exam.perTicket === 3 ? 'все три вопроса' : 'все четыре вопроса';
-              return (
-                <li key={exam.id}>
-                  <div className="sf-ledger-row">
-                    <span className="min-w-0">
-                      {/* The name is the link; the whole row answers to it (::after covers the row). */}
-                      <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
-                        {subjectOf(exam.title)}
-                      </Link>
-                      <span className="sf-ledger-meta">{examLine(exam)}</span>
-                      <span className="sf-ledger-meta">{coverageLine(exam)}</span>
-                    </span>
-                    {exam.total > 0 ? (
-                      <span className="sf-ledger-figs">
-                        <span>
-                          <span className="sf-ledger-fig">
-                            {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
-                          </span>
-                          <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
+            {exams.data.map((exam) => (
+              <li key={exam.id}>
+                <div className="sf-ledger-row">
+                  <span className="min-w-0">
+                    {/* The name is the link; the whole row answers to it (::after covers the row). */}
+                    <Link className="sf-ledger-name sf-stretch" to={`/exams/${exam.id}`}>
+                      {subjectOf(exam.title)}
+                    </Link>
+                    <span className="sf-ledger-meta">{examLine(exam)}</span>
+                    <span className="sf-ledger-meta">{coverageLine(exam)}</span>
+                  </span>
+                  {exam.total > 0 ? (
+                    <span className="sf-ledger-figs">
+                      <span>
+                        <span className="sf-ledger-fig">
+                          {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
                         </span>
-                        {exam.confirmedTickets !== null ? (
-                          <span>
-                            <span className="sf-ledger-fig">{`${exam.confirmedTickets} %`}</span>
-                            <span className="sf-ledger-cap">{`билетов, где подтверждены ${ticketWord}`}</span>
-                          </span>
-                        ) : null}
+                        <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
                       </span>
-                    ) : null}
-                    {exam.total > 0 ? (
-                      <span className="sf-ledger-foot">
-                        {answered
-                          ? `${READINESS_LABELS.once[0].toUpperCase()}${READINESS_LABELS.once.slice(1)} — ${exam.summary.once}, ${READINESS_LABELS.not_passed} — ${exam.summary.notPassed}.`
-                          : 'Ответов по билетам ещё не было.'}{' '}
-                        {exam.confidence.enoughData
-                          ? `Вы отметили «знаю» у ${count(exam.confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${exam.confidence.ratedKnowAnswered} таких, на которые вы ответили вслух, зачтено ${exam.confidence.ratedKnowPassed}.`
-                          : 'Самооценка против ответов вслух: мало данных.'}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
+                    </span>
+                  ) : null}
+                  {/* The share of tickets is a small line of the foot, never a big «0 %» (Jury_Check 4). */}
+                  {exam.total > 0 ? <span className="sf-ledger-foot">{ledgerFoot(exam)}</span> : null}
+                </div>
+              </li>
+            ))}
           </ul>
         )}
       </Section>

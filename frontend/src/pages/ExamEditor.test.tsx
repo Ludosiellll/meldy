@@ -282,6 +282,116 @@ describe('ExamEditor: a new exam', () => {
     await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
     expect(mocks.startMapping).not.toHaveBeenCalled();
   });
+
+  it('says where to find the list under the empty field, and only before a list is pasted', async () => {
+    renderEditor();
+    const hint = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';
+    expect(screen.getByText((_, node) => node?.tagName === 'P' && plain(node.textContent) === hint)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Файл' }));
+    expect(screen.getByText((_, node) => node?.tagName === 'P' && plain(node.textContent) === hint)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Вставить текст' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
+    await screen.findByText(/Распознано 4 вопроса, 2 раздела/);
+    expect(screen.queryByText(/рабочей программе дисциплины/)).toBeNull();
+  });
+});
+
+describe('ExamEditor: how the tickets are made, by default and by choice', () => {
+  /** The same list without the department's tickets: two sections of two questions. */
+  const SECTIONS_ONLY: ParseResult = { ...PARSE, tickets: [] };
+  /** A list without sections or tickets. */
+  const PLAIN_LIST: ParseResult = {
+    ...PARSE,
+    questions: PARSE.questions.map((question) => ({ ...question, section: null })),
+    sections: [],
+    tickets: [],
+  };
+
+  async function parse(result: ParseResult) {
+    mocks.parseQuestionList.mockResolvedValue(result);
+    renderEditor();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: result.source_text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
+    await screen.findByText(/Распознано 4 вопроса/);
+  }
+
+  const layout = () => screen.getByRole('combobox', { name: 'Как составлены билеты' });
+  const perTicket = () => screen.getByRole('combobox', { name: 'Вопросов в билете' });
+
+  it('takes one question from each section when there are as many sections as questions in a ticket', async () => {
+    await parse(SECTIONS_ONLY);
+    expect(perTicket()).toHaveValue('2');
+    expect(layout()).toHaveValue('sections');
+
+    // Re-evaluated when the number of questions per ticket changes…
+    fireEvent.change(perTicket(), { target: { value: '3' } });
+    expect(layout()).toHaveValue('random');
+    fireEvent.change(perTicket(), { target: { value: '2' } });
+    expect(layout()).toHaveValue('sections');
+
+    // …and when the list changes: the second section loses its questions, so random tickets.
+    fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 3:/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 4:/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    expect(layout()).toHaveValue('random');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+    expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1]).toMatchObject({ layoutMode: 'random', perTicket: 2 });
+  });
+
+  it('saves «по одному из каждого раздела» when the student keeps the default', async () => {
+    await parse(SECTIONS_ONLY);
+    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+    expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1]).toMatchObject({ layoutMode: 'sections', perTicket: 2 });
+  });
+
+  it('takes the department’s tickets when the list had «Билет № N» blocks', async () => {
+    await parse(PARSE);
+    expect(layout()).toHaveValue('fixed');
+    expect(perTicket()).toBeDisabled();
+  });
+
+  it('takes random tickets for a list without sections or tickets', async () => {
+    await parse(PLAIN_LIST);
+    expect(layout()).toHaveValue('random');
+    expect(within(layout()).queryByRole('option', { name: 'по одному из каждого раздела' })).toBeNull();
+  });
+
+  it('keeps the student’s choice when the list or the questions per ticket change', async () => {
+    await parse(SECTIONS_ONLY);
+    expect(layout()).toHaveValue('sections');
+    fireEvent.change(layout(), { target: { value: 'random' } });
+    expect(layout()).toHaveValue('random');
+
+    fireEvent.change(perTicket(), { target: { value: '3' } });
+    fireEvent.change(perTicket(), { target: { value: '2' } });
+    expect(layout()).toHaveValue('random');
+    fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 2:/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Текст вопроса' }), { target: { value: 'Система национальных счетов: ВВП.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(layout()).toHaveValue('random');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Разметить по лекциям' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+    expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1]).toMatchObject({ layoutMode: 'random' });
+  });
+
+  it('keeps a chosen «по одному из каждого раздела» over the department’s tickets of a list pasted again', async () => {
+    await parse(SECTIONS_ONLY);
+    fireEvent.change(layout(), { target: { value: 'random' } });
+    fireEvent.change(layout(), { target: { value: 'sections' } });
+    mocks.parseQuestionList.mockResolvedValue(PARSE);
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить заново' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Распознать вопросы' }));
+    await screen.findByText(/Распознано 4 вопроса/);
+    expect(layout()).toHaveValue('sections');
+  });
 });
 
 describe('ExamEditor: editing a saved exam', () => {
@@ -353,8 +463,41 @@ describe('ExamEditor: editing a saved exam', () => {
     renderEditor('/exams/exam-1/edit');
     fireEvent.click(await screen.findByRole('button', { name: 'Удалить экзамен' }));
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Удалить экзамен?', type: 'danger' })));
+    // Spoken and typed answers count the same: the confirmation says «Ответы», not «Ответы вслух».
+    const [options] = mocks.confirm.mock.calls[0] as [{ message: string }];
+    expect(options.message).toBe('«Макроэкономика» и разметка его вопросов будут удалены. Ответы останутся в истории и в «Прогрессе».');
+    expect(options.message).not.toMatch(/вслух/);
     await waitFor(() => expect(mocks.deleteExam).toHaveBeenCalledWith('exam-1'));
     expect(await screen.findByRole('heading', { name: 'Список экзаменов' })).toBeInTheDocument();
+  });
+
+  it('keeps the stored layout of an exam, even where the list would suggest another one', async () => {
+    const sectioned = [
+      savedQuestion('q1', 1, 'Предмет и метод.', { section: 1 }),
+      savedQuestion('q2', 2, 'Инфляция.', { section: 1 }),
+      savedQuestion('q3', 3, 'Рынок труда.', { section: 2 }),
+      savedQuestion('q4', 4, 'Деньги.', { section: 2 }),
+    ];
+    mocks.loadExamBundle.mockResolvedValue({
+      ...savedBundle({ ticket_layout: { mode: 'random', per_ticket: 2, section_titles: ['Введение', 'Деньги и труд'] } }),
+      questions: sectioned,
+    });
+    renderEditor('/exams/exam-1/edit');
+    await screen.findByText(/В списке 4 вопроса, 2 раздела/);
+    // Two sections and two questions per ticket would default to sections, but the exam stored random tickets.
+    expect(screen.getByRole('combobox', { name: 'Как составлены билеты' })).toHaveValue('random');
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(mocks.saveExamEdits).toHaveBeenCalledTimes(1));
+    expect((mocks.saveExamEdits.mock.calls[0] as [{ draft: ExamDraft }])[0].draft).toMatchObject({ layoutMode: 'random', perTicket: 2 });
+    cleanup();
+
+    mocks.loadExamBundle.mockResolvedValue({
+      ...savedBundle({ ticket_layout: { mode: 'sections', per_ticket: 2, section_titles: ['Введение', 'Деньги и труд'] } }),
+      questions: sectioned,
+    });
+    renderEditor('/exams/exam-1/edit');
+    await screen.findByText(/В списке 4 вопроса, 2 раздела/);
+    expect(screen.getByRole('combobox', { name: 'Как составлены билеты' })).toHaveValue('sections');
   });
 
   it('keeps the exam when the deletion is cancelled', async () => {

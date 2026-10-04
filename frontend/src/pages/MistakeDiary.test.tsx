@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import MistakeDiary from './MistakeDiary';
+import MistakeDiary, { mistakeOriginLabel } from './MistakeDiary';
 
 const api = vi.hoisted(() => ({
   from: vi.fn(),
@@ -255,9 +255,24 @@ describe('Mistake diary list', () => {
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
 
     expect(await screen.findByText(/^Тест · Физика/)).toBeInTheDocument();
-    expect(screen.getByText(/^Ответ вслух · Макроэкономика/)).toBeInTheDocument();
+    // A ticket answered by voice or in writing is the same answer (Jury_Check 11): no «вслух».
+    expect(screen.getByText(/^Ответ на билет · Макроэкономика/)).toBeInTheDocument();
+    expect(screen.queryByText(/вслух/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/^Устный экзамен · /)).toHaveLength(2);
     expect(screen.getByText('Открыто: 3. Исправлено: 1.')).toBeInTheDocument();
+  });
+
+  it('says in the intro that mistakes come from tests, ticket answers and oral exams', async () => {
+    api.from.mockReturnValue(listQuery({ data: rows, error: null }));
+    render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
+
+    expect(
+      await screen.findByText('Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.'),
+    ).toBeInTheDocument();
+    expect(mistakeOriginLabel('oral_ticket')).toBe('Ответ на билет');
+    expect(mistakeOriginLabel('quiz')).toBe('Тест');
+    expect(mistakeOriginLabel('professor')).toBe('Устный экзамен');
+    expect(mistakeOriginLabel(null)).toBe('Устный экзамен');
   });
 
   it('keeps the right answer hidden until the row is opened', async () => {

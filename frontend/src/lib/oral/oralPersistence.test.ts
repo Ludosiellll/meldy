@@ -23,10 +23,12 @@ import {
   createDraftWriter,
   draftKey,
   fragmentsLabel,
+  initialLiveMarks,
   pointSource,
   readDraft,
   readLiveMarks,
   readStashedAttempt,
+  rememberLiveMarks,
   saveOralAttempt,
   stashAttempt,
   writeLiveMarks,
@@ -291,6 +293,27 @@ describe('browser storage', () => {
     writeLiveMarks(false);
     expect(window.localStorage.getItem('meldy_oral_live_marks')).toBe('0');
     expect(readLiveMarks()).toBe(false);
+  });
+
+  it('starts «как на экзамене» with live marks off and never touches the stored preference (Jury_Check item 11)', () => {
+    window.localStorage.clear();
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    expect(initialLiveMarks('exam')).toBe(false);
+    rememberLiveMarks('exam', true);
+    rememberLiveMarks('exam', false);
+    expect(getItem).not.toHaveBeenCalledWith('meldy_oral_live_marks');
+    expect(setItem).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem('meldy_oral_live_marks')).toBeNull();
+    getItem.mockRestore();
+    setItem.mockRestore();
+    // Training keeps today's behaviour: the stored preference, on by default, and the switch is remembered.
+    expect(initialLiveMarks('training')).toBe(true);
+    rememberLiveMarks('training', false);
+    expect(window.localStorage.getItem('meldy_oral_live_marks')).toBe('0');
+    expect(initialLiveMarks('training')).toBe(false);
+    // A stored «off» does not leak into the exam mode's default either way.
+    expect(initialLiveMarks('exam')).toBe(false);
   });
 
   it('adds every saved question of a ticket to the exam sheet’s flag', () => {

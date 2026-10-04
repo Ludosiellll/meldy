@@ -103,6 +103,30 @@ describe('Exams', () => {
     expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/new');
   });
 
+  it('counts «подтверждено» by the rule: passes on one day, or two minutes apart over midnight, confirm nothing', async () => {
+    mocks.listExams.mockResolvedValue([item()]);
+    const pass = (n: number, id: string, createdAt: string, localDate: string): LearningEvent => ({
+      ...passes(n)[0],
+      id,
+      created_at: createdAt,
+      local_date: localDate,
+    });
+    mocks.fetchQuestionEvents.mockResolvedValue([
+      // 1:00 and 21:00 of one day
+      pass(1, 'a1', '2026-09-30T22:00:00Z', '2026-10-01'),
+      pass(1, 'a2', '2026-10-01T18:00:00Z', '2026-10-01'),
+      // 23:59 and 0:01
+      pass(2, 'b1', '2026-10-01T20:59:00Z', '2026-10-01'),
+      pass(2, 'b2', '2026-10-01T21:01:00Z', '2026-10-02'),
+      // two days and 22 hours: confirmed
+      pass(3, 'c1', '2026-10-01T07:00:00Z', '2026-10-01'),
+      pass(3, 'c2', '2026-10-02T05:00:00Z', '2026-10-02'),
+    ]);
+    renderList();
+    const link = await screen.findByRole('link', { name: /Микроэкономика/ });
+    await waitFor(() => expect(plain(link.textContent)).toContain('24 из 40 вопросов есть в лекциях · подтверждено 1'));
+  });
+
   it('names an exam by its subject: «Экзамен: цифровая экономика» reads «Цифровая экономика» next to «экзамен ·»', async () => {
     mocks.listExams.mockResolvedValue([item({ title: 'Экзамен: цифровая экономика' })]);
     renderList();

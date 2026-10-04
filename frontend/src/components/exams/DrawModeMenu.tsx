@@ -3,24 +3,27 @@ import { createPortal } from 'react-dom';
 import type { DrawMode } from '../../lib/exams/draw';
 import type { FrameBox } from './useFrame';
 
-/** The three ways of drawing (contracts §8), in the words of the sheet (redesign spec 5.9). */
-export const DRAW_MODES: DrawMode[] = ['exam', 'weak', 'answered'];
+/** The ways of drawing (contracts §8, Jury_Check item 4), in the words of the sheet (redesign spec 5.9). */
+export const DRAW_MODES: DrawMode[] = ['exam', 'weak', 'answered', 'awaiting'];
 
 export const DRAW_CAPTIONS: Record<DrawMode, string> = {
   exam: 'Как на экзамене',
   weak: 'Чаще слабые',
   answered: 'Из вопросов, на которые вы уже отвечали',
+  awaiting: 'Из вопросов, которые ждут подтверждения',
 };
 
 export const DRAW_HINTS: Record<DrawMode, string> = {
-  exam: 'Случайные вопросы; известные билеты — целиком.',
-  weak: 'Чаще не проверявшиеся и не зачтённые; вопросов без материала не будет.',
+  exam: 'Случайные вопросы; известные билеты — целиком. Отметки пунктов во время ответа выключены.',
+  weak: 'Чаще не проверявшиеся и не засчитанные; вопросов без материала не будет.',
   answered: 'Только вопросы, на которые вы уже отвечали.',
+  // «в другой день» belongs to the rule too: an answer 20 hours later on the same day confirms nothing.
+  awaiting: 'Засчитаны раньше — в другой день и не меньше 20 часов назад: хороший ответ сейчас подтвердит вопрос.',
 };
 
-/** 'exam' is the default and stays out of the address: /draw, /draw?mode=weak, /draw?mode=answered. */
+/** 'exam' is the default and stays out of the address: /draw, /draw?mode=weak|answered|awaiting. */
 export function drawModeOf(value: string | null): DrawMode {
-  return value === 'weak' || value === 'answered' ? value : 'exam';
+  return value === 'weak' || value === 'answered' || value === 'awaiting' ? value : 'exam';
 }
 
 interface DrawModeMenuProps {
@@ -39,7 +42,7 @@ interface DrawModeMenuProps {
 }
 
 /**
- * «Как на экзамене · изменить»: the way of drawing in words and a menu of the three ways. The same
+ * «Как на экзамене · изменить»: the way of drawing in words and a menu of the ways. The same
  * control under the desktop pill, under the fixed phone bar and on the draw page itself, so the mode is
  * never only in the address (stage QA round 2). Menu keys: arrows, Home, End, Escape, Tab.
  */

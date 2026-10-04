@@ -100,11 +100,50 @@ describe('text marks', () => {
 
   it('gives the same oval for the same seed', () => {
     stubReducedMotion(false);
-    const first = render(<PencilOval seed={5}>Зачтено</PencilOval>);
+    const first = render(<PencilOval seed={5}>Засчитано</PencilOval>);
     const d1 = first.container.querySelector('path')!.getAttribute('d');
     first.unmount();
-    const second = render(<PencilOval seed={5}>Зачтено</PencilOval>);
+    const second = render(<PencilOval seed={5}>Засчитано</PencilOval>);
     expect(second.container.querySelector('path')!.getAttribute('d')).toBe(d1);
+  });
+
+  it('strikes a figure out with an aria-hidden, deterministic stroke that is drawn in only when asked', () => {
+    stubReducedMotion(false);
+    const first = render(
+      <TextMark kind="strike" seed={311}>
+        60 %
+      </TextMark>,
+    );
+    expect(screen.getByText('60 %')).toBeInTheDocument();
+    const wrapper = first.container.querySelector('.sf-textmark')!;
+    expect(wrapper).toHaveAttribute('data-mark', 'strike');
+    const svg = wrapper.querySelector('svg')!;
+    expect(svg).toHaveAttribute('aria-hidden', 'true');
+    expect(svg).toHaveAttribute('data-drawn', 'still');
+    const d1 = svg.querySelector('path')!.getAttribute('d');
+    first.unmount();
+    const again = render(
+      <TextMark kind="strike" seed={311}>
+        60 %
+      </TextMark>,
+    );
+    expect(again.container.querySelector('path')!.getAttribute('d')).toBe(d1);
+    again.unmount();
+    const live = render(
+      <TextMark kind="strike" seed={311} animate>
+        60 %
+      </TextMark>,
+    );
+    expect(live.container.querySelector('svg')).toHaveAttribute('data-drawn', 'live');
+    live.unmount();
+    // Under reduced motion it is simply there.
+    stubReducedMotion(true);
+    const still = render(
+      <TextMark kind="strike" seed={311} animate>
+        60 %
+      </TextMark>,
+    );
+    expect(still.container.querySelector('svg')).toHaveAttribute('data-drawn', 'still');
   });
 
   it('underlines every line the words occupy, one stroke per line', () => {

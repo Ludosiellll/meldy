@@ -5,14 +5,30 @@
  *   finalizing (stop ≤ 800 ms) → examiner (the quick check, ≤ 1.5 s) → followup (asking |
  *   answering | checking) → evaluating → protocol (saved | save_error | eval_error)
  *
- * With nothing to ask: examiner → evaluating («Хорошо, по существу всё»). Pure: no timers, no
- * network; the page runs the effects and reports back with actions.
+ * With nothing to ask: examiner → evaluating, with the closing line of closingLine(). Pure: no
+ * timers, no network; the page runs the effects and reports back with actions.
  */
 import type { CheckStatus, Evaluation, RubricResponse } from './oralApi';
 import type { AnswerInput, SaveResult } from './oralPersistence';
 import type { NearestItem, QuestionHistory, TicketExam, TicketQuestion } from './ticketData';
 
 export type Phase = 'loading' | 'load_error' | 'ready' | 'answering' | 'finalizing' | 'examiner' | 'followup' | 'evaluating' | 'protocol';
+
+/** The examiner's last words with nothing to ask, when every rubric row was named by key words. */
+export const ALL_COVERED_LINE = 'Хорошо, по существу всё';
+/** …and when a row stayed closed: the examiner never says «по существу всё» over a closed row (Jury_Check item 12). */
+export const THANKS_LINE = 'Хорошо, спасибо';
+
+/**
+ * The closing line when no follow-up is asked: «Хорошо, по существу всё» only when every rubric row
+ * was named by key words in the «Готово» snapshot (the attempt's live set, counted even with the
+ * marks hidden), otherwise «Хорошо, спасибо».
+ */
+export function closingLine(points: ReadonlyArray<{ id: string }>, live: Iterable<string>): string {
+  const named = new Set(live);
+  return points.length > 0 && points.every((point) => named.has(point.id)) ? ALL_COVERED_LINE : THANKS_LINE;
+}
+
 export type AnswerMode = 'voice' | 'text';
 
 export type RubricState =
@@ -104,8 +120,8 @@ export interface TicketState {
   notice: string | null;
   attempt: AttemptState | null;
   followup: FollowupState | null;
-  /** No follow-up: «Хорошо, по существу всё». */
-  allCovered: boolean;
+  /** No follow-up: the examiner's closing line (closingLine), shown as text while the answer is checked. */
+  closing: string | null;
   evaluation: EvaluationState;
   save: SaveState;
 }
@@ -133,7 +149,7 @@ export type TicketAction =
   | { type: 'examiner' }
   | { type: 'transcript'; text: string }
   | { type: 'followup'; pointId: string; question: string; expected: string; chosenBy: 'check' | 'client'; mode: AnswerMode }
-  | { type: 'no_followup' }
+  | { type: 'no_followup'; closing: string }
   | { type: 'followup_listen' }
   | { type: 'followup_mode'; mode: AnswerMode; typed?: string }
   | { type: 'followup_typed'; text: string }
@@ -177,7 +193,7 @@ export function initialTicketState(): TicketState {
     notice: null,
     attempt: null,
     followup: null,
-    allCovered: false,
+    closing: null,
     evaluation: { status: 'idle' },
     save: { status: 'idle' },
   };
@@ -322,7 +338,7 @@ export function ticketReducer(state: TicketState, action: TicketAction): TicketS
       };
     case 'no_followup':
       if (state.phase !== 'examiner' && state.phase !== 'finalizing') return state;
-      return { ...state, phase: 'evaluating', allCovered: true, followup: null };
+      return { ...state, phase: 'evaluating', closing: action.closing, followup: null };
     case 'followup_listen':
       return state.followup ? { ...state, followup: { ...state.followup, stage: 'answering', mode: 'voice' } } : state;
     case 'followup_mode':
@@ -379,7 +395,7 @@ export function ticketReducer(state: TicketState, action: TicketAction): TicketS
         attempt: action.attempt,
         named: action.attempt.live,
         followup: action.followup,
-        allCovered: action.followup === null,
+        closing: null,
         evaluation: { status: 'failed', message: action.message },
       };
     default:

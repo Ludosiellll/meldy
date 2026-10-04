@@ -2,8 +2,11 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { shape, type MarkKind } from './geometry';
 import { PencilSvg, type PencilHand } from './PencilSvg';
 
-/** Marks that sit on a piece of text: the readiness marks of a number and the oval of «Зачтено». */
-export type TextMarkKind = 'ring' | 'under' | 'wave' | 'oval';
+/**
+ * Marks that sit on a piece of text: the readiness marks of a number, the oval of «Засчитано» and
+ * the strike across a figure that is replaced by another one («60 %» of peak 1).
+ */
+export type TextMarkKind = 'ring' | 'under' | 'wave' | 'oval' | 'strike';
 
 interface Size {
   w: number;
@@ -56,7 +59,7 @@ export interface TextMarkProps {
   animate?: boolean;
   delayMs?: number;
   weight?: number;
-  /** Room around the text for a ring or an oval (spec: number +7/+3, word +10/+7). */
+  /** Room around the text for a ring or an oval (spec: number +7/+3, word +10/+7); a strike's overshoot. */
   padX?: number;
   padY?: number;
   /** Extra drop of an underline or a wave below the text box. */
@@ -69,13 +72,15 @@ const DEFAULT_PAD: Record<TextMarkKind, { x: number; y: number }> = {
   oval: { x: 10, y: 7 },
   under: { x: 2, y: 0 },
   wave: { x: 1, y: 0 },
+  // Past both ends of the figure; the line box of a big figure already has room above and below.
+  strike: { x: 9, y: -2 },
 };
 
 /**
  * A one-line piece of text with a pencil mark on it: a ring around a question number
- * (подтверждено), a line under it (зачтено в один день), a wavy line (не зачтено), an oval around a
- * word («Зачтено»). The text keeps its place in the line; the mark is aria-hidden, so say its
- * meaning next to it in words.
+ * (подтверждено), a line under it (засчитано, не подтверждено), a wavy line (не засчитано), an oval
+ * around a word («Засчитано»), a strike across a figure. The text keeps its place in the line; the
+ * mark is aria-hidden, so say its meaning next to it in words.
  */
 export function TextMark({
   kind,
@@ -94,8 +99,8 @@ export function TextMark({
   const px = padX ?? DEFAULT_PAD[kind].x;
   const py = padY ?? DEFAULT_PAD[kind].y;
   const box = useMemo(() => {
-    if (kind === 'ring' || kind === 'oval') {
-      return { left: -px, top: -py, width: size.w + px * 2, height: size.h + py * 2 };
+    if (kind === 'ring' || kind === 'oval' || kind === 'strike') {
+      return { left: -px, top: -py, width: size.w + px * 2, height: Math.max(4, size.h + py * 2) };
     }
     const lineHeight = 6;
     return { left: -px, top: size.h - (kind === 'under' ? 2 : 1) + dy, width: size.w + px * 2, height: lineHeight };
@@ -124,7 +129,7 @@ export function TextMark({
 }
 
 /**
- * «Зачтено» in a pencil oval (protocol). `delayMs` lets the protocol draw it after its last point mark;
+ * «Засчитано» in a pencil oval (protocol). `delayMs` lets the protocol draw it after its last point mark;
  * padX / padY widen the oval around the word (spec 3.8: word +10/+7).
  */
 export function PencilOval({
