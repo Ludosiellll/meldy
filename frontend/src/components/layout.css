@@ -1,0 +1,120 @@
+/* The shell's own rules on top of the kit (styles/paper.css): the five sections of the menu, the round
+ * «+» of «Добавить лекцию» on phones, the tabs with an icon over a word, and «Что даёт PRO» under the
+ * daily limit in the account menu. Notes: 10_Project/Design_Language_2026-10-04, section 5. */
+
+/* ---------------------------------------------------------------- «Добавить лекцию» */
+.sf-cta-plus { display: none; }
+
+/* ---------------------------------------------------------------- the account menu */
+/* «Что даёт PRO» right under «Дневной лимит»: a quiet blue line of the same row height. */
+.sf-shell .sf-acct-pro {
+  margin-top: -4px;
+  color: var(--sf-accent-fg);
+  font-weight: 500;
+}
+.sf-shell .sf-acct-pro::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+/* ---------------------------------------------------------------- phones and tablets */
+@media (max-width: 1023px) {
+  .sf-shell { --sf-tabs-h: 62px; }
+
+  /* «Добавить лекцию» stays one tap away: a round blue «+» next to «?» (the words are for screen readers). */
+  .sf-shell .sf-bar .sf-nav-cta {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .sf-shell .sf-bar .sf-cta-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sf-shell .sf-bar .sf-cta-plus { position: relative; display: block; width: 18px; height: 18px; }
+  .sf-shell .sf-bar .sf-cta-plus::before,
+  .sf-shell .sf-bar .sf-cta-plus::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 18px;
+    height: 2.5px;
+    margin-top: -1.25px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+  .sf-shell .sf-bar .sf-cta-plus::after { transform: rotate(90deg); }
+  .sf-shell .sf-nav-cta:focus-visible { border-radius: 50%; }
+
+  /* Five tabs: an icon over the section's word, the whole height of the bar to tap (62 px). The
+     current one carries its icon on a dark pill. */
+  .sf-shell .sf-tabbar {
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 2px;
+    height: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom));
+    padding: 0 6px env(safe-area-inset-bottom);
+  }
+  /* No min-width: 0 — a tab is never narrower than its word («Повторение» is the longest). */
+  .sf-shell .sf-tablink {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    max-width: 112px;
+    height: auto;
+    padding: 0 2px;
+    border-radius: 18px;
+    background: none;
+    color: var(--sf-muted);
+    font-size: clamp(11px, 3.1vw, 12.5px);
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -.005em;
+  }
+  .sf-shell .sf-tab-ico {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    transition: background-color .35s var(--m-ease), color .35s ease;
+  }
+  .sf-shell .sf-tab-ico svg { width: 22px; height: 22px; }
+  .sf-shell .sf-tab-t { white-space: nowrap; }
+  .sf-shell .sf-tablink:hover { color: var(--sf-ink); }
+  .sf-shell .sf-tablink:hover .sf-tab-ico { background: var(--sf-tint); }
+  .sf-shell .sf-tablink[aria-current='page'] { background: none; color: var(--sf-ink); font-weight: 600; }
+  .sf-shell .sf-tablink[aria-current='page'] .sf-tab-ico { background: var(--sf-ink); color: var(--sf-canvas); }
+  .sf-shell .sf-tablink:focus-visible { outline-offset: -2px; }
+  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 374px) {
+  .sf-shell .sf-bar-right { gap: 10px; }
+  .sf-shell .sf-tabbar { padding-left: 2px; padding-right: 2px; gap: 0; }
+  .sf-shell .sf-tab-ico { width: 46px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-shell .sf-tab-ico { transition: none; }
+}

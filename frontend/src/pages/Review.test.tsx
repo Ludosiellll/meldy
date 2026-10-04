@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Review from './Review';
+import Review, { openMistakesLine } from './Review';
+import { supabase } from '../lib/supabase';
 
 const api = vi.hoisted(() => ({
   getDueCards: vi.fn(),
@@ -337,5 +338,82 @@ describe('Review of one material', () => {
 
     expect(await screen.findByRole('heading', { name: 'Карточек этого материала к повторению сейчас нет' })).toBeInTheDocument();
     expect(api.getDueCards).not.toHaveBeenCalled();
+  });
+});
+
+/** A Supabase query that resolves to `result`, recording its calls. */
+function query(result: unknown, calls: Array<[string, unknown[]]> = []) {
+  const chain: Record<string, unknown> = {};
+  for (const method of ['select', 'eq', 'in']) {
+    chain[method] = (...args: unknown[]) => {
+      calls.push([method, args]);
+      return chain;
+    };
+  }
+  chain.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(result).then(resolve, reject);
+  return chain;
+}
+
+describe('the mistakes diary in «Повторение»', () => {
+  const diaryCalls: Array<[string, unknown[]]> = [];
+  let openCount: { count: number | null; error: unknown } = { count: 5, error: null };
+
+  beforeEach(() => {
+    diaryCalls.length = 0;
+    openCount = { count: 5, error: null };
+    api.getDueCards.mockResolvedValue([]);
+    vi.mocked(supabase.from).mockImplementation(((table: string) =>
+      table === 'mistake_diary' ? query(openCount, diaryCalls) : query({ data: [], error: null })) as unknown as typeof supabase.from);
+  });
+
+  afterEach(cleanup);
+
+  it('is one card under «На сегодня всё», with the open mistakes counted by a HEAD request', async () => {
+    renderReview();
+    expect(await screen.findByRole('heading', { name: 'На сегодня всё' })).toBeInTheDocument();
+    const diary = screen.getByRole('region', { name: 'Дневник ошибок' });
+    expect(await within(diary).findByText('5 открытых ошибок.')).toBeInTheDocument();
+    expect(within(diary).getByRole('link', { name: 'Открыть дневник ошибок' })).toHaveAttribute('href', '/mistakes');
+    expect(diaryCalls).toEqual([
+      ['select', ['id', { count: 'exact', head: true }]],
+      ['eq', ['user_id', 'user-1']],
+      ['eq', ['is_resolved', false]],
+    ]);
+    // The section's word for lectures.
+    expect(screen.getByRole('link', { name: 'Лекции' })).toHaveAttribute('href', '/library');
+    expect(screen.queryByText('Библиотека')).not.toBeInTheDocument();
+  });
+
+  it('stays under the card during a session', async () => {
+    api.getDueCards.mockResolvedValue(oneCard);
+    renderReview();
+    const flip = await screen.findByRole('button', { name: 'Перевернуть' });
+    const diary = screen.getByRole('region', { name: 'Дневник ошибок' });
+    expect(flip.compareDocumentPosition(diary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await within(diary).findByText('5 открытых ошибок.')).toBeInTheDocument();
+  });
+
+  it('says there are none, or shows no number when it cannot be counted', async () => {
+    openCount = { count: 0, error: null };
+    renderReview();
+    expect(await screen.findByText('Открытых ошибок нет.')).toBeInTheDocument();
+    cleanup();
+
+    openCount = { count: null, error: { message: 'offline' } };
+    renderReview();
+    const diary = await screen.findByRole('region', { name: 'Дневник ошибок' });
+    await act(async () => undefined);
+    expect(within(diary).queryByText(/открыт/i, { selector: 'b' })).toBeNull();
+    expect(diary.textContent).not.toMatch(/\d/);
+    expect(within(diary).getByRole('link', { name: 'Открыть дневник ошибок' })).toBeInTheDocument();
+  });
+
+  it('words the number of open mistakes', () => {
+    expect(openMistakesLine(1)).toBe('1 открытая ошибка.');
+    expect(openMistakesLine(3)).toBe('3 открытые ошибки.');
+    expect(openMistakesLine(5)).toBe('5 открытых ошибок.');
+    expect(openMistakesLine(21)).toBe('21 открытая ошибка.');
+    expect(openMistakesLine(0)).toBe('Открытых ошибок нет.');
+    expect(openMistakesLine(null)).toBe('');
   });
 });

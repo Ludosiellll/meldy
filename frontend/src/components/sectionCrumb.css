@@ -1,0 +1,43 @@
+/* The crumb pill of a page inside a section («‹ Прогресс» over «Карта знаний»), as on the lecture page. */
+.sc-crumb {
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: 16px;
+  padding: 0 16px 0 10px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  transition: background-color .4s var(--m-ease), box-shadow .4s var(--m-ease);
+}
+.sc-crumb svg { flex: none; width: 18px; height: 18px; transition: transform .6s var(--m-ease); }
+.sc-crumb:hover { background: var(--sf-surface-soft); }
+.sc-crumb:hover svg { transform: translateX(-3px); }
+.sf-page .sc-crumb:focus-visible { border-radius: 999px; }
+/* A page header that starts with the crumb keeps its title where the other sections have theirs. */
+@media (min-width: 1024px) {
+  .sf-page .sf-head:has(> div > .sc-crumb) { padding-top: 28px; }
+}
+
+/* Above a centred state card (the knowledge map without lectures): the crumb on the page's left edge. */
+.sc-up { padding-top: 40px; }
+@media (min-width: 1024px) {
+  .sf-page .sc-up + .km-state { padding-top: 12px; }
+}
+
+/* Below 1024 px the top line shows «‹ Прогресс»; the projector shows no crumbs (the kit's .sf-crumb rules). */
+@media (max-width: 1023px) {
+  .sc-crumb,
+  .sc-up { display: none; }
+}
+html[data-stage] .sc-crumb { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sc-crumb,
+  .sc-crumb svg { transition: none; }
+  .sc-crumb:hover svg { transform: none; }
+}

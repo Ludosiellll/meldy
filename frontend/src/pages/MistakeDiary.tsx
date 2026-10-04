@@ -9,6 +9,7 @@ import { addXP } from '../api/quests';
 import confetti from 'canvas-confetti';
 import { incrementAIUsage } from '../api/limits';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
+import SectionCrumb from '../components/SectionCrumb';
 import '../styles/paper.css';
 import './MistakeDiary.css';
 
@@ -425,6 +426,7 @@ export default function MistakeDiary() {
           {/* Заголовок */}
           <header className="sf-head md-head">
             <div className="min-w-0">
+              <SectionCrumb to="/review" label="Повторение" />
               <h1 className="sf-h1">Дневник ошибок</h1>
               <p className="sf-lede">Ошибки из тестов, ответов на билеты и устных экзаменов. Правильный ответ открывается по нажатию.</p>
             </div>

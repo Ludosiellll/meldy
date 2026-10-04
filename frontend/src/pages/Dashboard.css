@@ -25,7 +25,6 @@
 }
 
 .td-in { max-width: none; }
-.td-in-centered { max-width: 1160px; margin: 0 auto; padding-top: 48px; }
 
 /* ---------------------------------------------------------------- the greeting */
 .td-head { padding-top: 40px; }
@@ -601,50 +600,98 @@
 .td-add-t { font-size: 17px; font-weight: 500; }
 .td-add-f { font-size: 14px; color: var(--sf-muted); }
 
-/* ---------------------------------------------------------------- a new account, an error */
-.td-empty {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, .92fr);
-  gap: 40px;
+/* ---------------------------------------------------------------- «Первые шаги» */
+/* The three steps of the core in one card: the title with «Сделано 1 из 3» and three segments, then
+   the steps side by side as soft blocks — the next one white and lifted, its number blue; a done step
+   has a green tick and «Сделано». Folded, the card is its first line. */
+.td-fs { margin-top: 30px; padding: 26px 26px 26px 34px; }
+.td-fs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; }
+.td-fs-h { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; color: var(--sf-ink); }
+.td-fs-progress { display: inline-flex; align-items: center; gap: 14px; margin: 0; }
+.td-fs-count { font-size: 16px; line-height: 1.4; color: var(--sf-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.td-fs-meter { display: inline-flex; gap: 5px; }
+.td-fs-meter i { display: block; width: 30px; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--sf-ink) 13%, transparent); }
+.td-fs-meter i[data-done] { background: var(--m-green); }
+.td-fs-toggle {
+  display: inline-flex;
   align-items: center;
-  padding: 14px 14px 14px 56px;
-  border-radius: 56px;
+  gap: 10px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--sf-ink);
+  font: 500 15px/1 var(--ph-sans);
+  cursor: pointer;
+  transition: background-color .3s ease;
 }
-.td-empty-body { padding: 36px 0; }
-.sf-page.td .td-empty-h1 { font-size: clamp(38px, 4vw, 56px); line-height: 1.05; font-weight: 500; letter-spacing: -.035em; text-wrap: balance; }
-.td-empty-text { margin: 18px 0 0; max-width: 30em; font-size: 19px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
-.td-empty-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-top: 32px; }
-.td-empty-art { height: 420px; border-radius: 44px; background: linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%); }
-.td-empty-win {
-  position: absolute;
-  left: 44px;
-  right: 44px;
-  top: 48px;
-  bottom: -30px;
+.td-fs-toggle:hover { background: var(--sf-tint); }
+.td-fs-toggle::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .45s var(--m-ease);
+}
+.td-fs-toggle[aria-expanded='true']::after { transform: translateY(2px) rotate(-135deg); }
+.sf-page.td .td-fs-toggle:focus-visible { border-radius: 999px; }
+
+.td-fs-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 20px 0 0; padding: 0; list-style: none; }
+.td-fs-step {
   display: flex;
   flex-direction: column;
-  padding: 18px 24px;
-  border-radius: 26px;
-  background: #fff;
-  box-shadow: 0 20px 50px -24px rgba(0, 0, 0, .45);
+  gap: 16px;
+  min-width: 0;
+  padding: 22px;
+  border-radius: 32px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
 }
-.td-empty-row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid #efefea; }
-.td-empty-row:first-child { border-top: 0; }
-.td-empty-n,
-.td-empty-st { display: block; flex: none; }
-.td-empty-line { display: block; }
-.td-empty-n { width: 26px; height: 26px; border-radius: 50%; background: #f1f1ec; }
-.td-empty-line { flex: 0 1 auto; min-width: 0; height: 10px; border-radius: 6px; background: #e4e7ee; }
-.td-empty-st { position: relative; width: 56px; height: 24px; margin-left: auto; border-radius: 999px; background: #e2f2e5; }
-.td-empty-st::before { content: ''; position: absolute; left: 11px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: #2c6b3a; }
-.td-empty-st::after { content: ''; position: absolute; left: 24px; right: 10px; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: currentColor; color: rgba(44, 107, 58, .45); }
-.td-empty-st[data-tone='y'] { background: #fcefc9; }
-.td-empty-st[data-tone='y']::before { background: #7a5a12; }
-.td-empty-st[data-tone='y']::after { color: rgba(122, 90, 18, .4); }
-.td-empty-st[data-tone='n'] { background: #efefea; }
-.td-empty-st[data-tone='n']::before { background: #5c626b; }
-.td-empty-st[data-tone='n']::after { color: rgba(92, 98, 107, .35); }
+.td-fs-step[data-state='next'] { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.td-fs-n {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--sf-line-strong);
+  color: var(--sf-ink);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.td-fs-step[data-state='next'] .td-fs-n { box-shadow: none; background: var(--sf-accent); color: #fff; }
+.td-fs-step[data-state='done'] .td-fs-n { box-shadow: none; background: var(--m-green); color: #0b121c; }
+.td-fs-n svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.td-fs-body { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+.td-fs-step-h { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); text-wrap: balance; }
+.td-fs-p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.td-fs-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; padding-top: 20px; }
+.td-fs-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px 0 13px;
+  border-radius: 999px;
+  background: var(--m-green-soft);
+  color: var(--m-green-ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+.td-fs-done::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.td-fs-wait { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.td-fs[data-folded] { padding-top: 12px; padding-bottom: 12px; }
+.td-fs[data-folded] .td-fs-h { font-size: 21px; }
+.td-fs + .td-grid { margin-top: var(--td-gap); }
 
+/* ---------------------------------------------------------------- an error */
 .td-error { max-width: 600px; margin-top: 30px; padding: 34px 40px 36px; }
 .td .td-error .td-h2 { margin: 0; font-size: 30px; }
 .td-error-text { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
@@ -673,9 +720,12 @@
   .td-grid { grid-template-columns: minmax(0, 1fr); }
   .td-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .td-lecs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .td-empty { grid-template-columns: minmax(0, 1fr); padding: 12px 12px 40px; }
-  .td-empty-body { order: 2; padding: 0 28px; }
-  .td-empty-art { height: 300px; }
+}
+/* The steps one under another: the number on the left, the words and the action on the right. */
+@media (max-width: 959px) {
+  .td-fs-list { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .td-fs-step { flex-direction: row; align-items: flex-start; gap: 16px; padding: 18px 20px 20px 18px; border-radius: 28px; }
+  .td-fs-acts { padding-top: 14px; }
 }
 @media (max-width: 799px) {
   .td-side { grid-template-columns: minmax(0, 1fr); }
@@ -751,15 +801,22 @@
   .td-lec-note { margin: 0 8px 8px; }
   .td-chip { min-height: 44px; }
   .td-error { padding: 28px 22px 28px; }
-  .td-in-centered { padding-top: 20px; }
-  .td-empty { padding: 8px 8px 30px; border-radius: 40px; gap: 26px; }
-  .td-empty-body { padding: 0 14px; }
-  .sf-page.td .td-empty-h1 { font-size: 34px; }
-  .td-empty-text { font-size: 17px; }
-  .td-empty-acts { margin-top: 26px; }
-  .td-empty-art { height: 220px; border-radius: 32px; }
-  .td-empty-win { left: 22px; right: 22px; top: 26px; padding: 10px 16px; }
-  .td-empty-row { padding: 10px 0; }
+  /* The steps: the title and «Свернуть» on one line, the count under the title. */
+  .td-fs { margin-top: 22px; padding: 16px 12px 12px 20px; border-radius: 34px; }
+  .td-fs-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
+  .td-fs-h { grid-column: 1; font-size: 22px; }
+  .td-fs-toggle { grid-column: 2; grid-row: 1; margin-left: 0; padding: 0 12px; }
+  .td-fs-progress { grid-column: 1 / -1; gap: 12px; }
+  .td-fs-count { font-size: 15px; }
+  .td-fs-list { margin-top: 14px; gap: 8px; }
+  .td-fs-step { gap: 12px; padding: 16px 16px 18px 14px; border-radius: 26px; }
+  .td-fs-n { width: 34px; height: 34px; font-size: 15px; }
+  .td-fs-n svg { width: 18px; height: 18px; }
+  .td-fs-step-h { font-size: 18px; }
+  .td-fs-p { margin-top: 6px; font-size: 15px; }
+  .td-fs-acts { gap: 2px 16px; padding-top: 12px; }
+  .td-fs[data-folded] { padding-top: 10px; padding-bottom: 10px; }
+  .td-fs[data-folded] .td-fs-h { font-size: 19px; }
 }
 /* Narrow phones (360): ten dots a row still fit between the 16 px gutters. */
 @media (max-width: 374px) {

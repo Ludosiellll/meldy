@@ -157,10 +157,29 @@ describe('Progress page', () => {
       'Повторения на неделю',
       'Что подтянуть',
       'Экзамены',
+      'Карта знаний',
       'Лекции',
       'Занятия по дням',
     ]);
     expect(screen.getByRole('link', { name: 'Оценки из зачётки' })).toHaveAttribute('href', '/analytics?tab=gradebook');
+  });
+
+  it('opens the knowledge map from its own card: what the map shows, and one button', async () => {
+    renderProgress();
+    const section = (await screen.findByRole('heading', { level: 2, name: 'Карта знаний' })).closest('section') as HTMLElement;
+    expect(within(section).getByText(/понятия, которые встречаются в нескольких лекциях/)).toBeInTheDocument();
+    expect(within(section).getByText(/какие вопросы экзамена в ней есть/)).toBeInTheDocument();
+    expect(within(section).getByRole('link', { name: 'Открыть карту знаний' })).toHaveAttribute('href', '/knowledge-map');
+    // The picture says nothing a screen reader needs.
+    expect(section.querySelector('.pg-map-art')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('calls the lectures section by the menu’s word: «Все лекции», not «Библиотека»', async () => {
+    renderProgress();
+    const section = (await screen.findByRole('heading', { level: 2, name: 'Лекции' })).closest('section') as HTMLElement;
+    expect(within(section).getByRole('link', { name: 'Все лекции' })).toHaveAttribute('href', '/library');
+    expect(screen.queryByText('Библиотека')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/разметк/i);
   });
 
   it('says what happened in the last 7 days under the title', async () => {
@@ -439,9 +458,9 @@ describe('Progress sources', () => {
     renderProgress();
 
     const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li')!;
-    expect(within(row).getByText('Разметки по лекциям ещё нет.')).toBeInTheDocument();
+    expect(within(row).getByText('Сверки с лекциями ещё не было.')).toBeInTheDocument();
     expect(within(row).queryByText(/Есть в ваших лекциях/)).not.toBeInTheDocument();
-    expect(within(row).queryByText(/Разметка от/)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/Сверка с лекциями от/)).not.toBeInTheDocument();
     expect(args('exams', 'select')).toEqual([['id, title, kind, exam_date, mapped_at, ticket_layout']]);
   });
 
@@ -458,14 +477,14 @@ describe('Progress sources', () => {
 
     const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li')!;
     expect(
-      within(row).getByText(/^Есть в ваших лекциях: 1 из 3 · частично 0 · нет 0 · только по словам 1 · не размечено 1\. Разметка от 30 сентября, \d{1,2}:\d{2}\.$/),
+      within(row).getByText(/^Есть в ваших лекциях: 1 из 3 · частично 0 · нет 0 · только по словам 1 · не сверено 1\. Сверка с лекциями от 30 сентября, \d{1,2}:\d{2}\.$/),
     ).toBeInTheDocument();
   });
 
   it('dates a mapping in the words of the exam sheet', () => {
     expect(mappingDateText(null)).toBeNull();
     expect(mappingDateText('garbage')).toBeNull();
-    expect(mappingDateText('2026-01-21T12:40:00Z')).toMatch(/^Разметка от 21 января, \d{1,2}:\d{2}\.$/);
+    expect(mappingDateText('2026-01-21T12:40:00Z')).toMatch(/^Сверка с лекциями от 21 января, \d{1,2}:\d{2}\.$/);
   });
 
   it('shows the exam card: confirmed questions, what it means for tickets, answers since, and the gap to fix', async () => {

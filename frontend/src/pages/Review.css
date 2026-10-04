@@ -374,8 +374,31 @@
 }
 .rv-more { margin: 10px 4px 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 
+/* ---------------------------------------------------------------- the mistakes diary */
+/* The diary lives in «Повторение»: one quiet card at the foot of the page, the open mistakes in ink. */
+.rv-diary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-top: 56px;
+  padding: 22px 22px 22px 30px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.rv-empty + .rv-diary { margin-top: 20px; }
+.rv-diary-main { flex: 1 1 18rem; min-width: 0; }
+.rv-diary-h { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); }
+.rv-diary-p { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.rv-diary-p b { font-weight: 600; color: var(--sf-ink); }
+.rv-diary-go { flex: none; }
+
 /* ---------------------------------------------------------------- phones */
 @media (max-width: 639px) {
+  .rv-diary { margin-top: 40px; padding: 18px 16px 16px 20px; border-radius: 28px; }
+  .rv-empty + .rv-diary { margin-top: 14px; }
   .rv-col { padding-top: 22px; }
   .rv-state { padding-top: 32px; }
   .rv-where { font-size: 15px; }

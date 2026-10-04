@@ -304,11 +304,20 @@ describe('the list', () => {
 });
 
 describe('states', () => {
+  it('lives in «Прогресс»: the crumb over the title leads back there', async () => {
+    await renderMap();
+    const title = screen.getByRole('heading', { level: 1, name: 'Карта знаний' });
+    const crumb = screen.getByRole('link', { name: 'Прогресс' });
+    expect(crumb).toHaveAttribute('href', '/analytics');
+    expect(crumb.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('asks for the first lecture when there are none', async () => {
     tables = {};
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Здесь будет карта ваших лекций' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Добавить лекцию' })).toHaveAttribute('href', '/analyze');
+    expect(screen.getByRole('link', { name: 'Прогресс' })).toHaveAttribute('href', '/analytics');
   });
 
   it('says when the lectures could not be read, and tries again', async () => {
