@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import { captureError } from '../lib/telemetry';
 
 interface Props {
   children: ReactNode;
@@ -45,6 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    captureError(error, { name: 'react_render', componentStack: errorInfo.componentStack });
   }
 
   public render() {

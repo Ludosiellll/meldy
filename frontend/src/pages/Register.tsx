@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
 import AuthReel from '../components/authReel/AuthReel';
+import { track } from '../lib/telemetry';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
@@ -31,6 +32,8 @@ export default function Register() {
   useEffect(() => {
     if (user) navigate('/dashboard');
   }, [user?.id, navigate]);
+
+  useEffect(() => track('signup_view'), []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +77,7 @@ export default function Register() {
       // for users that already exist in the database.
       setError('Пользователь с таким email уже существует');
     } else {
+      track('signup_done', { method: 'email', confirmed: Boolean(data.session) });
       if (data.session) {
         navigate('/dashboard');
       } else {

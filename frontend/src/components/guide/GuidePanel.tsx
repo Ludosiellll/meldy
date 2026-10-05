@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { GUIDE_CHAPTERS } from './chapters';
 import { useGuide } from './GuideContext';
 import GuideClip from './GuideClip';
+import { track } from '../../lib/telemetry';
 import './guide.css';
 
 function ArrowIcon() {
@@ -255,7 +256,7 @@ export default function GuidePanel() {
           </Link>
         )}
         {last ? (
-          <button type="button" className="gd-next" onClick={mandatory ? finish : close}>
+          <button type="button" className="gd-next" onClick={() => { track('guide_done', { first_run: mandatory }); (mandatory ? finish : close)(); }}>
             {mandatory ? 'Начать' : 'Готово'}
           </button>
         ) : (

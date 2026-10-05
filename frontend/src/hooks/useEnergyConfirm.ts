@@ -3,6 +3,7 @@ import { Clock } from 'lucide-react';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { AI_LIMIT_EVENT, checkAILimit, formatLimitReset, nextLimitReset, remainingUnits, type AILimitInfo } from '../api/limits';
 import { dailyUnits, openProWindow } from '../lib/plans';
+import { track } from '../lib/telemetry';
 
 /** «1 единицу», «2 единицы», «5 единиц» (винительный падеж после «расходует»). */
 export function unitsWord(n: number): string {
@@ -76,6 +77,7 @@ export function useEnergyConfirm() {
 
     if (status.ok === false || status.allowed) return true;
 
+    track('ai_limit_hit', { kind: 'check', pro: Boolean(status.isPro), units: cost });
     const dayLimit = Number(status.limit) || dailyUnits(Boolean(status.isPro));
     const remaining = Math.max(0, dayLimit - (Number(status.count) || 0));
     const resetAt = formatLimitReset(status.resetsAt instanceof Date ? status.resetsAt : nextLimitReset());
@@ -101,6 +103,7 @@ export function AILimitDialogHost(): null {
     const onLimit = (event: Event) => {
       const info = (event as CustomEvent<AILimitInfo>).detail;
       if (!info) return;
+      track('ai_limit_hit', { kind: 'server', pro: info.pro, units: info.units });
       const { remaining, message } = refusalMessage(info);
       void showLimitDialog(alert, { remaining, isPro: info.pro, message });
     };

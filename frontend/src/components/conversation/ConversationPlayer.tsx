@@ -54,6 +54,7 @@ import type {
   PodcastLine,
 } from './types';
 import './conversation.css';
+import { track } from '../../lib/telemetry';
 
 export interface ConversationPlayerProps {
   /** summary_json.podcast как есть (старые реплики тоже подходят). */
@@ -636,6 +637,7 @@ export default function ConversationPlayer({
       }
       return;
     }
+    track('conversation_play', { from_start: finished || safeIndex === 0 });
     speak(finished ? 0 : safeIndex);
   };
 

@@ -28,6 +28,7 @@ import MaterialPicker, { type ImportStatus } from '../components/exams/MaterialP
 import PaperSelect from '../components/ui/PaperSelect';
 import PaperSuggestInput from '../components/ui/PaperSuggestInput';
 import { startMapping, useMapJob } from '../components/exams/mapJobs';
+import { countBucket, track } from '../lib/telemetry';
 import {
   EMPTY_PREVIEW,
   chosenLayout,
@@ -353,6 +354,7 @@ export default function ExamEditor() {
     try {
       if (!editing) {
         const { examId } = await createExam(user.id, draft);
+        track('exam_created', { questions: countBucket(draft.questions.length), lectures: usableSelected.length > 0, source: sourceKind });
         if (usableSelected.length > 0) void startMapping({ examId, userId: user.id, verifyEnergy });
         navigate(`/exams/${examId}`);
         return;

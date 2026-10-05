@@ -7,6 +7,7 @@ import { jumpToReel, type ReelChapter } from '../components/home/reelJump';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { ty } from '../components/landing/typo';
 import '../components/home/home.css';
+import { TELEMETRY_NOTE } from '../lib/telemetry';
 
 const MeldyReel = lazy(() => import('../components/reel/MeldyReel'));
 
@@ -427,6 +428,7 @@ function Footer() {
       </a>
       <span>Подготовка к экзаменам по вашим лекциям · © {new Date().getFullYear()}</span>
       <a href="#">Наверх</a>
+      <p className="hm-foot-note">{ty(TELEMETRY_NOTE)}</p>
     </footer>
   );
 }

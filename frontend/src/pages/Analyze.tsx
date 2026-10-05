@@ -16,7 +16,8 @@ import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, nextL
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
-import { OCR_NOTICE, OCR_PHOTO_NOTICE } from '../lib/lectureFormats';
+import { OCR_NOTICE, OCR_PHOTO_NOTICE, lectureFormatOf } from '../lib/lectureFormats';
+import { secondsBucket, track } from '../lib/telemetry';
 import {
   SECTION_LABELS,
   SECTION_NAMES,
@@ -300,6 +301,8 @@ export default function Analyze() {
         throw new AnalyzeError('bad_request', 'Текст содержит недопустимые материалы (мат или неприемлемый контент).', false);
       }
       const length = typeof event.length === 'number' ? event.length : undefined;
+      const format = lectureFormatOf(lastRequestRef.current?.file, lastRequestRef.current?.url);
+      track('lecture_upload', { format: event.ocr === true && format === 'pdf' ? 'scan' : format, ocr: event.ocr === true });
       if (event.ocr === true) {
         const photo = lastRequestRef.current?.file?.type.startsWith('image/') ?? false;
         setOcrNotice(photo ? OCR_PHOTO_NOTICE : OCR_NOTICE);
@@ -389,6 +392,7 @@ export default function Analyze() {
       if (outcome.kind === 'aborted' || !isCurrent(runId)) return;
 
       const duration = Math.round((Date.now() - startedAt) / 1000);
+      track('lecture_ready', { partial: outcome.kind === 'partial', demo, time: secondsBucket(Date.now() - startedAt) });
       const context: SaveContext = {
         results: outcome.results,
         extractedText: outcome.extractedText,
@@ -413,6 +417,7 @@ export default function Analyze() {
       if (!isCurrent(runId)) return;
       if (!(error instanceof AnalyzeError)) console.error('Analyze error:', error);
       const failure = error instanceof AnalyzeError ? error : new AnalyzeError('server', ANALYZE_MESSAGES.server, true);
+      track('analysis_failed', { code: failure.kind });
       setState(prev => ({
         ...prev,
         phase: 'error',

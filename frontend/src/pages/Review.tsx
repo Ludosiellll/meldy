@@ -18,6 +18,7 @@ import '../styles/paper.css';
 import './Review.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
+import { countBucket, track } from '../lib/telemetry';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -321,6 +322,7 @@ export default function Review() {
       nextTimer.current = setTimeout(() => {
         nextTimer.current = null;
         if (last) {
+          track('review_done', { cards: countBucket(cards.length), early: false });
           setDone(true);
         } else {
           setIdx((previous) => previous + 1);
@@ -371,6 +373,7 @@ export default function Review() {
       return;
     }
     if (nextTimer.current) clearTimeout(nextTimer.current);
+    track('review_done', { cards: countBucket(answered), early: true });
     setDone(true);
   };
 
