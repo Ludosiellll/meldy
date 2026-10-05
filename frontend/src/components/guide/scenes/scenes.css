@@ -6,8 +6,8 @@
 /* The top line, cut to the section. */
 .gs-strip { position: absolute; left: 64px; right: 64px; top: 48px; display: flex; align-items: center; gap: 8px; font-size: 30px; }
 .gs-strip-mark { margin-right: 26px; font-size: 44px; }
-.gs-strip span:not(.gs-strip-cta):not(.fm-wordmark):not(.fm-wordmark-t) { padding: 14px 24px; border-radius: 999px; font-weight: 500; color: var(--ink); white-space: nowrap; }
-.gs-strip span.is-on { background: var(--ink); color: #f3f3f0 !important; }
+.gs-strip > span:not(.gs-strip-cta):not(.fm-wordmark) { padding: 14px 24px; border-radius: 999px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.gs-strip > span.is-on { background: var(--ink); color: #f3f3f0 !important; }
 .gs-strip-cta { margin-left: auto; padding: 16px 28px; border-radius: 999px; background: var(--blue); color: #fff; font-weight: 500; white-space: nowrap; box-shadow: 0 0 0 6px rgba(40, 105, 221, .18); }
 
 .gs-h1 { position: absolute; left: 80px; top: 176px; font-size: 64px; }
@@ -146,3 +146,67 @@
 .gs-tile-btn { position: absolute; left: 44px; bottom: 44px; }
 .gs-todo { left: 80px; top: 750px; width: 1280px; padding: 40px 48px; }
 .gs-todo-row { display: flex; align-items: center; justify-content: space-between; gap: 30px; margin-top: 22px; font-size: 32px; color: var(--ink); }
+
+/* ------------------------------------------------------------------ «Лимит ИИ» */
+/* The meter at the end of the line, as in the app: a white pill, the ring, «Лимит ИИ» and the number. */
+.gs-meter {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 108px;
+  margin-left: auto;
+  padding: 0 38px 0 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #e4e4de, 0 24px 48px -36px rgba(16, 41, 90, .45);
+}
+.gs-meter-ring { flex: none; width: 74px; height: 74px; }
+.gs-meter-ring circle { fill: none; stroke-width: 5.5; }
+.gs-meter-track { stroke: #e4e4de; }
+.gs-meter-arc { stroke: var(--ink); stroke-linecap: round; }
+.gs-meter-t { font-size: 34px; font-style: normal; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.gs-meter-n {
+  display: inline-block;
+  min-width: 2.1ch;
+  font-size: 62px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  transform-origin: 50% 60%;
+}
+
+/* A lecture to analyse and a ticket to check, side by side; their buttons send the prices up. */
+.gs-lim-card { top: 320px; width: 600px; height: 440px; padding: 48px 48px; }
+.gs-lim-file { display: flex; align-items: center; gap: 26px; font-size: 38px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.gs-lim-file small { display: block; margin-top: 8px; font-size: 28px; font-weight: 400; color: var(--muted); }
+.gs-lim-q { margin-top: 30px; font-size: 52px; }
+.gs-lim-lines { display: grid; gap: 18px; margin-top: 30px; }
+.gs-lim-lines i { display: block; width: 440px; height: 16px; border-radius: 8px; background: #efefea; }
+.gs-lim-lines i:nth-child(2) { width: 320px; }
+.gs-lim-btn { position: absolute; left: 48px; bottom: 46px; }
+
+/* When it comes back, and what PRO gives: two flags under the cards. */
+.gs-lim-notes { position: absolute; left: 80px; top: 830px; display: flex; flex-wrap: wrap; gap: 22px; }
+.gs-lim-flag { height: 76px; padding: 0 46px 0 30px; font-size: 36px; }
+
+/* The price of an action, flying into the meter. */
+.gs-lim-chips { position: absolute; inset: 0; z-index: 30; }
+.gs-lim-chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 84px;
+  padding: 0 32px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 46px;
+  font-weight: 600;
+  white-space: nowrap;
+  translate: -50% -50%;
+  box-shadow: 0 24px 40px -24px rgba(11, 18, 28, .6);
+}

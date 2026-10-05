@@ -950,6 +950,33 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-accent) 18%, transparent);
 }
 .ac-limit-fill { height: 100%; border-radius: 999px; background: var(--sf-accent); transition: width .8s var(--m-ease); }
+/* What the actions cost: a row each, the units on the right; a note under the name where the price grows. */
+.ac-modal-p.ac-costs-h { margin-top: 14px; color: var(--sf-ink); }
+.ac-costs { margin: 8px 0 0; padding: 0; }
+.ac-cost {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--sf-line);
+}
+.ac-cost:last-child { border-bottom: 0; }
+.ac-cost dt { margin: 0; font-size: 16px; line-height: 1.35; color: var(--sf-ink); }
+.ac-cost dt small { display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
+.ac-cost dd { flex: none; margin: 0; font-size: 16px; font-weight: 600; color: var(--sf-ink); }
+.ac-modal-p.ac-costs-back { margin-top: 6px; font-size: 15px; }
+.ac-limit-pro { margin: 16px 0 0; font-size: 16px; line-height: 1.5; font-weight: 500; color: var(--sf-ink); }
+.ac-modal-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.ac-modal-acts .ac-modal-ok { flex: 1 1 150px; width: auto; margin-top: 0; }
+.ac-modal-acts .ac-modal-alt { flex: 1 1 150px; min-height: 52px; font-size: 17px; }
+/* A long window (the limit and its prices) scrolls inside itself on a short screen. */
+.ac-modal-card--scroll { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 639px) {
+  .ac-modal-card--scroll { padding: 26px 22px 22px; border-radius: 32px; }
+  .ac-modal-card--scroll .ac-modal-x { top: 10px; right: 10px; }
+  .ac-modal-card--scroll .ac-limit { padding: 16px 18px 18px; }
+}
 .ac-modal-ok {
   display: flex;
   align-items: center;

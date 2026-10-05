@@ -30,8 +30,12 @@ vi.mock('../../contexts/ThemeProvider', () => ({ useTheme: () => ({ theme: 'ligh
 vi.mock('../../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: false }) }));
 
 import Layout from '../Layout';
-import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave } from './chapters';
+import { GUIDE_CHAPTERS, chapterIndexFor, limitChapterText, mayLeave } from './chapters';
 import { GUIDE_SEEN_KEY } from './GuideContext';
+import { GUIDE_CLIPS } from './clips';
+import { LIMIT_FLY, LIMIT_SPENDS, limitMeterAt } from './scenes';
+import { formatLimitReset, nextLimitReset } from '../../api/limits';
+import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>;
@@ -74,8 +78,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('the guide chapters', () => {
-  it('follow the menu, in its words: the map is told in «Прогресс», the mistakes diary in «Повторение»', () => {
-    expect(GUIDE_CHAPTERS.map((chapter) => chapter.tab)).toEqual(['Сегодня', 'Добавить лекцию', 'Лекции', 'Экзамены', 'Повторение', 'Прогресс']);
+  it('follow the menu, in its words: the map is told in «Прогресс», the mistakes diary in «Повторение»; the limit comes last', () => {
+    expect(GUIDE_CHAPTERS.map((chapter) => chapter.tab)).toEqual([
+      'Сегодня',
+      'Добавить лекцию',
+      'Лекции',
+      'Экзамены',
+      'Повторение',
+      'Прогресс',
+      'Лимит ИИ',
+    ]);
     expect(chapterIndexFor('/library/abc')).toBe(2);
     expect(chapterIndexFor('/exams/1/edit')).toBe(3);
     expect(chapterIndexFor('/mistakes')).toBe(4);
@@ -85,6 +97,35 @@ describe('the guide chapters', () => {
     expect(byId.review).toMatch(/дневник ошибок/);
     expect(byId.progress).toMatch(/карта знаний/);
     expect(GUIDE_CHAPTERS.map((chapter) => chapter.text).join(' ')).not.toMatch(/разметк|эталон|Библиотек/i);
+  });
+
+  it('tell the limit with the numbers of lib/plans.ts and the real reset time, and light up the meter', () => {
+    const limit = GUIDE_CHAPTERS[GUIDE_CHAPTERS.length - 1];
+    expect(limit).toMatchObject({ id: 'limit', title: 'Лимит ИИ', spot: 'meter' });
+    // No page of its own: the meter is in the top line of every page.
+    expect(limit.route).toBeUndefined();
+    expect(limit.match).toBeUndefined();
+    const resetAt = formatLimitReset(nextLimitReset());
+    expect(limit.text).toBe(limitChapterText(resetAt));
+    expect(limit.text).toBe(
+      `Действия с ИИ тратят единицы дневного лимита: анализ лекции — ${AI_COSTS.lecture}, проверка ответа — ${AI_COSTS.answer}, разговор — ${AI_COSTS.conversation}. ` +
+        `В день — ${FREE_DAILY_UNITS} единиц, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, а остаток виден вверху справа.`,
+    );
+    expect(limitChapterText('3:00')).toContain('лимит обновляется ночью, в 3:00,');
+    expect(limit.phone).toBe('На телефоне — кружок с числом.');
+  });
+
+  it('give the limit its own clip: the prices of a lecture and an answer fly into the meter, from lib/plans.ts', () => {
+    const clip = GUIDE_CLIPS.limit;
+    expect(clip.total).toBe(GUIDE_CLIPS.today.total);
+    expect(LIMIT_SPENDS.map((spend) => spend.cost)).toEqual([AI_COSTS.lecture, AI_COSTS.answer]);
+    expect(limitMeterAt(0)).toBe(FREE_DAILY_UNITS);
+    expect(limitMeterAt(clip.poster)).toBe(FREE_DAILY_UNITS - AI_COSTS.lecture - AI_COSTS.answer);
+    // The still frame (reduced motion) shows the meter after both prices, nothing in flight.
+    expect(LIMIT_SPENDS.every((spend) => spend.at + LIMIT_FLY < clip.poster)).toBe(true);
+    expect(limitMeterAt(LIMIT_SPENDS[0].at + LIMIT_FLY - 1)).toBe(FREE_DAILY_UNITS);
+    expect(limitMeterAt(LIMIT_SPENDS[0].at + LIMIT_FLY)).toBe(FREE_DAILY_UNITS - AI_COSTS.lecture);
+    expect(clip.poster).toBeLessThan(clip.total - 760);
   });
 
   it('move the app only from a section page nobody has touched, and never off an upload it did not open', () => {
@@ -156,7 +197,15 @@ describe('the first run', () => {
     next();
     expect(where()).toBe('/analytics');
     expect(within(panel()!).getByRole('heading', { name: 'Прогресс' })).toBeInTheDocument();
+    // The last chapter is the limit: the app stays put, the meter in the top line lights up.
+    next();
+    expect(where()).toBe('/analytics');
+    expect(within(panel()!).getByRole('heading', { name: 'Лимит ИИ' })).toBeInTheDocument();
+    expect(screen.getByTestId('quota-meter')).toHaveAttribute('data-guide-spot');
+    expect(document.querySelectorAll('[data-guide-spot]')).toHaveLength(1);
+    expect(within(panel()!).queryByRole('link', { name: 'Открыть раздел' })).toBeNull();
     expect(within(panel()!).queryByRole('button', { name: /Дальше/ })).toBeNull();
+    expect(within(panel()!).getByRole('button', { name: 'Начать' })).toBeInTheDocument();
   });
 
   it('ends with «Начать»: closed, seen on this device and in the profile, the app back on «Сегодня»', async () => {

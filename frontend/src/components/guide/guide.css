@@ -259,9 +259,11 @@
 .sf-bar-right .sf-help + .sf-me-hit { margin-left: -6px; }
 
 /* The section the guide talks about: a yellow ring around its item in the menu (every section is in
-   the top line on a computer and in the tabs on a phone), or around «Добавить лекцию». */
+   the top line on a computer and in the tabs on a phone), around «Добавить лекцию», or around the
+   limit meter (in the top line at every width). */
 .sf-shell .sf-bar-link[data-guide-spot],
-.sf-shell .sf-nav-cta[data-guide-spot] {
+.sf-shell .sf-nav-cta[data-guide-spot],
+.sf-shell .sf-quota[data-guide-spot] {
   box-shadow: 0 0 0 3px var(--m-yellow);
 }
 @media (max-width: 1023px) {
@@ -270,6 +272,7 @@
 @media (prefers-reduced-motion: no-preference) {
   .sf-shell .sf-bar-link[data-guide-spot],
   .sf-shell .sf-nav-cta[data-guide-spot],
+  .sf-shell .sf-quota[data-guide-spot],
   .sf-shell .sf-tablink[data-guide-spot] { animation: gd-spot 1.8s ease-in-out infinite; }
 }
 @keyframes gd-spot {

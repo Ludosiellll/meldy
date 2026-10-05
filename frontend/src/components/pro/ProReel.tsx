@@ -6,7 +6,7 @@ import { Wordmark } from '../film/kit';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { cornerOpacity, sceneVisible, scenesAt } from '../authReel/script';
-import { PRO_REEL } from './reelScript';
+import { PRO_REEL, sceneOf } from './reelScript';
 import { PRO_SCENES } from './ReelScenes';
 import '../reel/reel.css';
 import './proReel.css';
@@ -99,9 +99,11 @@ function PauseIcon() {
  * «Что будет с PRO»: the reel at the top of the PRO window. A 16:9 stage scaled to the window's
  * width, looping silently while the window is open, the reel is on screen and the tab is visible; it
  * can be paused. With reduced motion it waits on a still frame (the PRO day) until asked to play.
- * The stage is hidden from screen readers; a caption and a transcript say what it shows.
+ * The stage is hidden from screen readers; a caption and a transcript say what it shows. A new `jump`
+ * (the window bumps it after «Купить PRO») takes it to the PRO beat: from its start while it plays,
+ * to the still frame of the PRO day while it waits.
  */
-export default function ProReel() {
+export default function ProReel({ jump = 0 }: { jump?: number }) {
   const captionId = useId();
   const box = useRef<HTMLDivElement>(null);
   const clock = useMemo(() => new ReelClock(PRO_REEL.total), []);
@@ -155,6 +157,13 @@ export default function ProReel() {
     if (playing) clock.play();
     else clock.pause();
   }, [playing, clock]);
+
+  const jumped = useRef(jump);
+  useEffect(() => {
+    if (jump === jumped.current) return;
+    jumped.current = jump;
+    clock.seek(playing ? sceneOf('pro').from : PRO_REEL.poster);
+  }, [jump, playing, clock]);
 
   // The frame exporter steps the clock itself.
   useEffect(() => {

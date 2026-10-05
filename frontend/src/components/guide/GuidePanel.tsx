@@ -187,7 +187,8 @@ export default function GuidePanel() {
   const chapter = GUIDE_CHAPTERS[index];
   const total = GUIDE_CHAPTERS.length;
   const last = index === total - 1;
-  const onSection = chapter.match.test(pathname);
+  // The section's page, unless the student is on it; the limit has none (its meter is in the top line).
+  const sectionLink = chapter.route && !chapter.match?.test(pathname) ? chapter.route : null;
 
   const card = (
     <section
@@ -258,11 +259,11 @@ export default function GuidePanel() {
             Не сейчас
           </button>
         )}
-        {onSection ? null : (
-          <Link className="gd-open" to={chapter.route}>
+        {sectionLink ? (
+          <Link className="gd-open" to={sectionLink}>
             Открыть раздел
           </Link>
-        )}
+        ) : null}
         {last ? (
           <button type="button" className="gd-next" onClick={() => { track('guide_done', { first_run: mandatory }); (mandatory ? finish : close)(); }}>
             {mandatory ? 'Начать' : 'Готово'}

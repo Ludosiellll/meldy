@@ -1,14 +1,14 @@
 /* The shell's own rules on top of the kit (styles/paper.css): the five sections of the menu, the round
- * «+» of «Добавить лекцию» on phones, the tabs with an icon over a word, and «Что даёт PRO» under the
- * daily limit in the account menu. Notes: 10_Project/Design_Language_2026-10-04, section 5. */
+ * «+» of «Добавить лекцию» on phones, the tabs with an icon over a word, and «Что даёт PRO» in the
+ * account menu. The daily limit meter has its own file (quotaMeter.css). Notes:
+ * 10_Project/Design_Language_2026-10-04, section 5. */
 
 /* ---------------------------------------------------------------- «Добавить лекцию» */
 .sf-cta-plus { display: none; }
 
 /* ---------------------------------------------------------------- the account menu */
-/* «Что даёт PRO» right under «Дневной лимит»: a quiet blue line of the same row height. */
+/* «Что даёт PRO»: a quiet blue line of the same row height. */
 .sf-shell .sf-acct-pro {
-  margin-top: -4px;
   color: var(--sf-accent-fg);
   font-weight: 500;
 }
@@ -64,6 +64,11 @@
   .sf-shell .sf-bar .sf-cta-plus::after { transform: rotate(90deg); }
   .sf-shell .sf-nav-cta:focus-visible { border-radius: 50%; }
 
+  /* «‹ Лист экзамена» gives way first when the line is short (the limit's ring, «+», «?» and the
+     avatar keep their size): its word ends with «…», the link stays whole for screen readers. */
+  .sf-shell[data-back] .sf-back { flex: 0 1 auto; min-width: 0; }
+  .sf-shell .sf-back-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* Five tabs: an icon over the section's word, the whole height of the bar to tap (62 px). The
      current one carries its icon on a dark pill. */
   .sf-shell .sf-tabbar {
@@ -109,8 +114,13 @@
   .sf-shell .sf-tablink:focus-visible { outline-offset: -2px; }
   .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom)); }
 }
+/* Phones up to 419 px: the line holds «‹ Родитель» or the wordmark, «+», the limit's ring, «?» and the
+   avatar, so the gaps are a little tighter. */
+@media (max-width: 419px) {
+  .sf-shell .sf-bar-in { gap: 10px; }
+  .sf-shell .sf-bar-right { gap: 8px; }
+}
 @media (max-width: 374px) {
-  .sf-shell .sf-bar-right { gap: 10px; }
   .sf-shell .sf-tabbar { padding-left: 2px; padding-right: 2px; gap: 0; }
   .sf-shell .sf-tab-ico { width: 46px; }
 }

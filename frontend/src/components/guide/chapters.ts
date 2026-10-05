@@ -1,26 +1,48 @@
 /**
  * The guide's chapters: one per item of the menu, in the order of the menu, with «Добавить лекцию»
- * after «Сегодня» (that is where a new student starts). Each has a short clip (scenes/), a title and
- * a line or two of text in the words the screens use. The mistakes diary is told inside «Повторение»
- * and the knowledge map inside «Прогресс»: that is where they live in the menu.
+ * after «Сегодня» (that is where a new student starts), and «Лимит ИИ» last: the meter in the top line
+ * that every AI action spends. Each has a short clip (scenes/), a title and a line or two of text in
+ * the words the screens use. The mistakes diary is told inside «Повторение» and the knowledge map inside
+ * «Прогресс»: that is where they live in the menu.
  */
+import { formatLimitReset, nextLimitReset } from '../../api/limits';
+import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
+import { plural } from '../pro/planCopy';
 
-export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'review' | 'progress';
+export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'review' | 'progress' | 'limit';
 
 export interface GuideChapter {
   id: GuideChapterId;
   /** The section's name as the menu writes it. */
   tab: string;
-  /** The section's own page: «Дальше» brings the app here when nothing is in progress. */
-  route: string;
+  /**
+   * The section's own page: «Дальше» brings the app here when nothing is in progress. None for the
+   * limit: its meter is in the top line of every page, so the app stays where it is.
+   */
+  route?: string;
   /** The pages of the section: opened there, the guide starts on this chapter. */
-  match: RegExp;
+  match?: RegExp;
   title: string;
   text: string;
   /** Where the section is on a phone, when that is not obvious from the tabs. */
   phone?: string;
-  /** What lights up: the section's item in the menu, or the «Добавить лекцию» button. */
-  spot: 'link' | 'cta';
+  /** What lights up: the section's item in the menu, the «Добавить лекцию» button, or the limit meter. */
+  spot: 'link' | 'cta' | 'meter';
+}
+
+const units = (n: number) => `${n} ${plural(n, ['единица', 'единицы', 'единиц'])}`;
+
+/**
+ * «Лимит ИИ» in the words of the screens, every number from lib/plans.ts and the reset time in the
+ * student's own clock (00:00 UTC is 3:00 in Moscow).
+ */
+export function limitChapterText(resetAt: string = formatLimitReset(nextLimitReset())): string {
+  return (
+    `Действия с ИИ тратят единицы дневного лимита: анализ лекции — ${AI_COSTS.lecture}, ` +
+    `проверка ответа — ${AI_COSTS.answer}, разговор — ${AI_COSTS.conversation}. ` +
+    `В день — ${units(FREE_DAILY_UNITS)}, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, ` +
+    'а остаток виден вверху справа.'
+  );
 }
 
 export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
@@ -79,15 +101,23 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     text: 'Сколько карточек закреплено, сколько вы вспомнили и что подтянуть. Отсюда открывается карта знаний: лекции экзамена и понятия, которые их связывают.',
     spot: 'link',
   },
+  {
+    id: 'limit',
+    tab: 'Лимит ИИ',
+    title: 'Лимит ИИ',
+    text: limitChapterText(),
+    phone: 'На телефоне — кружок с числом.',
+    spot: 'meter',
+  },
 ];
 
 /** The chapter of the page at `pathname`, or -1 when the page belongs to none. */
 export function chapterIndexFor(pathname: string): number {
-  return GUIDE_CHAPTERS.findIndex((chapter) => chapter.match.test(pathname));
+  return GUIDE_CHAPTERS.findIndex((chapter) => chapter.match?.test(pathname) ?? false);
 }
 
 /** The sections' own pages, where nothing is typed or uploading. */
-const SECTION_PAGES = new Set(GUIDE_CHAPTERS.map((chapter) => chapter.route));
+const SECTION_PAGES = new Set(GUIDE_CHAPTERS.flatMap((chapter) => (chapter.route ? [chapter.route] : [])));
 
 /**
  * Whether «Дальше» may take the app to the next section: only from a section's own page that the
