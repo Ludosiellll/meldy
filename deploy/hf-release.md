@@ -4,6 +4,23 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-05 — Gemini answers quick calls again; a restricted Groq account is left alone (from 4baa64c)
+
+Adds to release 22 (tree of 3186b3e). Found by the live `/api/health/deep` right after release 22: every Gemini
+model answered INVALID_ARGUMENT to the 8 s probe, Groq answered every model with `organization_restricted`.
+
+- Gemini: the SDK sends the call's budget as `X-Server-Timeout`, and the API refuses a deadline under 10 s. The
+  header now never asks for less than 10 s (the shorter budget is still kept by the wait around the call), so the
+  quick answer check (2.5 s), the evaluate retry and the health probe reach Gemini again (`base.py`, `ocr.py`).
+- Groq: `organization_restricted` is an account-level refusal — treated like a rejected key (models skipped for a
+  while, the tutor's chain rests Groq instead of asking it twice per turn); `/check` says «аккаунт у провайдера
+  ограничен». The account itself has to be restored in the Groq console by the owner.
+
+No migrations.
+Verified before release: pytest 901, tsc -b, Vitest for the changed `/check` files (30/30; the rest of the tree is
+release 22's, Vitest 1889/1889). Not verified: a live Gemini call through the new header — check `/api/health/deep`
+right after the release.
+
 ## 2026-10-05 — «Поговорить о лекции», a roomier «Разговор», model checks that say why (from 900031f)
 
 Adds to 2a05f95 (tree of 626ad98). The owner's points of 2026-10-05: the friend's idea «как с человеком разговаривать
