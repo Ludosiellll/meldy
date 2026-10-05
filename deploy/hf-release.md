@@ -4,6 +4,31 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-05 — «Поговорить о лекции», a roomier «Разговор», model checks that say why (from 900031f)
+
+Adds to 2a05f95 (tree of 626ad98). The owner's points of 2026-10-05: the friend's idea «как с человеком разговаривать
+по нужной лекции» (turn by turn, free), «компоновка текста вместе с кнопками … как будто очень сжаты» on «Разговор»,
+and «ты проверил и выбрал самую дешевую по соотношению лимитов и качества?» about the Gemini models.
+
+- «Поговорить о лекции» (`/library/:id/talk`, a pill in the header of your own lecture): Meldy asks the lecture's
+  cards one by one, by voice («Отвечать» → «Готово», Space) or in writing; a hint, then the lecture's own words with
+  the fragment number, then an explanation; «Не знаю», «Спросить» (an answer only with a verified quote, else «В
+  лекции об этом не сказано»), «Закончить», a summary and «Продолжить разговор». One unit of the daily limit per
+  turn the model answered.
+- «Разговор» on a laptop window (≥1024 wide, ≤780 high): 14–16 px between the sheet, the voice, the player and the
+  panel's edge instead of 4–6; «Добавить схемы» in the row of the host's name; a long line fits three lines at
+  21 px; a dash never starts a line. With the new pill the header keeps one row.
+- `/api/health/deep` says why: every Gemini model tried with its error code, a quick probe with the app's own
+  settings, Groq's main and quick models; `/check` shows the reasons.
+- Gemini: two Flash-Lite models, each with its own free daily quota — 3.5 Flash-Lite first for analysis and checks of
+  lists, 3.1 Flash-Lite first for quick checks and the tutor (a `GEMINI_MODELS` variable on the Space overrides it).
+
+No migrations.
+Verified before release: tsc -b, Vitest 1889/1889, pytest 898, production build; browser on mocked Supabase/API:
+the tutor at 1532×734 dark and 390 light (pill, start, a hint, a confirmation, a question, end; no console errors,
+no sideways scroll), «Разговор» at 1024×700, 1280×720, 1532×734, 1440×900, 390, 360. Not verified: a real
+microphone and voice on phones (Safari may need «Повторить звук»), the live model chain for the tutor.
+
 ## 2026-10-05 — Limits closed, hidden sections gone, a faster first load, a way round blocked Supabase, statistics, demo insurance (from 96024ef)
 
 Adds to e1cbba3 (tree of d65bab3). The owner's points of 2026-10-05: «Закрой теперь дыры лимита, ускорь первую
