@@ -10,11 +10,13 @@
  * поэтому лист не прыгает между репликами), не ниже --cv-min и не выше --cv-max. Схема и график занимают --cv-h
  * (их же повторяет sheetMetrics() в ConversationPlayer, чтобы схема знала, сколько у неё места): 392 от 1024 px,
  * 360 уже, 336 на телефоне; в низком окне (от 1024, не выше 780) — то, что остаётся от 100vh после строки меню,
- * шапки материала со вкладками, субтитра в три строки и плеера: 100vh − 376, не меньше 300, и лист не растёт.
+ * шапки материала со вкладками, субтитра в три строки, плеера и воздуха между ними: 100vh − 415, не меньше 240,
+ * и лист не растёт.
  * Разговор из терминов и шагов получает лист ниже (от 300 / 280 / 240 px), а не пустые 400 px. Изображение, которое
  * короче листа, стоит посередине; прокрутка внутри листа (с затуханием низа) — только если длиннее листа само
- * текущее изображение: невидимые копии длиннее --cv-max обрезаны и полосу прокрутки не включают. В низком окне
- * панель теряет поля, чтобы эта арифметика сходилась. */
+ * текущее изображение: невидимые копии длиннее --cv-max обрезаны и полосу прокрутки не включают. Под листом —
+ * воздух, а не нули: субтитр, плеер и край панели разделены одинаковыми отступами (владелец, 2026-10-05: текст
+ * и кнопки «как будто очень сжаты»), а «Добавить схемы» стоит в строке имени ведущего, не отнимая у листа строку. */
 
 .cv {
   --cv-h: 392px;
@@ -38,7 +40,7 @@
   .cv { --cv-h: 336px; --cv-min: 240px; --cv-pad-y: 30px; }
 }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .cv { --cv-h: max(300px, calc(100vh - 376px)); --cv-min: 300px; --cv-max: var(--cv-h); --cv-pad-y: 40px; }
+  .cv { --cv-h: max(240px, calc(100vh - 415px)); --cv-min: min(300px, var(--cv-h)); --cv-max: var(--cv-h); --cv-pad-y: 40px; }
 }
 
 /* ---------------------------------------------------------------- the panel */
@@ -53,7 +55,7 @@
   --cv-bar-solid: #eea5bf;
   isolation: isolate;
   max-width: none;
-  padding: 22px 28px 20px;
+  padding: 22px 28px 24px;
   border-radius: 48px;
   background: linear-gradient(150deg, #f7c9d9 0%, #e98fb0 100%);
   color: var(--cv-on);
@@ -87,33 +89,22 @@
 .dark .cv-show::before { opacity: .22; }
 
 /* ---------------------------------------------------------------- meta above the sheet */
-.cv-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0 24px;
-  margin-top: 0;
-  padding: 0 6px;
-}
-.cv-meta { margin: 0; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--cv-on-muted, var(--sf-muted)); }
-.cv-meta-row .sf-link { font-size: 15px; color: var(--cv-on, var(--sf-ink)); }
-.cv-error { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin: 8px 0 0; padding: 0 6px; font-size: 15px; line-height: 22px; color: var(--cv-on, var(--sf-ink)); }
+/* The gap under the line belongs to the line: where it is hidden (projector, low window, phone) the sheet starts
+   right at the top of the panel, with no empty strip. */
+.cv-meta { margin: 0 0 14px; padding: 0 6px; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--cv-on-muted, var(--sf-muted)); }
+.cv-error { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin: 12px 0 0; padding: 0 6px; font-size: 15px; line-height: 22px; color: var(--cv-on, var(--sf-ink)); }
 .cv-show .sf-link { color: var(--cv-on); }
 /* The projector and the 1280×720 window keep their height for the sheet: the meta is read aloud. */
 html[data-stage] .cv-meta { display: none; }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .cv-meta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
-  .cv-meta-row { margin-top: 0; }
+  .cv-meta { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }
 @media (max-width: 639px) {
-  .cv-meta-row { margin-top: 0; }
-  .cv-meta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
-  .cv-meta-row .sf-link { margin-top: 8px; }
+  .cv-meta { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* ---------------------------------------------------------------- the sheet: the white window on the panel */
-.cv-stage { position: relative; max-width: 1112px; margin-top: 14px; }
+.cv-stage { position: relative; max-width: 1112px; }
 .cv-show .cv-stage { max-width: none; }
 .cv-sheet {
   display: flex;
@@ -167,11 +158,9 @@ html[data-stage] .cv-meta { display: none; }
 .cv-layer[data-measure] { max-height: calc(var(--cv-max) - var(--cv-pad-y)); overflow: hidden; visibility: hidden; pointer-events: none; }
 .cv-layer[data-enter] { animation: cv-fade 150ms ease both; }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .cv-stage { margin-top: 0; }
   .cv-sheet { padding: 22px 36px 18px; }
 }
 @media (max-width: 639px) {
-  .cv-stage { margin-top: 10px; }
   .cv-sheet { padding: 16px 16px 14px; font-size: 17px; line-height: 25px; }
   .cv-show .cv-sheet.sf-sheet { border-radius: 26px; }
 }
@@ -436,11 +425,18 @@ html[data-stage] .cv-meta { display: none; }
 }
 
 /* ---------------------------------------------------------------- the subtitle: Meldy's voice on the panel */
-.cv-sub { margin-top: 18px; padding: 0 6px; }
+/* The voice under the sheet: the host's name, «Добавить схемы» on the right of the same row (it changes the sheet
+   just above it and takes no row of its own), the line under them. */
+.cv-voice { position: relative; margin-top: 22px; padding: 0 6px; }
+.cv-voice[data-add] .cv-who { padding-right: 172px; }
+/* The word sits on the name's line; the padding makes the press area taller without moving anything. */
+.cv-add.sf-link { position: absolute; top: -6px; right: 6px; min-height: 0; padding: 6px 0; font-size: 15px; line-height: 22px; white-space: nowrap; }
 .cv-who { margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; color: var(--cv-on, var(--sf-ink)); }
 .cv-line {
   box-sizing: border-box;
-  max-width: 40em;
+  /* One measure in px for every step: a smaller step takes more words on a line, so a long line fits the three
+     lines it is given instead of keeping four lines in a smaller face. */
+  max-width: 1040px;
   min-height: 108px;
   margin: 4px 0 0;
   font-size: 26px;
@@ -455,13 +451,15 @@ html[data-stage] .cv-meta { display: none; }
 .cv-line[data-fit='1'] { font-size: 23px; line-height: 32px; }
 .cv-line[data-fit='2'] { font-size: 20px; line-height: 28px; }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .cv-sub { margin-top: 10px; }
+  .cv-voice { margin-top: 16px; }
   .cv-line { min-height: 99px; font-size: 24px; line-height: 33px; }
   .cv-line[data-fit='1'] { font-size: 21px; line-height: 29px; }
   .cv-line[data-fit='2'] { font-size: 19px; line-height: 26px; }
 }
 @media (max-width: 639px) {
-  .cv-sub { margin-top: 14px; padding: 0 4px; }
+  .cv-voice { margin-top: 14px; padding: 0 4px; }
+  .cv-voice[data-add] .cv-who { padding-right: 140px; }
+  .cv-add.sf-link { top: -12px; right: 4px; padding: 12px 0; font-size: 14px; line-height: 20px; }
   .cv-who { font-size: 15px; line-height: 20px; }
   .cv-line { min-height: 108px; margin-top: 2px; font-size: 19px; line-height: 27px; }
   .cv-line[data-fit='1'],
@@ -475,10 +473,10 @@ html[data-stage] .cv-meta { display: none; }
   grid-template-areas: 'transport segs pos speed text';
   align-items: center;
   gap: 8px 24px;
-  margin-top: 12px;
-  padding: 0 6px 2px 0;
+  margin-top: 20px;
+  padding: 0 6px 0 0;
 }
-.cv-transport { grid-area: transport; display: flex; align-items: center; gap: 8px; }
+.cv-transport { grid-area: transport; display: flex; align-items: center; gap: 10px; }
 .cv-ico {
   display: inline-grid;
   place-items: center;
@@ -505,7 +503,7 @@ html[data-stage] .cv-meta { display: none; }
   place-items: center;
   width: 60px;
   height: 60px;
-  margin: 0 4px;
+  margin: 0 6px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -567,7 +565,7 @@ html[data-stage] .cv-meta { display: none; }
 /* The status takes a row of its own under the player only while there is something to say (no empty gap). */
 .cv-status { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin: 0; padding: 2px 6px 0; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--cv-on, var(--sf-ink)); }
 @media (min-width: 1024px) and (max-height: 780px) {
-  .cv-player { margin-top: 6px; }
+  .cv-player { margin-top: 16px; }
   .cv-play { width: 56px; height: 56px; }
 }
 @media (max-width: 1023px) {
@@ -720,12 +718,12 @@ html[data-stage] .cv-meta { display: none; }
 
 /* ---------------------------------------------------------------- the talk tab of a material in the low window */
 /* MaterialDetail marks its page data-tab="talk": on a 1280×720 projector window the header shrinks to the
-   title (30/36) and the tabs (44), the crumb and the meta line fold away, and the panel of the player gives up its
-   margins, so the sheet, three subtitle lines and the player fit without scrolling the page. Other tabs keep the
-   ordinary header. */
+   title (30/36) and the tabs (44), the crumb and the meta line fold away, so the sheet, three subtitle lines and the
+   player fit without scrolling the page. The room comes from the sheet (--cv-h), not from the air around the voice
+   and the player: 14–16 px everywhere, the halo of ▶ clear of the edge. Other tabs keep the ordinary header. */
 @media (min-width: 1024px) and (max-height: 780px) {
-  /* The sum at 1280×720: top line 76 + title row 8 + 44 + tabs 2 + 44 + panel 6 + 6 + sheet 344 + subtitle 6 + 20 + 4 + 99
-     + player 4 + 52 + 4 = 719. */
+  /* The sum at 1280×720: top line 76 + title row 8 + 44 + tabs 2 + 44 + panel 6 + 14 + sheet 305 + voice 16 + 20 + 4
+     + 99 + player 16 + 52 + 14 = 720. */
   .sf-page[data-tab='talk'] { padding-bottom: 0; }
   .sf-page[data-tab='talk'] .sf-detail-head { padding-top: 8px; }
   .sf-page[data-tab='talk'] .sf-crumb { display: none; }
@@ -745,12 +743,14 @@ html[data-stage] .cv-meta { display: none; }
   .sf-page[data-tab='talk'] .sf-head-actions .sf-secondary .md-dot { width: 36px; height: 36px; }
   .sf-page[data-tab='talk'] .sf-head-actions .sf-more { width: 44px; height: 44px; }
   .sf-page[data-tab='talk'] .sf-viewtabs [role='tab'] { min-height: 40px; }
-  .sf-page[data-tab='talk'] .cv-show { margin-top: 6px; padding: 6px 10px 4px; border-radius: 36px; }
+  .sf-page[data-tab='talk'] .cv-show { margin-top: 6px; padding: 14px 16px; border-radius: 44px; }
   .sf-page[data-tab='talk'] .cv-show .cv-sheet.sf-sheet { border-radius: 30px; }
-  .sf-page[data-tab='talk'] .cv-sub { margin-top: 6px; }
-  .sf-page[data-tab='talk'] .cv-who { line-height: 20px; }
-  .sf-page[data-tab='talk'] .cv-player { margin-top: 4px; padding-bottom: 0; }
+  .sf-page[data-tab='talk'] .cv-voice { margin-top: 16px; }
+  .sf-page[data-tab='talk'] .cv-who,
+  .sf-page[data-tab='talk'] .cv-add.sf-link { line-height: 20px; }
+  .sf-page[data-tab='talk'] .cv-player { margin-top: 16px; }
   .sf-page[data-tab='talk'] .cv-play { width: 52px; height: 52px; box-shadow: 0 0 0 6px rgba(255, 255, 255, .3); }
+  .dark .sf-page[data-tab='talk'] .cv-play { box-shadow: 0 0 0 6px rgba(255, 255, 255, .1); }
 }
 
 @media (prefers-reduced-motion: reduce) {

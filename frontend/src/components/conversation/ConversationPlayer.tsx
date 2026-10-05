@@ -54,6 +54,7 @@ import type {
 } from './types';
 import './conversation.css';
 import { track } from '../../lib/telemetry';
+import { ty } from '../landing/typo';
 
 export interface ConversationPlayerProps {
   /** summary_json.podcast как есть (старые реплики тоже подходят). */
@@ -194,12 +195,12 @@ export interface SheetMetrics {
  * Высота листа «Разговора» для схемы и графика и его поля по размеру окна — те же числа, что
  * в conversation.css (--cv-h, --cv-max): 392 от 1024 px, 360 уже, 336 на телефоне; в низком окне
  * (от 1024, не выше 780) — остаток 100vh под строкой меню, шапкой материала, субтитром в три строки
- * и плеером (не меньше 300 px), и лист не растёт. Разговор из одних терминов и шагов получает лист
- * ниже — по самому высокому своему изображению, но не ниже --cv-min.
+ * и плеером с их отступами (100vh − 415, не меньше 240 px), и лист не растёт. Разговор из одних
+ * терминов и шагов получает лист ниже — по самому высокому своему изображению, но не ниже --cv-min.
  */
 export function sheetMetrics(width: number, height: number): SheetMetrics {
   if (width >= 1024 && height <= 780) {
-    const low = Math.max(300, height - 376);
+    const low = Math.max(240, height - 415);
     return { height: low, max: low, padTop: 22, padBottom: 18 };
   }
   if (width >= 1024) return { height: 392, max: 520, padTop: 28, padBottom: 26 };
@@ -865,15 +866,7 @@ export default function ConversationPlayer({
       className="cv cv-show"
     >
       <h2 className="sr-only">Разговор по материалу</h2>
-      <div className="cv-meta-row">
-        <p className="cv-meta">{meta}</p>
-        {canAddVisuals && (
-          <button type="button" onClick={addVisuals} disabled={addingVisuals} className="sf-link">
-            {addingVisuals ? 'Подбираем схемы…' : 'Добавить схемы'}
-          </button>
-        )}
-      </div>
-      {visualsJob.state === 'error' && canAddVisuals && <JobError message={visualsJob.message} onRetry={addVisuals} />}
+      <p className="cv-meta">{meta}</p>
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement.text}
@@ -962,7 +955,7 @@ export default function ConversationPlayer({
                       title={onScreen ? `На экране: ${onScreen}` : undefined}
                     >
                       <span className="cv-panel-who">{line.speaker || 'Ведущий'}</span>
-                      <span className="cv-panel-text">{line.text}</span>
+                      <span className="cv-panel-text">{ty(line.text)}</span>
                       {onScreen && <span className="sr-only">{`На экране: ${onScreen}`}</span>}
                     </button>
                   </li>
@@ -973,14 +966,25 @@ export default function ConversationPlayer({
         )}
       </div>
 
-      <section aria-label="Субтитры" className="cv-sub">
-        <p data-speaker={active.speaker || 'Ведущий'} className="cv-who">
-          {active.speaker || 'Ведущий'}
-        </p>
-        <p ref={lineRef} className="cv-line" data-fit={fitStep}>
-          {active.text}
-        </p>
-      </section>
+      {visualsJob.state === 'error' && canAddVisuals && <JobError message={visualsJob.message} onRetry={addVisuals} />}
+
+      {/* Голос под листом: имя ведущего, справа на той же строке — «Добавить схемы» (она меняет то, что
+          на листе, поэтому стоит у его нижнего края и не отнимает у листа свою строку), ниже реплика. */}
+      <div className="cv-voice" data-add={canAddVisuals ? '' : undefined}>
+        <section aria-label="Субтитры" className="cv-sub">
+          <p data-speaker={active.speaker || 'Ведущий'} className="cv-who">
+            {active.speaker || 'Ведущий'}
+          </p>
+          <p ref={lineRef} className="cv-line" data-fit={fitStep}>
+            {ty(active.text)}
+          </p>
+        </section>
+        {canAddVisuals && (
+          <button type="button" onClick={addVisuals} disabled={addingVisuals} className="sf-link cv-add">
+            {addingVisuals ? 'Подбираем схемы…' : 'Добавить схемы'}
+          </button>
+        )}
+      </div>
 
       <div className="cv-player" role="group" aria-label="Плеер">
         <div className="cv-transport">

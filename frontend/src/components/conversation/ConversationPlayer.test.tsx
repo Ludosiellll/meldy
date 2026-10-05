@@ -214,7 +214,7 @@ describe('ConversationPlayer', () => {
     render(<ConversationPlayer lines={modelLines} title="Термодинамика" />);
 
     const transcript = openTranscript();
-    await user.click(within(transcript).getByRole('button', { name: /Посмотрим на цифры из лекции/ }));
+    await user.click(within(transcript).getByRole('button', { name: /Посмотрим на\sцифры из\sлекции/ }));
 
     const scene = activeScene();
     // No small type label over the picture («График»): the title says what it is.
@@ -272,7 +272,7 @@ describe('ConversationPlayer', () => {
     render(<ConversationPlayer lines={modelLines} />);
 
     const transcript = openTranscript();
-    await user.click(within(transcript).getByRole('button', { name: /А как проверить себя/ }));
+    await user.click(within(transcript).getByRole('button', { name: /А\sкак проверить себя/ }));
 
     const scene = activeScene();
     expect(within(scene).getByRole('heading', { name: 'Что растёт в изолированной системе?' })).toBeInTheDocument();
@@ -643,7 +643,7 @@ describe('ConversationPlayer', () => {
 
     // Пока звук идёт, голос сам читает реплику: говорим только, где мы и что на экране.
     const transcript = openTranscript();
-    fireEvent.click(within(transcript).getByRole('button', { name: /Посмотрим на цифры из лекции/ }));
+    fireEvent.click(within(transcript).getByRole('button', { name: /Посмотрим на\sцифры из\sлекции/ }));
     expect(live).toHaveTextContent('Реплика 4 из 4. На экране: График — Температура кипения.');
     expect(live.textContent).not.toContain('Посмотрим на цифры');
   });
@@ -860,7 +860,7 @@ describe('ConversationPlayer', () => {
     const player = screen.getByRole('region', { name: 'Разговор по материалу' });
     fireEvent.keyDown(player, { key: 'ArrowRight' });
     expect(screen.getByText('Реплика 2 из 4')).toBeInTheDocument();
-    expect(within(screen.getByRole('complementary', { name: 'Текст разговора' })).getByRole('button', { name: /Начнём с главного понятия/ })).toHaveAttribute(
+    expect(within(screen.getByRole('complementary', { name: 'Текст разговора' })).getByRole('button', { name: /Начнём с\sглавного понятия/ })).toHaveAttribute(
       'aria-current',
       'true',
     );
@@ -903,9 +903,10 @@ describe('ConversationPlayer', () => {
     expect(sheetMetrics(1024, 900).height).toBe(392);
     expect(sheetMetrics(800, 900)).toEqual({ height: 360, max: 520, padTop: 28, padBottom: 26 });
     expect(sheetMetrics(390, 844)).toEqual({ height: 336, max: 520, padTop: 16, padBottom: 14 });
-    // The low window (≥1024 wide, ≤780 high): what is left of 100vh, at least 300, and no growth.
-    expect(sheetMetrics(1280, 720)).toEqual({ height: 344, max: 344, padTop: 22, padBottom: 18 });
-    expect(sheetMetrics(1366, 640)).toEqual({ height: 300, max: 300, padTop: 22, padBottom: 18 });
+    // The low window (≥1024 wide, ≤780 high): what is left of 100vh, at least 240, and no growth.
+    expect(sheetMetrics(1280, 720)).toEqual({ height: 305, max: 305, padTop: 22, padBottom: 18 });
+    expect(sheetMetrics(1536, 734)).toEqual({ height: 319, max: 319, padTop: 22, padBottom: 18 });
+    expect(sheetMetrics(1366, 640)).toEqual({ height: 240, max: 240, padTop: 22, padBottom: 18 });
     expect(sheetMetrics(1280, 781).height).toBe(392);
   });
 
