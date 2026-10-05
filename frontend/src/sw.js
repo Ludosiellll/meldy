@@ -29,6 +29,7 @@ const navigationRoute = new NavigationRoute(
   {
     denylist: [
       /^\/api/,      // Exclude API requests
+      /^\/sb\//,     // The fallback way to Supabase (backend/supabase_proxy.py)
       /^\/supabase/  // Exclude Supabase requests
     ]
   }

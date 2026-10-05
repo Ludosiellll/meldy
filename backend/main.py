@@ -46,6 +46,7 @@ from agents.coordinator import CORE_SECTIONS, CoordinatorAgent
 import quota
 import receipts
 import supabase_rest
+from supabase_proxy import router as supabase_proxy_router
 from plans import AI_COSTS
 from utils import extract_relevant_paragraphs, scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
@@ -268,6 +269,8 @@ app.include_router(push_router, prefix="/api/push", tags=["push"])
 # «Билеты» and «Ответ вслух» declare their own full /api/... paths.
 app.include_router(exams_router)
 app.include_router(oral_router)
+# /sb/… — the browser's fallback way to Supabase when *.supabase.co is unreachable (supabase_proxy.py).
+app.include_router(supabase_proxy_router)
 
 scheduler = AsyncIOScheduler()
 
