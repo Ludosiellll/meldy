@@ -718,6 +718,40 @@ describe('text-only materials and review link', () => {
   });
 });
 
+describe('«Поговорить о лекции»', () => {
+  it('opens the voice tutor of the lecture, before «Повторить карточки»', async () => {
+    state.material = {
+      ...makeMaterial(),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
+    renderPage('/library/m1');
+    const talk = await screen.findByRole('link', { name: 'Поговорить о лекции' });
+    expect(talk).toHaveAttribute('href', '/library/m1/talk');
+    expect(talk).toHaveClass('sf-secondary', 'md-pill');
+    const review = screen.getByRole('link', { name: 'Повторить карточки' });
+    expect(talk.compareDocumentPosition(review) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('is there for a lecture with text but no cards yet: the room says to analyse it first', async () => {
+    renderPage('/library/m1');
+    expect(await screen.findByRole('link', { name: 'Поговорить о лекции' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Повторить карточки' })).not.toBeInTheDocument();
+  });
+
+  it('is not offered without the lecture’s text, nor on someone else’s lecture', async () => {
+    state.material = { ...makeMaterial(), original_text: '   ' };
+    const { unmount } = renderPage('/library/m1');
+    await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    expect(screen.queryByRole('link', { name: 'Поговорить о лекции' })).not.toBeInTheDocument();
+    unmount();
+
+    state.material = makeMaterial({}, 'teacher-1');
+    renderPage('/library/m1');
+    await screen.findByRole('heading', { level: 1, name: 'Энтропия' });
+    expect(screen.queryByRole('link', { name: 'Поговорить о лекции' })).not.toBeInTheDocument();
+  });
+});
+
 describe('«Разговор» on the 1280×720 projector window (spec 5.7)', () => {
   it('marks only the talk tab, so that the low window folds the header there and nowhere else', async () => {
     state.material = makeMaterial({ podcast: legacyLines });

@@ -387,6 +387,9 @@ export default function MaterialDetail() {
     : Array.isArray(material.flashcards_json?.flashcards)
       ? material.flashcards_json.flashcards.length
       : 0;
+  // «Поговорить о лекции»: репетитор спрашивает по тексту лекции и её карточкам. Разговаривать можно только
+  // о своей лекции (сервер отвечает 404 на чужую); без карточек комната сама скажет «сначала разберите лекцию».
+  const canTalk = canEdit && typeof material.original_text === 'string' && material.original_text.trim() !== '';
   // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
   const showExpress = hasCheatsheet || expressRequested || cheatsheetMissing;
   const modes: Mode[] = ['full', ...(showExpress ? (['express'] as const) : []), 'podcast'];
@@ -501,6 +504,14 @@ export default function MaterialDetail() {
         </div>
         {cardCount > 0 || canEdit ? (
           <div className="sf-head-actions md-acts">
+            {canTalk && (
+              <Link className="sf-secondary md-pill" to={`/library/${encodeURIComponent(material.id)}/talk`}>
+                Поговорить о лекции
+                <span className="md-dot" aria-hidden="true">
+                  <ArrowRight strokeWidth={2} />
+                </span>
+              </Link>
+            )}
             {cardCount > 0 && (
               <Link className="sf-secondary md-pill" to={`/review?material=${encodeURIComponent(material.id)}`}>
                 Повторить карточки

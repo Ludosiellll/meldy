@@ -45,7 +45,9 @@ html[data-stage] .md-crumb { display: none; }
 .md-head .sf-inline-edit { margin-top: 6px; }
 .md-head .sf-inline-edit .sf-input { border-radius: 16px; }
 
-.md-acts { gap: 10px; }
+/* «Поговорить о лекции», «Повторить карточки» and «⋯»: on a narrow screen the pills take a line each
+   rather than push the page sideways. */
+.md-acts { flex-wrap: wrap; gap: 10px; }
 
 /* The second button of the language: a white pill with a black circle and an arrow. */
 .md-pill.sf-secondary {
