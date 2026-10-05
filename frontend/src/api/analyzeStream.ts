@@ -88,6 +88,11 @@ function serverMessage(value: unknown): string | null {
   return text && text.length <= 300 && /[А-Яа-яЁё]/.test(text) ? text : null;
 }
 
+/** Квитанция анализа (backend/receipts.py): строка сервера разумной длины, иначе её нет. */
+function receiptOf(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 && value.length <= 2000 ? value : undefined;
+}
+
 /** Событие error сервера → AnalyzeError по коду (§3 контрактов). */
 export function analyzeErrorFromEvent(event: Record<string, unknown>): AnalyzeError {
   const message = serverMessage(event.message);
@@ -187,6 +192,7 @@ export async function runAnalyzeStream(opts: AnalyzeStreamOptions): Promise<Anal
       warnings: Array.isArray(finalResults.warnings) ? (finalResults.warnings as AnalysisResults['warnings']) : [],
       grounding: parseGrounding(finalResults.grounding) ?? collector.grounding,
       sections: isRecord(finalResults.sections) ? (finalResults.sections as AnalysisResults['sections']) : undefined,
+      receipt: receiptOf(finalResults.receipt),
     };
     const statuses = statusesFromResults(raw, opts.requested);
     if (!isRunUsable(statuses, opts.requested)) {

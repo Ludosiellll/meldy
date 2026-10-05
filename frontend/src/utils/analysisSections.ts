@@ -373,6 +373,8 @@ export function buildMaterialRow(input: MaterialRowInput): Record<string, unknow
     sections: results.sections ?? {},
   };
   if (results.grounding) summaryJson.grounding = results.grounding;
+  // «Создать … заново» для неудавшегося раздела бесплатно только по квитанции сервера.
+  if (typeof results.receipt === 'string' && results.receipt) summaryJson.receipt = results.receipt;
   if (input.demoTextId) {
     summaryJson.origin = 'demo';
     summaryJson.demo_text_id = input.demoTextId;

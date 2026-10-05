@@ -148,6 +148,16 @@ describe('material row', () => {
       sections: { summarizer: { status: 'ok' }, flashcards: { status: 'failed', message: 'Модель не ответила' }, quiz: { status: 'ok' } },
     });
     expect(JSON.stringify(row)).not.toContain('"error"');
+    expect(summaryJson).not.toHaveProperty('receipt');
+  });
+
+  it('stores the server receipt of the failed sections: with it «Создать … заново» is free', () => {
+    const results = displayResults(
+      { summarizer: summary, flashcards: { error: 'x' } as never, quiz, receipt: 'r1.payload.signature' },
+      { summarizer: { status: 'ok' }, flashcards: { status: 'failed', message: 'Модель не ответила' }, quiz: { status: 'ok' } },
+    );
+    const row = buildMaterialRow({ userId: 'u1', results, extractedText: 'Текст', sourceName: 'lecture.pdf' });
+    expect((row.summary_json as Record<string, unknown>).receipt).toBe('r1.payload.signature');
   });
 
   it('falls back to the source name for the title and has no demo keys for a normal run', () => {

@@ -30,6 +30,7 @@ import contextlib
 import contextvars
 import functools
 import hashlib
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -339,8 +340,21 @@ class Charge:
         if self._refund_task is None:
             self.refunded = False  # нет цикла событий: вернёт следующий refund()
 
-    async def _send_refund(self) -> None:
-        args = {"p_units": self.units, "p_kind": self.kind, "p_charge": self.charge_id}
+    def keep_share(self, given: int, total: int) -> None:
+        """Отдана часть результата (given из total частей): её доля единиц (с округлением вверх)
+        остаётся списанной, остальное возвращается в фоне. Потом refund() и release_unkept() ничего
+        не возвращают."""
+        given, total = _count(given), _count(total)
+        self.kept = True
+        if total <= 0 or given >= total:
+            return
+        back = self.units - math.ceil(self.units * given / total)
+        if back <= 0 or not self.reserved or self._refund_task is not None:
+            return
+        self._refund_task = _spawn(self._send_refund(back))
+
+    async def _send_refund(self, units: Optional[int] = None) -> None:
+        args = {"p_units": self.units if units is None else units, "p_kind": self.kind, "p_charge": self.charge_id}
         try:
             async with supabase_rest.SupabaseRest(self.token, timeout=QUOTA_TIMEOUT_SECONDS) as db:
                 await asyncio.wait_for(db.rpc("refund_ai_units", args), timeout=QUOTA_TIMEOUT_SECONDS + 0.5)
@@ -443,6 +457,16 @@ class ChargeGroup:
     def refund_soon(self) -> None:
         for item in self.charges:
             item.refund_soon()
+
+    def keep_share(self, given: int, total: int) -> None:
+        """Отдана часть результата: своё списание потока (первое) оставляет долю, добавленные
+        (распознавание скана — оно уже сделано) остаются целиком."""
+        self.kept = True
+        for index, item in enumerate(self.charges):
+            if index == 0:
+                item.keep_share(given, total)
+            else:
+                item.keep()
 
     async def refund(self) -> None:
         for item in self.charges:

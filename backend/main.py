@@ -11,7 +11,7 @@ import time
 import uuid
 from collections import OrderedDict
 from datetime import date, datetime, timezone
-from typing import AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, List, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -44,6 +44,7 @@ from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from agents.coordinator import CORE_SECTIONS, CoordinatorAgent
 import quota
+import receipts
 import supabase_rest
 from plans import AI_COSTS
 from utils import extract_relevant_paragraphs, scrape_url
@@ -394,17 +395,44 @@ def _ocr_failure_event(exc: Exception) -> dict:
     return {"type": "error", "code": "failed", "message": OCR_FAILED_MESSAGE}
 
 
+def _failed_core_sections(sections: Any) -> list[str]:
+    """Core sections of a results event whose status is not ok."""
+    if not isinstance(sections, dict):
+        return []
+    return [
+        name for name, state in sections.items()
+        if name in CORE_SECTIONS and isinstance(state, dict) and state.get("status") != "ok"
+    ]
+
+
+def _request_user_id(request: Request) -> Optional[str]:
+    user = getattr(request.state, "user", None)
+    user_id = user.get("id") if isinstance(user, dict) else None
+    return user_id if isinstance(user_id, str) and user_id else None
+
+
 async def _analysis_events(
-    text: str, settings: dict, enabled_agents: Optional[str], extracted: Optional[dict] = None
+    text: str,
+    settings: dict,
+    enabled_agents: Optional[str],
+    extracted: Optional[dict] = None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[dict, None]:
     """text_extracted (with ocr/pages when the text was recognised), the coordinator events,
-    and done only after results."""
+    and done only after results.
+
+    results carries a receipt (receipts.py) for ``owner`` when a core section failed: with it the
+    saved material gets that section «заново» for free."""
     yield {"type": "text_extracted", "length": len(text), "text": text, **(extracted or {})}
     coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
     terminal = None
     async for event in coordinator.process(text, enabled_agents=_parse_enabled_agents(enabled_agents), **settings):
         if terminal is not None:
             continue  # nothing may follow the terminal event
+        if event.get("type") == "results":
+            receipt = receipts.issue(owner, text, _failed_core_sections(event.get("sections")))
+            if receipt:
+                event = {**event, "receipt": receipt}
         yield event
         if event.get("type") in ("results", "error"):
             terminal = event.get("type")
@@ -423,10 +451,15 @@ async def _guarded(
     (or ``done`` when results were already sent), never a second terminal event.
 
     The units reserved for the run (``charge``) go back unless ``results`` was sent: an
-    error event, an exception or a client gone before the results costs nothing.
+    error event, an exception or a client gone before the results costs nothing — unless sections
+    were already given out (agent_done ok): then their share stays charged, as the page saves them
+    (a cut connection was a way to get sections for free, 2026-10-05). The core sections count
+    when any was asked for, like the coordinator's own «usable run» rule.
     """
     results_sent = False
     terminal_sent = False
+    asked: list[str] = []
+    given: set[str] = set()
     try:
         async for event in events:
             if terminal_sent:
@@ -438,6 +471,10 @@ async def _guarded(
                     charge.keep()
             elif kind in ("error", "done"):
                 terminal_sent = True
+            elif kind == "agent_start" and isinstance(event.get("agent"), str):
+                asked.append(event["agent"])
+            elif kind == "agent_done" and event.get("status") == "ok" and isinstance(event.get("agent"), str):
+                given.add(event["agent"])
             yield sse_event(event)
     except Exception as exc:
         error_id = uuid.uuid4().hex[:12]
@@ -448,7 +485,12 @@ async def _guarded(
         yield sse_event({"type": "done"} if results_sent else _internal_error_event(error_id))
     finally:
         if charge is not None and not results_sent:
-            charge.refund_soon()
+            counted = [name for name in asked if name in CORE_SECTIONS] or asked
+            delivered = len(given.intersection(counted))
+            if delivered:
+                charge.keep_share(delivered, len(counted))
+            else:
+                charge.refund_soon()
 
 
 def _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type) -> dict:
@@ -474,6 +516,7 @@ async def event_stream(
     *,
     charge: Optional["quota.ChargeGroup"] = None,
     charge_scan=None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress for an uploaded document (already read by the route).
 
@@ -524,7 +567,7 @@ async def event_stream(
             yield {"type": "error", "code": "no_text", "message": message}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents, extracted):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "Analysis", charge)) as frames:
@@ -568,6 +611,7 @@ async def analyze(
             ocr_key=user_or_ip_key(request),
             charge=charge,
             charge_scan=lambda units: quota.charge(request, "scanPages", units),
+            owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -596,6 +640,7 @@ async def event_stream_media(
     ocr_key: Optional[str] = None,
     *,
     charge: Optional["quota.Charge"] = None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream for an audio, video or image file (already read by the route).
 
@@ -646,7 +691,7 @@ async def event_stream_media(
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_MEDIA_MESSAGE}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents, extracted):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "Media analysis", charge)) as frames:
@@ -687,6 +732,7 @@ async def analyze_media(
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
             charge=charge,
+            owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -705,6 +751,7 @@ async def event_stream_url(
     enabled_agents: Optional[str] = None,
     *,
     charge: Optional["quota.Charge"] = None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     async def events():
         yield {"type": "status", "message": "Открываем страницу и забираем текст…"}
@@ -718,7 +765,7 @@ async def event_stream_url(
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_AT_URL_MESSAGE}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents):
+        async for event in _analysis_events(text, settings, enabled_agents, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "URL analysis", charge)) as frames:
@@ -747,6 +794,7 @@ async def analyze_url(
         with_keepalive(event_stream_url(
             url.strip(), summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             charge=charge,
+            owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -769,13 +817,14 @@ _MATERIAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
 
 
 async def _section_repair_text(request: Request, material_id: Optional[str], section: str) -> Optional[str]:
-    """The saved text of the caller's own material whose paid analysis left this section without
-    content (summary_json.sections[section].status is not ok), or None: then the section is charged.
+    """The saved text of the caller's own material whose analysis left this section without content,
+    or None: then the section is charged.
 
     Read with the caller's token (RLS), and the owner is compared too: a public material of someone
-    else is readable but not repairable for free. Any failure of the check means «not a repair».
-    The row is the owner's own and editable by them, so this trusts it: the route's day cap
-    (20 sections) bounds what a forged «failed» section can get for free.
+    else is readable but not repairable for free. The row is the owner's own and editable by them,
+    so the failure is taken from the analysis's receipt (summary_json.receipt, receipts.py), signed
+    by the server for this user and this text; the saved status must say «not ok» as well. Any
+    failure of the check means «not a repair».
     """
     user = getattr(request.state, "user", None)
     if not material_id or not _MATERIAL_ID_RE.match(material_id) or not isinstance(user, dict) or not user.get("id"):
@@ -803,6 +852,8 @@ async def _section_repair_text(request: Request, material_id: Optional[str], sec
     text = row.get("original_text")
     if not isinstance(text, str) or not text.strip():
         return None
+    if not receipts.covers(summary.get("receipt"), user["id"], text, section):
+        return None
     return text[:ANALYZE_SECTION_MAX_CHARS]
 
 
@@ -811,11 +862,11 @@ async def _section_repair_text(request: Request, material_id: Optional[str], sec
 async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     """«Создать … заново»: one core section for an analysed material.
 
-    Free only as a repair: the caller's own material whose paid analysis left this section without
-    content — then its saved text is used, not the text sent. Anything else costs
-    AI_COSTS["analysisSection"]: free sections over a free text-only import were a whole analysis
-    without the daily limit (2026-10-05). The text is chunked exactly like the analysis, so the
-    S-ids match the saved material.
+    Free only as a repair: the caller's own material whose analysis left this section without
+    content, by the analysis's signed receipt — then its saved text is used, not the text sent.
+    Anything else costs AI_COSTS["analysisSection"]: free sections over a free text-only import were
+    a whole analysis without the daily limit (2026-10-05). The text is chunked exactly like the
+    analysis, so the S-ids match the saved material.
     """
     if req.section not in CORE_SECTIONS:
         raise HTTPException(status_code=400, detail="Этот раздел нельзя создать отдельно.")

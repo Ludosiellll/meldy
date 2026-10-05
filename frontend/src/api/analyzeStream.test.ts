@@ -82,6 +82,17 @@ describe('runAnalyzeStream outcomes', () => {
     expect(new Headers(lastInit?.headers).get('Authorization')).toBe('Bearer tok');
   });
 
+  it('keeps the server receipt of the failed sections for the saved material, never junk', async () => {
+    mockFetch(() => sseResponse([ev(TEXT), ev({ ...RESULTS, receipt: 'r1.payload.signature' })]));
+    const outcome = await run();
+    expect(outcome.kind === 'results' && outcome.results.receipt).toBe('r1.payload.signature');
+    for (const junk of [42, '', 'x'.repeat(2001)]) {
+      mockFetch(() => sseResponse([ev(TEXT), ev({ ...RESULTS, receipt: junk })]));
+      const plain = await run();
+      expect(plain.kind === 'results' && plain.results.receipt).toBeUndefined();
+    }
+  });
+
   it('results then a cut connection still resolves with the results', async () => {
     mockFetch(() => sseResponse([ev(TEXT), ev(RESULTS)], 'error'));
     const outcome = await run();

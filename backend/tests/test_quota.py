@@ -27,6 +27,7 @@ import exams_api  # noqa: E402
 import exams_map  # noqa: E402
 import oral_api  # noqa: E402
 import quota  # noqa: E402
+import receipts  # noqa: E402
 import supabase_rest  # noqa: E402
 from agents import base  # noqa: E402
 from agents.base import AIError, BaseAgent  # noqa: E402
@@ -358,13 +359,25 @@ def test_every_model_endpoint_reserves_its_plan_cost_and_refunds_when_the_model_
 
 MATERIAL_ID = "11111111-2222-4333-8444-555555555555"
 STORED_TEXT = "Сохранённый текст лекции про инфляцию и ключевую ставку. " * 12
+RECEIPT_KEY = "receipt-test-key"
 
 
-def material_row(*, owner="token-a", status="failed", text=STORED_TEXT):
+@pytest.fixture(autouse=True)
+def receipt_key(monkeypatch):
+    monkeypatch.setenv("ANALYSIS_RECEIPT_KEY", RECEIPT_KEY)
+
+
+def receipt(user="user-a", text=STORED_TEXT, failed=("quiz",)):
+    return receipts.issue(user, text, failed)
+
+
+def material_row(*, owner="token-a", status="failed", text=STORED_TEXT, receipt_of=None):
+    """Строка materials; receipt_of — квитанция анализа (по умолчанию — честная: этот текст, этот владелец, тест не получился)."""
     sections = {"summarizer": {"status": "ok"}}
     if status is not None:
         sections["quiz"] = {"status": status}
-    return {"user_id": TOKENS[owner], "summary_json": {"sections": sections}, "original_text": text}
+    summary = {"sections": sections, "receipt": receipt() if receipt_of is None else receipt_of}
+    return {"user_id": TOKENS[owner], "summary_json": summary, "original_text": text}
 
 
 def serve_material(server, row):
@@ -391,17 +404,26 @@ def test_a_section_that_failed_in_a_paid_analysis_is_repaired_free_from_the_save
 
 
 @pytest.mark.parametrize(
-    "row",
+    "make_row",
     [
-        material_row(status="ok"),        # раздел уже есть: это не починка
-        material_row(status=None),        # раздел не заказывали (лекция «только текст» и т. п.)
-        material_row(owner="token-b"),    # чужой материал читается, но не чинится бесплатно
-        material_row(text=""),            # нет сохранённого текста
-        None,                             # материала нет
+        lambda: material_row(status="ok"),        # раздел уже есть: это не починка
+        lambda: material_row(status=None),        # раздел не заказывали (лекция «только текст» и т. п.)
+        lambda: material_row(owner="token-b"),    # чужой материал читается, но не чинится бесплатно
+        lambda: material_row(text=""),            # нет сохранённого текста
+        lambda: None,                             # материала нет
+        # Строку владелец правит сам, квитанцию — нет:
+        lambda: material_row(receipt_of=""),                                     # квитанции нет
+        lambda: material_row(text=STORED_TEXT + " Подменённый текст."),          # текст не тот, что анализировали
+        lambda: material_row(receipt_of=receipt(user="user-b")),                 # квитанция другого человека
+        lambda: material_row(receipt_of=receipt(failed=("flashcards",))),        # тест в анализе получился
+        lambda: material_row(receipt_of=receipt()[:-4] + "AAAA"),                # подпись подделана
+        lambda: material_row(receipt_of=receipt().replace("r1.", "r1.e30", 1)),  # подменены данные
     ],
+    ids=["ok", "not-asked", "not-owner", "no-text", "no-row", "no-receipt", "other-text", "other-user",
+         "other-section", "forged-signature", "forged-payload"],
 )
-def test_a_section_that_is_not_a_repair_costs_its_price(api, row):
-    serve_material(api.server, row)
+def test_a_section_that_is_not_a_repair_costs_its_price(api, make_row):
+    serve_material(api.server, make_row())
     api.answer_with(AIError.failed())
     api.post("/api/analyze/section", json={"section": "quiz", "text": "Лекция про инфляцию. " * 20, "material_id": MATERIAL_ID})
     assert api.server.rpc("consume_ai_units") == [{"p_units": AI_COSTS["analysisSection"], "p_kind": "analysisSection"}]
@@ -465,6 +487,7 @@ def test_stand_ins_that_are_not_the_models_work_give_the_units_back(api, monkeyp
 class FakeCoordinator:
     outcome = "results"
     runs = 0
+    sections: dict = {}
 
     def __init__(self, api_key):
         pass
@@ -473,7 +496,13 @@ class FakeCoordinator:
         FakeCoordinator.runs += 1
         yield {"type": "grounding", "source_count": 1, "sources": []}
         if FakeCoordinator.outcome == "results":
-            yield {"type": "results", "summarizer": {"content": "Конспект"}, "warnings": [], "sections": {}}
+            yield {"type": "results", "summarizer": {"content": "Конспект"}, "warnings": [],
+                   "sections": dict(FakeCoordinator.sections)}
+        elif FakeCoordinator.outcome == "cut":  # конспект отдан, затем поток оборвался
+            for name in ("summarizer", "flashcards", "quiz"):
+                yield {"type": "agent_start", "agent": name, "label": name}
+            yield {"type": "agent_done", "agent": "summarizer", "status": "ok", "result": {"content": "Конспект"}}
+            raise RuntimeError("connection lost")
         elif FakeCoordinator.outcome == "error":
             yield {"type": "error", "code": "failed", "message": "Материал не сохранён, лимит не списан."}
         else:
@@ -483,7 +512,7 @@ class FakeCoordinator:
 @pytest.fixture
 def analyze(api, monkeypatch):
     monkeypatch.setattr(api.main, "CoordinatorAgent", FakeCoordinator)
-    FakeCoordinator.outcome, FakeCoordinator.runs = "results", 0
+    FakeCoordinator.outcome, FakeCoordinator.runs, FakeCoordinator.sections = "results", 0, {}
     return api
 
 
@@ -515,6 +544,47 @@ def test_a_run_without_results_gives_the_lecture_units_back(analyze, outcome):
     assert response.status_code == 200 and sse_types(response)[-1] == "error"
     (refund,) = analyze.server.rpc("refund_ai_units")
     assert refund["p_units"] == 20 and analyze.server.used == 0
+
+
+def test_a_run_cut_after_some_sections_keeps_their_share(analyze):
+    FakeCoordinator.outcome = "cut"
+    response = post_text(analyze, "Лекция про инфляцию. " * 30)
+    assert sse_types(response)[-1] == "error"
+    kept = -(-AI_COSTS["lecture"] // 3)  # конспект — один из трёх основных разделов, с округлением вверх
+    (refund,) = analyze.server.rpc("refund_ai_units")
+    assert refund["p_units"] == AI_COSTS["lecture"] - kept and analyze.server.used == kept
+
+
+def test_an_analysis_with_a_failed_section_hands_its_owner_a_receipt(analyze):
+    text = "Лекция про инфляцию. " * 30
+    FakeCoordinator.sections = {"summarizer": {"status": "ok"}, "quiz": {"status": "failed", "message": "…"}}
+    results = next(event for event in stream_events(post_text(analyze, text)) if event["type"] == "results")
+    assert receipts.covers(results["receipt"], "user-a", text, "quiz")
+    assert not receipts.covers(results["receipt"], "user-a", text, "summarizer")
+    assert not receipts.covers(results["receipt"], "user-b", text, "quiz")
+
+    FakeCoordinator.sections = {"summarizer": {"status": "ok"}}
+    results = next(event for event in stream_events(post_text(analyze, text)) if event["type"] == "results")
+    assert "receipt" not in results
+
+
+def test_a_receipt_is_the_servers_word_for_this_user_text_and_section(monkeypatch):
+    signed = receipts.issue("user-a", "Текст  лекции\r\nпро ставку", ["quiz", "flashcards"])
+    assert signed and len(signed) < receipts.MAX_LENGTH
+    assert receipts.covers(signed, "user-a", "Текст лекции\nпро ставку", "quiz")  # пробелы и переносы не важны
+    assert receipts.covers(signed, "user-a", "Текст лекции про ставку", "flashcards")
+    assert not receipts.covers(signed, "user-a", "Текст лекции про ставку", "summarizer")
+    assert not receipts.covers(signed, "user-b", "Текст лекции про ставку", "quiz")
+    assert not receipts.covers(signed, "user-a", "Другой текст", "quiz")
+    assert receipts.issue("user-a", "Текст", []) is None and receipts.issue(None, "Текст", ["quiz"]) is None
+    for junk in (None, 42, "", "r1.x.y", "r2." + signed[3:], signed + "x" * receipts.MAX_LENGTH):
+        assert not receipts.covers(junk, "user-a", "Текст лекции про ставку", "quiz")
+    monkeypatch.setenv("ANALYSIS_RECEIPT_KEY", "another key")  # новый ключ — прежние квитанции недействительны
+    assert not receipts.covers(signed, "user-a", "Текст лекции про ставку", "quiz")
+    monkeypatch.delenv("ANALYSIS_RECEIPT_KEY")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert receipts.issue("user-a", "Текст", ["quiz"]) is None  # без ключей сервера квитанций нет
 
 
 def test_a_file_without_text_costs_nothing(analyze):
@@ -597,6 +667,16 @@ def test_the_analysis_of_a_scan_adds_its_recognition_to_the_lecture(analyze, gem
         {"p_units": AI_COSTS["scanPages"], "p_kind": "scanPages"},
     ]
     assert analyze.server.rpc("refund_ai_units") == [] and analyze.server.used == AI_COSTS["lecture"] + AI_COSTS["scanPages"]
+
+
+def test_a_cut_scan_run_keeps_its_recognition_whole_and_the_share_of_the_lecture(analyze, gemini):
+    gemini()
+    FakeCoordinator.outcome = "cut"
+    analyze.post("/api/analyze", files=scan_file(), data={"enabled_agents": json.dumps(["summarizer"])})
+    kept = -(-AI_COSTS["lecture"] // 3)
+    (refund,) = analyze.server.rpc("refund_ai_units")
+    assert (refund["p_kind"], refund["p_units"]) == ("lecture", AI_COSTS["lecture"] - kept)
+    assert analyze.server.used == kept + AI_COSTS["scanPages"]
 
 
 @pytest.mark.parametrize("failure", ["analysis", "recognition"])
