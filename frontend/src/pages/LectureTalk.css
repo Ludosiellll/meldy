@@ -1,0 +1,284 @@
+/* «Поговорить о лекции» (pages/LectureTalk.tsx): the room of «Ответ вслух» (components/oral/oral.css)
+ * in the Meldy language of 2026-10-04. Left: the lecture's paper — its title, «Вопрос 2 из 4» and the
+ * conversation as protocol rows (speaker word, then the words; no chat bubbles). Right: the desk —
+ * Meldy's card on the blue tint (the line set large by its length), the lecture's own words on a paper
+ * slip, «Ваш ответ» on a white card, the one blue pill and the quiet words. No dots, waves or shimmer:
+ * the voice says «Так…», the screen says «Отвечаю дольше обычного» when it is slow. Every rule is
+ * scoped under the kit's roots (.sf-page, .sf-room-bar), as in oral.css. */
+
+/* The wordmark is a link here (a button in «Ответ вслух»). */
+.sf-room-bar a.or-wordmark { text-decoration: none; }
+
+/* The desk is the stage of this room: it gets the wider column. */
+.sf-page.or-room.lt-room { grid-template-columns: minmax(0, 520px) minmax(0, 1fr); }
+.sf-page.or-room-single.lt-room { max-width: calc(720px + 2 * var(--sf-g)); }
+
+/* ---------------------------------------------------------------- the start card */
+.sf-page .lt-start {
+  padding: 34px 40px 36px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--or-card);
+}
+.sf-page .lt-start-lecture { margin: 0; font-size: 17px; line-height: 24px; color: var(--sf-muted); overflow-wrap: anywhere; }
+.sf-page .lt-start-title {
+  margin: 8px 0 0;
+  font-size: 44px;
+  line-height: 1.05;
+  font-weight: 500;
+  letter-spacing: -.035em;
+  text-wrap: balance;
+}
+.sf-page .lt-start-lede { margin: 14px 0 0; max-width: 30em; font-size: 20px; line-height: 1.4; text-wrap: pretty; }
+.sf-page .lt-start-steps { display: grid; gap: 10px; margin-top: 24px; }
+.sf-page .lt-start-steps p {
+  margin: 0;
+  padding: 14px 20px;
+  border-radius: 20px;
+  background: var(--sf-surface-soft);
+  font-size: 18px;
+  line-height: 26px;
+  text-wrap: pretty;
+}
+.sf-page .lt-start-fine { margin: 20px 0 0; max-width: 34em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .lt-start .or-acts { margin-top: 28px; }
+
+/* ---------------------------------------------------------------- the paper: title and protocol */
+.sf-page .lt-paper { padding: 26px 26px 18px; border-radius: 36px; }
+.sf-page .lt-title {
+  margin: 0;
+  font-family: var(--ph-sans);
+  font-size: 26px;
+  line-height: 1.16;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.sf-page .lt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; margin: 6px 0 0; font-size: 15px; line-height: 22px; color: var(--ph-paper-muted); }
+.sf-page .lt-sheet-open { display: none; }
+/* The rows scroll inside the paper and follow the newest one; the paper keeps to the window. */
+.sf-page .lt-proto {
+  max-height: calc(100vh - 290px);
+  max-height: calc(100dvh - 290px);
+  min-height: 96px;
+  margin: 14px -10px 0;
+  padding: 0 10px;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+.sf-page .lt-proto:focus-visible { outline-offset: 0; border-radius: 16px; }
+/* Older rows scrolled away above: the top edge fades, so a cut row reads as «more above». */
+.sf-page .lt-proto[data-scrolled] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 36px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 36px);
+}
+.sf-page .lt-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 12px 0 13px;
+  border-top: 1px solid var(--ph-paper-rule);
+}
+.sf-page .lt-who { font-family: var(--ph-sans); font-size: 15px; line-height: 26px; font-weight: 600; color: var(--ph-paper-muted); }
+.sf-page .lt-row[data-role='tutor'] .lt-who { color: var(--ph-pencil); }
+.sf-page .lt-said { min-width: 0; }
+.sf-page .lt-said-text { margin: 0; font-family: var(--ph-sans); font-size: 17px; line-height: 26px; color: var(--ph-paper-ink); text-wrap: pretty; overflow-wrap: anywhere; }
+.sf-page .lt-said-tag { color: var(--ph-paper-muted); }
+/* The lecture's words of a line: a quiet quote under it, its fragment named. */
+.sf-page .lt-said-slip {
+  margin: 6px 0 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--ph-paper-rule);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  line-height: 23px;
+  color: var(--ph-paper-muted);
+  overflow-wrap: anywhere;
+}
+.sf-page .lt-said-cap { font-weight: 500; }
+
+/* ---------------------------------------------------------------- the desk: Meldy's card */
+.sf-page .lt-tutor {
+  position: relative;
+  padding: 22px 28px 14px;
+  border-radius: 36px;
+  background: var(--sf-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--or-panel-edge);
+  animation: or-fade 180ms ease backwards;
+}
+.sf-page .lt-tutor-who { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--sf-accent-fg); }
+/* What comes before the question (a confirmation, an explanation, «Дальше.»): ink, body size. */
+.sf-page .lt-tutor-lead { margin: 10px 0 0; max-width: 34em; font-size: 20px; line-height: 1.42; color: var(--sf-ink); text-wrap: pretty; overflow-wrap: break-word; }
+/* The line to answer now, by its length: 40 / 32 / 26 / 22 px (ExaminerLine's steps and one more). */
+.sf-page .lt-tutor-main {
+  margin: 10px 0 0;
+  font-family: var(--ph-sans);
+  font-size: 40px;
+  line-height: 1.16;
+  font-weight: 500;
+  letter-spacing: -.026em;
+  color: var(--sf-ink);
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+}
+.sf-page .lt-tutor-lead + .lt-tutor-main { margin-top: 14px; }
+.sf-page .lt-tutor-main + .lt-tutor-lead { margin-top: 10px; color: var(--sf-muted); }
+.sf-page .lt-tutor-main[data-size='m'] { font-size: 32px; line-height: 1.2; letter-spacing: -.022em; }
+.sf-page .lt-tutor-main[data-size='s'] { font-size: 26px; line-height: 1.26; letter-spacing: -.016em; }
+.sf-page .lt-tutor-main[data-size='xs'] { font-size: 22px; line-height: 1.36; letter-spacing: -.01em; }
+.sf-page .lt-tutor-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin: 8px 0 0; }
+.sf-page .lt-tutor-links .sf-link { min-height: 40px; }
+.sf-page .lt-dot { color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- the desk: the lecture's words */
+.sf-page .lt-slip { margin: 18px 0 0; animation: or-enter 220ms var(--m-ease) backwards; }
+.sf-page .lt-slip-cap { margin: 0 6px 8px; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--sf-muted); }
+.sf-page .lt-slip .sf-slip { margin: 0; padding: 18px 24px 20px; border-radius: 26px; font-size: 18px; line-height: 28px; text-wrap: pretty; }
+.sf-page .lt-slip > .sf-link { margin-left: 6px; }
+
+/* ---------------------------------------------------------------- the desk: «Ваш ответ» */
+.sf-page .lt-answer {
+  margin-top: 18px;
+  padding: 16px 22px 14px;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  transition: box-shadow .3s ease;
+}
+/* The microphone is open: the card's ring says so in Meldy's blue (no pulsing). */
+.sf-page .lt-answer[data-listening] { box-shadow: 0 0 0 2px var(--sf-accent); }
+.sf-page .lt-answer .or-said { margin: 0; padding: 0; border: 0; }
+.sf-page .lt-answer .or-said-window { min-height: 30px; }
+.sf-page .lt-answer .or-text-field { min-height: 120px; }
+.sf-page .lt-answer .or-voice { margin-top: 8px; }
+.sf-page .lt-answer .or-stuck { margin-top: 10px; }
+
+/* Lines under the answer: notices, «Отвечаю дольше обычного», the error. */
+.sf-page .lt-desk > .or-message { margin-top: 14px; }
+.sf-page .lt-notice .lt-inline { min-height: 0; vertical-align: baseline; }
+.sf-page .lt-error { color: var(--sf-ink); font-weight: 500; }
+.sf-page .lt-wait { margin: 14px 0 0; font-size: 17px; line-height: 24px; color: var(--sf-muted); }
+.sf-page .lt-acts { margin-top: 22px; }
+.sf-page .lt-acts .sf-link[aria-disabled='true'] { cursor: not-allowed; color: var(--sf-muted); text-decoration-color: transparent; }
+.sf-page .lt-keys { margin: 14px 0 0; font-size: 14px; line-height: 20px; color: var(--sf-muted); }
+
+/* ---------------------------------------------------------------- the summary */
+.sf-page .lt-end {
+  margin-top: 18px;
+  padding: 28px 32px 30px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--or-card);
+  animation: or-enter 220ms var(--m-ease) backwards;
+}
+.sf-page .lt-tutor + .lt-end,
+.sf-page .lt-slip + .lt-end { margin-top: 22px; }
+.sf-page .lt-end-title { margin: 0; font-size: 40px; line-height: 1.06; font-weight: 500; letter-spacing: -.03em; text-wrap: balance; }
+.sf-page .lt-end-title:focus { outline: none; }
+.sf-page .lt-end-title:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 8px; }
+.sf-page .lt-end-line { margin: 12px 0 0; max-width: 30em; font-size: 20px; line-height: 28px; text-wrap: pretty; }
+.sf-page .lt-end .or-acts { margin-top: 26px; }
+
+/* ---------------------------------------------------------------- «Текст разговора» on a phone */
+.sf-page .lt-psh { padding-top: 0; }
+.sf-page .lt-psh-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0 8px;
+  background: var(--sf-surface);
+  box-shadow: 0 1px 0 var(--sf-line);
+}
+.sf-page .lt-psh-head .sf-link { margin-top: 0; }
+.sf-page .lt-psh .lt-proto { max-height: none; min-height: 0; margin: 0 0 6px; padding: 0; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+.sf-page .lt-psh .lt-row:first-child { border-top: 0; }
+
+/* The block that matters now is scrolled into view clear of the sticky top line (and, on a phone, the fixed bar). */
+.sf-page .lt-tutor,
+.sf-page .lt-answer,
+.sf-page .lt-notice,
+.sf-page .lt-error,
+.sf-page .lt-wait { scroll-margin-top: 80px; scroll-margin-bottom: 24px; }
+
+/* ---------------------------------------------------------------- low window (1280×720 on stage) */
+@media (min-width: 1024px) and (max-height: 780px) {
+  .sf-page .lt-tutor { padding: 16px 24px 10px; }
+  .sf-page .lt-tutor-main { font-size: 34px; }
+  .sf-page .lt-tutor-main[data-size='m'] { font-size: 28px; }
+  .sf-page .lt-tutor-main[data-size='s'] { font-size: 24px; }
+  .sf-page .lt-tutor-main[data-size='xs'] { font-size: 21px; }
+  .sf-page .lt-slip { margin-top: 12px; }
+  .sf-page .lt-slip .sf-slip { padding: 14px 20px 16px; font-size: 17px; line-height: 26px; }
+  .sf-page .lt-answer { margin-top: 12px; padding: 12px 20px 10px; }
+  .sf-page .lt-acts { margin-top: 14px; }
+  .sf-page .lt-proto { max-height: calc(100vh - 230px); }
+}
+
+@media (max-width: 1279px) {
+  .sf-page.or-room.lt-room { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+}
+
+/* ---------------------------------------------------------------- phone and tablet */
+@media (max-width: 1023px) {
+  /* Nothing hides under the fixed bar: up to two rows (the words, then the pill) and the safe area. */
+  .sf-page.or-room.lt-room { display: block; padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page.or-room-single.lt-room { padding-top: 20px; padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  .sf-page .lt-start { padding: 24px 22px 26px; border-radius: 32px; }
+  .sf-page .lt-start-title { font-size: 34px; }
+  .sf-page .lt-start-lede { font-size: 18px; }
+  .sf-page .lt-start-steps p { padding: 12px 16px; font-size: 17px; line-height: 25px; }
+  /* The paper is a short head: the title, «Вопрос 2 из 4 · Текст разговора»; the rows open in a sheet. */
+  .sf-page .lt-paper { padding: 12px 20px 2px; border-radius: 24px; }
+  .sf-page .lt-title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 18px;
+    line-height: 1.25;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .sf-page .lt-meta { margin-top: 0; font-size: 14px; }
+  .sf-page .lt-sheet-open { min-height: 40px; }
+  .sf-page .lt-tutor,
+  .sf-page .lt-answer,
+  .sf-page .lt-notice,
+  .sf-page .lt-error,
+  .sf-page .lt-wait { scroll-margin-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page .lt-left .lt-proto { display: none; }
+  .sf-page .lt-sheet-open { display: inline-flex; font-size: 15px; }
+  .sf-page .lt-desk { margin-top: 14px; }
+  .sf-page .lt-tutor { padding: 16px 20px 8px; border-radius: 30px; }
+  .sf-page .lt-tutor-lead { font-size: 17px; line-height: 1.45; }
+  .sf-page .lt-tutor-main { font-size: 27px; line-height: 1.22; letter-spacing: -.02em; }
+  .sf-page .lt-tutor-main[data-size='m'] { font-size: 25px; }
+  .sf-page .lt-tutor-main[data-size='s'] { font-size: 22px; line-height: 1.3; }
+  .sf-page .lt-tutor-main[data-size='xs'] { font-size: 19px; line-height: 1.4; letter-spacing: -.01em; }
+  .sf-page .lt-slip { margin-top: 14px; }
+  .sf-page .lt-slip .sf-slip { padding: 14px 18px 16px; border-radius: 22px; font-size: 16px; line-height: 25px; }
+  .sf-page .lt-answer { margin-top: 14px; padding: 12px 18px 10px; border-radius: 24px; }
+  .sf-page .lt-answer .or-said-text { font-size: 17px; line-height: 26px; }
+  /* The bar: the quiet words on the first row, the pill across the second. */
+  .sf-page .lt-acts { gap: 2px 16px; }
+  .sf-page .lt-acts > .sf-link { font-size: 15px; }
+  .sf-page .lt-acts[data-wide] .sf-primary { flex: 1 1 100%; justify-content: space-between; }
+  .sf-page .lt-end { padding: 22px 22px 24px; border-radius: 32px; }
+  .sf-page .lt-end-title { font-size: 30px; }
+  .sf-page .lt-end-line { font-size: 18px; line-height: 26px; }
+  .sf-page .lt-keys { display: none; }
+}
+@media (pointer: coarse) {
+  .sf-page .lt-keys { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-page .lt-tutor,
+  .sf-page .lt-slip,
+  .sf-page .lt-end { animation: none; }
+  .sf-page .lt-answer { transition: none; }
+}

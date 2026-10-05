@@ -27,6 +27,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Analyze = lazy(() => import('./pages/Analyze'));
 const Library = lazy(() => import('./pages/Library'));
 const MaterialDetail = lazy(() => import('./pages/MaterialDetail'));
+const LectureTalk = lazy(() => import('./pages/LectureTalk'));
 const Review = lazy(() => import('./pages/Review'));
 const MistakeDiary = lazy(() => import('./pages/MistakeDiary'));
 const Analytics = lazy(() => import('./pages/Analytics'));
@@ -128,6 +129,7 @@ export default function App() {
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />
+          <Route path="library/:id/talk" element={<LectureTalk />} />
           <Route path="review" element={<Review />} />
           <Route path="exams" element={<Exams />} />
           <Route path="exams/new" element={<ExamEditor />} />

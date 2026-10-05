@@ -22,6 +22,7 @@ vi.mock('./pages/ExamDetail', () => ({ default: () => <h1>Лист экзаме�
 vi.mock('./pages/ExamDraw', () => ({ default: () => <h1>Тянуть билет</h1> }));
 vi.mock('./pages/ExamTicket.tsx', () => ({ default: () => <h1>Экран ответа</h1> }));
 vi.mock('./pages/MistakeDiary', () => ({ default: () => <h1>Дневник ошибок</h1> }));
+vi.mock('./pages/LectureTalk', () => ({ default: () => <h1>Разговор о лекции</h1> }));
 vi.mock('./pages/Landing', () => ({ default: () => <h1>Главная</h1> }));
 vi.mock('./pages/TryExample', () => ({ default: () => <h1>Пример экзамена</h1> }));
 vi.mock('./api/materials', () => ({
@@ -72,6 +73,14 @@ describe('exam routes', () => {
     expect(
       await within(layout).findByText(/Экран ответа|Экран ответа пока недоступен/),
     ).toBeInTheDocument();
+  });
+});
+
+describe('lecture routes', () => {
+  it('routes /library/:id/talk to the voice tutor inside the layout', async () => {
+    openAt('/library/m-1/talk');
+    const page = await screen.findByRole('heading', { name: 'Разговор о лекции' });
+    expect(within(screen.getByTestId('layout')).getByRole('heading', { name: 'Разговор о лекции' })).toBe(page);
   });
 });
 
