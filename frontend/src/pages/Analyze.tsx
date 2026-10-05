@@ -592,8 +592,17 @@ export default function Analyze() {
               notices={hasNotices ? notices : undefined}
             />
             <div className="az-after">
-              <button type="button" onClick={() => navigate('/library')} className="sf-secondary az-pill2">
-                Открыть библиотеку
+              {/* Лекция сохранена — сразу к ней: там конспект, карточки и «Поговорить о лекции» (в первый раз —
+                  с подсказкой). Пока она не сохранена, путь ведёт в библиотеку, как раньше. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const lectureId = state.savedMaterialId ?? state.demoMaterialId;
+                  navigate(lectureId ? `/library/${lectureId}` : '/library');
+                }}
+                className="sf-secondary az-pill2"
+              >
+                {state.savedMaterialId ?? state.demoMaterialId ? 'Открыть лекцию' : 'Открыть библиотеку'}
                 <span className="az-pill2-dot" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false">
                     <path d="M5 12h14M13 6l6 6-6 6" />

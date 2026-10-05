@@ -69,7 +69,12 @@ vi.mock('../api/materials', async importOriginal => ({
   updateMaterialTitle: vi.fn(),
 }));
 // The server charges the AI jobs; the page only refreshes the meter afterwards.
-vi.mock('../api/limits', () => ({ notifyAIUsageChanged: (...args: unknown[]) => state.increment(...args) }));
+vi.mock('../api/limits', () => ({
+  notifyAIUsageChanged: (...args: unknown[]) => state.increment(...args),
+  // The guide's «Лимит ИИ» chapter (reached through the first-use tip) names the reset time.
+  formatLimitReset: () => '3:00',
+  nextLimitReset: () => new Date(),
+}));
 vi.mock('../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: vi.fn(async () => true) }) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: state.userId } }) }));
 vi.mock('../contexts/ConfirmContext', () => ({

@@ -299,6 +299,9 @@ describe('stream outcomes', () => {
     const row = s.inserts[0];
     expect(row).toMatchObject({ user_id: 'user-1', title: 'Энтропия', original_text: TEXT.text, flashcards_json: cards, quiz_json: quiz });
     expect((row.summary_json as Record<string, unknown>).sections).toEqual(okSections);
+    // The saved lecture opens straight from the results (its page has «Поговорить о лекции» and the first tip).
+    fireEvent.click(await screen.findByRole('button', { name: /Открыть лекцию/ }));
+    expect(await screen.findByText('Страница материала')).toBeInTheDocument();
   });
 
   it('agent_done(summarizer) then a cut connection: partial results saved and charged once, «Создать тест заново» never charges', async () => {
