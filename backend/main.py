@@ -52,6 +52,7 @@ from utils import scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from oral_api import router as oral_router
+from oral_sheet import router as oral_sheet_router
 from tutor_api import router as tutor_router
 import telemetry_api
 
@@ -276,9 +277,10 @@ async def protect_backend_api(request: Request, call_next):
 
 
 app.include_router(push_router, prefix="/api/push", tags=["push"])
-# «Билеты» and «Ответ вслух» declare their own full /api/... paths.
+# «Билеты», «Ответ вслух» and the exam cheat sheet declare their own full /api/... paths.
 app.include_router(exams_router)
 app.include_router(oral_router)
+app.include_router(oral_sheet_router)
 app.include_router(tutor_router)
 # /sb/… — the browser's fallback way to Supabase when *.supabase.co is unreachable (supabase_proxy.py).
 app.include_router(supabase_proxy_router)
