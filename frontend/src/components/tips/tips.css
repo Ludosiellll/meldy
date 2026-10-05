@@ -1,0 +1,150 @@
+/*
+ * First-use tips (TipCard.tsx): a white card under the thing it is about, with a small arrow at it —
+ * the clip (16:10) on top, the title, a sentence or two, the blue «Попробовать» and the quiet «Не
+ * сейчас». The card lies over the page; TipCard sets its width, place, arrow and clip size inline.
+ */
+
+.tp-card {
+  position: absolute;
+  /* Over the page, under the top line (30): the page scrolls under the line with the card on it. */
+  z-index: 25;
+  box-sizing: border-box;
+  width: 400px;
+  padding: 12px 12px 16px;
+  border-radius: 30px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  text-align: left;
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+  -webkit-font-smoothing: antialiased;
+}
+/* The arrow: a square turned on its corner, its two outer edges ringed like the card; its lower half
+   lies on the card and hides the ring there. */
+.tp-card::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: calc(var(--tp-arrow-x, 50%) - 7px);
+  width: 14px;
+  height: 14px;
+  border-top-left-radius: 3px;
+  background: var(--sf-surface);
+  box-shadow: -1px -1px 0 0 var(--sf-line);
+  transform: rotate(45deg);
+}
+.tp-card[data-aside] { visibility: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .tp-card { animation: tp-in .5s var(--m-ease) both; }
+}
+@keyframes tp-in {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+}
+
+/* The clip: 16:10, as wide as the card, smaller when the window is short. */
+.tp-clip { width: var(--tp-clip-w, 100%); max-width: 100%; margin: 0 auto; }
+.tp-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fbfbf9;
+  isolation: isolate;
+  box-shadow: 0 0 0 1px rgba(11, 18, 28, .06);
+}
+.mr-stage.tp-stage { width: 1280px; height: 800px; background: #fbfbf9; }
+
+.tp-play {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .92);
+  color: #0b121c;
+  box-shadow: 0 8px 18px -10px rgba(0, 0, 0, .5);
+  cursor: pointer;
+  opacity: .8;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.tp-box:hover .tp-play,
+.tp-play:focus-visible,
+.tp-box[data-playing='false'] .tp-play { opacity: 1; }
+.tp-play:hover { transform: scale(1.06); }
+.tp-play svg { width: 14px; height: 14px; }
+.tp-play:focus-visible,
+.tp-start:focus-visible { outline: 3px solid var(--sf-accent-fg); outline-offset: 2px; }
+.tp-start {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 5px 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b121c;
+  font: 500 15px/1 var(--ph-sans);
+  white-space: nowrap;
+  translate: -50% 0;
+  box-shadow: 0 12px 26px -14px rgba(0, 0, 0, .55);
+  cursor: pointer;
+}
+.tp-start i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #2869dd; color: #fff; }
+.tp-start svg { width: 13px; height: 13px; }
+
+/* A short window: the clip beside the title and the words, the buttons under both. */
+.tp-card[data-layout='row'] {
+  display: grid;
+  grid-template-columns: var(--tp-clip-w, 272px) minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-areas: 'clip title' 'clip text' 'clip .' 'acts acts';
+  column-gap: 18px;
+  align-items: start;
+}
+.tp-card[data-layout='row'] .tp-clip { grid-area: clip; width: 100%; margin: 0; }
+.tp-card[data-layout='row'] .tp-title { grid-area: title; margin-top: 4px; }
+.tp-card[data-layout='row'] .tp-text { grid-area: text; }
+.tp-card[data-layout='row'] .tp-acts { grid-area: acts; margin-top: 14px; }
+
+/* The words: the title, a sentence or two in the muted ink. */
+.tp-title { margin: 16px 6px 0; font-size: 22px; font-weight: 600; line-height: 1.15; letter-spacing: -.025em; color: var(--sf-ink); }
+.tp-text { margin: 8px 6px 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+
+/* «Попробовать»: the blue pill with its circle, a size smaller; «Не сейчас»: an underlined word. */
+.tp-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin: 16px 6px 0; }
+.sf-page .tp-go.sf-primary { height: 48px; gap: 12px; padding: 0 5px 0 20px; font-size: 16px; text-decoration: none; }
+.sf-page .tp-go.sf-primary::after { width: 38px; height: 38px; background-size: 16px; }
+
+/* What the tip is about: a yellow ring (the guide's mark for «this one»), closing in once. */
+[data-tip-spot] { outline: 3px solid var(--m-yellow); outline-offset: 4px; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-tip-spot] { animation: tp-spot .9s var(--m-ease) both; }
+}
+@keyframes tp-spot {
+  0% { outline-color: transparent; outline-offset: 16px; }
+  60% { outline-color: var(--m-yellow); outline-offset: 2px; }
+  100% { outline-color: var(--m-yellow); outline-offset: 4px; }
+}
+
+@media (max-width: 639px) {
+  .tp-card { padding: 10px 10px 14px; border-radius: 26px; }
+  .tp-box { border-radius: 18px; }
+  .tp-title { margin-top: 14px; font-size: 20px; }
+}
+
+@media print {
+  .tp-card { display: none; }
+  [data-tip-spot] { outline: none; }
+}

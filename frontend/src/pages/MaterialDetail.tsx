@@ -11,6 +11,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
 import { parseSections, sectionHasContent } from '../utils/analysisSections';
+import TipCard from '../components/tips/TipCard';
+import { TIPS } from '../components/tips/tips';
+import { useFirstUseTip } from '../components/tips/useFirstUseTip';
 import '../styles/paper.css';
 import './MaterialDetail.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
@@ -48,6 +51,20 @@ export function materialMeta(input: { subject?: string | null; isPublic: boolean
     .filter(Boolean)
     .join(' · ');
   return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+/** The lecture's cards: an array (older materials) or `{ flashcards: [...] }`. */
+function cardCountOf(material: any): number {
+  if (Array.isArray(material?.flashcards_json)) return material.flashcards_json.length;
+  return Array.isArray(material?.flashcards_json?.flashcards) ? material.flashcards_json.flashcards.length : 0;
+}
+
+/**
+ * «Поговорить о лекции»: репетитор спрашивает по тексту лекции и её карточкам. Разговаривать можно только
+ * о своей лекции (сервер отвечает 404 на чужую); без карточек комната сама скажет «сначала разберите лекцию».
+ */
+function canTalkAbout(material: any, userId: string | undefined): boolean {
+  return Boolean(userId) && material?.user_id === userId && typeof material?.original_text === 'string' && material.original_text.trim() !== '';
 }
 
 function hasSavedCheatsheet(summary: Record<string, unknown>): boolean {
@@ -205,6 +222,21 @@ export default function MaterialDetail() {
   // Ссылка прямо на разговор: один раз показываем плеер целиком, дальше прокрутку не трогаем.
   const [revealPlayer, setRevealPlayer] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') === 'podcast');
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const talkPillRef = useRef<HTMLAnchorElement | null>(null);
+  const headActsRef = useRef<HTMLDivElement | null>(null);
+  // The first time a lecture the tutor can talk about is open (its own, with text and cards), a tip points at
+  // «Поговорить о лекции» — on «Материал», the tab a lecture opens on, with no menu or field open.
+  const talkTip = useFirstUseTip('talk', {
+    enabled:
+      !loading &&
+      Boolean(material) &&
+      canTalkAbout(material, user?.id) &&
+      cardCountOf(material) > 0 &&
+      mode === 'full' &&
+      !menuOpen &&
+      !editingTitle &&
+      !editingSubject,
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -382,14 +414,8 @@ export default function MaterialDetail() {
   // Менять материал (создавать шпаргалку и разговор, открывать доступ) может только автор:
   // назначенные преподавателем и чужие открытые материалы только для чтения.
   const canEdit = Boolean(user?.id) && material.user_id === user?.id;
-  const cardCount = Array.isArray(material.flashcards_json)
-    ? material.flashcards_json.length
-    : Array.isArray(material.flashcards_json?.flashcards)
-      ? material.flashcards_json.flashcards.length
-      : 0;
-  // «Поговорить о лекции»: репетитор спрашивает по тексту лекции и её карточкам. Разговаривать можно только
-  // о своей лекции (сервер отвечает 404 на чужую); без карточек комната сама скажет «сначала разберите лекцию».
-  const canTalk = canEdit && typeof material.original_text === 'string' && material.original_text.trim() !== '';
+  const cardCount = cardCountOf(material);
+  const canTalk = canTalkAbout(material, user?.id);
   // «Разговор» доступен всегда: если его ещё нет, там можно его создать.
   const showExpress = hasCheatsheet || expressRequested || cheatsheetMissing;
   const modes: Mode[] = ['full', ...(showExpress ? (['express'] as const) : []), 'podcast'];
@@ -503,15 +529,31 @@ export default function MaterialDetail() {
           )}
         </div>
         {cardCount > 0 || canEdit ? (
-          <div className="sf-head-actions md-acts">
+          <div className="sf-head-actions md-acts" ref={headActsRef}>
             {canTalk && (
-              <Link className="sf-secondary md-pill" to={`/library/${encodeURIComponent(material.id)}/talk`}>
+              <Link
+                ref={talkPillRef}
+                className="sf-secondary md-pill"
+                to={`/library/${encodeURIComponent(material.id)}/talk`}
+                onClick={talkTip.done}
+              >
                 Поговорить о лекции
                 <span className="md-dot" aria-hidden="true">
                   <ArrowRight strokeWidth={2} />
                 </span>
               </Link>
             )}
+            {/* Right after the pill, so Tab goes from the pill to its tip; the card lies over the page. */}
+            {canTalk && talkTip.show ? (
+              <TipCard
+                tip={TIPS.talk}
+                anchor={talkPillRef}
+                alignTo={headActsRef}
+                to={`/library/${encodeURIComponent(material.id)}/talk`}
+                onAction={talkTip.done}
+                onDismiss={talkTip.dismiss}
+              />
+            ) : null}
             {cardCount > 0 && (
               <Link className="sf-secondary md-pill" to={`/review?material=${encodeURIComponent(material.id)}`}>
                 Повторить карточки
