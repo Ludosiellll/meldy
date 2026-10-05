@@ -37,10 +37,10 @@ describe('patchSummaryJson', () => {
   });
 
   it('re-reads summary_json and changes only the given key', async () => {
-    // Пока шла шпаргалка, в другой вкладке сохранили разговор: он должен остаться.
-    await saveCheatsheet('m1', '# Шпаргалка');
+    // Пока шла выжимка, в другой вкладке сохранили разговор: он должен остаться.
+    await saveCheatsheet('m1', '# Выжимка');
     expect(db.updates).toEqual([
-      { summary_json: { content: 'Конспект', podcast: [{ speaker: 'Макс', text: 'Привет' }], cheatsheet: '# Шпаргалка' } },
+      { summary_json: { content: 'Конспект', podcast: [{ speaker: 'Макс', text: 'Привет' }], cheatsheet: '# Выжимка' } },
     ]);
     await saveConversationLines('m1', [{ speaker: 'Софья', text: 'Новый' }]);
     expect(db.updates[1]).toEqual({ summary_json: { content: 'Конспект', podcast: [{ speaker: 'Софья', text: 'Новый' }] } });
@@ -51,7 +51,7 @@ describe('patchSummaryJson', () => {
     await expect(patchSummaryJson('m1', { cheatsheet: 'x' })).rejects.toThrow(NOT_OWNER_MESSAGE);
     db.updatedRows = 1;
     db.error = { message: 'network' };
-    await expect(saveCheatsheet('m1', 'x')).rejects.toThrow('Не удалось сохранить шпаргалку. Попробуйте ещё раз.');
+    await expect(saveCheatsheet('m1', 'x')).rejects.toThrow('Не удалось сохранить выжимку. Попробуйте ещё раз.');
   });
 });
 
@@ -110,8 +110,8 @@ describe('job registry', () => {
     await runJob('cheatsheet', 'm1', async begin => {
       begin();
       throw new Error('secret provider detail');
-    }, 'Не удалось создать шпаргалку. Попробуйте ещё раз.');
-    expect(jobStatus('cheatsheet', 'm1')).toEqual({ state: 'error', message: 'Не удалось создать шпаргалку. Попробуйте ещё раз.' });
+    }, 'Не удалось создать выжимку. Попробуйте ещё раз.');
+    expect(jobStatus('cheatsheet', 'm1')).toEqual({ state: 'error', message: 'Не удалось создать выжимку. Попробуйте ещё раз.' });
     vi.advanceTimersByTime(10 * 60 * 1000 + 1);
     expect(jobStatus('cheatsheet', 'm1')).toEqual({ state: 'idle' });
   });

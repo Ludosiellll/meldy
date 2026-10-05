@@ -738,7 +738,7 @@ export default function ResultsPanel({
   const statusLabel = allRequestedOk ? 'Материал обработан' : 'Обработан частично';
   // Строка об обрыве связи нужна, пока какого-то раздела не хватает.
   const showPartialNotice = partial && !allRequestedOk;
-  // У шпаргалки нет вкладки здесь: о сбое говорит строка под заголовком.
+  // У выжимки нет вкладки здесь: о сбое говорит строка под заголовком.
   const cheatsheetFailed = isFailed('cheatsheet');
   const hasText = Boolean(originalText?.trim());
 

@@ -17,7 +17,7 @@ const MODULES: Array<[string, boolean]> = [
   ['Конспект', true],
   ['Карточки', true],
   ['Тест', true],
-  ['Шпаргалка', false],
+  ['Выжимка', false],
   ['Разговор', false],
 ];
 

@@ -25,7 +25,7 @@ export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: st
   { what: 'Проверка ответа на билет', units: AI_COSTS.answer },
   { what: '«Разговор» по лекции', units: AI_COSTS.conversation },
   { what: '«Поговорить о лекции»', units: AI_COSTS.tutorTurn, note: 'за каждый ответ репетитора' },
-  { what: 'Шпаргалка', units: AI_COSTS.cheatsheet },
+  { what: 'Выжимка лекции', units: AI_COSTS.cheatsheet },
   {
     what: 'Сверка списка вопросов',
     units: AI_COSTS.examMapping,

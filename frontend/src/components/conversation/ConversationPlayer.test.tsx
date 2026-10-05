@@ -499,7 +499,7 @@ describe('ConversationPlayer', () => {
       summary_json: {
         content: 'Конспект лекции',
         terms: [{ term: 'Энтропия', definition: 'Мера беспорядка.' }],
-        cheatsheet: '# Шпаргалка',
+        cheatsheet: '# Выжимка',
         grounding: { source_count: 1, sources: [{ id: 'S01', text: 'Фрагмент' }] },
         source_ids: ['S01'],
         podcast: [],
@@ -534,7 +534,7 @@ describe('ConversationPlayer', () => {
     expect(saved).toEqual({
       content: 'Конспект лекции',
       terms: [{ term: 'Энтропия', definition: 'Мера беспорядка.' }],
-      cheatsheet: '# Шпаргалка',
+      cheatsheet: '# Выжимка',
       grounding: { source_count: 1, sources: [{ id: 'S01', text: 'Фрагмент' }] },
       source_ids: ['S01'],
       podcast: generated,
@@ -554,8 +554,8 @@ describe('ConversationPlayer', () => {
     db.snapshot = { summary_json: { content: 'Конспект' }, original_text: 'Текст лекции.' };
     const generated = [{ speaker: 'Макс', text: 'Начинаем.' }];
     fetchMock.mockImplementation(() => {
-      // Пока модель отвечает, в другой вкладке появилась шпаргалка.
-      db.snapshot = { summary_json: { content: 'Конспект', cheatsheet: 'Новая шпаргалка' }, original_text: 'Текст лекции.' };
+      // Пока модель отвечает, в другой вкладке появилась выжимка.
+      db.snapshot = { summary_json: { content: 'Конспект', cheatsheet: 'Новая выжимка' }, original_text: 'Текст лекции.' };
       return fetchResponse({ podcast: generated });
     });
 
@@ -563,7 +563,7 @@ describe('ConversationPlayer', () => {
     await user.click(screen.getByRole('button', { name: 'Создать разговор' }));
     await waitFor(() => expect(db.update).toHaveBeenCalled());
     const saved = (db.update.mock.calls[0][0] as { summary_json: Record<string, unknown> }).summary_json;
-    expect(saved).toEqual({ content: 'Конспект', cheatsheet: 'Новая шпаргалка', podcast: generated });
+    expect(saved).toEqual({ content: 'Конспект', cheatsheet: 'Новая выжимка', podcast: generated });
   });
 
   it('does not call the model when the energy check fails', async () => {

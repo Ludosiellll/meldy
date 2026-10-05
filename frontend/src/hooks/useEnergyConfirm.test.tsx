@@ -239,7 +239,7 @@ describe('TokenInfoModal', () => {
       ['Проверка ответа на билет', String(AI_COSTS.answer)],
       ['«Разговор» по лекции', String(AI_COSTS.conversation)],
       ['«Поговорить о лекции»за каждый ответ репетитора', String(AI_COSTS.tutorTurn)],
-      ['Шпаргалка', String(AI_COSTS.cheatsheet)],
+      ['Выжимка лекции', String(AI_COSTS.cheatsheet)],
       [`Сверка списка вопросовза каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`, String(AI_COSTS.examMapping)],
     ]);
     expect(screen.getByText('Если ИИ не справился, единицы возвращаются.')).toBeInTheDocument();

@@ -224,13 +224,13 @@ describe('summary_json writes do not overwrite each other', () => {
     await waitFor(() => expect(pending['/api/podcast/generate']).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Создать шпаргалку' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать выжимку' }));
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
 
     // Разговор готов первым и сохраняется…
     await act(async () => pending['/api/podcast/generate'][0].resolve(jsonResponse(generated)));
     await waitFor(() => expect(savedPodcast()).toHaveLength(2));
-    // …а шпаргалка, начатая раньше, не возвращает старый пустой разговор.
+    // …а выжимка, начатая раньше, не возвращает старый пустой разговор.
     await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
     await waitFor(() => expect(state.material.summary_json.cheatsheet).toBe('# Главное'));
     expect(savedPodcast()).toHaveLength(2);
@@ -246,14 +246,14 @@ describe('summary_json writes do not overwrite each other', () => {
     state.material = makeMaterial({}, 'teacher-1');
     state.userId = 'user-1';
     renderPage('/library/m1?mode=express');
-    expect(await screen.findByText('Шпаргалку может создать только автор материала.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать шпаргалку' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Выжимку может создать только автор материала.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать выжимку' })).not.toBeInTheDocument();
   });
 });
 
 describe('model jobs outlive the tab that started them', () => {
   it('keeps «Добавить схемы» busy after a tab switch and runs the paid job once', async () => {
-    state.material = makeMaterial({ cheatsheet: '# Шпаргалка', podcast: legacyLines });
+    state.material = makeMaterial({ cheatsheet: '# Выжимка', podcast: legacyLines });
     renderPage('/library/m1?mode=express&tab=podcast');
     fireEvent.click(await screen.findByRole('button', { name: /Добавить схемы/ }));
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
@@ -277,7 +277,7 @@ describe('model jobs outlive the tab that started them', () => {
   });
 
   it('a job that finishes after its player closed does not silence the reopened player', async () => {
-    state.material = makeMaterial({ cheatsheet: '# Шпаргалка', podcast: legacyLines });
+    state.material = makeMaterial({ cheatsheet: '# Выжимка', podcast: legacyLines });
     renderPage('/library/m1?mode=express&tab=podcast');
     fireEvent.click(await screen.findByRole('button', { name: /Добавить схемы/ }));
     await waitFor(() => expect(pending['/api/podcast/visuals']).toHaveLength(1));
@@ -310,34 +310,34 @@ describe('model jobs outlive the tab that started them', () => {
     expect(within(scene).getByText('Порядок и беспорядок')).toBeInTheDocument();
   });
 
-  it('keeps «Создать шпаргалку» busy after switching to «Материал» and back', async () => {
+  it('keeps «Создать выжимку» busy after switching to «Материал» and back', async () => {
     renderPage('/library/m1?mode=express');
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать шпаргалку' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('tab', { name: /Материал/ }));
     fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
-    expect(await screen.findByRole('button', { name: /Составляем шпаргалку/ })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: /Составляем выжимку/ })).toBeDisabled();
 
     await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Готово' })));
-    expect(await screen.findByRole('heading', { name: 'Шпаргалка' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Выжимка' })).toBeInTheDocument();
     expect(pending['/api/quick-prep']).toHaveLength(1);
     expect(state.increment).toHaveBeenCalledTimes(1);
   });
 
   it('shows the cheatsheet error inline and does not charge for a failed answer', async () => {
     renderPage('/library/m1?mode=express');
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать шпаргалку' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
     await act(async () =>
       pending['/api/quick-prep'][0].resolve({
         ok: false,
         status: 502,
-        json: async () => ({ detail: 'Не удалось создать шпаргалку. Попробуйте ещё раз.' }),
+        json: async () => ({ detail: 'Не удалось создать выжимку. Попробуйте ещё раз.' }),
       } as unknown as Response),
     );
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Не удалось создать шпаргалку. Попробуйте ещё раз.');
+    expect(alert).toHaveTextContent('Не удалось создать выжимку. Попробуйте ещё раз.');
     expect(state.writes).toHaveLength(0);
     expect(state.increment).not.toHaveBeenCalled();
   });
@@ -511,7 +511,7 @@ describe('the lecture header (design critique 12)', () => {
 
 describe('mode switcher', () => {
   it('follows the tabs pattern: one tab stop, arrows, Home/End and a labelled panel', async () => {
-    state.material = makeMaterial({ cheatsheet: '# Шпаргалка', podcast: legacyLines });
+    state.material = makeMaterial({ cheatsheet: '# Выжимка', podcast: legacyLines });
     renderPage('/library/m1');
     const material = await screen.findByRole('tab', { name: /Материал/ });
     const tabs = screen.getAllByRole('tab');
@@ -533,6 +533,21 @@ describe('mode switcher', () => {
     expect(screen.getByRole('tab', { name: /Материал/ })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole('tab', { name: /Материал/ }), { key: 'ArrowLeft' });
     expect(screen.getByRole('tab', { name: /Разговор/ })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('«Кратко»: the lecture text is «Выжимка»', () => {
+  it('shows the old heading of a saved text as «Выжимка» and does not rewrite the text', async () => {
+    const saved = '# Экспресс-шпаргалка\n\n## Суть в 3 словах\n\nЭнтропия не убывает.';
+    state.material = makeMaterial({ cheatsheet: saved, podcast: [] });
+    renderPage('/library/m1?mode=express');
+    const panel = await screen.findByRole('tabpanel');
+    expect(await within(panel).findByRole('heading', { level: 2, name: 'Выжимка' })).toBeInTheDocument();
+    expect(within(panel).getByRole('heading', { level: 1, name: 'Выжимка' })).toBeInTheDocument();
+    expect(within(panel).getByRole('heading', { name: 'Суть в 3 словах' })).toBeInTheDocument();
+    expect(panel.textContent).not.toMatch(/шпаргалк/i);
+    expect(state.material.summary_json.cheatsheet).toBe(saved);
+    expect(state.writes).toHaveLength(0);
   });
 });
 
@@ -589,10 +604,10 @@ describe('section statuses saved with the material', () => {
     expect(screen.queryByRole('button', { name: 'Создать тест заново' })).not.toBeInTheDocument();
   });
 
-  // Анализ записал «не получилось», а шпаргалку и разговор потом создали в «Кратко» и «Разговоре».
+  // Анализ записал «не получилось», а выжимку и разговор потом создали в «Кратко» и «Разговоре».
   const madeLater = () =>
     makeMaterial({
-      cheatsheet: '# Шпаргалка',
+      cheatsheet: '# Выжимка',
       podcast: legacyLines,
       sections: {
         summarizer: { status: 'ok' },
@@ -627,15 +642,15 @@ describe('section statuses saved with the material', () => {
   it('a cheat sheet that failed and is still missing: the line stays and «Кратко» offers to make it', async () => {
     state.material = makeMaterial({ podcast: [], sections: { summarizer: { status: 'ok' }, cheatsheet: { status: 'failed', message: 'Модель не ответила' } } });
     renderPage('/library/m1');
-    expect(await screen.findByText('Шпаргалка не получилась: модель не ответила.')).toBeInTheDocument();
+    expect(await screen.findByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /Кратко/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать шпаргалку' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать выжимку' }));
     await waitFor(() => expect(pending['/api/quick-prep']).toHaveLength(1));
     await act(async () => pending['/api/quick-prep'][0].resolve(jsonResponse({ cheatsheet: '# Главное' })));
     expect(await screen.findByRole('heading', { name: 'Главное' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /Материал/ }));
     expect(await screen.findByText('Конспект про энтропию')).toBeInTheDocument();
-    expect(screen.queryByText(/Шпаргалка не получилась/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Выжимка не получилась/)).not.toBeInTheDocument();
   });
 
   it('«Создать тест заново» keeps the saved conversation and records the sections that exist', async () => {
@@ -657,7 +672,7 @@ describe('section statuses saved with the material', () => {
       podcast: { status: 'ok' },
     });
     expect(savedPodcast()).toEqual(legacyLines);
-    expect(state.material.summary_json.cheatsheet).toBe('# Шпаргалка');
+    expect(state.material.summary_json.cheatsheet).toBe('# Выжимка');
   });
 
   it('a conversation saved while a section was being re-created stays on the page', async () => {

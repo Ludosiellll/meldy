@@ -1186,7 +1186,7 @@ class QuickPrepRequest(BaseModel):
     context: str
 
 
-QUICK_PREP_FAILURE_DETAIL = "Не удалось создать шпаргалку. Попробуйте ещё раз."
+QUICK_PREP_FAILURE_DETAIL = "Не удалось создать выжимку. Попробуйте ещё раз."
 
 
 @app.post("/api/quick-prep")
@@ -1197,7 +1197,7 @@ async def quick_prep(request: Request, req: QuickPrepRequest):
     charges energy for it."""
     context = (req.context or "").strip()[:15000]
     if not context:
-        raise HTTPException(status_code=400, detail="Недостаточно текста для шпаргалки.")
+        raise HTTPException(status_code=400, detail="Недостаточно текста для выжимки.")
     agent = BaseAgent(api_key=GROQ_API_KEY)
     charge = await quota.charge(request, "cheatsheet", AI_COSTS["cheatsheet"])
     async with quota.refund_on_failure(charge):

@@ -923,14 +923,14 @@ def test_rate_limits_are_keyed_on_the_signed_in_user():
 # --- /api/quick-prep (cheatsheet) -------------------------------------------------------
 
 def test_quick_prep_returns_the_cheatsheet(api):
-    api.answer_with(json.dumps({"cheatsheet": "# Шпаргалка\n\n- Главное", "key_points": []}, ensure_ascii=False))
+    api.answer_with(json.dumps({"cheatsheet": "# Выжимка\n\n- Главное", "key_points": []}, ensure_ascii=False))
     response = api.post("/api/quick-prep", json={"context": SOURCE})
     assert response.status_code == 200
-    assert response.json()["cheatsheet"].startswith("# Шпаргалка")
+    assert response.json()["cheatsheet"].startswith("# Выжимка")
 
 
 def test_quick_prep_keeps_a_cheatsheet_with_code_blocks(api):
-    cheatsheet = "# Шпаргалка\n\n```python\nfor i in range(3):\n    print(i)\n```\n\n- range(3) даёт 0, 1, 2"
+    cheatsheet = "# Выжимка\n\n```python\nfor i in range(3):\n    print(i)\n```\n\n- range(3) даёт 0, 1, 2"
     raw = json.dumps({"cheatsheet": cheatsheet, "key_points": []}, ensure_ascii=False)
     for answer in (raw, f"```json\n{raw}\n```"):
         api.answer_with(answer)
@@ -956,7 +956,7 @@ def test_quick_prep_failure_is_an_error_not_a_stand_in_cheatsheet(api, raw):
     api.answer_with(raw)
     response = api.post("/api/quick-prep", json={"context": SOURCE})
     assert response.status_code == 502
-    assert response.json() == {"detail": "Не удалось создать шпаргалку. Попробуйте ещё раз."}
+    assert response.json() == {"detail": "Не удалось создать выжимку. Попробуйте ещё раз."}
     assert ("quick-prompt", "quick-text") not in BaseAgent._run_cache
 
 

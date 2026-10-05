@@ -43,7 +43,7 @@ AGENT_LABELS = {
     "summarizer": "Конспект",
     "flashcards": "Карточки",
     "quiz": "Тест",
-    "cheatsheet": "Шпаргалка",
+    "cheatsheet": "Выжимка",
     "podcast": "Разговор",
     "missions": "Миссии",
 }

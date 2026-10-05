@@ -55,7 +55,7 @@ export const NOT_OWNER_MESSAGE = 'Этот материал нельзя изм�
 /**
  * Меняет в summary_json только ключи из patch. summary_json читается заново
  * прямо перед записью: всё, что успело измениться за время ответа модели
- * (разговор, шпаргалка, сохранённые в другой вкладке или другой задачей),
+ * (разговор, выжимка, сохранённые в другой вкладке или другой задачей),
  * остаётся как есть. Служебный _startTab в базу не попадает. Если запись не
  * изменила ни одной строки (материал чужой), это ошибка: энергию за такую
  * работу списывать нельзя.
@@ -83,9 +83,9 @@ export function saveConversationLines(materialId: string, lines: unknown[]): Pro
   return patchSummaryJson(materialId, { podcast: lines }, 'Не удалось сохранить разговор. Попробуйте ещё раз.');
 }
 
-/** Сохраняет шпаргалку в summary_json.cheatsheet, остальные поля не трогает. */
+/** Сохраняет выжимку в summary_json.cheatsheet, остальные поля не трогает. */
 export function saveCheatsheet(materialId: string, cheatsheet: string): Promise<Record<string, unknown>> {
-  return patchSummaryJson(materialId, { cheatsheet }, 'Не удалось сохранить шпаргалку. Попробуйте ещё раз.');
+  return patchSummaryJson(materialId, { cheatsheet }, 'Не удалось сохранить выжимку. Попробуйте ещё раз.');
 }
 
 export async function postJson(url: string, body: unknown): Promise<unknown> {

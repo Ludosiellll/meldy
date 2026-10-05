@@ -72,7 +72,7 @@ function hasSavedCheatsheet(summary: Record<string, unknown>): boolean {
 }
 
 /**
- * Статусы разделов для панели. Анализ записал их в момент запуска, а шпаргалку и
+ * Статусы разделов для панели. Анализ записал их в момент запуска, а выжимку и
  * разговор могли создать позже в «Кратко» и «Разговоре»: если они сохранены, раздел есть,
  * что бы ни было записано тогда. Так панель не пишет о сбое того, что уже создано.
  */
@@ -87,7 +87,7 @@ function panelSections(summary: Record<string, unknown>): SectionStates | undefi
 
 /**
  * Поля, которые «Создать … заново» записало в материал (ResultsPanel, persistSection):
- * созданный раздел, статусы и фрагменты. Остальное (другие разделы, шпаргалка, разговор)
+ * созданный раздел, статусы и фрагменты. Остальное (другие разделы, выжимка, разговор)
  * могло измениться, пока раздел создавался, поэтому в состояние страницы попадает только это.
  */
 function recreatedFields(materialId: string, next: AnalysisResults, section: CoreSectionName) {
@@ -216,8 +216,8 @@ export default function MaterialDetail() {
       ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
       : 'full'
   );
-  // Ссылки «Повторить за 5 минут» ведут сюда и без шпаргалки: тогда вкладка «Кратко»
-  // остаётся видна, чтобы шпаргалку можно было создать.
+  // Ссылки «Повторить за 5 минут» ведут сюда и без выжимки: тогда вкладка «Кратко»
+  // остаётся видна, чтобы выжимку можно было создать.
   const [expressRequested] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') !== 'podcast');
   // Ссылка прямо на разговор: один раз показываем плеер целиком, дальше прокрутку не трогаем.
   const [revealPlayer, setRevealPlayer] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') === 'podcast');
@@ -348,7 +348,7 @@ export default function MaterialDetail() {
   };
 
   // Результат для панели: статусы разделов и «только текст» берутся из summary_json.
-  // Шпаргалка передаётся, чтобы строка о её сбое смотрела на сохранённый текст; разговор
+  // Выжимка передаётся, чтобы строка о её сбое смотрела на сохранённый текст; разговор
   // панель здесь не показывает (у него свой режим), поэтому его реплики не передаются.
   const panelResults = useMemo<AnalysisResults | null>(() => {
     if (!material) return null;
@@ -409,9 +409,9 @@ export default function MaterialDetail() {
   const summaryJson: Record<string, unknown> =
     material.summary_json && typeof material.summary_json === 'object' ? material.summary_json : {};
   const hasCheatsheet = hasSavedCheatsheet(summaryJson);
-  // Шпаргалку просили при анализе, а её нет: «Материал» пишет о сбое, «Кратко» предлагает создать.
+  // Выжимку просили при анализе, а её нет: «Материал» пишет о сбое, «Кратко» предлагает создать.
   const cheatsheetMissing = Boolean(parseSections(summaryJson.sections)?.cheatsheet) && !hasCheatsheet;
-  // Менять материал (создавать шпаргалку и разговор, открывать доступ) может только автор:
+  // Менять материал (создавать выжимку и разговор, открывать доступ) может только автор:
   // назначенные преподавателем и чужие открытые материалы только для чтения.
   const canEdit = Boolean(user?.id) && material.user_id === user?.id;
   const cardCount = cardCountOf(material);

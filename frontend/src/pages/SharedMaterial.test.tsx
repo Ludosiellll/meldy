@@ -34,6 +34,21 @@ describe('SharedMaterial (finding F5)', () => {
     expect(db.from).not.toHaveBeenCalled();
   });
 
+  it('shows the old heading of a saved lecture text as «Выжимка»', async () => {
+    db.rpc.mockResolvedValue({
+      data: {
+        id: 'm1',
+        title: 'Денежный рынок',
+        summary_json: { content: 'Конспект', cheatsheet: '# Экспресс-шпаргалка\n\n## Суть в 3 словах\n\nСпрос на деньги [S01].' },
+      },
+      error: null,
+    });
+    const { container } = renderShared();
+    expect(await screen.findByRole('heading', { name: 'Выжимка' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Суть в 3 словах' })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/шпаргалк/i);
+  });
+
   it('says there is no summary instead of showing the lecture text', async () => {
     db.rpc.mockResolvedValue({ data: { id: 'm1', title: 'Только текст', summary_json: null }, error: null });
     renderShared();

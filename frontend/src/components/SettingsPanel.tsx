@@ -34,7 +34,7 @@ const AGENTS = [
   { id: 'summarizer', label: 'Конспект', desc: 'Структурированные тезисы, темы и словарь терминов', icon: FileText, tone: 'b' },
   { id: 'flashcards', label: 'Карточки', desc: 'Флеш-карточки для быстрого интервального повторения', icon: Layers, tone: 'y' },
   { id: 'quiz', label: 'Тест', desc: 'Интерактивный тест с подробным разбором ошибок', icon: HelpCircle, tone: 'g' },
-  { id: 'cheatsheet', label: 'Шпаргалка', desc: 'Самая главная выжимка лекции для быстрой проверки', icon: Zap, tone: 'p' },
+  { id: 'cheatsheet', label: 'Выжимка', desc: 'Главное из лекции для быстрого повторения', icon: Zap, tone: 'p' },
   { id: 'podcast', label: 'Разговор', desc: 'Два ведущих обсуждают материал, на экране — схемы и термины', icon: MessagesSquare, tone: 's' },
 ];
 

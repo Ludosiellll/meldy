@@ -10,6 +10,7 @@ import '../styles/paper.css';
 import './SharedMaterial.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { stripSourceMarkers } from '../components/summary/fragmentModel';
+import { displayCheatsheet } from '../utils/cheatsheetDisplay';
 
 /**
  * A material opened by its link, without an account (Meldy 2026-10-04): the top line with the wordmark and
@@ -123,7 +124,7 @@ export default function SharedMaterial() {
           <article className="shm-card">
             <p className="shm-kicker">Краткий конспект</p>
             <div className="shm-md">
-              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{stripSourceMarkers(cheatsheet)}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{displayCheatsheet(stripSourceMarkers(cheatsheet))}</ReactMarkdown>
             </div>
           </article>
         ) : (

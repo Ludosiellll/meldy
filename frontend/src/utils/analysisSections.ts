@@ -24,7 +24,7 @@ export const SECTION_LABELS: Record<SectionName, string> = {
   summarizer: 'Конспект',
   flashcards: 'Карточки',
   quiz: 'Тест',
-  cheatsheet: 'Шпаргалка',
+  cheatsheet: 'Выжимка',
   podcast: 'Разговор',
 };
 
@@ -33,7 +33,7 @@ export const SECTION_ACCUSATIVE: Record<SectionName, string> = {
   summarizer: 'конспект',
   flashcards: 'карточки',
   quiz: 'тест',
-  cheatsheet: 'шпаргалку',
+  cheatsheet: 'выжимку',
   podcast: 'разговор',
 };
 

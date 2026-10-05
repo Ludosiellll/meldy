@@ -713,7 +713,7 @@ export default function ConversationPlayer({
 
   const conversationJobRunning = () => isJobRunning('create', materialId) || isJobRunning('visuals', materialId);
 
-  /** Проверка энергии ИИ — та же, что у шпаргалки. При отказе общее окно уже показано. */
+  /** Проверка энергии ИИ — та же, что у выжимки. При отказе общее окно уже показано. */
   const energyAllows = async (userId: string | undefined, action: string) => {
     if (!userId) return true;
     return verifyEnergy(userId, action === 'Подбор схем' ? AI_COSTS.visuals : AI_COSTS.conversation, action);

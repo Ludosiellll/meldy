@@ -146,7 +146,7 @@ describe('header', () => {
         sections: { summarizer: { status: 'ok' }, quiz: { status: 'ok' }, cheatsheet: { status: 'failed', message: 'Модель не ответила' } },
       },
     });
-    expect(screen.getByText('Шпаргалка не получилась: модель не ответила.')).toBeInTheDocument();
+    expect(screen.getByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
   });
 
   it('calls lexical source links «наиболее похожий фрагмент», never confirmed', () => {

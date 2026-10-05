@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from agents import base  # noqa: E402
-from agents.base import AIError, BaseAgent  # noqa: E402
+from agents.base import AIError, BaseAgent, build_cheatsheet_prompt, build_quick_prep_prompt  # noqa: E402
 from agents.coordinator import (  # noqa: E402
     SECTION_MESSAGES,
     TERMINAL_MESSAGES,
@@ -50,13 +50,13 @@ def clean_state(monkeypatch):
 
 
 def section_of(prompt: str) -> str:
-    if "конспект" in prompt and "Верни результат" not in prompt and "шпаргалк" not in prompt:
+    if "конспект" in prompt and "Верни результат" not in prompt and "выжимк" not in prompt:
         return "summarizer"
     if "обучающих карточек" in prompt:
         return "flashcards"
     if "проверочных тестов" in prompt:
         return "quiz"
-    if "шпаргалок" in prompt:
+    if "создания выжимок" in prompt:
         return "cheatsheet"
     if "учебных разговоров" in prompt:
         return "podcast"
@@ -195,9 +195,19 @@ def test_unmatched_quiz_items_are_dropped_and_the_rest_renumbered():
 
 
 def test_cheatsheet_text_or_json_string():
-    assert validate_section("cheatsheet", "# Шпаргалка\n\n- главное") == ({"content": "# Шпаргалка\n\n- главное"}, "ok")
+    assert validate_section("cheatsheet", "# Выжимка\n\n- главное") == ({"content": "# Выжимка\n\n- главное"}, "ok")
     assert validate_section("cheatsheet", '{"cheatsheet": "# Коротко"}') == ({"content": "# Коротко"}, "ok")
     assert validate_section("cheatsheet", "```markdown\n# Коротко\n```") == ({"content": "# Коротко"}, "ok")
+    # The heading of the texts written before the rename is still a valid answer, kept as it is.
+    assert validate_section("cheatsheet", "# Экспресс-шпаргалка\n\n- главное") == ({"content": "# Экспресс-шпаргалка\n\n- главное"}, "ok")
+
+
+def test_the_lecture_text_is_called_vyzhimka_in_its_prompts():
+    """«Шпаргалка» is the exam's cheat sheet now; the lecture's short text is «Выжимка»
+    (notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, 4.5)."""
+    assert "\n# Выжимка\n## Суть в 3 словах\n" in build_cheatsheet_prompt()
+    for prompt in (build_cheatsheet_prompt(), build_quick_prep_prompt()):
+        assert "шпаргалк" not in prompt.lower()
 
 
 # --- code blocks inside the answer (programming lectures) ------------------------------------
@@ -360,17 +370,17 @@ def test_only_optional_sections_requested_and_failed_is_an_error(monkeypatch):
 
 
 def test_optional_section_ok_does_not_save_a_run_without_core(monkeypatch):
-    fake_run(monkeypatch, {"summarizer": "", "cheatsheet": "# Шпаргалка"})
+    fake_run(monkeypatch, {"summarizer": "", "cheatsheet": "# Выжимка"})
     events = collect(["summarizer", "cheatsheet"])
     assert events[-1]["type"] == "error"
 
 
 def test_cheatsheet_is_requested_without_json_mode_even_when_the_text_mentions_json(monkeypatch):
-    calls = fake_run(monkeypatch, {"summarizer": json.dumps(SUMMARY, ensure_ascii=False), "cheatsheet": "# Шпаргалка"})
+    calls = fake_run(monkeypatch, {"summarizer": json.dumps(SUMMARY, ensure_ascii=False), "cheatsheet": "# Выжимка"})
     events = collect(["summarizer", "cheatsheet"])
     modes = {call["section"]: call["json_mode"] for call in calls}
     assert modes == {"summarizer": True, "cheatsheet": False}
-    assert events[-1]["cheatsheet"]["content"] == "# Шпаргалка"
+    assert events[-1]["cheatsheet"]["content"] == "# Выжимка"
 
 
 def test_unusable_answers_are_evicted_and_asked_again_while_valid_ones_stay_cached(monkeypatch):

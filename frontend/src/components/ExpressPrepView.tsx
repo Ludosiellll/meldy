@@ -9,6 +9,7 @@ import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
 import { stripSourceMarkers } from './summary/fragmentModel';
+import { displayCheatsheet } from '../utils/cheatsheetDisplay';
 import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
 import { runJob, useJobStatus } from './conversation/jobs';
 import type { ConversationFlashcard, PodcastLine } from './conversation/types';
@@ -33,11 +34,11 @@ interface ExpressPrepViewProps {
   tab: ExpressTab;
   /** Прокрутить к плееру разговора после открытия (переход по ссылке на разговор). */
   revealPlayer?: boolean;
-  /** Можно ли менять материал (создавать шпаргалку и разговор): только у своего материала. */
+  /** Можно ли менять материал (создавать выжимку и разговор): только у своего материала. */
   canEdit?: boolean;
 }
 
-const CHEATSHEET_FAILED = 'Не удалось создать шпаргалку. Попробуйте ещё раз.';
+const CHEATSHEET_FAILED = 'Не удалось создать выжимку. Попробуйте ещё раз.';
 
 export default function ExpressPrepView({
   summaryJson,
@@ -52,7 +53,7 @@ export default function ExpressPrepView({
 }: ExpressPrepViewProps) {
   const { user } = useAuth();
   const { verifyEnergy } = useEnergyConfirm();
-  // Шпаргалка составляется 10–30 секунд, а вкладку можно сменить: состояние работы живёт вне компонента.
+  // Выжимка составляется 10–30 секунд, а вкладку можно сменить: состояние работы живёт вне компонента.
   const cheatsheetJob = useJobStatus('cheatsheet', materialId);
   const isGenerating = cheatsheetJob.state === 'working';
 
@@ -74,8 +75,8 @@ export default function ExpressPrepView({
       'cheatsheet',
       id,
       async begin => {
-        if (!context.trim()) throw new ConversationError('Недостаточно текста для шпаргалки.');
-        if (userId && !(await verifyEnergy(userId, AI_COSTS.cheatsheet, 'Создание шпаргалки'))) return;
+        if (!context.trim()) throw new ConversationError('Недостаточно текста для выжимки.');
+        if (userId && !(await verifyEnergy(userId, AI_COSTS.cheatsheet, 'Создание выжимки'))) return;
         begin();
         const payload = (await postJson('/api/quick-prep', { context })) as { cheatsheet?: unknown } | null;
         const next = typeof payload?.cheatsheet === 'string' ? payload.cheatsheet.trim() : '';
@@ -116,12 +117,12 @@ export default function ExpressPrepView({
     return (
       <article className="xp-sheet">
         <header className="xp-sheet-head">
-          <h2>Шпаргалка</h2>
+          <h2>Выжимка</h2>
           <p>Главное из материала для быстрого повторения</p>
         </header>
         <div className="xp-md">
           <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {stripSourceMarkers(cheatsheet)}
+            {displayCheatsheet(stripSourceMarkers(cheatsheet))}
           </ReactMarkdown>
         </div>
       </article>
@@ -131,13 +132,13 @@ export default function ExpressPrepView({
   return (
     <section className="xp-empty">
       <div className="xp-empty-text">
-        <h2>Шпаргалка ещё не создана</h2>
+        <h2>Выжимка ещё не создана</h2>
         <p className="xp-empty-p">Соберём главное из материала: определения, формулы и частые ошибки на экзамене.</p>
         {materialId && canEdit ? (
           <div className="xp-empty-acts">
             <button type="button" onClick={handleCreateCheatsheet} disabled={isGenerating} className="sf-primary xp-create" aria-busy={isGenerating || undefined}>
               {isGenerating && <LoaderCircle aria-hidden="true" className="xp-spin" />}
-              {isGenerating ? 'Составляем шпаргалку…' : 'Создать шпаргалку'}
+              {isGenerating ? 'Составляем выжимку…' : 'Создать выжимку'}
             </button>
             {cheatsheetJob.state === 'error' && (
               <div role="alert" className="xp-error">
@@ -153,7 +154,7 @@ export default function ExpressPrepView({
           </div>
         ) : (
           <p className="xp-empty-note">
-            {materialId ? 'Шпаргалку может создать только автор материала.' : 'Шпаргалку можно создать на странице материала в библиотеке.'}
+            {materialId ? 'Выжимку может создать только автор материала.' : 'Выжимку можно создать на странице материала в библиотеке.'}
           </p>
         )}
       </div>
