@@ -421,9 +421,9 @@ describe('sharing a material', () => {
     renderPage('/library/m1');
     await chooseFromMenu('Поделиться');
     await waitFor(() => expect(state.confirm).toHaveBeenCalledTimes(1));
-    // A public material is readable without an account: the question says so (jury memo 13).
+    // A public material is readable without an account: the question says what the link shows (jury memo 13, F5).
     expect(state.confirm.mock.calls[0][0].message).toBe(
-      'Материал появится в открытых материалах: его полный текст, конспект и карточки сможет открыть и скопировать любой, у кого есть ссылка. Закрыть доступ можно в любой момент.',
+      'По ссылке любой сможет открыть название и конспект этого материала, без входа в Meldy. Исходный текст лекции по ссылке не показывается. Закрыть доступ можно в любой момент.',
     );
     expect(state.confirm.mock.calls[0][0].message).not.toMatch(/другие студенты/);
     expect(state.writes).toHaveLength(0);
@@ -447,7 +447,7 @@ describe('sharing a material', () => {
     await waitFor(() => expect(state.toastSuccess).toHaveBeenCalledWith('Доступ открыт, ссылка скопирована'));
     expect(state.writes).toEqual([{ is_public: true }]);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/shared/m1`);
-    expect(screen.getByText(/в открытых материалах/)).toBeInTheDocument();
+    expect(screen.getByText(/открыт по ссылке/)).toBeInTheDocument();
     // The menu closed and gave the focus back to «⋯».
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Действия с лекцией' })).toHaveFocus();

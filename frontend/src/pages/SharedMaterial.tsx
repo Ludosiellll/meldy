@@ -24,15 +24,12 @@ export default function SharedMaterial() {
   useEffect(() => {
     async function loadMaterial() {
       try {
-        const { data, error } = await supabase
-          .from('materials')
-          .select('*')
-          .eq('id', id)
-          .eq('is_public', true)
-          .maybeSingle();
+        // Only what the link shows (title, subject, summary, cheat sheet), never the lecture's own text;
+        // null while the author keeps the material closed (migration *_shared_material_read.sql).
+        const { data, error } = await supabase.rpc('shared_material', { p_id: id });
 
         if (error) throw error;
-        setMaterial(data);
+        setMaterial(data && typeof data === 'object' ? data : null);
       } catch (err) {
         console.error(err);
       } finally {
@@ -134,7 +131,7 @@ export default function SharedMaterial() {
             {/* The fragment marks «[S02]» are internal ids: a reader of the link never sees them. */}
             <div className="shm-md">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                {stripSourceMarkers(extractCleanContent(material.summary_json) || material.original_text || '')}
+                {stripSourceMarkers(extractCleanContent(material.summary_json)) || 'У этого материала пока нет конспекта.'}
               </ReactMarkdown>
             </div>
           </article>

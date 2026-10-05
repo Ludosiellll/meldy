@@ -20,9 +20,12 @@ type Mode = 'full' | 'express' | 'podcast';
 const PANEL_ID = 'material-mode-panel';
 const tabId = (mode: Mode) => `material-mode-${mode}`;
 const MODE_LABELS: Record<Mode, string> = { full: 'Материал', express: 'Кратко', podcast: 'Разговор' };
-/** What opening a material means, said plainly: a public material is readable without an account. */
+/**
+ * What opening a material means, said plainly: the link shows the title and the summary without an account
+ * (public.shared_material — never the lecture's own text). There is no public feed of materials any more.
+ */
 export const PUBLISH_MESSAGE =
-  'Материал появится в открытых материалах: его полный текст, конспект и карточки сможет открыть и скопировать любой, у кого есть ссылка. Закрыть доступ можно в любой момент.';
+  'По ссылке любой сможет открыть название и конспект этого материала, без входа в Meldy. Исходный текст лекции по ссылке не показывается. Закрыть доступ можно в любой момент.';
 /** Spec 4.6: nothing for the first 300 ms, then one quiet line instead of a spinner. */
 const LOADING_LINE_MS = 300;
 
@@ -39,7 +42,7 @@ export function addedAt(iso: string | null | undefined): string {
 export function materialMeta(input: { subject?: string | null; isPublic: boolean; own: boolean; createdAt: string | null | undefined }): string {
   const line = [
     typeof input.subject === 'string' ? input.subject.trim() : '',
-    input.own ? (input.isPublic ? 'в открытых материалах' : 'только для меня') : 'материал другого автора',
+    input.own ? (input.isPublic ? 'открыт по ссылке' : 'только для меня') : 'материал другого автора',
     addedAt(input.createdAt),
   ]
     .filter(Boolean)
