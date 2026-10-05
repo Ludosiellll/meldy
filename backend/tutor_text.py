@@ -33,10 +33,11 @@ LONG_SENTENCE_CHARS = 220
 
 @dataclass
 class Spoken:
-    """One piece to voice: the text as said and the lecture fragments it refers to."""
+    """One piece to voice: the text as said, the lecture fragments it refers to, and the raw text."""
 
     text: str
     refs: list[str] = field(default_factory=list)
+    raw: str = ""
 
 
 def refs_of(text: str) -> list[str]:
@@ -180,4 +181,4 @@ class SentenceSplitter:
         text = speakable(raw)
         if not any(ch.isalnum() for ch in text):
             return None
-        return Spoken(text=text, refs=refs_of(raw))
+        return Spoken(text=text, refs=refs_of(raw), raw=raw.strip())
