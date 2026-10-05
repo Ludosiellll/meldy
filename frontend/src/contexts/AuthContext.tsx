@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { whenIdleAfterLoad } from '../lib/idle';
-import { hasStoredSession, loadSupabase } from '../lib/supabaseClient';
+import { hasStoredSession, loadSupabase, signInInAddress } from '../lib/supabaseClient';
 
 /**
  * A guest on a screen that needs no account (the landing, /try): the session is read once the page
@@ -9,9 +9,9 @@ import { hasStoredSession, loadSupabase } from '../lib/supabaseClient';
  * confirmation, password reset) is read by the client as it starts, so such an address never waits.
  */
 function guestMayWait(): boolean {
-  const { pathname, search, hash } = window.location;
+  const { pathname } = window.location;
   if (!(pathname === '/' || pathname === '/try' || pathname.startsWith('/try/'))) return false;
-  if (/(?:^|[?&#])(?:code|access_token|refresh_token|token_hash|error|error_description|type)=/.test(`${search}${hash}`)) return false;
+  if (signInInAddress()) return false;
   return !hasStoredSession();
 }
 

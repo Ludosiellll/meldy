@@ -3,7 +3,8 @@
  * itself. Two things keep the next steps quick:
  *
  * - a signed-in address fetches the shell (components/Layout) and its page together, instead of
- *   the page only once the shell has arrived (preloadSignedInScreen);
+ *   the page only once the shell has arrived; for a new account, what the guide's first run needs
+ *   comes first, since it opens over the page (preloadSignedInScreen);
  * - once the first screen has loaded and the browser is idle, the screens a visitor is likely to
  *   open next are fetched one after another (prefetchLikelyNext), so on a good connection they open
  *   at once. Nothing is fetched ahead when the browser asks to save data or the connection is 2G.
@@ -13,10 +14,10 @@
  */
 import { confirmDialogPart } from '../contexts/ConfirmContext';
 import { proWindowPart } from '../components/pro/ProWindow';
-import { guideClipPart } from '../components/guide/clipPart';
+import { guideClipPart, guideSeenHere, isNewAccount } from '../components/guide/clipPart';
 import { lazyPart } from './lazyPart';
 import { whenIdleAfterLoad } from './idle';
-import { loadSupabase } from './supabaseClient';
+import { loadSupabase, signInInAddress, storedAccountCreatedAt } from './supabaseClient';
 
 type Loader = () => Promise<unknown>;
 
@@ -58,32 +59,83 @@ const quiet = (load: Loader) => {
 };
 
 /**
- * A signed-in address: fetches the shell and the page together, right after the Supabase client
- * (the session is read with it, and the shell and every page import it, so it comes first instead
- * of sharing the line with them). Called while the session is checked; an address that is not in
- * the list loads as before (the page after the shell).
+ * The page came over HTTP/1.x: the browser then keeps at most six requests per site in flight, so the
+ * Supabase client is not crowded out and waiting for it would only add a round trip. Over HTTP/2 or 3
+ * every request shares one connection, and the client — the largest file and the one the session waits
+ * for — would arrive last.
+ */
+function sharedConnection(): boolean {
+  try {
+    const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    return !/^http\/1/.test(entry?.nextHopProtocol ?? '');
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The guide's first run (GuideContext) most likely opens over this screen: the guide was never
+ * closed on this device, and the account is new — the session kept here says so, or the address
+ * completes a sign-in (an e-mail confirmation, OAuth) before any session is kept. An older account
+ * on a new device is left out: its profile almost always says the guide was seen.
+ */
+function firstRunLikely(): boolean {
+  if (guideSeenHere()) return false;
+  const createdAt = storedAccountCreatedAt();
+  return createdAt !== null ? isNewAccount(createdAt) : signInInAddress();
+}
+
+/**
+ * A signed-in address: fetches the shell and its page together. Over a shared connection they start
+ * right after the Supabase client (the session is read with it, and the shell and every page import
+ * it). Called while the session is checked; an address that is not in the list loads as before (the
+ * page after the shell).
+ *
+ * When the guide's first run is likely, it opens first, over the page: what it needs — the client
+ * (the profile says whether the guide was seen), the shell and the clips — comes first, the page
+ * right after.
  */
 export function preloadSignedInScreen(pathname: string): void {
   const page = SIGNED_IN_PAGES.find(([match]) => match.test(pathname));
+  if (firstRunLikely()) {
+    const guide = Promise.all([loadSupabase(), layoutPart.load(), guideClipPart.load()]);
+    if (page) void guide.then(() => quiet(page[1]), () => quiet(page[1]));
+    else void guide.catch(() => undefined);
+    return;
+  }
   if (!page) return;
-  void loadSupabase().then(
-    () => {
-      quiet(loadLayout);
-      quiet(page[1]);
-    },
-    () => undefined,
-  );
+  const both = () => {
+    quiet(loadLayout);
+    quiet(page[1]);
+  };
+  if (!sharedConnection()) {
+    both();
+    return;
+  }
+  void loadSupabase().then(both, () => undefined);
+}
+
+/**
+ * The sign-in is being completed (AuthCallback), and «Сегодня» opens next: its screen is fetched
+ * meanwhile, as when it is opened directly. Not with Save-Data or on 2G.
+ */
+export function preloadAfterSignIn(): void {
+  if (typeof window !== 'undefined' && mayFetchAhead()) preloadSignedInScreen('/dashboard');
 }
 
 /** What a visitor is likely to open next from here. */
 function likelyNext(pathname: string, signedIn: boolean): Loader[] {
   if (signedIn) {
-    return [loadLayout, ...SECTIONS, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load()];
+    // «Повторение» brings the formula renderer (the largest file by far): last, so it never holds up
+    // another section the student opens meanwhile.
+    const [today, exams, lectures, review, progress] = SECTIONS;
+    return [loadLayout, today, exams, lectures, progress, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load(), review];
   }
   if (pathname === '/') return [loadLogin, loadRegister, loadTry];
   // After signing in comes «Сегодня».
   if (pathname === '/login') return [loadRegister, loadLayout, SECTIONS[0]];
-  if (pathname === '/register') return [loadLogin, loadLayout, SECTIONS[0]];
+  // A new account opens the guide over «Сегодня» first (the mandatory first run).
+  if (pathname === '/register') return [loadLogin, loadLayout, SECTIONS[0], () => guideClipPart.load()];
   if (pathname.startsWith('/try')) return [() => confirmDialogPart.load(), loadRegister, loadLogin];
   return [];
 }

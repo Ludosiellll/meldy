@@ -3,10 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/telemetry';
+import { preloadAfterSignIn } from '../lib/prefetch';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
+
+  // «Сегодня» opens next: its screen comes in while the sign-in completes.
+  useEffect(preloadAfterSignIn, []);
 
   useEffect(() => {
     let cancelled = false;

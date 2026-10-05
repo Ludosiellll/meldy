@@ -3,20 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { markOnboardingTourSeen } from '../../api/social';
 import { useAuth } from '../../hooks/useAuth';
 import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapterId } from './chapters';
-import { guideClipPart } from './clipPart';
+import { GUIDE_SEEN_KEY, guideClipPart, guideSeenHere, isNewAccount } from './clipPart';
 
-/** Remembered on this device as soon as the guide is closed (the profile keeps it for other devices). */
-export const GUIDE_SEEN_KEY = 'meldy_guide_seen';
+export { GUIDE_SEEN_KEY };
 /** The profile's `onboarding_status` key. */
 export const GUIDE_PROFILE_KEY = 'guide';
-
-function readSeen(): boolean {
-  try {
-    return window.localStorage.getItem(GUIDE_SEEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 function writeSeen() {
   try {
@@ -24,14 +15,6 @@ function writeSeen() {
   } catch {
     // Private mode: the profile still remembers it.
   }
-}
-
-/** An account this young has most likely not seen the guide yet. */
-const NEW_ACCOUNT_MS = 3 * 24 * 60 * 60 * 1000;
-
-function isNewAccount(createdAt: string | undefined): boolean {
-  const at = createdAt ? Date.parse(createdAt) : Number.NaN;
-  return Number.isFinite(at) && Date.now() - at < NEW_ACCOUNT_MS;
 }
 
 export interface GuideApi {
@@ -81,7 +64,7 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [mandatory, setMandatory] = useState(false);
-  const seen = useRef(readSeen());
+  const seen = useRef(guideSeenHere());
   const autoTried = useRef(false);
   /** The page the guide took the app to last; null after the student moved on their own. */
   const brought = useRef<string | null>(null);

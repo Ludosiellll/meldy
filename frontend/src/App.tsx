@@ -8,9 +8,11 @@ import IdlePrefetch from './components/IdlePrefetch';
 import { ProWindowProvider } from './components/pro/ProWindow';
 import { layoutPart, preloadSignedInScreen } from './lib/prefetch';
 import { useLazyPart } from './lib/lazyPart';
-// The guide's styles stay in the first stylesheet, ahead of the kit, where they were before the shell
-// became a file of its own: with equal weight, the kit's hover and current-page look of «Добавить
-// лекцию» still wins over the guide's yellow ring.
+// The reel's and the guide's styles stay in the first stylesheet, in their order ahead of the kit, as
+// before the shell became a file of its own. Rules of equal weight decide by order: the guide's stage
+// size wins over the reel's (.gd-stage after .mr-stage), and the kit's hover and current-page look of
+// «Добавить лекцию» wins over the guide's yellow ring (paper.css after guide.css).
+import './components/reel/reel.css';
 import './components/guide/guide.css';
 // Fonts and kit tokens for every route (Onest only since the 2026-10-04 redesign): the app does not
 // load fonts from a third-party host, which the production CSP blocks.

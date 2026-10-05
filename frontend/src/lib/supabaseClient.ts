@@ -60,18 +60,41 @@ export function hasStoredSession(): boolean {
   }
 }
 
-/** The access token of the session the client keeps here, read without the client; null without one. */
-export function storedAccessToken(): string | null {
+interface StoredSession {
+  access_token?: unknown;
+  user?: { created_at?: unknown } | null;
+}
+
+/** The session the client keeps here, read without the client; null without one (or unreadable). */
+function storedSession(): StoredSession | null {
   try {
     const storage = window.localStorage;
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index) ?? '';
       if (!SESSION_KEY.test(key)) continue;
-      const session = JSON.parse(storage.getItem(key) ?? 'null') as { access_token?: unknown } | null;
-      return typeof session?.access_token === 'string' ? session.access_token : null;
+      const session = JSON.parse(storage.getItem(key) ?? 'null') as StoredSession | null;
+      return session && typeof session === 'object' ? session : null;
     }
   } catch {
-    // Unreadable or not JSON: no token.
+    // Unreadable or not JSON: no session.
   }
   return null;
+}
+
+/** The access token of the session the client keeps here, read without the client; null without one. */
+export function storedAccessToken(): string | null {
+  const token = storedSession()?.access_token;
+  return typeof token === 'string' ? token : null;
+}
+
+/** When the signed-in account was created, from the session kept here; null without one. */
+export function storedAccountCreatedAt(): string | null {
+  const createdAt = storedSession()?.user?.created_at;
+  return typeof createdAt === 'string' ? createdAt : null;
+}
+
+/** The address carries a sign-in for the client to complete (OAuth, e-mail confirmation, a reset). */
+export function signInInAddress(): boolean {
+  const { search, hash } = window.location;
+  return /(?:^|[?&#])(?:code|access_token|refresh_token|token_hash|error|error_description|type)=/.test(`${search}${hash}`);
 }
