@@ -11,9 +11,10 @@ when its key is set:
   (no default model: these two serve only what the owner names);
 - gemini    — GEMINI_API_KEY (the app's keys and fast models, thinking off).
 
-TUTOR_PROVIDERS sets the order (comma-separated names); unknown names are ignored. A provider
-that answers 429 rests for TUTOR_COOLDOWN_SECONDS; a rejected key or model rests for
-MODEL_SKIP_SECONDS. Another provider is tried only before the first words: once text has gone
+TUTOR_PROVIDERS sets the order (comma-separated names); unknown names are ignored. Groq and
+Gemini come last by default: the analysis and the oral checks live on their small free quotas.
+A provider that answers 429 rests for its Retry-After (5–900 s), else TUTOR_COOLDOWN_SECONDS;
+a rejected key or model rests for MODEL_SKIP_SECONDS. Another provider is tried only before the first words: once text has gone
 out, a broken stream ends the reply instead of starting a second, different one.
 """
 
@@ -42,9 +43,11 @@ from agents.base import (
     types,
 )
 
-DEFAULT_ORDER = "cerebras,groq,mistral,gemini,openrouter,nvidia"
-DEFAULT_COOLDOWN_SECONDS = 45.0
-DEFAULT_FIRST_TOKEN_SECONDS = 9.0
+DEFAULT_ORDER = "cerebras,mistral,groq,gemini,openrouter,nvidia"
+DEFAULT_COOLDOWN_SECONDS = 60.0
+MIN_COOLDOWN_SECONDS = 5.0
+MAX_COOLDOWN_SECONDS = 900.0
+DEFAULT_FIRST_TOKEN_SECONDS = 4.0
 DEFAULT_IDLE_SECONDS = 12.0
 DEFAULT_BUDGET_SECONDS = 30.0
 
@@ -207,9 +210,19 @@ class _Attempt:
 
 
 class _ProviderFailed(Exception):
-    def __init__(self, kind: str, detail: str = ""):
+    def __init__(self, kind: str, detail: str = "", retry_after: Optional[float] = None):
         super().__init__(detail or kind)
         self.kind = kind
+        self.retry_after = retry_after
+
+
+def _retry_after(value: Optional[str]) -> Optional[float]:
+    """Seconds from a Retry-After header (a number of seconds), clamped; None when absent or a date."""
+    try:
+        seconds = float((value or "").strip())
+    except ValueError:
+        return None
+    return min(MAX_COOLDOWN_SECONDS, max(MIN_COOLDOWN_SECONDS, seconds))
 
 
 class StreamBroken(Exception):
@@ -258,7 +271,8 @@ async def _openai_deltas(provider: Provider, key: str, body: dict) -> AsyncItera
         async with _http().stream("POST", url, headers=headers, json=body) as response:
             if response.status_code >= 400:
                 raw = (await response.aread())[:400].decode("utf-8", "replace")
-                raise _ProviderFailed(_status_kind(response.status_code), raw)
+                raise _ProviderFailed(_status_kind(response.status_code), raw,
+                                      _retry_after(response.headers.get("retry-after")))
             async for line in response.aiter_lines():
                 line = line.strip()
                 if not line.startswith("data:"):
@@ -409,7 +423,7 @@ async def stream_reply(
                         hint = False  # this provider may not take the reasoning fields: once without them
                         continue
                     if kind == "rate_limited":
-                        _rest(provider.name, cooldown_seconds())
+                        _rest(provider.name, failure.retry_after or cooldown_seconds())
                     elif kind in ("permission", "not_found"):
                         _rest(provider.name, model_skip_seconds())
                     break

@@ -87,6 +87,26 @@ def test_a_busy_provider_hands_over_and_rests(net, monkeypatch):
     assert "reasoning_effort" not in calls[1][1]  # not a reasoning model
 
 
+def test_a_busy_provider_rests_as_long_as_it_asks_within_bounds(net, monkeypatch):
+    calls, replies = net
+    clock = [1000.0]
+    monkeypatch.setattr(chat_stream, "_clock", lambda: clock[0])
+    monkeypatch.setenv("CEREBRAS_API_KEY", "c-key")
+    monkeypatch.setenv("MISTRAL_API_KEY", "m-key")
+
+    async def cerebras(request, body):
+        return httpx.Response(429, content=b"{}", headers={"retry-after": "2"})
+
+    replies["api.cerebras.ai"] = cerebras
+    replies["api.mistral.ai"] = (200, sse("Ответ."))
+    collect()
+    clock[0] += chat_stream.MIN_COOLDOWN_SECONDS - 0.5  # «2 s» is raised to the minimum rest
+    collect()
+    clock[0] += 1.0
+    collect()
+    assert [host for host, _ in calls] == ["api.cerebras.ai", "api.mistral.ai", "api.mistral.ai", "api.cerebras.ai", "api.mistral.ai"]
+
+
 def test_a_rejected_key_is_skipped_for_a_while_and_order_comes_from_the_setting(net, monkeypatch):
     calls, replies = net
     monkeypatch.setenv("TUTOR_PROVIDERS", "mistral, groq")
@@ -236,3 +256,9 @@ def test_gemini_streams_with_the_turns_as_user_and_model(net, monkeypatch):
 
     assert asyncio.run(run()) == ["Первая. ", "Вторая."]
     assert seen == {"model": "flash-a", "roles": ["user", "model", "user"], "system": "Правила."}
+
+
+def test_the_default_order_keeps_groq_and_gemini_for_the_core_features(net, monkeypatch):
+    for name in ("CEREBRAS_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setenv(name, "k")
+    assert [p.name for p in chat_stream.configured_providers()] == ["cerebras", "mistral", "groq", "gemini"]
