@@ -1,4 +1,4 @@
--- Rollback of 20261005150000_cheat_sheet.sql. NOT applied by any package or agent; the owner runs it by hand only if
+-- Rollback of 20261005143420_cheat_sheet.sql. NOT applied by any package or agent; the owner runs it by hand only if
 -- the cheat sheet has to go entirely.
 -- In one transaction it:
 --   1. re-creates learning_events_kind_check without 'sheet_peek', NOT VALID: the peeks already in the journal stay

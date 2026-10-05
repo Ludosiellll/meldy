@@ -1,6 +1,6 @@
 -- cheat_sheet
--- Repo file: supabase/migrations/20261005150000_cheat_sheet.sql. Written on 2026-10-05; NOT applied yet (the owner or
--- the orchestrator applies it, then runs the contract check supabase/tests/cheat_sheet.sql).
+-- Repo file: supabase/migrations/20261005143420_cheat_sheet.sql. Applied to the project on 2026-10-05 as version
+-- 20261005143420 (cheat_sheet); the contract check supabase/tests/cheat_sheet.sql returned contract_ok = true.
 --
 -- «Шпаргалка, которая исчезает» (notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, sections 3.2, 3.3 and 10):
 --   1. oral_rubrics.sheet jsonb — the cheat-sheet lines of one rubric row, written by the backend (oral_sheet.py) with
@@ -17,7 +17,7 @@
 -- Additive: a new nullable column with its check, and one more allowed kind; no grant or policy changes. Re-runnable
 -- (IF NOT EXISTS; both checks are dropped and re-created). The backend reads the column only after this is applied:
 -- before that GET /api/oral/sheet works without short lines (it retries its read without the column).
--- Rollback: supabase/rollback/20261005150000_cheat_sheet_down.sql.
+-- Rollback: supabase/rollback/20261005143420_cheat_sheet_down.sql.
 
 -- 1. Short lines of a rubric row.
 alter table public.oral_rubrics add column if not exists sheet jsonb;
