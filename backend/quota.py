@@ -28,7 +28,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import contextvars
-import functools
 import hashlib
 import math
 import os
@@ -40,7 +39,7 @@ from typing import Any, Optional
 import supabase_rest
 from agents import base as ai_base
 from agents.base import AIError
-from plans import AI_COSTS, exam_mapping_cost, professor_exam_cost, scan_cost
+from plans import AI_COSTS, exam_mapping_cost, scan_cost
 
 __all__ = [
     "AI_LIMIT_DETAIL",
@@ -50,14 +49,12 @@ __all__ = [
     "DEMO_LECTURE_SHA256",
     "bind_request",
     "charge",
-    "charged",
     "drain_background",
     "exam_mapping_units",
     "is_demo_text",
     "is_demo_upload",
     "kind_from_path",
     "next_reset",
-    "professor_exam_units",
     "reserve",
     "scan_units",
 ]
@@ -481,29 +478,6 @@ class ChargeGroup:
             await item.wait_refund()
 
 
-def charged(kind: str, units: Optional[int] = None):
-    """Декоратор маршрута: списать единицы действия до обработчика, вернуть, если он упал.
-
-    units по умолчанию — plans.AI_COSTS[kind]. Ставится под @limiter.limit, над функцией с
-    параметром request: FastAPI и slowapi видят её подпись через functools.wraps.
-    """
-    price = AI_COSTS[kind] if units is None else units
-
-    def wrap(handler):
-        @functools.wraps(handler)
-        async def run(*args, **kwargs):
-            request = kwargs.get("request")
-            if request is None:
-                request = next((item for item in args if hasattr(item, "headers") and hasattr(item, "url")), None)
-            spent = await charge(request, kind, price)
-            async with refund_on_failure(spent):
-                return await handler(*args, **kwargs)
-
-        return run
-
-    return wrap
-
-
 def scan_units(pages: Any) -> int:
     """Единицы распознавания скана PDF из стольких страниц (plans.scan_cost)."""
     return scan_cost(_count(pages))
@@ -516,10 +490,6 @@ def cost(kind: str) -> int:
 
 def exam_mapping_units(questions_to_model: int) -> int:
     return exam_mapping_cost(questions_to_model)
-
-
-def professor_exam_units(length: Any) -> int:
-    return professor_exam_cost(length)
 
 
 # ── Демо-текст ─────────────────────────────────────────────────────────────────

@@ -29,35 +29,18 @@ export const AI_COSTS = {
   visuals: 2,
   /** Шпаргалка. */
   cheatsheet: 5,
-  /** Сообщение в чате с ИИ. */
-  chatMessage: 1,
   // Прежние разделы: столько же, сколько до 2026-10-04 списывал браузер.
-  /** Учебный курс из материалов библиотеки. */
-  course: 5,
-  /** Игра-квест по лекции (и викторина в учебной сессии). */
-  missions: 2,
   /** Работа над ошибками. */
   mistakesPractice: 2,
   /** Распознавание оценок по фото. */
   gradebookScan: 1,
-  /** Оцифровка навыков (карьера). */
-  careerProfile: 5,
-  /** Экспертное ревью решения (карьера). */
-  careerReview: 5,
   // Закрыто 2026-10-05: вызовы модели, которые раньше ничего не стоили.
   /** Распознавание скана PDF — за каждые начатые 15 страниц (фото страницы входит в анализ). */
   scanPages: 5,
-  /** Раздел анализа заново. Бесплатно — починка раздела, который не получился в оплаченном анализе. */
+  /** Раздел анализа заново. Бесплатно — починка раздела, который не получился в анализе своей лекции. */
   analysisSection: 7,
-  /** Устный экзамен у «профессора»: каждый вопрос… */
-  professorQuestion: 1,
-  /** …и каждая оценка ответа. */
-  professorEvaluate: 1,
-  /** Карьера: реплика в чате или подсказка. */
-  careerChat: 1,
-  /** Карьера: курс, тест, задание, проект. */
-  careerGenerate: 3,
 } as const;
+// Убраны вместе со скрытыми разделами (2026-10-05): чат, курсы, миссии, экзамен у «профессора», карьера.
 
 export type AICostKind = keyof typeof AI_COSTS;
 
@@ -77,18 +60,6 @@ export const OCR_PAGES_PER_CHARGE = 15;
 export function scanCost(pages: number): number {
   const count = Math.max(0, Math.trunc(Number(pages) || 0));
   return AI_COSTS.scanPages * Math.ceil(count / OCR_PAGES_PER_CHARGE);
-}
-
-/** Длины устного экзамена у «профессора»; другая длина считается как 5 вопросов. */
-export const PROFESSOR_EXAM_LENGTHS: readonly number[] = [3, 5, 10];
-
-/**
- * Весь экзамен у «профессора»: вопрос и оценка ответа на каждый из length вопросов. Сервер списывает
- * их по одному; страница сверяет цену всего экзамена с остатком до начала.
- */
-export function professorExamCost(length: number): number {
-  const questions = PROFESSOR_EXAM_LENGTHS.includes(length) ? length : 5;
-  return questions * (AI_COSTS.professorQuestion + AI_COSTS.professorEvaluate);
 }
 
 /** Дневной лимит аккаунта в единицах. */

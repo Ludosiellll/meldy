@@ -7,7 +7,6 @@ import {
   dailyUnits,
   examMappingCost,
   OCR_PAGES_PER_CHARGE,
-  professorExamCost,
   scanCost,
 } from './plans';
 
@@ -16,9 +15,8 @@ describe('plans', () => {
   it('keeps the limits of 2026-10-04 and the costs of 2026-10-05', () => {
     expect([FREE_DAILY_UNITS, PRO_DAILY_UNITS]).toEqual([100, 1000]);
     expect(AI_COSTS).toEqual({
-      lecture: 20, examMapping: 10, answer: 4, answerPoints: 1, conversation: 5, visuals: 2, cheatsheet: 5, chatMessage: 1,
-      course: 5, missions: 2, mistakesPractice: 2, gradebookScan: 1, careerProfile: 5, careerReview: 5,
-      scanPages: 5, analysisSection: 7, professorQuestion: 1, professorEvaluate: 1, careerChat: 1, careerGenerate: 3,
+      lecture: 20, examMapping: 10, answer: 4, answerPoints: 1, conversation: 5, visuals: 2, cheatsheet: 5,
+      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7,
     });
     expect(dailyUnits(false)).toBe(100);
     expect(dailyUnits(true)).toBe(1000);
@@ -27,10 +25,6 @@ describe('plans', () => {
   it('charges the check of a list by every started 40 questions that go to the model', () => {
     expect(EXAM_MAPPING_QUESTIONS_PER_CHARGE).toBe(40);
     expect([0, 1, 40, 41, 80, 81, -3].map(examMappingCost)).toEqual([0, 10, 10, 20, 20, 30, 0]);
-  });
-
-  it('prices the professor exam as a question and an evaluation per question, an unknown length as 5', () => {
-    expect([3, 5, 10, 7].map(professorExamCost)).toEqual([6, 10, 20, 10]);
   });
 
   it('charges the recognition of a scan by every started 15 pages', () => {

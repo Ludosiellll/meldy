@@ -31,7 +31,7 @@ import receipts  # noqa: E402
 import supabase_rest  # noqa: E402
 from agents import base  # noqa: E402
 from agents.base import AIError, BaseAgent  # noqa: E402
-from plans import AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, exam_mapping_cost, professor_exam_cost, scan_cost  # noqa: E402
+from plans import AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, exam_mapping_cost, scan_cost  # noqa: E402
 from test_lecture_formats import FakeGemini, gemini_error, scan_pdf  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
@@ -182,7 +182,7 @@ def test_demo_hash_is_the_hash_of_the_frontend_demo_text():
 
 def test_reserve_spends_units_with_the_users_own_token_and_refunds_once(server):
     async def go():
-        spent = await quota.reserve("token-a", "chatMessage", 1)
+        spent = await quota.reserve("token-a", "answerPoints", 1)
         assert spent.units == 1 and spent.charge_id and spent.reserved
         assert server.used == 1
         await spent.refund()
@@ -191,8 +191,8 @@ def test_reserve_spends_units_with_the_users_own_token_and_refunds_once(server):
 
     spent = run(go())
     assert server.calls == [
-        ("consume_ai_units", {"p_units": 1, "p_kind": "chatMessage"}, "token-a"),
-        ("refund_ai_units", {"p_units": 1, "p_kind": "chatMessage", "p_charge": spent.charge_id}, "token-a"),
+        ("consume_ai_units", {"p_units": 1, "p_kind": "answerPoints"}, "token-a"),
+        ("refund_ai_units", {"p_units": 1, "p_kind": "answerPoints", "p_charge": spent.charge_id}, "token-a"),
     ]
     assert server.used == 0 and not spent.reserved
 
@@ -268,9 +268,7 @@ def test_a_failed_refund_is_logged_not_raised(server, capsys):
 def test_costs_come_from_plans():
     assert (FREE_DAILY_UNITS, PRO_DAILY_UNITS) == (100, 1000)
     assert [exam_mapping_cost(n) for n in (0, 1, 40, 41, 80, 81)] == [0, 10, 10, 20, 20, 30]
-    # Экзамен у «профессора»: вопрос и оценка на каждый вопрос (цена для проверки остатка до начала).
-    assert [professor_exam_cost(n) for n in (3, 5, 10, None, 7, True)] == [6, 10, 20, 10, 10, 10]
-    assert quota.exam_mapping_units(41) == 20 and quota.professor_exam_units(10) == 20
+    assert quota.exam_mapping_units(41) == 20
     # Скан PDF: 5 единиц за каждые начатые 15 страниц.
     assert [scan_cost(n) for n in (0, 1, 15, 16, 60)] == [0, 5, 5, 10, 20]
     assert quota.scan_units(31) == 15
@@ -288,37 +286,40 @@ def test_the_browser_shows_the_prices_the_server_charges():
 # ── Эндпоинты: списание до модели, возврат, 429 ────────────────────────────────
 
 
-def test_chat_charges_one_unit_and_refunds_a_failed_answer(api):
-    api.answer_with("Ответ по материалу.")
-    response = api.post("/api/chat", json={"message": "Что такое ВВП?", "context": "Лекция про ВВП.", "history": []})
-    assert response.status_code == 200 and response.json() == {"reply": "Ответ по материалу."}
-    assert api.server.rpc("consume_ai_units") == [{"p_units": 1, "p_kind": "chatMessage"}]
-    assert api.server.rpc("refund_ai_units") == [] and api.server.used == 1
+CHEATSHEET = {"key_points": ["a"], "cheatsheet": "**ВВП** — стоимость товаров и услуг.", "questions": []}
+
+
+def test_a_cheatsheet_charges_its_price_and_refunds_a_failed_answer(api):
+    api.answer_with(CHEATSHEET)
+    response = api.post("/api/quick-prep", json={"context": "Лекция про ВВП."})
+    assert response.status_code == 200, response.text
+    assert api.server.rpc("consume_ai_units") == [{"p_units": 5, "p_kind": "cheatsheet"}]
+    assert api.server.rpc("refund_ai_units") == [] and api.server.used == 5
 
     api.answer_with(AIError.busy())
-    response = api.post("/api/chat", json={"message": "Ещё вопрос", "context": "Лекция про ВВП.", "history": []})
-    assert response.status_code == 429 and response.json()["code"] == "ai_busy"
+    response = api.post("/api/quick-prep", json={"context": "Ещё одна лекция про ВВП."})
+    assert response.status_code == 429 and "занят" in response.json()["detail"]
     (refund,) = api.server.rpc("refund_ai_units")
-    assert refund["p_units"] == 1 and api.server.used == 1
+    assert refund["p_units"] == 5 and api.server.used == 5
 
 
 def test_limit_is_a_429_in_the_apps_error_shape_and_the_model_is_not_called(api):
     api.server.used = FREE_DAILY_UNITS
     api.answer_with("не должен понадобиться")
-    response = api.post("/api/chat", json={"message": "Вопрос", "context": "Лекция.", "history": []})
+    response = api.post("/api/quick-prep", json={"context": "Лекция."})
     assert response.status_code == 429
     body = response.json()
     assert set(body) == LIMIT_BODY_KEYS
     assert body == {"detail": "Дневной лимит ИИ на сегодня исчерпан.", "code": "ai_limit", "used": 100, "limit": 100,
-                    "resets_at": RESETS_AT, "pro": False, "units": 1}
+                    "resets_at": RESETS_AT, "pro": False, "units": 5}
     assert int(response.headers["retry-after"]) >= 1
     assert api.calls == []
 
 
 def test_pro_limit_is_reported_as_pro(api):
     api.server.pro, api.server.limit, api.server.used = True, PRO_DAILY_UNITS, PRO_DAILY_UNITS
-    api.answer_with("ответ")
-    body = api.post("/api/chat", json={"message": "Вопрос", "context": "Лекция.", "history": []}).json()
+    api.answer_with(CHEATSHEET)
+    body = api.post("/api/quick-prep", json={"context": "Лекция."}).json()
     assert body["code"] == "ai_limit" and body["pro"] is True and body["limit"] == 1000
 
 
@@ -328,22 +329,12 @@ PODCAST_LINE = {"speaker": "Макс", "text": "О чём лекция?", "sourc
 @pytest.mark.parametrize(
     "path,body,kind,units",
     [
-        ("/api/chat", {"message": "Вопрос", "context": "Лекция.", "history": []}, "chatMessage", 1),
         ("/api/quick-prep", {"context": "Лекция про инфляцию и ставку."}, "cheatsheet", 5),
         ("/api/mistakes/practice", {"mistakes": [{"id": "m-1", "question": "Что такое инфляция?"}]}, "mistakesPractice", 2),
         ("/api/podcast/generate", {"context": "Инфляция — устойчивый рост цен.", "title": "Инфляция"}, "conversation", 5),
         ("/api/podcast/visuals", {"lines": [PODCAST_LINE], "context": "Инфляция — рост цен."}, "visuals", 2),
-        ("/api/missions/generate", {"context": "Лекция про инфляцию."}, "missions", 2),
-        ("/api/courses/generate", {"materials": [{"id": "m1", "title": "Инфляция", "subject": "Экономика"}]}, "course", 5),
-        ("/api/career/generate", {"materials_context": "Тема: SQL"}, "careerProfile", 5),
-        ("/api/career/evaluate_task", {"profession": "Аналитик", "module_title": "SQL", "task_description": "SELECT",
-                                       "practice_type": "sql", "student_solution": "SELECT 1"}, "careerReview", 5),
         ("/api/academic/scan", {"text": "Оценки: 5, 4"}, "gradebookScan", 1),
-        ("/api/professor/question", {"context": "Лекция.", "exam_length": 10}, "professorQuestion", 1),
         # Закрыто 2026-10-05: раньше эти вызовы модели ничего не стоили.
-        ("/api/professor/evaluate", {"context": "Лекция.", "question": "Что такое ВВП?", "student_answer": "Сумма."},
-         "professorEvaluate", 1),
-        ("/api/career/chat", {"message": "Хочу в аналитику", "history": []}, "careerChat", 1),
         ("/api/analyze/section", {"section": "quiz", "text": "Лекция про инфляцию. " * 20}, "analysisSection", 7),
     ],
 )
@@ -429,56 +420,10 @@ def test_a_section_that_is_not_a_repair_costs_its_price(api, make_row):
     assert api.server.rpc("consume_ai_units") == [{"p_units": AI_COSTS["analysisSection"], "p_kind": "analysisSection"}]
 
 
-def test_every_professor_question_and_evaluation_costs_a_unit(api):
-    api.answer_with("Что такое ключевая ставка?")
-    first = api.post("/api/professor/question", json={"context": "Лекция.", "exam_length": 3})
-    following = api.post("/api/professor/question", json={"context": "Лекция.", "history_text": "Билет 1. В: …", "exam_length": 3})
-    assert (first.status_code, following.status_code) == (200, 200)
-    assert api.server.rpc("consume_ai_units") == [{"p_units": 1, "p_kind": "professorQuestion"}] * 2
-
-
-def test_every_career_call_to_the_model_is_charged():
-    import inspect
-
-    import main
-
-    source = inspect.getsource(main)
-    charged = source.count('@quota.charged("careerChat")') + source.count('@quota.charged("careerGenerate")')
-    assert charged == 17
-    for path in ("/api/career/chat", "/api/career/course", "/api/career/mock_interview_start", "/api/career/github_readme"):
-        head = source.split(f'@app.post("{path}")', 1)[1].split("async def", 1)[0]
-        assert "@quota.charged(" in head, path
-
-
 def test_successful_answers_keep_their_units(api):
-    api.answer_with({"key_points": ["a"], "cheatsheet": "**Инфляция** — рост цен.", "questions": []})
+    api.answer_with(CHEATSHEET)
     assert api.post("/api/quick-prep", json={"context": "Лекция про инфляцию."}).status_code == 200
-    api.answer_with({"missions": [{"id": 1, "title": "Миссия"}]})
-    assert api.post("/api/missions/generate", json={"context": "Лекция."}).status_code == 200
-    api.answer_with({"title": "Курс", "description": "", "structure": []})
-    assert api.post("/api/courses/generate", json={"materials": []}).json()["title"] == "Курс"
-    assert api.server.rpc("refund_ai_units") == [] and api.server.used == 5 + 2 + 5
-
-
-def test_stand_ins_that_are_not_the_models_work_give_the_units_back(api, monkeypatch):
-    from agents.career import CareerAgent
-
-    async def stand_in(self, context):
-        return {"skills": [], "error": "JSON Parse Error"}
-
-    def unreadable(raw):
-        raise ValueError("not JSON")
-
-    monkeypatch.setattr(CareerAgent, "process", stand_in)
-    assert api.post("/api/career/generate", json={"materials_context": "Тема: SQL"}).status_code == 200
-    monkeypatch.setattr(api.main, "parse_model_json", unreadable)
-    api.answer_with("не JSON")
-    assert api.post("/api/career/evaluate_task", json={
-        "profession": "Аналитик", "module_title": "SQL", "task_description": "SELECT", "practice_type": "sql",
-        "student_solution": "SELECT 1"}).json()["score"] == 75
-    assert [args["p_kind"] for args in api.server.rpc("refund_ai_units")] == ["careerProfile", "careerReview"]
-    assert api.server.used == 0
-
+    assert api.server.rpc("refund_ai_units") == [] and api.server.used == AI_COSTS["cheatsheet"]
 
 
 # ── Анализ лекции: демо бесплатно, отказ до потока, возврат без результата ─────
@@ -979,7 +924,7 @@ def test_every_real_call_is_logged_for_its_user_in_the_background(server, clean_
     install_gemini(monkeypatch, lambda model: "ответ")
 
     async def go():
-        spent = await quota.reserve("token-a", "chatMessage", 1)
+        spent = await quota.reserve("token-a", "answerPoints", 1)
         assert spent.units == 1
         await BaseAgent().run("Ты помощник.", "Вопрос один")
         await BaseAgent().run("Ты помощник.", "Вопрос один")  # из кэша — не вызов
@@ -989,7 +934,7 @@ def test_every_real_call_is_logged_for_its_user_in_the_background(server, clean_
     run(go())
     logs = server.rpc("log_ai_call")
     assert len(logs) == 2
-    assert logs[0] == {"p_kind": "chatMessage", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-2.5-flash-lite",
+    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-2.5-flash-lite",
                        "p_ok": True, "p_ms": logs[0]["p_ms"]}
     assert logs[1]["p_units"] == 0 and isinstance(logs[0]["p_ms"], int)
     assert all(token == "token-a" for fn, _, token in server.calls)
@@ -1024,7 +969,7 @@ def test_without_a_bound_user_or_with_the_log_off_nothing_is_sent(server, clean_
     monkeypatch.setenv("AI_CALL_LOG_DISABLED", "1")
 
     async def off():
-        await quota.reserve("token-a", "chatMessage", 0)
+        await quota.reserve("token-a", "answerPoints", 0)
         await BaseAgent().run("Ты помощник.", "Вопрос при выключенном журнале")
         await quota.drain_background()
 
@@ -1040,10 +985,10 @@ def test_the_auth_middleware_binds_the_user_and_the_path_kind(api, monkeypatch):
         return "Что такое ставка?"
 
     monkeypatch.setattr(BaseAgent, "run", fake_run)
-    api.post("/api/professor/evaluate", json={"context": "Лекция.", "question": "В?", "student_answer": "О."})
-    api.post("/api/chat", json={"message": "Вопрос", "context": "Лекция.", "history": []})
+    api.post("/api/quick-prep", json={"context": "Лекция."})
+    api.post("/api/mistakes/practice", json={"mistakes": [{"id": "m-1", "question": "Что такое инфляция?"}]})
     assert [(ctx.token, ctx.kind, ctx.units) for ctx in seen] == [
-        ("token-a", "professorEvaluate", 1), ("token-a", "chatMessage", 1)]
+        ("token-a", "cheatsheet", 5), ("token-a", "mistakesPractice", 2)]
     assert quota.kind_from_path(f"/api/exams/{uuid.uuid4()}/map") == "exams_map"
     assert quota.kind_from_path("/api/oral/check") == "oral_check"
 
