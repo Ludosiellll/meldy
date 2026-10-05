@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RecorderError, SegmentRecorder, recorderSupported, type RecordedSegment } from '../lib/oral/recorder';
 import { transcribeAudio } from '../lib/oral/transcribe';
 import { joinSpeech, useSpeechAnswer, type SpeechAnswer, type SpeechErrorKind, type SpeechStatus } from './useSpeechAnswer';
+import { track } from '../lib/telemetry';
 
 /**
  * Устный ответ двумя способами распознавания с одним интерфейсом (SpeechAnswer):
@@ -263,6 +264,7 @@ export function useVoiceAnswer(options: { lang?: string; hint?: string; server?:
       engineRef.current = 'server';
       setEngine('server');
       setSwitchedBecause(why);
+      track('voice_engine_switched', { reason: why });
       writeEngine('server');
       resetServer(carried);
       if (listening) startServer();

@@ -20,3 +20,22 @@ export const OCR_PHOTO_NOTICE = 'Текст распознан с фото — �
 export function isLegacyPpt(fileName: string): boolean {
   return /\.ppt$/i.test(fileName.trim());
 }
+
+/**
+ * The format of a lecture sent for analysis, for the statistics (lib/telemetry, event lecture_upload):
+ * pdf, docx, pptx, txt, md, html, photo, audio, video, url or other. A pasted text goes as a .txt file.
+ */
+export function lectureFormatOf(file: File | null | undefined, url?: string): string {
+  if (url) return 'url';
+  const type = file?.type || '';
+  if (type.startsWith('image/')) return 'photo';
+  if (type.startsWith('audio/')) return 'audio';
+  if (type.startsWith('video/')) return 'video';
+  const ext = (/\.([a-z0-9]+)$/i.exec(file?.name || '')?.[1] || '').toLowerCase();
+  if (['pdf', 'docx', 'pptx', 'txt', 'md'].includes(ext)) return ext;
+  if (ext === 'html' || ext === 'htm') return 'html';
+  if (['jpg', 'jpeg', 'png'].includes(ext)) return 'photo';
+  if (['mp3', 'wav', 'm4a', 'mpeg'].includes(ext)) return 'audio';
+  if (ext === 'mp4') return 'video';
+  return 'other';
+}

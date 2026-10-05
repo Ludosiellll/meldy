@@ -22,7 +22,6 @@ vi.mock('../api/materials', () => ({
   deleteMaterial: (...args: unknown[]) => data.deleteMaterial(...(args as [])),
   updateMaterialTitle: (...args: unknown[]) => data.updateMaterialTitle(...(args as [])),
 }));
-vi.mock('../api/groups', () => ({ getAssignedMaterials: vi.fn(async () => []), joinGroup: vi.fn() }));
 vi.mock('../api/exams', () => ({ listExamShelves: vi.fn(async () => data.shelves) }));
 
 import Library, { lectureMeta, lecturesLine, libraryLayout, SEARCH_FROM, toEntry, type LibraryEntry } from './Library';
@@ -32,7 +31,7 @@ function material(id: string, title: string, created: string, extra: Record<stri
 }
 
 function entry(id: string, created: string, extra: Partial<LibraryEntry> = {}): LibraryEntry {
-  return { id, title: id, created_at: created, textOnly: false, summary: true, cards: 0, quiz: false, talk: false, assigned: false, deadline: null, ...extra };
+  return { id, title: id, created_at: created, textOnly: false, summary: true, cards: 0, quiz: false, talk: false, ...extra };
 }
 
 function shelf(id: string, links: Array<[string, string]>, extra: Partial<ExamShelf> = {}): ExamShelf {

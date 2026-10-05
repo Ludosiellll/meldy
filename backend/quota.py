@@ -29,6 +29,7 @@ import asyncio
 import contextlib
 import contextvars
 import hashlib
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -38,12 +39,13 @@ from typing import Any, Optional
 import supabase_rest
 from agents import base as ai_base
 from agents.base import AIError
-from plans import AI_COSTS, exam_mapping_cost, professor_exam_cost
+from plans import AI_COSTS, exam_mapping_cost, scan_cost
 
 __all__ = [
     "AI_LIMIT_DETAIL",
     "AILimitExceeded",
     "Charge",
+    "ChargeGroup",
     "DEMO_LECTURE_SHA256",
     "bind_request",
     "charge",
@@ -53,8 +55,8 @@ __all__ = [
     "is_demo_upload",
     "kind_from_path",
     "next_reset",
-    "professor_exam_units",
     "reserve",
+    "scan_units",
 ]
 
 AI_LIMIT_DETAIL = "Дневной лимит ИИ на сегодня исчерпан."
@@ -335,8 +337,21 @@ class Charge:
         if self._refund_task is None:
             self.refunded = False  # нет цикла событий: вернёт следующий refund()
 
-    async def _send_refund(self) -> None:
-        args = {"p_units": self.units, "p_kind": self.kind, "p_charge": self.charge_id}
+    def keep_share(self, given: int, total: int) -> None:
+        """Отдана часть результата (given из total частей): её доля единиц (с округлением вверх)
+        остаётся списанной, остальное возвращается в фоне. Потом refund() и release_unkept() ничего
+        не возвращают."""
+        given, total = _count(given), _count(total)
+        self.kept = True
+        if total <= 0 or given >= total:
+            return
+        back = self.units - math.ceil(self.units * given / total)
+        if back <= 0 or not self.reserved or self._refund_task is not None:
+            return
+        self._refund_task = _spawn(self._send_refund(back))
+
+    async def _send_refund(self, units: Optional[int] = None) -> None:
+        args = {"p_units": self.units if units is None else units, "p_kind": self.kind, "p_charge": self.charge_id}
         try:
             async with supabase_rest.SupabaseRest(self.token, timeout=QUOTA_TIMEOUT_SECONDS) as db:
                 await asyncio.wait_for(db.rpc("refund_ai_units", args), timeout=QUOTA_TIMEOUT_SECONDS + 0.5)
@@ -410,6 +425,64 @@ async def refund_on_failure(spent: Charge):
         raise
 
 
+class ChargeGroup:
+    """Несколько списаний одного потока: анализ и распознавание скана внутри него.
+
+    Ведёт себя как Charge для _guarded и фона ответа: keep() — результат отдан, всё остаётся
+    списанным; refund_soon() / release_unkept() — вернуть всё, что ещё не возвращено.
+    """
+
+    def __init__(self, *charges: Charge) -> None:
+        self.charges: list[Charge] = [item for item in charges if item is not None]
+        self.kept = False
+
+    def add(self, spent: Charge) -> Charge:
+        self.charges.append(spent)
+        if self.kept:
+            spent.keep()
+        return spent
+
+    @property
+    def units(self) -> int:
+        return sum(item.units for item in self.charges)
+
+    def keep(self) -> None:
+        self.kept = True
+        for item in self.charges:
+            item.keep()
+
+    def refund_soon(self) -> None:
+        for item in self.charges:
+            item.refund_soon()
+
+    def keep_share(self, given: int, total: int) -> None:
+        """Отдана часть результата: своё списание потока (первое) оставляет долю, добавленные
+        (распознавание скана — оно уже сделано) остаются целиком."""
+        self.kept = True
+        for index, item in enumerate(self.charges):
+            if index == 0:
+                item.keep_share(given, total)
+            else:
+                item.keep()
+
+    async def refund(self) -> None:
+        for item in self.charges:
+            await item.refund()
+
+    async def release_unkept(self) -> None:
+        for item in self.charges:
+            await item.release_unkept()
+
+    async def wait_refund(self) -> None:
+        for item in self.charges:
+            await item.wait_refund()
+
+
+def scan_units(pages: Any) -> int:
+    """Единицы распознавания скана PDF из стольких страниц (plans.scan_cost)."""
+    return scan_cost(_count(pages))
+
+
 def cost(kind: str) -> int:
     """Цена действия из plans.AI_COSTS (KeyError для неизвестного вида — ошибка в коде)."""
     return AI_COSTS[kind]
@@ -417,10 +490,6 @@ def cost(kind: str) -> int:
 
 def exam_mapping_units(questions_to_model: int) -> int:
     return exam_mapping_cost(questions_to_model)
-
-
-def professor_exam_units(length: Any) -> int:
-    return professor_exam_cost(length)
 
 
 # ── Демо-текст ─────────────────────────────────────────────────────────────────

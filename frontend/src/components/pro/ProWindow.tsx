@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { OPEN_PRO_EVENT, openProWindow, type ProReason } from '../../lib/plans';
+import { OPEN_PRO_EVENT, type ProReason } from '../../lib/plans';
+import { track } from '../../lib/telemetry';
 import { lazyPart, useLazyPart } from '../../lib/lazyPart';
 
 /**
@@ -12,11 +13,6 @@ export const proWindowPart = lazyPart(() => import('./ProWindowDialog').then((mo
 
 const REASONS: readonly ProReason[] = ['pricing', 'limit', 'meter'];
 const isReason = (value: unknown): value is ProReason => typeof value === 'string' && (REASONS as readonly string[]).includes(value);
-
-/** Opens the PRO window from a component — the same as openProWindow(reason) from anywhere. */
-export function useProWindow(): (reason?: ProReason) => void {
-  return useCallback((reason: ProReason = 'pricing') => openProWindow(reason), []);
-}
 
 /**
  * Mounted once inside the router (App.tsx): listens for `meldy:open-pro` (lib/plans.ts
@@ -37,6 +33,7 @@ export function ProWindowProvider() {
       if (!openRef.current) {
         const active = document.activeElement;
         opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+        track('pro_window_open', { reason });
       }
       openRef.current = true;
       setState({ open: true, reason });

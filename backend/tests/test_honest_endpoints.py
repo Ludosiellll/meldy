@@ -11,16 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agents import base  # noqa: E402
 from agents.base import AIError, BaseAgent  # noqa: E402
 
-EVALUATE = {"context": "Лекция про инфляцию.", "question": "Что такое инфляция?", "student_answer": "Рост цен."}
 MISTAKES = [
     {"id": "m-1", "question": "Что такое инфляция?", "student_answer": "Падение цен", "correct_answer": "Рост цен", "topic": "Экономика"},
     {"id": "m-2", "question": "Что повышает ЦБ?", "student_answer": "Налоги", "correct_answer": "Ставку", "topic": "Экономика"},
 ]
-
-
-def evaluation(score=77, grade="5", verdict="Хороший ответ.", **extra):
-    return json.dumps({"score": score, "grade": grade, "verdict": verdict, "correct_points": ["Рост цен"],
-                       "errors": [], "missing_points": ["Причины"], **extra}, ensure_ascii=False)
 
 
 def practice_item(**overrides):
@@ -63,95 +57,6 @@ def api(monkeypatch):
     client.calls = calls
     yield client
     BaseAgent._run_cache.clear()
-
-
-# --- /api/professor/evaluate ------------------------------------------------------------------
-
-@pytest.mark.parametrize("raw", ["", "не JSON", "{}", json.dumps({"score": 80}), json.dumps({"score": "много", "verdict": "x"}),
-                                 json.dumps({"score": 140, "verdict": "x"}), json.dumps({"score": True, "verdict": "x"})])
-def test_professor_evaluate_unusable_answer_is_502_without_a_grade(api, raw):
-    BaseAgent._run_cache[("old",)] = raw
-    api.answer_with(raw)
-    response = api.post("/api/professor/evaluate", json=EVALUATE)
-    assert response.status_code == 502
-    body = response.json()
-    assert body == {"detail": "Не удалось оценить ответ. Попробуйте ещё раз.", "code": "ai_failed"}
-    assert "score" not in body and "grade" not in body
-    assert ("old",) not in BaseAgent._run_cache
-
-
-def test_professor_evaluate_provider_busy_is_429(api):
-    api.answer_with(AIError.busy())
-    response = api.post("/api/professor/evaluate", json=EVALUATE)
-    assert response.status_code == 429
-    assert response.json() == {"detail": "Сервис сейчас занят. Подождите минуту и попробуйте ещё раз.", "code": "ai_busy"}
-    assert response.headers["retry-after"] == "60"
-
-
-def test_professor_evaluate_timeout_is_504(api):
-    api.answer_with(AIError.timeout())
-    response = api.post("/api/professor/evaluate", json=EVALUATE)
-    assert response.status_code == 504 and response.json()["code"] == "ai_timeout"
-
-
-@pytest.mark.parametrize("score,grade", [(100, "5"), (85, "5"), (84, "4"), (70, "4"), (69, "3"), (50, "3"), (49, "2"), (0, "2"),
-                                         ("77", "4"), (84.6, "5"), ("90%", "5")])
-def test_professor_evaluate_grade_comes_from_the_score(api, score, grade):
-    api.answer_with(evaluation(score=score, grade="5"))
-    response = api.post("/api/professor/evaluate", json=EVALUATE)
-    assert response.status_code == 200
-    body = response.json()
-    assert body["grade"] == grade and isinstance(body["score"], int)
-    assert body["verdict"] == "Хороший ответ."
-    assert body["correct_points"] == ["Рост цен"] and body["missing_points"] == ["Причины"] and body["errors"] == []
-    assert api.calls[-1]["json_mode"] is True
-
-
-def test_professor_evaluate_keeps_a_verdict_with_a_code_block(api):
-    verdict = "Цикл описан верно, но пример неполный:\n```python\nfor i in range(3):\n    print(i)\n```\nНе хватает условия выхода."
-    api.answer_with(evaluation(score=72, verdict=verdict, missing_points=["```break``` внутри цикла"]))
-    response = api.post("/api/professor/evaluate", json=EVALUATE)
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["verdict"] == verdict and body["grade"] == "4"
-    assert body["missing_points"] == ["```break``` внутри цикла"]
-
-
-def test_professor_prompt_states_the_bands_the_grade_is_computed_with(api, monkeypatch):
-    import main
-
-    prompt = base.build_professor_evaluation_prompt("Лекция.", "Что такое цикл?", "Повторение.", "max")
-    upper = 100
-    for lowest, grade in base.PROFESSOR_GRADE_BANDS:
-        assert f"{lowest}–{upper} — {base.PROFESSOR_GRADE_WORDS[grade]}" in prompt
-        assert main.grade_from_score(lowest) == grade and main.grade_from_score(upper) == grade
-        upper = lowest - 1
-    # The model gives only the score; the verdict must not name a grade.
-    assert '"grade"' not in prompt
-    assert "Оценку выставит система по баллу" in prompt
-    assert "не называй оценку ни цифрой, ни словом" in prompt
-    assert "с объяснением оценки" not in prompt
-
-    # One constant: moving a band moves the prompt and the computed grade together.
-    monkeypatch.setattr(base, "PROFESSOR_GRADE_BANDS", ((90, "5"), (75, "4"), (60, "3"), (0, "2")))
-    prompt = base.build_professor_evaluation_prompt("Лекция.", "Что такое цикл?", "Повторение.")
-    assert "90–100 — отлично" in prompt and "60–74 — удовлетворительно" in prompt and "0–59 — неудовлетворительно" in prompt
-    assert main.grade_from_score(89) == "4" and main.grade_from_score(59) == "2"
-
-    # The route sends that prompt.
-    api.answer_with(evaluation(score=89))
-    assert api.post("/api/professor/evaluate", json=EVALUATE).json()["grade"] == "4"
-    assert "90–100 — отлично" in api.calls[-1]["system"]
-
-
-def test_professor_question_is_plain_text_and_honest(api):
-    api.answer_with("  Почему ставка влияет на инфляцию?  ")
-    response = api.post("/api/professor/question", json={"context": "API отдаёт JSON."})
-    assert response.json() == {"question": "Почему ставка влияет на инфляцию?"}
-    assert api.calls[-1]["json_mode"] is False
-    api.answer_with(AIError.busy())
-    response = api.post("/api/professor/question", json={"context": "Лекция."})
-    assert response.status_code == 429 and response.json()["code"] == "ai_busy"
 
 
 # --- /api/mistakes/practice ---------------------------------------------------------------------
@@ -213,25 +118,6 @@ def test_mistakes_practice_busy_and_empty_request(api):
     assert api.post("/api/mistakes/practice", json={"mistakes": []}).status_code == 400
 
 
-# --- /api/chat ---------------------------------------------------------------------------------
-
-@pytest.mark.parametrize("raw", ["", "   \n"])
-def test_chat_empty_reply_is_502_and_evicted(api, raw):
-    BaseAgent._run_cache[("old",)] = raw
-    api.answer_with(raw)
-    response = api.post("/api/chat", json={"message": "Что такое JSON?", "context": "Лекция про JSON.", "history": []})
-    assert response.status_code == 502
-    assert response.json() == {"detail": "Не удалось получить ответ. Попробуйте ещё раз.", "code": "ai_failed"}
-    assert ("old",) not in BaseAgent._run_cache
-
-
-def test_chat_reply_is_requested_as_plain_text(api):
-    api.answer_with("JSON — формат данных.")
-    response = api.post("/api/chat", json={"message": "Что такое JSON?", "context": "Лекция про JSON.", "history": []})
-    assert response.json() == {"reply": "JSON — формат данных."}
-    assert api.calls[-1]["json_mode"] is False
-
-
 # --- provider text never reaches the browser -----------------------------------------------------
 
 def test_provider_error_text_never_leaks(monkeypatch):
@@ -261,10 +147,7 @@ def test_provider_error_text_never_leaks(monkeypatch):
     client = TestClient(main.app)
     try:
         responses = [
-            client.post("/api/chat", json={"message": "Вопрос", "context": "Текст", "history": []}),
             client.post("/api/mistakes/practice", json={"mistakes": MISTAKES}),
-            client.post("/api/professor/evaluate", json=EVALUATE),
-            client.post("/api/professor/question", json={"context": "Текст"}),
             client.post("/api/analyze/section", json={"section": "quiz", "text": "Инфляция — рост цен."}),
             client.post("/api/quick-prep", json={"context": "Инфляция — рост цен."}),
         ]

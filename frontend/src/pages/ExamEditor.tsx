@@ -28,6 +28,7 @@ import MaterialPicker, { type ImportStatus } from '../components/exams/MaterialP
 import PaperSelect from '../components/ui/PaperSelect';
 import PaperSuggestInput from '../components/ui/PaperSuggestInput';
 import { startMapping, useMapJob } from '../components/exams/mapJobs';
+import { countBucket, track } from '../lib/telemetry';
 import {
   EMPTY_PREVIEW,
   chosenLayout,
@@ -353,6 +354,7 @@ export default function ExamEditor() {
     try {
       if (!editing) {
         const { examId } = await createExam(user.id, draft);
+        track('exam_created', { questions: countBucket(draft.questions.length), lectures: usableSelected.length > 0, source: sourceKind });
         if (usableSelected.length > 0) void startMapping({ examId, userId: user.id, verifyEnergy });
         navigate(`/exams/${examId}`);
         return;
@@ -494,7 +496,7 @@ export default function ExamEditor() {
       ? 'Какие лекции брать, выберете на следующем шаге.'
       : libraryLectures > 0
         ? `В библиотеке ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy заранее отметит лекции по предмету экзамена.`
-        : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита.';
+        : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита (кроме распознавания сканов).';
   // Step 1 is the list alone: one card, its button right under the field. The button always answers:
   // with text it recognises it; on an empty field it puts the cursor there and says what to do.
   const recognizeStep = total === 0;

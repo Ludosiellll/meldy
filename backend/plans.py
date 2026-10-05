@@ -17,23 +17,25 @@ AI_COSTS = {
     "conversation": 5,
     "visuals": 2,
     "cheatsheet": 5,
-    "chatMessage": 1,
     # Прежние разделы: столько же, сколько до 2026-10-04 списывал браузер.
-    "course": 5,
-    "missions": 2,
     "mistakesPractice": 2,
     "gradebookScan": 1,
-    "careerProfile": 5,
-    "careerReview": 5,
+    # Закрыто 2026-10-05: вызовы модели, которые раньше ничего не стоили.
+    # Распознавание скана PDF — за каждые начатые OCR_PAGES_PER_CHARGE страниц (фото страницы
+    # входит в анализ, как любой медиафайл).
+    "scanPages": 5,
+    # Раздел анализа заново. Бесплатно — только починка раздела, который не получился в анализе
+    # своей лекции (по квитанции анализа, receipts.py).
+    "analysisSection": 7,
 }
+# Убраны вместе со скрытыми разделами (2026-10-05): чат, курсы, миссии, экзамен у «профессора»,
+# карьера.
 
 # Сверка списка: AI_COSTS["examMapping"] за каждые начатые столько новых вопросов.
 EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40
 
-# Устный экзамен у «профессора» (/exam): весь экзамен по числу вопросов, списывается
-# один раз — при первом вопросе. Длина не из списка — как у обычного билета (5).
-PROFESSOR_EXAM_COSTS = {3: 1, 5: 2, 10: 4}
-PROFESSOR_EXAM_DEFAULT_LENGTH = 5
+# Распознавание скана: AI_COSTS["scanPages"] за каждые начатые столько страниц (кусок ocr.py).
+OCR_PAGES_PER_CHARGE = 15
 
 
 def exam_mapping_cost(questions: int) -> int:
@@ -42,8 +44,8 @@ def exam_mapping_cost(questions: int) -> int:
     return AI_COSTS["examMapping"] * math.ceil(count / EXAM_MAPPING_QUESTIONS_PER_CHARGE)
 
 
-def professor_exam_cost(length) -> int:
-    """Единицы устного экзамена у «профессора» по числу вопросов (3, 5 или 10)."""
-    if isinstance(length, bool) or length not in PROFESSOR_EXAM_COSTS:
-        length = PROFESSOR_EXAM_DEFAULT_LENGTH
-    return PROFESSOR_EXAM_COSTS[length]
+def scan_cost(pages) -> int:
+    """Единицы распознавания скана PDF: 5 за каждые начатые 15 страниц."""
+    count = max(0, int(pages))
+    return AI_COSTS["scanPages"] * math.ceil(count / OCR_PAGES_PER_CHARGE)
+

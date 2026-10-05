@@ -93,7 +93,7 @@ vi.mock('../api/limits', () => ({
   formatLimitReset: () => '3:00',
 }));
 vi.mock('../api/flashcards', () => ({ syncFlashcards: (...args: unknown[]) => s.sync(...args) }));
-vi.mock('../api/quests', () => ({ recordStudyActivity: (...args: unknown[]) => s.activity(...args) }));
+vi.mock('../api/studyActivity', () => ({ recordStudyActivity: (...args: unknown[]) => s.activity(...args) }));
 vi.mock('../utils/moderation', () => ({ hasBadWords: (text: string) => (s.badWord ? text.includes(s.badWord) : false) }));
 vi.mock('../components/QuizView', () => ({
   default: (props: Record<string, unknown>) => {

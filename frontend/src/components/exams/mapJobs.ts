@@ -23,6 +23,7 @@ import { aiLimitFromBody, formatLimitReset, notifyAIUsageChanged, remainingUnits
 import { AI_COSTS } from '../../lib/plans';
 import { readSseStream, StreamError } from '../../api/sseStream';
 import { fetchExamMappingState, isMappingLocked, normalizeCoverageItem, type CoverageItem } from '../../api/exams';
+import { countBucket, track } from '../../lib/telemetry';
 
 /** The least a run costs (one started batch of 40 new questions); the server counts the rest. */
 export const MAPPING_COST = AI_COSTS.examMapping;
@@ -278,8 +279,10 @@ export function mappingLimitMessage(info: AILimitInfo): string {
   return `Не хватает дневного лимита ИИ: ${need}сегодня осталось ${left}. Лимит обновится в ${at}.`;
 }
 
-function finish(examId: string, phase: MapPhase, message: string | null) {
+function finish(examId: string, phase: MapPhase, message: string | null, reason?: string) {
   set(examId, (previous) => ({ ...previous, phase, message, finishedSeq: previous.finishedSeq + 1 }));
+  if (phase === 'done') track('mapping_done', { state: getMapJob(examId).done?.state ?? 'done', questions: countBucket(getMapJob(examId).received) });
+  else if (phase === 'failed' || phase === 'interrupted') track('mapping_failed', { reason: reason ?? phase });
 }
 
 function sleep(ms: number) {
@@ -363,7 +366,7 @@ export async function startMapping(options: StartMappingOptions): Promise<'start
       const limit = aiLimitFromBody(terminal);
       if (limit) {
         notifyAIUsageChanged(); // the meter shows what is left
-        finish(examId, 'failed', mappingLimitMessage(limit));
+        finish(examId, 'failed', mappingLimitMessage(limit), 'ai_limit');
       } else {
         finish(examId, 'failed', plainMessage(terminal.message, 'Сверка не завершилась. Повторите через минуту.'));
       }

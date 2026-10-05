@@ -37,10 +37,8 @@ function isNewAccount(createdAt: string | undefined): boolean {
 export interface GuideApi {
   open: boolean;
   index: number;
-  /** The student opened it (the focus moves into it); false when it opened by itself in the corner. */
-  asked: boolean;
   /**
-   * The first run of a student: the guide is a blocking dialog over the dimmed app. No «Не сейчас»,
+   * The first run: the guide is a blocking dialog over the dimmed app. No «Не сейчас»,
    * no ×, Escape does nothing; «Начать» on the last chapter ends it.
    */
   mandatory: boolean;
@@ -64,30 +62,24 @@ interface ProviderProps {
   userId?: string;
   /** From the profile: true once the guide was seen on any device; null while the profile loads. */
   seenInProfile: boolean | null;
-  /**
-   * From the profile: the first run is the mandatory guide for this account (a student). False keeps
-   * the guide in the corner, once, on «Сегодня» (a teacher). Null while the profile loads.
-   */
-  mandatoryFirstRun?: boolean | null;
   /** The page has no shell to show the guide in (the ticket room): a first run waits for the next page. */
   shellHidden?: boolean;
   children: ReactNode;
 }
 
 /**
- * The guide's state for the signed-in shell. A student who has not seen it, on this device or in the
+ * The guide's state for the signed-in shell. An account that has not seen it, on this device or in the
  * profile, gets it as a blocking dialog the first time the app opens: chapter by chapter, «Дальше»
  * moves the app to the section, and «Начать» at the end marks it seen on the device and in the
  * profile. After that it opens from the «?» button or the account menu as a card the page stays usable
  * under. While it is open it follows the student's own moves between sections and, on «Дальше», moves
  * the app itself — but never away from a page the student has typed, clicked or uploaded on.
  */
-export function GuideProvider({ userId, seenInProfile, mandatoryFirstRun = false, shellHidden = false, children }: ProviderProps) {
+export function GuideProvider({ userId, seenInProfile, shellHidden = false, children }: ProviderProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
-  const [asked, setAsked] = useState(false);
   const [mandatory, setMandatory] = useState(false);
   const seen = useRef(readSeen());
   const autoTried = useRef(false);
@@ -127,24 +119,21 @@ export function GuideProvider({ userId, seenInProfile, mandatoryFirstRun = false
     [navigate],
   );
 
-  const show = useCallback((id: GuideChapterId | undefined, byStudent: boolean) => {
+  const start = useCallback((id?: GuideChapterId) => {
     const byId = id ? GUIDE_CHAPTERS.findIndex((chapter) => chapter.id === id) : -1;
     const here = chapterIndexFor(pathRef.current);
     setIndex(byId >= 0 ? byId : here >= 0 ? here : 0);
     brought.current = null;
     touched.current = false;
-    setAsked(byStudent);
     setMandatory(false);
     setOpen(true);
   }, []);
-  const start = useCallback((id?: GuideChapterId) => show(id, true), [show]);
 
   /** The first run: from the first chapter, with the app on «Сегодня» when it may be taken there. */
   const showFirstRun = useCallback(() => {
     brought.current = null;
     touched.current = false;
     setIndex(0);
-    setAsked(true);
     setMandatory(true);
     setOpen(true);
     const first = GUIDE_CHAPTERS[0];
@@ -173,26 +162,17 @@ export function GuideProvider({ userId, seenInProfile, mandatoryFirstRun = false
     [bring],
   );
 
-  // The first time the app opens for an account that has not seen the guide: a student gets the
-  // first run; otherwise (a teacher) the card waits in the corner of «Сегодня» once.
+  // The first time the app opens for an account that has not seen the guide: the first run.
   useEffect(() => {
     if (autoTried.current || seenInProfile === null) return;
     if (seenInProfile || seen.current) {
       autoTried.current = true;
       return;
     }
-    if (mandatoryFirstRun === null) return;
-    if (mandatoryFirstRun) {
-      if (shellHidden) return;
-      autoTried.current = true;
-      showFirstRun();
-      return;
-    }
-    if (pathname !== '/dashboard') return;
+    if (shellHidden) return;
     autoTried.current = true;
-    // Opened by itself: it waits in the corner and leaves the focus where it was.
-    show('today', false);
-  }, [seenInProfile, mandatoryFirstRun, shellHidden, pathname, show, showFirstRun]);
+    showFirstRun();
+  }, [seenInProfile, shellHidden, showFirstRun]);
 
   // The student's own move to another page: the guide follows to that section.
   useEffect(() => {
@@ -218,8 +198,8 @@ export function GuideProvider({ userId, seenInProfile, mandatoryFirstRun = false
   }, [open]);
 
   const api = useMemo<GuideApi>(
-    () => ({ open, index, asked, mandatory, start, close, finish, go }),
-    [open, index, asked, mandatory, start, close, finish, go],
+    () => ({ open, index, mandatory, start, close, finish, go }),
+    [open, index, mandatory, start, close, finish, go],
   );
   return <GuideContext.Provider value={api}>{children}</GuideContext.Provider>;
 }

@@ -8,6 +8,7 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import { ty } from '../components/landing/typo';
 import { lazyPart, useLazyPart } from '../lib/lazyPart';
 import '../components/home/home.css';
+import { TELEMETRY_NOTE } from '../lib/telemetry';
 
 /**
  * The reel is a file of its own, fetched once the page is up. Until it arrives its place holds the
@@ -434,6 +435,7 @@ function Footer() {
       </a>
       <span>Подготовка к экзаменам по вашим лекциям · © {new Date().getFullYear()}</span>
       <a href="#">Наверх</a>
+      <p className="hm-foot-note">{ty(TELEMETRY_NOTE)}</p>
     </footer>
   );
 }

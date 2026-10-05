@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import type { PickerMaterial } from '../../api/exams';
 import { OCR_NOTICE, PPTX_MIME } from '../../lib/lectureFormats';
+import { AI_COSTS, OCR_PAGES_PER_CHARGE } from '../../lib/plans';
 import { displayMaterialTitle } from '../../utils/materialTitle';
 import { pluralRu } from '../conversation/visuals';
 import { glue } from './sheetModel';
@@ -111,7 +112,8 @@ function GroupCheckbox(props: { state: GroupState; label: string; disabled: bool
  * Снять все», and — for a long list — a search line and the lectures split by subject, each subject
  * with its own box. The list scrolls inside the form, so the form keeps its place. «Добавить лекции»
  * imports files as plain text (/api/extract): no summary, no cards, no daily limit; a scanned PDF is
- * recognised by Google Gemini (still no daily limit) and its row asks to check formulas and numbers.
+ * recognised by Google Gemini — that costs units (lib/plans scanCost) — and its row asks to check
+ * formulas and numbers.
  */
 export default function MaterialPicker(props: MaterialPickerProps) {
   const { materials, selected } = props;
@@ -275,16 +277,16 @@ export default function MaterialPicker(props: MaterialPickerProps) {
             if (files.length > 0) props.onImport(files);
           }}
         />
-        {/* One line: the link and what it costs (nothing). */}
+        {/* One line: the link and what it costs (nothing, a scan's recognition aside). */}
         <p className="nx-import-line">
           <button type="button" className="sf-link" onClick={() => fileRef.current?.click()} disabled={props.disabled}>
             Добавить лекции
           </button>
-          {/* What it takes and what it costs (nothing); scans are recognised by an outside AI service, said so. */}
+          {/* What it takes and what it costs; scans are recognised by an outside AI service, said so, with the price. */}
           <span className="ex-meta">
             {' — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт '}
             <span className="ex-nb">ИИ-сервис</span>
-            {' Google Gemini.'}
+            {` Google Gemini — ${AI_COSTS.scanPages} единиц лимита за каждые ${OCR_PAGES_PER_CHARGE} страниц.`}
           </span>
         </p>
         {props.imports.map((item) => (

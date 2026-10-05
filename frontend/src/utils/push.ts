@@ -13,6 +13,24 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+/** The key the server signs pushes with (backend/push_router.py GET /api/push/key); null if it cannot say. */
+async function serverVapidKey(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/push/key');
+    if (!response.ok) return null;
+    const body = await response.json();
+    return typeof body?.public_key === 'string' && body.public_key ? body.public_key : null;
+  } catch {
+    return null;
+  }
+}
+
+function sameKey(current: ArrayBuffer | null, wanted: Uint8Array): boolean {
+  if (!current) return false;
+  const bytes = new Uint8Array(current);
+  return bytes.length === wanted.length && bytes.every((value, index) => value === wanted[index]);
+}
+
 export async function subscribeUserToPush(userId: string) {
   if (!('serviceWorker' in navigator)) {
     throw new Error('Service Worker is not supported by browser.');
@@ -22,14 +40,21 @@ export async function subscribeUserToPush(userId: string) {
   }
 
   const registration = await navigator.serviceWorker.ready;
-  const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  const publicVapidKey = (await serverVapidKey()) || import.meta.env.VITE_VAPID_PUBLIC_KEY;
   if (!publicVapidKey) {
     throw new Error('VAPID public key not found in env.');
+  }
+  const applicationServerKey = urlBase64ToUint8Array(publicVapidKey);
+
+  // A subscription made with an older key (the keys were rotated on the server) cannot be reused.
+  const existing = await registration.pushManager.getSubscription();
+  if (existing && !sameKey(existing.options?.applicationServerKey ?? null, applicationServerKey)) {
+    await existing.unsubscribe();
   }
 
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+    applicationServerKey
   });
 
   // Send subscription to backend

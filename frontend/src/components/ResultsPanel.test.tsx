@@ -251,7 +251,7 @@ describe('a section that arrives after the panel closed', () => {
 });
 
 describe('«Создать … заново»', () => {
-  it('shows one plain sentence and recreates the test without charging', async () => {
+  it('shows one plain sentence and recreates the test as a repair of the saved material', async () => {
     const onResultsChange = vi.fn();
     renderPanel({ onResultsChange, analysisSettings: { summaryDetail: 'medium', flashcardCount: 6, quizCount: 5, quizDifficulty: 'mixed', quizType: 'multiple', enabledAgents: ['summarizer', 'flashcards', 'quiz'] } });
     fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
@@ -262,9 +262,11 @@ describe('«Создать … заново»', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/analyze/section');
+    // The material's id lets the server repair a section of a paid analysis free (from the saved text).
     expect(JSON.parse(String(init.body))).toEqual({
       section: 'quiz',
       text: 'Энтропия — мера беспорядка системы.',
+      material_id: 'm1',
       settings: { summary_detail: 'medium', flashcard_count: 6, quiz_count: 5, quiz_difficulty: 'mixed', quiz_type: 'multiple' },
     });
     // Сначала содержимое, затем статус раздела.

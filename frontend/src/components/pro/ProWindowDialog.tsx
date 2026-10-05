@@ -14,6 +14,7 @@ import { Check, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { FREE_DAILY_UNITS, type ProReason } from '../../lib/plans';
+import { track } from '../../lib/telemetry';
 import { proGainLine, proLede, unitsPerDay } from './planCopy';
 import { loadProState, recordProInterest, type ProState } from './proInterest';
 import './proWindow.css';
@@ -145,6 +146,7 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
     setFailed(false);
     try {
       await recordProInterest(userId, reason);
+      track('pro_interest_sent', { reason });
       setNoted(true);
     } catch (error) {
       console.error('Не удалось записать просьбу сообщить о PRO:', error);

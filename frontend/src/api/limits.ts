@@ -1,10 +1,8 @@
 import { dailyUnits, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../lib/plans';
+import { loadSupabase } from '../lib/supabaseClient';
 
-/**
- * The Supabase client is a file of its own (see contexts/AuthContext): the event and time helpers
- * below are part of the first screen (the limit dialog, lib/apiAuth), the client is read on a check.
- */
-const loadSupabase = () => import('../lib/supabase').then((module) => module.supabase);
+// The Supabase client is a file of its own (lib/supabaseClient): the event and time helpers below are
+// part of the first screen (the limit dialog, lib/apiAuth); the client is read when a limit is checked.
 
 /**
  * Дневной лимит ИИ (единицы из lib/plans.ts). С 2026-10-04 единицы списывает сервер: до вызова

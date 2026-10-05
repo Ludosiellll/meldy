@@ -173,6 +173,11 @@ export interface AnalysisResults {
   sections?: SectionStates;
   /** Материал импортирован только текстом (summary_json.text_only). */
   text_only?: boolean;
+  /**
+   * Квитанция сервера: какие основные разделы не получились в этом анализе этого текста
+   * (backend/receipts.py). Хранится в summary_json.receipt; по ней «Создать … заново» бесплатно.
+   */
+  receipt?: string;
 }
 
 export interface HistoryItem {
@@ -200,19 +205,10 @@ export interface StudySession {
   cards_reviewed?: number;
 }
 
-export interface ExamResult {
-  date: string;
-  score: number;
-}
-
 export interface Mistake {
   topic?: string;
   mistake_id?: string;
   question?: string;
-}
-
-export interface Achievement {
-  achievement_id: string;
 }
 
 export interface Material {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { hasStoredSession } from '../contexts/AuthContext';
+import { hasStoredSession } from '../lib/supabaseClient';
 import { prefetchLikelyNext } from '../lib/prefetch';
 
 /**

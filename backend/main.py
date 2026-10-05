@@ -5,12 +5,13 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 import time
 import uuid
 from collections import OrderedDict
 from datetime import date, datetime, timezone
-from typing import AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, List, Optional
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -43,11 +44,15 @@ from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from agents.coordinator import CORE_SECTIONS, CoordinatorAgent
 import quota
+import receipts
+import supabase_rest
+from supabase_proxy import router as supabase_proxy_router
 from plans import AI_COSTS
-from utils import extract_relevant_paragraphs, scrape_url
+from utils import scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from oral_api import router as oral_router
+import telemetry_api
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pywebpush import webpush, WebPushException
@@ -84,6 +89,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     error_id = uuid.uuid4().hex[:12]
     print(f"Global exception [{error_id}]: {exc}")
     traceback.print_exc()
+    telemetry_api.report_server_error("unhandled", error_id, exc, request)
     return JSONResponse(
         status_code=500,
         content={"detail": "Внутренняя ошибка сервера", "error_id": error_id}
@@ -248,16 +254,23 @@ async def require_authenticated_user(request: Request) -> dict:
     return dict(user)
 
 
+# Open without a session: the health check, and the statistics that signed-out visitors send too (telemetry_api.py).
+PUBLIC_API_PATHS = frozenset({"/api/health", "/api/health/deep", telemetry_api.TELEMETRY_PATH})
+
+
 @app.middleware("http")
 async def protect_backend_api(request: Request, call_next):
-    """Require a Supabase session for every backend endpoint except health."""
-    if request.method != "OPTIONS" and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+    """Require a Supabase session for every backend endpoint except PUBLIC_API_PATHS."""
+    path = request.url.path
+    if request.method != "OPTIONS" and path.startswith("/api/") and path not in PUBLIC_API_PATHS:
         try:
             request.state.user = await require_authenticated_user(request)
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
         # Model calls of this request go to its user's call log (ai_calls), in the background.
         quota.bind_request(request)
+    # A server error of this request is reported with its route pattern and its user's token.
+    telemetry_api.bind_request(request)
     return await call_next(request)
 
 
@@ -265,6 +278,9 @@ app.include_router(push_router, prefix="/api/push", tags=["push"])
 # «Билеты» and «Ответ вслух» declare their own full /api/... paths.
 app.include_router(exams_router)
 app.include_router(oral_router)
+# /sb/… — the browser's fallback way to Supabase when *.supabase.co is unreachable (supabase_proxy.py).
+app.include_router(supabase_proxy_router)
+app.include_router(telemetry_api.router)
 
 scheduler = AsyncIOScheduler()
 
@@ -321,6 +337,10 @@ async def health():
         gemini_configured=bool(os.getenv("GEMINI_API_KEY", "").strip()),
         ai=LastAnswer(provider=last.get("provider"), model=last.get("model"), at=last.get("at")),
     )
+
+
+from health_deep import router as health_deep_router  # noqa: E402 — GET /api/health/deep, public, cached 10 min
+app.include_router(health_deep_router)
 
 
 # --- Analysis streams -------------------------------------------------------------------
@@ -392,17 +412,44 @@ def _ocr_failure_event(exc: Exception) -> dict:
     return {"type": "error", "code": "failed", "message": OCR_FAILED_MESSAGE}
 
 
+def _failed_core_sections(sections: Any) -> list[str]:
+    """Core sections of a results event whose status is not ok."""
+    if not isinstance(sections, dict):
+        return []
+    return [
+        name for name, state in sections.items()
+        if name in CORE_SECTIONS and isinstance(state, dict) and state.get("status") != "ok"
+    ]
+
+
+def _request_user_id(request: Request) -> Optional[str]:
+    user = getattr(request.state, "user", None)
+    user_id = user.get("id") if isinstance(user, dict) else None
+    return user_id if isinstance(user_id, str) and user_id else None
+
+
 async def _analysis_events(
-    text: str, settings: dict, enabled_agents: Optional[str], extracted: Optional[dict] = None
+    text: str,
+    settings: dict,
+    enabled_agents: Optional[str],
+    extracted: Optional[dict] = None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[dict, None]:
     """text_extracted (with ocr/pages when the text was recognised), the coordinator events,
-    and done only after results."""
+    and done only after results.
+
+    results carries a receipt (receipts.py) for ``owner`` when a core section failed: with it the
+    saved material gets that section «заново» for free."""
     yield {"type": "text_extracted", "length": len(text), "text": text, **(extracted or {})}
     coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
     terminal = None
     async for event in coordinator.process(text, enabled_agents=_parse_enabled_agents(enabled_agents), **settings):
         if terminal is not None:
             continue  # nothing may follow the terminal event
+        if event.get("type") == "results":
+            receipt = receipts.issue(owner, text, _failed_core_sections(event.get("sections")))
+            if receipt:
+                event = {**event, "receipt": receipt}
         yield event
         if event.get("type") in ("results", "error"):
             terminal = event.get("type")
@@ -411,6 +458,7 @@ async def _analysis_events(
     elif terminal is None:
         error_id = uuid.uuid4().hex[:12]
         print(f"Analysis [{error_id}] ended without a terminal event")
+        telemetry_api.report_server_error("analysis_no_terminal", error_id)
         yield _internal_error_event(error_id)
 
 
@@ -421,10 +469,15 @@ async def _guarded(
     (or ``done`` when results were already sent), never a second terminal event.
 
     The units reserved for the run (``charge``) go back unless ``results`` was sent: an
-    error event, an exception or a client gone before the results costs nothing.
+    error event, an exception or a client gone before the results costs nothing — unless sections
+    were already given out (agent_done ok): then their share stays charged, as the page saves them
+    (a cut connection was a way to get sections for free, 2026-10-05). The core sections count
+    when any was asked for, like the coordinator's own «usable run» rule.
     """
     results_sent = False
     terminal_sent = False
+    asked: list[str] = []
+    given: set[str] = set()
     try:
         async for event in events:
             if terminal_sent:
@@ -436,17 +489,27 @@ async def _guarded(
                     charge.keep()
             elif kind in ("error", "done"):
                 terminal_sent = True
+            elif kind == "agent_start" and isinstance(event.get("agent"), str):
+                asked.append(event["agent"])
+            elif kind == "agent_done" and event.get("status") == "ok" and isinstance(event.get("agent"), str):
+                given.add(event["agent"])
             yield sse_event(event)
     except Exception as exc:
         error_id = uuid.uuid4().hex[:12]
         print(f"{label} error [{error_id}]: {type(exc).__name__}: {exc}")
         traceback.print_exc()
+        telemetry_api.report_server_error("analysis_stream", error_id, exc)
         if terminal_sent:
             return
         yield sse_event({"type": "done"} if results_sent else _internal_error_event(error_id))
     finally:
         if charge is not None and not results_sent:
-            charge.refund_soon()
+            counted = [name for name in asked if name in CORE_SECTIONS] or asked
+            delivered = len(given.intersection(counted))
+            if delivered:
+                charge.keep_share(delivered, len(counted))
+            else:
+                charge.refund_soon()
 
 
 def _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type) -> dict:
@@ -470,7 +533,9 @@ async def event_stream(
     enabled_agents: Optional[str] = None,
     ocr_key: Optional[str] = None,
     *,
-    charge: Optional["quota.Charge"] = None,
+    charge: Optional["quota.ChargeGroup"] = None,
+    charge_scan=None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress for an uploaded document (already read by the route).
 
@@ -494,6 +559,22 @@ async def event_stream(
             return
         if scan is not None:
             yield {"type": "status", "message": ocr.OCR_STATUS_MESSAGE}
+            # Recognition costs units of its own (plans.scan_cost); they go back with the
+            # analysis's when no results come (the stream's ChargeGroup).
+            if charge_scan is not None:
+                try:
+                    spent = await charge_scan(quota.scan_units(scan))
+                except quota.AILimitExceeded as exc:
+                    event = exc.event()
+                    if charge is not None and charge.units:
+                        # The lecture's units go back with this error: the limit window counts the
+                        # day without them and the price of the whole run (lecture + recognition).
+                        event["used"] = max(0, event["used"] - charge.units)
+                        event["units"] += charge.units
+                    yield event
+                    return
+                if charge is not None:
+                    charge.add(spent)
             try:
                 text = await ocr.recognize_scan(contents, scan, rate_key=ocr_key)
             except (OcrError, AIError) as exc:
@@ -505,7 +586,7 @@ async def event_stream(
             yield {"type": "error", "code": "no_text", "message": message}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents, extracted):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "Analysis", charge)) as frames:
@@ -539,7 +620,8 @@ async def analyze(
     # The built-in demo text is free; anything else reserves a lecture's units before the
     # stream, so the daily limit is a real 429, and gets them back without results.
     demo = quota.is_demo_upload(contents, file.filename or "")
-    charge = await quota.charge(request, "lecture", 0 if demo else AI_COSTS["lecture"])
+    # A scanned PDF adds its recognition (plans.scan_cost) to the group inside the stream.
+    charge = quota.ChargeGroup(await quota.charge(request, "lecture", 0 if demo else AI_COSTS["lecture"]))
 
     return StreamingResponse(
         with_keepalive(event_stream(
@@ -547,6 +629,8 @@ async def analyze(
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
             charge=charge,
+            charge_scan=lambda units: quota.charge(request, "scanPages", units),
+            owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -554,10 +638,6 @@ async def analyze(
         background=BackgroundTask(charge.release_unkept),
     )
 
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
 
 from media_parser import MediaProcessingTimeout, extract_youtube_transcript, transcribe_media_file
 
@@ -575,6 +655,7 @@ async def event_stream_media(
     ocr_key: Optional[str] = None,
     *,
     charge: Optional["quota.Charge"] = None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream for an audio, video or image file (already read by the route).
 
@@ -625,7 +706,7 @@ async def event_stream_media(
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_IN_MEDIA_MESSAGE}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents, extracted):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "Media analysis", charge)) as frames:
@@ -666,6 +747,7 @@ async def analyze_media(
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
             charge=charge,
+            owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -684,6 +766,7 @@ async def event_stream_url(
     enabled_agents: Optional[str] = None,
     *,
     charge: Optional["quota.Charge"] = None,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     async def events():
         yield {"type": "status", "message": "Открываем страницу и забираем текст…"}
@@ -692,12 +775,13 @@ async def event_stream_url(
         except Exception as exc:
             error_id = uuid.uuid4().hex[:12]
             print(f"URL fetch failed [{error_id}]: {type(exc).__name__}: {exc}")
+            telemetry_api.report_server_error("url_fetch", error_id, exc)
             text = ""
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_AT_URL_MESSAGE}
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents):
+        async for event in _analysis_events(text, settings, enabled_agents, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "URL analysis", charge)) as frames:
@@ -726,6 +810,7 @@ async def analyze_url(
         with_keepalive(event_stream_url(
             url.strip(), summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             charge=charge,
+            owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -738,17 +823,66 @@ class AnalyzeSectionRequest(BaseModel):
     section: str
     text: str
     settings: Optional[dict] = None
+    # The saved material the section is for: a repair of a paid analysis is free (see below).
+    material_id: Optional[str] = None
 
 
 ANALYZE_SECTION_MAX_CHARS = 300000
+SECTION_REPAIR_TIMEOUT_SECONDS = 5.0
+_MATERIAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+async def _section_repair_text(request: Request, material_id: Optional[str], section: str) -> Optional[str]:
+    """The saved text of the caller's own material whose analysis left this section without content,
+    or None: then the section is charged.
+
+    Read with the caller's token (RLS), and the owner is compared too: a public material of someone
+    else is readable but not repairable for free. The row is the owner's own and editable by them,
+    so the failure is taken from the analysis's receipt (summary_json.receipt, receipts.py), signed
+    by the server for this user and this text; the saved status must say «not ok» as well. Any
+    failure of the check means «not a repair».
+    """
+    user = getattr(request.state, "user", None)
+    if not material_id or not _MATERIAL_ID_RE.match(material_id) or not isinstance(user, dict) or not user.get("id"):
+        return None
+    try:
+        async with supabase_rest.SupabaseRest(supabase_rest.bearer_token(request), timeout=SECTION_REPAIR_TIMEOUT_SECONDS) as db:
+            row = await db.select_one(
+                "materials", {"select": "user_id,summary_json,original_text", "id": f"eq.{material_id}"}
+            )
+    except Exception as exc:
+        print(f"Section repair check failed: {type(exc).__name__}")
+        return None
+    if not isinstance(row, dict) or row.get("user_id") != user["id"]:
+        return None
+    summary = row.get("summary_json")
+    if isinstance(summary, str):
+        try:
+            summary = json.loads(summary)
+        except ValueError:
+            summary = None
+    sections = summary.get("sections") if isinstance(summary, dict) else None
+    state = sections.get(section) if isinstance(sections, dict) else None
+    if not isinstance(state, dict) or state.get("status") in (None, "ok"):
+        return None
+    text = row.get("original_text")
+    if not isinstance(text, str) or not text.strip():
+        return None
+    if not receipts.covers(summary.get("receipt"), user["id"], text, section):
+        return None
+    return text[:ANALYZE_SECTION_MAX_CHARS]
 
 
 @app.post("/api/analyze/section")
-@limiter.limit("5/minute", key_func=user_or_ip_key)
+@limiter.limit("5/minute;20/day", key_func=user_or_ip_key)
 async def analyze_section(request: Request, req: AnalyzeSectionRequest):
-    """«Досоздать»: one core section for an analysed material; never charged.
+    """«Создать … заново»: one core section for an analysed material.
 
-    The text is chunked exactly like the analysis, so the S-ids match the saved material.
+    Free only as a repair: the caller's own material whose analysis left this section without
+    content, by the analysis's signed receipt — then its saved text is used, not the text sent.
+    Anything else costs AI_COSTS["analysisSection"]: free sections over a free text-only import were
+    a whole analysis without the daily limit (2026-10-05). The text is chunked exactly like the
+    analysis, so the S-ids match the saved material.
     """
     if req.section not in CORE_SECTIONS:
         raise HTTPException(status_code=400, detail="Этот раздел нельзя создать отдельно.")
@@ -757,8 +891,13 @@ async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     if len(req.text) > ANALYZE_SECTION_MAX_CHARS:
         raise HTTPException(status_code=413, detail="Текст слишком длинный: максимум 300 000 символов.")
     _require_ai_configured()
-    coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
-    return await coordinator.run_section(req.section, req.text, req.settings if isinstance(req.settings, dict) else None)
+    repair_text = await _section_repair_text(request, req.material_id, req.section)
+    text = repair_text if repair_text is not None else req.text
+    units = 0 if repair_text is not None else AI_COSTS["analysisSection"]
+    charge = await quota.charge(request, "analysisSection", units)
+    async with quota.refund_on_failure(charge):
+        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
+        return await coordinator.run_section(req.section, text, req.settings if isinstance(req.settings, dict) else None)
 
 
 # --- Model diagnostics (owner only) ------------------------------------------------------
@@ -958,33 +1097,10 @@ async def diagnostics_models(request: Request, probe: Optional[str] = None):
 
 
 
-class ChatRequest(BaseModel):
-    message: str
-    context: str
-    history: List[ChatMessage]
-    extra_params: dict = {}
-
-
-class CourseMaterial(BaseModel):
-    id: str
-    title: str
-    subject: str
-    summary: str = ""
-
-
-class CourseGenerateRequest(BaseModel):
-    materials: List[CourseMaterial]
-    goals: str = ""
-
-
 # --- Honest answers: a provider failure or an unusable answer is an error status ------------
 
 SERVICE_BUSY_DETAIL = "Сервис сейчас занят. Подождите минуту и попробуйте ещё раз."
-CHAT_FAILURE_DETAIL = "Не удалось получить ответ. Попробуйте ещё раз."
-PROFESSOR_QUESTION_FAILURE_DETAIL = "Не удалось задать вопрос. Попробуйте ещё раз."
-PROFESSOR_EVALUATE_FAILURE_DETAIL = "Не удалось оценить ответ. Попробуйте ещё раз."
 MISTAKES_PRACTICE_FAILURE_DETAIL = "Не удалось подготовить вопросы по ошибкам. Попробуйте ещё раз."
-COURSE_FAILURE_DETAIL = "Не удалось составить курс. Попробуйте ещё раз."
 
 
 def _ai_failure(exc: Exception, failed_detail: str) -> AIError:
@@ -1011,56 +1127,6 @@ def _parsed_answer(raw) -> object:
     if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
         return parsed[0]
     return parsed
-
-
-def _clean_strings(value) -> list:
-    if isinstance(value, str):
-        return [value.strip()] if value.strip() else []
-    if not isinstance(value, list):
-        return []
-    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
-
-
-def grade_from_score(score: int) -> str:
-    """Oral exam grade as the old client expects it: a string "5".."2".
-
-    The bands are agents.base.PROFESSOR_GRADE_BANDS, the same ones the evaluation
-    prompt states, read at call time.
-    """
-    return ai_base.professor_grade_from_score(score)
-
-
-def validate_professor_evaluation(raw) -> Optional[dict]:
-    """{score, grade, verdict, correct_points, errors, missing_points} or None.
-
-    The score must be a number 0..100 and the verdict non-empty; the grade is computed
-    from the score here, never taken from the model.
-    """
-    parsed = _parsed_answer(raw)
-    if not isinstance(parsed, dict):
-        return None
-    score = parsed.get("score")
-    if isinstance(score, str):
-        try:
-            score = float(score.strip().rstrip("%").replace(",", "."))
-        except ValueError:
-            return None
-    if isinstance(score, bool) or not isinstance(score, (int, float)):
-        return None
-    if not (0 <= score <= 100):
-        return None
-    verdict = parsed.get("verdict")
-    if not isinstance(verdict, str) or not verdict.strip():
-        return None
-    score_int = int(score + 0.5)
-    return {
-        "score": score_int,
-        "grade": grade_from_score(score_int),
-        "verdict": verdict.strip(),
-        "correct_points": _clean_strings(parsed.get("correct_points")),
-        "errors": _clean_strings(parsed.get("errors")),
-        "missing_points": _clean_strings(parsed.get("missing_points")),
-    }
 
 
 def validate_mistakes_practice(raw, allowed_mistake_ids: set) -> Optional[list]:
@@ -1111,260 +1177,7 @@ def validate_mistakes_practice(raw, allowed_mistake_ids: set) -> Optional[list]:
     return practice
 
 
-@app.post("/api/chat")
-@limiter.limit("20/minute", key_func=user_or_ip_key)
-async def chat(request: Request, req: ChatRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    # Извлекаем топ-8 наиболее релевантных абзацев из учебного материала по тексту вопроса (RAG)
-    relevant_context = extract_relevant_paragraphs(req.context, req.message, top_k=8)
-
-    system_prompt = f"""Ты — умный AI-ассистент студента. 
-Ты помогаешь разобраться в учебном материале, предоставленном ниже.
-Отвечай на вопросы развёрнуто и понятно. 
-Если вопрос вообще не касается темы материала, всё равно попытайся помочь, но упомяни, что в материале этого нет.
-
-МАТЕРИАЛ ДЛЯ СПРАВКИ:
-{relevant_context}"""
-
-    history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-10:]])
-    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС: {req.message}"
-
-    # Добавляем контекст настроения пользователя
-    mood_context = ""
-    if "mood" in req.extra_params:
-        m = req.extra_params["mood"]
-        mood_context = f"\n\nТЕКУЩЕЕ СОСТОЯНИЕ СТУДЕНТА: {m['mood']}, энергия: {m['energy_level']}/5. "
-        if m.get('notes'):
-            mood_context += f"Причина состояния со слов студента: '{m['notes']}' (учитывай это только если текст осмысленный). "
-        if m['energy_level'] <= 2:
-            mood_context += "Студент устал. Отвечай максимально просто, кратко и поддерживающе."
-        elif m['mood'] == 'stressed':
-            mood_context += "Студент в стрессе. Будь максимально вежлив, подбадривай и не давай слишком сложной информации."
-        elif m['energy_level'] >= 4:
-            mood_context += "Студент полон сил. Можешь давать более глубокие, сложные и детальные пояснения."
-
-    system_prompt += mood_context
-
-    system_prompt += "\n\nВАЖНОЕ ПРАВИЛО: Это продолжающийся диалог. НЕ здоровайся заново, не повторяй вступительные слова поддержки из прошлых сообщений. Отвечай сразу по делу, опираясь на историю диалога."
-
-    charge = await quota.charge(request, "chatMessage", AI_COSTS["chatMessage"])
-    async with quota.refund_on_failure(charge):
-        # A plain-text reply, even when the material itself mentions JSON.
-        try:
-            reply = await agent.run(system_prompt, full_user_query, json_mode=False)
-        except Exception as exc:
-            raise _ai_failure(exc, CHAT_FAILURE_DETAIL)
-        if not isinstance(reply, str) or not reply.strip():
-            BaseAgent.forget(reply)
-            raise AIError.failed(CHAT_FAILURE_DETAIL)
-    return {"reply": reply}
-
-
-@app.post("/api/courses/generate")
-@limiter.limit("5/minute")
-async def generate_course(request: Request, req: CourseGenerateRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    materials_text = "\n\n".join([
-        f"Материал ID: {m.id}\nНазвание: {m.title}\nПредмет: {m.subject}\nКраткое содержание: {m.summary}"
-        for m in req.materials
-    ])
-    
-    system_prompt = f"""Ты — опытный методист, учебный дизайнер и эксперт по составлению образовательных программ.
-Твоя задача — составить логичную, структурированную учебную программу (курс) на основе предоставленных материалов из библиотеки студента.
-
-Доступные материалы:
-{materials_text}
-
-Пожелания студента к курсу (цели обучения):
-{req.goals if req.goals else 'Нет особых пожеланий, сделай структуру максимально логичной.'}
-
-Инструкции по построению курса:
-1. Придумай емкое и красивое название курса (title), объединяющее эти материалы, и краткое описание (description).
-2. Раздели курс на логические секции (от 2 до 5 секций в зависимости от количества и тем материалов).
-3. Распредели ВСЕ предоставленные материалы по секциям в оптимальном педагогическом порядке (от простого к сложному, соблюдая логические связи).
-4. Каждая секция должна содержать хотя бы один материал. Каждый предоставленный материал должен быть отнесен ровно к одной секции.
-5. Для каждой секции напиши краткое название (title) и описание (description) — чему посвящена секция.
-
-ОБЯЗАТЕЛЬНО верни ответ строго в формате JSON:
-{{
-  "title": "Название курса",
-  "description": "Описание курса и целей обучения",
-  "structure": [
-    {{
-      "id": "section_1",
-      "title": "Название первой секции",
-      "description": "Чему посвящена эта секция",
-      "materials": [
-        {{ "id": "material-uuid-1", "title": "Название первого материала", "completed": false }}
-      ]
-    }}
-  ]
-}}"""
-
-    charge = await quota.charge(request, "course", AI_COSTS["course"])
-    async with quota.refund_on_failure(charge):
-        try:
-            raw = await agent.run(system_prompt, "Сгенерируй структуру курса в формате JSON.")
-        except Exception as exc:
-            raise _ai_failure(exc, COURSE_FAILURE_DETAIL)
-        try:
-            return parse_model_json(raw)
-        except Exception as exc:
-            # The old stand-in here was a set literal ({{...}}) that crashed with a 500.
-            print(f"Failed to generate course: {type(exc).__name__}")
-            BaseAgent.forget(raw)
-            raise AIError.failed(COURSE_FAILURE_DETAIL)
-
-
-class ProfessorQuestionRequest(BaseModel):
-    context: str
-    history_text: str = ""
-    mood: Optional[dict] = None
-    socratic_mode: bool = False
-    exam_history: List[dict] = []
-    recent_mistakes: List[str] = []
-    professor_id: Optional[str] = None
-    # Questions in the whole exam (3, 5 or 10): the first question charges the exam's units.
-    exam_length: Optional[int] = None
-
-
-class ProfessorEvaluateRequest(BaseModel):
-    context: str
-    question: str
-    student_answer: str
-    professor_id: Optional[str] = None
-
-
-class MissionsGenerateRequest(BaseModel):
-    context: str
-
-
-from agents.base import build_professor_question_prompt, build_professor_evaluation_prompt, build_missions_prompt, build_quick_prep_prompt, build_mistakes_practice_prompt
-
-@app.post("/api/professor/question")
-@limiter.limit("15/minute", key_func=user_or_ip_key)
-async def professor_question(request: Request, req: ProfessorQuestionRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    mood_instr = ""
-    if req.mood:
-        mood_instr = f"Студент сейчас в настроении: {req.mood.get('mood')}, энергия {req.mood.get('energy_level')}/5. "
-        if req.mood.get('notes'):
-            mood_instr += f"Причина состояния: '{req.mood['notes']}' (учитывай это только если текст осмысленный). "
-        if req.mood.get('energy_level', 3) <= 2 or req.mood.get('mood') == 'stressed':
-            mood_instr += "Студент сегодня не в лучшей форме (устал или в стрессе). Задавай вопросы попроще, будь более снисходительным профессором, давай наводки."
-        elif req.mood.get('energy_level', 3) >= 4:
-            mood_instr += "Студент сегодня в отличной форме и полон энергии. Задавай действительно глубокие, сложные и проверяющие на прочность вопросы. Будь строгим профессором."
-
-    # Адаптивность к успеваемости
-    adaptive_instr = ""
-    if req.exam_history:
-        scores = [e.get('score', 0) for e in req.exam_history if isinstance(e, dict) and 'score' in e]
-        if scores:
-            avg_score = sum(scores) / len(scores)
-            adaptive_instr += f"История оценок студента: средний балл {avg_score:.1f}/100. "
-            if avg_score >= 85:
-                adaptive_instr += "Студент очень сильный и отлично справляется. Задавай глубокие, каверзные вопросы на понимание тонкостей, проверяй знание исключений и неочевидных связей. Будь строгим, но справедливым. "
-            elif avg_score < 60:
-                adaptive_instr += "Студент иногда ошибается или испытывает трудности. Задавай структурированные, базовые вопросы. Будь более лоялен, хвали за правильные шаги, давай наводящие подсказки. "
-
-    # Адаптивность к прошлым ошибкам
-    if req.recent_mistakes:
-        mistakes_str = ", ".join([m for m in req.recent_mistakes if isinstance(m, str)])
-        if mistakes_str:
-            adaptive_instr += f"Недавние темы/вопросы, в которых студент совершал ошибки: {mistakes_str}. Если это уместно в контексте изучаемого материала, удели внимание этим темам или задай вопрос, проверяющий усвоение прошлых пробелов."
-
-    # Сократовский режим
-    if req.socratic_mode:
-        socratic_instr = """
-
-СОКРАТОВСКИЙ РЕЖИМ АКТИВЕН:
-Не просто задавай вопрос — веди Сократовский диалог. Это означает:
-1. Задай первый вопрос по теме.
-2. После каждого ответа студента (из истории) — НЕ принимай ответ просто так. Задавай уточняющий вопрос, который:
-   - Оспаривает ответ («А почему именно так?»)
-   - Просит пример («Можешь привести конкретный пример?»)
-   - Углубляет понимание («А что будет, если условие X изменится?»)
-   - Проверяет границы знания («Верно ли это всегда, или есть исключения?»)
-Цель — не поймать на ошибке, а помочь студенту самому дойти до глубокого понимания."""
-    else:
-        socratic_instr = ""
-
-    system_prompt = build_professor_question_prompt(req.context, req.history_text, req.professor_id)
-    if mood_instr:
-        system_prompt += f"\n\nКОНТЕКСТ СОСТОЯНИЯ СТУДЕНТА: {mood_instr}"
-    if adaptive_instr:
-        system_prompt += f"\n\nАДАПТИВНАЯ СЛОЖНОСТЬ (УСПЕВАЕМОСТЬ И ОШИБКИ): {adaptive_instr}"
-    system_prompt += socratic_instr
-
-    # The whole exam is charged once, with its first question (no history yet); the next
-    # questions and the evaluations of the answers are part of it.
-    new_exam = not (req.history_text or "").strip()
-    units = quota.professor_exam_units(req.exam_length) if new_exam else 0
-    charge = await quota.charge(request, "professorExam", units)
-    async with quota.refund_on_failure(charge):
-        # The question is plain text even when the lecture itself talks about JSON.
-        try:
-            question = await agent.run(system_prompt, "Задай следующий вопрос для экзамена.", json_mode=False)
-        except Exception as exc:
-            raise _ai_failure(exc, PROFESSOR_QUESTION_FAILURE_DETAIL)
-        if not isinstance(question, str) or not question.strip():
-            BaseAgent.forget(question)
-            raise AIError.failed(PROFESSOR_QUESTION_FAILURE_DETAIL)
-    return {"question": question.strip()}
-
-
-@app.post("/api/professor/evaluate")
-@limiter.limit("15/minute", key_func=user_or_ip_key)
-async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
-    """A grade only from a usable model answer: no default «50 баллов, тройка» on failure."""
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer, req.professor_id)
-    try:
-        raw = await agent.run(system_prompt, "Оцени мой ответ.", json_mode=True)
-    except Exception as exc:
-        raise _ai_failure(exc, PROFESSOR_EVALUATE_FAILURE_DETAIL)
-    evaluation = validate_professor_evaluation(raw)
-    if evaluation is None:
-        BaseAgent.forget(raw)
-        raise AIError.failed(PROFESSOR_EVALUATE_FAILURE_DETAIL)
-    return evaluation
-
-@app.post("/api/missions/generate")
-@limiter.limit("5/minute")
-async def generate_missions(request: Request, req: MissionsGenerateRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    system_prompt = build_missions_prompt()
-    charge = await quota.charge(request, "missions", AI_COSTS["missions"])
-    async with quota.refund_on_failure(charge):
-        raw = await agent.run(system_prompt, req.context)
-
-    try:
-        return parse_model_json(raw)
-    except Exception as e:
-        # The stand-in below is not a game the model made: its units go back.
-        await charge.refund()
-        err_str = str(e)
-        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
-            expl_msg = "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова."
-        else:
-            expl_msg = f"Не удалось автоматически сформировать квест. Сырой текст ИИ: {raw}"
-            
-        return {
-            "missions": [
-                {
-                    "id": 1,
-                    "title": "Внимание: Сервер перегружен" if "API_LIMIT" in err_str else "Введение в тему",
-                    "explanation": expl_msg,
-                    "question": "Готовы ли вы начать изучение самостоятельно?",
-                    "options": ["A) Да, готов!", "B) Нет, нужно время", "C) Хочу перечитать конспект"],
-                    "correct": "A",
-                    "hint": "Выберите вариант А"
-                }
-            ]
-        }
+from agents.base import build_quick_prep_prompt, build_mistakes_practice_prompt
 
 
 class QuickPrepRequest(BaseModel):
@@ -1435,1509 +1248,6 @@ async def mistakes_practice(request: Request, req: MistakesPracticeRequest):
             BaseAgent.forget(raw)
             raise AIError.failed(MISTAKES_PRACTICE_FAILURE_DETAIL)
     return {"practice": practice}
-
-
-# ── Career Navigator ──────────────────────────────────────────────────────────
-
-class CareerRequest(BaseModel):
-    materials_context: str  # Сборка всех конспектов юзера
-
-from agents.career import CareerAgent
-from agents.career_course import CareerCourseAgent, get_expert_persona
-
-@app.post("/api/career/generate")
-@limiter.limit("5/minute")
-async def career_generate(request: Request, req: CareerRequest):
-    if not req.materials_context.strip():
-        raise HTTPException(status_code=400, detail="Нет материалов для анализа. Сначала загрузите хотя бы один конспект.")
-
-    agent = CareerAgent(api_key=GROQ_API_KEY)
-    charge = await quota.charge(request, "careerProfile", AI_COSTS["careerProfile"])
-    async with quota.refund_on_failure(charge):
-        try:
-            result = await agent.process(req.materials_context[:60000])
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Ошибка генерации карьерного профиля: {str(e)}")
-    if isinstance(result, dict) and result.get("error"):
-        await charge.refund()  # CareerAgent's stand-in profile, not the model's
-    return result
-
-
-class CareerCourseGenerateRequest(BaseModel):
-    profession: str
-    level: str
-    salary: str
-    user_materials: str = ""
-    location: Optional[str] = ""
-    age: Optional[int] = None
-    gender: Optional[str] = ""
-    extra_context: Optional[str] = ""
-    vacancy_context: Optional[str] = ""
-
-class CareerCourseExpandRequest(BaseModel):
-    current_course: dict
-    additional_focus: str
-    extra_context: Optional[str] = ""
-
-
-class CareerNextModuleRequest(BaseModel):
-    user_id: str
-    current_course: dict
-
-
-class CareerVacanciesRequest(BaseModel):
-    profession: str
-    location: Optional[str] = ""
-
-
-class CareerVacancyChatRequest(BaseModel):
-    message: str
-    history: List[dict] = []
-    vacancy_title: str
-    vacancy_company: str
-    vacancy_requirements: str
-    vacancy_responsibility: str
-
-
-class CareerChatRequest(BaseModel):
-    message: str
-    history: List[ChatMessage]
-    profession: Optional[str] = None
-    level: Optional[str] = None
-    salary: Optional[str] = None
-    is_expansion: Optional[bool] = False
-
-
-class CareerTaskEvaluateRequest(BaseModel):
-    profession: str
-    module_title: str
-    task_description: str
-    practice_type: str
-    student_solution: str
-    feedback_notes: Optional[str] = ""
-
-
-class CareerVacancyParseRequest(BaseModel):
-    url: str
-
-
-class CareerDiagnosticTestRequest(BaseModel):
-    module_title: str
-    module_theory: str
-    profession: str
-
-
-class CareerCodeDiagnosticsRequest(BaseModel):
-    code: str
-    module_title: str
-    task_description: str
-
-
-class CareerGithubReadmeRequest(BaseModel):
-    profession: str
-    completed_modules: List[str]
-    capstone_project_title: Optional[str] = None
-    capstone_project_description: Optional[str] = None
-
-
-class CareerPetProjectsRequest(BaseModel):
-    profession: str
-    skills: List[str]
-    completed_modules: List[str]
-
-
-class CareerPetProjectEvaluateRequest(BaseModel):
-    profession: str
-    project_title: str
-    project_description: str
-    requirements: List[str]
-    solution_code: str
-    github_repo_url: Optional[str] = None
-
-
-
-async def fetch_hh_vacancies(profession: str, location: str = "", hh_access_token: str = None) -> str:
-    """
-    Скачивает вакансии из API HeadHunter по названию профессии и локации,
-    извлекает требования, обязанности и ключевые навыки.
-    """
-    import httpx
-    import re
-    import os
-    
-    url = "https://api.hh.ru/vacancies"
-    headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0")
-    }
-    if hh_access_token:
-        headers["Authorization"] = f"Bearer {hh_access_token}"
-    
-    # Геотаргетинг: добавляем локацию прямо в поисковый запрос (самый надежный способ фильтрации)
-    query_text = f"{profession} {location}".strip()
-    
-    # Маппинг регионов на HH area ID
-    area_id = None
-    if location:
-        loc_lower = location.lower()
-        if "беларусь" in loc_lower or "belarus" in loc_lower or "минск" in loc_lower:
-            area_id = 16
-        elif "казахстан" in loc_lower or "kazakhstan" in loc_lower or "алматы" in loc_lower or "астана" in loc_lower:
-            area_id = 40
-        elif "узбекистан" in loc_lower or "uzbekistan" in loc_lower or "ташкент" in loc_lower:
-            area_id = 97
-        elif "россия" in loc_lower or "russia" in loc_lower or "москва" in loc_lower or "спб" in loc_lower or "петербург" in loc_lower:
-            area_id = 113
-            
-    params = {
-        "text": query_text,
-        "per_page": 12,
-        "only_with_salary": "true"
-    }
-    if area_id:
-        params["area"] = area_id
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers, params=params, timeout=10.0)
-        if response.status_code != 200:
-            raise Exception(f"HH API returned status {response.status_code}")
-        
-        data = response.json()
-        items = data.get("items", [])
-        if not items:
-            raise Exception("No vacancies found on HH")
-            
-        summary = []
-        clean_html = re.compile('<.*?>')
-        
-        for item in items[:8]:
-            title = item.get("name", "Вакансия")
-            salary_info = item.get("salary") or {}
-            salary_from = salary_info.get("from")
-            salary_to = salary_info.get("to")
-            salary_currency = salary_info.get("currency", "RUR")
-            
-            sal_str = ""
-            if salary_from and salary_to:
-                sal_str = f"Зарплата: {salary_from} - {salary_to} {salary_currency}"
-            elif salary_from:
-                sal_str = f"Зарплата: от {salary_from} {salary_currency}"
-            elif salary_to:
-                sal_str = f"Зарплата: до {salary_to} {salary_currency}"
-            
-            snippet = item.get("snippet") or {}
-            req = snippet.get("requirement") or ""
-            resp = snippet.get("responsibility") or ""
-            
-            req = re.sub(clean_html, '', req)
-            resp = re.sub(clean_html, '', resp)
-            
-            summary.append(f"- {title} ({sal_str})\n  Требования: {req}\n  Обязанности: {resp}")
-            
-        return "\n\n".join(summary)
-
-
-async def fetch_structured_vacancies(profession: str, location: str = "", hh_access_token: str = None) -> list:
-    import httpx
-    import re
-    import os
-    
-    url = "https://api.hh.ru/vacancies"
-    headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0")
-    }
-    if hh_access_token:
-        headers["Authorization"] = f"Bearer {hh_access_token}"
-        
-    area_id = None
-    if location:
-        loc_lower = location.lower()
-        if "беларусь" in loc_lower or "belarus" in loc_lower or "минск" in loc_lower:
-            area_id = 16
-        elif "казахстан" in loc_lower or "kazakhstan" in loc_lower or "алматы" in loc_lower or "астана" in loc_lower:
-            area_id = 40
-        elif "узбекистан" in loc_lower or "uzbekistan" in loc_lower or "ташкент" in loc_lower:
-            area_id = 97
-        elif "россия" in loc_lower or "russia" in loc_lower or "москва" in loc_lower or "спб" in loc_lower or "петербург" in loc_lower:
-            area_id = 113
-            
-    if area_id:
-        query_text = profession.strip()
-    else:
-        query_text = f"{profession} {location}".strip()
-        
-    params = {
-        "text": query_text,
-        "per_page": 12
-    }
-    if area_id:
-        params["area"] = area_id
-        
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=10.0)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("items", [])
-                result = []
-                clean_html = re.compile('<.*?>')
-                for item in items[:10]:
-                    title = item.get("name", "Вакансия")
-                    company = item.get("employer", {}).get("name", "Не указана")
-                    salary_info = item.get("salary") or {}
-                    salary_from = salary_info.get("from")
-                    salary_to = salary_info.get("to")
-                    salary_currency = salary_info.get("currency", "RUR")
-                    
-                    sal_str = ""
-                    if salary_from and salary_to:
-                        sal_str = f"{salary_from} - {salary_to} {salary_currency}"
-                    elif salary_from:
-                        sal_str = f"от {salary_from} {salary_currency}"
-                    elif salary_to:
-                        sal_str = f"до {salary_to} {salary_currency}"
-                    else:
-                        sal_str = "не указана"
-                        
-                    snippet = item.get("snippet") or {}
-                    req_text = snippet.get("requirement") or ""
-                    resp_text = snippet.get("responsibility") or ""
-                    
-                    req_text = re.sub(clean_html, '', req_text)
-                    resp_text = re.sub(clean_html, '', resp_text)
-                    
-                    alt_url = item.get("alternate_url", "")
-                    
-                    result.append({
-                        "title": title,
-                        "company": company,
-                        "salary": sal_str,
-                        "requirements": req_text,
-                        "responsibility": resp_text,
-                        "url": alt_url,
-                        "source": "HeadHunter"
-                    })
-                return result
-    except Exception as e:
-        print(f"Structured HH failed: {e}")
-        
-    return []
-
-
-@app.post("/api/career/vacancies")
-@limiter.limit("10/minute")
-async def get_career_vacancies(request: Request, req: CareerVacanciesRequest):
-    # Retrieve user's hh_access_token from Supabase profile if authenticated
-    hh_access_token = None
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        import os
-        from supabase import create_client
-        sb_url = os.getenv("SUPABASE_URL", "")
-        sb_key = os.getenv("SUPABASE_KEY", "")
-        if sb_url and sb_key:
-            try:
-                sb = create_client(sb_url, sb_key)
-                user_resp = sb.auth.get_user(token)
-                user_id = user_resp.user.id
-                
-                # Fetch profile_json
-                profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
-                if profile_res.data:
-                    profile_json = profile_res.data.get("profile_json", {})
-                    hh_access_token = profile_json.get("hh_access_token")
-            except Exception as e_token:
-                print(f"Error fetching HH access token for vacancies: {e_token}")
-
-    vacancies = await fetch_structured_vacancies(req.profession, req.location, hh_access_token)
-    return vacancies
-
-
-@app.post("/api/career/vacancy_chat")
-@limiter.limit("15/minute")
-async def career_vacancy_chat(request: Request, req: CareerVacancyChatRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    system_prompt = f"""Ты — Meldy, карьерный консультант и технический эксперт.
-Сейчас ты консультируешь студента по конкретной выбранной им вакансии, которую он хочет получить в качестве своей карьерной цели.
-
-ИНФОРМАЦИЯ О ВАКАНСИИ:
-- Должность: {req.vacancy_title}
-- Компания: {req.vacancy_company}
-- Требования к кандидату: {req.vacancy_requirements}
-- Обязанности: {req.vacancy_responsibility}
-
-Правила консультации:
-1. Будь искренне поддерживающим, экспертным и вовлеченным ментором. Отвечай подробно и конструктивно, давай практические советы по подготовке.
-2. Проанализируй требования вакансии: объясни студенту, какие технологии из списка критически важны, какие вопросы ему могут задать на собеседовании по этой вакансии, какие темы нужно знать «на зубок».
-3. Дай совет, как лучше составить резюме именно под эту вакансию, какие проекты в портфолио показать.
-4. Отвечай ёмко, структурировано (используй списки и абзацы для легкого чтения).
-5. ВАЖНО: Если студент прямо или косвенно просит изменить направление поиска, посмотреть другие вакансии, сменить стек, профессию или город (например: «хочу стать бэкендером», «покажи вакансии в Москве», «давай поищем Node.js» или «а есть бэкенд?»), ты обязан дружелюбно согласиться, объяснить, что ты сейчас перестроишь поиск под его новый запрос, и в самом конце своего сообщения прикрепить управляющий токен:
-   [UPDATE_VACANCIES_ACTION:NewProfessionName|NewLocation]
-   Где:
-   - NewProfessionName: уточненное/новое название профессии на русском (например: Backend-разработчик, Node.js разработчик, Системный аналитик).
-   - NewLocation: город или страна для поиска (например: Москва, Санкт-Петербург, Минск, Алматы). Если локация не указана или не изменилась, оставь прежнюю локацию (или напиши "Россия").
-   Пример: "Отличный выбор! Бэкенд-разработка сейчас очень востребована. Секунду, перенастраиваю наш поиск на Backend-разработчика в Минске... [UPDATE_VACANCIES_ACTION:Backend-разработчик|Минск]"
-"""
-
-    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.history[-10:] if isinstance(msg, dict)])
-    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ВОПРОС СТУДЕНТА ПО ВАКАНСИИ: {req.message}"
-    
-    reply = await agent.run(system_prompt, full_user_query)
-    return {"reply": reply}
-
-
-@app.post("/api/career/chat")
-@limiter.limit("20/minute")
-async def career_chat(request: Request, req: CareerChatRequest):
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    if req.is_expansion:
-        system_prompt = f"""Ты — Meldy, карьерный консультант и HR-методист.
-Ты общаешься со студентом, который только что успешно завершил базовый курс по направлению "{req.profession or 'Разработчик'}" (уровень: {req.level or 'Junior'}, целевая зарплата: {req.salary or 'договорная'}).
-Он хочет расширить обучение и добавить новые продвинутые, сверхсложные модули.
-
-Твоя цель — провести поддерживающий, живой и конструктивный диалог, чтобы помочь ему выбрать одно из продвинутых направлений развития и сразу же запустить проектирование новых модулей.
-
-Правила ведения диалога:
-1. Будь искренне поддерживающим, эмпатичным и вовлеченным, как лучший личный ментор. Обращайся к студенту уважительно, но тепло, на "ты".
-2. НЕ ЗАДАВАЙ никаких базовых вопросов (таких как возраст, пол, город проживания, целевая зарплата) — все эти данные у нас уже есть!
-3. Сфокусируйся исключительно на профессиональных целях расширения. Например, если он учился на C#/.NET, предложи вектора:
-   - **Архитектура и Highload** (микросервисы, брокеры сообщений RabbitMQ/Kafka, паттерны)
-   - **DevOps-культура** (Docker, Kubernetes, CI/CD)
-   - **Data & Storage** (продвинутый SQL, индексы, оптимизация, NoSQL вроде Redis/MongoDB)
-   - **Fullstack-направление** (React, Angular, TypeScript в связке с .NET бэкендом)
-4. Если студент кратко или явно отвечает на твой вопрос или предлагает вектор (например: "размеренный темп, давай фуллстэк" или "хочу Highload"), НЕ мучай его дополнительными вопросами и опросами о локации, возрасте или чем-либо еще! Сразу же подтверди его выбор, вдохнови его и прикрепи управляющий токен.
-5. Форматируй свои реплики: используй красивые маркированные списки, выделяй ключевые технологии и термины **жирным шрифтом**, разбивай текст на абзацы для легкого чтения.
-6. Когда вектор выбран или студент подтвердил свое желание (например, выбрал Fullstack), ты ОБЯЗАН в самом конце своего сообщения прикрепить управляющий токен:
-   [EXPAND_COURSE_ACTION:НазваниеНаправления|ДополнительныйКонтекст]
-   Где:
-   - НазваниеНаправления: Краткое название выбранного вектора на английском или русском языке (например, "Fullstack", "Highload", "DevOps", "Advanced Databases").
-   - ДополнительныйКонтекст: Важные пожелания студента (например, "размеренный темп, React" или "Docker, Kubernetes"). Если нет, поставь "".
-   
-Пример: "...Отличный выбор! Я проектирую для тебя продвинутые модули по Fullstack. [EXPAND_COURSE_ACTION:Fullstack|размеренный темп, React]"
-
-ВАЖНО: Если студент уже прямо выразил свой выбор (например: "размеренный темп, давай фуллстэк"), ты должен СРАЗУ сгенерировать сообщение с токеном [EXPAND_COURSE_ACTION:...] в конце, чтобы не затягивать процесс и мгновенно перейти к расширению курса!
-Не здоровайся заново в каждой реплике. Пиши ёмко, разбивай текст на абзацы для легкого чтения."""
-    else:
-        system_prompt = """Ты — Meldy, карьерный консультант и HR-методист.
-Твоя цель — провести со студентом поддерживающий, живой и глубокий диалог, чтобы помочь ему определиться с идеальной карьерной траекторией.
-
-Правила ведения диалога:
-1. Будь искренне поддерживающим, эмпатичным и вовлеченным, как лучший личный ментор. Обращайся к студенту уважительно, но тепло, на "ты".
-2. Твоя задача — ненавязчиво и дружелюбно выяснить:
-   - Какое конкретное направление или сфера ему интересны (программирование, дизайн, аналитика, менеджмент, маркетинг и т.д.).
-   - Каковы его пожелания по уровню (Junior, Middle) и целевой зарплате.
-   - Где он живет (страна/город), чтобы курс учитывал локальный рынок труда (например, Москва, Санкт-Петербург, Минск, Алматы). Это критично для точного поиска вакансий!
-   - Его возраст и пол (для адаптации педагогического подхода и психологических soft-skills заданий).
-   - Его текущий уровень опыта/знаний в этой сфере (абсолютный новичок, «полный ноль», есть ли минимальная база или опыт в смежных областях).
-   - Его особые условия или ограничения (сколько времени готов уделять учебе, есть ли совмещение с работой, уход за ребенком, особый график и тд).
-3. Обсуждай альтернативы, отвечающие интересам студента, отвечай на любые вопросы о профессиях, развеивай страхи перед собеседованиями.
-4. Структурируй свои реплики: используй красивые маркированные списки, выделяй ключевые технологии и термины **жирным шрифтом**, разбивай текст на абзацы для легкого чтения. Ответы должны выглядеть профессионально и опрятно.
-5. Когда вы полностью определитесь со всеми параметрами, скажи студенту, что готов запустить генерацию уникального персонального курса, который соберет реальные требования вакансий с HeadHunter именно по его локации, адаптирует сложность под его уровень («полный ноль» или с базой) и создаст адаптивный курс под его возраст и жизненную ситуацию с песочницами.
-6. В этот же момент ты ОБЯЗАН в самом конце своего сообщения прикрепить расширенный секретный управляющий токен:
-   [GENERATE_COURSE_ACTION:ProfessionName|Salary|Level|Location|Age|Gender|ExtraContext]
-   Где:
-   - ProfessionName: Точное выверенное название профессии на русском языке (например, Frontend-разработчик, Системный аналитик, Маркетолог).
-   - Salary: Целевая зарплата (число или строка, например 100000, 150000).
-   - Level: Выбранный уровень квалификации (Junior, Middle, Senior).
-   - Location: Выясненный город или страна (например: Москва, Алматы, Россия). Если не указано, поставь "Россия".
-   - Age: Выясненный возраст (например: 22, 35). Если не указан, поставь "".
-   - Gender: Пол (например: Мужской, Женский). Если не указан, поставь "".
-   - ExtraContext: Любые важные жизненные условия, опыт или ограничения через запятую (например: совмещаю с работой, молодая мама, 2 часа в день, полный ноль, нет опыта). Если нет, поставь "".
-   
-Пример: "...Я готов составить для тебя потрясающий практический курс! [GENERATE_COURSE_ACTION:Frontend-разработчик|120000|Junior|Москва|23|Мужской|полный ноль, совмещаю с основной работой, 2 часа в день]"
-
-ВАЖНО: До тех пор, пока параметры не согласованы полностью, НЕ прикрепляй этот токен. Задавай уточняющие вопросы, веди содержательный диалог.
-Не здоровайся заново в каждой реплике. Пиши ёмко, разбивай текст на абзацы для легкого чтения."""
-
-    history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in req.history[-10:]])
-    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nТЕКУЩИЙ ЗАПРОС СТУДЕНТА: {req.message}"
-    
-    reply = await agent.run(system_prompt, full_user_query)
-    return {"reply": reply}
-
-
-@app.post("/api/career/course")
-@limiter.limit("5/minute")
-async def career_course(request: Request, req: CareerCourseGenerateRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
-        
-    vacancy_text = ""
-    if req.vacancy_context:
-        print("Using selected vacancy context provided by frontend...")
-        vacancy_text = req.vacancy_context
-    else:
-        # Сначала пытаемся получить вакансии из HH API
-        hh_access_token = None
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            import os
-            from supabase import create_client
-            sb_url = os.getenv("SUPABASE_URL", "")
-            sb_key = os.getenv("SUPABASE_KEY", "")
-            if sb_url and sb_key:
-                try:
-                    sb = create_client(sb_url, sb_key)
-                    user_resp = sb.auth.get_user(token)
-                    user_id = user_resp.user.id
-                    
-                    # Fetch profile_json
-                    profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
-                    if profile_res.data:
-                        profile_json = profile_res.data.get("profile_json", {})
-                        hh_access_token = profile_json.get("hh_access_token")
-                except Exception as e_token:
-                    print(f"Error fetching HH access token for course generator: {e_token}")
-
-        try:
-            print(f"Trying to fetch vacancies from HH for {req.profession} in {req.location}...")
-            vacancy_text = await fetch_hh_vacancies(req.profession, req.location, hh_access_token)
-        except Exception as e_hh:
-            # HH API недоступен или не нашёл вакансии — не падаем, генерируем курс с общим контекстом
-            print(f"HH API failed (using generic context): {e_hh}")
-            vacancy_text = (
-                f"Общие требования рынка труда для профессии '{req.profession}' уровня {req.level}: "
-                f"Необходимы знания профессионального стека технологий, умение читать и писать чистый поддерживаемый код, "
-                f"базовые знания алгоритмов и структур данных, навыки работы в команде по Agile/Scrum, "
-                f"опыт работы с Git, умение декомпозировать задачи и знание лучших практик отрасли. "
-                f"Ожидаемая зарплата на уровень {req.level}: {req.salary}."
-            )
-            
-    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
-    
-    try:
-        course_data = await agent.generate_course(
-            req.profession,
-            req.level,
-            req.salary,
-            req.user_materials,
-            vacancy_text,
-            age=req.age,
-            gender=req.gender,
-            location=req.location,
-            extra_context=req.extra_context
-        )
-        return course_data
-    except Exception as e:
-        print(f"Error generating course: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации курса: {str(e)}")
-
-
-@app.post("/api/career/expand")
-@limiter.limit("5/minute")
-async def career_expand(request: Request, req: CareerCourseExpandRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
-        
-    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
-    try:
-        new_modules = await agent.expand_course(
-            req.current_course,
-            req.additional_focus,
-            req.extra_context
-        )
-        return {"new_modules": new_modules}
-    except Exception as e:
-        print(f"Error expanding course: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка расширения курса: {str(e)}")
-
-
-@app.post("/api/career/next_module")
-@limiter.limit("5/minute")
-async def career_next_module(request: Request, req: CareerNextModuleRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
-        
-    course = req.current_course
-    
-    # Внедряем ограничение генерации: максимум 2 темы в день (после первых двух бесплатных)
-    import time
-    now = time.time()
-    one_day_ago = now - 24 * 60 * 60
-    recent_timestamps = [t for t in course.get("generation_timestamps", []) if t > one_day_ago]
-    
-    if len(recent_timestamps) >= 2:
-        raise HTTPException(
-            status_code=400,
-            detail="Вы исчерпали лимит генерации новых тем на сегодня (максимум 2 новые темы в день). Отдохните и возвращайтесь завтра!"
-        )
-        
-    syllabus = course.get("syllabus", {})
-    chapters = syllabus.get("chapters", [])
-    
-    # Находим первую невыполненную тему
-    target_topic = None
-    target_chapter_idx = -1
-    target_topic_idx = -1
-    
-    for c_idx, chapter in enumerate(chapters):
-        for t_idx, topic in enumerate(chapter.get("topics", [])):
-            if not topic.get("is_completed"):
-                target_topic = topic
-                target_chapter_idx = c_idx
-                target_topic_idx = t_idx
-                break
-        if target_topic:
-            break
-            
-    if not target_topic:
-        return {"completed": True, "course": course}
-        
-    topic_title = target_topic.get("title")
-    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
-    
-    try:
-        new_module = await agent.generate_next_module(
-            profession=course.get("profession", "Разработчик"),
-            level=course.get("level", "Junior"),
-            salary=course.get("salary", "100000"),
-            topic_title=topic_title,
-            current_course=course
-        )
-        
-        if not new_module or not new_module.get("id"):
-            raise HTTPException(status_code=500, detail="ИИ вернул невалидную структуру модуля")
-            
-        # Обновляем силлабус в курсе
-        target_topic["is_completed"] = False
-        target_topic["module_id"] = new_module["id"]
-        
-        # Добавляем новый модуль в список модулей курса
-        if "modules" not in course:
-            course["modules"] = []
-        course["modules"].append(new_module)
-        
-        # Обновляем силлабус внутри курса
-        course["syllabus"] = syllabus
-        
-        # Записываем время успешной генерации
-        recent_timestamps.append(now)
-        course["generation_timestamps"] = recent_timestamps
-        
-        return {"completed": False, "course": course}
-        
-    except Exception as e:
-        print(f"Error generating next module: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации следующего модуля: {str(e)}")
-
-
-@app.post("/api/career/evaluate_task")
-@limiter.limit("10/minute")
-async def career_evaluate_task(request: Request, req: CareerTaskEvaluateRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
-        
-    expert = get_expert_persona(req.profession)
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    system_prompt = f"""Ты — {expert['title']}.
-Твой стиль преподавания и тон: {expert['tone']}
-
-Твоя задача — провести глубокий, экспертный разбор практического решения студента.
-Студент обучается по направлению "{req.profession}" в рамках модуля "{req.module_title}".
-
-ОПИСАНИЕ ПРАКТИЧЕСКОГО ЗАДАНИЯ (ТЗ):
-{req.task_description}
-
-Тип песочницы: {req.practice_type}
-
-РЕШЕНИЕ СТУДЕНТА:
-{req.student_solution}
-
-ИНСТРУКЦИЯ ПО РАЗБОРУ:
-1. Выступи в роли авторитетного, профессионального наставника. Отметь, насколько решение решает бизнес-задачу или техническую проблему.
-2. Проанализируй качество исполнения:
-   - Если это код (algo, sql, web): разбери стиль кода, возможные уязвимости, крайние случаи (edge cases) и производительность. Дай конкретные рекомендации по рефакторингу.
-   - Если это бизнес-расчет или дизайн-критика/копирайтинг: разбери глубину анализа, логику формул, стиль изложения, маркетинговую или продуктовую ценность.
-   - Если это Soft Skills (roleplay): разбери тактичность, эмпатию, силу аргументов и убедительность.
-3. Поставь честный балл от 0 до 100 на основе качества.
-4. Твой разбор должен быть ободряющим, но профессиональным, без пустой похвалы — студент пришел за качественным ростом.
-
-ВНИМАНИЕ: Если решение студента является полностью верным, оптимальным, решает все условия ТЗ и не имеет недостатков (например, студент вставил идеальный предложенный ИИ код или написал полностью верное решение), ты ОБЯЗАН поставить 100 из 100 баллов ("score": 100) и оставить список "weaknesses" пустым. Не придумывай искусственные замечания и придирки ради занижения балла. Будь абсолютно объективен!
-
-ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
-{{
-  "score": 100,
-  "verdict": "Итоговое развернутое ревью (3-4 содержательных предложения).",
-  "strengths": ["Что сделано отлично"],
-  "weaknesses": ["Что можно улучшить или исправить (оставь пустым, если оценка 100)"],
-  "refactored_solution": "Если применимо, покажи идеальный пример кода/текста/расчета с комментариями."
-}}
-"""
-
-    charge = await quota.charge(request, "careerReview", AI_COSTS["careerReview"])
-    async with quota.refund_on_failure(charge):
-        raw = await agent.run(system_prompt, "Пожалуйста, проанализируй моё решение.")
-    try:
-        return parse_model_json(raw)
-    except Exception as e:
-        print(f"Error parsing evaluate_task: {e}, raw: {raw}")
-        await charge.refund()  # the stand-in review below is not the model's
-        return {
-            "score": 75,
-            "verdict": "Ваше решение получено и проверено локальными тестами. AI-анализ завершился с ошибкой, но вы справились с базовым функционалом!",
-            "strengths": ["Код/ответ успешно прошел автоматическую валидацию"],
-            "weaknesses": ["Не удалось получить глубокий ИИ-разбор"],
-            "refactored_solution": ""
-        }
-
-
-# ── Career Learning Engine (Sprint 1 additions) ───────────────────────────────
-
-class CareerReviewTestRequest(BaseModel):
-    module_id: str
-    module_title: str
-    module_theory: str
-    practice_type: str
-    num_questions: int = 3
-
-class CareerRetryTaskRequest(BaseModel):
-    module_title: str
-    practice_type: str
-    original_task: str
-    weaknesses: List[str] = []
-
-class CareerModuleHintRequest(BaseModel):
-    paragraph_text: str
-    profession: str
-
-class CareerUpdateReviewRequest(BaseModel):
-    module_id: str
-    course_profession: str
-    score: int  # 0-100: determines SM-2 quality factor
-
-
-class CareerMockInterviewStartRequest(BaseModel):
-    profession: str
-    vacancy_title: str
-    vacancy_company: str
-    vacancy_requirements: str
-    completed_modules_titles: List[str]
-
-
-class CareerMockInterviewRespondRequest(BaseModel):
-    profession: str
-    vacancy_title: str
-    vacancy_company: str
-    chat_history: List[dict]
-    student_answer: str
-
-
-class CareerMockInterviewEvaluateRequest(BaseModel):
-    profession: str
-    vacancy_title: str
-    vacancy_company: str
-    chat_history: List[dict]
-
-
-class CareerSocraticChatRequest(BaseModel):
-    paragraph_text: str
-    profession: str
-    message: str
-    chat_history: List[dict]
-    mode: str = "socratic"          # "explain" | "socratic"
-    is_beginner: bool = False       # true = absolute beginner, adapt language
-
-
-@app.post("/api/career/review_test")
-@limiter.limit("20/minute")
-async def career_review_test(request: Request, req: CareerReviewTestRequest):
-    """Generate a Spaced Repetition or module review test."""
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-
-    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
-    try:
-        result = await agent.generate_review_test(
-            req.module_title,
-            req.module_theory,
-            req.practice_type,
-            req.num_questions
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации теста повторения: {str(e)}")
-
-
-@app.post("/api/career/retry_task")
-@limiter.limit("10/minute")
-async def career_retry_task(request: Request, req: CareerRetryTaskRequest):
-    """Generate an alternative practice task when student scores below mastery threshold (70)."""
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-
-    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
-    try:
-        result = await agent.generate_retry_task(
-            req.module_title,
-            req.practice_type,
-            req.original_task,
-            req.weaknesses
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации альтернативного задания: {str(e)}")
-
-
-@app.post("/api/career/module_hint")
-@limiter.limit("30/minute")
-async def career_module_hint(request: Request, req: CareerModuleHintRequest):
-    """Socratic Micro-Tutor: explain a theory paragraph in a different way."""
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-
-    agent = CareerCourseAgent(api_key=GROQ_API_KEY)
-    try:
-        explanation = await agent.get_module_hint(req.paragraph_text, req.profession)
-        return {"explanation": explanation}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка получения подсказки: {str(e)}")
-
-
-@app.post("/api/career/mock_interview_start")
-@limiter.limit("5/minute")
-async def career_mock_interview_start(request: Request, req: CareerMockInterviewStartRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    system_prompt = f"""Ты — ИИ-интервьюер, опытный тимлид или технический рекрутер из компании "{req.vacancy_company}".
-Ты проводишь реалистичное собеседование на позицию "{req.vacancy_title}".
-Собеседование охватывает следующие изученные студентом темы: {', '.join(req.completed_modules_titles)}.
-
-Твои правила:
-1. Твоя цель — начать собеседование: поздоровайся от лица рекрутера/тимлида компании "{req.vacancy_company}", назови вакансию и задай первый вовлекающий вопрос (технический или поведенческий/HR).
-2. Будь реалистичным, профессиональным, вежливым, но строгим. Оценивай реальный уровень студента.
-3. Твоя реплика должна быть краткой (2-4 предложения) и заканчиваться одним вопросом. Не пиши готовых ответов."""
-
-    user_query = "Начни мок-собеседование со мной."
-    try:
-        reply = await agent.run(system_prompt, user_query)
-        return {"session_id": "mock_session_" + str(hash(reply))[:8], "initial_question": reply.strip()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка старта собеседования: {str(e)}")
-
-
-@app.post("/api/career/mock_interview_respond")
-@limiter.limit("15/minute")
-async def career_mock_interview_respond(request: Request, req: CareerMockInterviewRespondRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    student_turns = sum(1 for msg in req.chat_history if msg.get("role") == "user") + 1
-    is_finished = student_turns >= 5
-    
-    if is_finished:
-        return {"next_question": "Спасибо за ответы! Я завершил собеседование и готов подвести итоги. Нажмите кнопку 'Получить результаты', чтобы увидеть детальный разбор.", "is_finished": True}
-        
-    system_prompt = f"""Ты — ИИ-интервьюер, тимлид или технический рекрутер из компании "{req.vacancy_company}".
-Ты проводишь собеседование на позицию "{req.vacancy_title}".
-
-Твои правила:
-1. Будь реалистичным, профессиональным, вежливым. Оценивай знания студента.
-2. Прочитай его последний ответ и историю диалога. Задай следующий логический вопрос (углубись в его стек, спроси крайний случай или задай поведенческий/HR вопрос).
-3. Пиши кратко (2-4 предложения), задавай строго один вопрос за раз. Не давай ответов или спойлеров.
-4. Студент ответил: "{req.student_answer}". Твоя задача — задать следующий вопрос."""
-
-    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.chat_history[-10:] if isinstance(msg, dict)])
-    full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nСтудент ответил: {req.student_answer}\nЗадай следующий вопрос."
-    
-    try:
-        reply = await agent.run(system_prompt, full_user_query)
-        return {"next_question": reply.strip(), "is_finished": False}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка диалога: {str(e)}")
-
-
-@app.post("/api/career/mock_interview_evaluate")
-@limiter.limit("5/minute")
-async def career_mock_interview_evaluate(request: Request, req: CareerMockInterviewEvaluateRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.chat_history if isinstance(msg, dict)])
-    
-    system_prompt = f"""Ты — экспертная комиссия ИТ-интервьюеров и HR-специалистов.
-Тебе предоставлена полная стенограмма мок-собеседования на позицию "{req.vacancy_title}" в компании "{req.vacancy_company}".
-Твоя задача — провести детальный и беспристрастный разбор ответов студента.
-
-Критерии оценки:
-- Техническая глубина и правильность ответов.
-- Умение рассуждать, решать крайние случаи, признавать пробелы.
-- Коммуникация, soft skills, структура изложения.
-
-ОБЯЗАТЕЛЬНО верни строго JSON-структуру без markdown-оберток (НИКАКИХ ```json или ```):
-{{
-  "score": 82,
-  "grade": "Junior+" / "Middle-" / "Junior",
-  "verdict": "Итоговое развернутое заключение (3-4 содержательных предложения) о готовности к работе.",
-  "strengths": ["В чем студент показал себя отлично (конкретные темы/ответы)"],
-  "weaknesses": ["В чем проявились пробелы и что нужно доучить"],
-  "interview_ready": true
-}}"""
-
-    user_query = f"СТЕНОГРАММА СОБЕСЕДОВАНИЯ:\n{history_text}\n\nПожалуйста, проанализируй моё собеседование и дай оценку."
-    try:
-        raw = await agent.run(system_prompt, user_query)
-        return parse_model_json(raw)
-    except Exception as e:
-        print(f"Error evaluating interview: {e}")
-        return {
-            "score": 75,
-            "grade": "Junior",
-            "verdict": "Ваше собеседование проверено. Ошибка разбора ответа ИИ, но вы показали отличную активность!",
-            "strengths": ["Успешно завершен весь трек вопросов ИИ-интервьюера"],
-            "weaknesses": ["Сбой детального ИИ-разбора"],
-            "interview_ready": False
-        }
-
-
-@app.post("/api/career/socratic_chat")
-@limiter.limit("20/minute")
-async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    beginner_note = """ВАЖНО: Этот студент — ПОЛНЫЙ НОВИЧОК без опыта в данной области. Объясняй максимально просто, используй бытовые аналогии, избегай жаргона без расшифровки.""" if req.is_beginner else ""
-
-    if req.mode == "explain":
-        # Mode: give a full, rich, friendly explanation of the paragraph
-        system_prompt = f"""Ты — дружелюбный и опытный ИИ-наставник Meldy по направлению "{req.profession}".
-{beginner_note}
-
-Тебе нужно объяснить студенту следующий учебный фрагмент МАКСИМАЛЬНО ПОНЯТНО и ПОДРОБНО:
-
-ФРАГМЕНТ ТЕОРИИ:
-"{req.paragraph_text}"
-
-Правила написания объяснения:
-1. Начни с сути: что это такое и зачем это нужно (1-2 предложения).
-2. Объясни каждую ключевую концепцию простым языком с реальными примерами и аналогиями.
-3. Покажи, как это применяется на практике в профессии "{req.profession}".
-4. Если есть технические термины — объясняй их прямо в тексте.
-5. Заверши объяснение коротким резюме и предложи студенту задать вопросы.
-Формат: используй **жирный** для ключевых терминов, \n\n между абзацами.
-Длина: 200-350 слов. Пиши на русском."""
-        full_user_query = "Объясни мне эту тему."
-    else:
-        # Mode: socratic dialogue (but adapt for beginners)
-        if req.is_beginner:
-            system_prompt = f"""Ты — мудрый и добрый ИИ-наставник Meldy по теме "{req.profession}".
-{beginner_note}
-
-Студент изучает:
-"{req.paragraph_text}"
-
-Правила диалога с новичком:
-1. Отвечай понятно и прямо — новичку нужны ответы, а не только вопросы. Объясни, а затем задай уточняющий вопрос.
-2. Если студент не понял — объясни по-другому с новой аналогией.
-3. Поддерживай и хвали за попытки разобраться.
-4. Пиши кратко (2-4 предложения) и дружелюбно.
-5. Не используй термины без объяснения."""
-        else:
-            system_prompt = f"""Ты — Сократ, персональный ИИ-тьютор Meldy.
-Твоя цель — помочь студенту глубже понять следующий абзац учебного материала по направлению "{req.profession}":
-
-АБЗАЦ ТЕОРИИ:
-"{req.paragraph_text}"
-
-Правила ведения сократовского диалога:
-1. На каждый вопрос или утверждение студента отвечай наводящим вопросом, контрпримером или метафорой.
-2. Помогай студенту самому прийти к верному выводу шаг за шагом.
-3. Будь вежливым, мудрым, поддерживающим. Пиши кратко (до 3 предложений).
-4. Если студент явно не понимает — дай короткое объяснение, затем продолжай диалог."""
-        
-        history_text = "\n".join([f"{msg.get('role')}: {msg.get('content')}" for msg in req.chat_history[-8:] if isinstance(msg, dict)])
-        full_user_query = f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\nСтудент: {req.message}"
-
-    if req.mode == "explain":
-        full_user_query = "Объясни мне эту тему подробно."
-    
-    try:
-        reply = await agent.run(system_prompt, full_user_query)
-        return {"reply": reply.strip()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка Сократ-диалога: {str(e)}")
-
-
-@app.post("/api/career/parse_vacancy")
-@limiter.limit("15/minute")
-async def career_parse_vacancy(request: Request, req: CareerVacancyParseRequest):
-    import re
-    import httpx
-    import os
-
-    # Проверяем, является ли ссылка вакансией на HH
-    match = re.search(r'vacancy/(\d+)', req.url)
-    if not match:
-        raise HTTPException(
-            status_code=400,
-            detail="Поддерживаются только действительные ссылки на вакансии HeadHunter (например: https://hh.ru/vacancy/123456)"
-        )
-        
-    vacancy_id = match.group(1)
-    # Получаем токен из Supabase
-    hh_access_token = None
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        sb_url = os.getenv("SUPABASE_URL", "")
-        sb_key = os.getenv("SUPABASE_KEY", "")
-        if sb_url and sb_key:
-            try:
-                from supabase import create_client
-                sb = create_client(sb_url, sb_key)
-                user_resp = sb.auth.get_user(token)
-                user_id = user_resp.user.id
-                
-                profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
-                if profile_res.data:
-                    profile_json = profile_res.data.get("profile_json", {})
-                    hh_access_token = profile_json.get("hh_access_token")
-            except Exception as e_token:
-                print(f"Error fetching HH access token for parsing: {e_token}")
-                
-    # Запрашиваем через официальный API HeadHunter
-    url = f"https://api.hh.ru/vacancies/{vacancy_id}"
-    headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0")
-    }
-    if hh_access_token:
-        headers["Authorization"] = f"Bearer {hh_access_token}"
-        
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=headers, timeout=10.0)
-            if resp.status_code != 200:
-                raise Exception(f"HH API returned status {resp.status_code}")
-                
-            vac_data = resp.json()
-            title = vac_data.get("name", "Вакансия")
-            company = vac_data.get("employer", {}).get("name", "Не указана")
-            
-            salary_info = vac_data.get("salary") or {}
-            salary_from = salary_info.get("from")
-            salary_to = salary_info.get("to")
-            salary_currency = salary_info.get("currency", "RUR")
-            
-            sal_str = ""
-            if salary_from and salary_to:
-                sal_str = f"{salary_from} - {salary_to} {salary_currency}"
-            elif salary_from:
-                sal_str = f"от {salary_from} {salary_currency}"
-            elif salary_to:
-                sal_str = f"до {salary_to} {salary_currency}"
-            else:
-                sal_str = "не указана"
-                
-            raw_description = vac_data.get("description", "")
-            clean_html = re.compile('<.*?>')
-            desc_text = re.sub(clean_html, '', raw_description)
-            sentences = re.split(r'(?<=[.!?])\s+', desc_text)
-            requirements = " ".join(sentences[:3])
-            
-            key_skills = [skill.get("name") for skill in vac_data.get("key_skills", []) if skill.get("name")]
-            if not key_skills:
-                key_skills = ["Git", "SQL"]
-                
-            return {
-                "title": title,
-                "company": company,
-                "salary": sal_str,
-                "requirements": requirements,
-                "skills": key_skills
-            }
-    except Exception as e_api:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Не удалось загрузить вакансию через HeadHunter API: {str(e_api)}"
-        )
-
-
-
-@app.post("/api/career/diagnostic_test")
-@limiter.limit("10/minute")
-async def career_diagnostic_test(request: Request, req: CareerDiagnosticTestRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    system_prompt = f"""Ты — ИИ-методист Meldy.
-Сгенерируй входной диагностический тест из 5 вопросов множественного выбора (Multiple Choice) для проверки знаний студента перед изучением темы "{req.module_title}" по направлению "{req.profession}".
-
-Правила генерации вопросов:
-1. Вопросы должны быть сложными, техническими и охватывать ключевые концепции темы (теории):
-"{req.module_theory[:3000]}"
-2. Каждый вопрос должен содержать ровно 4 варианта ответа (A, B, C, D) с одним правильным ключом.
-3. Дай развернутое пояснение (explanation) для каждого вопроса.
-
-Верни результат СТРОГО в формате JSON:
-{{
-  "questions": [
-    {{
-      "question": "Текст вопроса #1",
-      "options": ["A) Вариант A", "B) Вариант B", "C) Вариант C", "D) Вариант D"],
-      "correct": "A",
-      "explanation": "Подробное разъяснение, почему вариант A верен, а другие нет."
-    }},
-    ... (всего ровно 5 вопросов)
-  ]
-}}
-"""
-    
-    try:
-        raw = await agent.run(system_prompt, "Сгенерируй диагностический тест.")
-        return parse_model_json(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации теста: {str(e)}")
-
-
-@app.post("/api/career/code_diagnostics")
-@limiter.limit("15/minute")
-async def career_code_diagnostics(request: Request, req: CareerCodeDiagnosticsRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    system_prompt = f"""Ты — ИИ-архитектор и технический руководитель Meldy.
-Проанализируй черновик решения студента в песочнице для темы "{req.module_title}".
-
-ОПИСАНИЕ ЗАДАНИЯ:
-"{req.task_description}"
-
-КОД СТУДЕНТА:
-```
-{req.code}
-```
-
-Сделай глубокий анализ кода и подготовь JSON-отчет. 
-
-ВАЖНОЕ ТРЕБОВАНИЕ К КОДУ:
-Наша интерактивная песочница выполняет код на JavaScript (для большинства задач) или SQL (если это база данных/SQL задание).
-Поле "refactored_suggestion" ОБЯЗАНО содержать синтаксически корректный и рабочий код, который БУДЕТ ВЫПОЛНЕН в нашей песочнице:
-1. Если задание требует написать SQL-запрос, напишите чистый SQL (SELECT ...).
-2. Для всех остальных языков и стеков (включая C#, Python, JavaScript и др.) пишите решение в виде JavaScript-функции `function solution(...) {{ ... }}`.
-Ни в коем случае НЕ возвращайте C#, Python или C++ код в поле "refactored_suggestion", иначе возникнет ошибка компиляции в песочнице! Код должен быть строго на JavaScript.
-
-ВНИМАНИЕ: Если решение студента уже является полностью верным, оптимальным и не имеет недостатков, оцени его в 100 баллов ("score_estimate": 100) и оставь список замечаний "issues" пустым. Не занижай оценку искусственно!
-
-Верни результат СТРОГО в формате JSON:
-{{
-  "complexity": "Оценка временной и пространственной сложности (например, Time: O(n), Space: O(1))",
-  "issues": [
-    "Замечание #1 (оставь список пустым, если оценка 100)",
-    "Замечание #2"
-  ],
-  "refactored_suggestion": "Вариант оптимизированного, чистого и готового к выполнению в песочнице JavaScript/SQL кода",
-  "score_estimate": 100
-}}
-"""
-    try:
-        raw = await agent.run(system_prompt, "Проанализируй этот код.")
-        return parse_model_json(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка диагностики кода: {str(e)}")
-
-
-@app.post("/api/career/github_readme")
-@limiter.limit("10/minute")
-async def career_github_readme(request: Request, req: CareerGithubReadmeRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    completed_modules_str = ", ".join(req.completed_modules)
-    
-    capstone_part = ""
-    if req.capstone_project_title and req.capstone_project_description:
-        capstone_part = f"""
-В качестве выпускной практической работы (Capstone Project) студент спроектировал и реализовал масштабный пет-проект:
-Название: "{req.capstone_project_title}"
-Описание: "{req.capstone_project_description}"
-Обязательно включи этот проект как главный и центральный кейс портфолио!
-"""
-
-    system_prompt = f"""Ты — ИИ-Технический Рекрутер и Бренд-Консультант для разработчиков.
-Сгенерируй потрясающий, профессиональный файл README.md для GitHub-профиля студента, успешно окончившего полный ИИ-курс обучения по направлению "{req.profession}".
-Студент успешно освоил следующие темы в ИИ-буткемпе Meldy: {completed_modules_str}.
-{capstone_part}
-
-Структура README должна включать:
-1. Заголовок с именем/направлением и целями.
-2. Иконки технологий (используй щиты shields.io).
-3. Главный раздел: Выпускной Пет-Проект (Capstone Project) — распиши его в привлекательном коммерческом виде (суть, стек, ключевые фичи/User Stories).
-4. Раздел с другими проектами и темами из пройденных модулей.
-5. Метрики (например, оцифрованный Match Score, пройденные ИИ-собеседования).
-6. Раздел с контактами.
-
-Пиши на русском языке, используй премиальные Markdown-блоки и красивые эмодзи."""
-    
-    try:
-        readme = await agent.run(system_prompt, "Создай премиальный README.md для моего профиля GitHub.")
-        return {"readme": readme}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации README: {str(e)}")
-
-
-@app.post("/api/career/generate_pet_projects")
-@limiter.limit("10/minute")
-async def career_generate_pet_projects(request: Request, req: CareerPetProjectsRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    
-    completed_modules_str = ", ".join(req.completed_modules)
-    skills_str = ", ".join(req.skills)
-    
-    system_prompt = f"""Ты — ИИ-Методист, Технический Архитектор и Куратор пет-проектов.
-Сгенерируй 3 уникальных, инновационных и практически полезных выпускных пет-проекта для студента, завершившего полный ИИ-курс обучения.
-
-Направление студента: "{req.profession}"
-Освоенные навыки: {skills_str}
-Изученные учебные модули: {completed_modules_str}
-
-Каждый пет-проект должен быть масштабным, но реализуемым в рамках учебного приложения. Он должен объединять знания и навыки из нескольких изученных модулей.
-
-Для каждого проекта обязательно укажи:
-1. title: Яркое, коммерчески привлекательное и солидное название проекта.
-2. description: Подробное описание сути проекта, решаемой проблемы и ценности для портфолио разработчика.
-3. tech_stack: Список из 3-5 технологий, библиотек или инструментов, наиболее подходящих для проекта.
-4. requirements: Список из 4-5 конкретных, измеримых функциональных требований / User Stories (на русском языке), которые студент должен реализовать (например, "Разработать REST API с аутентификацией", "Реализовать кэширование с помощью Redis", "Добавить валидацию форм"). Эти требования будут проверяться нами.
-
-Формат вывода: Верни ТОЛЬКО валидный JSON с ключом "projects", содержащим список из 3-х проектов.
-Пример структуры JSON:
-{{
-  "projects": [
-    {{
-      "title": "Умная CRM-система",
-      "description": "Платформа для управления клиентами с авто-анализом тональности писем...",
-      "tech_stack": ["React", "FastAPI", "PostgreSQL", "TailwindCSS"],
-      "requirements": [
-        "Интегрировать JWT-аутентификацию",
-        "Создать дашборд с графиками продаж",
-        "Добавить фильтрацию клиентов по статусам",
-        "Реализовать экспорт отчетов в CSV"
-      ]
-    }}
-  ]
-}}
-Не выводи никаких вводных или заключительных слов, никаких тегов markdown (кроме, возможно, json кода), только чистый валидный JSON."""
-
-    try:
-        raw = await agent.run(system_prompt, "Сгенерируй 3 пет-проекта.")
-        return parse_model_json(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации пет-проектов: {str(e)}")
-
-
-@app.post("/api/career/evaluate_pet_project")
-@limiter.limit("10/minute")
-async def career_evaluate_pet_project(request: Request, req: CareerPetProjectEvaluateRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
-        
-    import httpx
-    import os
-    
-    solution_to_audit = req.solution_code
-    
-    if req.github_repo_url and req.github_repo_url.strip():
-        url = req.github_repo_url.strip()
-        # Clean url of trailing slashes and .git extension
-        if url.endswith(".git"):
-            url = url[:-4]
-        url = url.rstrip("/")
-        
-        parts = url.split("github.com/")
-        if len(parts) < 2:
-            raise HTTPException(status_code=400, detail="Неверный формат ссылки. Укажите ссылку в формате https://github.com/пользователь/репозиторий")
-        
-        repo_path = parts[1] # e.g. owner/repo
-        sub_parts = repo_path.split("/")
-        if len(sub_parts) < 2:
-            raise HTTPException(status_code=400, detail="Неверный формат ссылки. Укажите ссылку в формате https://github.com/пользователь/репозиторий")
-            
-        owner, repo = sub_parts[0], sub_parts[1]
-        
-        headers = {"User-Agent": "Meldy-Agent"}
-        
-        async with httpx.AsyncClient() as client:
-            # Check if repository exists and is public
-            check_url = f"https://api.github.com/repos/{owner}/{repo}"
-            try:
-                check_resp = await client.get(check_url, headers=headers)
-                if check_resp.status_code == 404:
-                    raise HTTPException(status_code=400, detail="Репозиторий не найден или является приватным. Пожалуйста, сделайте репозиторий публичным (Public) в настройках GitHub, чтобы ИИ-Лид мог прочитать его файлы.")
-                elif check_resp.status_code != 200:
-                    raise HTTPException(status_code=400, detail=f"Ошибка проверки репозитория GitHub: статус {check_resp.status_code}")
-            except httpx.RequestError as exc:
-                raise HTTPException(status_code=500, detail=f"Не удалось подключиться к GitHub API: {str(exc)}")
-            
-            # Fetch default branch
-            repo_data = check_resp.json()
-            default_branch = repo_data.get("default_branch", "main")
-            
-            # Fetch tree of files
-            tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1"
-            tree_resp = await client.get(tree_url, headers=headers)
-            if tree_resp.status_code != 200:
-                # Try master as fallback
-                fallback_branch = "master" if default_branch == "main" else "main"
-                tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{fallback_branch}?recursive=1"
-                tree_resp = await client.get(tree_url, headers=headers)
-                if tree_resp.status_code == 200:
-                    default_branch = fallback_branch
-                    
-            if tree_resp.status_code != 200:
-                raise HTTPException(status_code=400, detail="Не удалось загрузить структуру файлов репозитория. Убедитесь, что в репозитории есть файлы и ветка main или master.")
-                
-            tree_data = tree_resp.json()
-            items = tree_data.get("tree", [])
-            
-            # Filter and sort files
-            allowed_exts = {".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".java", ".cpp", ".cs", ".html", ".css", ".sql", ".php", ".rb", ".json", ".sh", ".yml", ".yaml"}
-            exclude_keywords = {"node_modules", "venv", "dist", "build", "__pycache__", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", ".git"}
-            
-            code_files = []
-            structure_lines = []
-            for item in items:
-                path = item.get("path", "")
-                is_file = item.get("type", "") == "blob"
-                
-                # Check excludes
-                if any(x in path for x in exclude_keywords):
-                    continue
-                    
-                if is_file:
-                    structure_lines.append(f"- {path}")
-                    ext = os.path.splitext(path)[1].lower()
-                    if ext in allowed_exts:
-                        code_files.append(item)
-                else:
-                    structure_lines.append(f"[Dir] {path}/")
-            
-            if not code_files:
-                raise HTTPException(status_code=400, detail="В репозитории не обнаружено подходящих исходных файлов кода для проверки (JS, TS, Python, SQL и др.).")
-            
-            # Select top 5 code files based on importance
-            def file_importance(item_node):
-                path_str = item_node.get("path", "").lower()
-                score = 0
-                if "app" in path_str or "main" in path_str or "index" in path_str or "server" in path_str or "queries" in path_str or "model" in path_str:
-                    score += 10
-                if path_str.endswith(".tsx") or path_str.endswith(".py") or path_str.endswith(".ts") or path_str.endswith(".sql"):
-                    score += 5
-                # penalty for config files
-                if "config" in path_str or "webpack" in path_str or "babel" in path_str:
-                    score -= 5
-                return score
-                
-            code_files = sorted(code_files, key=file_importance, reverse=True)[:5]
-            
-            # Download contents of selected files
-            downloaded_files_str = ""
-            for item in code_files:
-                path = item.get("path", "")
-                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{path}"
-                raw_resp = await client.get(raw_url)
-                if raw_resp.status_code == 200:
-                    content_text = raw_resp.text
-                    # Limit file size to 10KB to prevent context limit errors
-                    if len(content_text) > 10240:
-                        content_text = content_text[:10240] + "\n\n...[Файл усечен из-за превышения лимита размера]..."
-                    downloaded_files_str += f"\n\n--- Файл: {path} ---\n{content_text}\n"
-            
-            structure_str = "\n".join(structure_lines[:80]) # limit tree to 80 items
-            solution_to_audit = f"""[Решение отправлено через GitHub репозиторий: {url}]
-Ветка по умолчанию: {default_branch}
-
-СТРУКТУРА РЕПОЗИТОРИЯ (фрагмент):
-{structure_str}
-
-ИЗВЛЕЧЕННЫЙ ИСХОДНЫЙ КОД КЛЮЧЕВЫХ ФАЙЛОВ:
-{downloaded_files_str}
-"""
-
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    requirements_str = "\n".join(f"- {r}" for r in req.requirements)
-    
-    system_prompt = f"""Ты — Старший Технический Лид, Главный Архитектор и ИИ-Ментор выпускных проектов.
-Проведи профессиональный, строгий, но конструктивный код-ревью (или аудит решения) выпускного пет-проекта студента.
-
-Направление: "{req.profession}"
-Название проекта: "{req.project_title}"
-Описание проекта: "{req.project_description}"
-
-Ключевые функциональные требования, которые студент должен был реализовать:
-{requirements_str}
-
-Студент предоставил следующее решение (это может быть исходный код, архитектурное описание, структура БД или извлеченные файлы репозитория):
----
-{solution_to_audit}
----
-
-Твоя задача — проанализировать решение и оценить его качество.
-Выставь итоговую оценку от 0 до 100.
-Для успешной сдачи (зачета) проекта студент должен набрать 70 или более баллов.
-
-Верни строго JSON с результатами ревью следующей структуры:
-{{
-  "score": 85, // Оценка от 0 до 100 (целое число)
-  "verdict": "Общий конструктивный отзыв на русском языке, анализирующий полноту реализации требований...",
-  "strengths": [
-    "Сильная сторона 1...",
-    "Сильная сторона 2..."
-  ],
-  "weaknesses": [
-    "Слабая сторона 1...",
-    "Слабая сторона 2..."
-  ],
-  "refactored_solution": "Если применимо, пример оптимизированного кода или более изящной архитектуры (markdown format)..."
-}}
-Не выводи никаких лишних слов или символов, кроме валидного JSON."""
-
-    try:
-        raw = await agent.run(system_prompt, "Проведи ревью выпускного проекта.")
-        return parse_model_json(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка ревью пет-проекта: {str(e)}")
-
-
-@app.post("/api/career/update_review")
-@limiter.limit("30/minute")
-async def career_update_review(request: Request, req: CareerUpdateReviewRequest):
-    """
-    Update Spaced Repetition schedule using SM-2 algorithm.
-    quality: 0-5 mapped from score 0-100.
-    """
-    import os
-    from supabase import create_client
-    
-    sb_url = os.getenv("SUPABASE_URL", "")
-    sb_key = os.getenv("SUPABASE_KEY", "")
-    if not sb_url or not sb_key:
-        raise HTTPException(status_code=500, detail="Supabase не настроен")
-    
-    # Get Authorization header to identify user
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Не авторизован")
-    
-    token = auth_header[7:]
-    sb = create_client(sb_url, sb_key)
-    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал (auth.uid() != NULL)
-    
-    # Get user from token
-    try:
-        user_resp = sb.auth.get_user(token)
-        user_id = user_resp.user.id
-    except Exception:
-        raise HTTPException(status_code=401, detail="Невалидный токен")
-    
-    # SM-2 algorithm
-    # Convert score (0-100) to quality (0-5)
-    quality = min(5, max(0, round(req.score / 20)))
-    
-    # Fetch existing review record
-    existing = sb.table("module_reviews").select("*").eq("user_id", user_id).eq("module_id", req.module_id).execute()
-    
-    if existing.data:
-        rec = existing.data[0]
-        ease = rec["ease_factor"]
-        interval = rec["interval_days"]
-        reps = rec["repetition_count"]
-    else:
-        ease = 2.5
-        interval = 1
-        reps = 0
-    
-    # SM-2 update
-    if quality < 3:
-        # Failed: reset
-        reps = 0
-        interval = 1
-    else:
-        if reps == 0:
-            interval = 1
-        elif reps == 1:
-            interval = 6
-        else:
-            interval = round(interval * ease)
-        reps += 1
-    
-    # Update ease factor
-    ease = max(1.3, ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-    
-    from datetime import datetime, timedelta, timezone
-    next_review = (datetime.now(timezone.utc) + timedelta(days=interval)).isoformat()
-    
-    sb.table("module_reviews").upsert({
-        "user_id": user_id,
-        "module_id": req.module_id,
-        "course_profession": req.course_profession,
-        "next_review_at": next_review,
-        "ease_factor": round(ease, 2),
-        "interval_days": interval,
-        "repetition_count": reps,
-        "last_score": req.score
-    }, on_conflict="user_id,module_id").execute()
-    
-    return {
-        "next_review_at": next_review,
-        "interval_days": interval,
-        "ease_factor": round(ease, 2),
-        "repetition_count": reps
-    }
-
-
-@app.get("/api/career/due_reviews")
-@limiter.limit("30/minute")
-async def career_due_reviews(request: Request):
-    """Get modules due for Spaced Repetition review (next_review_at <= now)."""
-    import os
-    from supabase import create_client
-    from datetime import datetime, timezone
-    
-    sb_url = os.getenv("SUPABASE_URL", "")
-    sb_key = os.getenv("SUPABASE_KEY", "")
-    if not sb_url or not sb_key:
-        raise HTTPException(status_code=500, detail="Supabase не настроен")
-    
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Не авторизован")
-    
-    token = auth_header[7:]
-    sb = create_client(sb_url, sb_key)
-    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
-    
-    try:
-        user_resp = sb.auth.get_user(token)
-        user_id = user_resp.user.id
-    except Exception:
-        raise HTTPException(status_code=401, detail="Невалидный токен")
-    
-    now_iso = datetime.now(timezone.utc).isoformat()
-    result = sb.table("module_reviews").select("*").eq("user_id", user_id).lte("next_review_at", now_iso).execute()
-    
-    return result.data or []
 
 
 # Edge-TTS voice IDs (Azure Neural Voices)
@@ -3177,7 +1487,7 @@ async def _tts_shared_clip(key: str, text: str, voice_id: str) -> Optional[bytes
 
 
 @app.post("/api/tts")
-@limiter.limit("120/minute", key_func=user_or_ip_key)
+@limiter.limit("120/minute;3000/day", key_func=user_or_ip_key)
 async def text_to_speech(request: Request, req: TTSRequest):
     voice_id = EDGE_TTS_VOICES.get(req.role, EDGE_TTS_VOICES["professor"])
     text = req.text.strip()[:4000]
@@ -3448,220 +1758,6 @@ async def academic_scan(request: Request, req: AcademicScanRequest):
             return {"message": "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова.", "grades": []}
             
         return {"message": f"Произошла техническая ошибка: {err_str}", "grades": []}
-
-
-class HHExchangeRequest(BaseModel):
-    code: str
-
-
-class HHApplyRequest(BaseModel):
-    vacancy_id: str
-    resume_id: str
-    message: Optional[str] = ""
-
-
-@app.get("/api/hh/auth_url")
-async def hh_auth_url():
-    import os
-    from dotenv import load_dotenv
-    load_dotenv(override=True)
-    client_id = os.getenv("HH_CLIENT_ID")
-    redirect_uri = os.getenv("HH_REDIRECT_URI") or "https://ludosiel-studyforge.hf.space/hh-callback"
-    if not client_id or not redirect_uri:
-        raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
-    
-    url = f"https://hh.ru/oauth/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
-    return {"url": url}
-
-
-@app.post("/api/hh/exchange")
-async def hh_exchange(request: Request, req: HHExchangeRequest):
-    import os
-    import httpx
-    from dotenv import load_dotenv
-    load_dotenv(override=True)
-    
-    client_id = os.getenv("HH_CLIENT_ID")
-    client_secret = os.getenv("HH_CLIENT_SECRET")
-    redirect_uri = os.getenv("HH_REDIRECT_URI") or "https://ludosiel-studyforge.hf.space/hh-callback"
-    if not client_id or not client_secret or not redirect_uri:
-        raise HTTPException(status_code=500, detail="HH API credentials not configured on server")
-        
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Не авторизован")
-    token = auth_header[7:]
-    
-    # 1. Exchange code for token
-    url = "https://hh.ru/oauth/token"
-    headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0"),
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    data = {
-        "grant_type": "authorization_code",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "code": req.code,
-        "redirect_uri": redirect_uri
-    }
-    
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(url, headers=headers, data=data, timeout=10.0)
-        if resp.status_code != 200:
-            print(f"HH Token exchange failed: {resp.status_code} - {resp.text}")
-            raise HTTPException(status_code=400, detail=f"Ошибка авторизации HH: {resp.text}")
-        
-        hh_data = resp.json()
-        access_token = hh_data.get("access_token")
-        refresh_token = hh_data.get("refresh_token")
-        
-        # 2. Save tokens in user's profile in Supabase
-        sb_url = os.getenv("SUPABASE_URL", "")
-        sb_key = os.getenv("SUPABASE_KEY", "")
-        if not sb_url or not sb_key:
-            raise HTTPException(status_code=500, detail="Supabase не настроен")
-            
-        from supabase import create_client
-        sb = create_client(sb_url, sb_key)
-        sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
-        try:
-            user_resp = sb.auth.get_user(token)
-            user_id = user_resp.user.id
-            
-            # Fetch existing profile
-            profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
-            profile_json = {}
-            if profile_res.data:
-                profile_json = profile_res.data.get("profile_json", {}) or {}
-                
-            # Update with tokens
-            profile_json["hh_access_token"] = access_token
-            profile_json["hh_refresh_token"] = refresh_token
-            
-            # Upsert
-            sb.table("career_profiles").upsert({
-                "user_id": user_id,
-                "profile_json": profile_json,
-                "updated_at": "now()"
-            }, on_conflict="user_id").execute()
-            
-        except Exception as e_db:
-            print(f"Failed to save HH tokens to Supabase: {e_db}")
-            raise HTTPException(status_code=500, detail="Ошибка базы данных при сохранении токенов")
-            
-        return {"success": True, "message": "Аккаунт HeadHunter успешно подключен!"}
-
-
-@app.get("/api/hh/resumes")
-async def hh_resumes(request: Request):
-    import os
-    import httpx
-    
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Не авторизован")
-    token = auth_header[7:]
-    
-    sb_url = os.getenv("SUPABASE_URL", "")
-    sb_key = os.getenv("SUPABASE_KEY", "")
-    if not sb_url or not sb_key:
-        raise HTTPException(status_code=500, detail="Supabase не настроен")
-        
-    from supabase import create_client
-    sb = create_client(sb_url, sb_key)
-    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
-    try:
-        user_resp = sb.auth.get_user(token)
-        user_id = user_resp.user.id
-        profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
-        if not profile_res.data:
-            raise HTTPException(status_code=404, detail="Карьерный профиль не найден")
-            
-        profile_json = profile_res.data.get("profile_json", {})
-        hh_access_token = profile_json.get("hh_access_token")
-        if not hh_access_token:
-            raise HTTPException(status_code=400, detail="Аккаунт HeadHunter не подключен")
-            
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-        
-    # Query resumes
-    url = "https://api.hh.ru/resumes/mine"
-    headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0"),
-        "Authorization": f"Bearer {hh_access_token}"
-    }
-    
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(url, headers=headers, timeout=10.0)
-        if resp.status_code != 200:
-            print(f"HH Get Resumes failed: {resp.status_code} - {resp.text}")
-            raise HTTPException(status_code=resp.status_code, detail=f"Не удалось получить резюме: {resp.text}")
-            
-        resumes_data = resp.json()
-        return resumes_data
-
-
-@app.post("/api/hh/apply")
-async def hh_apply(request: Request, req: HHApplyRequest):
-    import os
-    import httpx
-    
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Не авторизован")
-    token = auth_header[7:]
-    
-    sb_url = os.getenv("SUPABASE_URL", "")
-    sb_key = os.getenv("SUPABASE_KEY", "")
-    if not sb_url or not sb_key:
-        raise HTTPException(status_code=500, detail="Supabase не настроен")
-        
-    from supabase import create_client
-    sb = create_client(sb_url, sb_key)
-    sb.postgrest.auth(token)  # Передаём JWT пользователя чтобы RLS работал
-    try:
-        user_resp = sb.auth.get_user(token)
-        user_id = user_resp.user.id
-        profile_res = sb.table("career_profiles").select("profile_json").eq("user_id", user_id).maybe_single().execute()
-        if not profile_res.data:
-            raise HTTPException(status_code=404, detail="Профиль не найден")
-            
-        profile_json = profile_res.data.get("profile_json", {})
-        hh_access_token = profile_json.get("hh_access_token")
-        if not hh_access_token:
-            raise HTTPException(status_code=400, detail="Аккаунт HeadHunter не подключен")
-            
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-        
-    # Send negotiation to HH
-    url = "https://api.hh.ru/negotiations"
-    headers = {
-        "User-Agent": os.getenv("HH_USER_AGENT", "Meldy/1.0"),
-        "Authorization": f"Bearer {hh_access_token}"
-    }
-    
-    # Multipart form or json parameters for application
-    data = {
-        "vacancy_id": req.vacancy_id,
-        "resume_id": req.resume_id,
-        "message": req.message
-    }
-    
-    async with httpx.AsyncClient() as client:
-        # According to HH.ru docs, negotiations requires POST query params or x-www-form-urlencoded
-        resp = await client.post(url, headers=headers, params=data, timeout=10.0)
-        if resp.status_code not in (200, 201):
-            print(f"HH Apply failed: {resp.status_code} - {resp.text}")
-            raise HTTPException(status_code=resp.status_code, detail=f"Ошибка отклика: {resp.text}")
-            
-        return {"success": True, "message": "Вы успешно откликнулись на вакансию!"}
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import { captureError } from '../lib/telemetry';
 
 interface Props {
   children: ReactNode;
@@ -9,29 +9,6 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
-}
-
-/**
- * The legacy screens hidden from the main menu (Career, Chat, CoStudy, Courses, Messages, Missions,
- * MoodTracker, ProfessorExam, SocialHub, TeacherDashboard, AssignmentView). Their markup is the old
- * Tailwind one; styles/legacy.css maps it onto the Meldy language under [data-legacy], and only here
- * is that attribute set, so the mapping never reaches the redesigned screens.
- */
-const LEGACY_SCREENS = /^\/(career|chat|courses|messages|play|mood|exam|network|teacher|co-study|assignment)(\/|$)/;
-
-export function isLegacyScreen(pathname: string): boolean {
-  return LEGACY_SCREENS.test(pathname);
-}
-
-/** Wraps a legacy screen in a box-less scope (display: contents); every other screen renders as is. */
-function LegacyScope({ children }: { children: ReactNode }) {
-  const { pathname } = useLocation();
-  if (!isLegacyScreen(pathname)) return <>{children}</>;
-  return (
-    <div className="lg-scope" data-legacy="">
-      {children}
-    </div>
-  );
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -45,6 +22,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    captureError(error, { name: 'react_render', componentStack: errorInfo.componentStack });
   }
 
   public render() {
@@ -73,6 +51,6 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return <LegacyScope>{this.props.children}</LegacyScope>;
+    return this.props.children;
   }
 }

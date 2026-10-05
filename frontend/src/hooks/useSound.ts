@@ -12,37 +12,7 @@ export const useSound = () => {
     }
   };
 
-  // 1. Звук получения XP (Мягкий "стеклянный" аккорд)
-  const playXpSound = useCallback(() => {
-    try {
-      initAudio();
-      const ctx = audioCtxRef.current!;
-      
-      const playNote = (freq: number, startTime: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.6);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(startTime);
-        osc.stop(startTime + 0.6);
-      };
-
-      const now = ctx.currentTime;
-      playNote(523.25, now);       // C5
-      playNote(659.25, now + 0.05); // E5
-      playNote(783.99, now + 0.1);  // G5
-      playNote(1046.50, now + 0.15); // C6
-    } catch (e) {}
-  }, []);
-
-  // 2. Звук переворота карточки (Современный UI Pop)
+  // 1. Звук переворота карточки (Современный UI Pop)
   const playFlipSound = useCallback(() => {
     try {
       initAudio();
@@ -64,7 +34,7 @@ export const useSound = () => {
     } catch (e) {}
   }, []);
 
-  // 3. Звук успеха (Радостный перелив)
+  // 2. Звук успеха (Радостный перелив)
   const playSuccessSound = useCallback(() => {
     try {
       initAudio();
@@ -91,7 +61,7 @@ export const useSound = () => {
     } catch (e) {}
   }, []);
 
-  // 4. Звук ошибки (Мягкий глухой стук, не раздражающий)
+  // 3. Звук ошибки (Мягкий глухой стук, не раздражающий)
   const playErrorSound = useCallback(() => {
     try {
       initAudio();
@@ -113,29 +83,9 @@ export const useSound = () => {
     } catch (e) {}
   }, []);
 
-  // 5. Легкий клик
-  const playClickSound = useCallback(() => {
-    try {
-      initAudio();
-      const ctx = audioCtxRef.current!;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, ctx.currentTime);
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.05);
-    } catch(e) {}
-  }, []);
-
   return {
-    playXpSound,
     playFlipSound,
     playSuccessSound,
     playErrorSound,
-    playClickSound,
   };
 };

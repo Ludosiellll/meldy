@@ -19,6 +19,7 @@ import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQues
 import { exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
+import { track } from '../../lib/telemetry';
 
 /** «Экзаменатор слушает ответ…» stays this long after «Готово» (the real screen waits for its quick check). */
 export const EXAMINER_PAUSE_MS = 900;
@@ -314,6 +315,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     for (const id of live) if (!namedInRef.current[id]) namedInRef.current[id] = snapshot;
     const input = inputOf(current.usedSpeech || (voice && words(snapshot).length > 0), current.usedText);
     dispatch({ type: 'finalize', attemptId: `example-${attempt}`, snapshot, live: Array.from(live), input, now: Date.now(), startedAt: new Date().toISOString() });
+    track('try_answered', { mode: voice ? 'voice' : 'text' });
     setAttempts((count) => count + 1);
     const heard = voice ? speech.stop() : Promise.resolve(snapshot);
     void heard.then((text) => {

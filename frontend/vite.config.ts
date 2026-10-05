@@ -2,7 +2,21 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * The build's version in error reports (src/lib/telemetry.ts): VITE_APP_VERSION when the build sets it,
+ * otherwise the build's UTC time, e.g. 20261005.1342.
+ */
+function buildVersion(): string {
+  const given = (process.env.VITE_APP_VERSION || '').trim()
+  if (/^[A-Za-z0-9._+-]{1,40}$/.test(given)) return given
+  const stamp = new Date().toISOString()
+  return `${stamp.slice(0, 10).replace(/-/g, '')}.${stamp.slice(11, 16).replace(':', '')}`
+}
+
 export default defineConfig({
+  define: {
+    __MELDY_BUILD__: JSON.stringify(buildVersion()),
+  },
   plugins: [
     react(),
     VitePWA({

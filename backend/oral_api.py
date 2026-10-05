@@ -217,7 +217,7 @@ def _cut_off(meta: dict) -> bool:
 
 
 @router.post("/api/oral/check")
-@limiter.limit("40/minute", key_func=user_or_ip_key)
+@limiter.limit("40/minute;600/day", key_func=user_or_ip_key)
 async def oral_check(request: Request):
     """Быстрая проверка ответа по пунктам: статусы и пункт для переспроса (или один пункт с only)."""
     body = await _read_json(request)
@@ -613,7 +613,7 @@ TRANSCRIBE_TYPE_DETAIL = "Такой формат записи не поддер
 
 
 @router.post("/api/oral/transcribe")
-@limiter.limit("40/minute", key_func=user_or_ip_key)
+@limiter.limit("40/minute;3000/day", key_func=user_or_ip_key)
 async def oral_transcribe(request: Request):
     """Текст куска записи устного ответа: {"text": "..."} ('' — речи не было). Запись не сохраняется."""
     import stt

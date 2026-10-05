@@ -1,42 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { whenIdleAfterLoad } from '../lib/idle';
-
-type SupabaseClient = (typeof import('../lib/supabase'))['supabase'];
-
-let client: Promise<SupabaseClient> | null = null;
-
-/**
- * The Supabase client is a file of its own (lib/supabase.ts): the first screen of a page that needs
- * no account (the landing, /try) does not wait for it. Fetched once (again after a failure).
- */
-function loadSupabase(): Promise<SupabaseClient> {
-  if (!client) {
-    client = import('../lib/supabase').then(
-      (module) => module.supabase,
-      (error: unknown) => {
-        client = null;
-        throw error;
-      },
-    );
-  }
-  return client;
-}
-
-/** A session the client keeps in this browser (`sb-<project>-auth-token`): a signed-in student, or a sign-in on its way. */
-export function hasStoredSession(): boolean {
-  try {
-    const storage = window.localStorage;
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index) ?? '';
-      if (key.startsWith('sb-') && key.includes('-auth-token')) return true;
-    }
-    return false;
-  } catch {
-    // Storage cannot be read: do not guess, read the session at once.
-    return true;
-  }
-}
+import { hasStoredSession, loadSupabase } from '../lib/supabaseClient';
 
 /**
  * A guest on a screen that needs no account (the landing, /try): the session is read once the page

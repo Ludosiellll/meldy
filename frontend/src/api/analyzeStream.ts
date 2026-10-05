@@ -7,6 +7,7 @@
  * текстом и признаком, поможет ли повтор. Отмена пользователем — исход aborted.
  */
 import { readSseStream, StreamError, STREAM_MESSAGES } from './sseStream';
+import { AI_LIMIT_MESSAGE, aiLimitFromBody, reportAILimit } from './limits';
 import type { AnalysisErrorKind, AnalysisResults, SectionName } from '../types';
 import {
   displayResults,
@@ -87,6 +88,11 @@ function serverMessage(value: unknown): string | null {
   return text && text.length <= 300 && /[А-Яа-яЁё]/.test(text) ? text : null;
 }
 
+/** Квитанция анализа (backend/receipts.py): строка сервера разумной длины, иначе её нет. */
+function receiptOf(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 && value.length <= 2000 ? value : undefined;
+}
+
 /** Событие error сервера → AnalyzeError по коду (§3 контрактов). */
 export function analyzeErrorFromEvent(event: Record<string, unknown>): AnalyzeError {
   const message = serverMessage(event.message);
@@ -103,6 +109,13 @@ export function analyzeErrorFromEvent(event: Record<string, unknown>): AnalyzeEr
       return new AnalyzeError('bad_request', message ?? ANALYZE_MESSAGES.noText, false);
     case 'too_large':
       return new AnalyzeError('too_large', message ?? STREAM_MESSAGES.tooLarge, false);
+    case 'ai_limit': {
+      // A scan's recognition did not fit the day's rest (the lecture's units went back): the limit
+      // dialog opens, as for a 429 before the stream; a repeat today will not help.
+      const info = aiLimitFromBody(event);
+      if (info) reportAILimit(info);
+      return new AnalyzeError('rate_limited', message ?? AI_LIMIT_MESSAGE, false);
+    }
     default:
       return new AnalyzeError('server', message ?? ANALYZE_MESSAGES.server, true);
   }
@@ -179,6 +192,7 @@ export async function runAnalyzeStream(opts: AnalyzeStreamOptions): Promise<Anal
       warnings: Array.isArray(finalResults.warnings) ? (finalResults.warnings as AnalysisResults['warnings']) : [],
       grounding: parseGrounding(finalResults.grounding) ?? collector.grounding,
       sections: isRecord(finalResults.sections) ? (finalResults.sections as AnalysisResults['sections']) : undefined,
+      receipt: receiptOf(finalResults.receipt),
     };
     const statuses = statusesFromResults(raw, opts.requested);
     if (!isRunUsable(statuses, opts.requested)) {

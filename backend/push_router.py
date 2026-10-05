@@ -38,6 +38,13 @@ def _authenticated_user_id(request: Request) -> str:
     return user_id
 
 
+@router.get("/key")
+async def push_key():
+    """The VAPID public key the browser subscribes with: set on the Space (VAPID_PUBLIC_KEY, with its private
+    pair VAPID_PRIVATE_KEY), so rotating the keys needs no new build."""
+    return {"public_key": VAPID_PUBLIC_KEY, "configured": bool(VAPID_PRIVATE_KEY)}
+
+
 @router.post("/subscribe")
 async def subscribe(request: Request, sub: PushSubscription):
     user_id = _authenticated_user_id(request)

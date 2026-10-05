@@ -19,7 +19,7 @@ import {
   proMeterAt,
   sceneOf,
 } from './reelScript';
-import { freeLimitLine, limitLine, plural, proGainLine, proLede, proLimitLine } from './planCopy';
+import { plural, proGainLine, proLede, unitsPerDay } from './planCopy';
 
 describe('the PRO reel script', () => {
   it('is a 12–16 s loop whose four beats cover it, each entering before the previous one leaves', () => {
@@ -104,11 +104,10 @@ describe('the numbers of the reel come from lib/plans.ts', () => {
 
 describe('the words about the plans', () => {
   it('are computed from the plan numbers', () => {
-    expect(freeLimitLine()).toBe('100 единиц ИИ в день — например, 5 лекций или 25 проверок ответов');
-    expect(proLimitLine()).toBe('1000 единиц ИИ в день — например, 50 лекций или 250 проверок ответов');
     expect(proGainLine()).toBe('До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.');
     expect(proLede()).toBe('Тот же Meldy, только дневной лимит ИИ в 10 раз больше.');
-    expect(limitLine(44)).toBe('44 единицы ИИ в день — например, 2 лекции или 11 проверок ответов');
+    expect(unitsPerDay(FREE_DAILY_UNITS)).toBe('100 единиц ИИ в день');
+    expect(unitsPerDay(44)).toBe('44 единицы ИИ в день');
     expect([1, 2, 5, 11, 21, 22, 25].map((n) => plural(n, ['лекция', 'лекции', 'лекций']))).toEqual([
       'лекция',
       'лекции',

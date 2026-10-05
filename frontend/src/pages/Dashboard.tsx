@@ -20,6 +20,7 @@ import '../styles/paper.css';
 import './Dashboard.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { analysisCards } from '../utils/lectureCards';
+import { track } from '../lib/telemetry';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -902,6 +903,7 @@ export default function Dashboard() {
   const stepsFinished = steps !== null && firstStepsDone(steps) === 3;
   useEffect(() => {
     if (user?.id && stepsFinished) writeFirstStepsMemory(user.id, 'done');
+    if (user?.id && stepsFinished) track('first_steps_done');
   }, [user?.id, stepsFinished]);
 
   const toggleSteps = () => {

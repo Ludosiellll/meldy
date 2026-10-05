@@ -109,7 +109,6 @@ describe('QuizView scoring', () => {
 
   it('never counts an empty right answer as correct', () => {
     journal.record.mockResolvedValue(savedResult());
-    const onComplete = vi.fn();
     render(
       <MemoryRouter>
         <QuizView
@@ -117,7 +116,6 @@ describe('QuizView scoring', () => {
             { id: 1, question: 'Вопрос без ключа?', options: ['A) Да', 'B) Нет'], correct: '' },
             { id: 2, question: 'Вопрос с ключом?', options: ['A) Да', 'B) Нет'], correct: 'B' },
           ] }}
-          onComplete={onComplete}
         />
       </MemoryRouter>,
     );
@@ -128,8 +126,7 @@ describe('QuizView scoring', () => {
     expect(screen.getByText('0 из 1 — Нужно подтянуть')).toBeInTheDocument();
     expect(screen.getByText('Правильный ответ не указан, вопрос не учитывается.')).toBeInTheDocument();
     expect(screen.getByText(/Без правильного ответа: 1 вопрос/)).toBeInTheDocument();
-    expect(onComplete).toHaveBeenCalledWith(0);
-    // Without the materialId prop (teacher assignments) nothing goes to the journal.
+    // Without the materialId prop nothing goes to the journal.
     expect(journal.record).not.toHaveBeenCalled();
   });
 });
@@ -143,14 +140,13 @@ describe('QuizView journal', () => {
   afterEach(cleanup);
 
   it('records one checked attempt with every answer and retake false', async () => {
-    const onComplete = vi.fn();
-    renderQuiz({ onComplete });
+    renderQuiz();
     answerTwoOfThree();
     fireEvent.click(screen.getByRole('button', { name: 'Проверить ответы' }));
 
     expect(await screen.findByText('Результат сохранён')).toBeInTheDocument();
     expect(screen.getByText('2 из 3 — Удовлетворительно')).toBeInTheDocument();
-    expect(onComplete).toHaveBeenCalledWith(67);
+    expect(screen.getByText('67% правильных ответов')).toBeInTheDocument();
     expect(journal.record).toHaveBeenCalledTimes(1);
     const input = journal.record.mock.calls[0][0];
     expect(input).toMatchObject({ materialId: MATERIAL_ID, retake: false, surface: 'analysis', topic: 'Физика' });

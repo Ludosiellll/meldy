@@ -19,6 +19,7 @@ import { preloadTicketScreen, whenIdle } from '../components/exams/preload';
 import DrawModeMenu, { drawModeOf } from '../components/exams/DrawModeMenu';
 import { glue, numberOf } from '../components/exams/sheetModel';
 import { subjectOf } from '../lib/exams/format';
+import { track } from '../lib/telemetry';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -136,6 +137,7 @@ export default function ExamDraw() {
     });
     if (result.ok) {
       rememberTicket(bundle.exam.id, result.ticket.key);
+      track('ticket_drawn', { mode, questions: result.ticket.questionIds.length });
       // The answer keys are prepared while the card lifts (a question not in the lectures has none).
       for (const id of result.ticket.questionIds) {
         const question = bundle.questions.find((item) => item.id === id);

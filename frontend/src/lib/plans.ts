@@ -29,22 +29,18 @@ export const AI_COSTS = {
   visuals: 2,
   /** Шпаргалка. */
   cheatsheet: 5,
-  /** Сообщение в чате с ИИ. */
-  chatMessage: 1,
   // Прежние разделы: столько же, сколько до 2026-10-04 списывал браузер.
-  /** Учебный курс из материалов библиотеки. */
-  course: 5,
-  /** Игра-квест по лекции (и викторина в учебной сессии). */
-  missions: 2,
   /** Работа над ошибками. */
   mistakesPractice: 2,
   /** Распознавание оценок по фото. */
   gradebookScan: 1,
-  /** Оцифровка навыков (карьера). */
-  careerProfile: 5,
-  /** Экспертное ревью решения (карьера). */
-  careerReview: 5,
+  // Закрыто 2026-10-05: вызовы модели, которые раньше ничего не стоили.
+  /** Распознавание скана PDF — за каждые начатые 15 страниц (фото страницы входит в анализ). */
+  scanPages: 5,
+  /** Раздел анализа заново. Бесплатно — починка раздела, который не получился в анализе своей лекции. */
+  analysisSection: 7,
 } as const;
+// Убраны вместе со скрытыми разделами (2026-10-05): чат, курсы, миссии, экзамен у «профессора», карьера.
 
 export type AICostKind = keyof typeof AI_COSTS;
 
@@ -57,11 +53,13 @@ export function examMappingCost(questions: number): number {
   return AI_COSTS.examMapping * Math.ceil(count / EXAM_MAPPING_QUESTIONS_PER_CHARGE);
 }
 
-/** Устный экзамен у «профессора»: весь экзамен по числу вопросов, списывается при первом вопросе. */
-export const PROFESSOR_EXAM_COSTS: Readonly<Record<number, number>> = { 3: 1, 5: 2, 10: 4 };
+/** Распознавание скана: AI_COSTS.scanPages за каждые начатые столько страниц. */
+export const OCR_PAGES_PER_CHARGE = 15;
 
-export function professorExamCost(length: number): number {
-  return PROFESSOR_EXAM_COSTS[length] ?? PROFESSOR_EXAM_COSTS[5];
+/** Единицы распознавания скана PDF: 5 за каждые начатые 15 страниц. */
+export function scanCost(pages: number): number {
+  const count = Math.max(0, Math.trunc(Number(pages) || 0));
+  return AI_COSTS.scanPages * Math.ceil(count / OCR_PAGES_PER_CHARGE);
 }
 
 /** Дневной лимит аккаунта в единицах. */

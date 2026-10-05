@@ -402,7 +402,7 @@ def test_tts_needs_a_session(tts):
 def test_the_rate_limit_fits_a_whole_conversation_and_counts_per_user(tts, monkeypatch):
     main = tts.main
     limits = [(str(limit.limit), limit.key_func) for limit in main.limiter._route_limits["main.text_to_speech"]]
-    assert limits == [("120 per 1 minute", user_or_ip_key)]
+    assert limits == [("120 per 1 minute", user_or_ip_key), ("3000 per 1 day", user_or_ip_key)]
 
     edge = tts.script("ok")
     monkeypatch.setattr(main.limiter, "enabled", True)

@@ -2,13 +2,8 @@
  * Group E of the Meldy redesign (2026-10-04; notes: 10_Project/Design_Language_2026-10-04).
  *
  *   .au-*        sign-in pages: Login, Register, ForgotPassword, UpdatePassword, AuthCallback
- *   .ac-*        account: Pricing, Profile, the daily-limit window, the analysis settings, selects,
+ *   .ac-*        account: Profile, the daily-limit window, the analysis settings, selects,
  *                the photo cropper, the route loading and error screens
- *   .lg-scope    the legacy screens hidden from the main menu (Career, Chat, CoStudy, Courses, Messages,
- *                Missions, MoodTracker, ProfessorExam, SocialHub, TeacherDashboard, AssignmentView):
- *                their Tailwind utilities mapped onto the new language. The attribute is set only by
- *                components/ErrorBoundary.tsx on those routes, so nothing here reaches other screens.
- *                ShortsPlayer and HHCallback live outside the shell and are matched by their own roots.
  *
  * Colours come from the global tokens (index.css), so every rule follows the theme; coloured panels
  * and the white windows inside them keep their colours in both themes, as on the landing.
@@ -551,10 +546,9 @@
 }
 
 /* ================================================================================================
-   Account: Pricing, Profile and the pieces they share
+   Account: Profile and the pieces it shares
    ================================================================================================ */
 
-.ac-lede { max-width: 640px; }
 .ac-rise { animation: au-rise .9s var(--m-ease) both; }
 
 /* Waiting and failure inside the shell. */
@@ -569,36 +563,7 @@
   border-top-color: var(--sf-accent-fg);
   border-radius: 50%;
 }
-.ac-alert {
-  max-width: 640px;
-  margin: 0;
-  padding: 18px 22px;
-  border-radius: 24px;
-  border: 1px solid #f7c4d1;
-  background: #fdecf0;
-  color: #9f1239;
-  font-size: 16px;
-  line-height: 1.5;
-  font-weight: 500;
-}
-.dark .ac-alert { border-color: rgba(244, 63, 94, .32); background: rgba(244, 63, 94, .14); color: #fda4af; }
-.ac-alert--page { margin-top: 56px; }
 .ac-empty { margin: 0; padding-top: 56px; font-size: 18px; color: var(--sf-muted); }
-
-/* Pills that are states, not actions. */
-.ac-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 14px;
-  line-height: 18px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.ac-pill svg { width: 15px; height: 15px; }
-.ac-pill--ok { background: var(--m-green-soft); color: var(--m-green-ink); }
 
 /* A flag: a label with a notch on the right (Today prototype). */
 .ac-flag {
@@ -615,74 +580,7 @@
 .ac-flag svg { width: 15px; height: 15px; fill: currentColor; }
 .ac-flag--y { background: var(--m-yellow); }
 
-/* ---------------------------------------------------------------- Pricing */
-.ac-plans {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  margin-top: 44px;
-}
-.ac-plan {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 14px 14px 34px;
-  border-radius: 48px;
-  background: var(--sf-surface);
-  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
-  animation: au-rise .9s var(--m-ease) both;
-  transition: transform .9s var(--m-ease), box-shadow .9s var(--m-ease);
-}
-.ac-plan + .ac-plan { animation-delay: .08s; }
-.ac-plan:hover { transform: translateY(-6px); box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow); }
-.ac-plan-body { display: flex; flex: 1; flex-direction: column; padding: 28px 24px 0; }
-.ac-plan-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-.ac-plan-h { margin: 0; font-size: 32px; line-height: 1.1; font-weight: 500; letter-spacing: -.025em; color: var(--sf-ink); }
-.ac-plan-sub { margin: 10px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-muted); }
-.ac-plan-sub--gap { margin-top: 6px; }
-.ac-price {
-  margin: 22px 0 0;
-  font-size: 64px;
-  line-height: 1;
-  font-weight: 500;
-  letter-spacing: -.045em;
-  color: var(--sf-ink);
-  font-variant-numeric: tabular-nums;
-}
-.ac-feats { display: grid; gap: 14px; margin: 28px 0 30px; padding: 0; list-style: none; }
-.ac-feats li { display: flex; align-items: center; gap: 14px; font-size: 17px; line-height: 1.4; color: var(--sf-ink); }
-.ac-feat-i { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; }
-.ac-feat-i svg { width: 17px; height: 17px; }
-.ac-feat-i--ok { background: var(--m-green-soft); color: var(--m-green-ink); }
-.ac-feat-i--limit { background: var(--m-yellow-soft); color: var(--m-yellow-ink); }
-.ac-grow { flex: 1; min-height: 28px; }
-/* The state of a plan: a pill that is not a button to press (disabled, as before). */
-.ac-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 56px;
-  padding: 0 22px;
-  border: 1px solid var(--sf-line);
-  border-radius: 999px;
-  background: var(--sf-surface-soft);
-  color: var(--sf-muted);
-  font: 500 17px/1.2 var(--ph-sans);
-  cursor: not-allowed;
-}
-.ac-state--ok { border-color: transparent; background: var(--m-green-soft); color: var(--m-green-ink); cursor: default; }
-.ac-note { margin: 12px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-align: center; }
-
-/* The coloured panels of the cards (the landing's «Как это работает»). */
-.ac-art {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-  border-radius: 36px;
-  background: linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
-}
-.ac-art--sky { background: linear-gradient(160deg, #a9c8f7 0%, #5e8fe6 100%); }
+/* Halftone dots over a coloured panel (the profile cover). */
 .ac-art-dots {
   position: absolute;
   inset: 0;
@@ -692,43 +590,6 @@
   -webkit-mask-image: linear-gradient(200deg, #000, transparent 70%);
   mask-image: linear-gradient(200deg, #000, transparent 70%);
 }
-.ac-fc {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 150px;
-  height: 104px;
-  margin: -52px 0 0 -75px;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 18px 36px -20px rgba(0, 0, 0, .45);
-}
-.ac-fc--1 { background: #eaf1fd; transform: rotate(-11deg) translate(-34px, 8px); }
-.ac-fc--2 { background: #fdf3d8; transform: rotate(8deg) translate(32px, 2px); }
-.ac-fc--3 {
-  display: grid;
-  place-items: center;
-  transform: rotate(-2deg);
-  color: #2869dd;
-  font-size: 52px;
-  font-weight: 600;
-  line-height: 1;
-}
-.ac-halo {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  display: grid;
-  place-items: center;
-  width: 92px;
-  height: 92px;
-  margin: -46px 0 0 -46px;
-  border-radius: 50%;
-  background: #fff;
-  color: #2869dd;
-  box-shadow: 0 0 0 16px rgba(255, 255, 255, .18), 0 0 0 34px rgba(255, 255, 255, .08);
-}
-.ac-halo svg { width: 38px; height: 38px; }
 
 /* ---------------------------------------------------------------- Profile */
 .ac-profile { --ac-w: none; } /* the page column, like the top bar */
@@ -794,16 +655,6 @@
 .ac-avatar-edit:hover { background: var(--sf-accent-hover); transform: scale(1.06); }
 .ac-avatar-edit:focus-within { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
 .ac-avatar-edit svg { width: 19px; height: 19px; }
-.ac-level-pill {
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: var(--m-yellow-soft);
-  color: var(--m-yellow-ink);
-  font-size: 14px;
-  line-height: 18px;
-  font-weight: 600;
-  white-space: nowrap;
-}
 .ac-who { min-width: 0; padding-top: 24px; }
 .ac-name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .ac-name {
@@ -817,29 +668,11 @@
 }
 .ac-pro { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .ac-pro-until { font-size: 14px; color: var(--sf-muted); }
-.ac-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.ac-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--sf-surface-soft);
-  box-shadow: inset 0 0 0 1px var(--sf-line);
-  color: var(--sf-ink);
-  font: 500 14px/1 var(--ph-sans);
-  font-variant-numeric: tabular-nums;
-}
-button.ac-chip { cursor: copy; transition: box-shadow .3s ease; }
-button.ac-chip:hover { box-shadow: inset 0 0 0 1px var(--sf-ink); }
-button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
-.ac-chip--teacher { background: var(--m-yellow-soft); box-shadow: none; color: var(--m-yellow-ink); }
 .ac-uni { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; font-size: 17px; line-height: 1.4; color: var(--sf-muted); }
 .ac-uni svg { flex: none; width: 20px; height: 20px; }
 .ac-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 
-/* Pills of the account pages: white by default; blue, green, ink and the quiet red. */
+/* Pills of the account pages: white by default; blue, green, quiet and the red. */
 .ac-btn {
   display: inline-flex;
   align-items: center;
@@ -868,8 +701,6 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 .ac-btn--ok:hover { background: var(--m-green-soft); box-shadow: none; color: var(--m-green-ink); }
 .ac-btn--quiet,
 .ac-btn--quiet:hover { background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line); color: var(--sf-muted); }
-.ac-btn--ink { background: var(--sf-ink); box-shadow: none; color: var(--sf-canvas); }
-.ac-btn--ink:hover { box-shadow: 0 14px 30px -16px rgba(16, 41, 90, .5); }
 .ac-btn--danger { color: #be123c; box-shadow: 0 0 0 1px #f7c4d1; }
 .ac-btn--danger:hover { box-shadow: 0 0 0 1px #be123c; }
 .dark .ac-btn--danger { color: #fda4af; box-shadow: 0 0 0 1px rgba(244, 63, 94, .4); }
@@ -889,7 +720,6 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 .ac-form { display: grid; gap: 18px; }
 .ac-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .ac-field { display: grid; gap: 8px; min-width: 0; align-content: start; }
-.ac-field--half { max-width: calc(50% - 9px); }
 .ac-label { font-size: 15px; line-height: 20px; font-weight: 500; color: var(--sf-ink); }
 .ac-input {
   display: block;
@@ -916,12 +746,11 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 .dark .ac-input:focus,
 .dark .ac-input:focus-visible { border-color: var(--sf-accent-fg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent-fg) 24%, transparent); }
 .ac-textarea { min-height: 120px; padding: 14px 18px; resize: vertical; line-height: 1.5; }
-.ac-input.ac-select { display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }
 .ac-form-end { display: flex; justify-content: flex-end; padding-top: 6px; }
 
 .ac-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 20px;
 }
@@ -939,7 +768,6 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 .ac-stat:hover { transform: translateY(-4px); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
 .ac-stat-i { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 14px; border-radius: 50%; }
 .ac-stat-i svg { width: 19px; height: 19px; }
-.ac-stat-i--y { background: var(--m-yellow-soft); color: var(--m-yellow-ink); }
 .ac-stat-i--p { background: rgba(243, 169, 196, .3); color: #b4486e; }
 .dark .ac-stat-i--p { background: rgba(243, 169, 196, .16); color: #f3a9c4; }
 .ac-stat-i--b { background: var(--sf-accent-soft); color: var(--sf-accent-fg); }
@@ -974,52 +802,7 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 .ac-row-d { margin: 4px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 .ac-row-btn { flex: none; }
 
-.ac-requests { margin: 0; padding: 0; list-style: none; }
-.ac-request {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 0;
-  border-top: 1px solid var(--sf-line);
-}
-.ac-request:first-child { border-top: 0; padding-top: 0; }
-.ac-request-who { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.ac-request-ava { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
-.ac-request-ava--none { color: var(--sf-muted); }
-.ac-request-name { font-size: 17px; font-weight: 600; color: var(--sf-ink); overflow-wrap: anywhere; }
-.ac-request-acts { display: flex; gap: 8px; }
-.ac-round {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform .6s var(--m-ease), filter .3s ease;
-}
-.ac-round:hover { transform: scale(1.06); }
-.ac-round:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
-.ac-round svg { width: 20px; height: 20px; }
-.ac-round--ok { background: var(--m-green-soft); color: var(--m-green-ink); }
-.ac-round--no { background: rgba(243, 169, 196, .3); color: #9f1239; }
-.dark .ac-round--no { background: rgba(243, 169, 196, .16); color: #fda4af; }
-
-@media (max-width: 1023px) {
-  .ac-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 860px) {
-  .ac-plans { grid-template-columns: minmax(0, 1fr); max-width: 560px; }
-}
 @media (max-width: 639px) {
-  .ac-plans { margin-top: 28px; gap: 16px; }
-  .ac-plan { padding: 10px 10px 26px; border-radius: 36px; }
-  .ac-plan-body { padding: 22px 14px 0; }
-  .ac-plan-h { font-size: 28px; }
-  .ac-price { font-size: 52px; }
-  .ac-art { height: 160px; border-radius: 28px; }
   .ac-hero { margin-top: 24px; padding: 8px 8px 26px; border-radius: 36px; }
   .ac-cover { height: 112px; border-radius: 30px; }
   .ac-hero-body { grid-template-columns: minmax(0, 1fr); padding: 0 14px; justify-items: center; text-align: center; }
@@ -1029,7 +812,6 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
   .ac-avatar-edit { top: 64px; right: -6px; }
   .ac-who { padding-top: 16px; }
   .ac-name-row,
-  .ac-chips,
   .ac-actions,
   .ac-uni { justify-content: center; }
   .ac-name { font-size: 34px; }
@@ -1038,8 +820,9 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
   .ac-card { padding: 24px 20px; border-radius: 32px; }
   .ac-card-h { font-size: 23px; margin-bottom: 16px; }
   .ac-form-row { grid-template-columns: minmax(0, 1fr); }
-  .ac-field--half { max-width: none; }
-  .ac-stats { gap: 10px; }
+  /* Two columns; the third figure takes the whole row. */
+  .ac-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ac-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .ac-stat { padding: 18px 16px; border-radius: 26px; }
   .ac-stat-i { width: 36px; height: 36px; margin-bottom: 10px; }
   .ac-stat-v { font-size: 30px; }
@@ -1050,15 +833,11 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 
 @media (prefers-reduced-motion: reduce) {
   .ac-rise,
-  .ac-plan,
   .ac-ring,
   .ac-spin { animation: none; }
-  .ac-plan,
   .ac-stat,
   .ac-btn,
-  .ac-round,
   .ac-avatar-edit { transition: none; }
-  .ac-plan:hover,
   .ac-stat:hover { transform: none; }
 }
 
@@ -1388,221 +1167,6 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 }
 .ac-crop { animation: none; }
 
-/* ================================================================================================
-   Legacy screens hidden from the main menu: their Tailwind utilities in the Meldy language.
-
-   The scope is [data-legacy] (.lg-scope), set only by components/ErrorBoundary.tsx on those routes;
-   it has no box (display: contents). Colours map onto the theme tokens, so a light-only utility
-   becomes right in the dark theme too, and the dark panels of these pages re-point the same tokens
-   to light-on-dark values. Most rules sit behind :where(.lg-scope) and so weigh one class — the
-   same as the utility they replace, later in the cascade — which lets the pages' own hover:,
-   focus: and dark: variants still win where they exist.
-   ================================================================================================ */
-
-.lg-scope { display: contents; }
-
-/* ---------------------------------------------------------------- frame and type */
-@media (min-width: 1024px) {
-  .lg-scope > :first-child:not([class~='h-full']):not([class*='h-[calc']) { padding-top: 44px; }
-}
-/* Messages is one pane inside the shell's pane: it fits the pane instead of the window. */
-@media (min-width: 768px) {
-  .lg-scope > [class*='md:h-[calc(100vh-48px)]'] { height: calc(100% - 48px); }
-}
-.lg-scope :is(h1, h2, h3, h4) { font-family: var(--ph-sans); }
-.lg-scope h1 { font-weight: 500; letter-spacing: -.035em; line-height: 1.08; }
-.lg-scope h1:is([class~='text-2xl'], [class~='text-3xl'], [class~='md:text-3xl'], [class~='text-[28px]']) { font-size: clamp(32px, 3.3vw, 44px); }
-.lg-scope h1[class~='text-xl'] { font-size: 24px; }
-.lg-scope :is(h2, h3) { letter-spacing: -.022em; }
-.lg-scope :is(h2, h3):is([class~='font-black'], [class~='font-extrabold'], [class~='font-bold']) { font-weight: 600; }
-.lg-scope h2:is([class~='text-xl'], [class~='text-2xl'], [class~='md:text-2xl'], [class~='md:text-3xl']) { font-weight: 500; letter-spacing: -.03em; }
-:where(.lg-scope) :is(.font-black, .font-extrabold) { font-weight: 650; }
-/* Text under 11 px is raised to a readable size. */
-:where(.lg-scope) :is(.text-\[8px\], .text-\[9px\]) { font-size: 11px; }
-:where(.lg-scope) .text-\[10px\] { font-size: 12px; }
-:where(.lg-scope) .text-\[11px\] { font-size: 12.5px; }
-
-/* ---------------------------------------------------------------- neutrals */
-:where(.lg-scope) :is(.text-slate-800, .text-slate-850, .text-slate-855, .text-slate-950) { color: var(--sf-ink); }
-:where(.lg-scope) :is(.text-slate-600, .text-slate-650, .text-slate-655, .text-slate-700, .text-slate-705, .text-slate-450, .text-slate-455, .text-slate-350, .text-slate-355) { color: var(--sf-muted); }
-:where(.lg-scope) :is(.bg-white, [class~='bg-white/50'], [class~='bg-white/80'], [class~='bg-white/90'], [class~='bg-white/95']) { background-color: var(--sf-surface); }
-:where(.lg-scope) :is([class~='bg-slate-50/50'], [class~='bg-slate-50/30'], [class~='bg-slate-100/40'], [class~='bg-slate-100/80'], .bg-slate-105) { background-color: var(--sf-surface-soft); }
-:where(.lg-scope) :is(.bg-slate-200, [class~='bg-slate-200/60']) { background-color: var(--sf-line); }
-:where(.lg-scope) :is(.border-slate-50, .border-slate-100, .border-slate-150, .border-slate-205, .border-slate-250, [class~='border-slate-100/80'], [class~='border-slate-150/40'], [class~='border-slate-200/60'], [class~='border-slate-200/50'], [class~='border-slate-200/40'], [class~='border-slate-200/30'], [class~='border-slate-200/20'], [class~='border-slate-250/60'], [class~='border-slate-300/20']) { border-color: var(--sf-line); }
-:where(.lg-scope) :is(.divide-slate-50, .divide-slate-100) > :not([hidden]) ~ :not([hidden]) { border-color: var(--sf-line); }
-:where(.lg-scope) :is(.placeholder-slate-400, .placeholder\:text-slate-400)::placeholder { color: var(--sf-muted); }
-.dark :where(.lg-scope) :is([class~='dark:bg-slate-850'], [class~='dark:bg-slate-750'], [class~='dark:bg-slate-950/20'], [class~='dark:bg-slate-950/30'], [class~='dark:bg-slate-950/40'], [class~='dark:bg-slate-950/50'], [class~='dark:bg-slate-950/60'], [class~='dark:bg-slate-950/70'], [class~='dark:bg-slate-900/40'], [class~='dark:bg-slate-900/50'], [class~='dark:bg-slate-900/60'], [class~='dark:bg-slate-900/80'], [class~='dark:bg-slate-800/20'], [class~='dark:bg-slate-800/30'], [class~='dark:bg-slate-800/40'], [class~='dark:bg-slate-800/50'], [class~='dark:bg-slate-800/60'], [class~='dark:bg-slate-800/80']) { background-color: var(--sf-surface-soft); }
-.dark :where(.lg-scope) :is([class~='dark:bg-slate-700'], [class~='dark:bg-slate-600']) { background-color: var(--sf-line); }
-.dark :where(.lg-scope) :is([class~='dark:border-slate-850'], [class~='dark:border-slate-855'], [class~='dark:border-slate-800/40'], [class~='dark:border-slate-800/60'], [class~='dark:border-slate-800/80'], [class~='dark:border-slate-700/50'], [class~='dark:border-slate-700/60']) { border-color: var(--sf-line); }
-.dark :where(.lg-scope) :is(.dark\:divide-slate-700, .dark\:divide-slate-800, .dark\:divide-slate-850) > :not([hidden]) ~ :not([hidden]) { border-color: var(--sf-line); }
-.dark :where(.lg-scope) :is([class~='dark:text-slate-205'], [class~='dark:text-slate-250']) { color: var(--sf-ink); }
-.dark :where(.lg-scope) :is([class~='dark:text-slate-350'], [class~='dark:text-slate-355'], [class~='dark:text-slate-450'], [class~='dark:text-slate-455'], [class~='dark:text-slate-505'], [class~='dark:text-slate-550']) { color: var(--sf-muted); }
-
-/* ---------------------------------------------------------------- the blue: indigo, violet, purple, blue, sky */
-:where(.lg-scope) :is(.text-indigo-400, .text-indigo-450, .text-indigo-500, .text-indigo-600, .text-indigo-650, .text-indigo-700, .text-indigo-800, .text-indigo-950, .text-violet-400, .text-violet-450, .text-violet-500, .text-violet-600, .text-violet-650, .text-violet-700, .text-purple-600, .text-purple-700, .text-purple-750, .text-blue-500, .text-blue-600, .text-sky-500, .text-sky-600, .text-sky-700) { color: var(--sf-accent-fg); }
-:where(.lg-scope) :is(.bg-indigo-50, .bg-indigo-55, .bg-indigo-100, [class~='bg-indigo-50/50'], [class~='bg-indigo-50/40'], [class~='bg-indigo-50/30'], [class~='bg-indigo-50/20'], [class~='bg-indigo-50/10'], [class~='bg-indigo-100/50'], [class~='bg-indigo-500/5'], [class~='bg-indigo-500/10'], [class~='bg-indigo-500/20'], [class~='bg-indigo-600/10'], .bg-violet-50, .bg-violet-100, [class~='bg-violet-50/60'], [class~='bg-violet-500/10'], [class~='bg-violet-500/20'], [class~='bg-violet-600/10'], .bg-purple-50, .bg-purple-100, [class~='bg-purple-50/10'], [class~='bg-purple-100/50'], .bg-sky-50, .bg-sky-100, .bg-blue-50) { background-color: var(--sf-accent-soft); }
-:where(.lg-scope) :is(.bg-indigo-400, .bg-indigo-500, .bg-indigo-600, .bg-indigo-650, .bg-indigo-700, .bg-violet-500, .bg-violet-600, .bg-purple-500, .bg-purple-600, .bg-purple-650, .bg-blue-500, .bg-blue-600, .bg-sky-500) { background-color: var(--sf-accent); }
-:where(.lg-scope) :is(.border-indigo-50, .border-indigo-100, .border-indigo-200, .border-indigo-300, [class~='border-indigo-100/50'], [class~='border-indigo-100/80'], [class~='border-indigo-100/10'], [class~='border-indigo-200/50'], [class~='border-indigo-400/20'], [class~='border-indigo-500/20'], [class~='border-indigo-500/25'], [class~='border-indigo-500/30'], [class~='border-indigo-500/40'], [class~='border-indigo-600/30'], .border-violet-100, .border-violet-200, [class~='border-violet-500/20'], [class~='border-violet-500/30'], .border-purple-100, .border-purple-200) { border-color: color-mix(in srgb, var(--sf-accent) 24%, var(--sf-line)); }
-:where(.lg-scope) :is(.border-indigo-400, .border-indigo-500, .border-indigo-600, .border-indigo-650, .border-violet-400, .border-violet-500, .border-purple-500, .border-l-indigo-500, .border-t-indigo-500) { border-color: var(--sf-accent); }
-:where(.lg-scope) :is(.ring-indigo-500, .ring-indigo-400, .ring-violet-500, [class~='ring-indigo-400/25'], [class~='ring-indigo-500/15']) { --tw-ring-color: color-mix(in srgb, var(--sf-accent) 45%, transparent); }
-.lg-scope :is(input, textarea, select, button):focus { --tw-ring-color: color-mix(in srgb, var(--sf-accent) 40%, transparent); }
-:where(.lg-scope) :is([class~='hover:bg-indigo-50'], [class~='hover:bg-indigo-100'], [class~='hover:bg-indigo-50/10'], [class~='hover:bg-indigo-50/20']):hover { background-color: var(--sf-accent-soft); }
-:where(.lg-scope) :is([class~='hover:text-indigo-500'], [class~='hover:text-indigo-600'], [class~='hover:text-indigo-700'], [class~='group-hover:text-indigo-500'], [class~='group-hover:text-indigo-600']):is(:hover, .group:hover *) { color: var(--sf-accent-fg); }
-:where(.lg-scope) :is([class~='hover:border-indigo-400'], [class~='hover:border-indigo-500'], [class~='hover:border-indigo-600'], [class~='hover:border-indigo-500/30']):hover { border-color: var(--sf-accent); }
-.dark :where(.lg-scope) :is([class~='dark:text-indigo-400'], [class~='dark:text-indigo-405'], [class~='dark:text-indigo-300'], [class~='dark:text-violet-400'], [class~='dark:text-violet-450'], [class~='dark:text-violet-300'], [class~='dark:text-purple-400'], [class~='dark:text-purple-300'], [class~='dark:hover:text-indigo-400']) { color: var(--sf-accent-fg); }
-.dark :where(.lg-scope) :is([class~='dark:bg-indigo-950'], [class~='dark:bg-indigo-950/10'], [class~='dark:bg-indigo-950/20'], [class~='dark:bg-indigo-950/30'], [class~='dark:bg-indigo-950/40'], [class~='dark:bg-indigo-950/50'], [class~='dark:bg-indigo-950/60'], [class~='dark:bg-indigo-900'], [class~='dark:bg-indigo-900/30'], [class~='dark:bg-indigo-900/40'], [class~='dark:bg-indigo-900/50'], [class~='dark:bg-indigo-500/10'], [class~='dark:bg-indigo-600/20'], [class~='dark:bg-indigo-600/30'], [class~='dark:bg-violet-950'], [class~='dark:bg-violet-950/20'], [class~='dark:bg-violet-950/40'], [class~='dark:bg-violet-950/50'], [class~='dark:bg-violet-600/20'], [class~='dark:bg-purple-950/10'], [class~='dark:bg-purple-950/40'], [class~='dark:bg-purple-900/30']) { background-color: var(--sf-accent-soft); }
-.dark :where(.lg-scope) :is([class~='dark:bg-indigo-500'], [class~='dark:bg-indigo-600'], [class~='dark:bg-indigo-700']) { background-color: var(--sf-accent); }
-.dark :where(.lg-scope) :is([class~='dark:border-indigo-950'], [class~='dark:border-indigo-950/40'], [class~='dark:border-indigo-950/60'], [class~='dark:border-indigo-900'], [class~='dark:border-indigo-900/20'], [class~='dark:border-indigo-900/30'], [class~='dark:border-indigo-900/40'], [class~='dark:border-indigo-900/50'], [class~='dark:border-indigo-900/60'], [class~='dark:border-indigo-800'], [class~='dark:border-indigo-800/40'], [class~='dark:border-indigo-700'], [class~='dark:border-indigo-700/40'], [class~='dark:border-indigo-500/20'], [class~='dark:border-indigo-500/30'], [class~='dark:border-violet-500/20'], [class~='dark:border-violet-500/30'], [class~='dark:border-violet-900/30'], [class~='dark:border-purple-800'], [class~='dark:border-purple-900/40']) { border-color: color-mix(in srgb, var(--sf-accent-fg) 30%, var(--sf-line)); }
-.dark :where(.lg-scope) :is([class~='dark:border-indigo-500'], [class~='dark:border-indigo-400'], [class~='dark:border-purple-400']) { border-color: var(--sf-accent-fg); }
-
-/* ---------------------------------------------------------------- green, yellow, red */
-:where(.lg-scope) :is(.text-emerald-400, .text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-850, .text-emerald-900, .text-emerald-950, .text-green-500, .text-green-600, .text-teal-500, .text-teal-600) { color: var(--m-green-ink); }
-:where(.lg-scope) :is(.bg-emerald-50, .bg-emerald-100, [class~='bg-emerald-50/10'], [class~='bg-emerald-50/20'], [class~='bg-emerald-50/30'], [class~='bg-emerald-100/50'], [class~='bg-emerald-500/5'], [class~='bg-emerald-500/10'], [class~='bg-emerald-500/20'], .bg-green-50, .bg-green-100, .bg-teal-50) { background-color: var(--m-green-soft); }
-:where(.lg-scope) :is(.bg-emerald-400, .bg-emerald-500, .bg-emerald-600, .bg-green-500, .bg-teal-500) { background-color: #2c8a4f; }
-:where(.lg-scope) :is(.border-emerald-100, .border-emerald-200, .border-emerald-300, [class~='border-emerald-50/20'], [class~='border-emerald-100/20'], [class~='border-emerald-100/40'], [class~='border-emerald-100/80'], [class~='border-emerald-400/20'], [class~='border-emerald-500/20'], [class~='border-emerald-500/25'], [class~='border-emerald-500/30'], [class~='border-emerald-500/40']) { border-color: color-mix(in srgb, var(--m-green) 50%, var(--sf-line)); }
-:where(.lg-scope) :is(.border-emerald-500, .border-emerald-400, .border-t-emerald-500) { border-color: var(--m-green); }
-:where(.lg-scope) :is(.text-amber-400, .text-amber-450, .text-amber-500, .text-amber-600, .text-amber-700, .text-amber-800, .text-amber-850, .text-amber-900, .text-amber-950, .text-orange-500, .text-orange-600, .text-orange-700, .text-yellow-500, .text-yellow-600) { color: var(--m-yellow-ink); }
-:where(.lg-scope) :is(.bg-amber-50, .bg-amber-100, [class~='bg-amber-50/10'], [class~='bg-amber-50/20'], [class~='bg-amber-100/50'], [class~='bg-amber-500/10'], .bg-orange-50, .bg-yellow-50) { background-color: var(--m-yellow-soft); }
-:where(.lg-scope) :is(.bg-amber-400, .bg-amber-500, .bg-amber-700, .bg-orange-500, .bg-yellow-400) { background-color: var(--m-yellow); color: #0b121c; }
-:where(.lg-scope) :is(.border-amber-100, .border-amber-200, .border-amber-300, .border-amber-250, [class~='border-amber-50/20'], [class~='border-amber-100/20'], [class~='border-amber-100/40'], [class~='border-amber-200/30'], [class~='border-amber-200/40'], [class~='border-amber-200/50'], [class~='border-amber-250/20'], [class~='border-amber-250/30'], [class~='border-amber-400/30'], [class~='border-amber-500/20'], [class~='border-amber-500/30']) { border-color: color-mix(in srgb, var(--m-yellow) 55%, var(--sf-line)); }
-:where(.lg-scope) :is(.border-amber-400, .border-amber-500, .border-amber-600) { border-color: var(--m-yellow); }
-/* Red stays red (errors); its light shades get the readable ink. */
-:where(.lg-scope) :is(.text-rose-400, .text-rose-500, .text-red-500, .text-red-400) { color: #be123c; }
-.dark :where(.lg-scope) :is(.text-rose-400, .text-rose-500, .text-red-500, .text-red-400) { color: #fda4af; }
-.dark :where(.lg-scope) :is([class~='dark:text-emerald-400'], [class~='dark:text-emerald-405'], [class~='dark:text-emerald-450'], [class~='dark:text-emerald-300'], [class~='dark:text-emerald-500/80']) { color: var(--m-green-ink); }
-.dark :where(.lg-scope) :is([class~='dark:bg-emerald-950'], [class~='dark:bg-emerald-950/10'], [class~='dark:bg-emerald-950/15'], [class~='dark:bg-emerald-950/20'], [class~='dark:bg-emerald-950/30'], [class~='dark:bg-emerald-950/40'], [class~='dark:bg-emerald-950/50'], [class~='dark:bg-emerald-900/20'], [class~='dark:bg-emerald-900/30'], [class~='dark:bg-emerald-500/10']) { background-color: var(--m-green-soft); }
-.dark :where(.lg-scope) :is([class~='dark:border-emerald-900'], [class~='dark:border-emerald-900/20'], [class~='dark:border-emerald-900/30'], [class~='dark:border-emerald-900/40'], [class~='dark:border-emerald-900/50'], [class~='dark:border-emerald-950/50'], [class~='dark:border-emerald-800'], [class~='dark:border-emerald-700'], [class~='dark:border-emerald-500/20']) { border-color: rgba(138, 203, 151, .28); }
-.dark :where(.lg-scope) :is([class~='dark:text-amber-400'], [class~='dark:text-amber-450'], [class~='dark:text-amber-300'], [class~='dark:text-amber-500'], [class~='dark:text-orange-400'], [class~='dark:text-orange-450']) { color: var(--m-yellow-ink); }
-.dark :where(.lg-scope) :is([class~='dark:bg-amber-950/10'], [class~='dark:bg-amber-950/20'], [class~='dark:bg-amber-950/30'], [class~='dark:bg-amber-950/40'], [class~='dark:bg-amber-900/20'], [class~='dark:bg-amber-900/30'], [class~='dark:bg-amber-900/60'], [class~='dark:bg-amber-500/5']) { background-color: var(--m-yellow-soft); }
-.dark :where(.lg-scope) :is([class~='dark:border-amber-900/20'], [class~='dark:border-amber-900/30'], [class~='dark:border-amber-900/40'], [class~='dark:border-amber-900/50'], [class~='dark:border-amber-950/20'], [class~='dark:border-amber-800'], [class~='dark:border-amber-800/60'], [class~='dark:border-amber-700'], [class~='dark:border-amber-600']) { border-color: rgba(244, 196, 91, .3); }
-
-/* ---------------------------------------------------------------- gradients */
-/* Soft tinted blocks: one soft colour, no gradient. */
-:where(.lg-scope) :is([class~='from-indigo-50'], [class~='from-indigo-50/60'], [class~='from-violet-500/10'], [class~='from-violet-50']) { background-image: none; background-color: var(--sf-accent-soft); }
-:where(.lg-scope) :is([class~='from-emerald-50'], [class~='from-emerald-50/60']) { background-image: none; background-color: var(--m-green-soft); }
-:where(.lg-scope) [class~='from-amber-50'] { background-image: none; background-color: var(--m-yellow-soft); }
-:where(.lg-scope) :is([class~='from-red-50/50'], [class~='from-red-50'], [class~='from-rose-50']) { background-image: none; background-color: rgba(243, 169, 196, .16); }
-/* Strong fills (icon tiles, bars, badges): one solid colour. */
-:where(.lg-scope) :is([class~='from-indigo-400'], [class~='from-indigo-500'], [class~='from-indigo-600'], [class~='from-violet-500'], [class~='from-violet-600'], [class~='from-violet-650'], [class~='from-purple-500'], [class~='from-purple-600'], [class~='from-blue-500']) { background-image: none; background-color: var(--sf-accent); }
-:where(.lg-scope) :is([class~='from-emerald-500'], [class~='from-emerald-600'], [class~='from-teal-500']) { background-image: none; background-color: #2c8a4f; }
-:where(.lg-scope) :is([class~='from-amber-400'], [class~='from-orange-400'], [class~='from-amber-500']) { background-image: none; background-color: var(--m-yellow); color: #0b121c; }
-/* Every gradient action is the blue of actions. */
-:where(.lg-scope) :is(button, a, [role='button'])[class*='bg-gradient-to'] { background-image: none; background-color: var(--sf-accent); color: #fff; }
-:where(.lg-scope) :is(button, a, [role='button'])[class*='bg-gradient-to']:not(:disabled):hover { background-color: var(--sf-accent-hover); }
-/* A fade to the page keeps fading to the page. */
-.lg-scope [class~='to-transparent']:is([class~='from-slate-50'], [class~='dark:from-slate-950']) { --tw-gradient-from: var(--sf-canvas) var(--tw-gradient-from-position); --tw-gradient-to: color-mix(in srgb, var(--sf-canvas) 0%, transparent) var(--tw-gradient-to-position); }
-/* Dark feature panels: the navy panel of the landing with halftone dots; everything inside reads on dark. */
-.lg-scope :is([class~='via-slate-900'], [class~='via-slate-900/90'], [class~='from-emerald-900']) {
-  --sf-ink: #ffffff;
-  --sf-muted: rgba(255, 255, 255, .82);
-  --sf-line: rgba(255, 255, 255, .2);
-  --sf-surface: rgba(255, 255, 255, .12);
-  --sf-surface-soft: rgba(255, 255, 255, .08);
-  --sf-accent-fg: #c6d8fb;
-  --sf-accent-soft: rgba(255, 255, 255, .14);
-  --m-green-ink: #c3ebcb;
-  --m-green-soft: rgba(138, 203, 151, .22);
-  --m-yellow-ink: #fbe3a6;
-  --m-yellow-soft: rgba(244, 196, 91, .2);
-  border-color: rgba(255, 255, 255, .14);
-  background-color: #10295a;
-  background-image: radial-gradient(rgba(255, 255, 255, .16) 1.2px, transparent 1.5px), linear-gradient(160deg, #10295a 0%, #1e46a8 62%, #2f66de 100%);
-  background-size: 9px 9px, auto;
-}
-/* No glows. */
-:where(.lg-scope) .absolute.rounded-full:is(.blur-xl, .blur-2xl, .blur-3xl) { display: none; }
-
-/* ---------------------------------------------------------------- shapes */
-:where(.lg-scope) .rounded-md { border-radius: 10px; }
-:where(.lg-scope) .rounded-lg { border-radius: 14px; }
-:where(.lg-scope) .rounded-xl { border-radius: 20px; }
-:where(.lg-scope) .rounded-2xl { border-radius: 28px; }
-:where(.lg-scope) .rounded-3xl { border-radius: 40px; }
-:where(.lg-scope) .rounded-t-2xl { border-top-left-radius: 28px; border-top-right-radius: 28px; }
-@media (min-width: 768px) {
-  :where(.lg-scope) .md\:rounded-2xl { border-radius: 28px; }
-  :where(.lg-scope) .md\:rounded-3xl { border-radius: 40px; }
-}
-:where(.lg-scope) .rounded-tl-none { border-top-left-radius: 6px; }
-:where(.lg-scope) .rounded-tr-none { border-top-right-radius: 6px; }
-:where(.lg-scope) .card { border-radius: 32px; box-shadow: var(--m-card-shadow); }
-.dark :where(.lg-scope) .card { box-shadow: 0 30px 60px -40px rgba(0, 0, 0, .7); }
-/* Buttons are pills and icon buttons circles; buttons laid out as cards (text-left, a column, card
-   padding) keep their corners. */
-.lg-scope :is(button, a, [role='button']):is([class~='rounded-md'], [class~='rounded-lg'], [class~='rounded-xl'], [class~='rounded-2xl'], [class~='rounded-3xl']):not([class~='text-left']):not([class~='flex-col']):not([class~='p-4']):not([class~='p-5']):not([class~='p-6']):not([class~='md:p-5']) { border-radius: 999px; }
-.lg-scope :is(button, a, [role='button']):is(.font-bold, .font-extrabold, .font-black) { font-weight: 550; }
-/* Soft long shadows, no coloured glows. */
-:where(.lg-scope) :is(.shadow-sm, .shadow) { --tw-shadow: 0 1px 2px rgba(11, 18, 28, .04), 0 24px 48px -36px rgba(16, 41, 90, .35); }
-:where(.lg-scope) .shadow-md { --tw-shadow: 0 1px 2px rgba(11, 18, 28, .04), 0 30px 60px -40px rgba(16, 41, 90, .4); }
-:where(.lg-scope) :is(.shadow-lg, .shadow-xl, .shadow-2xl) { --tw-shadow: 0 2px 4px rgba(11, 18, 28, .04), 0 40px 80px -48px rgba(16, 41, 90, .45); }
-:where(.lg-scope) :is([class*='shadow-indigo-'], [class*='shadow-violet-'], [class*='shadow-purple-'], [class*='shadow-emerald-'], [class*='shadow-rose-']) { --tw-shadow-color: rgba(16, 41, 90, .18); }
-:where(.lg-scope) :is(button, a)[class*='bg-gradient-to'] { --tw-shadow: 0 0 #0000; }
-.dark :where(.lg-scope) :is(.shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) { --tw-shadow: 0 30px 60px -40px rgba(0, 0, 0, .7); }
-/* Hover jumps and scale effects become the soft lift of the language. */
-:where(.lg-scope) [class~='hover:scale-[1.02]']:hover,
-:where(.lg-scope) [class~='hover:scale-[1.01]']:hover { transform: translateY(-2px); }
-
-/* ---------------------------------------------------------------- fields */
-.lg-scope :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), textarea, select)[class~='border'] {
-  border-radius: 16px;
-  border-color: var(--sf-line);
-  font-family: var(--ph-sans);
-}
-.lg-scope :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), textarea, select)[class~='border']:focus {
-  outline: none;
-  border-color: var(--sf-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sf-accent) 20%, transparent);
-}
-.dark .lg-scope :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), textarea, select)[class~='border']:focus { border-color: #8db2f5; box-shadow: 0 0 0 4px rgba(141, 178, 245, .22); }
-.lg-scope input[type='range'] { accent-color: var(--sf-accent); }
-.dark .lg-scope input[type='range'] { accent-color: #8db2f5; }
-.lg-scope input:is([type='checkbox'], [type='radio']) { accent-color: var(--sf-accent); }
-
-/* ================================================================================================
-   ShortsPlayer and HHCallback: outside the shell, matched by their roots (each one is unique).
-   ================================================================================================ */
-
-/* «Карточки лентой»: the slides are the landing's coloured panels with halftone dots. */
-#root > .h-\[100dvh\].w-full.bg-black { font-family: var(--ph-sans); }
-#root > .h-\[100dvh\].w-full.bg-black [class*='grainy-gradients'] { display: none; }
-#root > .h-\[100dvh\].w-full.bg-black .snap-start.bg-gradient-to-br {
-  background-size: 10px 10px, auto;
-  background-image: radial-gradient(rgba(255, 255, 255, .16) 1.3px, transparent 1.6px), linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
-}
-#root > .h-\[100dvh\].w-full.bg-black .snap-start.from-pink-500 { background-image: radial-gradient(rgba(255, 255, 255, .16) 1.3px, transparent 1.6px), linear-gradient(160deg, #b4486e 0%, #6e3d84 55%, #10295a 100%); }
-#root > .h-\[100dvh\].w-full.bg-black .snap-start.from-blue-500 { background-image: radial-gradient(rgba(255, 255, 255, .16) 1.3px, transparent 1.6px), linear-gradient(160deg, #10295a 0%, #1e46a8 58%, #2f66de 100%); }
-#root > .h-\[100dvh\].w-full.bg-black .snap-start.from-emerald-400 { background-image: radial-gradient(rgba(255, 255, 255, .16) 1.3px, transparent 1.6px), linear-gradient(160deg, #2c6b3a 0%, #1f4f55 55%, #10295a 100%); }
-#root > .h-\[100dvh\].w-full.bg-black .snap-start.from-amber-400 { background-image: radial-gradient(rgba(255, 255, 255, .16) 1.3px, transparent 1.6px), linear-gradient(160deg, #a8541f 0%, #7a3a5a 55%, #10295a 100%); }
-/* The slide emoji is decoration (the language has none); the title is set like the landing's. */
-#root > .h-\[100dvh\].w-full.bg-black .text-6xl.mb-6 { display: none; }
-#root > .h-\[100dvh\].w-full.bg-black h2 { font-weight: 500; letter-spacing: -.035em; line-height: 1.06; }
-#root > .h-\[100dvh\].w-full.bg-black .w-16.h-1\.5 { background: var(--m-yellow); height: 6px; }
-#root > .h-\[100dvh\].w-full.bg-black .w-12.h-12.rounded-full { background-color: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .22); box-shadow: none; }
-#root > .h-\[100dvh\].w-full.bg-black .uppercase.tracking-widest { text-transform: none; letter-spacing: normal; color: #fff; }
-/* The «Свайп» hint stays readable: no blinking of the whole hint (its dot still moves). */
-#root > .h-\[100dvh\].w-full.bg-black > .absolute.bottom-8 { opacity: 1 !important; }
-/* Its loading and empty states stand on the page canvas. */
-#root > .h-\[100dvh\].w-full.bg-slate-950 { background: var(--sf-canvas); color: var(--sf-ink); font-family: var(--ph-sans); }
-#root > .h-\[100dvh\].w-full.bg-slate-950 h2 { font-size: 34px; font-weight: 500; letter-spacing: -.03em; }
-#root > .h-\[100dvh\].w-full.bg-slate-950 .bg-slate-800 { background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line); }
-#root > .h-\[100dvh\].w-full.bg-slate-950 .border-indigo-500 { border-color: var(--sf-line); border-top-color: var(--sf-accent-fg); }
-#root > .h-\[100dvh\].w-full.bg-slate-950 button { min-height: 52px; border-radius: 999px; font-weight: 500; }
-
-/* HeadHunter sign-in callback: the canvas, the blue ring, the ink text. */
-#root > .min-h-screen.bg-slate-950 { background: var(--sf-canvas); color: var(--sf-ink); font-family: var(--ph-sans); }
-#root > .min-h-screen.bg-slate-950 .text-white { color: var(--sf-ink); }
-#root > .min-h-screen.bg-slate-950 h3 { font-size: 28px; font-weight: 500; letter-spacing: -.03em; }
-#root > .min-h-screen.bg-slate-950 p { font-size: 16px; line-height: 1.5; max-width: 26rem; }
-#root > .min-h-screen.bg-slate-950 [class~='border-indigo-500/20'] { border-color: var(--sf-line); }
-#root > .min-h-screen.bg-slate-950 .border-t-indigo-500 { border-top-color: var(--sf-accent-fg); }
-#root > .min-h-screen.bg-slate-950 [class~='bg-indigo-500/10'] { background: var(--sf-accent-soft); }
-#root > .min-h-screen.bg-slate-950 .text-indigo-400 { color: var(--sf-accent-fg); }
-
-@media (prefers-reduced-motion: reduce) {
-  :where(.lg-scope) [class~='hover:scale-[1.02]']:hover,
-  :where(.lg-scope) [class~='hover:scale-[1.01]']:hover { transform: none; }
-}
-
 /* Inside the shell the shared focus rule (styles/paper.css) draws an outline; fields here show their own
    blue border and ring instead (as the kit's .sf-input does), and the dialog card takes the focus only
    as a container. */
@@ -1610,8 +1174,6 @@ button.ac-chip:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-o
 .sf-shell .ac-modal-card:focus-visible { outline: none; }
 
 /* Touch targets on phones: 44 px. */
-button.ac-chip { position: relative; }
-button.ac-chip::after { content: ''; position: absolute; inset: -4px 0; }
 @media (max-width: 639px) {
   .ac-seg-btn { min-height: 44px; }
   .ac-pop-opt,

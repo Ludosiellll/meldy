@@ -16,6 +16,7 @@ import { proWindowPart } from '../components/pro/ProWindow';
 import { guideClipPart } from '../components/guide/clipPart';
 import { lazyPart } from './lazyPart';
 import { whenIdleAfterLoad } from './idle';
+import { loadSupabase } from './supabaseClient';
 
 type Loader = () => Promise<unknown>;
 
@@ -65,7 +66,7 @@ const quiet = (load: Loader) => {
 export function preloadSignedInScreen(pathname: string): void {
   const page = SIGNED_IN_PAGES.find(([match]) => match.test(pathname));
   if (!page) return;
-  void import('./supabase').then(
+  void loadSupabase().then(
     () => {
       quiet(loadLayout);
       quiet(page[1]);

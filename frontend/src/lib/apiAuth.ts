@@ -1,9 +1,10 @@
 import { aiLimitFromBody, reportAILimit } from '../api/limits';
-
-/** The Supabase client is a file of its own (see contexts/AuthContext); read when a backend call goes out. */
-const loadSupabase = () => import('./supabase').then((module) => module.supabase);
+import { captureApiFailure, TELEMETRY_ENDPOINT } from './telemetry';
+import { loadSupabase, storedAccessToken, supabaseIfLoaded, whenSupabaseLoaded } from './supabaseClient';
 
 let installed = false;
+/** The access token as the last auth event left it; undefined until the first event (then null when signed out). */
+let knownToken: string | null | undefined;
 
 /**
  * A backend answer 429 with code ai_limit (the daily AI limit, checked by the server) opens the
@@ -20,10 +21,47 @@ async function reportLimitRefusal(response: Response): Promise<void> {
   }
 }
 
-/** Add the current Supabase access token to same-origin backend requests. */
+/**
+ * Keeps knownToken current, so a keepalive request (statistics as the tab closes) needs no await first.
+ * The client is a file of its own (lib/supabaseClient): this starts listening once the app has loaded it.
+ */
+function watchSession() {
+  whenSupabaseLoaded((supabase) => {
+    try {
+      const auth = supabase.auth as Partial<typeof supabase.auth>;
+      if (typeof auth.onAuthStateChange !== 'function') return;
+      auth.onAuthStateChange((_event, session) => {
+        knownToken = session?.access_token ?? null;
+      });
+    } catch {
+      // Every request still reads the session itself.
+    }
+  });
+}
+
+/**
+ * The session's access token for a backend request. As the page goes away (keepalive) there is no
+ * time to fetch the client's file: before it has loaded, the session it keeps in this browser says it.
+ */
+async function sessionToken(keepalive: boolean): Promise<string | null> {
+  const ready = supabaseIfLoaded();
+  if (!ready && keepalive) return storedAccessToken();
+  const supabase = ready ?? (await loadSupabase());
+  return (await supabase.auth.getSession()).data.session?.access_token ?? null;
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+/**
+ * Add the current Supabase access token to same-origin backend requests. A backend failure (status 500 and
+ * above, or no answer) is reported to the statistics with its path pattern and status only (lib/telemetry).
+ */
 export function installApiAuth() {
   if (installed || typeof window === 'undefined') return;
   installed = true;
+  watchSession();
 
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -34,21 +72,31 @@ export function installApiAuth() {
         : input.url;
     const isBackendRequest = requestUrl.startsWith('/api/');
     const isPublicRequest = requestUrl.startsWith('/api/health');
+    const isTelemetry = requestUrl.startsWith(TELEMETRY_ENDPOINT);
 
     if (!isBackendRequest || isPublicRequest) {
       return originalFetch(input, init);
     }
 
-    const supabase = await loadSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
     const headers = new Headers(
       input instanceof Request ? input.headers : (init?.headers || undefined),
     );
-    if (session?.access_token && !headers.has('Authorization')) {
-      headers.set('Authorization', `Bearer ${session.access_token}`);
+    if (!headers.has('Authorization')) {
+      // A keepalive request may be sent as the page goes away: the token it needs is read without waiting.
+      const token = init?.keepalive && knownToken !== undefined
+        ? knownToken
+        : await sessionToken(Boolean(init?.keepalive));
+      if (token) headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await originalFetch(input, { ...init, headers });
+    let response: Response;
+    try {
+      response = await originalFetch(input, { ...init, headers });
+    } catch (error) {
+      if (!isTelemetry && !isAbort(error)) captureApiFailure(requestUrl, 0);
+      throw error;
+    }
+    if (response.status >= 500 && !isTelemetry) captureApiFailure(requestUrl, response.status);
     void reportLimitRefusal(response);
     return response;
   };
@@ -57,4 +105,5 @@ export function installApiAuth() {
 /** For tests: the next installApiAuth() wraps window.fetch again. */
 export function resetApiAuthForTests() {
   installed = false;
+  knownToken = undefined;
 }
