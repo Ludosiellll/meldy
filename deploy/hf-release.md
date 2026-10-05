@@ -4,6 +4,30 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-05 — The AI limit in the top line, «Лимит ИИ» in the guide, «Купить PRO» as a free demo (from 260ac20)
+
+Adds to release 22.1 (tree of 1666b52). The owner's points of 2026-10-05: «лимит ИИ нужно вынести чтобы его было
+видно и рассказать про него в обучении тоже», «почему у меня сразу про подписка, хотя я не покупал ее», «нажимаешь на
+купить и тебе ее выдаст просто бесплатно».
+
+- Top line: «Лимит ИИ» with a ring and the units left (on phones and at 1024–1179 px the ring with the number); yellow
+  at 20 % or less, empty at zero — then a click opens the PRO window. A click otherwise opens «Дневной лимит ИИ»:
+  what is left, when it renews, the prices from `lib/plans.ts` (now with «Поговорить о лекции» — 1 per answer), and
+  what PRO gives. The meter follows every AI action and the purchase.
+- Guide: a 7th chapter «Лимит ИИ» with a clip («−20», «−4» flying into the meter, «обновится ночью», «С PRO — 1000»);
+  it lights the meter.
+- PRO window: «Купить PRO» switches PRO on at once and for free, and says so under the button («Демо: оплата не
+  подключена — PRO включится бесплатно и сразу.»); no price, no card form. «Отключить PRO» switches it off so the demo
+  can be repeated. The reel stays and jumps to its PRO beat after the purchase.
+
+Database: migration `20261005092819_pro_demo_purchase` applied on 2026-10-05 before this release (`profiles.pro_since`,
+`start_pro_demo()` / `stop_pro_demo()`; PRO flags left from the old self-service toggle were switched off — nobody
+paid; contract check green). For the owner, optional: `supabase/pending/2026-10-05_pro_demo_anon_execute.sql`.
+Verified before release: tsc -b, Vitest 1906/1906, pytest 901, production build; the package's browser checks
+147/147 on mocked Supabase/API (top line from 1536 to 320 px, meter states, purchase and cancel, kill switch, guide
+chapter, phones); «Разговор» arithmetic unchanged at 1532×734 and 1024×700. Not verified: a purchase on the live site
+— try «Купить PRO» right after the release.
+
 ## 2026-10-05 — Gemini answers quick calls again; a restricted Groq account is left alone (from 4baa64c)
 
 Adds to release 22 (tree of 3186b3e). Found by the live `/api/health/deep` right after release 22: every Gemini
