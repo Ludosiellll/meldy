@@ -1,0 +1,81 @@
+/* The tips' clips: Meldy's screens on a 1280 × 800 stage, sized to read in a card about 400 px wide. */
+
+.ts-ui { position: absolute; inset: 0; transform-origin: 50% 45%; }
+.ts-say { left: 0; right: 0; top: 240px; z-index: 40; text-align: center; font-size: 132px; }
+
+/* ------------------------------------------------------------------ «Поговорить о лекции» */
+
+/* The room's own top line: the wordmark, where you are, «‹ К лекции». */
+.ts-bar { position: absolute; left: 64px; right: 64px; top: 34px; display: flex; align-items: center; gap: 28px; font-size: 28px; }
+.ts-bar-mark { font-size: 40px; }
+.ts-bar-where { font-weight: 500; color: var(--muted); white-space: nowrap; }
+.ts-bar-back { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.ts-bar-back svg { width: 30px; height: 30px; }
+
+/* Meldy's card on the blue tint, the line to answer set large. */
+.ts-tutor {
+  position: absolute;
+  left: 64px;
+  top: 118px;
+  width: 1152px;
+  height: 262px;
+  box-sizing: border-box;
+  padding: 34px 48px;
+  border-radius: 44px;
+  background: var(--blue-t);
+  box-shadow: inset 0 0 0 2px rgba(40, 105, 221, .1);
+}
+.ts-tutor-who { margin: 0; font-size: 30px; font-weight: 600; line-height: 1.2; color: #1f5bc6; }
+.ts-tutor-line {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 92px;
+  margin: 0;
+  font-size: 58px;
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -.028em;
+  color: var(--ink);
+}
+
+/* «Ваш ответ» and the pill under it: they leave together once the answer is sent. */
+.ts-turn { position: absolute; left: 64px; top: 412px; width: 1152px; }
+.ts-answer {
+  box-sizing: border-box;
+  height: 176px;
+  padding: 30px 44px;
+  border-radius: 38px;
+  background: #fff;
+}
+.ts-answer-label { margin: 0; font-size: 28px; font-weight: 500; line-height: 1.2; color: var(--muted); }
+.ts-answer-text { position: relative; display: flex; gap: 0 .3em; margin: 18px 0 0; font-size: 46px; font-weight: 500; line-height: 1.2; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+.ts-answer-hint { position: absolute; left: 0; top: 0; color: var(--muted); font-weight: 400; }
+.ts-word { display: inline-block; }
+.ts-acts { display: flex; align-items: center; gap: 44px; margin-top: 34px; }
+.ts-done { flex: none; }
+.ts-quiet {
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-decoration-color: rgba(11, 18, 28, .3);
+  text-underline-offset: 10px;
+  white-space: nowrap;
+}
+
+/* The lecture's own words: the caption on the desk, the words on a white slip. */
+.ts-slip { position: absolute; left: 64px; top: 412px; width: 1152px; }
+.ts-slip-cap { margin: 0 0 16px 10px; font-size: 30px; font-weight: 500; line-height: 1.2; color: var(--muted); }
+.ts-slip-text {
+  margin: 0;
+  padding: 34px 44px 38px;
+  border-radius: 36px;
+  background: #fff;
+  box-shadow: 0 0 0 2px #e4e4de, 0 40px 80px -56px rgba(16, 41, 90, .38);
+  font-size: 42px;
+  line-height: 1.32;
+  letter-spacing: -.012em;
+  color: var(--ink);
+}
