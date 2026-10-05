@@ -14,13 +14,6 @@ vi.mock('../../api/social', () => ({
   getProfile: (...args: unknown[]) => mocks.getProfile(...args),
   markOnboardingTourSeen: (...args: unknown[]) => mocks.markSeen(...args),
 }));
-vi.mock('../../api/chat', () => ({
-  getUnreadCount: vi.fn(async () => 0),
-  subscribeToNotifications: vi.fn(() => () => undefined),
-  getNotifications: vi.fn(async () => []),
-  markAllRead: vi.fn(async () => undefined),
-  getUnreadDMsGrouped: vi.fn(async () => ({})),
-}));
 vi.mock('../../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api/limits')>();
   return { ...actual, checkAILimit: vi.fn(async () => ({ allowed: true, isPro: false, count: 0, ok: true })) };
@@ -103,7 +96,7 @@ describe('the guide chapters', () => {
   });
 });
 
-describe('the first run of a student', () => {
+describe('the first run', () => {
   it('is a blocking dialog: modal, the focus inside, no «Не сейчас», no ×, Escape does nothing', async () => {
     renderAt('/dashboard');
     const dialog = await firstRunOpen();
@@ -221,23 +214,19 @@ describe('the first run of a student', () => {
     });
     expect(panel()).toBeNull();
   });
+
+  it('is the same for an account marked as a teacher: no card in the corner', async () => {
+    mocks.getProfile.mockResolvedValue({ is_pro: false, role: 'teacher', onboarding_status: {} });
+    renderAt('/exams');
+    const dialog = await firstRunOpen();
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(within(dialog).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Не сейчас' })).toBeNull();
+    expect(document.querySelector('header.sf-bar')).toHaveAttribute('inert');
+  });
 });
 
-describe('the guide asked for, and a teacher’s first visit', () => {
-  it('opens by itself once on «Сегодня» for a teacher, in the corner, and «Не сейчас» remembers it', async () => {
-    mocks.getProfile.mockResolvedValue({ is_pro: false, role: 'teacher', onboarding_status: {} });
-    renderAt('/dashboard');
-    await waitFor(() => expect(panel()).not.toBeNull());
-    expect(panel()).toHaveAttribute('aria-modal', 'false');
-    expect(within(panel()!).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
-    expect(panel()).not.toHaveFocus();
-    expect(document.querySelector('[inert]')).toBeNull();
-    fireEvent.click(within(panel()!).getByRole('button', { name: 'Не сейчас' }));
-    expect(panel()).toBeNull();
-    expect(window.localStorage.getItem(GUIDE_SEEN_KEY)).toBe('1');
-    await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'guide'));
-  });
-
+describe('the guide asked for', () => {
   it('«?» opens it on the section of the page, with the focus inside; Esc closes and gives the focus back', async () => {
     mocks.getProfile.mockResolvedValue(student({ guide: true }));
     renderAt('/mistakes');

@@ -6,7 +6,6 @@ import MistakeDiary, { mistakeOriginLabel } from './MistakeDiary';
 
 const api = vi.hoisted(() => ({
   from: vi.fn(),
-  addXP: vi.fn(),
   incrementAIUsage: vi.fn(),
   verifyEnergy: vi.fn(),
   alert: vi.fn(),
@@ -14,7 +13,6 @@ const api = vi.hoisted(() => ({
   playFlipSound: vi.fn(),
   playSuccessSound: vi.fn(),
   playErrorSound: vi.fn(),
-  playXpSound: vi.fn(),
   updateError: null as null | { message: string },
 }));
 
@@ -31,13 +29,10 @@ vi.mock('../hooks/useSound', () => ({
     playFlipSound: api.playFlipSound,
     playSuccessSound: api.playSuccessSound,
     playErrorSound: api.playErrorSound,
-    playXpSound: api.playXpSound,
   }),
 }));
-vi.mock('../api/quests', () => ({ addXP: api.addXP }));
 // The server charges the practice before the model; the page only refreshes the meter afterwards.
 vi.mock('../api/limits', () => ({ notifyAIUsageChanged: api.incrementAIUsage, AI_LIMIT_MESSAGE: 'Дневной лимит ИИ на сегодня исчерпан.' }));
-vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
 const mistakes = [
   { id: 'mistake-1', question: 'Вопрос 1', correct_answer: 'Ответ 1', student_answer: 'Ошибка 1', topic: 'Тема 1', is_resolved: false, created_at: '2026-09-24T08:00:00Z', material_id: null },
@@ -76,7 +71,6 @@ describe('Mistake diary practice', () => {
     api.from.mockReturnValue(query);
     api.verifyEnergy.mockResolvedValue(true);
     api.incrementAIUsage.mockResolvedValue(undefined);
-    api.addXP.mockResolvedValue(undefined);
     api.confirm.mockResolvedValue(true);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -106,7 +100,8 @@ describe('Mistake diary practice', () => {
       const updateQuery = api.from.mock.results[api.from.mock.results.length - 1]?.value;
       expect(updateQuery.in).toHaveBeenCalledWith('id', ['mistake-1', 'mistake-3']);
     });
-    expect(api.addXP).toHaveBeenCalledWith('user-1', 50);
+    expect(await screen.findByText('Исправлено ошибок: 2 из 3. Остальные остаются открытыми.')).toBeInTheDocument();
+    expect(screen.queryByText(/XP/)).not.toBeInTheDocument();
   });
 
   it('does not treat an unlinked fallback question as a valid practice test', async () => {
@@ -132,7 +127,6 @@ describe('Mistake diary practice', () => {
     expect(api.alert).not.toHaveBeenCalled();
     expect(screen.queryByText('Какое ключевое правило нужно соблюдать?')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Дневник ошибок' })).toBeInTheDocument();
-    expect(api.addXP).not.toHaveBeenCalled();
     expect(api.incrementAIUsage).not.toHaveBeenCalled();
   });
 
@@ -221,7 +215,7 @@ describe('Mistake diary practice', () => {
     expect(api.incrementAIUsage).not.toHaveBeenCalled();
   });
 
-  it('does not claim progress or award XP when saving resolved mistakes fails', async () => {
+  it('does not claim progress when saving resolved mistakes fails', async () => {
     api.updateError = { message: 'offline' };
     const user = userEvent.setup();
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
@@ -235,7 +229,6 @@ describe('Mistake diary practice', () => {
     await user.click(screen.getByRole('button', { name: 'Завершить практику' }));
 
     expect(await screen.findByRole('heading', { name: 'Не удалось сохранить прогресс' })).toBeInTheDocument();
-    expect(api.addXP).not.toHaveBeenCalled();
     expect(screen.queryByText(/Ошибки исправлены/)).not.toBeInTheDocument();
   });
 });

@@ -108,7 +108,7 @@ function Backdrop({ chapter, pathname }: { chapter: string; pathname: string }) 
  *
  * Asked for («?», the account menu), it is a card in the corner on a computer and a sheet above the
  * tabs on a phone; the page stays usable underneath, «Не сейчас», × and Escape close it.
- * On a student's first run it is a blocking dialog instead: the app dimmed behind it with the
+ * On the first run it is a blocking dialog instead: the app dimmed behind it with the
  * chapter's menu item cut out, the focus kept inside, no way to close it but «Начать» at the end.
  */
 export default function GuidePanel() {
@@ -119,20 +119,19 @@ export default function GuidePanel() {
   const panel = useRef<HTMLElement>(null);
   const opener = useRef<Element | null>(null);
   const open = Boolean(guide?.open);
-  const asked = Boolean(guide?.asked);
   const mandatory = Boolean(guide?.mandatory);
 
   // Opened by the student (or as the first run), the guide takes the focus and gives it back to
-  // what had it on close. Opened by itself in the corner, it leaves the focus alone.
+  // what had it on close.
   useEffect(() => {
-    if (!open || !asked) return undefined;
+    if (!open) return undefined;
     opener.current = document.activeElement;
     panel.current?.focus({ preventScroll: true });
     return () => {
       const back = opener.current as HTMLElement | null;
       if (back && back.isConnected && typeof back.focus === 'function') back.focus({ preventScroll: true });
     };
-  }, [open, asked]);
+  }, [open]);
 
   // The first run keeps the focus inside the dialog: Tab and Shift+Tab go round its controls, a focus
   // that lands outside comes back, and Escape does nothing.

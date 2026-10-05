@@ -25,13 +25,12 @@ import './QuizView.css';
  * new session per «Проверить ответы», «Пройти снова» starts a new session marked as a retake, and a
  * failed save is retried with the same session (the RPC is idempotent). `materialId === null`
  * means the material is not in the library yet; the attempt is saved as soon as an id arrives.
- * Without the prop (teacher assignments) the host saves the result itself through `onComplete`.
+ * Without the prop nothing is recorded.
  * The presentation mode is for an audience and is never recorded.
  */
 
 export interface QuizViewProps {
   data: any;
-  onComplete?: (scorePct: number) => void;
   sources?: { id: string; text: string }[];
   materialId?: string | null;
   topic?: string;
@@ -367,7 +366,7 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
   );
 }
 
-export default function QuizView({ data, onComplete, sources = [], materialId, topic = '', surface = 'analysis' }: QuizViewProps) {
+export default function QuizView({ data, sources = [], materialId, topic = '', surface = 'analysis' }: QuizViewProps) {
   const reduceMotion = useReducedMotion();
   const quiz: unknown = data?.quiz;
   const questions = Array.isArray(quiz) ? normalizeQuestions(quiz) : [];
@@ -450,7 +449,6 @@ export default function QuizView({ data, onComplete, sources = [], materialId, t
   const handleSubmit = () => {
     if (submitted || answeredCount < total) return;
     setSubmitted(true);
-    if (onComplete && scored > 0) onComplete(pct);
     if (!journal) return;
     const attempt: Attempt = {
       sessionId: newEventId(),

@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   countDueCards: vi.fn(),
   setTheme: vi.fn(),
   signOut: vi.fn(),
-  subscribe: vi.fn(),
-  getUnreadCount: vi.fn(),
   from: vi.fn(),
 }));
 
@@ -18,15 +16,6 @@ vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', email: 'alina@example.com', user_metadata: { full_name: 'Алина' } }, signOut: mocks.signOut }),
 }));
 vi.mock('../api/social', () => ({ getProfile: (...args: unknown[]) => mocks.getProfile(...args), markOnboardingTourSeen: vi.fn(async () => undefined) }));
-vi.mock('../api/chat', () => ({
-  getUnreadCount: (...args: unknown[]) => mocks.getUnreadCount(...args),
-  subscribeToNotifications: (...args: unknown[]) => mocks.subscribe(...args),
-  subscribeToMessages: vi.fn(() => () => undefined),
-  getNotifications: vi.fn(async () => []),
-  markAllRead: vi.fn(async () => undefined),
-  getUnreadDMsGrouped: vi.fn(async () => ({})),
-  deleteNotification: vi.fn(async () => true),
-}));
 vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
   return { ...actual, checkAILimit: (...args: unknown[]) => mocks.checkAILimit(...args) };
@@ -37,7 +26,6 @@ vi.mock('../contexts/ThemeProvider', () => ({ useTheme: () => ({ theme: 'light',
 vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: false }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }) }));
 
-import toast from 'react-hot-toast';
 import Layout, { DESK_LINKS, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
 import { OPEN_PRO_EVENT } from '../lib/plans';
 
@@ -67,8 +55,6 @@ beforeEach(() => {
   mocks.from.mockReset();
   mocks.setTheme.mockReset();
   mocks.signOut.mockReset();
-  mocks.getUnreadCount.mockReset().mockResolvedValue(0);
-  mocks.subscribe.mockReset().mockReturnValue(() => undefined);
   window.localStorage.clear();
   document.documentElement.removeAttribute('data-stage');
 });
@@ -151,17 +137,6 @@ describe('the menu: five sections around the core', () => {
     expect(cta.querySelector('.sf-cta-plus')).toHaveAttribute('aria-hidden', 'true');
     expect(cta.querySelector('.sf-cta-t')).toHaveTextContent('Добавить лекцию');
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
-  });
-
-  it('no longer pops up toasts for messages and friend requests (they lead to hidden sections)', async () => {
-    renderAt('/dashboard');
-    await waitFor(() => expect(mocks.subscribe).toHaveBeenCalled());
-    const onNotification = mocks.subscribe.mock.calls[0][1] as (payload: unknown) => void;
-    await act(async () => {
-      onNotification({ new: { type: 'message', title: 'Новое сообщение' } });
-    });
-    expect(toast).not.toHaveBeenCalled();
-    expect(mocks.getUnreadCount).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -275,15 +250,6 @@ describe('the window scrolls (spec 4.1)', () => {
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
-
-  it('gives full-height screens (messages) a height of their own', async () => {
-    renderAt('/messages');
-    expect(document.querySelector('main')).toHaveAttribute('data-pane');
-    cleanup();
-    renderAt('/library');
-    expect(document.querySelector('main')).not.toHaveAttribute('data-pane');
-    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
-  });
 });
 
 describe('account menu', () => {
@@ -318,15 +284,17 @@ describe('account menu', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('gives a teacher «Мои группы» and «Диалоги и друзья»', async () => {
+  it('has no groups, dialogs or notifications, for a teacher account too', async () => {
     mocks.getProfile.mockResolvedValue(profile({ role: 'teacher' }));
     renderAt('/dashboard');
     await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
     await act(async () => undefined);
     openMenu();
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
-    expect(within(menu).getByRole('link', { name: 'Мои группы' })).toHaveAttribute('href', '/teacher');
-    expect(within(menu).getByRole('link', { name: /Диалоги и друзья/ })).toHaveAttribute('href', '/messages');
+    expect(within(menu).getByRole('link', { name: 'Профиль' })).toHaveAttribute('href', '/profile');
+    expect(within(menu).queryByRole('link', { name: /Мои группы|Диалоги/ })).toBeNull();
+    expect(within(menu).queryByRole('button', { name: /Уведомления/ })).toBeNull();
+    expect(within(menu).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/profile']);
   });
 });
 

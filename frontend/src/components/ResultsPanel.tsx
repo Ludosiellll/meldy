@@ -39,7 +39,7 @@ import ConversationPlayer from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
 import './ResultsPanel.css';
 
-type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast' | 'shorts';
+type Tab = 'summary' | 'flashcards' | 'quiz' | 'podcast';
 
 function extractCleanContent(data: any): string {
   let raw = data?.content || (data as any)?.raw || '';

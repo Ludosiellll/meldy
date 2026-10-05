@@ -414,30 +414,11 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
   text-decoration-thickness: 2px;
   text-underline-offset: 6px;
 }
-.sf-acct-notes { padding: 0 16px 6px; }
-.sf-acct-notes ul { margin: 0; padding: 0; list-style: none; }
-.sf-acct-note {
-  display: grid;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 0;
-  border: 0;
-  border-top: 1px solid var(--sf-line);
-  background: none;
-  font-family: var(--ph-sans);
-  text-align: left;
-  color: var(--sf-ink);
-  cursor: pointer;
-}
-.sf-acct-note-t { font-size: 15px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
-.sf-acct-quiet { font-size: 15px; line-height: 20px; color: var(--sf-muted); overflow-wrap: anywhere; }
 @media (min-width: 1024px) {
   .sf-acct-phone { display: none; }
 }
 
 .sf-main { display: block; min-width: 0; }
-/* Screens built as one full-height pane get a height; everything else grows and the window scrolls. */
-.sf-main[data-pane] { height: calc(100dvh - var(--sf-bar-h)); overflow-y: auto; }
 
 .sf-tabbar { display: none; }
 
@@ -505,10 +486,6 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
     background: var(--sf-ink);
   }
   .sf-shell[data-tabs] .sf-main { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
-  .sf-shell[data-tabs] .sf-main[data-pane] {
-    box-sizing: border-box;
-    height: calc(100dvh - var(--sf-bar-h));
-  }
 }
 @media (max-width: 374px) {
   .sf-tabbar { padding: 0 12px env(safe-area-inset-bottom); }

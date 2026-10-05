@@ -33,7 +33,6 @@ const db = vi.hoisted(() => ({
 }));
 
 const limits = vi.hoisted(() => ({ incrementAIUsage: vi.fn() }));
-const quests = vi.hoisted(() => ({ updateQuestProgress: vi.fn() }));
 const energy = vi.hoisted(() => ({ verifyEnergy: vi.fn() }));
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
@@ -41,7 +40,6 @@ vi.mock('../../utils/tts', () => tts);
 vi.mock('../../lib/supabase', () => ({ supabase: { from: db.from } }));
 // The server charges (conversation 5, visuals 2); the player only refreshes the meter afterwards.
 vi.mock('../../api/limits', () => ({ notifyAIUsageChanged: limits.incrementAIUsage }));
-vi.mock('../../api/quests', () => ({ updateQuestProgress: quests.updateQuestProgress }));
 vi.mock('../../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: energy.verifyEnergy }) }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
 vi.mock('react-hot-toast', () => ({ default: toasts }));
@@ -111,7 +109,6 @@ describe('ConversationPlayer', () => {
     tts.prefetchTTSInOrder.mockResolvedValue(undefined);
     tts.playTTS.mockResolvedValue(undefined);
     limits.incrementAIUsage.mockResolvedValue(undefined);
-    quests.updateQuestProgress.mockResolvedValue(true);
     energy.verifyEnergy.mockResolvedValue(true);
     db.snapshot = null;
     setupDatabase();
@@ -450,7 +447,7 @@ describe('ConversationPlayer', () => {
     expect(screen.getByRole('button', { name: 'Пауза' })).toBeInTheDocument();
   });
 
-  it('plays the next line when a line ends, counts the quest once and stops audio on unmount', () => {
+  it('plays the next line when a line ends and stops audio on unmount', () => {
     const { unmount } = render(<ConversationPlayer lines={modelLines} />);
     fireEvent.click(screen.getByRole('button', { name: 'Слушать' }));
     expect(tts.playTTS).toHaveBeenLastCalledWith(
@@ -461,9 +458,7 @@ describe('ConversationPlayer', () => {
       expect.any(Function),
       HOST_VOICE,
     );
-    expect(quests.updateQuestProgress).not.toHaveBeenCalled();
     act(() => lastPlay()[4]());
-    expect(quests.updateQuestProgress).toHaveBeenCalledWith('user-1', 'podcast', 1);
 
     act(() => lastPlay()[2]());
     expect(tts.playTTS).toHaveBeenLastCalledWith(
@@ -477,7 +472,6 @@ describe('ConversationPlayer', () => {
     // Между репликами кнопка остаётся «Пауза», а не мигает загрузкой.
     expect(screen.getByRole('button', { name: 'Пауза' })).toBeInTheDocument();
     act(() => lastPlay()[4]());
-    expect(quests.updateQuestProgress).toHaveBeenCalledTimes(1);
 
     tts.stopTTS.mockClear();
     unmount();

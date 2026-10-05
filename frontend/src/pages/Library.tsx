@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArrowRight, MoreHorizontal, RotateCcw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -7,7 +7,6 @@ import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { deleteMaterial, getMaterials, updateMaterialTitle } from '../api/materials';
-import { getAssignedMaterials, joinGroup } from '../api/groups';
 import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
 import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, subjectOf } from '../lib/exams/format';
@@ -33,9 +32,6 @@ export interface LibraryEntry {
   cards: number;
   quiz: boolean;
   talk: boolean;
-  /** Given by a teacher of the student's group (cannot be deleted, only hidden). */
-  assigned: boolean;
-  deadline: string | null;
 }
 
 interface Folder {
@@ -76,8 +72,6 @@ export function toEntry(raw: unknown): LibraryEntry | null {
       cards: typeof raw.cards === 'number' ? raw.cards : 0,
       quiz: raw.quiz === true,
       talk: raw.talk === true,
-      assigned: raw.assigned === true,
-      deadline: typeof raw.deadline === 'string' ? raw.deadline : null,
     };
   }
   const summary = isRecord(raw.summary_json) ? raw.summary_json : {};
@@ -92,8 +86,6 @@ export function toEntry(raw: unknown): LibraryEntry | null {
     cards,
     quiz: quiz > 0,
     talk: Array.isArray(summary.podcast) && summary.podcast.length > 0,
-    assigned: raw.is_assigned === true,
-    deadline: typeof raw.assigned_deadline === 'string' ? raw.assigned_deadline : null,
   };
 }
 
@@ -109,7 +101,6 @@ export function lectureMeta(entry: LibraryEntry): string {
   if (entry.cards > 0) parts.push(cardsWord(entry.cards));
   if (entry.quiz) parts.push('тест');
   if (entry.talk) parts.push('разговор');
-  if (entry.assigned) parts.push('от преподавателя');
   return parts.join(' · ');
 }
 
@@ -229,11 +220,10 @@ interface RowMenuProps {
   onMove: (folderId: string) => void;
   onNewFolder: (name: string) => void;
   onDelete: () => void;
-  onHide: () => void;
 }
 
-/** «⋯» of a lecture row: rename, folder, delete (a teacher's material can only be hidden). */
-function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, onMove, onNewFolder, onDelete, onHide }: RowMenuProps) {
+/** «⋯» of a lecture row: rename, folder, delete. */
+function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, onMove, onNewFolder, onDelete }: RowMenuProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [naming, setNaming] = useState(false);
@@ -291,53 +281,45 @@ function RowMenu({ entry, folders, folderId, open, onToggle, onClose, onRename, 
       </button>
       {open ? (
         <div className="sf-menu" role="menu" aria-label={entry.title}>
-          {entry.assigned ? (
-            <button type="button" role="menuitem" onClick={onHide}>
-              Скрыть из библиотеки
+          <button type="button" role="menuitem" onClick={onRename}>
+            Переименовать
+          </button>
+          <div className="sf-menu-sep" role="separator" />
+          <p className="sf-menu-label">Папка</p>
+          {folders.map((folder) => (
+            <button key={folder.id} type="button" role="menuitemradio" aria-checked={folderId === folder.id} onClick={() => onMove(folder.id)}>
+              {folder.name}
             </button>
+          ))}
+          {folderId ? (
+            <button type="button" role="menuitemradio" aria-checked={false} onClick={() => onMove('')}>
+              Без папки
+            </button>
+          ) : null}
+          {naming ? (
+            <form onSubmit={submitFolder}>
+              <input
+                className="sf-input lib-menu-input"
+                aria-label="Название папки"
+                placeholder="Название папки"
+                maxLength={60}
+                autoFocus
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+              <button type="submit" className="lib-small-pill">
+                Создать
+              </button>
+            </form>
           ) : (
-            <>
-              <button type="button" role="menuitem" onClick={onRename}>
-                Переименовать
-              </button>
-              <div className="sf-menu-sep" role="separator" />
-              <p className="sf-menu-label">Папка</p>
-              {folders.map((folder) => (
-                <button key={folder.id} type="button" role="menuitemradio" aria-checked={folderId === folder.id} onClick={() => onMove(folder.id)}>
-                  {folder.name}
-                </button>
-              ))}
-              {folderId ? (
-                <button type="button" role="menuitemradio" aria-checked={false} onClick={() => onMove('')}>
-                  Без папки
-                </button>
-              ) : null}
-              {naming ? (
-                <form onSubmit={submitFolder}>
-                  <input
-                    className="sf-input lib-menu-input"
-                    aria-label="Название папки"
-                    placeholder="Название папки"
-                    maxLength={60}
-                    autoFocus
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                  <button type="submit" className="lib-small-pill">
-                    Создать
-                  </button>
-                </form>
-              ) : (
-                <button type="button" role="menuitem" onClick={() => setNaming(true)}>
-                  Новая папка…
-                </button>
-              )}
-              <div className="sf-menu-sep" role="separator" />
-              <button type="button" role="menuitem" data-danger="" onClick={onDelete}>
-                Удалить
-              </button>
-            </>
+            <button type="button" role="menuitem" onClick={() => setNaming(true)}>
+              Новая папка…
+            </button>
           )}
+          <div className="sf-menu-sep" role="separator" />
+          <button type="button" role="menuitem" data-danger="" onClick={onDelete}>
+            Удалить
+          </button>
         </div>
       ) : null}
     </div>
@@ -358,7 +340,6 @@ interface LectureListProps {
     move: (entry: LibraryEntry, folderId: string) => void;
     newFolder: (entry: LibraryEntry, name: string) => void;
     remove: (entry: LibraryEntry) => Promise<void>;
-    hide: (entry: LibraryEntry) => void;
   };
 }
 
@@ -413,7 +394,6 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
         const menuKey = `${listKey}:${entry.id}`;
         const meta = lectureMeta(entry);
         const date = shortDate(entry.created_at);
-        const due = entry.deadline ? shortDate(entry.deadline) : '';
         return (
           <li
             key={entry.id}
@@ -441,8 +421,7 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
                     {meta || date ? (
                       <span className="sf-toc-meta">
                         {meta}
-                        {due ? `${meta ? ' · ' : ''}сдать до ${due}` : ''}
-                        {date ? <span className="sf-toc-date-inline">{`${meta || due ? ' · ' : ''}${date}`}</span> : null}
+                        {date ? <span className="sf-toc-date-inline">{`${meta ? ' · ' : ''}${date}`}</span> : null}
                       </span>
                     ) : null}
                   </span>
@@ -471,10 +450,6 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
                     setOpenMenu(null);
                     void actions.remove(entry);
                   }}
-                  onHide={() => {
-                    setOpenMenu(null);
-                    actions.hide(entry);
-                  }}
                 />
               </>
             )}
@@ -488,8 +463,6 @@ function LectureList({ entries, folders, assignments, openMenu, setOpenMenu, ren
 export default function Library() {
   const { user } = useAuth();
   const { confirm } = useConfirm();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const userId = user?.id ?? '';
 
   const [entries, setEntries] = useState<LibraryEntry[] | null>(() => (userId ? readCache(userId) : null));
@@ -504,20 +477,6 @@ export default function Library() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
 
-  const [joinOpen, setJoinOpen] = useState(false);
-  const [inviteCode, setInviteCode] = useState('');
-  const [classNickname, setClassNickname] = useState('');
-  const [joinError, setJoinError] = useState('');
-
-  // ?join=CODE (a teacher's invite) opens the join dialog with the code; bare ?join opens it empty.
-  useEffect(() => {
-    if (searchParams.has('join')) {
-      setInviteCode((searchParams.get('join') || '').toUpperCase());
-      setJoinOpen(true);
-      setSearchParams({});
-    }
-  }, [searchParams, setSearchParams]);
-
   const load = useCallback(async () => {
     if (!userId) {
       setLoading(false);
@@ -527,12 +486,8 @@ export default function Library() {
     setFailed(false);
     const shelvesRequest = listExamShelves(userId).catch(() => null);
     try {
-      const [mine, assigned] = await Promise.all([getMaterials(userId), getAssignedMaterials(userId).catch(() => [])]);
-      const hidden = readJson<string[]>(`hidden_assignments_${userId}`, []);
-      const unique = Array.from(new Map([...(mine ?? []), ...(assigned ?? [])].map((row) => [(row as { id: string }).id, row])).values());
-      const next = unique
-        .map(toEntry)
-        .filter((entry): entry is LibraryEntry => entry !== null && !hidden.includes(entry.id));
+      const rows = await getMaterials(userId);
+      const next = (rows ?? []).map(toEntry).filter((entry): entry is LibraryEntry => entry !== null);
       setEntries(next);
       writeJson(cacheKey(userId), { v: CACHE_VERSION, items: next });
     } catch (error) {
@@ -628,27 +583,6 @@ export default function Library() {
         saveAssignments(next);
       }
     },
-    hide: (entry) => {
-      if (!userId) return;
-      const hidden = readJson<string[]>(`hidden_assignments_${userId}`, []);
-      writeJson(`hidden_assignments_${userId}`, Array.from(new Set([...hidden, entry.id])));
-      setEntries((previous) => (previous ?? []).filter((item) => item.id !== entry.id));
-    },
-  };
-
-  const handleJoin = async () => {
-    if (!userId || !inviteCode.trim() || !classNickname.trim()) return;
-    setJoinError('');
-    const ok = await joinGroup(inviteCode.trim(), classNickname.trim());
-    if (ok) {
-      setJoinOpen(false);
-      setInviteCode('');
-      setClassNickname('');
-      void load();
-      navigate('/teacher');
-    } else {
-      setJoinError('Неверный код или вы уже состоите в группе.');
-    }
   };
 
   const listProps = { folders, assignments, openMenu, setOpenMenu, renaming, setRenaming, actions };
@@ -664,39 +598,6 @@ export default function Library() {
   } else if (list.length > 0) {
     lede = [`${list.length} ${lecturesWord(list.length)}`, cardsLine(list)].filter(Boolean).join(' · ');
   }
-
-  const joinDialog = joinOpen ? (
-    <div className="lib-backdrop">
-      <div role="dialog" aria-modal="true" aria-labelledby="library-join-title" className="lib-dialog">
-        <h2 id="library-join-title">Вступить в учебную группу</h2>
-        <p>Код группы и ваше имя и фамилия — их увидит преподаватель.</p>
-        <input
-          className="sf-input"
-          aria-label="Код группы"
-          autoFocus
-          value={inviteCode}
-          onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
-          placeholder="Код, например A7B-9X2"
-        />
-        <input
-          className="sf-input"
-          aria-label="Имя и фамилия"
-          value={classNickname}
-          onChange={(event) => setClassNickname(event.target.value)}
-          placeholder="Имя и фамилия"
-        />
-        {joinError ? <p className="lib-dialog-error">{joinError}</p> : null}
-        <div className="lib-dialog-acts">
-          <button type="button" className="sf-link" data-muted="" onClick={() => setJoinOpen(false)}>
-            Отмена
-          </button>
-          <button type="button" className="sf-primary" onClick={() => void handleJoin()} disabled={!inviteCode.trim() || !classNickname.trim()}>
-            Вступить
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   if (entries === null && loading) {
     return (
@@ -718,7 +619,6 @@ export default function Library() {
             ))}
           </ol>
         ) : null}
-        {joinDialog}
       </div>
     );
   }
@@ -738,7 +638,6 @@ export default function Library() {
             </span>
           </button>
         </section>
-        {joinDialog}
       </div>
     );
   }
@@ -773,7 +672,6 @@ export default function Library() {
             </span>
           </div>
         </section>
-        {joinDialog}
       </div>
     );
   }
@@ -863,7 +761,6 @@ export default function Library() {
           <LectureList {...listProps} entries={layout.entries} listKey={layout.mode === 'single' ? layout.exam.id : 'all'} />
         )}
       </div>
-      {joinDialog}
     </div>
   );
 }

@@ -1,41 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, updateProfile, uploadAvatar, UserProfile } from '../api/social';
-import { getFriends, sendFriendRequest, respondFriendRequest, Friendship, blockUser, unblockUser, getBlockedUserIds } from '../api/chat';
-import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, UserPlus, Check, Edit3, X, UserCheck, UserX, Bell, BellOff, Camera, Star, MessageSquare, Ban } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { UserCircle2, GraduationCap, Trophy, BookOpen, Loader2, Edit3, X, Bell, BellOff, Camera, Star } from 'lucide-react';
 import { subscribeUserToPush, checkPushSubscription, requestNotificationPermission } from '../utils/push';
 import UniversitySelect from '../components/UniversitySelect';
-import { getUserXP, calcLevel } from '../api/quests';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
-import { CustomSelect } from '../components/CustomSelect';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 
 /**
  * Профиль (Meldy 2026-10-04): белая карточка с цветной обложкой и аватаром, действия — пилюли,
- * цифры — в отдельных карточках. Стили — .ac-* в styles/legacy.css.
+ * цифры — в отдельных карточках. Стили — .ac-* в styles/legacy.css. Только свой профиль.
  */
 export default function Profile() {
   const { user } = useAuth();
-  const { id: profileId } = useParams();
-  const navigate = useNavigate();
-  const targetId = profileId || user?.id;
+  const userId = user?.id;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [friendStatus, setFriendStatus] = useState<'none' | 'pending' | 'accepted'>('none');
-  const [incomingRequests, setIncomingRequests] = useState<Friendship[]>([]);
-
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [blockLoading, setBlockLoading] = useState(false);
-
-  const isMyProfile = user?.id === targetId;
-
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ full_name: '', university: '', bio: '', avatar_url: '', role: 'student' });
+  const [editForm, setEditForm] = useState({ full_name: '', university: '', bio: '', avatar_url: '' });
 
   // Push notifications state
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -45,14 +31,10 @@ export default function Profile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
-  // XP / Level state
-  const [xp, setXp] = useState(0);
-  const [levelInfo, setLevelInfo] = useState({ level: 1, name: 'Новичок', currentXP: 0, nextXP: 100, progress: 0 });
-
   useEffect(() => {
-    if (!targetId) return;
+    if (!userId) return;
 
-    getProfile(targetId).then(p => {
+    getProfile(userId).then(p => {
       setProfile(p);
       if (p) {
         setEditForm({
@@ -60,67 +42,16 @@ export default function Profile() {
           university: p.university || '',
           bio: p.bio || '',
           avatar_url: p.avatar_url || '',
-          role: p.role || 'student'
         });
       }
       setLoading(false);
     });
 
-    getUserXP(targetId).then(v => {
-      setXp(v);
-      setLevelInfo(calcLevel(v));
-    });
-
-    if (user) {
-      getFriends(user.id).then(friends => {
-        if (!isMyProfile) {
-          const friendship = friends.find(f => f.requester_id === targetId || f.addressee_id === targetId);
-          if (friendship) setFriendStatus(friendship.status as 'pending' | 'accepted');
-        } else {
-          // Входящие заявки мне
-          const incoming = friends.filter(f => f.addressee_id === user.id && f.status === 'pending');
-          setIncomingRequests(incoming);
-        }
-      });
-
-      if (!isMyProfile && targetId) {
-        getBlockedUserIds(user.id).then(blockedIds => {
-          setIsBlocked(blockedIds.includes(targetId));
-        });
-      }
-    }
-
     checkPushSubscription().then(enabled => {
       setPushEnabled(enabled);
       setPushLoading(false);
     });
-  }, [targetId, user?.id, isMyProfile]);
-
-  const handleAddFriend = async () => {
-    if (!user || !targetId) return;
-    const ok = await sendFriendRequest(user.id, targetId);
-    if (ok) setFriendStatus('pending');
-  };
-
-  const handleRespondRequest = async (id: string, status: 'accepted' | 'declined') => {
-    await respondFriendRequest(id, status);
-    setIncomingRequests(prev => prev.filter(req => req.id !== id));
-  };
-
-  const handleToggleBlock = async () => {
-    if (!user || !targetId) return;
-    setBlockLoading(true);
-    if (isBlocked) {
-      await unblockUser(user.id, targetId);
-      setIsBlocked(false);
-      toast.success('Пользователь разблокирован');
-    } else {
-      await blockUser(user.id, targetId);
-      setIsBlocked(true);
-      toast.success('Пользователь заблокирован');
-    }
-    setBlockLoading(false);
-  };
+  }, [userId]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
@@ -204,7 +135,6 @@ export default function Profile() {
   }
 
   const stats = [
-    { label: 'Опыт', value: `${xp} XP`, icon: Star, tone: 'y' },
     { label: 'Дней подряд', value: profile.streak_days || 0, icon: Trophy, tone: 'p' },
     { label: 'Материалов', value: profile.total_materials || 0, icon: BookOpen, tone: 'b' },
     { label: 'Повторений', value: profile.total_reviews || 0, icon: GraduationCap, tone: 'g' },
@@ -227,21 +157,17 @@ export default function Profile() {
               )}
             </div>
 
-            {isMyProfile && (
-              <label className="ac-avatar-edit">
-                {uploadingAvatar ? <Loader2 className="ac-spin" aria-hidden="true" /> : <Camera aria-hidden="true" />}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={handleFileChange}
-                  disabled={uploadingAvatar}
-                  aria-label="Загрузить фото профиля"
-                />
-              </label>
-            )}
-
-            <span className="ac-level-pill">Уровень {levelInfo.level}</span>
+            <label className="ac-avatar-edit">
+              {uploadingAvatar ? <Loader2 className="ac-spin" aria-hidden="true" /> : <Camera aria-hidden="true" />}
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={handleFileChange}
+                disabled={uploadingAvatar}
+                aria-label="Загрузить фото профиля"
+              />
+            </label>
           </div>
 
           <div className="ac-who">
@@ -260,23 +186,6 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="ac-chips">
-              <button
-                type="button"
-                className="ac-chip ac-chip--id"
-                onClick={() => {
-                  if (profile.public_id) {
-                    navigator.clipboard.writeText(profile.public_id);
-                    toast.success('ID скопирован!');
-                  }
-                }}
-                title="Нажмите, чтобы скопировать ID"
-              >
-                ID: #{profile.public_id || 'загрузка...'}
-              </button>
-              {profile.role === 'teacher' && <span className="ac-chip ac-chip--teacher">Преподаватель</span>}
-            </div>
-
             {profile.university && (
               <p className="ac-uni">
                 <GraduationCap aria-hidden="true" />
@@ -284,50 +193,17 @@ export default function Profile() {
               </p>
             )}
 
-            {!isMyProfile ? (
-              <div className="ac-actions">
-                {friendStatus === 'none' && (
-                  <button type="button" onClick={handleAddFriend} className="ac-btn ac-btn--blue">
-                    <UserPlus aria-hidden="true" /> Добавить в друзья
-                  </button>
-                )}
-                {friendStatus === 'pending' && (
-                  <button type="button" disabled className="ac-btn ac-btn--quiet">
-                    <Check aria-hidden="true" /> Заявка отправлена
-                  </button>
-                )}
-                {friendStatus === 'accepted' && (
-                  <button type="button" className="ac-btn ac-btn--ok">
-                    <Check aria-hidden="true" /> В друзьях
-                  </button>
-                )}
-
-                <button type="button" onClick={() => navigate(`/messages/${targetId}`)} className="ac-btn">
-                  <MessageSquare aria-hidden="true" /> Написать
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleToggleBlock}
-                  disabled={blockLoading}
-                  className={`ac-btn ${isBlocked ? 'ac-btn--ink' : 'ac-btn--danger'}`}
-                >
-                  <Ban aria-hidden="true" /> {isBlocked ? 'Разблокировать' : 'Заблокировать'}
-                </button>
-              </div>
-            ) : (
-              <div className="ac-actions">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={`ac-btn ${isEditing ? 'ac-btn--danger' : ''}`}
-                  aria-expanded={isEditing}
-                >
-                  {isEditing ? <X aria-hidden="true" /> : <Edit3 aria-hidden="true" />}
-                  {isEditing ? 'Отменить редактирование' : 'Редактировать профиль'}
-                </button>
-              </div>
-            )}
+            <div className="ac-actions">
+              <button
+                type="button"
+                onClick={() => setIsEditing(!isEditing)}
+                className={`ac-btn ${isEditing ? 'ac-btn--danger' : ''}`}
+                aria-expanded={isEditing}
+              >
+                {isEditing ? <X aria-hidden="true" /> : <Edit3 aria-hidden="true" />}
+                {isEditing ? 'Отменить редактирование' : 'Редактировать профиль'}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -365,18 +241,6 @@ export default function Profile() {
                 placeholder="Факультет, направление и учебные интересы"
               />
             </div>
-            <div className="ac-field ac-field--half">
-              <span className="ac-label">Роль в системе</span>
-              <CustomSelect
-                value={editForm.role}
-                onChange={val => setEditForm({...editForm, role: val})}
-                className="ac-input ac-select"
-                options={[
-                  { value: 'student', label: 'Студент' },
-                  { value: 'teacher', label: 'Преподаватель' }
-                ]}
-              />
-            </div>
             <div className="ac-form-end">
               <button type="button" onClick={handleSaveProfile} className="sf-primary">Сохранить</button>
             </div>
@@ -402,62 +266,28 @@ export default function Profile() {
         ))}
       </div>
 
-      <p className="ac-levelline">
-        Уровень {levelInfo.level}: {levelInfo.name}. До следующего уровня — {Math.max(0, levelInfo.nextXP - levelInfo.currentXP)} XP.
-      </p>
-
-      {isMyProfile && (
-        <section className="ac-card ac-rise" aria-labelledby="profile-push-title">
-          <h2 id="profile-push-title" className="ac-card-h">Уведомления</h2>
-          <div className="ac-row">
-            <span className={`ac-row-i ${pushEnabled ? 'ac-row-i--on' : ''}`} aria-hidden="true">
-              {pushEnabled ? <Bell /> : <BellOff />}
-            </span>
-            <div className="ac-row-text">
-              <p className="ac-row-t">Напоминания о повторении</p>
-              <p className="ac-row-d">Meldy сообщит, когда карточки будут готовы к повторению.</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleTogglePush}
-              disabled={pushLoading || pushEnabled}
-              className={`ac-btn ac-row-btn ${pushLoading ? 'ac-btn--quiet' : pushEnabled ? 'ac-btn--ok' : 'ac-btn--blue'}`}
-            >
-              {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
-            </button>
+      <section className="ac-card ac-rise" aria-labelledby="profile-push-title">
+        <h2 id="profile-push-title" className="ac-card-h">Уведомления</h2>
+        <div className="ac-row">
+          <span className={`ac-row-i ${pushEnabled ? 'ac-row-i--on' : ''}`} aria-hidden="true">
+            {pushEnabled ? <Bell /> : <BellOff />}
+          </span>
+          <div className="ac-row-text">
+            <p className="ac-row-t">Напоминания о повторении</p>
+            <p className="ac-row-d">Meldy сообщит, когда карточки будут готовы к повторению.</p>
           </div>
-        </section>
-      )}
+          <button
+            type="button"
+            onClick={handleTogglePush}
+            disabled={pushLoading || pushEnabled}
+            className={`ac-btn ac-row-btn ${pushLoading ? 'ac-btn--quiet' : pushEnabled ? 'ac-btn--ok' : 'ac-btn--blue'}`}
+          >
+            {pushLoading ? 'Загрузка...' : pushEnabled ? 'Включено' : 'Включить'}
+          </button>
+        </div>
+      </section>
 
-      {isMyProfile && incomingRequests.length > 0 && (
-        <section className="ac-card ac-rise" aria-labelledby="profile-requests-title">
-          <h2 id="profile-requests-title" className="ac-card-h">Заявки в друзья · {incomingRequests.length}</h2>
-          <ul className="ac-requests">
-            {incomingRequests.map(req => (
-              <li key={req.id} className="ac-request">
-                <div className="ac-request-who">
-                  {req.friend_avatar ? (
-                    <img src={req.friend_avatar} className="ac-request-ava" alt="avatar" />
-                  ) : (
-                    <UserCircle2 className="ac-request-ava ac-request-ava--none" aria-hidden="true" />
-                  )}
-                  <span className="ac-request-name">{req.friend_name}</span>
-                </div>
-                <div className="ac-request-acts">
-                  <button type="button" onClick={() => handleRespondRequest(req.id, 'accepted')} className="ac-round ac-round--ok" title="Принять" aria-label="Принять">
-                    <UserCheck aria-hidden="true" />
-                  </button>
-                  <button type="button" onClick={() => handleRespondRequest(req.id, 'declined')} className="ac-round ac-round--no" title="Отклонить" aria-label="Отклонить">
-                    <UserX aria-hidden="true" />
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {isMyProfile && <p className="ac-levelline">{TELEMETRY_NOTE}</p>}
+      <p className="ac-levelline">{TELEMETRY_NOTE}</p>
 
       {cropImageSrc && (
         <ImageCropper

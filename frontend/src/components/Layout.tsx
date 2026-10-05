@@ -1,9 +1,8 @@
-import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, GraduationCap, Repeat, Sun, TrendingUp, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, type UserProfile } from '../api/social';
-import { getUnreadCount, subscribeToNotifications, getNotifications, markAllRead, type Notification, getUnreadDMsGrouped } from '../api/chat';
 import { ErrorBoundary } from './ErrorBoundary';
 import { useTheme } from '../contexts/ThemeProvider';
 import { AI_USAGE_EVENT, checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
@@ -81,11 +80,6 @@ export function backLinkFor(pathname: string): { to: string; label: string } | n
   return null;
 }
 
-/** Screens built as one full-height pane (they size themselves with h-full): the main area gets a height. */
-function isPanePath(pathname: string): boolean {
-  return /^\/(messages|chat)(\/|$)/.test(pathname);
-}
-
 /** What the limit line shows: never below zero; unknown when the counter could not be read. */
 export function quotaRemaining(used: number | null, limit: number = FREE_DAILY_LIMIT): number | null {
   if (used === null || !Number.isFinite(used)) return null;
@@ -161,7 +155,7 @@ function useDueCount(userId: string | undefined, pathname: string): number | nul
     if (!userId) return;
     const from = previousPath.current;
     previousPath.current = pathname;
-    const changedThings = /^\/(review|mistakes|study-session)(\/|$)|^\/exams\/[^/]+\/ticket/.test(from);
+    const changedThings = /^\/(review|mistakes)(\/|$)|^\/exams\/[^/]+\/ticket/.test(from);
     const fresh = Date.now() - lastFetch.current < 15_000;
     if (lastFetch.current > 0 && fresh && !changedThings) return;
     lastFetch.current = Date.now();
@@ -192,12 +186,6 @@ function NavCount({ value }: { value: number | null }) {
   );
 }
 
-function notificationDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-}
-
 const THEME_CHOICES: Array<{ value: 'light' | 'dark' | 'system'; label: string }> = [
   { value: 'light', label: 'Светлая' },
   { value: 'dark', label: 'Тёмная' },
@@ -209,10 +197,8 @@ export default function Layout() {
   const { pathname } = useLocation();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const seenInProfile = profile ? Boolean(profile.onboarding_status?.[GUIDE_PROFILE_KEY]) : null;
-  // A student's first run is the guide as a blocking dialog; a teacher gets the corner card once.
-  const mandatoryFirstRun = profile ? profile.role !== 'teacher' : null;
   return (
-    <GuideProvider userId={user?.id} seenInProfile={seenInProfile} mandatoryFirstRun={mandatoryFirstRun} shellHidden={isRoomPath(pathname)}>
+    <GuideProvider userId={user?.id} seenInProfile={seenInProfile} shellHidden={isRoomPath(pathname)}>
       <Shell profile={profile} setProfile={setProfile} />
     </GuideProvider>
   );
@@ -221,16 +207,11 @@ export default function Layout() {
 function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfile: (profile: UserProfile) => void }) {
   const { user, signOut } = useAuth();
   const guide = useGuide();
-  const navigate = useNavigate();
   const location = useLocation();
   const email = user?.email ?? '';
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '';
   const initial = name ? name[0].toUpperCase() : '?';
 
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadDMs, setUnreadDMs] = useState(0);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[] | null>(null);
   /** Units used today; null while unknown (not read yet, or the counter could not be read). */
   const [usedTokens, setUsedTokens] = useState<number | null>(null);
   // The account's day as the server counts it: 100, or 1000 with PRO (ai_quota_status).
@@ -299,10 +280,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   }, [blocked, tabsShown]);
 
   useEffect(() => {
-    if (!menuOpen) {
-      setNotificationsOpen(false);
-      return;
-    }
+    if (!menuOpen) return;
     menuRef.current?.focus();
     const onPointer = (event: PointerEvent | MouseEvent) => {
       const target = event.target as Node | null;
@@ -331,17 +309,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     fetchProfile();
     window.addEventListener('profile_updated', fetchProfile);
 
-    const fetchUnread = () => {
-      getUnreadCount(userId).then(setUnreadCount).catch(() => undefined);
-      getUnreadDMsGrouped(userId)
-        .then(counts => setUnreadDMs(Object.values(counts).reduce((a, b) => a + b, 0)))
-        .catch(() => undefined);
-    };
-    fetchUnread();
-    window.addEventListener('notification_read', fetchUnread);
-    // New notifications only refresh the counts: the pop-ups led to hidden sections (decision 2026-10-02).
-    const unsub = subscribeToNotifications(userId, fetchUnread);
-
     let tokensRequest = 0;
     const fetchTokens = () => {
       const request = ++tokensRequest;
@@ -363,35 +330,9 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       tokensRequest += 1;
       refetchTokensRef.current = null;
       window.removeEventListener('profile_updated', fetchProfile);
-      window.removeEventListener('notification_read', fetchUnread);
       window.removeEventListener(AI_USAGE_EVENT, fetchTokens);
-      unsub();
     };
   }, [user?.id]);
-
-  const toggleNotifications = async () => {
-    if (!user) return;
-    const opening = !notificationsOpen;
-    setNotificationsOpen(opening);
-    if (!opening) return;
-    try {
-      const list = await getNotifications(user.id);
-      setNotifications(list);
-      if (unreadCount > 0) {
-        await markAllRead(user.id);
-        setUnreadCount(0);
-        setNotifications(prev => (prev ?? []).map(n => ({ ...n, is_read: true })));
-      }
-    } catch {
-      setNotifications([]);
-    }
-  };
-
-  const openNotification = (item: Notification) => {
-    setMenuOpen(false);
-    if (item.type === 'message') navigate(item.related_id ? `/messages/${item.related_id}` : '/messages');
-    else if (item.type === 'friend_request') navigate('/profile');
-  };
 
   if (roomMode) {
     return (
@@ -409,9 +350,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route === to ? '' : undefined);
 
   const avatarUrl = profile?.avatar_url;
-  const isTeacher = profile?.role === 'teacher';
   const back = backLinkFor(location.pathname);
-  const pane = isPanePath(location.pathname);
   const onAnalyze = location.pathname.startsWith('/analyze');
   const current = sectionOf(location.pathname);
 
@@ -432,15 +371,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       >
         Как пользоваться Meldy
       </button>
-      {isTeacher ? (
-        <>
-          <Link className="sf-acct-item" to="/teacher">Мои группы</Link>
-          <Link className="sf-acct-item" to="/messages">
-            <span>Диалоги и друзья</span>
-            <NavCount value={unreadDMs} />
-          </Link>
-        </>
-      ) : null}
       <div className="sf-acct-sep" />
       <div className="sf-acct-row" role="group" aria-label="Тема">
         <span className="sf-acct-label">Тема</span>
@@ -464,31 +394,6 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         <button type="button" className="sf-acct-item sf-acct-pro" onClick={openPro}>
           Что даёт PRO
         </button>
-      ) : null}
-      <button type="button" className="sf-acct-item" aria-expanded={notificationsOpen} onClick={() => void toggleNotifications()}>
-        <span>Уведомления</span>
-        <NavCount value={unreadCount} />
-      </button>
-      {notificationsOpen ? (
-        <div className="sf-acct-notes">
-          {notifications === null ? (
-            <p className="sf-acct-quiet">Загружаем…</p>
-          ) : notifications.length === 0 ? (
-            <p className="sf-acct-quiet">Новых уведомлений нет</p>
-          ) : (
-            <ul>
-              {notifications.map((item) => (
-                <li key={item.id}>
-                  <button type="button" className="sf-acct-note" onClick={() => openNotification(item)}>
-                    <span className="sf-acct-note-t">{item.title}</span>
-                    {item.body ? <span className="sf-acct-quiet">{item.body}</span> : null}
-                    <span className="sf-acct-quiet">{notificationDate(item.created_at)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       ) : null}
       {showInstall ? (
         <button type="button" className="sf-acct-item" onClick={() => void handleInstallClick()}>
@@ -565,14 +470,13 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               <span className="sf-me" aria-hidden="true">
                 {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
               </span>
-              {unreadCount > 0 ? <span className="sr-only">, есть новые уведомления</span> : null}
             </button>
           </div>
           {accountMenu}
         </div>
       </header>
 
-      <main ref={mainRef} className="sf-main" data-pane={pane ? '' : undefined}>
+      <main ref={mainRef} className="sf-main">
         <ErrorBoundary>
           <Suspense fallback={<RouteLoading fullScreen={false} />}>
             <Outlet />

@@ -5,8 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { useSound } from '../hooks/useSound';
-import { addXP } from '../api/quests';
-import confetti from 'canvas-confetti';
 import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
@@ -59,7 +57,7 @@ export default function MistakeDiary() {
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { playFlipSound, playSuccessSound, playErrorSound, playXpSound } = useSound();
+  const { playFlipSound, playSuccessSound, playErrorSound } = useSound();
 
   // Состояния для AI-Работы над ошибками
   const [isPracticing, setIsPracticing] = useState(false);
@@ -74,10 +72,8 @@ export default function MistakeDiary() {
   const [practiceFinished, setPracticeFinished] = useState(false);
   const [finishingPractice, setFinishingPractice] = useState(false);
   const [practiceSaveError, setPracticeSaveError] = useState(false);
-  const [practiceXpError, setPracticeXpError] = useState(false);
   const [practiceResolvedCount, setPracticeResolvedCount] = useState(0);
   const [practiceMistakeCount, setPracticeMistakeCount] = useState(0);
-  const [practiceXpAwarded, setPracticeXpAwarded] = useState(false);
   const [practiceError, setPracticeError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   /**
@@ -147,10 +143,8 @@ export default function MistakeDiary() {
       setPracticeFinished(false);
       setFinishingPractice(false);
       setPracticeSaveError(false);
-      setPracticeXpError(false);
       setPracticeResolvedCount(0);
       setPracticeMistakeCount(toPractice.length);
-      setPracticeXpAwarded(false);
     } catch (e) {
       console.error('Mistakes practice failed:', e);
       setPracticeError(PRACTICE_FAILED);
@@ -187,7 +181,6 @@ export default function MistakeDiary() {
         correctIndexes.add(currentQIndex);
       }
       const finalCorrect = correctIndexes.size;
-      const finalRate = finalCorrect / practiceQuestions.length;
       setFinalCorrectCount(finalCorrect);
 
       const questionIndexesByMistake = new Map<string, number[]>();
@@ -219,17 +212,6 @@ export default function MistakeDiary() {
           : mistake));
         setPracticeResolvedCount(resolvedIds.length);
         playSuccessSound();
-      }
-
-      if (user && resolvedIds.length > 0 && finalRate >= 0.6) {
-        try {
-          await addXP(user.id, 50);
-          setPracticeXpAwarded(true);
-          setTimeout(() => playXpSound(), 800);
-          confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
-        } catch {
-          setPracticeXpError(true);
-        }
       }
 
       setPracticeFinished(true);
@@ -385,7 +367,7 @@ export default function MistakeDiary() {
                 {practiceSaveError ? (
                   <div role="alert">
                     <h2 className="md-h2">Не удалось сохранить прогресс</h2>
-                    <p className="md-text">Изменения не сохранены. Ошибки остались открытыми, опыт не начислен.</p>
+                    <p className="md-text">Изменения не сохранены. Ошибки остались открытыми.</p>
                   </div>
                 ) : (
                   <div>
@@ -396,12 +378,6 @@ export default function MistakeDiary() {
                     <p className="md-text">
                       Исправлено ошибок: {practiceResolvedCount} из {practiceMistakeCount}. Остальные остаются открытыми.
                     </p>
-                    {practiceXpAwarded && <p className="md-pill" data-tone="green">Получено +50 XP</p>}
-                    {practiceXpError && (
-                      <p role="status" className="md-text md-warn">
-                        Ошибки сохранены, но XP начислить не удалось.
-                      </p>
-                    )}
                   </div>
                 )}
 

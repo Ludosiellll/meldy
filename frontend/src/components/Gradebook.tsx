@@ -7,7 +7,6 @@ import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { CustomSelect } from './CustomSelect';
 import { AI_LIMIT_MESSAGE, notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
-import { updateQuestProgress } from '../api/quests';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
@@ -148,7 +147,6 @@ export default function Gradebook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
       setShowAddGrade(false);
-      if (user) updateQuestProgress(user.id, 'grade', 1);
       toast.success('Оценка сохранена!');
     },
     onError: () => toast.error('Не удалось сохранить оценку. Проверьте данные и попробуйте ещё раз.'),
@@ -336,7 +334,6 @@ export default function Gradebook() {
 
         queryClient.invalidateQueries({ queryKey: ['academic_grades'] });
         queryClient.invalidateQueries({ queryKey: ['academic_subjects'] });
-        updateQuestProgress(user!.id, 'grade', rowsToSave.length);
         toast.success(`Добавлено оценок: ${rowsToSave.length}.`);
       }
     } catch (err) {
