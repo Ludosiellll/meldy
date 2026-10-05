@@ -569,7 +569,8 @@ def test_insert_that_returns_no_row_reselects_the_stored_row(api):
         "material_id": material_id, "material_ids": [material_id], "question": ECON_QUESTION,
         "rubric": stored_rubric, "model": "", "created_at": "2026-10-03T11:00:00+00:00",
     })
-    api.fake.hidden_rubric_reads = 1  # параллельный запрос сохранил строку после нашей проверки кэша
+    # Параллельный запрос сохранил строку после обеих наших проверок кэша (до задачи и перед списанием).
+    api.fake.hidden_rubric_reads = 2
     api.model.answer(rubric_answer())
     response = post_rubric(api, exam_id, question_id)
     assert response.status_code == 200
@@ -577,6 +578,29 @@ def test_insert_that_returns_no_row_reselects_the_stored_row(api):
     assert body["rubric_id"] == "stored-rubric-id" and body["rubric"] == stored_rubric
     assert body["saved"] is True and body["cached"] is True
     assert len(api.fake.tables["oral_rubrics"]) == 1 and len(api.model.calls) == 1
+
+
+def test_a_rubric_saved_while_the_task_ran_is_read_before_the_charge_and_never_built(api):
+    """Строка появилась между проверкой кэша запроса и общей задачей (вторая вкладка): ответ тот же, без модели."""
+    exam_id, question_id, material_id = econ_exam(api.fake)
+    question = api.fake.row("exam_questions", question_id)
+    stored_rubric = {"v": 1, "question": ECON_QUESTION, "coverage": "full", "coverage_note": "", "fragments_considered": 6,
+                     "fragments_total": 6, "materials": [{"key": "M1", "material_id": material_id, "title": "Денежный рынок"}],
+                     "points": [{"id": "p1", "title": "Сохранено раньше"}], "nearest": []}
+    api.fake.tables["oral_rubrics"].append({
+        "id": "stored-rubric-id", "user_id": "user-a", "question_hash": question["question_hash"],
+        "source_key": oral.rubric_key(question, []), "rubric_version": 1,
+        "material_id": material_id, "material_ids": [material_id], "question": ECON_QUESTION,
+        "rubric": stored_rubric, "model": "", "created_at": "2026-10-03T11:00:00+00:00",
+    })
+    api.fake.hidden_rubric_reads = 1  # проверка запроса строки ещё не видит, задача — уже видит
+    response = post_rubric(api, exam_id, question_id)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"rubric_id": "stored-rubric-id", "cached": True, "saved": True,
+                               "question_hash": question["question_hash"], "question": ECON_QUESTION,
+                               "rubric": stored_rubric}
+    assert api.model.calls == [] and "POST" not in {r.method for r in api.fake.requests}
+    assert api.fake.paths().count("oral_rubrics") == 2
 
 
 def test_force_rebuilds_without_the_model_cache_and_patches_the_stored_row(api):

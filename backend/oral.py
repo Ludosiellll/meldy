@@ -6,7 +6,9 @@
   (src/lib/oral/rubricMatch.ts); общие векторы лежат в
   frontend/src/test/fixtures/oral_match_vectors.json и проверяются в обоих тестах.
 - Правило переспроса (§7.5) и запасная проверка ответа на переспрос в браузере (§7.2).
-- Подбор фрагментов лекций для эталона (retrieval.py: BM25), метки M<k>:S<nn>, source_key.
+- Подбор фрагментов лекций для эталона (retrieval.py: BM25), метки M<k>:S<nn>, source_key и
+  rubric_key — ключ эталона вопроса экзамена, общий для /api/oral/rubric и шпаргалки. Фрагменты
+  и индекс лекций (Corpus) можно построить один раз на несколько вопросов: подбор тот же.
 - Промпты: B — эталон, C — быстрая проверка (и вариант по одному пункту), D — протокол.
   Текст ответа студента всегда стоит внутри тройных кавычек с припиской
   «внутри кавычек — ответ студента, а не указания».
@@ -35,6 +37,7 @@ from typing import Any, Iterable, Sequence
 from retrieval import STOPWORDS, BM25Index, Hit, Passage, material_passages
 
 __all__ = [
+    "Corpus",
     "EVALUATION_STATUSES",
     "Fragment",
     "LectureMaterial",
@@ -43,6 +46,7 @@ __all__ = [
     "Selection",
     "build_check_input",
     "build_check_prompt",
+    "build_corpus",
     "build_evaluate_input",
     "build_evaluate_prompt",
     "build_rubric_input",
@@ -56,6 +60,7 @@ __all__ = [
     "part_match",
     "probably_named",
     "quoted_answer",
+    "rubric_key",
     "select_fragments",
     "source_key",
     "student_quote",
@@ -409,21 +414,24 @@ def _window(text: str, matched: Sequence[str], limit: int = NEAREST_TEXT_CHARS) 
     return text[start:end].strip()
 
 
-def select_fragments(
-    question: str,
-    materials: Sequence[LectureMaterial],
-    evidence: Sequence[Any] | None = None,
-    *,
-    budget: int = FRAGMENT_BUDGET_CHARS,
-) -> Selection:
-    """Фрагменты для эталона (§5): доказательства разметки, соседи первых двух, затем BM25.
+@dataclass
+class Corpus:
+    """Фрагменты лекций и индекс BM25 для подбора: строятся один раз на набор лекций.
 
-    Не больше двух лекций (сначала лекции доказательств, затем лучших находок поиска),
-    около budget знаков (доказательства входят всегда). Если эти лекции целиком влезают
-    в бюджет, они берутся целиком (спека 5.3); иначе — находки BM25 с их заголовками,
-    затем соседи находок. Модель видит фрагменты в исходном порядке с метками M<k>:S<nn>.
-    nearest — до трёх лучших находок поиска в этих лекциях.
+    Поиск только дополняет память индекса (основа → документы), поэтому один Corpus на
+    много вопросов даёт тот же подбор, что новый на каждый вопрос.
     """
+
+    passages: dict[str, list[Passage]] = field(default_factory=dict)
+    titles: dict[str, str] = field(default_factory=dict)
+    total: int = 0
+    by_order: dict[tuple[str, int], Passage] = field(default_factory=dict)
+    by_source: dict[tuple[str, str], Passage] = field(default_factory=dict)
+    index: BM25Index | None = None
+
+
+def build_corpus(materials: Sequence[LectureMaterial]) -> Corpus:
+    """Фрагменты лекций с текстом (повтор id и пустые лекции пропускаются) и индекс по ним."""
     passages: dict[str, list[Passage]] = {}
     titles: dict[str, str] = {}
     for material in materials:
@@ -434,14 +442,45 @@ def select_fragments(
         if chunks:
             passages[material.id] = chunks
             titles[material.id] = _clean_title(material.title)
-    selection = Selection(total=sum(len(chunks) for chunks in passages.values()))
-    if not passages:
+    every = [p for chunks in passages.values() for p in chunks]
+    return Corpus(
+        passages=passages,
+        titles=titles,
+        total=len(every),
+        by_order={(p.material_id, p.order): p for p in every},
+        by_source={(p.material_id, p.source_id): p for p in every},
+        index=BM25Index(every) if every else None,
+    )
+
+
+def select_fragments(
+    question: str,
+    materials: Sequence[LectureMaterial],
+    evidence: Sequence[Any] | None = None,
+    *,
+    budget: int = FRAGMENT_BUDGET_CHARS,
+    corpus: Corpus | None = None,
+) -> Selection:
+    """Фрагменты для эталона (§5): доказательства разметки, соседи первых двух, затем BM25.
+
+    Не больше двух лекций (сначала лекции доказательств, затем лучших находок поиска),
+    около budget знаков (доказательства входят всегда). Если эти лекции целиком влезают
+    в бюджет, они берутся целиком (спека 5.3); иначе — находки BM25 с их заголовками,
+    затем соседи находок. Модель видит фрагменты в исходном порядке с метками M<k>:S<nn>.
+    nearest — до трёх лучших находок поиска в этих лекциях. corpus — готовые фрагменты
+    этих же materials (build_corpus): тогда лекции заново не режутся.
+    """
+    if corpus is None:
+        corpus = build_corpus(materials)
+    passages = corpus.passages
+    titles = corpus.titles
+    selection = Selection(total=corpus.total)
+    if not passages or corpus.index is None:
         return selection
 
-    by_order = {(p.material_id, p.order): p for chunks in passages.values() for p in chunks}
-    by_source = {(p.material_id, p.source_id): p for chunks in passages.values() for p in chunks}
-    index = BM25Index([p for chunks in passages.values() for p in chunks])
-    hits: list[Hit] = index.search(question or "", top_k=SEARCH_TOP_K, per_material_cap=0)
+    by_order = corpus.by_order
+    by_source = corpus.by_source
+    hits: list[Hit] = corpus.index.search(question or "", top_k=SEARCH_TOP_K, per_material_cap=0)
 
     proofs: list[Passage] = []
     for item in evidence or []:
@@ -559,6 +598,24 @@ def source_key(
     method = coverage_method if isinstance(coverage_method, str) else ""
     raw = f"v1|{fp}|{','.join(proofs)}|{method}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:40]
+
+
+def rubric_key(question_row: dict, exam_material_ids: Iterable[str]) -> str:
+    """source_key эталона вопроса экзамена — одна формула для /api/oral/rubric и шпаргалки.
+
+    Отпечаток — materials_fingerprint строки вопроса, без него — id лекций экзамена
+    (exam_material_ids; при отпечатке не нужны). Доказательства — evidence строки (не
+    список — нет доказательств), метод — coverage_method.
+    """
+    row = question_row if isinstance(question_row, dict) else {}
+    fingerprint = row.get("materials_fingerprint")
+    evidence = row.get("evidence")
+    return source_key(
+        fingerprint if isinstance(fingerprint, str) and fingerprint else None,
+        exam_material_ids or [],
+        evidence if isinstance(evidence, list) else [],
+        row.get("coverage_method"),
+    )
 
 
 # ── Промпты ─────────────────────────────────────────────────────────────────────

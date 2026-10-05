@@ -11,9 +11,12 @@ oral_rubrics (кэш по пользователю, question_hash, source_key, �
 экзамена, подбор фрагментов, модель (температура 0, 1800 токенов, JSON, thinking low,
 30 с), проверка каждой цитаты кодом. Меньше трёх проверенных пунктов — один повтор, затем
 422 rubric_unverifiable. Вопрос, которого по разметке нет в лекциях, — 409 not_in_lectures
-без модели. Два одновременных запроса одного эталона (розыгрыш билета и экран билета)
-делят один вызов модели. Запись — токеном пользователя (RLS), вставка с пропуском
-дубликата и перечитыванием сохранённой строки; force перезаписывает сохранённую строку.
+без модели. Два одновременных запроса одного эталона (розыгрыш билета, экран билета,
+шпаргалка) делят один вызов модели; общая задача ещё раз читает кэш прямо перед списанием,
+так что эталон, сохранённый тем временем, не оплачивается второй раз. Ключ эталона —
+oral.rubric_key (тот же у шпаргалки, oral_sheet.py). Запись — токеном пользователя (RLS),
+вставка с пропуском дубликата и перечитыванием сохранённой строки; force перезаписывает
+сохранённую строку.
 
 POST /api/oral/check (40/мин). Быстрая проверка (fast, 200 токенов, бюджет
 ORAL_CHECK_TIMEOUT_SECONDS = 2,5 с → 504). Статусы вне перечня и пропущенные пункты —
@@ -337,6 +340,24 @@ class RubricJob:
         return evidence if isinstance(evidence, list) else []
 
 
+@dataclass
+class ExamLectures:
+    """Лекции экзамена, загруженные один раз на задачу шпаргалки: id по порядку, тексты, фрагменты с индексом."""
+
+    material_ids: list[str]
+    materials: list[oral.LectureMaterial]
+    corpus: oral.Corpus
+
+
+@dataclass
+class BuiltRubric:
+    """Итог общей задачи эталона: ответ /api/oral/rubric, created_at строки и списание (None — без списания)."""
+
+    body: dict
+    created_at: str | None = None
+    charge: quota.Charge | None = None
+
+
 # Один вызов модели на эталон: (пользователь, question_hash, source_key, режим) → задача.
 _flights: dict[tuple, asyncio.Task] = {}
 
@@ -348,7 +369,7 @@ def _flight_done(key: tuple, task: asyncio.Task) -> None:
         task.exception()  # исключение получат ожидающие; здесь только помечаем его прочитанным
 
 
-async def _single_flight(key: tuple, factory: Callable[[], Awaitable[dict]]) -> dict:
+async def _single_flight(key: tuple, factory: Callable[[], Awaitable[Any]]) -> Any:
     """Ждать общую задачу ключа или начать её. Ушедший клиент задачу не отменяет."""
     loop = asyncio.get_running_loop()
     task = _flights.get(key)
@@ -416,6 +437,13 @@ async def _load_materials(db: SupabaseRest, material_ids: list[str]) -> list[ora
     return materials
 
 
+async def load_exam_lectures(db: SupabaseRest, material_ids: list[str]) -> ExamLectures:
+    """Тексты лекций (порядок material_ids) и их фрагменты с индексом; резка — в потоке-исполнителе."""
+    materials = await _load_materials(db, material_ids) if material_ids else []
+    corpus = await asyncio.to_thread(oral.build_corpus, materials)
+    return ExamLectures(list(material_ids), materials, corpus)
+
+
 async def _stored_rubric(db: SupabaseRest, job: RubricJob) -> dict | None:
     params = {
         "select": _RUBRIC_COLUMNS,
@@ -463,8 +491,8 @@ async def _rubric_from_model(selection: oral.Selection, question: str, *, use_ca
 
 async def _store_rubric(
     db: SupabaseRest, job: RubricJob, rubric: dict, model: str, selection: oral.Selection
-) -> tuple[str | None, dict, bool, bool]:
-    """(rubric_id, эталон, saved, cached). Сбой записи — saved false, эталон всё равно отдаётся."""
+) -> tuple[str | None, dict, bool, bool, str | None]:
+    """(rubric_id, эталон, saved, cached, created_at строки). Сбой записи — saved false, эталон всё равно отдаётся."""
     material_ids = [material["material_id"] for material in selection.materials]
     values = {
         "question_hash": job.question_hash,
@@ -482,63 +510,90 @@ async def _store_rubric(
         if job.force:
             stored = await _stored_rubric(db, job)
             if stored is not None:
+                built_at = datetime.now(timezone.utc).isoformat()
                 rows = await db.update(
                     "oral_rubrics",
-                    {"id": f"eq.{stored['id']}", "select": "id"},
+                    {"id": f"eq.{stored['id']}", "select": "id,created_at"},
                     {
                         "rubric": rubric,
                         "model": model,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": built_at,
                         "material_id": material_ids[0],
                         "material_ids": material_ids,
                         "question": job.question_text,
                     },
                     require_rows=True,
                 )
-                return str(rows[0].get("id") or stored["id"]), rubric, True, False
+                return str(rows[0].get("id") or stored["id"]), rubric, True, False, _created_at(rows[0]) or built_at
         rows = await db.insert("oral_rubrics", values, on_conflict=RUBRIC_CONFLICT, ignore_duplicates=True)
         if rows and rows[0].get("id"):
-            return str(rows[0]["id"]), rubric, True, False
+            return str(rows[0]["id"]), rubric, True, False, _created_at(rows[0])
         # Такой эталон уже сохранил параллельный запрос: отдаём сохранённую строку, а не свою копию.
         stored = await _stored_rubric(db, job)
         if stored is not None and stored.get("id") and _usable_rubric(stored.get("rubric")):
-            return str(stored["id"]), stored["rubric"], True, True
+            return str(stored["id"]), stored["rubric"], True, True, _created_at(stored)
     except SupabaseRestError as exc:
         print(f"Oral rubric save failed: {exc.status} {exc.code or ''}".rstrip())
-    return None, rubric, False, False
+    return None, rubric, False, False, None
 
 
-async def _build_rubric(job: RubricJob) -> dict:
+def _created_at(row: Any) -> str | None:
+    value = row.get("created_at") if isinstance(row, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
+async def _build_rubric(job: RubricJob, lectures: ExamLectures | None = None) -> BuiltRubric:
+    """Общая задача эталона. lectures — лекции экзамена, уже загруженные задачей шпаргалки
+    (их фрагменты режутся один раз на все вопросы); без них — чтение экзамена и лекций."""
     async with SupabaseRest(job.token) as db:
-        try:
-            if job.material_ids is None:
-                exam, material_ids = await asyncio.gather(
-                    db.select_one("exams", {"select": "id", "id": f"eq.{job.exam_id}"}),
-                    _exam_material_ids(db, job.exam_id),
-                )
-            else:
-                exam = await db.select_one("exams", {"select": "id", "id": f"eq.{job.exam_id}"})
-                material_ids = job.material_ids
-            if exam is None:
-                raise HTTPException(status_code=404, detail=QUESTION_NOT_FOUND_DETAIL)
-            materials = await _load_materials(db, material_ids) if material_ids else []
-        except SupabaseRestError as exc:
-            raise _read_error(exc) from None
+        corpus: oral.Corpus | None = None
+        if lectures is not None:
+            material_ids, materials, corpus = lectures.material_ids, lectures.materials, lectures.corpus
+        else:
+            try:
+                if job.material_ids is None:
+                    exam, material_ids = await asyncio.gather(
+                        db.select_one("exams", {"select": "id", "id": f"eq.{job.exam_id}"}),
+                        _exam_material_ids(db, job.exam_id),
+                    )
+                else:
+                    exam = await db.select_one("exams", {"select": "id", "id": f"eq.{job.exam_id}"})
+                    material_ids = job.material_ids
+                if exam is None:
+                    raise HTTPException(status_code=404, detail=QUESTION_NOT_FOUND_DETAIL)
+                materials = await _load_materials(db, material_ids) if material_ids else []
+            except SupabaseRestError as exc:
+                raise _read_error(exc) from None
         if not material_ids:
             raise AIError(422, "no_lectures", NO_LECTURES_DETAIL)
         if not materials:
             raise AIError(422, "no_text", NO_TEXT_DETAIL)
-        selection = await asyncio.to_thread(oral.select_fragments, job.question_text, materials, job.evidence)
+        selection = await asyncio.to_thread(
+            oral.select_fragments, job.question_text, materials, job.evidence, corpus=corpus
+        )
         if not selection.fragments or not selection.materials:
             # Без общих слов с вопросом берётся начало первой лекции, так что пусто только без текста.
             raise AIError(422, "no_text", NO_TEXT_DETAIL)
+        if not job.force:
+            # Эталон мог сохраниться, пока шла эта задача (вторая вкладка, розыгрыш билета, шпаргалка):
+            # читаем кэш прямо перед списанием, чтобы не платить за него второй раз.
+            try:
+                stored = await _stored_rubric(db, job)
+            except SupabaseRestError as exc:
+                raise _read_error(exc) from None
+            if stored is not None and stored.get("id") and _usable_rubric(stored.get("rubric")):
+                body = _rubric_response(str(stored["id"]), stored["rubric"], cached=True, saved=True, job=job)
+                return BuiltRubric(body, _created_at(stored))
+            if stored is not None:
+                job.force = True  # испорченная строка кэша: собрать заново и перезаписать её
         # Новые пункты ответа стоят AI_COSTS["answerPoints"] (сохранённые — бесплатно). Списание здесь,
         # в общей задаче: два одновременных запроса одного эталона платят один раз.
         charge = await quota.reserve(job.token, "answerPoints", AI_COSTS["answerPoints"])
         async with quota.refund_on_failure(charge):
             rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
-        rubric_id, rubric, saved, cached = await _store_rubric(db, job, rubric, model, selection)
-        return _rubric_response(rubric_id, rubric, cached=cached, saved=saved, job=job)
+        rubric_id, rubric, saved, cached, created_at = await _store_rubric(db, job, rubric, model, selection)
+        body = _rubric_response(rubric_id, rubric, cached=cached, saved=saved, job=job)
+        return BuiltRubric(body, created_at, charge)
 
 
 @router.post("/api/oral/rubric")
@@ -575,13 +630,12 @@ async def oral_rubric(request: Request):
                 material_ids = await _exam_material_ids(db, exam_id)
                 if not material_ids:
                     raise AIError(422, "no_lectures", NO_LECTURES_DETAIL)
-            evidence = question.get("evidence") if isinstance(question.get("evidence"), list) else []
             job = RubricJob(
                 token=token,
                 user_id=user_id,
                 exam_id=exam_id,
                 question=question,
-                key=oral.source_key(fingerprint, material_ids or [], evidence, question.get("coverage_method")),
+                key=oral.rubric_key(question, material_ids or []),
                 material_ids=material_ids,
                 force=force,
             )
@@ -594,9 +648,14 @@ async def oral_rubric(request: Request):
     except SupabaseRestError as exc:
         raise _read_error(exc) from None
 
-    owner = user_id or "token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
-    flight = (owner, job.question_hash, job.key, "force" if job.force else "build")
-    return await _single_flight(flight, lambda: _build_rubric(job))
+    flight = (flight_owner(user_id, token), job.question_hash, job.key, "force" if job.force else "build")
+    built = await _single_flight(flight, lambda: _build_rubric(job))
+    return built.body
+
+
+def flight_owner(user_id: str | None, token: str) -> str:
+    """Владелец общей задачи эталона: пользователь, а без него — отпечаток токена."""
+    return user_id or "token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
 
 
 # ── POST /api/oral/transcribe ───────────────────────────────────────────────────
