@@ -1,4 +1,4 @@
--- Rollback of 20261005120000_pro_demo_purchase.sql. NOT applied by any package or agent; the owner runs it by hand
+-- Rollback of 20261005092819_pro_demo_purchase.sql. NOT applied by any package or agent; the owner runs it by hand
 -- only if the free PRO demo has to go entirely. To close the demo and keep the rest, use the kill switch described
 -- in the migration's header instead.
 -- In one transaction it:

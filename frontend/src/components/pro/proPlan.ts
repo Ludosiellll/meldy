@@ -2,7 +2,7 @@
  * What the PRO window reads and changes in Supabase: the account's plan (profiles.is_pro) and the free
  * demo purchase. There is no payment provider, so «Купить PRO» calls start_pro_demo and PRO is on at
  * once, for free, and the window says so; «Отключить PRO» calls stop_pro_demo (migration
- * 20261005120000_pro_demo_purchase: both act on the caller's own profile row only). The daily AI limit
+ * 20261005092819_pro_demo_purchase: both act on the caller's own profile row only). The daily AI limit
  * follows on the server (100 units, 1000 with PRO); the top line is told to read it again.
  */
 import { supabase } from '../../lib/supabase';

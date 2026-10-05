@@ -1,6 +1,7 @@
 -- pro_demo_purchase
--- Repo file: supabase/migrations/20261005120000_pro_demo_purchase.sql. Written on 2026-10-05; the orchestrator
--- applies it (the package that wrote it did not).
+-- Repo file: supabase/migrations/20261005092819_pro_demo_purchase.sql. Written on 2026-10-05; applied on
+-- 2026-10-05 as version 20261005092819 (contract check supabase/tests/pro_demo_purchase.sql: contract_ok, 0 PRO
+-- flags left without pro_since).
 --
 -- «Купить PRO» in the PRO window (frontend/src/components/pro/ProWindowDialog.tsx) is a demo. There is no payment
 -- provider, so the button switches PRO on for free and at once, and the window says so under the button: «Демо:
@@ -38,7 +39,7 @@
 --
 -- Additive apart from the data fix: a new nullable column, two new functions and their grants; no existing grant,
 -- policy or function is changed. Re-runnable (IF NOT EXISTS, CREATE OR REPLACE; the data fix is idempotent).
--- Rollback: supabase/rollback/20261005120000_pro_demo_purchase_down.sql. Contract check after the apply:
+-- Rollback: supabase/rollback/20261005092819_pro_demo_purchase_down.sql. Contract check after the apply:
 -- supabase/tests/pro_demo_purchase.sql. Local rehearsal (PostgreSQL 16, 2026-10-05: behaviour test passed, contract
 -- green after the apply and with the kill switch, the ai quota contract still green, rollback and re-apply clean):
 -- supabase/tests/local/baseline.sql, supabase/tests/local/ai_quota_baseline.sql, 20261005031722_ai_quota_lockdown.sql

@@ -2,7 +2,7 @@
 -- supabase/tests/local/baseline.sql, supabase/tests/local/ai_quota_baseline.sql (A free, B PRO from the old
 -- self-service toggle), 20261005031722_ai_quota_lockdown.sql (merges the baseline's duplicate day rows, which
 -- 20261004205613 refuses), 20261004205613_ai_quota_server.sql, 20261005031722_ai_quota_lockdown.sql again,
--- `revoke select on public.profiles from anon` (live since 20260924061025), then 20261005120000_pro_demo_purchase.sql
+-- `revoke select on public.profiles from anon` (live since 20260924061025), then 20261005092819_pro_demo_purchase.sql
 -- (twice, to prove it is re-runnable), then this file, then supabase/tests/pro_demo_purchase.sql. C is added here: an
 -- account without a profile row. Runs as role authenticated with request.jwt.claim.sub switching between users, and
 -- as anon. Everything happens in one transaction that rolls back; a failure raises an exception, success prints
