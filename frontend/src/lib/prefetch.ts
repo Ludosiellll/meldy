@@ -126,10 +126,11 @@ export function preloadAfterSignIn(): void {
 /** What a visitor is likely to open next from here. */
 function likelyNext(pathname: string, signedIn: boolean): Loader[] {
   if (signedIn) {
-    // «Повторение» brings the formula renderer (the largest file by far): last, so it never holds up
-    // another section the student opens meanwhile.
-    const [today, exams, lectures, review, progress] = SECTIONS;
-    return [loadLayout, today, exams, lectures, progress, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load(), review];
+    // Not «Повторение»: it brings the formula renderer, whose stylesheet declares the formula fonts.
+    // Fonts declared on a page that has shown make the browser lay out and paint all its text again,
+    // and that late paint would count as the page's largest paint (LCP). It loads when opened.
+    const [today, exams, lectures, , progress] = SECTIONS;
+    return [loadLayout, today, exams, lectures, progress, () => confirmDialogPart.load(), () => proWindowPart.load(), () => guideClipPart.load()];
   }
   if (pathname === '/') return [loadLogin, loadRegister, loadTry];
   // After signing in comes «Сегодня».
