@@ -255,7 +255,7 @@ async def require_authenticated_user(request: Request) -> dict:
 @app.middleware("http")
 async def protect_backend_api(request: Request, call_next):
     """Require a Supabase session for every backend endpoint except health."""
-    if request.method != "OPTIONS" and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+    if request.method != "OPTIONS" and request.url.path.startswith("/api/") and request.url.path not in ("/api/health", "/api/health/deep"):
         try:
             request.state.user = await require_authenticated_user(request)
         except HTTPException as exc:
@@ -327,6 +327,10 @@ async def health():
         gemini_configured=bool(os.getenv("GEMINI_API_KEY", "").strip()),
         ai=LastAnswer(provider=last.get("provider"), model=last.get("model"), at=last.get("at")),
     )
+
+
+from health_deep import router as health_deep_router  # noqa: E402 — GET /api/health/deep, public, cached 10 min
+app.include_router(health_deep_router)
 
 
 # --- Analysis streams -------------------------------------------------------------------

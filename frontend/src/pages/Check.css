@@ -1,0 +1,262 @@
+/* «Проверка перед показом» (/check): one column of white cards under an ink summary card. The language is
+   notes 10_Project/Design_Language_2026-10-04: Onest, large radii, pills with a dot for states, one blue pill. */
+
+.sf-page.ck-page {
+  max-width: calc(920px + 2 * var(--sf-g));
+  --ck-fail-ink: #9b3b17;
+  --ck-fail-soft: #f9e4db;
+  --ck-fail-dot: #d0603a;
+}
+.dark .sf-page.ck-page {
+  --ck-fail-ink: #f0a585;
+  --ck-fail-soft: rgba(227, 154, 116, .16);
+  --ck-fail-dot: #e39a74;
+}
+
+.ck-head { padding-top: 48px; }
+.ck-lede { max-width: 660px; }
+
+/* ---------------------------------------------------------------- the summary: an ink card */
+.ck-summary {
+  --ck-tone: #f4c45b;
+  margin-top: 28px;
+  padding: 32px 36px 30px;
+  border-radius: 40px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  box-shadow: var(--m-card-shadow);
+}
+.ck-summary[data-tone='ready'] { --ck-tone: #8acb97; }
+.ck-summary[data-tone='problems'] { --ck-tone: #f08a63; }
+.ck-summary[data-tone='checking'] { --ck-tone: #8db2f5; }
+/* At night the ink card is light: the dots get their darker shades. */
+.dark .ck-summary { --ck-tone: #b07c0e; }
+.dark .ck-summary[data-tone='ready'] { --ck-tone: #2c8a4f; }
+.dark .ck-summary[data-tone='problems'] { --ck-tone: #c0532c; }
+.dark .ck-summary[data-tone='checking'] { --ck-tone: #2869dd; }
+
+.ck-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  font-size: clamp(30px, 3.2vw, 42px);
+  line-height: 1.08;
+  font-weight: 500;
+  letter-spacing: -.035em;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+.ck-summary-title::before {
+  content: '';
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ck-tone);
+}
+.ck-summary[data-tone='checking'] .ck-summary-title::before { animation: ck-pulse 1.2s var(--m-ease) infinite; }
+.ck-summary-line {
+  margin: 12px 0 0;
+  max-width: 680px;
+  font-size: 18px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--sf-canvas) 80%, transparent);
+}
+.ck-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  margin-top: 26px;
+}
+.ck-summary-hint {
+  max-width: 400px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--sf-canvas) 74%, transparent);
+}
+.ck-summary .sf-primary:focus-visible { outline-color: var(--ck-tone); }
+
+/* ---------------------------------------------------------------- the checks */
+.ck-list {
+  display: grid;
+  gap: 14px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ck-card {
+  padding: 24px 30px 26px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.ck-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.ck-title {
+  margin: 0;
+  min-width: 0;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 500;
+  letter-spacing: -.02em;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
+
+/* The state: a pill with a dot (green works, yellow with a caveat, red a problem, grey not yet). */
+.ck-state {
+  --ck-soft: var(--sf-tint);
+  --ck-ink: var(--sf-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  background: var(--ck-soft);
+  color: var(--ck-ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.ck-state::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ck-state[data-state='ok'] { --ck-soft: var(--m-green-soft); --ck-ink: var(--m-green-ink); }
+.ck-state[data-state='warn'] { --ck-soft: var(--m-yellow-soft); --ck-ink: var(--m-yellow-ink); }
+.ck-state[data-state='fail'] { --ck-soft: var(--ck-fail-soft); --ck-ink: var(--ck-fail-ink); }
+.ck-state[data-state='running'] { --ck-soft: var(--sf-accent-soft); --ck-ink: var(--sf-accent-fg); }
+.ck-state[data-state='running']::before { animation: ck-pulse 1.2s var(--m-ease) infinite; }
+
+.ck-text {
+  margin: 10px 0 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
+.ck-fix {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--sf-surface-soft);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
+.ck-fix b { font-weight: 600; }
+.ck-card[data-state='fail'] .ck-fix { background: var(--ck-fail-soft); }
+.ck-card[data-state='warn'] .ck-fix { background: var(--m-yellow-soft); }
+
+/* What each service on the server answered (the AI card). */
+.ck-rows {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ck-rows li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
+.ck-rows li::before {
+  content: '';
+  position: absolute;
+  top: .5em;
+  left: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--m-green);
+}
+.ck-rows li[data-ok='false']::before { background: var(--ck-fail-dot); }
+
+/* While the microphone or recognition runs: the level, the seconds left and the words heard. */
+.ck-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 14px 0 0;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+.ck-heard {
+  flex-basis: 100%;
+  font-size: 18px;
+  color: var(--sf-ink);
+  overflow-wrap: anywhere;
+}
+
+.ck-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  margin-top: 18px;
+}
+.ck-actions .sf-secondary:disabled { opacity: .5; cursor: not-allowed; }
+.ck-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-muted);
+}
+
+.ck-foot {
+  margin: 28px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--sf-muted);
+}
+.ck-foot a {
+  color: var(--sf-accent-fg);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+@keyframes ck-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+@media (max-width: 639px) {
+  .ck-head { padding-top: 28px; }
+  .ck-summary { margin-top: 22px; padding: 24px 20px 22px; border-radius: 28px; }
+  .ck-summary-title { font-size: 28px; gap: 12px; }
+  .ck-summary-title::before { width: 13px; height: 13px; }
+  .ck-summary-line { font-size: 17px; }
+  .ck-list { margin-top: 20px; gap: 12px; }
+  .ck-card { padding: 20px 20px 22px; border-radius: 26px; }
+  .ck-title { font-size: 20px; }
+  .ck-text { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-summary[data-tone='checking'] .ck-summary-title::before,
+  .ck-state[data-state='running']::before { animation: none; }
+}
