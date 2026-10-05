@@ -59,7 +59,6 @@ vi.mock('./ProReel', () => ({
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { OPEN_PRO_EVENT, openProWindow } from '../../lib/plans';
 import { ProWindowProvider } from './ProWindow';
-import { DEMO_NOTE } from './ProWindowDialog';
 import { ProDemoClosedError, startProDemo, stopProDemo } from './proPlan';
 
 function Page() {
@@ -143,15 +142,14 @@ describe('the PRO window', () => {
     expect(await within(win).findByText('Сейчас у вас бесплатный тариф: 100 единиц ИИ в день.')).toBeInTheDocument();
   });
 
-  it('sells PRO honestly: «Купить PRO» with the demo line under it — no price, no card, no notify button', async () => {
+  it('sells PRO plainly: «Купить PRO» and nothing under it — no price, no card, no notify button', async () => {
     renderApp();
     act(() => openProWindow('pricing'));
     const win = await screen.findByRole('dialog', { name: 'PRO' });
     const buy = await within(win).findByRole('button', { name: /Купить PRO/ });
     expect(buy).toHaveTextContent('Купить PRO');
-    expect(DEMO_NOTE).toBe('Демо: оплата не подключена — PRO включится бесплатно и сразу.');
-    const note = within(win).getByText(DEMO_NOTE);
-    expect(buy.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The owner took the demo line out (2026-10-05): nothing about a demo or a payment in the window.
+    expect(win.textContent).not.toMatch(/Демо|оплата не подключена/);
     expect(win.textContent).not.toMatch(/₽|руб|оплатить|оформить|карт[аы]|чек|Сообщить|оплата заработает/i);
     expect(win.querySelector('input, select, textarea')).toBeNull();
     expect(db.rpcs).toEqual([]);
@@ -284,7 +282,7 @@ describe('the PRO window', () => {
     });
     expect(within(win).getByRole('alert')).toHaveTextContent('Бесплатное демо PRO закрыто.');
     expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
-    expect(within(win).queryByText(DEMO_NOTE)).toBeNull();
+    expect(win.textContent).not.toMatch(/Демо: оплата/);
     expect(db.track).not.toHaveBeenCalledWith('pro_demo_bought', expect.anything());
   });
 
@@ -357,7 +355,7 @@ describe('the PRO window', () => {
     renderApp();
     act(() => openProWindow('meter'));
     const win = await screen.findByRole('dialog', { name: 'PRO' });
-    expect(within(win).getByText('После входа PRO включится бесплатно: это демо, оплата не подключена.')).toBeInTheDocument();
+    expect(within(win).getByText('PRO включается после входа.')).toBeInTheDocument();
     expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
     act(() => {
       fireEvent.click(within(win).getByRole('link', { name: 'Войти' }));

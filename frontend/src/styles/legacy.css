@@ -972,6 +972,38 @@
 .ac-modal-acts .ac-modal-alt { flex: 1 1 150px; min-height: 52px; font-size: 17px; }
 /* A long window (the limit and its prices) scrolls inside itself on a short screen. */
 .ac-modal-card--scroll { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+/* The limit window: wide and low on a computer — what is left, when it renews and the buttons on the left,
+   the prices on the right; one column on a phone, the buttons last. */
+.ac-limit-card { max-width: 860px; padding: 26px 30px 26px; }
+.ac-limit-card .ac-modal-h { font-size: 26px; }
+.ac-limit-cols {
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  grid-template-areas: 'side prices' 'acts prices';
+  grid-template-rows: auto 1fr;
+  gap: 0 34px;
+  margin-top: 18px;
+}
+.ac-limit-side { grid-area: side; }
+.ac-limit-side .ac-limit { margin-top: 0; padding: 18px 20px 20px; }
+.ac-limit-side .ac-modal-p { margin-top: 14px; font-size: 15px; }
+.ac-limit-side .ac-limit-pro { margin-top: 8px; font-size: 15px; }
+.ac-limit-prices { grid-area: prices; }
+.ac-limit-prices .ac-modal-p.ac-costs-h { margin-top: 0; font-size: 15px; }
+.ac-limit-prices .ac-costs { margin-top: 4px; }
+.ac-limit-prices .ac-cost { padding: 7px 0; }
+.ac-limit-prices .ac-cost dt,
+.ac-limit-prices .ac-cost dd { font-size: 15px; }
+.ac-limit-prices .ac-cost dt small { font-size: 13px; }
+.ac-limit-prices .ac-modal-p.ac-costs-back { margin-top: 6px; font-size: 14px; }
+.ac-limit-acts { grid-area: acts; align-self: end; margin-top: 18px; }
+.ac-limit-acts .ac-modal-ok,
+.ac-limit-acts .ac-modal-alt { min-height: 48px; font-size: 16px; }
+@media (max-width: 759px) {
+  .ac-limit-card { max-width: 480px; }
+  .ac-limit-cols { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'side' 'prices' 'acts'; grid-template-rows: none; }
+  .ac-limit-prices { margin-top: 16px; }
+}
 @media (max-width: 639px) {
   .ac-modal-card--scroll { padding: 26px 22px 22px; border-radius: 32px; }
   .ac-modal-card--scroll .ac-modal-x { top: 10px; right: 10px; }

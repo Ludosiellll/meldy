@@ -55,20 +55,18 @@ function ArrowIcon() {
   );
 }
 
-/** The honest line under the action: there is no payment, PRO is switched on for free. */
-export const DEMO_NOTE = 'Демо: оплата не подключена — PRO включится бесплатно и сразу.';
-
 export interface WindowProps {
   reason: ProReason;
   onClose: () => void;
 }
 
 /**
- * «PRO»: what the plan changes, in plain words and the real numbers of lib/plans.ts, under a reel
+ * «PRO»: what the plan changes, in plain words and the real numbers of lib/plans.ts, beside a reel
  * that shows it. Payment is not connected, so «Купить PRO» is a demo (owner, 2026-10-05: «нажимаешь на
- * купить и тебе ее выдаст просто бесплатно»): it switches PRO on at once and for free and says so under
- * the button — no price, no card, no imitated payment. With PRO the window says so and offers «Отключить
- * PRO», so the demo can be taken again. The top line's limit meter follows at once (proPlan.ts).
+ * купить и тебе ее выдаст просто бесплатно»): it switches PRO on at once and for free — no price, no
+ * card, nothing that imitates a payment; the line «Демо: оплата не подключена…» under the button was
+ * taken out on the owner's word the same day. With PRO the window says so and offers «Отключить PRO»,
+ * so the demo can be taken again. The top line's limit meter follows at once (proPlan.ts).
  */
 export default function ProWindow({ reason, onClose }: WindowProps) {
   const { user } = useAuth();
@@ -256,7 +254,7 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
                   <ArrowIcon />
                 </i>
               </Link>
-              <p className="pw-pay">После входа PRO включится бесплатно: это демо, оплата не подключена.</p>
+              <p className="pw-pay">PRO включается после входа.</p>
             </>
           ) : loading ? (
             <div className="pw-wait" role="status" aria-label="Проверяем тариф" />
@@ -269,7 +267,6 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
                 </span>
               </p>
               <p className="pw-now">{done === 'bought' ? `Дневной лимит теперь — ${proDay}.` : `Дневной лимит — ${proDay}.`}</p>
-              <p className="pw-pay">Демо: оплата не подключена, PRO включён бесплатно.</p>
               <button
                 type="button"
                 className="pw-quiet"
@@ -311,7 +308,6 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
                       <ArrowIcon />
                     </i>
                   </button>
-                  <p className="pw-pay">{DEMO_NOTE}</p>
                   {failed === 'buy' ? (
                     <p className="pw-error" role="alert">
                       Не удалось включить PRO. Проверьте подключение и нажмите ещё раз.

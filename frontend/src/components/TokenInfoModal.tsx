@@ -39,7 +39,8 @@ export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: st
  * PRO. Единицы списывает сервер перед обращением к ИИ; бесплатно — 100 в сутки, у PRO — до 1000
  * (lib/plans.ts). PRO включается в окне PRO — бесплатно, это демо: оплата не подключена. Вид (Meldy
  * 2026-10-04): белая карточка со скруглением 36, остаток — в голубой плашке с полосой-пилюлей, цены —
- * строками; стили .ac-modal-* и .ac-costs в styles/legacy.css.
+ * строками; на компьютере — две колонки (остаток и кнопки слева, цены справа); стили .ac-modal-*,
+ * .ac-limit-* и .ac-costs в styles/legacy.css.
  */
 export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, limit: dayLimit, onOpenPro }: Props) {
   const titleId = useId();
@@ -72,7 +73,7 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, lim
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="ac-modal-card ac-modal-card--scroll"
+        className="ac-modal-card ac-modal-card--scroll ac-limit-card"
       >
         <button type="button" onClick={onClose} aria-label="Закрыть" className="ac-modal-x">
           <X aria-hidden="true" />
@@ -80,44 +81,51 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, lim
 
         <h2 id={titleId} className="ac-modal-h">Дневной лимит ИИ</h2>
 
-        <div className="ac-limit">
-          <p className="ac-limit-line">
-            Осталось на сегодня: <span className="ac-limit-n">{remaining}</span> из {limit} единиц.
-          </p>
-          <div aria-hidden="true" className="ac-limit-track">
-            <div data-testid="limit-bar" className="ac-limit-fill" style={{ width: `${share}%` }} />
-          </div>
-        </div>
-        <p className="ac-modal-p">
-          {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}
-          {isPro ? ` У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день.` : ''}
-        </p>
-
-        <p className="ac-modal-p ac-costs-h">Единицы списываются, когда Meldy обращается к ИИ:</p>
-        <dl className="ac-costs">
-          {LIMIT_COSTS.map((row) => (
-            <div key={row.what} className="ac-cost">
-              <dt>
-                {row.what}
-                {row.note ? <small>{row.note}</small> : null}
-              </dt>
-              <dd>{row.units}</dd>
+        {/* На компьютере две колонки: слева остаток, когда обновится и кнопки, справа цены — окно широкое и
+            низкое и помещается в экран ноутбука (владелец, 2026-10-05: «компактнее, в ширину больше»). */}
+        <div className="ac-limit-cols">
+          <div className="ac-limit-side">
+            <div className="ac-limit">
+              <p className="ac-limit-line">
+                Осталось на сегодня: <span className="ac-limit-n">{remaining}</span> из {limit} единиц.
+              </p>
+              <div aria-hidden="true" className="ac-limit-track">
+                <div data-testid="limit-bar" className="ac-limit-fill" style={{ width: `${share}%` }} />
+              </div>
             </div>
-          ))}
-        </dl>
-        <p className="ac-modal-p ac-costs-back">Если ИИ не справился, единицы возвращаются.</p>
+            <p className="ac-modal-p">
+              {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}
+              {isPro ? ` У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день.` : ''}
+            </p>
+            {isPro ? null : <p className="ac-limit-pro">С PRO — {unitsPerDay(PRO_DAILY_UNITS)}.</p>}
+          </div>
 
-        {isPro ? null : <p className="ac-limit-pro">С PRO — {unitsPerDay(PRO_DAILY_UNITS)}.</p>}
+          <div className="ac-limit-prices">
+            <p className="ac-modal-p ac-costs-h">Единицы списываются, когда Meldy обращается к ИИ:</p>
+            <dl className="ac-costs">
+              {LIMIT_COSTS.map((row) => (
+                <div key={row.what} className="ac-cost">
+                  <dt>
+                    {row.what}
+                    {row.note ? <small>{row.note}</small> : null}
+                  </dt>
+                  <dd>{row.units}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="ac-modal-p ac-costs-back">Если ИИ не справился, единицы возвращаются.</p>
+          </div>
 
-        <div className="ac-modal-acts">
-          {!isPro && onOpenPro ? (
-            <button type="button" onClick={onOpenPro} className="ac-btn ac-modal-alt">
-              Что даёт PRO
+          <div className="ac-modal-acts ac-limit-acts">
+            {!isPro && onOpenPro ? (
+              <button type="button" onClick={onOpenPro} className="ac-btn ac-modal-alt">
+                Что даёт PRO
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose} className="ac-modal-ok">
+              Понятно
             </button>
-          ) : null}
-          <button type="button" onClick={onClose} className="ac-modal-ok">
-            Понятно
-          </button>
+          </div>
         </div>
       </div>
     </div>
