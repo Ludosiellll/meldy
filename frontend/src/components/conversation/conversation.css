@@ -728,6 +728,11 @@ html[data-stage] .cv-meta { display: none; }
   .sf-page[data-tab='talk'] .sf-detail-head { padding-top: 8px; }
   .sf-page[data-tab='talk'] .sf-crumb { display: none; }
   .sf-page[data-tab='talk'] .sf-h1-serif { max-width: none; font-size: 30px; line-height: 36px; }
+  /* The title and the header's pills share one row down to 1024 px: a long title ends with «…» (it is whole on
+     «Материал»), and the pills never drop under it and push the player off the window. */
+  .sf-page[data-tab='talk'] .md-head .sf-detail-main { flex-basis: 12rem; }
+  .sf-page[data-tab='talk'] .md-head .sf-h1-serif { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sf-page[data-tab='talk'] .md-head .sf-head-actions { flex-wrap: nowrap; }
   .sf-page[data-tab='talk'] .sf-detail-main > .sf-lede {
     position: absolute;
     width: 1px;
