@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Eye, EyeOff } from 'lucide-react';
 import { validateEmail } from '../utils/validators';
 import AuthReel from '../components/authReel/AuthReel';
+import { track } from '../lib/telemetry';
 
 /**
  * Вход (Meldy 2026-10-04): форма в белой карточке, рядом цветная панель с полутоновыми точками —
@@ -49,6 +50,7 @@ export default function Login() {
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) track('login_done', { method: 'email' });
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
         setError('Неверный email или пароль');

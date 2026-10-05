@@ -7,6 +7,7 @@ import '../components/example/example.css';
 import ExampleSheet from '../components/example/ExampleSheet';
 import ExampleDraw from '../components/example/ExampleDraw';
 import ExampleTicket from '../components/example/ExampleTicket';
+import { track } from '../lib/telemetry';
 
 /**
  * «Попробовать на примере» (/try): a ready example exam that anyone can try in one click, with no
@@ -17,6 +18,8 @@ import ExampleTicket from '../components/example/ExampleTicket';
  */
 export default function TryExample() {
   const { pathname } = useLocation();
+
+  useEffect(() => track('try_opened'), []);
 
   // Each step starts at its top, as a page of its own would.
   useEffect(() => {

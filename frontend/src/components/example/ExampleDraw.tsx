@@ -7,6 +7,7 @@ import { pluralRu } from '../conversation/visuals';
 import { EXAMPLE_QUESTIONS, answerableQuestions, type ExampleQuestion } from '../../data/example';
 import { drawExampleQuestion } from './exampleFlow';
 import TryBar from './TryBar';
+import { track } from '../../lib/telemetry';
 
 /** «Случайно из 11 вопросов, которые есть в лекциях примера.» — what the card is drawn from. */
 export function examplePoolLine(): string {
@@ -41,6 +42,7 @@ export default function ExampleDraw() {
     const question = drawExampleQuestion();
     if (!question) return;
     counter.current += 1;
+    track('try_ticket_drawn');
     setDrawn({ key: counter.current, question });
   }, []);
 

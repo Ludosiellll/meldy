@@ -48,6 +48,7 @@ from utils import extract_relevant_paragraphs, scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from oral_api import router as oral_router
+import telemetry_api
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pywebpush import webpush, WebPushException
@@ -84,6 +85,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     error_id = uuid.uuid4().hex[:12]
     print(f"Global exception [{error_id}]: {exc}")
     traceback.print_exc()
+    telemetry_api.report_server_error("unhandled", error_id, exc, request)
     return JSONResponse(
         status_code=500,
         content={"detail": "Внутренняя ошибка сервера", "error_id": error_id}
@@ -248,16 +250,23 @@ async def require_authenticated_user(request: Request) -> dict:
     return dict(user)
 
 
+# Open without a session: the health check, and the statistics that signed-out visitors send too (telemetry_api.py).
+PUBLIC_API_PATHS = frozenset({"/api/health", telemetry_api.TELEMETRY_PATH})
+
+
 @app.middleware("http")
 async def protect_backend_api(request: Request, call_next):
-    """Require a Supabase session for every backend endpoint except health."""
-    if request.method != "OPTIONS" and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+    """Require a Supabase session for every backend endpoint except PUBLIC_API_PATHS."""
+    path = request.url.path
+    if request.method != "OPTIONS" and path.startswith("/api/") and path not in PUBLIC_API_PATHS:
         try:
             request.state.user = await require_authenticated_user(request)
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
         # Model calls of this request go to its user's call log (ai_calls), in the background.
         quota.bind_request(request)
+    # A server error of this request is reported with its route pattern and its user's token.
+    telemetry_api.bind_request(request)
     return await call_next(request)
 
 
@@ -265,6 +274,7 @@ app.include_router(push_router, prefix="/api/push", tags=["push"])
 # «Билеты» and «Ответ вслух» declare their own full /api/... paths.
 app.include_router(exams_router)
 app.include_router(oral_router)
+app.include_router(telemetry_api.router)
 
 scheduler = AsyncIOScheduler()
 
@@ -411,6 +421,7 @@ async def _analysis_events(
     elif terminal is None:
         error_id = uuid.uuid4().hex[:12]
         print(f"Analysis [{error_id}] ended without a terminal event")
+        telemetry_api.report_server_error("analysis_no_terminal", error_id)
         yield _internal_error_event(error_id)
 
 
@@ -441,6 +452,7 @@ async def _guarded(
         error_id = uuid.uuid4().hex[:12]
         print(f"{label} error [{error_id}]: {type(exc).__name__}: {exc}")
         traceback.print_exc()
+        telemetry_api.report_server_error("analysis_stream", error_id, exc)
         if terminal_sent:
             return
         yield sse_event({"type": "done"} if results_sent else _internal_error_event(error_id))
@@ -692,6 +704,7 @@ async def event_stream_url(
         except Exception as exc:
             error_id = uuid.uuid4().hex[:12]
             print(f"URL fetch failed [{error_id}]: {type(exc).__name__}: {exc}")
+            telemetry_api.report_server_error("url_fetch", error_id, exc)
             text = ""
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_AT_URL_MESSAGE}

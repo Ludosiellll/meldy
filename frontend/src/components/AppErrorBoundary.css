@@ -1,0 +1,89 @@
+/* The whole-app fallback (components/AppErrorBoundary, main.tsx): the canvas, one white card, the blue pill.
+ * Self-contained on purpose: it may be all that renders, so it leans only on the theme tokens of index.css
+ * (light, and .dark on <html>) with plain fallbacks. Meldy 2026-10-04 language: 44px card, Onest, one pill. */
+.app-crash {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 40px 16px;
+  background: var(--sf-canvas, #f3f3f0);
+  color: var(--sf-ink, #0b121c);
+  font-family: var(--ph-sans, 'Onest Variable', 'Onest Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif);
+}
+
+.app-crash-card {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 480px;
+  padding: 44px 36px 36px;
+  border-radius: 44px;
+  background: var(--sf-surface, #ffffff);
+  box-shadow: 0 0 0 1px var(--sf-line, #e3e3dd), var(--m-card-shadow, 0 40px 80px -52px rgba(16, 41, 90, .42));
+  text-align: center;
+}
+
+.app-crash-h {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -.03em;
+  color: var(--sf-ink, #0b121c);
+}
+
+.app-crash-p {
+  margin: 0 0 10px;
+  max-width: 34ch;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--sf-muted, #4b515b);
+}
+
+/* The primary pill of base.css (.sf-primary), with a reload mark in its darker circle. */
+.app-crash-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 8px 0 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-accent, #2869dd);
+  color: #fff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .45s ease, box-shadow .6s ease;
+}
+.app-crash-btn::after {
+  content: '';
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--sf-accent-hover, #1c4db1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M15.5 10a5.5 5.5 0 1 1-1.7-4M15.8 3.6v3h-3' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 18px no-repeat;
+}
+.app-crash-btn:hover {
+  background: var(--sf-accent-hover, #1c4db1);
+  box-shadow: 0 16px 34px -16px rgba(16, 41, 90, .55);
+}
+.app-crash-btn:focus-visible {
+  outline: 2px solid var(--ph-focus, #2869dd);
+  outline-offset: 3px;
+}
+
+@media (max-width: 639px) {
+  .app-crash-card { padding: 34px 22px 28px; border-radius: 34px; }
+  .app-crash-h { font-size: 27px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-crash-btn { transition: none; }
+}

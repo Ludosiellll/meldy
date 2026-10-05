@@ -90,6 +90,7 @@ import {
 } from '../lib/oral/ticketMachine';
 import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
 import { displayMaterialTitle } from '../utils/materialTitle';
+import { secondsBucket, track } from '../lib/telemetry';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -839,12 +840,16 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     if (!answerableIn(state)) return;
     if (!speech.supported) {
       focusTextRef.current = true;
+      track('answer_started', { mode: 'text', voice_unsupported: true });
       dispatch({ type: 'start', mode: 'text', now: Date.now() });
       return;
     }
     choose('voice');
     speech.reset(state.typed);
-    if (speech.start()) dispatch({ type: state.phase === 'answering' ? 'mode' : 'start', mode: 'voice', now: Date.now() });
+    if (speech.start()) {
+      if (state.phase !== 'answering') track('answer_started', { mode: 'voice', engine: speech.engine });
+      dispatch({ type: state.phase === 'answering' ? 'mode' : 'start', mode: 'voice', now: Date.now() });
+    }
   };
 
   const startText = () => {
@@ -867,6 +872,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
       toText(speechRef.current.snapshot());
       return;
     }
+    track('answer_started', { mode: 'text' });
     dispatch({ type: 'start', mode: 'text', now: Date.now() });
   };
 
@@ -946,6 +952,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const live = reference.length > 0 ? Array.from(liveMarks(reference, snapshot, '', new Set(current.named))) : [];
     const input = inputOf(current.usedSpeech || (voice && words(snapshot).length > 0), current.usedText);
     dispatch({ type: 'self_check', attemptId: newEventId(), transcript: snapshot, live, input, now: Date.now(), startedAt: new Date().toISOString() });
+    track('answer_finished', { checked: false, mode: voice ? 'voice' : 'text', time: secondsBucket(answerTime(current, Date.now())) });
     draftRef.current?.cancel();
     clearDraft(question.id);
     if (voice) {
@@ -1010,6 +1017,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const attemptId = newEventId();
     const startedAt = new Date().toISOString();
     dispatch({ type: 'finalize', attemptId, snapshot, live, input, now: Date.now(), startedAt });
+    track('answer_finished', { checked: true, mode: voice ? 'voice' : 'text', time: secondsBucket(answerTime(current, Date.now())) });
     draftRef.current?.update(snapshot, input);
     draftRef.current?.flush();
 

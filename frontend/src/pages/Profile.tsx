@@ -10,6 +10,7 @@ import { getUserXP, calcLevel } from '../api/quests';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
 import { CustomSelect } from '../components/CustomSelect';
+import { TELEMETRY_NOTE } from '../lib/telemetry';
 
 /**
  * Профиль (Meldy 2026-10-04): белая карточка с цветной обложкой и аватаром, действия — пилюли,
@@ -455,6 +456,8 @@ export default function Profile() {
           </ul>
         </section>
       )}
+
+      {isMyProfile && <p className="ac-levelline">{TELEMETRY_NOTE}</p>}
 
       {cropImageSrc && (
         <ImageCropper

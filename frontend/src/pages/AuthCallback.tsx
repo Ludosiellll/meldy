@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/telemetry';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let cancelled = false;
+    let tracked = false;
     let timeout: number | undefined;
     const finish = (message?: string) => {
       if (cancelled) return;
@@ -18,6 +20,8 @@ export default function AuthCallback() {
         return;
       }
       window.clearTimeout(timeout);
+      if (!tracked) track('login_done', { method: 'oauth' });
+      tracked = true;
       navigate('/dashboard', { replace: true });
     };
 
