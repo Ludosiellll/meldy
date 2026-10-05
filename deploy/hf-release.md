@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-05 — The PRO window and «Дневной лимит ИИ»: wide and compact, no demo line (from 4fe73ec)
+
+Adds to release 24 (tree of c42b383). The owner, 2026-10-05: «не все вмещается, размер слишком большой у всего, нужно
+компактнее сделать», the limit window «компактнее … в ширину больше», and the line «Демо: оплата не подключена — PRO
+включится бесплатно и сразу.» — «убрать».
+
+- PRO window: on a computer two columns — the reel on the left; PRO, what it gives, the plan and «Купить PRO» on the
+  right, everything a size smaller. 960 px wide and about 350 px tall: it fits a 1532×734 laptop screen without
+  scrolling. Phones keep one column, with smaller type.
+- The line under «Купить PRO» is gone. Signed out the window says «PRO включается после входа.». The purchase still
+  takes no money: no price, no card form.
+- «Дневной лимит ИИ»: 860 px wide — what is left, when it renews and the buttons on the left, the prices on the right;
+  one column on a phone.
+
+No migrations.
+Verified before release: tsc -b, Vitest 1940/1940, production build; both windows on mocked Supabase/API at 1532×734,
+1440×900, 1024×700 and 390×844, both themes — every card fits without inner scroll, before and after «Купить PRO».
+
 ## 2026-10-05 — First-use tips: «Поговорить о лекции» shows itself the first time (from f6c147c)
 
 Adds to release 23 (tree of 3416d8e). The owner, 2026-10-05: «загрузили, нас перекинуло на лекцию и потом сразу (для
