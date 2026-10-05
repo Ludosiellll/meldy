@@ -4,6 +4,39 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-05 — Limits closed, hidden sections gone, a faster first load, a way round blocked Supabase, statistics, demo insurance (from 96024ef)
+
+Adds to e1cbba3 (tree of d65bab3). The owner's points of 2026-10-05: «Закрой теперь дыры лимита, ускорь первую
+загрузку, доделай учет ошибок и аналитику как хотел и страховку демо», «убирай скрытые разделы, дорабатывай это все»,
+and «нормально что снизу пустое место?» on «Сегодня».
+
+- AI limit: every model call is charged on the server — section re-runs, scans (per started 15 pages), the old
+  priced routes; free checks and transcription have daily caps. A section that failed in your own analysis is
+  repaired free only with the analysis's signed receipt; an analysis cut halfway keeps only the share it gave out.
+- Hidden sections are removed from the build and the server: career with HH, social network, messages, teacher
+  groups, AI chat, courses, missions, the old professor exam, mood, shorts, study room and session, the pricing page,
+  XP, levels, quests. Their addresses lead to «Сегодня»; database rows stay. JS 3.57 → 2.54 MB.
+- First load: the shell, dialogs, reels and the Supabase client load after the first screen; idle prefetch fetches
+  the next sections. Entry JS 673 KB → 267 KB (208 → 89 KB gzip); throttled phone, first paint 1.6–1.9 s → 1.26–1.33 s.
+- Network: when `*.supabase.co` does not answer, the browser goes through the site (`/sb/…`, FastAPI passthrough
+  limited to auth, rest and storage); the choice is probed once and kept 12 h, a hanging read is repeated there.
+- Security: a share link shows the title and the summary only (`shared_material()`), never the lecture text; the push
+  public key comes from the server (`/api/push/key`).
+- Statistics and error reports go to our own Supabase (`/api/telemetry` → `app_events`, views in `analytics`).
+- Demo insurance: `/check` preflight page, `/api/health/deep` (models, voice, database; cached 10 min).
+- «Сегодня»: the lectures sit under a short exam card instead of leaving a hole; with a tall exam card they stay
+  across the page as before (measured before paint).
+- Voice tutor, server side only (no screen yet): `/api/tutor/session`, `/api/tutor/turn` over a chain of free model
+  providers (Cerebras and Mistral when their keys are set, then Groq and Gemini).
+
+Migrations applied before this release: `20261005042323_app_telemetry`, `20261005043821_shared_material_read`.
+For the owner after this release: `supabase/pending/2026-10-05_drop_public_material_reads.sql`; new VAPID keys in the
+Space settings; `keepalive.yml` on `main`.
+Verified before release: tsc -b, Vitest 1784/1784, pytest 895, production build; browser pass on mocked Supabase/API
+50/50 (kept screens 1440 light, removed addresses, Supabase way, statistics, share link, /check, /try, phone 390);
+first-load measurements and 31 visual states unchanged against 126f700. Not verified: live providers and the live
+network in Russia.
+
 ## 2026-10-04 — Voice that is heard, a mandatory first-run guide, the AI limit on the server, PRO window, /try, PPTX and scans (from 13afb7d)
 
 Adds to 243f7c3 (tree of b9eab06). The owner's seven points of 2026-10-04: «Ответ голосом не работает (голос не
