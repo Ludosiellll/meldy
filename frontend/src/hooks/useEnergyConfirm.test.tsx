@@ -237,7 +237,8 @@ describe('TokenInfoModal', () => {
     expect(rows).toEqual([
       [`Анализ лекциискан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`, String(AI_COSTS.lecture)],
       ['Проверка ответа на билет', String(AI_COSTS.answer)],
-      ['Разговор по лекции', String(AI_COSTS.conversation)],
+      ['«Разговор» по лекции', String(AI_COSTS.conversation)],
+      ['«Поговорить о лекции»за каждый ответ репетитора', String(AI_COSTS.tutorTurn)],
       ['Шпаргалка', String(AI_COSTS.cheatsheet)],
       [`Сверка списка вопросовза каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`, String(AI_COSTS.examMapping)],
     ]);
