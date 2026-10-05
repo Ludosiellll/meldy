@@ -293,7 +293,9 @@ const BlockView = memo(function BlockView({
   const essentials = block.lines.filter((line) => line.essential);
   const deciding = essentials.length > 0 ? essentials : block.lines;
   const learned = deciding.length > 0 && deciding.every((line) => GONE.has(stateOf(line)));
-  const folded = mode.onlyLeft && learned && !block.lines.some((line) => motions.has(line.key));
+  // «Только то, что осталось»: a question folds to its printed line only when nothing of it is left
+  // (every line erased); a secondary line still there stays in view under the tick.
+  const folded = mode.onlyLeft && block.lines.length > 0 && block.lines.every((line) => stateOf(line) === 'erased' && !motions.has(line.key));
   // Written in one after another: each line starts at 90 % of the one before (spec 6).
   const writes = useMemo(() => {
     const map = new Map<string, Motion>();

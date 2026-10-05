@@ -1,44 +1,82 @@
 import { Fragment, useMemo } from 'react';
-import { PencilSvg, arrow, seedFrom, type Pt } from '../../marks';
+import { sample, seedFrom, tapered, type Pt } from '../../marks';
 
 /**
- * A handwritten line with its arrows (spec 5.2). Caveat has no ↑ ↓ → ← ⇒, and the system font that
- * would stand in looks typed, so each arrow is drawn in ink from the marks kit (`arrow()`), 0.9em
- * wide, aria-hidden; the real character stays in the text, visually hidden, for copying and for
- * screen readers.
+ * A handwritten line with its arrows (spec 5.2). Caveat has no ↑ ↓ → ← ⇒, and a system font that
+ * would stand in looks typed, so each arrow is drawn in ink with the strokes of the marks kit
+ * (sample + tapered: the same hand as every pencil mark), on the text's baseline and at the size of
+ * the handwriting; it is aria-hidden, and the real character stays in the text, visually hidden,
+ * for copying and for screen readers. The head follows the arrow's straight direction, not the
+ * wobble of its shaft, so a short → never tips into ↘.
  */
 const ARROWS = /([↑↓→←⇒])/;
 
 type Direction = '↑' | '↓' | '→' | '←' | '⇒';
 
-const W = 17;
-const H = 18;
+/** The box of each arrow in px of a 22 px hand; the SVG is sized in em, so it follows the font. */
+const BOX: Record<Direction, { w: number; h: number }> = {
+  '→': { w: 20, h: 14 },
+  '←': { w: 20, h: 14 },
+  '⇒': { w: 22, h: 14 },
+  '↑': { w: 12, h: 18 },
+  '↓': { w: 12, h: 18 },
+};
+const HAND_PX = 22;
 
-function ends(direction: Direction): [Pt, Pt] {
+function stroke(points: Pt[], seed: number, weight: number, amp: number): string {
+  return tapered(sample(points, seed, { step: 4, amp }), weight, weight * 0.5);
+}
+
+/** A shaft from `from` to `to` and a head of two strokes at the tip. */
+function single(from: Pt, to: Pt, seed: number, head = 5.2): string[] {
+  const angle = Math.atan2(to[1] - from[1], to[0] - from[0]);
+  const wings = [-0.52, 0.5].map((delta, k) => {
+    const a = angle + Math.PI + delta;
+    const tail: Pt = [to[0] + Math.cos(a) * head, to[1] + Math.sin(a) * head];
+    return stroke([tail, to], seed + 11 + k, 1.75, 0.15);
+  });
+  return [stroke([from, to], seed, 1.9, 0.3), ...wings];
+}
+
+export function arrowPaths(direction: Direction, seed: number): string[] {
   switch (direction) {
-    case '↑':
-      return [[W / 2, H - 2], [W / 2, 3]];
-    case '↓':
-      return [[W / 2, 3], [W / 2, H - 2]];
+    case '→':
+      return single([2, 7.6], [18, 7.2], seed);
     case '←':
-      return [[W - 1, H * 0.58], [2, H * 0.58]];
-    default:
-      return [[1, H * 0.58], [W - 2, H * 0.58]];
+      return single([18, 7.2], [2, 7.6], seed);
+    case '↑':
+      return single([6, 17], [6.3, 2.2], seed, 4.8);
+    case '↓':
+      return single([6.3, 2], [6, 16.8], seed, 4.8);
+    case '⇒':
+    default: {
+      // Two shafts and one open head.
+      const tip: Pt = [20, 7.3];
+      const wings = [
+        stroke([[14.2, 2.4], tip], seed + 11, 1.75, 0.15),
+        stroke([[14.2, 12.2], tip], seed + 12, 1.75, 0.15),
+      ];
+      return [stroke([[2, 5.1], [16.8, 5.0]], seed, 1.7, 0.25), stroke([[2, 9.6], [16.8, 9.5]], seed + 5, 1.7, 0.25), ...wings];
+    }
   }
 }
 
 export function SheetArrow({ direction, seed }: { direction: Direction; seed: number }) {
-  const paths = useMemo(() => {
-    const [from, to] = ends(direction);
-    const main = arrow(from, to, seed, { bow: 0.04, head: 5.5, weight: direction === '⇒' ? 2.6 : 1.9 });
-    if (direction !== '⇒') return main;
-    // A double arrow: a second shaft just above, without its own head.
-    const shift: [Pt, Pt] = [[from[0], from[1] - 3.4], [to[0] - 4, to[1] - 3.4]];
-    return [...main, ...arrow(shift[0], shift[1], seed + 7, { bow: 0.03, upto: 0.999, weight: 1.6 })];
-  }, [direction, seed]);
+  const paths = useMemo(() => arrowPaths(direction, seed), [direction, seed]);
+  const box = BOX[direction];
   return (
-    <span className="cs-arrow">
-      <PencilSvg width={W} height={H} paths={paths} pad={2} className="cs-arrow-ink" />
+    <span className="cs-arrow" data-dir={direction}>
+      <svg
+        className="cs-arrow-ink"
+        viewBox={`0 0 ${box.w} ${box.h}`}
+        style={{ width: `${(box.w / HAND_PX).toFixed(3)}em` }}
+        aria-hidden="true"
+        focusable="false"
+      >
+        {paths.map((d, index) => (
+          <path key={index} d={d} />
+        ))}
+      </svg>
       <span className="sr-only">{direction}</span>
     </span>
   );
@@ -50,7 +88,7 @@ export function SheetText({ text, seedBase }: { text: string; seedBase: string }
   return (
     <>
       {parts.map((part, index) =>
-        ARROWS.test(part) && part.length === 1 ? (
+        part.length === 1 && ARROWS.test(part) ? (
           <SheetArrow key={index} direction={part as Direction} seed={seedFrom(`${seedBase}:${index}`, 0)} />
         ) : (
           <Fragment key={index}>{part}</Fragment>

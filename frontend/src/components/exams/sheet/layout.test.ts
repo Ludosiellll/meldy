@@ -45,7 +45,7 @@ describe('the paper layout', () => {
   it('lays the paper out by its width: two columns on whole grid cells from 760 px, the phone grid below 560 px', () => {
     expect(paperGeometry(1000)).toEqual({ columns: 2, narrow: false, row: 24, column: 408 });
     expect(paperGeometry(759)).toEqual({ columns: 1, narrow: false, row: 24, column: 663 });
-    expect(paperGeometry(390)).toEqual({ columns: 1, narrow: true, row: 22, column: 342 });
+    expect(paperGeometry(390)).toEqual({ columns: 1, narrow: true, row: 22, column: 338 });
     expect(paperGeometry(0).columns).toBe(1);
   });
 

@@ -15,7 +15,7 @@ export const TWO_COLUMNS_FROM = 760;
 export const NARROW_BELOW = 560;
 /** The paper's padding (the right one holds the margin line) and the gap between the columns, px. */
 export const PAPER_PAD = { left: 24, right: 72 } as const;
-export const PAPER_PAD_NARROW = { left: 12, right: 36 } as const;
+export const PAPER_PAD_NARROW = { left: 16, right: 36 } as const;
 export const COLUMN_GAP = 48;
 
 export interface PaperGeometry {
@@ -63,7 +63,7 @@ function rowsFor(text: string, perRow: number): number {
 }
 
 export interface BlockRowOptions {
-  /** «Только то, что осталось»: erased lines are hidden and a learned question is only its printed line. */
+  /** «Только то, что осталось»: erased lines are hidden; a question with every line erased is only its printed line. */
   hideErased?: boolean;
   /** The pencil note under the block, if any. */
   note?: string | null;
@@ -74,7 +74,8 @@ export interface BlockRowOptions {
 /** A block's height in grid rows: a section title, the printed question, its lines and their notes, the block's note and one row of air. */
 export function blockRows(block: SheetBlock, metrics: RowMetrics, options: BlockRowOptions = {}): number {
   let rows = (options.heading ? 1 : 0) + rowsFor(`${block.number}. ${block.text}`, metrics.print);
-  if (!(options.hideErased && block.learned)) {
+  const folded = options.hideErased && block.lines.length > 0 && block.lines.every((line) => line.status.state === 'erased');
+  if (!folded) {
     for (const line of block.lines) {
       const state = line.status.state;
       if (options.hideErased && state === 'erased') continue;

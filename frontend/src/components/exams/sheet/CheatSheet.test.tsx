@@ -182,7 +182,7 @@ describe('the cheat sheet', () => {
     expect(line.querySelector('.cs-note')).toHaveTextContent('Подсмотрели — сегодня эта строка не сотрётся');
   });
 
-  it('«Только то, что осталось» hides erased lines and folds a question whose essential lines are gone', () => {
+  it('«Только то, что осталось» hides erased lines and folds a question only when nothing of it is left', () => {
     const q1 = question(1);
     const events = [named(q1, 'p1', NOW - 3 * DAY), named(q1, 'p1', NOW - DAY), named(q1, 'p2', NOW - 3 * DAY), named(q1, 'p2', NOW - DAY)];
     const sheet = buildSheet([q1, question(2)], events, NOW);
@@ -195,9 +195,21 @@ describe('the cheat sheet', () => {
         <CheatSheet {...props(sheet.blocks, { mode: { onlyLeft: true, cover: false, zoom: false } })} />
       </MemoryRouter>,
     );
+    // The essential lines are gone (a tick), the secondary one is still there: it stays in view.
     const first = container.querySelector<HTMLElement>('#cs-q-q1')!;
-    expect(first.dataset.folded).toBe('');
-    expect(first.querySelector('.cs-lines')).toBeNull();
+    expect(first.dataset.folded).toBeUndefined();
+    expect([...first.querySelectorAll<HTMLElement>('.cs-line')].map((line) => line.dataset.state)).toEqual(['fresh']);
+    expect(container.querySelectorAll('.cs-line')).toHaveLength(4);
+    // Every line erased: the question is only its printed line.
+    const all = [...events, named(q1, 'p3', NOW - 3 * DAY), named(q1, 'p3', NOW - DAY)];
+    const done = buildSheet([q1, question(2)], all, NOW);
+    rerender(
+      <MemoryRouter>
+        <CheatSheet {...props(done.blocks, { mode: { onlyLeft: true, cover: false, zoom: false } })} />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector<HTMLElement>('#cs-q-q1')!.dataset.folded).toBe('');
+    expect(container.querySelector('#cs-q-q1 .cs-lines')).toBeNull();
     expect(container.querySelectorAll('.cs-line')).toHaveLength(3);
   });
 
