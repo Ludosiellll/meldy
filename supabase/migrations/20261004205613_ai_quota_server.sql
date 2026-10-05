@@ -2,8 +2,8 @@
 -- Written on 2026-10-04 by the quota package; applied by the orchestrator to daunnytubqbzafjnpfnw.
 -- Additive and re-runnable: new tables, new functions and grants on them only. Nothing here removes
 -- rows, takes back an existing grant or drops a policy: those steps are part 2,
--- supabase/pending/ai_quota_lockdown.sql, which the Supabase connector holds for the owner's
--- confirmation (it did not run unattended on 2026-10-04).
+-- supabase/migrations/20261005031722_ai_quota_lockdown.sql, which the Supabase connector held for
+-- the owner's confirmation; the owner ran it in the SQL Editor on 2026-10-05.
 --
 -- Why. The daily AI limit was only a hint the browser kept in public.ai_usage: RLS let every user
 -- insert and update their own day row (anyone could reset it) and the backend never checked it.
@@ -16,8 +16,8 @@
 --   log_ai_call(p_kind, p_units, p_provider, p_model, p_ok, p_ms) -> one row of public.ai_calls
 -- A refund names a charge id that only the server sees: public.ai_charges has no client grant at
 -- all. A refund(units) without it would let every user zero their own counter again.
--- After part 1 the server enforces the limit for every normal request; until part 2 a user who
--- writes to ai_usage by hand through the REST API can still lower their own counter.
+-- After part 1 the server enforces the limit for every normal request; part 2 also takes the
+-- browser's writes off ai_usage, so nobody can lower their own counter by hand.
 --
 -- Live facts this relies on (read by the orchestrator on 2026-10-04): ai_usage(id uuid default
 -- uuid_generate_v4(), user_id uuid null, date date not null, requests_count int default 0,
@@ -27,7 +27,7 @@
 -- today's counts carry over.
 -- Rollback: supabase/rollback/20261004205613_ai_quota_server_down.sql. Check after both parts:
 -- supabase/tests/ai_quota_server.sql. Local rehearsal: supabase/tests/local/baseline.sql,
--- supabase/tests/local/ai_quota_baseline.sql, this file twice, supabase/pending/ai_quota_lockdown.sql
+-- supabase/tests/local/ai_quota_baseline.sql, this file twice, 20261005031722_ai_quota_lockdown.sql
 -- twice, supabase/tests/local/ai_quota_behaviour.sql.
 
 -- 1. One row per user and day: consume_ai_units relies on a unique index on (user_id, date). It is

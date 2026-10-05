@@ -1,10 +1,10 @@
--- ai_quota_lockdown (part 2 of 2 of the server-side daily AI limit; PENDING, not applied yet)
--- Apply after supabase/migrations/*_ai_quota_server.sql (part 1). It deletes rows and takes back
--- grants, so the Supabase connector asks the owner to confirm it; it did not run unattended on
--- 2026-10-04. How: Supabase dashboard -> SQL Editor -> paste this file -> Run (or let the agent
--- apply it and confirm the prompt). Re-runnable. Then supabase/tests/ai_quota_server.sql must
--- report contract_ok: true. Once applied through the migration tool, move this file to
--- supabase/migrations/ under the version it gets.
+-- ai_quota_lockdown (part 2 of 2 of the server-side daily AI limit)
+-- Applied after supabase/migrations/20261004205613_ai_quota_server.sql (part 1). It deletes rows and
+-- takes back grants, so the Supabase connector holds it for a human's confirmation; it did not run
+-- through the agent (2026-10-04 and 2026-10-05). The owner ran this file in the Supabase SQL Editor
+-- on 2026-10-05; the orchestrator then recorded version 20261005031722 in
+-- supabase_migrations.schema_migrations and checked supabase/tests/ai_quota_server.sql: contract_ok
+-- true. Re-runnable.
 -- What it changes:
 --   1. duplicate ai_usage day rows are merged into one (there were none on live on 2026-10-04);
 --   2. consume_ai_units and log_ai_call also tidy their own old rows: receipts after 2 days,
