@@ -40,6 +40,7 @@ from agents.base import (
     SAFETY_SETTINGS,
     THINKING_ALLOWANCE,
     classify_error,
+    gemini_http_options,
     gemini_keys,
     gemini_models_env,
     get_genai_client,
@@ -436,7 +437,7 @@ async def _generate(
         "max_output_tokens": _output_tokens(model, pages, allowance),
         "response_mime_type": "text/plain",
         "safety_settings": SAFETY_SETTINGS,
-        "http_options": types.HttpOptions(timeout=max(1, int(timeout * 1000))),
+        "http_options": gemini_http_options(timeout),
     }
     if not _is_gemini3(model):
         config["temperature"] = OCR_TEMPERATURE

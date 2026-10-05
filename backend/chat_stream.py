@@ -30,6 +30,7 @@ from typing import Any, AsyncIterator, Callable, Optional
 import httpx
 
 from agents.base import (
+    ACCOUNT_REFUSAL_CODES,
     SAFETY_SETTINGS,
     AIError,
     _record_call,
@@ -229,6 +230,11 @@ class StreamBroken(Exception):
     """The reply stopped after some text had already gone out."""
 
 
+def _account_refused(raw: str) -> bool:
+    """The error body names a refusal of the whole account, not of this request."""
+    return any(code in raw for code in ACCOUNT_REFUSAL_CODES)
+
+
 def _status_kind(status: int) -> str:
     if status == 429:
         return "rate_limited"
@@ -271,8 +277,10 @@ async def _openai_deltas(provider: Provider, key: str, body: dict) -> AsyncItera
         async with _http().stream("POST", url, headers=headers, json=body) as response:
             if response.status_code >= 400:
                 raw = (await response.aread())[:400].decode("utf-8", "replace")
-                raise _ProviderFailed(_status_kind(response.status_code), raw,
-                                      _retry_after(response.headers.get("retry-after")))
+                # An account the provider has restricted (Groq «organization_restricted», seen live
+                # 2026-10-05) refuses every model: the provider rests like a rejected key.
+                kind = "permission" if _account_refused(raw) else _status_kind(response.status_code)
+                raise _ProviderFailed(kind, raw, _retry_after(response.headers.get("retry-after")))
             async for line in response.aiter_lines():
                 line = line.strip()
                 if not line.startswith("data:"):

@@ -122,6 +122,19 @@ def test_a_rejected_key_is_skipped_for_a_while_and_order_comes_from_the_setting(
     assert groq_body["include_reasoning"] is False and groq_body["reasoning_effort"] == "low"
 
 
+def test_a_restricted_account_rests_like_a_rejected_key(net, monkeypatch):
+    calls, replies = net
+    monkeypatch.setenv("TUTOR_PROVIDERS", "groq, mistral")
+    monkeypatch.setenv("GROQ_API_KEY", "g-key")
+    monkeypatch.setenv("MISTRAL_API_KEY", "m-key")
+    replies["api.groq.com"] = (400, b'{"error":{"message":"Organization has been restricted.","type":"invalid_request_error","code":"organization_restricted"}}')
+    replies["api.mistral.ai"] = (200, sse("Да."))
+    assert collect() == ["Да."]
+    assert collect() == ["Да."]
+    # Asked once (no second try without the reasoning fields), then left alone.
+    assert [host for host, _ in calls] == ["api.groq.com", "api.mistral.ai", "api.mistral.ai"]
+
+
 def test_a_provider_that_refuses_the_reasoning_fields_is_asked_once_more_without_them(net, monkeypatch):
     calls, replies = net
     monkeypatch.setenv("CEREBRAS_API_KEY", "c-key")

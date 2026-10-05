@@ -295,6 +295,7 @@ export function codeText(code: string | null | undefined): string {
 export function detailText(detail: string | null | undefined): string | null {
   if (typeof detail !== 'string' || !detail) return null;
   if (detail === 'model_decommissioned') return 'модель снята';
+  if (detail === 'organization_restricted') return 'аккаунт у провайдера ограничен';
   if (detail.endsWith(':thinking')) return 'не принимает настройку размышлений';
   return /^[a-z0-9_.:-]{1,48}$/i.test(detail) ? detail : null;
 }

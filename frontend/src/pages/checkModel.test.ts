@@ -194,6 +194,11 @@ describe('the AI on the server (/api/health/deep)', () => {
     expect(down.rows[0].text).toBe('Gemini не отвечает: модель недоступна. Модели: a — модель недоступна; b — запрос отклонён (не принимает настройку размышлений).');
   });
 
+  it('says when the provider has restricted the whole account', () => {
+    const view = deepView(deep({ ...healthy, groq: { ok: false, ms: 99, model: 'openai/gpt-oss-120b', code: 'permission', detail: 'organization_restricted' } }));
+    expect(view.rows[1].text).toContain('аккаунт у провайдера ограничен');
+  });
+
   it('one AI provider down is a caveat, both down is a problem', () => {
     const one = deepView(deep({ ...healthy, gemini: down('rate_limited') }));
     expect(one.result.state).toBe('warn');

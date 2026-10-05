@@ -204,9 +204,31 @@ async def _timed(agent, **kwargs):
 def test_each_gemini_request_gets_a_bounded_http_timeout(monkeypatch):
     calls, _ = install_gemini(monkeypatch, lambda model, config, contents: ("ок", "STOP"))
     monkeypatch.setenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "60")
-    run(BaseAgent(), PROMPT, "текст", timeout=7)
+    run(BaseAgent(), PROMPT, "текст", timeout=30)
     timeout_ms = calls[0]["config"].http_options.timeout
-    assert 6000 <= timeout_ms <= 7000
+    assert 29000 <= timeout_ms <= 30000
+
+
+def test_gemini_server_deadline_is_never_under_ten_seconds(monkeypatch):
+    # The API answers INVALID_ARGUMENT to an X-Server-Timeout under 10 s: a short budget is kept by
+    # the wait around the call, the header asks for 10 s.
+    calls, _ = install_gemini(monkeypatch, lambda model, config, contents: ("ок", "STOP"))
+    monkeypatch.setenv("GEMINI_REQUEST_TIMEOUT_SECONDS", "60")
+    run(BaseAgent(), PROMPT, "текст", timeout=2.5)
+    assert calls[0]["config"].http_options.timeout == 10000
+
+
+def test_a_restricted_groq_account_is_a_permission_failure_not_a_bad_request():
+    import groq
+    from agents.base import classify_error, provider_error_code
+
+    req = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    body = {"error": {"message": "Organization has been restricted.", "type": "invalid_request_error", "code": "organization_restricted"}}
+    exc = groq.BadRequestError("restricted", response=httpx.Response(400, request=req), body=body)
+    assert classify_error(exc) == "permission"
+    assert provider_error_code(exc) == "organization_restricted"
+    plain = groq.BadRequestError("bad", response=httpx.Response(400, request=req), body={"error": {"code": "model_decommissioned"}})
+    assert classify_error(plain) == "invalid_argument"
 
 
 def test_provider_429_is_busy_by_status_not_by_text(monkeypatch):

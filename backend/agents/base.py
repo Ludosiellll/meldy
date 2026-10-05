@@ -626,6 +626,16 @@ def _api_key_invalid(exc: BaseException) -> bool:
     return "API_KEY_INVALID" in text or "API key not valid" in text
 
 
+# Provider codes that refuse the whole account rather than one request (Groq answered every model
+# with «organization_restricted» on 2026-10-05): treated like a rejected key, so the models are
+# skipped for a while instead of being asked on every call.
+ACCOUNT_REFUSAL_CODES = frozenset({"organization_restricted"})
+
+
+def _account_refused(exc: BaseException) -> bool:
+    return provider_error_code(exc) in ACCOUNT_REFUSAL_CODES
+
+
 def classify_error(exc: BaseException) -> str:
     """not_found | rate_limited | permission | invalid_argument | timeout | network | other.
 
@@ -651,7 +661,7 @@ def classify_error(exc: BaseException) -> str:
     if status in (401, 403) or named in ("PERMISSION_DENIED", "UNAUTHENTICATED"):
         return "permission"
     if status == 400 or named in ("INVALID_ARGUMENT", "FAILED_PRECONDITION"):
-        return "permission" if _api_key_invalid(exc) else "invalid_argument"
+        return "permission" if _api_key_invalid(exc) or _account_refused(exc) else "invalid_argument"
     if status in (408, 504) or named == "DEADLINE_EXCEEDED":
         return "timeout"
     if isinstance(exc, (httpx.TransportError, ConnectionError) + groq_connection_error):
@@ -786,6 +796,19 @@ def _is_max_tokens(finish_reason: Optional[str]) -> bool:
     return (finish_reason or "").upper() in ("MAX_TOKENS", "LENGTH")
 
 
+# The SDK sends ceil(timeout) as the X-Server-Timeout header, and the Gemini API refuses a deadline
+# under 10 s with INVALID_ARGUMENT (seen live 2026-10-05: every model of the 8 s health probe was
+# «invalid_argument»; the quick answer check has 2.5 s). The header never goes below this; a shorter
+# budget is kept by asyncio.wait_for around the call.
+GEMINI_MIN_SERVER_DEADLINE_SECONDS = 10.0
+
+
+def gemini_http_options(timeout: float) -> Any:
+    """HttpOptions for one Gemini request: the budget, but never under the API's 10 s minimum."""
+    seconds = max(float(timeout), GEMINI_MIN_SERVER_DEADLINE_SECONDS)
+    return types.HttpOptions(timeout=int(seconds * 1000))
+
+
 async def _gemini_generate(
     client: Any,
     model: str,
@@ -802,7 +825,7 @@ async def _gemini_generate(
         "max_output_tokens": max_output_tokens,
         "response_mime_type": "application/json" if json_mode else "text/plain",
         "safety_settings": SAFETY_SETTINGS,
-        "http_options": types.HttpOptions(timeout=max(1, int(timeout * 1000))),
+        "http_options": gemini_http_options(timeout),
     }
     if thinking_config is not None:
         config_args["thinking_config"] = thinking_config
