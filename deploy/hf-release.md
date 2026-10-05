@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-05 — First-use tips: «Поговорить о лекции» shows itself the first time (from f6c147c)
+
+Adds to release 23 (tree of 3416d8e). The owner, 2026-10-05: «загрузили, нас перекинуло на лекцию и потом сразу (для
+первого раза) появляется обучение с указанием на кнопку … и показывает видео маленькое в том стиле который у нас есть».
+
+- A tip system (`components/tips/`): one tip at a time, shown only after the first-run guide, never while the guide or a
+  menu is open, gone for good after «Не сейчас» or after the feature is used (remembered on the device and in the
+  profile, `onboarding_status.tip_<id>`). Statistics: `tip_shown`, `tip_action`.
+- The first tip, on your own lecture with cards: a ring around «Поговорить о лекции» and a card under it with a 6 s clip
+  in the guide's film style (Meldy asks, the answer fills in, «Вот как сказано в лекции» with «Из лекции, фрагмент 3»),
+  «Поговорить о лекции», «Meldy задаст вопросы по карточкам этой лекции, подскажет и покажет нужный фрагмент. Отвечайте
+  голосом или текстом.», «Попробовать» / «Не сейчас». It takes no focus; Esc closes it; reduced motion — a still frame.
+- After an analysis the button under the results is «Открыть лекцию» — straight to the saved lecture, where the tip is.
+
+No migrations.
+Verified before release: tsc -b, Vitest 1940/1940, pytest 901, production build; the tip's flows on the merged build
+26/26 on mocked Supabase/API (dismiss and reload, a second device, «Попробовать», the pill itself, focus and Esc,
+reduced motion, the guide's gates, a lecture without cards); screenshots 1024–1920 and phones 360/390, both themes.
+
 ## 2026-10-05 — The AI limit in the top line, «Лимит ИИ» in the guide, «Купить PRO» as a free demo (from 260ac20)
 
 Adds to release 22.1 (tree of 1666b52). The owner's points of 2026-10-05: «лимит ИИ нужно вынести чтобы его было
