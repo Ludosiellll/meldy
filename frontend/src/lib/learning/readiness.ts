@@ -133,21 +133,24 @@ function ratingFromConfidence(confidence: unknown): SelfRating | null {
 }
 
 /** Server time of an event in ms, or null when it cannot be read (then no hour condition is met). */
-function serverTime(event: Pick<LearningEvent, 'created_at'>): number | null {
+export function serverTime(event: Pick<LearningEvent, 'created_at'>): number | null {
   const ms = Date.parse(event.created_at);
   return Number.isFinite(ms) ? ms : null;
 }
 
 /** Local midnight after a 'yyyy-MM-dd' day, in ms (browser time zone), or null. */
-function midnightAfter(key: string | null): number | null {
+export function midnightAfter(key: string | null): number | null {
   const match = typeof key === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(key) : null;
   if (!match) return null;
   const next = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1);
   return Number.isNaN(next.getTime()) ? null : next.getTime();
 }
 
-/** Both conditions of the rule between the first answer of a series and a later one. */
-function meetsRule(first: LearningEvent, later: LearningEvent): boolean {
+/**
+ * Both conditions of the rule between the first answer of a series and a later one. The cheat sheet
+ * erases a line by the same rule (lib/exams/cheatSheet.ts).
+ */
+export function meetsRule(first: LearningEvent, later: LearningEvent): boolean {
   if (!first.local_date || !later.local_date || later.local_date === first.local_date) return false;
   const from = serverTime(first);
   const to = serverTime(later);
