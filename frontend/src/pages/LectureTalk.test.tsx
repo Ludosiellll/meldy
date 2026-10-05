@@ -367,16 +367,16 @@ describe('a turn aloud', () => {
     expect(tts.stops).toBeGreaterThan(0);
   });
 
-  it('nothing heard: «Не расслышал» aloud, then the advice about the microphone', async () => {
+  it('nothing heard: «Не расслышала» aloud, then the advice about the microphone', async () => {
     await started();
     hearAll();
     fireEvent.click(pill('Отвечать'));
     await waitFor(() => expect(voice.status).toBe('listening'));
     fireEvent.click(pill('Готово'));
-    expect(await within(desk()).findByText('Не расслышал. Повторите, пожалуйста.')).toBeInTheDocument();
-    expect(played().slice(-1)).toEqual(['Не расслышал.']);
+    expect(await within(desk()).findByText('Не расслышала. Повторите, пожалуйста.')).toBeInTheDocument();
+    expect(played().slice(-1)).toEqual(['Не расслышала.']);
     hearAll();
-    expect(played().slice(-2)).toEqual(['Не расслышал.', 'Повторите, пожалуйста.']);
+    expect(played().slice(-2)).toEqual(['Не расслышала.', 'Повторите, пожалуйста.']);
     fireEvent.click(pill('Отвечать'));
     await waitFor(() => expect(voice.status).toBe('listening'));
     const plays = tts.plays.length;

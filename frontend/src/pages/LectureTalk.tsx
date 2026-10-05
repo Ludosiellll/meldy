@@ -1038,7 +1038,7 @@ function TalkRoom({ materialId }: { materialId: string }) {
   // ── Lines under the answer ──
   const notice = state.notice;
   const noticeLine = notice ? (
-    // «Не расслышал» said aloud is not read out again.
+    // «Не расслышала» said aloud is not read out again.
     <p className="or-message lt-notice" role={notice.kind === 'not_heard' && voice ? undefined : 'status'}>
       {notice.text}
       {notice.kind === 'voice_failed' ? (

@@ -32,7 +32,7 @@ export const BACK_LINE = 'Вернёмся к вопросу.';
 export const LAST_LINE = 'На этом всё.';
 /** Said from the cache 700 ms into a wait for the server. */
 export const FILLER_LINE = 'Так…';
-export const NOT_HEARD_LINE = 'Не расслышал. Повторите, пожалуйста.';
+export const NOT_HEARD_LINE = 'Не расслышала. Повторите, пожалуйста.';
 /** «Не знаю» is an answer: the server climbs the same ladder of hints. */
 export const DONT_KNOW_ANSWER = 'не знаю';
 
@@ -418,7 +418,7 @@ export function tutorReducer(state: TutorState, action: TutorAction): TutorState
       if (!state.speech || state.speech.id !== action.speech) return state;
       const failures = state.voiceFailures + 1;
       const broken = failures >= VOICE_FAILURES_TO_GIVE_UP;
-      // Given up: the line «Голос пока недоступен» comes from voiceBroken, not from a notice. «Не расслышал»
+      // Given up: the line «Голос пока недоступен» comes from voiceBroken, not from a notice. «Не расслышала»
       // stays on screen when it was its own voice that failed.
       const kept = state.notice?.kind === 'not_heard' ? state.notice : null;
       const next = { ...state, speech: null, voiceFailures: failures, voiceBroken: broken, notice: kept ?? (broken ? null : notice('voice_failed')) };
@@ -454,7 +454,7 @@ export function tutorReducer(state: TutorState, action: TutorAction): TutorState
       if (hasWords(action.text)) return send(state, action.text, state.asking ? 'question' : 'answer');
       const empty = state.emptyInRow + 1;
       if (empty === 1 && voiceActive(state)) {
-        // «Не расслышал» is said aloud; the question stays on the card.
+        // «Не расслышала» is said aloud; the question stays on the card.
         return { ...state, emptyInRow: 1, notice: notice('not_heard'), phase: 'speaking', speech: { id: state.nextId, parts: [NOT_HEARD_LINE] }, nextId: state.nextId + 1 };
       }
       return { ...state, emptyInRow: empty, notice: notice(empty === 1 ? 'not_heard' : 'not_heard_again'), phase: 'idle', speech: null };

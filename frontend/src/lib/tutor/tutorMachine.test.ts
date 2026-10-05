@@ -241,7 +241,7 @@ describe('answering aloud', () => {
     expect(state.protocol.slice(-1)[0]).toMatchObject({ role: 'student', text: 'фрикционная и структурная', question: false });
   });
 
-  it('nothing heard: «Не расслышал» aloud once, then the advice on screen', () => {
+  it('nothing heard: «Не расслышала» aloud once, then the advice on screen', () => {
     let state = say(asked(), '   ');
     expect(state).toMatchObject({ phase: 'speaking', emptyInRow: 1, notice: { kind: 'not_heard', text: NOT_HEARD_LINE } });
     expect(state.speech?.parts).toEqual([NOT_HEARD_LINE]);
