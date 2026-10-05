@@ -494,7 +494,7 @@ export default function ExamEditor() {
       ? 'Какие лекции брать, выберете на следующем шаге.'
       : libraryLectures > 0
         ? `В библиотеке ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy заранее отметит лекции по предмету экзамена.`
-        : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита.';
+        : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита (кроме распознавания сканов).';
   // Step 1 is the list alone: one card, its button right under the field. The button always answers:
   // with text it recognises it; on an empty field it puts the cursor there and says what to do.
   const recognizeStep = total === 0;

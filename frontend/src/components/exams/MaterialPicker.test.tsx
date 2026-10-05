@@ -218,7 +218,7 @@ describe('MaterialPicker: «Добавить лекции»', () => {
     );
     const line = document.querySelector('.nx-import-line')?.textContent ?? '';
     expect(line).toBe(
-      'Добавить лекции — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт ИИ-сервис Google Gemini.',
+      'Добавить лекции — только текст, без конспекта и без расхода лимита: PDF, DOCX, PPTX, TXT, MD. Сканы PDF распознаёт ИИ-сервис Google Gemini — 5 единиц лимита за каждые 15 страниц.',
     );
     expect(document.querySelector('.nx-import-line .ex-nb')?.textContent).toBe('ИИ-сервис');
     const deck = new File(['PK'], 'Лекция 4.pptx', { type: PPTX });
