@@ -3,7 +3,8 @@
  *
  * One append-only journal for every answer: quiz answers and card reviews are written by RPCs
  * (record_quiz_attempt, review_flashcard), answers given aloud by record_oral_attempt, and the
- * self-rating «знаю · плаваю · не знаю» by the client here. A resent event is a no-op because
+ * self-rating «знаю · плаваю · не знаю» and «подсмотреть» of the cheat sheet (`sheet_peek`) by the
+ * client here. A resent event is a no-op because
  * client_event_id is unique per user. Errors become LearningSaveError / LearningLoadError with a
  * short Russian message; raw database or network text never reaches the screen.
  */
@@ -11,7 +12,7 @@ import { supabase } from '../lib/supabase';
 import { SELF_RATING_CONFIDENCE, compareEventTime } from '../lib/learning/readiness';
 import { localDateKey } from '../utils/streak';
 
-export type LearningKind = 'quiz_answer' | 'card_review' | 'exam_answer' | 'oral_point' | 'self_rating';
+export type LearningKind = 'quiz_answer' | 'card_review' | 'exam_answer' | 'oral_point' | 'self_rating' | 'sheet_peek';
 
 export interface LearningEvent {
   id: string;
@@ -378,6 +379,78 @@ function chronological(events: LearningEvent[]): LearningEvent[] {
   const byId = new Map<string, LearningEvent>();
   for (const event of events) byId.set(event.id, event);
   return Array.from(byId.values()).sort(compareEventTime);
+}
+
+/**
+ * «Подсмотреть» on the cheat sheet (lib/exams/cheatSheet.ts): the student uncovered a rubbed line.
+ * A naming of that line later the same local day then erases nothing. item_key
+ * `peek:<rubric_id>:<point_id>`; the payload carries the question hash and the point's words, which
+ * is how the sheet finds the line again after its rubric is rebuilt.
+ */
+export async function recordSheetPeek(input: {
+  questionHash: string;
+  rubricId: string;
+  pointId: string;
+  title: string;
+  examId: string;
+}): Promise<void> {
+  const hash = typeof input.questionHash === 'string' ? input.questionHash.trim().toLowerCase() : '';
+  const pointId = typeof input.pointId === 'string' ? input.pointId.trim() : '';
+  if (!QUESTION_HASH.test(hash) || !UUID.test(input.rubricId) || !/^p[1-6]$/.test(pointId)) {
+    throw new LearningSaveError(SAVE_INVALID_MESSAGE, 'sheet_peek');
+  }
+  const row = {
+    kind: 'sheet_peek' as const,
+    item_key: `peek:${input.rubricId.toLowerCase()}:${pointId}`,
+    client_event_id: newEventId(),
+    local_date: localDate(),
+    payload: {
+      v: 1,
+      question_hash: hash,
+      rubric_id: input.rubricId.toLowerCase(),
+      point_id: pointId,
+      title: clip(input.title, 120),
+      exam_id: UUID.test(input.examId) ? input.examId : null,
+    },
+  };
+  try {
+    const { error } = await supabase.from('learning_events').upsert(row, { onConflict: 'user_id,client_event_id', ignoreDuplicates: true });
+    if (error) throw saveError(error);
+  } catch (error) {
+    throw saveError(error);
+  }
+}
+
+/** Question hashes per request when filtering on the payload (a URL stays far below 8 KB). */
+const HASHES_PER_PAYLOAD_REQUEST = 50;
+
+/**
+ * The cheat sheet's events for these questions: every `oral_point` and `sheet_peek` whose
+ * payload.question_hash is one of them (whatever rubric they were written with — the sheet matches
+ * the point by its words), oldest first, in chunks of 50 hashes, all pages.
+ */
+export async function fetchSheetEvents(questionHashes: string[]): Promise<LearningEvent[]> {
+  const hashes = unique(
+    questionHashes
+      .map((hash) => (typeof hash === 'string' ? hash.trim().toLowerCase() : ''))
+      .filter((hash) => QUESTION_HASH.test(hash)),
+  );
+  if (hashes.length === 0) return [];
+  const parts = await Promise.all(
+    chunks(hashes, HASHES_PER_PAYLOAD_REQUEST).map((part) =>
+      readAllPages((from, to) =>
+        supabase
+          .from('learning_events')
+          .select(EVENT_COLUMNS)
+          .in('kind', ['oral_point', 'sheet_peek'])
+          .in('payload->>question_hash', part)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
+      ),
+    ),
+  );
+  return chronological(parts.flat());
 }
 
 /**

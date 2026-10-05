@@ -1,0 +1,424 @@
+/* «Шпаргалка, которая исчезает» (CheatSheet.tsx; notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05,
+   sections 5–6). Squared school paper on Meldy's desk: the department's questions printed in Onest, the
+   answer points written by hand (Caveat, loaded as «Meldy Hand» by sheetFont.ts) on a 24 px grid whose
+   lines run under the handwriting's baselines. The paper keeps its own light tokens in both themes; at
+   night it is a dimmed light paper. A line's state is told by channels of the same ink — never blur,
+   glow, stains or texture images: rubbed = 38 % with eraser grain, erased = 9 %, rubbed paper under a
+   line that was rubbed, a graphite wave under a missed point, a graphite mark in the margin when an
+   erased line is due. Masks that sweep exist only while a line moves. */
+
+.cs-wrap {
+  position: relative;
+  min-width: 0;
+  --cs-marker-ms: 450ms;
+}
+.cs-wrap[data-slow] { --cs-marker-ms: 900ms; }
+
+.cs-paper {
+  --cs-paper: #fffefa;
+  --cs-grid: rgba(31, 61, 148, .13);
+  --cs-margin: #e3a2b8;
+  --cs-ink: #1f3d94;
+  --cs-graphite: #50565f;
+  --cs-print: #0b121c;
+  --cs-focus: #1f5bc6;
+  /* One grid row; the handwriting's baseline in it (Caveat 22/24 with the fixed metrics of sheetFont.ts). */
+  --cs-row: 24px;
+  --cs-base: 19px;
+  --cs-hand: 22px;
+  --cs-print-size: 15px;
+  --cs-note-size: 14px;
+  /* Onest sits 2 px higher in a 24 px row than the handwriting: printed lines are moved onto the grid line. */
+  --cs-print-shift: 2px;
+  --cs-pad-l: 24px;
+  --cs-pad-r: 72px;
+  --cs-gap: 48px;
+  /* Eraser streaks across the line: one irregular pass pattern (two passes' worth of stops). */
+  --cs-grain: repeating-linear-gradient(
+    100deg,
+    #000 0 2px,
+    rgba(0, 0, 0, .3) 2px 5px,
+    rgba(0, 0, 0, .82) 5px 7px,
+    rgba(0, 0, 0, .18) 7px 11px,
+    #000 11px 12px,
+    rgba(0, 0, 0, .42) 12px 16px,
+    rgba(0, 0, 0, .9) 16px 17px,
+    rgba(0, 0, 0, .24) 17px 21px,
+    rgba(0, 0, 0, .7) 21px 23px
+  );
+  --ph-pencil-desk: var(--cs-focus);
+  --ph-graphite-desk: var(--cs-graphite);
+  --ph-focus: var(--cs-focus);
+  color-scheme: light;
+  position: relative;
+  padding: var(--cs-row) var(--cs-pad-r) var(--cs-row) var(--cs-pad-l);
+  border-radius: 3px;
+  background-color: var(--cs-paper);
+  background-image:
+    linear-gradient(to bottom, transparent var(--cs-base), var(--cs-grid) var(--cs-base), var(--cs-grid) calc(var(--cs-base) + 1px), transparent calc(var(--cs-base) + 1px)),
+    linear-gradient(to right, var(--cs-grid) 1px, transparent 1px);
+  background-size: 100% var(--cs-row), var(--cs-row) 100%;
+  box-shadow: 0 0 0 1px rgba(16, 41, 90, .1), 0 1px 1px rgba(11, 18, 28, .05), 0 14px 32px -16px rgba(16, 41, 90, .22);
+  color: var(--cs-ink);
+  transform-origin: 50% 0;
+}
+/* The pink margin line on the right. */
+.cs-paper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--cs-pad-r) - 24px);
+  width: 1.5px;
+  background: var(--cs-margin);
+  pointer-events: none;
+}
+.dark .cs-paper {
+  --cs-paper: #dedbd1;
+  --cs-margin: #c98a9f;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .5), 0 30px 60px -30px rgba(0, 0, 0, .8);
+}
+/* A phone's paper: the 22 px grid, the handwriting at 20/22. */
+.cs-paper[data-narrow] {
+  --cs-row: 22px;
+  --cs-base: 17px;
+  --cs-hand: 20px;
+  --cs-print-size: 14px;
+  --cs-note-size: 13px;
+  --cs-print-shift: 1px;
+  --cs-pad-l: 12px;
+  --cs-pad-r: 36px;
+}
+.cs-paper[data-narrow]::after { right: calc(var(--cs-pad-r) - 14px); }
+
+/* Two columns from 760 px of paper, each a whole number of grid cells (layout.paperGeometry). */
+.cs-paper[data-columns='2'] {
+  display: grid;
+  grid-template-columns: var(--cs-col) var(--cs-col);
+  column-gap: var(--cs-gap);
+  align-items: start;
+}
+.cs-col { min-width: 0; }
+
+/* ---------------------------------------------------------------- a question */
+.cs-q {
+  position: relative;
+  padding-bottom: var(--cs-row);
+}
+.cs-sec {
+  margin: 0;
+  position: relative;
+  top: var(--cs-print-shift);
+  font-family: var(--ph-sans);
+  font-size: 12px;
+  line-height: var(--cs-row);
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--cs-graphite);
+}
+.cs-qh {
+  position: relative;
+  margin: 0;
+  font-family: var(--ph-sans);
+  font-size: var(--cs-print-size);
+  line-height: var(--cs-row);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--cs-print);
+}
+.cs-qbtn {
+  position: relative;
+  top: var(--cs-print-shift);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: .35em;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cs-qn { font-variant-numeric: tabular-nums; }
+.cs-qt { min-width: 0; text-wrap: pretty; }
+.cs-qbtn:hover .cs-qm {
+  text-decoration: underline;
+  text-decoration-color: rgba(11, 18, 28, .28);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.cs-qbtn:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 4px; }
+/* The ticket's marker: a yellow stroke over the printed words of the last answer's question. */
+.cs-qm[data-marker] {
+  background-image: linear-gradient(transparent 44%, rgba(244, 196, 91, .55) 44%, rgba(244, 196, 91, .55) 90%, transparent 90%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  -webkit-box-decoration-break: slice;
+  box-decoration-break: slice;
+  mix-blend-mode: multiply;
+}
+.cs-qm[data-marker='draw'] { animation: cs-marker var(--cs-marker-ms) cubic-bezier(.35, .05, .45, 1) both; }
+@keyframes cs-marker {
+  from { background-size: 0% 100%; }
+}
+/* «Главные строки стёрты»: a graphite tick in the margin by the number. */
+.cs-tick {
+  position: absolute;
+  left: calc(-1 * var(--cs-pad-l) + 1px);
+  top: calc(var(--cs-print-shift) + 3px);
+  width: 20px;
+  height: 16px;
+  pointer-events: none;
+}
+.cs-paper[data-narrow] .cs-tick { left: -13px; transform: scale(.7); transform-origin: 0 50%; }
+.cs-q[data-folded] .cs-qh { color: #5b616b; }
+
+/* ---------------------------------------------------------------- the handwritten lines */
+.cs-lines { margin: 0; padding: 0; list-style: none; }
+.cs-line { position: relative; }
+.cs-lbtn {
+  display: grid;
+  grid-template-columns: var(--cs-row) minmax(0, 1fr);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: 'Meldy Hand', var(--ph-sans);
+  font-size: var(--cs-hand);
+  line-height: var(--cs-row);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--cs-ink);
+  text-align: left;
+  cursor: pointer;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+.cs-lbtn:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 6px; }
+.cs-bullet {
+  text-align: center;
+  transition: opacity 180ms linear var(--cs-delay, 0ms);
+}
+.cs-body {
+  position: relative;
+  isolation: isolate;
+  justify-self: start;
+  max-width: 100%;
+  min-width: 0;
+}
+.cs-ink {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* An arrow drawn in ink (SheetText): 0.9em wide, on the text's baseline. */
+.cs-arrow { display: inline-block; vertical-align: -0.12em; margin: 0 .04em; }
+.cs-arrow-ink { display: inline-block; width: .9em; height: auto; }
+.cs-arrow-ink .sf-ink { fill: currentColor; }
+
+/* Rubbed paper under a line that was rubbed (rubbed, erased, due, returned): the grid shows at 40 %, a
+   faint graphite haze, 6 px wider than the words. */
+.cs-patch {
+  position: absolute;
+  inset: 1px -3px;
+  z-index: -1;
+  border-radius: 10px;
+  background: linear-gradient(rgba(90, 96, 105, .035), rgba(90, 96, 105, .035)), color-mix(in srgb, var(--cs-paper) 60%, transparent);
+  opacity: 0;
+}
+.cs-line:is([data-state='rubbed'], [data-state='erased'], [data-state='due'], [data-state='returned']) .cs-patch { opacity: 1; }
+
+/* Steady states. */
+.cs-line:is([data-state='rubbed'], [data-state='due']):not([data-anim]):not([data-peek]) .cs-ink {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, .38), rgba(0, 0, 0, .38)), var(--cs-grain);
+  mask-image: linear-gradient(rgba(0, 0, 0, .38), rgba(0, 0, 0, .38)), var(--cs-grain);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.cs-line[data-state='erased']:not([data-anim]) .cs-ink {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, .09), rgba(0, 0, 0, .09));
+  mask-image: linear-gradient(rgba(0, 0, 0, .09), rgba(0, 0, 0, .09));
+}
+.cs-line:is([data-state='rubbed'], [data-state='due']):not([data-peek]) .cs-bullet { opacity: .38; }
+.cs-line[data-state='erased'] .cs-bullet { opacity: .12; }
+
+/* Uncovered for a moment («Подсмотреть»): the line reads in full ink. */
+.cs-line[data-peek] .cs-ink { animation: cs-peek 220ms ease-out both; }
+@keyframes cs-peek {
+  from { opacity: .38; }
+}
+
+/* The self-test («Закрыть строки»): a dotted slot instead of the words. */
+.cs-line[data-cover] .cs-ink,
+.cs-line[data-cover] .sf-under-ink { visibility: hidden; }
+.cs-slot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--cs-row) - var(--cs-base) + 3px);
+  border-bottom: 2px dotted var(--cs-graphite);
+  opacity: .75;
+  pointer-events: none;
+}
+
+/* The graphite mark in the margin of a due line; the pencil stroke of the line whose details are open. */
+.cs-due {
+  position: absolute;
+  left: calc(-1 * var(--cs-pad-l) + 12px);
+  top: 3px;
+  pointer-events: none;
+}
+.cs-paper[data-narrow] .cs-due { left: 0; }
+.cs-line .sf-margin-stroke { left: calc(-1 * var(--cs-pad-l) + 2px); }
+
+/* Pencil notes: under a line (its state in the protocol's words) and under a question (Meldy's note). */
+.cs-note,
+.cs-pnote {
+  position: relative;
+  top: var(--cs-print-shift);
+  margin: 0;
+  padding-left: var(--cs-row);
+  font-family: var(--ph-sans);
+  font-size: var(--cs-note-size);
+  line-height: var(--cs-row);
+  font-weight: 500;
+  color: var(--cs-graphite);
+  text-wrap: pretty;
+}
+.cs-note[data-kind='peek'] { color: var(--cs-focus); }
+.cs-pnote-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.cs-pnote-link:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 4px; }
+.cs-rubnote {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 2;
+  padding: 0 8px;
+  background: var(--cs-paper);
+  font-family: var(--ph-sans);
+  font-size: var(--cs-note-size);
+  line-height: var(--cs-row);
+  font-weight: 500;
+  color: var(--cs-graphite);
+  pointer-events: none;
+  animation: cs-fade 150ms ease-out both;
+}
+
+/* The handwriting waits for its font (at most 1.5 s), so no line jumps under the reader. */
+.cs-paper[data-font='waiting'] .cs-lines { visibility: hidden; }
+.cs-paper[data-font='ready'] .cs-lines { animation: cs-fade 200ms ease-out both; }
+
+/* ---------------------------------------------------------------- movement (spec 6) */
+/* Written in: the ink appears left to right at the speed of a hand. */
+.cs-line[data-anim='write'] .cs-ink {
+  -webkit-mask-image: linear-gradient(90deg, #000 46%, transparent 54%);
+  mask-image: linear-gradient(90deg, #000 46%, transparent 54%);
+  -webkit-mask-size: 225% 100%;
+  mask-size: 225% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: cs-write var(--cs-ms) cubic-bezier(.35, .05, .45, 1) var(--cs-delay) both;
+}
+.cs-line[data-anim='write'] .cs-bullet { animation: cs-fade 120ms linear var(--cs-delay) both; }
+@keyframes cs-write {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
+
+/* Rubbed: the eraser passes → and leaves 38 % with grain; the paper under the line goes dull. Three mask
+   layers: the level (sweeping) ∩ (grain ∪ the part not reached yet). */
+.cs-line[data-anim='rub'] .cs-ink,
+.cs-line[data-anim='erase'] .cs-ink,
+.cs-line[data-anim='return'] .cs-ink {
+  -webkit-mask-size: 225% 100%, auto, 225% 100%;
+  mask-size: 225% 100%, auto, 225% 100%;
+  -webkit-mask-repeat: no-repeat, repeat, no-repeat;
+  mask-repeat: no-repeat, repeat, no-repeat;
+  -webkit-mask-composite: source-in, source-over;
+  mask-composite: intersect, add;
+}
+.cs-line[data-anim='rub'] .cs-ink {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .38) 46%, #000 54%), var(--cs-grain), linear-gradient(90deg, transparent 46%, #000 54%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, .38) 46%, #000 54%), var(--cs-grain), linear-gradient(90deg, transparent 46%, #000 54%);
+  animation: cs-sweep-right var(--cs-ms) cubic-bezier(.4, 0, .2, 1) var(--cs-delay) both;
+}
+.cs-line[data-anim='rub'] .cs-patch { animation: cs-fade var(--cs-ms) ease-out var(--cs-delay) both; }
+/* Erased: a second pass ← to 9 %; the height of the line stays. */
+.cs-line[data-anim='erase'] .cs-ink {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .38) 46%, rgba(0, 0, 0, .09) 54%), var(--cs-grain), linear-gradient(90deg, transparent 46%, #000 54%);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, .38) 46%, rgba(0, 0, 0, .09) 54%), var(--cs-grain), linear-gradient(90deg, transparent 46%, #000 54%);
+  animation: cs-sweep-left var(--cs-ms) cubic-bezier(.4, 0, .2, 1) var(--cs-delay) both;
+}
+/* Returned: written again over its trace at the speed of a hand, then the wave, then the note. */
+.cs-line[data-anim='return'] .cs-ink {
+  -webkit-mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, .38) 54%), var(--cs-grain), linear-gradient(90deg, #000 46%, transparent 54%);
+  mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, .38) 54%), var(--cs-grain), linear-gradient(90deg, #000 46%, transparent 54%);
+  animation: cs-sweep-right calc(var(--cs-ms) * .55) cubic-bezier(.35, .05, .45, 1) var(--cs-delay) both;
+}
+.cs-line[data-anim='return'][data-trace='erased'] .cs-ink {
+  -webkit-mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, .09) 54%), var(--cs-grain), linear-gradient(90deg, #000 46%, transparent 54%);
+  mask-image: linear-gradient(90deg, #000 46%, rgba(0, 0, 0, .09) 54%), var(--cs-grain), linear-gradient(90deg, #000 46%, transparent 54%);
+}
+.cs-line:is([data-anim='return'], [data-anim='miss']) .cs-note { animation: cs-fade 200ms ease-out calc(var(--cs-delay) + var(--cs-ms) * .85) both; }
+@keyframes cs-sweep-right {
+  from { -webkit-mask-position: 100% 0, 0 0, 100% 0; mask-position: 100% 0, 0 0, 100% 0; }
+  to { -webkit-mask-position: 0 0, 0 0, 0 0; mask-position: 0 0, 0 0, 0 0; }
+}
+@keyframes cs-sweep-left {
+  from { -webkit-mask-position: 0 0, 0 0, 0 0; mask-position: 0 0, 0 0, 0 0; }
+  to { -webkit-mask-position: 100% 0, 0 0, 100% 0; mask-position: 100% 0, 0 0, 100% 0; }
+}
+@keyframes cs-fade {
+  from { opacity: 0; }
+}
+
+/* «Показ на проекторе»: the replay waits for the speaker. */
+.cs-show {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  z-index: 40;
+  transform: translateX(-50%);
+}
+
+/* «Весь лист»: the whole paper in the window; a click on a question goes back to it. */
+.cs-wrap[data-zoom] { overflow: hidden; }
+.cs-wrap[data-zoom] .cs-paper,
+.cs-wrap[data-zoom] button { cursor: zoom-in; }
+
+/* A phone: the paper takes the whole width of the screen. */
+.sf-page[data-frame='s'] .cs-wrap { margin-inline: calc(-1 * var(--sf-g)); }
+.sf-page[data-frame='s'] .cs-paper { border-radius: 0; box-shadow: 0 0 0 1px rgba(16, 41, 90, .08); }
+.dark .sf-page[data-frame='s'] .cs-paper { box-shadow: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* No sweeps: a state changes in 150 ms, without masks moving. */
+  .cs-ink,
+  .cs-patch,
+  .cs-bullet { transition: opacity 150ms ease; }
+  .cs-line:is([data-state='rubbed'], [data-state='due']):not([data-anim]):not([data-peek]) .cs-ink {
+    -webkit-mask-image: var(--cs-grain);
+    mask-image: var(--cs-grain);
+    opacity: .38;
+  }
+  .cs-line[data-state='erased']:not([data-anim]) .cs-ink {
+    -webkit-mask-image: none;
+    mask-image: none;
+    opacity: .09;
+  }
+  .cs-line[data-peek] .cs-ink,
+  .cs-qm[data-marker='draw'],
+  .cs-paper[data-font='ready'] .cs-lines,
+  .cs-rubnote { animation: none; }
+}

@@ -180,6 +180,8 @@ export interface PencilUnderProps {
   weight?: number;
   /** Extra drop below the line box. */
   dy?: number;
+  /** A straight line (default) or a wavy one (a point the answer missed, on the cheat sheet). */
+  kind?: 'under' | 'wave';
   className?: string;
 }
 
@@ -188,7 +190,7 @@ export interface PencilUnderProps {
  * strokes are positioned in the nearest positioned ancestor (the sheet or the row), so the words
  * may wrap; they are measured again on resize and when the fonts arrive.
  */
-export function PencilUnder({ seed, children, hand = 'pencil', animate = false, delayMs = 0, weight = 2.2, dy = 0, className = '' }: PencilUnderProps) {
+export function PencilUnder({ seed, children, hand = 'pencil', animate = false, delayMs = 0, weight = 2.2, dy = 0, kind = 'under', className = '' }: PencilUnderProps) {
   const textRef = useRef<HTMLSpanElement>(null);
   const [rects, setRects] = useState<LineRect[]>([]);
 
@@ -239,23 +241,24 @@ export function PencilUnder({ seed, children, hand = 'pencil', animate = false, 
   }, [children]);
 
   return (
-    <span className={`sf-under ${className}`.trim()} data-mark="under">
+    <span className={`sf-under ${className}`.trim()} data-mark={kind}>
       <span ref={textRef}>{children}</span>
       {rects.map((rect, index) => {
         const w = rect.w + 4;
         const h = 6;
+        const options = kind === 'wave' ? { weight, period: 8 } : { weight };
         return (
           <PencilSvg
             key={index}
             width={w}
             height={h}
-            paths={shape('under', w, h, seed + index * 13, { weight })}
+            paths={shape(kind, w, h, seed + index * 13, options)}
             hand={hand}
             animate={animate}
             delayMs={delayMs + index * 60}
             className="sf-under-ink"
             style={{ left: rect.x - 2, top: rect.y + rect.h - 2 + dy }}
-            kind="under"
+            kind={kind}
           />
         );
       })}
