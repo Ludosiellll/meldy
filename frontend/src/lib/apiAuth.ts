@@ -1,5 +1,7 @@
-import { supabase } from './supabase';
 import { aiLimitFromBody, reportAILimit } from '../api/limits';
+
+/** The Supabase client is a file of its own (see contexts/AuthContext); read when a backend call goes out. */
+const loadSupabase = () => import('./supabase').then((module) => module.supabase);
 
 let installed = false;
 
@@ -37,6 +39,7 @@ export function installApiAuth() {
       return originalFetch(input, init);
     }
 
+    const supabase = await loadSupabase();
     const { data: { session } } = await supabase.auth.getSession();
     const headers = new Headers(
       input instanceof Request ? input.headers : (init?.headers || undefined),

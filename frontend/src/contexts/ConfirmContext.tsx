@@ -1,7 +1,13 @@
 import { createContext, useContext, useEffect, useId, useState, useRef, ReactNode, type KeyboardEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { lazyPart, useLazyPart } from '../lib/lazyPart';
 
-interface ConfirmOptions {
+/**
+ * The dialog's markup and framer-motion are a file of their own (ConfirmDialog.tsx): the provider
+ * mounts it the first time a dialog opens, or earlier, once the idle prefetch has fetched it.
+ */
+export const confirmDialogPart = lazyPart(() => import('./ConfirmDialog').then((module) => module.default));
+
+export interface ConfirmOptions {
   title: string;
   message: string;
   confirmText?: string;
@@ -104,14 +110,24 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     action?.();
   };
 
+  // Its file failed to load: the question is answered «no» (a notice is closed), so no caller waits forever.
+  const Dialog = useLazyPart(confirmDialogPart, isOpen, {
+    immediate: true,
+    onError: (error) => {
+      console.error('Не удалось загрузить окно подтверждения:', error);
+      close(false);
+    },
+  });
+
   // Focus moves into the dialog: the safe choice for a question («Отмена»), the only button for a notice.
+  // Dialog is a dependency: the first time, the dialog appears once its file has arrived.
   useEffect(() => {
     if (!isOpen) return;
     const node = dialogRef.current;
     if (!node) return;
     const target = node.querySelector<HTMLElement>('[data-autofocus]') ?? node;
     target.focus();
-  }, [isOpen, options]);
+  }, [isOpen, options, Dialog]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
@@ -144,83 +160,22 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={{ confirm, alert }}>
       {children}
 
-      <AnimatePresence>
-        {isOpen && options && (
-          <div key="confirm-modal-container" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              onClick={handleCancel}
-              aria-hidden="true"
-              className="absolute inset-0 bg-black/30"
-            />
-            <motion.div
-              ref={dialogRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={titleId}
-              aria-describedby={messageId}
-              tabIndex={-1}
-              onKeyDown={handleKeyDown}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="relative w-full max-w-[440px] rounded-lg bg-[var(--sf-surface)] p-6 text-left text-[var(--sf-ink)] outline-none"
-              style={{ boxShadow: 'var(--sf-pop-shadow, 0 0 0 1px var(--sf-line), 0 18px 36px -22px rgba(30, 24, 16, .32))' }}
-            >
-              <h2 id={titleId} className="text-xl font-semibold leading-[1.3] text-[var(--sf-ink)]">
-                {options.title}
-              </h2>
-              <p id={messageId} className="mt-2 text-base leading-relaxed text-[var(--sf-muted)]">
-                {options.message}
-              </p>
-              {options.checkboxLabel && !isAlert && (
-                <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 text-left">
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 shrink-0 accent-[var(--sf-ink)]"
-                    checked={isChecked}
-                    onChange={(e) => setIsChecked(e.target.checked)}
-                  />
-                  <span className="select-none text-[15px] text-[var(--sf-ink)]">{options.checkboxLabel}</span>
-                </label>
-              )}
-              <div className="mt-6 flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
-                {isAlert && options.secondaryText && (
-                  <button
-                    type="button"
-                    onClick={handleSecondary}
-                    className="inline-flex min-h-11 items-center text-base font-medium text-[var(--sf-ink)] underline decoration-1 underline-offset-[5px] [text-decoration-color:color-mix(in_srgb,currentColor_32%,transparent)] hover:[text-decoration-color:currentColor]"
-                  >
-                    {options.secondaryText}
-                  </button>
-                )}
-                {!isAlert && (
-                  <button
-                    type="button"
-                    data-autofocus
-                    onClick={handleCancel}
-                    className="inline-flex min-h-11 items-center text-base font-medium text-[var(--sf-ink)] underline decoration-1 underline-offset-[5px] [text-decoration-color:color-mix(in_srgb,currentColor_32%,transparent)] hover:[text-decoration-color:currentColor]"
-                  >
-                    {options.cancelText || 'Отмена'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  data-autofocus={isAlert ? true : undefined}
-                  onClick={handleConfirm}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--sf-accent)] px-6 text-base font-semibold text-white transition-colors hover:bg-[var(--sf-accent-hover)]"
-                >
-                  {options.confirmText || 'ОК'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {Dialog ? (
+        <Dialog
+          isOpen={isOpen}
+          options={options}
+          isAlert={isAlert}
+          isChecked={isChecked}
+          onCheckedChange={setIsChecked}
+          titleId={titleId}
+          messageId={messageId}
+          dialogRef={dialogRef}
+          onKeyDown={handleKeyDown}
+          onCancel={handleCancel}
+          onConfirm={handleConfirm}
+          onSecondary={handleSecondary}
+        />
+      ) : null}
     </ConfirmContext.Provider>
   );
 }

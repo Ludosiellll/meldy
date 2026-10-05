@@ -41,6 +41,16 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Screens share many tiny modules (icons, helpers); split one by one they became dozens of
+        // files of a few hundred bytes, and on a slow line each request costs a round trip. Rollup
+        // merges a chunk under this size that has no side effects into one loaded with it.
+        experimentalMinChunkSize: 10_000,
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {

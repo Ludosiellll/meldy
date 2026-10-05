@@ -16,10 +16,9 @@
  * - sessionStorage meldy_exam_peak_<examId> — the questions answered just now and their state
  *   before, so the exam sheet can draw the change (redesign spec 5.9).
  */
-import { supabase } from '../supabase';
 import { notifyAIUsageChanged } from '../../api/limits';
 import { AI_COSTS } from '../plans';
-import { localDate } from '../../api/learning';
+import { localDateKey } from '../../utils/streak';
 import type { Readiness } from '../learning/readiness';
 import type { Evaluation, Rubric, RubricPoint } from './oralApi';
 import type { GradeResult } from './oralGrade';
@@ -163,7 +162,7 @@ export function buildAttemptPayload(input: BuildAttemptInput): OralAttemptPayloa
   const firstMaterial = input.evidenceMaterialId ?? input.rubric.materials[0]?.material_id ?? null;
   return {
     attempt_id: input.attemptId,
-    local_date: input.localDate ?? localDate(),
+    local_date: input.localDate ?? localDateKey(),
     exam_question_id: input.examQuestionId,
     rubric_id: input.rubricId,
     material_id: firstMaterial,
@@ -228,6 +227,9 @@ const charged = new Set<string>();
 export async function saveOralAttempt(userId: string | null, payload: OralAttemptPayload): Promise<SaveResult> {
   let response: { data: unknown; error: unknown };
   try {
+    // The client is a file of its own: the example exam (/try) shows the answer screen without an
+    // account and never saves, so it does not load it.
+    const { supabase } = await import('../supabase');
     response = await supabase.rpc('record_oral_attempt', { p_attempt: payload });
   } catch {
     throw new OralSaveError('network');

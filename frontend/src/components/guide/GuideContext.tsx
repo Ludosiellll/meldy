@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { markOnboardingTourSeen } from '../../api/social';
+import { useAuth } from '../../hooks/useAuth';
 import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapterId } from './chapters';
+import { guideClipPart } from './clipPart';
 
 /** Remembered on this device as soon as the guide is closed (the profile keeps it for other devices). */
 export const GUIDE_SEEN_KEY = 'meldy_guide_seen';
@@ -22,6 +24,14 @@ function writeSeen() {
   } catch {
     // Private mode: the profile still remembers it.
   }
+}
+
+/** An account this young has most likely not seen the guide yet. */
+const NEW_ACCOUNT_MS = 3 * 24 * 60 * 60 * 1000;
+
+function isNewAccount(createdAt: string | undefined): boolean {
+  const at = createdAt ? Date.parse(createdAt) : Number.NaN;
+  return Number.isFinite(at) && Date.now() - at < NEW_ACCOUNT_MS;
 }
 
 export interface GuideApi {
@@ -87,6 +97,15 @@ export function GuideProvider({ userId, seenInProfile, mandatoryFirstRun = false
   const touched = useRef(false);
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
+  const { user } = useAuth();
+  const newAccount = isNewAccount(user?.created_at);
+
+  // A first run is likely (the profile says so, or the account is new and the profile is on its
+  // way): the clips are fetched now, so the guide opens with them.
+  useEffect(() => {
+    if (seen.current) return;
+    if (seenInProfile === false || (seenInProfile === null && newAccount)) void guideClipPart.load().catch(() => undefined);
+  }, [seenInProfile, newAccount]);
 
   const markSeen = useCallback(() => {
     if (seen.current) return;
