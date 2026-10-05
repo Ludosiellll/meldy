@@ -4,10 +4,12 @@
  * 1440 × 1080, 6.4 s loops that start and end on empty paper. Example data, the screens' own words.
  */
 import { useRef, type ComponentType, type ReactNode } from 'react';
-import { opacity, place, put, useEls, useFrame } from '../../reel/engine';
+import { blur, opacity, place, put, text as setText, useEls, useFrame } from '../../reel/engine';
 import { Counter } from '../../reel/parts';
-import { clamp, ease, mix, seg } from '../../reel/timeline';
-import { Arrow, MicIcon, Statement, UploadIcon, Wordmark, focusIn, pressDepth, slideIn, slideOut } from '../../film/kit';
+import { clamp, ease, mix, pulse, seg } from '../../reel/timeline';
+import { Arrow, MicIcon, Statement, UploadIcon, Wordmark, focusIn, keyed, pressDepth, slideIn, slideOut } from '../../film/kit';
+import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../../lib/plans';
+import { plural } from '../../pro/planCopy';
 import type { GuideChapterId } from '../chapters';
 import './scenes.css';
 
@@ -37,8 +39,8 @@ function Beat({ lines, children }: { lines: readonly string[]; children: ReactNo
   );
 }
 
-/** A slice of the top line with the section's pill on. */
-function Strip({ items, on, cta }: { items: readonly string[]; on?: string; cta?: boolean }) {
+/** A slice of the top line with the section's pill on (and, at its end, whatever the clip is about). */
+function Strip({ items, on, cta, children }: { items: readonly string[]; on?: string; cta?: boolean; children?: ReactNode }) {
   return (
     <div className="gs-strip">
       <Wordmark className="gs-strip-mark" />
@@ -48,6 +50,7 @@ function Strip({ items, on, cta }: { items: readonly string[]; on?: string; cta?
         </span>
       ))}
       {cta ? <span className="gs-strip-cta">Добавить лекцию</span> : null}
+      {children}
     </div>
   );
 }
@@ -458,7 +461,142 @@ function Progress() {
   );
 }
 
-const clip = (Scene: ComponentType) => ({ total: CLIP, poster: 5200, Scene });
+// ---------------------------------------------------------------------------------------------
+// «Лимит ИИ»: the meter at the end of the top line; a lecture is analysed and an answer checked, and
+// their prices fly into it; then when it comes back and what PRO gives. Numbers: lib/plans.ts.
+
+interface Spend {
+  cost: number;
+  /** Scene time the chip leaves its button; it lands (and the meter changes) FLY later. */
+  at: number;
+}
+
+/** How long a price flies from its button to the meter (ms). */
+export const LIMIT_FLY = 600;
+const FLY = LIMIT_FLY;
+export const LIMIT_SPENDS: readonly Spend[] = [
+  { cost: AI_COSTS.lecture, at: 2560 },
+  { cost: AI_COSTS.answer, at: 3410 },
+];
+const LIMIT_PRESS = [2500, 3350];
+/** «Обновится ночью» and «С PRO — 1000 в день» come in here. */
+const LIMIT_NIGHT = 4250;
+const LIMIT_PRO = 4650;
+
+/** The meter's number at scene time `l`: the free day, less each price that has landed. */
+export function limitMeterAt(l: number): number {
+  return LIMIT_SPENDS.reduce((left, spend) => (l >= spend.at + FLY ? left - spend.cost : left), FREE_DAILY_UNITS);
+}
+
+/** Where the prices start (the middle of each button) and land (the meter's number): stage px, measured in the browser. */
+const LIMIT_FROM = [
+  { x: 344, y: 668 },
+  { x: 1017, y: 668 },
+];
+const LIMIT_TO = { x: 1290, y: 102 };
+/** The free strip between the top line and the cards: the prices cross the screen there. */
+const LIMIT_LANE = 236;
+
+function Limit() {
+  const root = useRef<HTMLDivElement>(null);
+  const { one, all } = useEls(root);
+  useFrame((l) => {
+    all('press').forEach((button, index) => put(button, 'transform', `scale(${(1 - 0.06 * pressDepth(l, LIMIT_PRESS[index])).toFixed(3)})`));
+    all('chip').forEach((chip, index) => {
+      const spend = LIMIT_SPENDS[index];
+      const p = seg(l, spend.at, FLY);
+      if (p <= 0 || p >= 1) {
+        put(chip, 'transform', 'none');
+        opacity(chip, 0);
+        blur(chip, 0);
+        return;
+      }
+      // Up out of its card, across the free strip above the cards, then into the meter.
+      const from = LIMIT_FROM[index];
+      const x = keyed(p, [[0, from.x], [0.22, from.x], [0.82, LIMIT_TO.x], [1, LIMIT_TO.x]]);
+      const y = keyed(p, [[0, from.y], [0.36, LIMIT_LANE], [0.72, LIMIT_LANE], [1, LIMIT_TO.y]]);
+      const scale = mix(1, 0.55, ease.in(p)) * (p < 0.14 ? mix(0.72, 1, ease.out(p / 0.14)) : 1);
+      put(chip, 'transform', `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) scale(${scale.toFixed(3)})`);
+      opacity(chip, Math.min(clamp(p / 0.08), 1 - clamp((p - 0.84) / 0.16)));
+      blur(chip, 6 * Math.sin(Math.PI * p));
+    });
+    // The meter: the number on landing (with a small bump), the ring easing to what is left.
+    const left = limitMeterAt(l);
+    setText(one('num'), String(left));
+    let bump = 0;
+    for (const spend of LIMIT_SPENDS) bump = Math.max(bump, pulse(l, spend.at + FLY, 260));
+    put(one('num'), 'transform', `scale(${(1 + 0.18 * bump).toFixed(3)})`);
+    const eased = LIMIT_SPENDS.reduce((sum, spend) => sum + spend.cost * ease.out(seg(l, spend.at + FLY, 320)), 0);
+    put(one('arc'), 'stroke-dasharray', `${((100 * (FREE_DAILY_UNITS - eased)) / FREE_DAILY_UNITS).toFixed(2)} 100`);
+    slideIn(one('night'), l, LIMIT_NIGHT, { dx: -60, dur: 640, smear: 12 });
+    slideIn(one('pro'), l, LIMIT_PRO, { dx: -60, dur: 640, smear: 12 });
+  });
+  const units = `${FREE_DAILY_UNITS} ${plural(FREE_DAILY_UNITS, ['единица', 'единицы', 'единиц'])}`;
+  return (
+    <div ref={root} className="mr-scene">
+      <Beat lines={[units, 'в день.']}>
+        <Strip items={['Сегодня', 'Экзамены', 'Лекции']}>
+          <div className="gs-meter">
+            <svg className="gs-meter-ring" viewBox="0 0 40 40" aria-hidden="true">
+              <circle className="gs-meter-track" cx="20" cy="20" r="16.5" />
+              <circle data-a="arc" className="gs-meter-arc" cx="20" cy="20" r="16.5" pathLength={100} strokeDasharray="100 100" transform="rotate(-90 20 20)" />
+            </svg>
+            <em className="gs-meter-t">Лимит ИИ</em>
+            <b data-a="num" className="gs-meter-n">
+              {FREE_DAILY_UNITS}
+            </b>
+          </div>
+        </Strip>
+        <div className="fm-card gs-lim-card" style={{ left: 80 }}>
+          <div className="gs-lim-file">
+            <span className="fm-sheet-ico" />
+            <span>
+              Лекция 4.pdf
+              <small>PDF · 18 страниц</small>
+            </span>
+          </div>
+          <span data-a="press" className="fm-btn fm-btn--blue gs-lim-btn">
+            Запустить анализ
+            <i>
+              <Arrow />
+            </i>
+          </span>
+        </div>
+        <div className="fm-card gs-lim-card" style={{ left: 760 }}>
+          <span className="fm-st fm-st--ink">Билет 12 · вопрос 1 из 2</span>
+          <p className="fm-h1 gs-lim-q">Эластичность спроса</p>
+          <span className="gs-lim-lines" aria-hidden="true">
+            <i />
+            <i />
+          </span>
+          <span data-a="press" className="fm-btn fm-btn--blue gs-lim-btn">
+            Проверить ответ
+            <i>
+              <Arrow />
+            </i>
+          </span>
+        </div>
+        <div className="gs-lim-notes">
+          <span data-a="night" className="fm-flag gs-lim-flag" style={{ opacity: 0 }}>
+            Обновится ночью
+          </span>
+          <span data-a="pro" className="fm-flag fm-flag--yellow gs-lim-flag" style={{ opacity: 0 }}>
+            С PRO — {PRO_DAILY_UNITS} в день
+          </span>
+        </div>
+        <div className="gs-lim-chips" aria-hidden="true">
+          {LIMIT_SPENDS.map((spend, index) => (
+            <span key={index} data-a="chip" className="gs-lim-chip" style={{ opacity: 0 }}>
+              −{spend.cost}
+            </span>
+          ))}
+        </div>
+      </Beat>
+    </div>
+  );
+}
+
+const clip = (Scene: ComponentType, poster = 5200) => ({ total: CLIP, poster, Scene });
 
 export const GUIDE_SCENES: Record<GuideChapterId, { total: number; poster: number; Scene: ComponentType }> = {
   today: clip(Today),
@@ -467,4 +605,6 @@ export const GUIDE_SCENES: Record<GuideChapterId, { total: number; poster: numbe
   review: clip(Review),
   exams: clip(Exams),
   progress: clip(Progress),
+  // The still frame: both prices spent, both lines in, nothing in flight.
+  limit: clip(Limit, 5450),
 };

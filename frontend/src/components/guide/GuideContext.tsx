@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocation, useNavigate } from 'react-router-dom';
 import { markOnboardingTourSeen } from '../../api/social';
 import { useAuth } from '../../hooks/useAuth';
-import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapterId } from './chapters';
+import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapter, type GuideChapterId } from './chapters';
 import { GUIDE_SEEN_KEY, guideClipPart, guideSeenHere, isNewAccount } from './clipPart';
 
 export { GUIDE_SEEN_KEY };
@@ -89,9 +89,13 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     if (userId) void Promise.resolve().then(() => markOnboardingTourSeen(userId, GUIDE_PROFILE_KEY)).catch(() => undefined);
   }, [userId]);
 
-  /** Takes the app to `route` when the page may be left (see mayLeave). */
+  /**
+   * Takes the app to the chapter's section when the page may be left (see mayLeave). A chapter without
+   * a page of its own (the limit: its meter is in the top line) leaves the app where it is.
+   */
   const bring = useCallback(
-    (route: string, match: RegExp) => {
+    ({ route, match }: GuideChapter) => {
+      if (!route || !match) return;
       const here = pathRef.current;
       if (match.test(here)) return;
       if (!mayLeave(here, brought.current, touched.current)) return;
@@ -120,7 +124,7 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     setMandatory(true);
     setOpen(true);
     const first = GUIDE_CHAPTERS[0];
-    bring(first.route, first.match);
+    bring(first);
   }, [bring]);
 
   const close = useCallback(() => {
@@ -132,7 +136,7 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
   const finish = useCallback(() => {
     const first = GUIDE_CHAPTERS[0];
     close();
-    bring(first.route, first.match);
+    bring(first);
   }, [close, bring]);
 
   const go = useCallback(
@@ -140,7 +144,7 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
       const target = GUIDE_CHAPTERS[next];
       if (!target) return;
       setIndex(next);
-      bring(target.route, target.match);
+      bring(target);
     },
     [bring],
   );

@@ -2,25 +2,48 @@ import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
 import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
+import { unitsPerDay } from './pro/planCopy';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   usedTokens: number;
   isPro?: boolean;
+  /** The account's day as the server counts it; by default 100, or 1000 with PRO (lib/plans.ts). */
+  limit?: number;
+  /** «Что даёт PRO»: the PRO window (only offered to an account without PRO). */
+  onOpenPro?: () => void;
 }
 
+/** What an action costs, with a note under it where the price depends on the size. Numbers: lib/plans.ts. */
+export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: string }> = [
+  {
+    what: 'Анализ лекции',
+    units: AI_COSTS.lecture,
+    note: `скан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`,
+  },
+  { what: 'Проверка ответа на билет', units: AI_COSTS.answer },
+  { what: 'Разговор по лекции', units: AI_COSTS.conversation },
+  { what: 'Шпаргалка', units: AI_COSTS.cheatsheet },
+  {
+    what: 'Сверка списка вопросов',
+    units: AI_COSTS.examMapping,
+    note: `за каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`,
+  },
+];
+
 /**
- * Окно «Дневной лимит ИИ»: сколько единиц осталось и когда лимит обновится
- * (00:00 UTC, показано в местном времени). Единицы списывает сервер перед обращением к ИИ;
- * бесплатно — 100 в сутки, у PRO — до 1000 (lib/plans.ts). Без тарифных предложений: оплаты
- * в Meldy нет. Вид (Meldy 2026-10-04): белая карточка со скруглением 32, остаток — в голубой
- * плашке с полосой-пилюлей; стили .ac-modal-* в styles/legacy.css.
+ * Окно «Дневной лимит ИИ» (открывается счётчиком в верхней строке): сколько единиц осталось, когда
+ * лимит обновится (00:00 UTC, показано в местном времени), сколько стоят главные действия и что даёт
+ * PRO. Единицы списывает сервер перед обращением к ИИ; бесплатно — 100 в сутки, у PRO — до 1000
+ * (lib/plans.ts). PRO включается в окне PRO — бесплатно, это демо: оплата не подключена. Вид (Meldy
+ * 2026-10-04): белая карточка со скруглением 36, остаток — в голубой плашке с полосой-пилюлей, цены —
+ * строками; стили .ac-modal-* и .ac-costs в styles/legacy.css.
  */
-export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: Props) {
+export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, limit: dayLimit, onOpenPro }: Props) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const limit = dailyUnits(Boolean(isPro));
+  const limit = dayLimit && dayLimit > 0 ? dayLimit : dailyUnits(Boolean(isPro));
   const used = Math.max(0, Number(usedTokens) || 0);
   const remaining = Math.max(0, limit - used);
   const share = Math.min(100, Math.max(0, (remaining / limit) * 100));
@@ -48,7 +71,7 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="ac-modal-card"
+        className="ac-modal-card ac-modal-card--scroll"
       >
         <button type="button" onClick={onClose} aria-label="Закрыть" className="ac-modal-x">
           <X aria-hidden="true" />
@@ -65,18 +88,36 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
           </div>
         </div>
         <p className="ac-modal-p">
-          {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}{' '}
-          {isPro ? `У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день. ` : ''}
-          Единицы списываются, когда Meldy обращается к ИИ: анализ материала — {AI_COSTS.lecture} (скан PDF — ещё{' '}
-          {AI_COSTS.scanPages} за каждые {OCR_PAGES_PER_CHARGE} страниц), сверка списка
-          с лекциями — {AI_COSTS.examMapping} за каждые {EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов, ответ на
-          билет — {AI_COSTS.answer}, разговор — {AI_COSTS.conversation}, шпаргалка — {AI_COSTS.cheatsheet}. Если ИИ
-          не справился, единицы возвращаются.
+          {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}
+          {isPro ? ` У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день.` : ''}
         </p>
 
-        <button type="button" onClick={onClose} className="ac-modal-ok">
-          Понятно
-        </button>
+        <p className="ac-modal-p ac-costs-h">Единицы списываются, когда Meldy обращается к ИИ:</p>
+        <dl className="ac-costs">
+          {LIMIT_COSTS.map((row) => (
+            <div key={row.what} className="ac-cost">
+              <dt>
+                {row.what}
+                {row.note ? <small>{row.note}</small> : null}
+              </dt>
+              <dd>{row.units}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="ac-modal-p ac-costs-back">Если ИИ не справился, единицы возвращаются.</p>
+
+        {isPro ? null : <p className="ac-limit-pro">С PRO — {unitsPerDay(PRO_DAILY_UNITS)}.</p>}
+
+        <div className="ac-modal-acts">
+          {!isPro && onOpenPro ? (
+            <button type="button" onClick={onOpenPro} className="ac-btn ac-modal-alt">
+              Что даёт PRO
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="ac-modal-ok">
+            Понятно
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -25,7 +25,7 @@ import { AILimitDialogHost, refusalMessage, useEnergyConfirm, unitsWord } from '
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import TokenInfoModal from '../components/TokenInfoModal';
 import { formatLimitReset, nextLimitReset, reportAILimit, resetAILimitReportsForTests } from '../api/limits';
-import { OPEN_PRO_EVENT } from '../lib/plans';
+import { AI_COSTS, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, OPEN_PRO_EVENT } from '../lib/plans';
 
 type Verify = ReturnType<typeof useEnergyConfirm>['verifyEnergy'];
 
@@ -221,20 +221,47 @@ describe('unitsWord', () => {
   });
 });
 
-// Окно «Дневной лимит ИИ» в шапке — та же тема, отдельного файла тестов у него нет.
+// Окно «Дневной лимит ИИ» (счётчик в верхней строке) — та же тема, отдельного файла тестов у него нет.
 describe('TokenInfoModal', () => {
-  it('shows the remaining units and the local reset time, without upsell or ⚡', () => {
+  it('shows what is left, when it comes back and what the main actions cost — the numbers of lib/plans.ts', () => {
     const { container } = render(<TokenInfoModal isOpen onClose={() => {}} usedTokens={20} />);
     expect(screen.getByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeInTheDocument();
     expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 80 из 100 единиц.');
     expect(screen.getByText(new RegExp(`Лимит обновится в ${formatLimitReset(nextLimitReset())}\\.`))).toBeInTheDocument();
     // Цены — из lib/plans.ts; списывает сервер, при сбое ИИ единицы возвращаются.
-    expect(container.textContent).toContain(
-      'Единицы списываются, когда Meldy обращается к ИИ: анализ материала — 20 (скан PDF — ещё 5 за каждые 15 страниц), сверка списка с лекциями — 10 за каждые 40 новых вопросов, ответ на билет — 4, разговор — 5, шпаргалка — 5. Если ИИ не справился, единицы возвращаются.',
-    );
-    expect(container.textContent).not.toMatch(/⚡|PRO|тариф|Энергия/);
+    expect(screen.getByText('Единицы списываются, когда Meldy обращается к ИИ:')).toBeInTheDocument();
+    const rows = Array.from(container.querySelectorAll('.ac-cost')).map((row) => [
+      row.querySelector('dt')?.textContent,
+      row.querySelector('dd')?.textContent,
+    ]);
+    expect(rows).toEqual([
+      [`Анализ лекциискан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`, String(AI_COSTS.lecture)],
+      ['Проверка ответа на билет', String(AI_COSTS.answer)],
+      ['Разговор по лекции', String(AI_COSTS.conversation)],
+      ['Шпаргалка', String(AI_COSTS.cheatsheet)],
+      [`Сверка списка вопросовза каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`, String(AI_COSTS.examMapping)],
+    ]);
+    expect(screen.getByText('Если ИИ не справился, единицы возвращаются.')).toBeInTheDocument();
+    // What PRO gives, in the same numbers; no price, no checkout here.
+    expect(screen.getByText('С PRO — 1000 единиц ИИ в день.')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/⚡|Энергия|₽|оплат/);
     expect(container.querySelector('.animate-pulse, [class*="gradient"], [class*="shadow-[0_0"]')).toBeNull();
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '80%' });
+  });
+
+  it('offers «Что даёт PRO» next to «Понятно» when it can open the PRO window', () => {
+    const onOpenPro = vi.fn();
+    const { rerender } = render(<TokenInfoModal isOpen onClose={() => {}} usedTokens={20} onOpenPro={onOpenPro} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Что даёт PRO' }));
+    expect(onOpenPro).toHaveBeenCalledTimes(1);
+    rerender(<TokenInfoModal isOpen onClose={() => {}} usedTokens={20} />);
+    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).not.toBeInTheDocument();
+  });
+
+  it('counts the day the server gave (the limit prop), not only the plan default', () => {
+    render(<TokenInfoModal isOpen isPro limit={1000} onClose={() => {}} usedTokens={40} />);
+    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 960 из 1000 единиц.');
+    expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '96%' });
   });
 
   it('clamps an overspent counter at zero', () => {
@@ -245,11 +272,12 @@ describe('TokenInfoModal', () => {
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '0%' });
   });
 
-  it('tells PRO the truth: up to 1000 units a day, counted like everyone else', () => {
-    const { container } = render(<TokenInfoModal isOpen isPro onClose={() => {}} usedTokens={250} />);
+  it('tells PRO the truth: up to 1000 units a day, counted like everyone else, and offers nothing', () => {
+    const { container } = render(<TokenInfoModal isOpen isPro onClose={() => {}} usedTokens={250} onOpenPro={() => {}} />);
     expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 750 из 1000 единиц.');
     expect(container.textContent).toContain('У аккаунта PRO — до 1000 единиц в день.');
-    expect(container.textContent).not.toMatch(/не применяется/);
+    expect(container.textContent).not.toMatch(/не применяется|С PRO —/);
+    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).not.toBeInTheDocument();
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '75%' });
   });
 

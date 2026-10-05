@@ -5,10 +5,11 @@ import { useAuth } from '../hooks/useAuth';
 import { getProfile, type UserProfile } from '../api/social';
 import { ErrorBoundary } from './ErrorBoundary';
 import { useTheme } from '../contexts/ThemeProvider';
-import { AI_USAGE_EVENT, checkAILimit, FREE_DAILY_LIMIT } from '../api/limits';
+import { FREE_DAILY_LIMIT } from '../api/limits';
 import { countDueCards } from '../api/flashcards';
-import { openProWindow, PRO_DAILY_UNITS } from '../lib/plans';
+import { dailyUnits, openProWindow } from '../lib/plans';
 import TokenInfoModal from './TokenInfoModal';
+import QuotaMeter, { useAIQuota } from './QuotaMeter';
 import RouteLoading from './RouteLoading';
 import { useInstallPWA } from '../hooks/useInstallPWA';
 import { GuideProvider, GUIDE_PROFILE_KEY, useGuide } from './guide/GuideContext';
@@ -19,10 +20,11 @@ import './layout.css';
 
 /**
  * The shell of the interior: one line on top like the landing's navbar — the wordmark, the five
- * sections as pills, «Добавить лекцию» and the account button; on phones a short line with «+»
- * and five tabs at the bottom, an icon over a word. The menu is the core of Meldy: «Сегодня»,
- * «Экзамены», «Лекции», «Повторение» (with the mistakes diary) and «Прогресс» (with the knowledge
- * map). The window scrolls (not <main>), so a page opens at its top and «назад» returns to where it was.
+ * sections as pills, «Добавить лекцию», the daily AI limit (QuotaMeter) and the account button; on
+ * phones a short line with «+» and the limit's ring, and five tabs at the bottom, an icon over a word.
+ * The menu is the core of Meldy: «Сегодня», «Экзамены», «Лекции», «Повторение» (with the mistakes
+ * diary) and «Прогресс» (with the knowledge map). The window scrolls (not <main>), so a page opens at
+ * its top and «назад» returns to where it was.
  */
 
 interface NavItem {
@@ -212,43 +214,34 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '';
   const initial = name ? name[0].toUpperCase() : '?';
 
-  /** Units used today; null while unknown (not read yet, or the counter could not be read). */
-  const [usedTokens, setUsedTokens] = useState<number | null>(null);
-  // The account's day as the server counts it: 100, or 1000 with PRO (ai_quota_status).
-  const [dayLimit, setDayLimit] = useState<number | null>(null);
+  // Today's units and the account's day as the server counts them: 100, or 1000 with PRO (ai_quota_status).
+  const quota = useAIQuota(user?.id);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const roomMode = isRoomPath(location.pathname);
   const [stageMode, toggleStageMode] = useStageMode();
-  const refetchTokensRef = useRef<(() => void) | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const barRef = useRef<HTMLElement | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   const tabsRef = useRef<HTMLElement | null>(null);
   const menuId = useId();
-  const quotaLimit = dayLimit ?? (profile?.is_pro ? PRO_DAILY_UNITS : FREE_DAILY_LIMIT);
-  const remainingUnits = quotaRemaining(usedTokens, quotaLimit);
-  const quotaLabel = profile?.is_pro
-    ? remainingUnits === null
-      ? `Дневной лимит PRO: до ${PRO_DAILY_UNITS} единиц ИИ в день`
-      : `Дневной лимит PRO: осталось ${remainingUnits} из ${quotaLimit}`
-    : remainingUnits === null
-      ? 'Дневной лимит: остаток не удалось загрузить. Нажмите, чтобы проверить ещё раз'
-      : `Дневной лимит: осталось ${remainingUnits} из ${quotaLimit}`;
-  const quotaState = profile?.is_pro
-    ? remainingUnits === null
-      ? `PRO · до ${PRO_DAILY_UNITS}`
-      : `PRO · осталось ${remainingUnits} из ${quotaLimit}`
-    : remainingUnits === null
-      ? 'проверить'
-      : `осталось ${remainingUnits} из ${quotaLimit}`;
+  // The quota's answer knows the plan first after a purchase; the profile is the fallback.
+  const isPro = quota.pro ?? Boolean(profile?.is_pro);
+  const planKnown = quota.pro !== null || profile !== null;
+  const quotaLimit = quota.limit ?? dailyUnits(isPro);
+  const remainingUnits = quotaRemaining(quota.used, quotaLimit);
+  // The meter: not read — read again; a free day spent — the PRO window; otherwise what the limit is.
   const openQuota = () => {
-    if (!profile?.is_pro && usedTokens === null) {
-      refetchTokensRef.current?.();
+    if (remainingUnits === null) {
+      quota.refetch();
       return;
     }
     setMenuOpen(false);
+    if (remainingUnits <= 0 && !isPro) {
+      openProWindow('limit');
+      return;
+    }
     setIsTokenModalOpen(true);
   };
   const openPro = () => {
@@ -309,28 +302,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     fetchProfile();
     window.addEventListener('profile_updated', fetchProfile);
 
-    let tokensRequest = 0;
-    const fetchTokens = () => {
-      const request = ++tokensRequest;
-      checkAILimit(userId, 0)
-        .then((res) => {
-          if (request !== tokensRequest) return;
-          setUsedTokens(res.ok ? res.count : null);
-          if (res.ok && Number.isFinite(res.limit) && res.limit > 0) setDayLimit(res.limit);
-        })
-        .catch(() => {
-          if (request === tokensRequest) setUsedTokens(null);
-        });
-    };
-    fetchTokens();
-    refetchTokensRef.current = fetchTokens;
-    window.addEventListener(AI_USAGE_EVENT, fetchTokens);
-
     return () => {
-      tokensRequest += 1;
-      refetchTokensRef.current = null;
       window.removeEventListener('profile_updated', fetchProfile);
-      window.removeEventListener(AI_USAGE_EVENT, fetchTokens);
     };
   }, [user?.id]);
 
@@ -386,13 +359,16 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         <span>Показ на проекторе</span>
         <span className="sf-acct-state">{stageMode ? 'вкл' : 'выкл'}</span>
       </button>
-      <button type="button" className="sf-acct-item" onClick={openQuota} aria-label={quotaLabel} data-testid="quota-meter">
-        <span>Дневной лимит</span>
-        <span className="sf-acct-state">{quotaState}</span>
-      </button>
-      {profile && !profile.is_pro ? (
+      {/* The daily limit itself is the meter in the line; here only the way to the plan. */}
+      {planKnown && !isPro ? (
         <button type="button" className="sf-acct-item sf-acct-pro" onClick={openPro}>
           Что даёт PRO
+        </button>
+      ) : null}
+      {planKnown && isPro ? (
+        <button type="button" className="sf-acct-item" onClick={openPro}>
+          <span>Тариф PRO</span>
+          <span className="sf-acct-state">включён</span>
         </button>
       ) : null}
       {showInstall ? (
@@ -412,8 +388,13 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       <TokenInfoModal
         isOpen={isTokenModalOpen}
         onClose={() => setIsTokenModalOpen(false)}
-        usedTokens={usedTokens ?? 0}
-        isPro={profile?.is_pro}
+        usedTokens={quota.used ?? 0}
+        isPro={isPro}
+        limit={quotaLimit}
+        onOpenPro={() => {
+          setIsTokenModalOpen(false);
+          openProWindow('meter');
+        }}
       />
 
       <header ref={barRef} className="sf-bar">
@@ -424,7 +405,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
           {back ? (
             <Link className="sf-back" to={back.to}>
               <ArrowLeft aria-hidden="true" strokeWidth={1.75} />
-              {back.label}
+              <span className="sf-back-t">{back.label}</span>
             </Link>
           ) : null}
           <nav aria-label="Разделы" className="sf-bar-nav">
@@ -447,6 +428,14 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
               <span className="sf-cta-plus" aria-hidden="true" />
               <span className="sf-cta-t">Добавить лекцию</span>
             </Link>
+            <QuotaMeter
+              remaining={remainingUnits}
+              limit={quotaLimit}
+              isPro={isPro}
+              loaded={quota.loaded}
+              onClick={openQuota}
+              spot={spot?.spot === 'meter'}
+            />
             {guide ? (
               <button
                 type="button"

@@ -1,0 +1,121 @@
+/* The daily AI limit in the top line (QuotaMeter.tsx). A white pill like «?»: a ring of the day left,
+ * «Лимит ИИ» and the number of units left. Where the line is short (phones, 1024–1179 px) it is only
+ * the ring with the number inside, as round as «?». Ink normally; yellow when 20 % or less is left;
+ * a yellow pill with an empty ring at zero; a dashed ring when the counter could not be read.
+ * Notes: 10_Project/Design_Language_2026-10-04. */
+
+.sf-shell .sf-quota {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 15px 0 9px;
+  border: 1px solid var(--sf-line-strong);
+  border-radius: 999px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font: 500 14px/1 var(--ph-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .2s ease, border-color .2s ease;
+}
+.sf-shell .sf-quota:hover { background: color-mix(in srgb, var(--sf-ink) 5%, var(--sf-surface)); }
+
+.sf-quota-ring { flex: none; width: 22px; height: 22px; overflow: visible; }
+.sf-quota-track,
+.sf-quota-arc { fill: none; stroke-width: 5.5; }
+.sf-quota-track { stroke: var(--sf-line-strong); }
+.sf-quota-arc {
+  stroke: var(--sf-ink);
+  stroke-linecap: round;
+  transition: stroke-dasharray .7s var(--m-ease), stroke .3s ease;
+}
+.sf-quota-t { color: var(--sf-muted); }
+.sf-quota-n {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Little left: the ring and the number in the yellow of the language. The track turns pale yellow:
+   on the grey one the yellow arc (the same lightness) was hard to see. */
+.sf-quota[data-level='low'] .sf-quota-arc { stroke: var(--m-yellow); }
+.sf-quota[data-level='low'] .sf-quota-track { stroke: color-mix(in srgb, var(--m-yellow) 24%, var(--sf-surface)); }
+.sf-quota[data-level='low'] .sf-quota-n { color: var(--m-yellow-ink); }
+/* Nothing left: a yellow pill and an empty ring. */
+.sf-shell .sf-quota[data-level='empty'] { border-color: transparent; background: var(--m-yellow-soft); }
+.sf-shell .sf-quota[data-level='empty']:hover { background: color-mix(in srgb, var(--m-yellow) 30%, var(--sf-surface)); }
+.sf-quota[data-level='empty'] .sf-quota-track { stroke: color-mix(in srgb, var(--m-yellow-ink) 30%, transparent); }
+.sf-quota[data-level='empty'] .sf-quota-arc,
+.sf-quota[data-level='unknown'] .sf-quota-arc,
+.sf-quota[data-level='loading'] .sf-quota-arc { visibility: hidden; }
+/* Not read: a dashed ring and a dash; a click reads it again. */
+.sf-quota[data-level='unknown'] .sf-quota-track { stroke-dasharray: 4.2 3.2; }
+.sf-quota[data-level='unknown'] .sf-quota-n { color: var(--sf-muted); }
+
+/* The sentence under the meter, on hover (after a moment) and on keyboard focus. */
+.sf-quota-tip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  width: max-content;
+  /* «Лимит ИИ (PRO): осталось 980 из 1000, обновится в 3:00» on one line; the longer sentences wrap. */
+  max-width: 350px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font: 500 14px/1.4 var(--ph-sans);
+  letter-spacing: 0;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -4px, 0);
+  pointer-events: none;
+  transition: opacity .2s ease, transform .3s var(--m-ease), visibility 0s linear .2s;
+}
+@media (hover: hover) {
+  .sf-quota:hover .sf-quota-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: opacity .2s ease .35s, transform .3s var(--m-ease) .35s, visibility 0s linear .35s;
+  }
+}
+.sf-quota:focus-visible .sf-quota-tip { opacity: 1; visibility: visible; transform: none; transition: none; }
+
+/* Short lines: only the ring, the number inside it (the words are the button's name). */
+@media (max-width: 639px), (min-width: 1024px) and (max-width: 1179px) {
+  .sf-shell .sf-quota {
+    justify-content: center;
+    width: 40px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .sf-shell .sf-quota:hover { background: var(--sf-tint); }
+  .sf-quota-ring { position: absolute; inset: 0; width: 40px; height: 40px; }
+  .sf-quota-track,
+  .sf-quota-arc { stroke-width: 3; }
+  .sf-quota-t { display: none; }
+  .sf-quota-n { position: relative; font-size: 13px; letter-spacing: -.02em; }
+  .sf-quota[data-digits='4'] .sf-quota-n { font-size: 11px; letter-spacing: -.04em; }
+}
+/* A phone has no hover; the meter's name says the sentence, a tap explains the limit. */
+@media (max-width: 639px) {
+  .sf-quota-tip { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-shell .sf-quota,
+  .sf-quota-arc,
+  .sf-quota-tip,
+  .sf-quota:hover .sf-quota-tip { transition: none; }
+}

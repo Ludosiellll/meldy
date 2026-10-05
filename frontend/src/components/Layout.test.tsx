@@ -27,6 +27,8 @@ vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstall
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }) }));
 
 import Layout, { DESK_LINKS, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
+import { LOW_SHARE, quotaLevel, quotaSentence } from './QuotaMeter';
+import { formatLimitReset, nextLimitReset } from '../api/limits';
 import { OPEN_PRO_EVENT } from '../lib/plans';
 
 function renderAt(path: string, page: React.ReactNode = <p>Содержимое страницы</p>) {
@@ -76,13 +78,18 @@ describe('the menu: five sections around the core', () => {
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
-  it('has no capitals, group titles, icons or badges in the top line', async () => {
+  it('has no capitals, group titles, icons or badges in the top line; the only drawing is the limit ring', async () => {
     renderAt('/dashboard');
     const header = bar();
-    expect(header.querySelector('svg')).toBeNull();
+    const meter = within(header).getByTestId('quota-meter');
+    expect(Array.from(header.querySelectorAll('svg')).filter((svg) => !meter.contains(svg))).toEqual([]);
     expect(header.querySelector('h3')).toBeNull();
-    expect(header.innerHTML).not.toMatch(/uppercase|tracking-|animate-|bg-rose|bg-cyan/);
-    expect(header.textContent).not.toMatch(/УЧЁБА|ПРАКТИКА|ПРОГРЕСС|Лимит/);
+    expect(header.innerHTML).not.toMatch(/uppercase|tracking-|animate-|bg-rose|bg-cyan|⚡/);
+    expect(header.textContent).not.toMatch(/УЧЁБА|ПРАКТИКА|ПРОГРЕСС|Энерги/);
+    // «Лимит» is said once, by the meter.
+    const rest = header.cloneNode(true) as HTMLElement;
+    rest.querySelector('[data-testid="quota-meter"]')?.remove();
+    expect(rest.textContent).not.toMatch(/Лимит/);
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -253,7 +260,7 @@ describe('the window scrolls (spec 4.1)', () => {
 });
 
 describe('account menu', () => {
-  it('holds the profile, the theme, projector mode, the daily limit and «Выйти»; Escape closes it', async () => {
+  it('holds the profile, the theme, projector mode, the way to PRO and «Выйти»; Escape closes it', async () => {
     renderAt('/dashboard');
     const button = screen.getByRole('button', { name: /Алина: профиль, тема, выход/ });
     expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -298,26 +305,160 @@ describe('account menu', () => {
   });
 });
 
-describe('daily limit line', () => {
-  it('shows what is left in plain words and reads it again after every charge', async () => {
-    renderAt('/dashboard');
-    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledTimes(1));
-    openMenu();
-    const meter = await screen.findByTestId('quota-meter');
-    await waitFor(() => expect(meter).toHaveTextContent('Дневной лимитосталось 70 из 100'));
-    expect(meter.querySelector('svg')).toBeNull();
-    expect(meter).toHaveAccessibleName('Дневной лимит: осталось 70 из 100');
+describe('the daily limit meter in the top line', () => {
+  const resetAt = () => formatLimitReset(nextLimitReset());
+  const meter = () => within(bar()).getByTestId('quota-meter');
+  const number = () => meter().querySelector('.sf-quota-n')?.textContent;
+  const arc = () => meter().querySelector('.sf-quota-arc')?.getAttribute('stroke-dasharray');
+  const free = (count: number, extra: Record<string, unknown> = {}) => ({ allowed: count < 100, isPro: false, count, ok: true, limit: 100, ...extra });
 
-    mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 130, ok: true });
+  it('sits between «Добавить лекцию» and «?»: a ring and the units left, the sentence as its name', async () => {
+    renderAt('/dashboard');
+    await waitFor(() => expect(number()).toBe('70'));
+    const cta = within(bar()).getByRole('link', { name: 'Добавить лекцию' });
+    const help = within(bar()).getByRole('button', { name: 'Как пользоваться Meldy' });
+    expect(cta.compareDocumentPosition(meter()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(meter().compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(meter().tagName).toBe('BUTTON');
+    expect(meter()).toHaveAccessibleName(`Лимит ИИ: осталось 70 из 100, обновится в ${resetAt()}`);
+    expect(meter().querySelector('.sf-quota-t')).toHaveTextContent('Лимит ИИ');
+    expect(meter().querySelector('.sf-quota-tip')).toHaveTextContent(`Лимит ИИ: осталось 70 из 100, обновится в ${resetAt()}`);
+    expect(meter()).toHaveAttribute('data-level', 'ok');
+    expect(arc()).toBe('70.00 100');
+    expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 0);
+  });
+
+  it('reads the limit again after every AI action and never shows a negative number', async () => {
+    renderAt('/dashboard');
+    await waitFor(() => expect(number()).toBe('70'));
+    mocks.checkAILimit.mockResolvedValue(free(130, { allowed: false }));
     await act(async () => {
       window.dispatchEvent(new Event('ai_usage_updated'));
     });
-    await waitFor(() => expect(meter).toHaveTextContent('осталось 0 из 100'));
-    expect(meter.textContent).not.toMatch(/-\d/);
+    await waitFor(() => expect(number()).toBe('0'));
+    expect(meter().textContent).not.toMatch(/-\d|−\d/);
+    expect(meter()).toHaveAttribute('data-level', 'empty');
     expect(mocks.checkAILimit).toHaveBeenCalledTimes(2);
   });
 
-  it('offers «Что даёт PRO» next to the limit: it opens the PRO window and closes the menu', async () => {
+  it('turns yellow at 20 % or less and is empty at zero', async () => {
+    mocks.checkAILimit.mockResolvedValue(free(80));
+    renderAt('/dashboard');
+    await waitFor(() => expect(number()).toBe('20'));
+    expect(meter()).toHaveAttribute('data-level', 'low');
+    expect(LOW_SHARE).toBe(0.2);
+    expect(quotaLevel(21, 100, true)).toBe('ok');
+    expect(quotaLevel(20, 100, true)).toBe('low');
+    expect(quotaLevel(1, 100, true)).toBe('low');
+    expect(quotaLevel(0, 100, true)).toBe('empty');
+    expect(quotaLevel(200, 1000, true)).toBe('low');
+    expect(quotaLevel(null, 100, false)).toBe('loading');
+    expect(quotaLevel(null, 100, true)).toBe('unknown');
+  });
+
+  it('explains the limit on a click: what is left, when it comes back, the prices and «Что даёт PRO»', async () => {
+    const opened = vi.fn();
+    window.addEventListener(OPEN_PRO_EVENT, opened);
+    try {
+      renderAt('/dashboard');
+      await waitFor(() => expect(number()).toBe('70'));
+      fireEvent.click(meter());
+      const dialog = screen.getByRole('dialog', { name: 'Дневной лимит ИИ' });
+      expect(within(dialog).getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 70 из 100 единиц.');
+      expect(within(dialog).getByText(`Лимит обновится в ${resetAt()}.`)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Что даёт PRO' }));
+      expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ reason: 'meter' });
+      expect(screen.queryByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeNull();
+    } finally {
+      window.removeEventListener(OPEN_PRO_EVENT, opened);
+    }
+  });
+
+  it('with the free day spent, a click opens the PRO window for the limit instead', async () => {
+    const opened = vi.fn();
+    window.addEventListener(OPEN_PRO_EVENT, opened);
+    try {
+      mocks.checkAILimit.mockResolvedValue(free(100, { allowed: false }));
+      renderAt('/dashboard');
+      await waitFor(() => expect(number()).toBe('0'));
+      expect(meter()).toHaveAccessibleName(`Лимит ИИ: осталось 0 из 100, обновится в ${resetAt()}`);
+      fireEvent.click(meter());
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ reason: 'limit' });
+      expect(screen.queryByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeNull();
+    } finally {
+      window.removeEventListener(OPEN_PRO_EVENT, opened);
+    }
+  });
+
+  it('shows a PRO account the same meter out of 1000, and its menu says «Тариф PRO» instead of offering it', async () => {
+    mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 250, ok: true, limit: 1000 });
+    renderAt('/dashboard');
+    await waitFor(() => expect(number()).toBe('750'));
+    expect(meter()).toHaveAccessibleName(`Лимит ИИ (PRO): осталось 750 из 1000, обновится в ${resetAt()}`);
+    expect(meter()).toHaveAttribute('data-pro');
+    expect(arc()).toBe('75.00 100');
+    await act(async () => undefined);
+    openMenu();
+    const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
+    expect(within(menu).queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
+    expect(within(menu).getByRole('button', { name: /Тариф PRO/ })).toHaveTextContent('Тариф PROвключён');
+    // The limit itself is no longer a row of the menu: the meter is always in sight.
+    expect(within(menu).queryByTestId('quota-meter')).toBeNull();
+    expect(within(menu).queryByText(/Дневной лимит/)).toBeNull();
+  });
+
+  it('a PRO account at zero still gets the explanation, not an offer of PRO', async () => {
+    const opened = vi.fn();
+    window.addEventListener(OPEN_PRO_EVENT, opened);
+    try {
+      mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
+      mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: true, count: 1000, ok: true, limit: 1000 });
+      renderAt('/dashboard');
+      await waitFor(() => expect(number()).toBe('0'));
+      fireEvent.click(meter());
+      const dialog = screen.getByRole('dialog', { name: 'Дневной лимит ИИ' });
+      expect(within(dialog).queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
+      expect(opened).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(OPEN_PRO_EVENT, opened);
+    }
+  });
+
+  it('does not pretend the limit is full when the counter could not be read: a dash, and a click reads again', async () => {
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: false, count: 0, ok: false });
+    renderAt('/dashboard');
+    await waitFor(() => expect(meter()).toHaveAttribute('data-level', 'unknown'));
+    expect(meter()).toHaveAccessibleName('Лимит ИИ: остаток не удалось загрузить. Нажмите, чтобы проверить ещё раз');
+    expect(number()).toBe('—');
+    fireEvent.click(meter());
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeNull();
+  });
+
+  it('follows a plan change: the PRO window\'s events read the limit and the profile again', async () => {
+    renderAt('/dashboard');
+    await waitFor(() => expect(number()).toBe('70'));
+    mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 30, ok: true, limit: 1000 });
+    await act(async () => {
+      window.dispatchEvent(new Event('ai_usage_updated'));
+      window.dispatchEvent(new Event('profile_updated'));
+    });
+    await waitFor(() => expect(number()).toBe('970'));
+    expect(meter()).toHaveAccessibleName(/^Лимит ИИ \(PRO\): осталось 970 из 1000/);
+    openMenu();
+    expect(within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('button', { name: /Тариф PRO/ })).toBeInTheDocument();
+  });
+
+  it('says the same sentence in words for every state', () => {
+    expect(quotaSentence('ok', 80, 100, false, '3:00')).toBe('Лимит ИИ: осталось 80 из 100, обновится в 3:00');
+    expect(quotaSentence('empty', 0, 1000, true, '3:00')).toBe('Лимит ИИ (PRO): осталось 0 из 1000, обновится в 3:00');
+    expect(quotaSentence('loading', null, 100, false)).toBe('Лимит ИИ: загружаем остаток');
+  });
+
+  it('offers «Что даёт PRO» in the account menu to an account without PRO', async () => {
     const opened = vi.fn();
     window.addEventListener(OPEN_PRO_EVENT, opened);
     try {
@@ -326,52 +467,13 @@ describe('daily limit line', () => {
       await act(async () => undefined);
       openMenu();
       const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
-      const meter = within(menu).getByTestId('quota-meter');
-      const pro = within(menu).getByRole('button', { name: 'Что даёт PRO' });
-      expect(meter.compareDocumentPosition(pro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      fireEvent.click(pro);
+      fireEvent.click(within(menu).getByRole('button', { name: 'Что даёт PRO' }));
       expect(opened).toHaveBeenCalledTimes(1);
       expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ reason: 'meter' });
       expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
     } finally {
       window.removeEventListener(OPEN_PRO_EVENT, opened);
     }
-  });
-
-  it('shows a PRO account its own day of 1000 units and does not offer PRO', async () => {
-    mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
-    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 250, ok: true, limit: 1000 });
-    renderAt('/dashboard');
-    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
-    await act(async () => undefined);
-    openMenu();
-    const meter = screen.getByTestId('quota-meter');
-    expect(meter).toHaveTextContent('PRO · осталось 750 из 1000');
-    expect(meter).toHaveAccessibleName(/Дневной лимит PRO: осталось 750 из 1000/);
-    expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).toBeNull();
-  });
-
-  it('says «до 1000» for PRO while the counter is unknown', async () => {
-    mocks.getProfile.mockResolvedValue(profile({ is_pro: true }));
-    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: true, count: 0, ok: false, limit: 1000 });
-    renderAt('/dashboard');
-    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
-    await act(async () => undefined);
-    openMenu();
-    expect(screen.getByTestId('quota-meter')).toHaveTextContent('PRO · до 1000');
-  });
-
-  it('does not pretend the limit is full when the counter could not be read', async () => {
-    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: false, count: 0, ok: false });
-    renderAt('/dashboard');
-    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledTimes(1));
-    openMenu();
-    const meter = await screen.findByTestId('quota-meter');
-    await waitFor(() => expect(meter).toHaveAccessibleName(/не удалось загрузить/));
-    expect(meter).toHaveTextContent('Дневной лимитпроверить');
-    fireEvent.click(meter);
-    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeNull();
   });
 
   it('never goes below zero', () => {
