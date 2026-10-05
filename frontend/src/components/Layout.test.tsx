@@ -196,6 +196,10 @@ describe('phones and tablets (spec 4.2)', () => {
   it('recognises room, detail and parent paths', () => {
     expect(isRoomPath('/exams/abc/draw')).toBe(true);
     expect(isRoomPath('/exams/abc/ticket')).toBe(true);
+    expect(isRoomPath('/library/abc/talk')).toBe(true);
+    expect(isRoomPath('/library/abc/talk/')).toBe(true);
+    expect(isRoomPath('/library/abc')).toBe(false);
+    expect(isRoomPath('/library/talk')).toBe(false);
     expect(isRoomPath('/exams/abc')).toBe(false);
     expect(isRoomPath('/exam')).toBe(false);
     expect(hidesBottomNav('/exams/new')).toBe(true);
@@ -216,8 +220,8 @@ describe('phones and tablets (spec 4.2)', () => {
 });
 
 describe('room mode', () => {
-  it('renders only the page for «Тянуть билет» and the answer screen', async () => {
-    for (const path of ['/exams/exam-1/draw', '/exams/exam-1/ticket']) {
+  it('renders only the page for «Тянуть билет», the answer screen and «Поговорить о лекции»', async () => {
+    for (const path of ['/exams/exam-1/draw', '/exams/exam-1/ticket', '/library/m-1/talk']) {
       renderAt(path, <h1>Комната</h1>);
       expect(screen.getByRole('heading', { name: 'Комната' })).toBeInTheDocument();
       expect(document.querySelector('header.sf-bar')).toBeNull();

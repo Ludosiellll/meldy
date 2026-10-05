@@ -123,6 +123,26 @@ export function secondsBucket(ms: number): string {
   return '10m+';
 }
 
+/** «<1s», «1-2s», «2-3s», «3s+» for a short wait in milliseconds (a reply of the voice tutor). */
+export function waitBucket(ms: number): string {
+  const seconds = Number.isFinite(ms) ? Math.max(0, ms) / 1000 : 0;
+  if (seconds < 1) return '<1s';
+  if (seconds < 2) return '1-2s';
+  if (seconds < 3) return '2-3s';
+  return '3s+';
+}
+
+/** «<1m», «1-2m», «2-5m», «5-10m», «10-20m», «20m+» for a longer stretch (a conversation with the tutor). */
+export function minutesBucket(ms: number): string {
+  const minutes = Number.isFinite(ms) ? Math.max(0, ms) / 60_000 : 0;
+  if (minutes < 1) return '<1m';
+  if (minutes < 2) return '1-2m';
+  if (minutes < 5) return '2-5m';
+  if (minutes < 10) return '5-10m';
+  if (minutes < 20) return '10-20m';
+  return '20m+';
+}
+
 /** Takes out what could quote a person or their text: e-mails, ids, query strings, long quoted fragments. */
 export function scrub(text: string, max: number): string {
   return String(text)

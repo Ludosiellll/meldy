@@ -27,12 +27,14 @@ import {
   countBucket,
   flushTelemetry,
   installTelemetry,
+  minutesBucket,
   queuedTelemetryForTests,
   resetTelemetryForTests,
   routePattern,
   scrub,
   secondsBucket,
   track,
+  waitBucket,
   type TelemetryEvent,
 } from './telemetry';
 import { installApiAuth, resetApiAuthForTests } from './apiAuth';
@@ -95,6 +97,44 @@ describe('route patterns and buckets', () => {
   it('gives sizes and times as small buckets', () => {
     expect([0, 1, 2, 3, 5, 6, 40, 41, 300, 301].map(countBucket)).toEqual(['0', '1-2', '1-2', '3-5', '3-5', '6-10', '21-40', '41-80', '151-300', '301+']);
     expect([1_000, 45_000, 90_000, 200_000, 400_000, 900_000].map(secondsBucket)).toEqual(['<30s', '30-60s', '1-2m', '2-5m', '5-10m', '10m+']);
+  });
+
+  it('gives the tutor’s waits and conversations as small buckets', () => {
+    expect([0, 999, 1_000, 1_999, 2_000, 2_999, 3_000, 25_000, Number.NaN, -5].map(waitBucket)).toEqual([
+      '<1s',
+      '<1s',
+      '1-2s',
+      '1-2s',
+      '2-3s',
+      '2-3s',
+      '3s+',
+      '3s+',
+      '<1s',
+      '<1s',
+    ]);
+    expect([0, 59_999, 60_000, 150_000, 300_000, 700_000, 1_200_000, Number.POSITIVE_INFINITY].map(minutesBucket)).toEqual([
+      '<1m',
+      '<1m',
+      '1-2m',
+      '2-5m',
+      '5-10m',
+      '10-20m',
+      '20m+',
+      '<1m',
+    ]);
+  });
+
+  it('records the tutor’s events with their small props', () => {
+    installTelemetry();
+    track('tutor_started', { cards: 4 });
+    track('tutor_turn', { move: 'nudge', status: 'missing', wait: waitBucket(1_500) });
+    track('tutor_finished', { cards: 3, self: 1, assisted: 2, minutes: minutesBucket(200_000), reason: 'left' });
+    const events = queuedTelemetryForTests().filter((event) => event.name.startsWith('tutor_'));
+    expect(events.map((event) => [event.name, event.props])).toEqual([
+      ['tutor_started', { cards: 4 }],
+      ['tutor_turn', { move: 'nudge', status: 'missing', wait: '1-2s' }],
+      ['tutor_finished', { cards: 3, self: 1, assisted: 2, minutes: '2-5m', reason: 'left' }],
+    ]);
   });
 
   it('takes out e-mails, ids, query strings and long quotes', () => {
