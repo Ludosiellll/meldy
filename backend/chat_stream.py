@@ -297,9 +297,14 @@ async def _openai_deltas(provider: Provider, key: str, body: dict) -> AsyncItera
         raise _ProviderFailed(classify_error(exc), type(exc).__name__) from exc
 
 
+# Thinking settings tried in turn for a Gemini model that refuses one (Gemini 3 models do not all
+# take the lowest level): off first for the shortest pause, then low.
+GEMINI_THINKING_LADDER = ("off", "low")
+
+
 async def _gemini_deltas(model: str, key: str, system_prompt: str, turns: list[dict], *, max_tokens: int,
-                         temperature: float) -> AsyncIterator[str]:
-    plan = thinking_plan(model, "off")
+                         temperature: float, thinking: str = "off") -> AsyncIterator[str]:
+    plan = thinking_plan(model, thinking)
     config: dict[str, Any] = {
         "system_instruction": system_prompt,
         "temperature": temperature,
@@ -396,10 +401,12 @@ async def stream_reply(
         for model in models:
             fitted = _fit(turns, system_prompt, provider.max_prompt_chars)
             hint = True
+            step = 0  # place on GEMINI_THINKING_LADDER
             while True:
                 attempt.tried += 1
                 if provider.kind == "gemini":
-                    source = _gemini_deltas(model, key, system_prompt, fitted, max_tokens=max_tokens, temperature=temperature)
+                    source = _gemini_deltas(model, key, system_prompt, fitted, max_tokens=max_tokens, temperature=temperature,
+                                            thinking=GEMINI_THINKING_LADDER[step])
                 else:
                     body = _openai_body(provider, model, system_prompt, fitted, max_tokens=max_tokens,
                                         temperature=temperature, reasoning_hint=hint)
@@ -421,6 +428,9 @@ async def stream_reply(
                     attempt.note(kind)
                     if kind == "invalid_argument" and hint and provider.kind == "openai" and _reasoning(model):
                         hint = False  # this provider may not take the reasoning fields: once without them
+                        continue
+                    if kind == "invalid_argument" and provider.kind == "gemini" and step + 1 < len(GEMINI_THINKING_LADDER):
+                        step += 1  # the model refused this thinking level: the next one
                         continue
                     if kind == "rate_limited":
                         _rest(provider.name, failure.retry_after or cooldown_seconds())

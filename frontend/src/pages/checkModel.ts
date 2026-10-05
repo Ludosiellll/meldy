@@ -232,6 +232,12 @@ export function supabaseResult(outcome: FetchOutcome | null, viaSite: FetchOutco
 
 export type DeepCheckName = 'gemini' | 'groq' | 'tts' | 'supabase';
 
+export interface DeepFailure {
+  model: string | null;
+  code: string | null;
+  detail: string | null;
+}
+
 export interface DeepCheck {
   ok: boolean;
   provider?: string | null;
@@ -239,6 +245,12 @@ export interface DeepCheck {
   ms?: number;
   code?: string | null;
   fallback?: boolean;
+  /** The provider's own short code of the failure («model_decommissioned»). */
+  detail?: string | null;
+  /** Gemini: models that did not answer before the one that did (or all of them). */
+  tried?: DeepFailure[];
+  /** Gemini: the same model asked as quick checks ask it; Groq: the fast model. */
+  fast?: (DeepFailure & { ok: boolean }) | null;
 }
 
 export interface DeepRow {
@@ -279,6 +291,30 @@ export function codeText(code: string | null | undefined): string {
   }
 }
 
+/** A provider's own short code in words, or the code itself. */
+export function detailText(detail: string | null | undefined): string | null {
+  if (typeof detail !== 'string' || !detail) return null;
+  if (detail === 'model_decommissioned') return 'модель снята';
+  if (detail.endsWith(':thinking')) return 'не принимает настройку размышлений';
+  return /^[a-z0-9_.:-]{1,48}$/i.test(detail) ? detail : null;
+}
+
+function reason(failure: { code?: string | null; detail?: string | null }): string {
+  const detail = detailText(failure.detail);
+  return detail ? `${codeText(failure.code)} (${detail})` : codeText(failure.code);
+}
+
+function failureOf(value: unknown): (DeepFailure & { ok: boolean }) | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  return {
+    ok: record.ok === true,
+    model: typeof record.model === 'string' ? record.model : null,
+    code: typeof record.code === 'string' ? record.code : null,
+    detail: typeof record.detail === 'string' ? record.detail : null,
+  };
+}
+
 function deepCheck(value: unknown): DeepCheck | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -290,22 +326,36 @@ function deepCheck(value: unknown): DeepCheck | null {
     ms: typeof record.ms === 'number' && Number.isFinite(record.ms) ? record.ms : 0,
     code: typeof record.code === 'string' ? record.code : null,
     fallback: record.fallback === true,
+    detail: typeof record.detail === 'string' ? record.detail : null,
+    tried: Array.isArray(record.tried) ? record.tried.map(failureOf).filter((item): item is DeepFailure & { ok: boolean } => item !== null) : [],
+    fast: failureOf(record.fast),
   };
+}
+
+function triedText(tried: DeepFailure[] | undefined): string {
+  const named = (tried ?? []).filter((item) => item.model);
+  return named.length ? named.map((item) => `${item.model} — ${reason(item)}`).join('; ') : '';
 }
 
 function deepRow(id: DeepCheckName, check: DeepCheck | null): DeepRow {
   const ms = check?.ms ? `, ${msLabel(check.ms)}` : '';
   const why = codeText(check?.code);
   switch (id) {
-    case 'gemini':
+    case 'gemini': {
+      const tried = triedText(check?.tried);
       if (check?.ok) {
         const spare = check.fallback ? ' Первая модель из списка не ответила — работает запасная.' : '';
-        return { id, ok: true, text: `Gemini отвечает: ${check.model ?? 'модель не названа'}${ms}.${spare}` };
+        const which = tried ? ` Не ответили: ${tried}.` : '';
+        const quick = check.fast && !check.fast.ok ? ` Быстрые проверки ответов на этой модели не проходят: ${reason(check.fast)}.` : '';
+        return { id, ok: true, text: `Gemini отвечает: ${check.model ?? 'модель не названа'}${ms}.${spare}${which}${quick}` };
       }
-      return { id, ok: false, text: `Gemini не отвечает: ${why}.` };
-    case 'groq':
-      if (check?.ok) return { id, ok: true, text: `Groq отвечает: ${check.model ?? 'модель не названа'}${ms}.` };
-      return { id, ok: false, text: `Groq не отвечает: ${why}.` };
+      return { id, ok: false, text: `Gemini не отвечает: ${why}.${tried ? ` Модели: ${tried}.` : ''}` };
+    }
+    case 'groq': {
+      const fast = check?.fast && !check.fast.ok ? ` Быстрая модель ${check.fast.model ?? ''} не отвечает: ${reason(check.fast)}.`.replace('  ', ' ') : '';
+      if (check?.ok) return { id, ok: true, text: `Groq отвечает: ${check.model ?? 'модель не названа'}${ms}.${fast}` };
+      return { id, ok: false, text: `Groq не отвечает: ${reason(check ?? {})}.${fast}` };
+    }
     case 'tts':
       if (check?.ok) return { id, ok: true, text: `Озвучка на сервере работает${ms}.` };
       return { id, ok: false, text: `Озвучка на сервере не работает: ${why}.` };

@@ -175,6 +175,25 @@ describe('the AI on the server (/api/health/deep)', () => {
     expect(view.note).toMatch(/через 6 мин\.$/);
   });
 
+  it('names the models that did not answer, a quick-check refusal and a retired fast model', () => {
+    const view = deepView(deep({
+      ...healthy,
+      gemini: ok({ model: 'gemini-3.1-flash-lite', fallback: true,
+        tried: [{ model: 'gemini-2.5-flash-lite', code: 'not_found', detail: 'not_found' }],
+        fast: { ok: false, code: 'invalid_argument', detail: 'invalid_argument:thinking' } }),
+      groq: ok({ model: 'openai/gpt-oss-120b', fast: { model: 'openai/gpt-oss-20b', ok: false, code: 'invalid_argument', detail: 'model_decommissioned' } }),
+    }));
+    expect(view.rows[0].text).toBe(
+      'Gemini отвечает: gemini-3.1-flash-lite, 640 мс. Первая модель из списка не ответила — работает запасная. '
+      + 'Не ответили: gemini-2.5-flash-lite — модель недоступна (not_found). '
+      + 'Быстрые проверки ответов на этой модели не проходят: запрос отклонён (не принимает настройку размышлений).',
+    );
+    expect(view.rows[1].text).toBe('Groq отвечает: openai/gpt-oss-120b, 640 мс. Быстрая модель openai/gpt-oss-20b не отвечает: запрос отклонён (модель снята).');
+    const down = deepView(deep({ ...healthy, gemini: { ok: false, ms: 900, code: 'not_found', tried: [
+      { model: 'a', code: 'not_found', detail: null }, { model: 'b', code: 'invalid_argument', detail: 'invalid_argument:thinking' }] } }));
+    expect(down.rows[0].text).toBe('Gemini не отвечает: модель недоступна. Модели: a — модель недоступна; b — запрос отклонён (не принимает настройку размышлений).');
+  });
+
   it('one AI provider down is a caveat, both down is a problem', () => {
     const one = deepView(deep({ ...healthy, gemini: down('rate_limited') }));
     expect(one.result.state).toBe('warn');

@@ -262,3 +262,36 @@ def test_the_default_order_keeps_groq_and_gemini_for_the_core_features(net, monk
     for name in ("CEREBRAS_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.setenv(name, "k")
     assert [p.name for p in chat_stream.configured_providers()] == ["cerebras", "mistral", "groq", "gemini"]
+
+
+def test_a_gemini_model_that_refuses_the_lowest_thinking_level_is_asked_with_the_next(net, monkeypatch):
+    from google.genai import errors
+
+    seen = []
+
+    class Chunk:
+        def __init__(self, text):
+            self.text = text
+
+    class Models:
+        async def generate_content_stream(self, *, model, contents, config):
+            level = config.thinking_config.thinking_level.name if config.thinking_config else None
+            seen.append(level)
+            if level == "MINIMAL":
+                raise errors.ClientError(400, {"error": {"code": 400, "status": "INVALID_ARGUMENT",
+                                                         "message": "thinking level not supported"}})
+
+            async def gen():
+                yield Chunk("Ответ.")
+
+            return gen()
+
+    class Client:
+        class aio:  # noqa: N801 - mirrors the SDK
+            models = Models()
+
+    monkeypatch.setenv("GEMINI_API_KEY", "gm-key")
+    monkeypatch.setenv("GEMINI_FAST_MODELS", "gemini-3.1-flash-lite")
+    monkeypatch.setattr(chat_stream, "get_genai_client", lambda key: Client())
+    assert collect() == ["Ответ."]
+    assert seen == ["MINIMAL", "LOW"]

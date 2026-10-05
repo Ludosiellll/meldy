@@ -9,16 +9,21 @@ so it is built not to cost anything worth abusing:
 - the shared rate limiter caps the requests themselves.
 
 Checks (they run side by side, each with its own short time limit):
-- gemini: the first model of the configured list (GEMINI_MODELS) that answers a one-word prompt;
-  a key-level refusal (permission, rate limit) tries the next key for the same model, as the app
-  itself would;
-- groq: the fast model (GROQ_FAST_MODEL), the one quick checks use;
+- gemini: the first model of the configured list (GEMINI_MODELS) that answers a one-word prompt with
+  the settings of the app's ordinary calls; a key-level refusal (permission, rate limit) tries the
+  next key for the same model, as the app itself would. Every model that failed is listed with its
+  code (`tried`), and the answering model is asked once more as the quick checks ask it, thinking
+  off (`fast`);
+- groq: the main model (GROQ_MODEL, the spare for analysis) and the fast one (GROQ_FAST_MODEL, the
+  spare for quick checks), each with its code;
 - tts: edge-tts, the engine behind /api/tts, synthesises one short word in the examiner's voice;
 - supabase: GET {SUPABASE_URL}/auth/v1/health with the anon key, as the server reaches it.
 
 Each check reports ok, the provider and model, milliseconds and a short code: an error kind of
 agents.base.classify_error (timeout, rate_limited, not_found, permission, network, empty, other),
-http_<status> for Supabase, or unconfigured. Keys, URLs and provider error text never leave here.
+http_<status> for Supabase, or unconfigured; `detail` is the provider's own short code when it gave
+one («model_decommissioned», «invalid_argument:thinking»). Keys, URLs and provider error text never
+leave here.
 """
 import asyncio
 import os
@@ -78,39 +83,68 @@ def _check(ok: bool, provider: str, model: Optional[str], ms: int, code: Optiona
     return result
 
 
+def _failure(model: str, call: dict) -> dict[str, Any]:
+    return {"model": model, "code": call.get("error") or "other", "detail": call.get("detail")}
+
+
 async def check_gemini() -> dict[str, Any]:
     keys = ai_base.gemini_keys()[:GEMINI_MAX_KEYS]
     models = ai_base.gemini_models_env()[:GEMINI_MAX_MODELS]
     if not keys or not models:
-        return _check(False, "Gemini", None, 0, "unconfigured", fallback=False)
+        return _check(False, "Gemini", None, 0, "unconfigured", fallback=False, tried=[])
     started = time.monotonic()
     deadline = started + GEMINI_BUDGET_SECONDS
     code = "other"
+    tried: list[dict[str, Any]] = []
     for position, model in enumerate(models):
         for key in keys:
             remaining = deadline - time.monotonic()
             if remaining < 1.0:
-                return _check(False, "Gemini", None, _elapsed_ms(started), "timeout", fallback=False)
+                return _check(False, "Gemini", None, _elapsed_ms(started), "timeout", fallback=False, tried=tried)
+            # The app's ordinary call: thinking as BaseAgent sends it without a mode.
             call = await ai_base.probe_gemini_call(
-                key, model, PROMPT, max_tokens=AI_MAX_TOKENS, json_mode=False, thinking="off",
+                key, model, PROMPT, max_tokens=AI_MAX_TOKENS, json_mode=False, thinking=None,
                 timeout=min(AI_CALL_SECONDS, remaining),
             )
             if call.get("ok"):
-                return _check(True, "Gemini", model, call.get("ms", 0), None, fallback=position > 0)
+                ms = call.get("ms", 0)
+                fast: Optional[dict[str, Any]] = None
+                remaining = deadline - time.monotonic()
+                if remaining >= 1.0:
+                    quick = await ai_base.probe_gemini_call(
+                        key, model, PROMPT, max_tokens=AI_MAX_TOKENS, json_mode=False, thinking="off",
+                        timeout=min(AI_CALL_SECONDS, remaining),
+                    )
+                    fast = {"ok": bool(quick.get("ok")), "code": None if quick.get("ok") else (quick.get("error") or "other"),
+                            "detail": quick.get("detail")}
+                return _check(True, "Gemini", model, ms, None, fallback=position > 0, tried=tried, fast=fast)
             code = call.get("error") or "other"
             if code not in _KEY_LEVEL_CODES:
+                tried.append(_failure(model, call))
                 break  # the model itself failed: the next model, not the next key
-    return _check(False, "Gemini", None, _elapsed_ms(started), code, fallback=False)
+        else:
+            tried.append(_failure(model, {"error": code}))
+    return _check(False, "Gemini", None, _elapsed_ms(started), code, fallback=False, tried=tried)
+
+
+async def _groq_model(key: str, model: str) -> dict[str, Any]:
+    call = await ai_base.probe_groq_call(key, model, PROMPT, max_tokens=AI_MAX_TOKENS, json_mode=False,
+                                         timeout=AI_CALL_SECONDS)
+    ok = bool(call.get("ok"))
+    return {"model": model, "ok": ok, "ms": call.get("ms", 0), "code": None if ok else (call.get("error") or "other"),
+            "detail": None if ok else call.get("detail")}
 
 
 async def check_groq() -> dict[str, Any]:
+    """Groq is the spare provider: ok when its main model answers; the fast model is reported beside it."""
     key = os.getenv("GROQ_API_KEY", "").strip()
-    model = ai_base.groq_fast_model()
+    model = ai_base.groq_model()
+    fast_model = ai_base.groq_fast_model()
     if not key:
         return _check(False, "Groq", model, 0, "unconfigured")
-    call = await ai_base.probe_groq_call(key, model, PROMPT, max_tokens=AI_MAX_TOKENS, json_mode=False,
-                                         timeout=AI_CALL_SECONDS)
-    return _check(bool(call.get("ok")), "Groq", model, call.get("ms", 0), call.get("error"))
+    main, fast = await asyncio.gather(_groq_model(key, model), _groq_model(key, fast_model))
+    return _check(main["ok"], "Groq", model, main["ms"], main["code"], detail=main["detail"],
+                  fast={key: fast[key] for key in ("model", "ok", "code", "detail")})
 
 
 async def synthesize(text: str, voice: str) -> bytes:

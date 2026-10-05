@@ -934,7 +934,7 @@ def test_every_real_call_is_logged_for_its_user_in_the_background(server, clean_
     run(go())
     logs = server.rpc("log_ai_call")
     assert len(logs) == 2
-    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-2.5-flash-lite",
+    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.1-flash-lite",
                        "p_ok": True, "p_ms": logs[0]["p_ms"]}
     assert logs[1]["p_units"] == 0 and isinstance(logs[0]["p_ms"], int)
     assert all(token == "token-a" for fn, _, token in server.calls)
@@ -1002,7 +1002,7 @@ def test_health_names_the_model_that_answered_last_without_user_data(clean_agent
     assert client.get("/api/health").json()["ai"] == {"provider": None, "model": None, "at": None}
     asyncio.run(BaseAgent().run("Ты помощник.", "Вопрос"))
     ai = client.get("/api/health").json()["ai"]
-    assert ai["provider"] == "gemini" and ai["model"] == "gemini-2.5-flash-lite"
+    assert ai["provider"] == "gemini" and ai["model"] == "gemini-3.1-flash-lite"
     assert ai["at"].endswith("Z") and len(ai["at"]) == 20
     first_at = ai["at"]
     asyncio.run(BaseAgent().run("Ты помощник.", "Вопрос"))  # из кэша: «последний ответ» не меняется
@@ -1016,13 +1016,14 @@ def test_health_names_the_model_that_answered_last_without_user_data(clean_agent
 def test_default_models_and_the_fallback_when_the_first_one_is_gone(clean_agent, monkeypatch):
     from google.genai import errors
 
-    assert base.gemini_models_env() == ["gemini-2.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+    assert base.gemini_models_env() == ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
     assert base.groq_model() == "openai/gpt-oss-120b" and base.groq_fast_model() == "openai/gpt-oss-20b"
     monkeypatch.setenv("GROQ_MODEL", "my-groq")
     monkeypatch.setenv("GROQ_FAST_MODEL", "my-fast")
     monkeypatch.setenv("GEMINI_MODELS", "a-model,b-model")
     assert (base.groq_model(), base.groq_fast_model(), base.gemini_models_env()) == ("my-groq", "my-fast", ["a-model", "b-model"])
-    monkeypatch.delenv("GEMINI_MODELS")
+    # A key that lost a model: it is skipped and the next one in the list answers.
+    monkeypatch.setenv("GEMINI_MODELS", "gemini-2.5-flash-lite,gemini-3.1-flash-lite")
 
     gone = errors.ClientError(404, {"error": {"code": 404, "status": "NOT_FOUND", "message": "model not found"}})
     calls = install_gemini(monkeypatch, lambda model: gone if model == "gemini-2.5-flash-lite" else "ответ 3.1")

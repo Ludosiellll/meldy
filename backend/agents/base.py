@@ -456,9 +456,10 @@ class AIError(HTTPException):
 
 # Models checked on 2026-10-04 (orchestrator's web check): gemini-2.0-flash is gone; the 2.5
 # models have conflicting retirement notices (Vertex AI lists 2026-10-20, the Gemini API page
-# names no date), so gemini-3.1-flash-lite (GA) is second and takes over by itself when
-# gemini-2.5-flash-lite answers not_found. Groq retired llama-3.3-70b-versatile on 2026-08-16.
-DEFAULT_GEMINI_MODELS = "gemini-2.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash"
+# names no date). On 2026-10-05 the live key answered not_found for both 2.5 models while
+# gemini-3.1-flash-lite answered (deep health check and the call log), so it goes first; the 2.5
+# models stay as spares for keys that still have them. Groq retired llama-3.3-70b-versatile on 2026-08-16.
+DEFAULT_GEMINI_MODELS = "gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 DEFAULT_GROQ_FAST_MODEL = "openai/gpt-oss-20b"
 DEFAULT_GROQ_VISION_MODEL = "llama-3.2-90b-vision-preview"
@@ -650,6 +651,28 @@ def classify_error(exc: BaseException) -> str:
     if isinstance(exc, (httpx.TransportError, ConnectionError) + groq_connection_error):
         return "network"
     return "other"
+
+
+_PROVIDER_CODE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
+
+
+def provider_error_code(exc: BaseException) -> Optional[str]:
+    """The provider's own short code of a failure («model_decommissioned», «invalid_argument»), never its text.
+
+    Groq puts {error: {code, type}} in the body, Gemini a status name; «:thinking» marks a Gemini
+    refusal that names the thinking settings.
+    """
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error") if isinstance(body.get("error"), dict) else body
+        for key in ("code", "type", "status"):
+            value = error.get(key)
+            if isinstance(value, str) and _PROVIDER_CODE_RE.match(value):
+                return value.lower()
+    status = getattr(exc, "status", None)
+    if isinstance(status, str) and _PROVIDER_CODE_RE.match(status):
+        return status.lower() + (":thinking" if _mentions_thinking(exc) else "")
+    return None
 
 
 def _mentions_thinking(exc: BaseException) -> bool:
@@ -934,10 +957,10 @@ async def probe_gemini_call(
             )
     except Exception as exc:
         return {"ok": False, "ms": int((time.monotonic() - started) * 1000), "finish_reason": None,
-                "error": classify_error(exc), "thinking": label}
+                "error": classify_error(exc), "detail": provider_error_code(exc), "thinking": label}
     ok = bool(text and text.strip())
     return {"ok": ok, "ms": int((time.monotonic() - started) * 1000), "finish_reason": finish,
-            "error": None if ok else "empty", "thinking": label}
+            "error": None if ok else "empty", "detail": None, "thinking": label}
 
 
 async def probe_gemini_list(key: str, timeout: float = 12.0) -> tuple[list[str], Optional[str]]:
@@ -984,10 +1007,10 @@ async def probe_groq_call(
         )
     except Exception as exc:
         return {"ok": False, "ms": int((time.monotonic() - started) * 1000), "finish_reason": None,
-                "error": classify_error(exc)}
+                "error": classify_error(exc), "detail": provider_error_code(exc)}
     ok = bool(text and text.strip())
     return {"ok": ok, "ms": int((time.monotonic() - started) * 1000), "finish_reason": finish,
-            "error": None if ok else "empty"}
+            "error": None if ok else "empty", "detail": None}
 
 
 class BaseAgent:

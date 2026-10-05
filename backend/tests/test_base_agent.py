@@ -382,13 +382,15 @@ def test_not_found_model_is_skipped_for_ten_minutes_but_diagnostics_still_calls_
 
 
 def test_permission_error_skips_that_model_for_that_key_only(monkeypatch):
+    first = base.gemini_models_env()[0]
+
     def answer(model, config, contents):
-        return gemini_error(403, "PERMISSION_DENIED") if model == "gemini-2.5-flash-lite" else ("ок", "STOP")
+        return gemini_error(403, "PERMISSION_DENIED") if model == first else ("ок", "STOP")
 
     calls, _ = install_gemini(monkeypatch, answer, keys="key-a")
     run(BaseAgent(), PROMPT, "один", use_cache=False)
-    assert base.model_skipped("gemini", "key-a", "gemini-2.5-flash-lite")
-    assert not base.model_skipped("gemini", "key-b", "gemini-2.5-flash-lite")
+    assert base.model_skipped("gemini", "key-a", first)
+    assert not base.model_skipped("gemini", "key-b", first)
 
 
 # --- thinking budget ------------------------------------------------------------------------------

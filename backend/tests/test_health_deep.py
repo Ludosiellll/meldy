@@ -26,21 +26,26 @@ class Providers:
         self.groq_calls = []
         self.tts_calls = []
         self.supabase_requests = []
-        self.gemini_answers = {}  # (key, model) -> error kind or None (answers)
+        self.gemini_answers = {}  # (key, model) or (key, model, thinking) or model -> error kind or None (answers)
         self.groq_error = None
+        self.groq_errors = {}  # model -> (error kind, provider code)
         self.tts_result = b"ID3-audio"
         self.supabase_status = 200
         self.supabase_error = None
 
     async def gemini(self, key, model, prompt, **kwargs):
         self.gemini_calls.append({"key": key, "model": model, "prompt": prompt, **kwargs})
-        error = self.gemini_answers.get((key, model), self.gemini_answers.get(model))
+        thinking = kwargs.get("thinking")
+        error = self.gemini_answers.get((key, model, thinking),
+                                        self.gemini_answers.get((key, model), self.gemini_answers.get(model)))
+        detail = "invalid_argument:thinking" if error == "invalid_argument" else None
         return {"ok": error is None, "ms": 120, "finish_reason": "STOP" if error is None else None,
-                "error": error, "thinking": kwargs.get("thinking")}
+                "error": error, "detail": detail, "thinking": thinking}
 
     async def groq(self, key, model, prompt, **kwargs):
         self.groq_calls.append({"key": key, "model": model, "prompt": prompt, **kwargs})
-        return {"ok": self.groq_error is None, "ms": 80, "finish_reason": None, "error": self.groq_error}
+        error, detail = self.groq_errors.get(model, (self.groq_error, None))
+        return {"ok": error is None, "ms": 80, "finish_reason": None, "error": error, "detail": detail}
 
     async def tts(self, text, voice):
         self.tts_calls.append((text, voice))
@@ -60,6 +65,7 @@ def providers(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", GEMINI_KEYS)
     monkeypatch.setenv("GEMINI_MODELS", "model-a,model-b,model-c,model-d")
     monkeypatch.setenv("GROQ_API_KEY", GROQ_KEY)
+    monkeypatch.setenv("GROQ_MODEL", "groq-main")
     monkeypatch.setenv("GROQ_FAST_MODEL", "groq-fast")
     monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
     monkeypatch.setenv("SUPABASE_KEY", SUPABASE_KEY)
@@ -108,8 +114,10 @@ def test_deep_health_is_public_and_reports_every_check(client, providers):
     assert body["checked_at"].endswith("Z")
     assert list(body["checks"]) == ["gemini", "groq", "tts", "supabase"]
     assert body["checks"]["gemini"] == {"ok": True, "provider": "Gemini", "model": "model-a", "ms": 120, "code": None,
-                                        "fallback": False}
-    assert body["checks"]["groq"] == {"ok": True, "provider": "Groq", "model": "groq-fast", "ms": 80, "code": None}
+                                        "fallback": False, "tried": [],
+                                        "fast": {"ok": True, "code": None, "detail": None}}
+    assert body["checks"]["groq"] == {"ok": True, "provider": "Groq", "model": "groq-main", "ms": 80, "code": None,
+                                      "detail": None, "fast": {"model": "groq-fast", "ok": True, "code": None, "detail": None}}
     tts = body["checks"]["tts"]
     assert tts["ok"] is True and tts["provider"] == "edge-tts" and tts["model"] == health_deep.TTS_VOICE and tts["code"] is None
     supabase = body["checks"]["supabase"]
@@ -151,7 +159,8 @@ def test_rate_limited_requests_get_429(client, providers):
     response = client.get("/api/health/deep")
     assert response.status_code == 429
     assert response.json()["detail"]
-    assert len(providers.gemini_calls) == 1  # and the ten answers came from one round of calls
+    # The ten answers came from one round of calls: Gemini as the app calls it and as quick checks do.
+    assert len(providers.gemini_calls) == 2
 
 
 # --- cache and single flight ----------------------------------------------------------------------
@@ -160,7 +169,8 @@ def test_result_is_cached_for_ten_minutes(providers):
     first = run(health_deep.deep_health())
     providers.clock["t"] += 599
     second = run(health_deep.deep_health())
-    assert len(providers.gemini_calls) == len(providers.groq_calls) == len(providers.tts_calls) == 1
+    # One round: Gemini twice (ordinary and quick), Groq twice (main and fast), speech and Supabase once.
+    assert len(providers.gemini_calls) == len(providers.groq_calls) == 2 and len(providers.tts_calls) == 1
     assert len(providers.supabase_requests) == 1
     assert first["cached"] is False and second["cached"] is True
     assert second["age_seconds"] == 599 and second["fresh_in_seconds"] == 1
@@ -168,7 +178,7 @@ def test_result_is_cached_for_ten_minutes(providers):
     providers.clock["t"] += 2
     third = run(health_deep.deep_health())
     assert third["cached"] is False
-    assert len(providers.gemini_calls) == len(providers.groq_calls) == len(providers.tts_calls) == 2
+    assert len(providers.gemini_calls) == len(providers.groq_calls) == 4 and len(providers.tts_calls) == 2
 
 
 def test_a_failed_result_is_cached_too(providers):
@@ -176,7 +186,7 @@ def test_a_failed_result_is_cached_too(providers):
     assert run(health_deep.deep_health())["ok"] is False
     providers.groq_error = None
     assert run(health_deep.deep_health())["ok"] is False
-    assert len(providers.groq_calls) == 1
+    assert len(providers.groq_calls) == 2
 
 
 def test_concurrent_requests_share_one_round_of_calls(providers):
@@ -193,8 +203,8 @@ def test_concurrent_requests_share_one_round_of_calls(providers):
         return await asyncio.gather(*[health_deep.deep_health() for _ in range(5)])
 
     results = run(many())
-    assert started == ["model-a"]
-    assert len(providers.groq_calls) == 1 and len(providers.tts_calls) == 1
+    assert started == ["model-a", "model-a"]  # one round: the ordinary call and the quick one
+    assert len(providers.groq_calls) == 2 and len(providers.tts_calls) == 1
     assert all(result["ok"] for result in results)
 
 
@@ -211,35 +221,46 @@ def test_a_crashing_check_does_not_hide_the_others(providers, monkeypatch):
 
 # --- Gemini -------------------------------------------------------------------------------------
 
-def test_gemini_is_a_tiny_call_to_the_first_model(providers):
+def test_gemini_is_a_tiny_call_to_the_first_model_as_the_app_calls_it_then_as_quick_checks_do(providers):
     result = run(health_deep.check_gemini())
     assert result["ok"] and result["model"] == "model-a" and result["fallback"] is False
-    call = providers.gemini_calls[0]
-    assert call["key"] == "gemini-secret-key-1"
-    assert call["max_tokens"] <= 16 and call["json_mode"] is False and call["thinking"] == "off"
-    assert call["timeout"] <= health_deep.AI_CALL_SECONDS
+    ordinary, quick = providers.gemini_calls
+    assert ordinary["key"] == quick["key"] == "gemini-secret-key-1" and ordinary["model"] == quick["model"] == "model-a"
+    assert ordinary["max_tokens"] <= 16 and ordinary["json_mode"] is False and ordinary["thinking"] is None
+    assert quick["thinking"] == "off"
+    assert ordinary["timeout"] <= health_deep.AI_CALL_SECONDS
+
+
+def test_gemini_reports_a_quick_check_refusal_beside_a_working_model(providers):
+    providers.gemini_answers = {("gemini-secret-key-1", "model-a", "off"): "invalid_argument"}
+    result = run(health_deep.check_gemini())
+    assert result["ok"] is True and result["model"] == "model-a"
+    assert result["fast"] == {"ok": False, "code": "invalid_argument", "detail": "invalid_argument:thinking"}
 
 
 def test_gemini_reports_the_first_model_of_the_list_that_answers(providers):
     providers.gemini_answers = {"model-a": "not_found"}
     result = run(health_deep.check_gemini())
     assert result["ok"] and result["model"] == "model-b" and result["fallback"] is True
+    assert result["tried"] == [{"model": "model-a", "code": "not_found", "detail": None}]
     # A retired model is a model problem: the second key is not asked about it.
-    assert [(c["key"][-1], c["model"]) for c in providers.gemini_calls] == [("1", "model-a"), ("1", "model-b")]
+    assert [(c["key"][-1], c["model"]) for c in providers.gemini_calls] == [("1", "model-a"), ("1", "model-b"), ("1", "model-b")]
 
 
 def test_gemini_tries_the_next_key_when_the_key_is_refused(providers):
     providers.gemini_answers = {("gemini-secret-key-1", "model-a"): "rate_limited"}
     result = run(health_deep.check_gemini())
     assert result["ok"] and result["model"] == "model-a" and result["fallback"] is False
-    assert [(c["key"][-1], c["model"]) for c in providers.gemini_calls] == [("1", "model-a"), ("2", "model-a")]
+    assert [(c["key"][-1], c["model"]) for c in providers.gemini_calls] == [("1", "model-a"), ("2", "model-a"), ("2", "model-a")]
 
 
 def test_gemini_down_names_the_last_error_and_stops_after_three_models(providers):
     providers.gemini_answers = {"model-a": "timeout", "model-b": "timeout", "model-c": "network", "model-d": None}
     result = run(health_deep.check_gemini())
     assert result == {"ok": False, "provider": "Gemini", "model": None, "ms": result["ms"], "code": "network",
-                      "fallback": False}
+                      "fallback": False, "tried": [{"model": "model-a", "code": "timeout", "detail": None},
+                                                    {"model": "model-b", "code": "timeout", "detail": None},
+                                                    {"model": "model-c", "code": "network", "detail": None}]}
     assert [c["model"] for c in providers.gemini_calls] == ["model-a", "model-b", "model-c"]
 
 
@@ -252,12 +273,19 @@ def test_gemini_without_a_key_is_unconfigured(providers, monkeypatch):
 
 # --- Groq, speech, Supabase -----------------------------------------------------------------------
 
-def test_groq_checks_the_fast_model(providers):
+def test_groq_checks_the_main_and_the_fast_model(providers):
     result = run(health_deep.check_groq())
-    assert result["ok"] and result["model"] == "groq-fast"
-    call = providers.groq_calls[0]
-    assert call["key"] == GROQ_KEY and call["model"] == "groq-fast"
-    assert call["max_tokens"] <= 16 and call["json_mode"] is False
+    assert result["ok"] and result["model"] == "groq-main" and result["fast"]["ok"]
+    assert sorted(call["model"] for call in providers.groq_calls) == ["groq-fast", "groq-main"]
+    assert all(call["key"] == GROQ_KEY and call["max_tokens"] <= 16 and call["json_mode"] is False
+               for call in providers.groq_calls)
+
+
+def test_groq_names_the_providers_own_code_for_a_retired_fast_model(providers):
+    providers.groq_errors = {"groq-fast": ("invalid_argument", "model_decommissioned")}
+    result = run(health_deep.check_groq())
+    assert result["ok"] is True  # the main model answers: Groq still works as the spare
+    assert result["fast"] == {"model": "groq-fast", "ok": False, "code": "invalid_argument", "detail": "model_decommissioned"}
 
 
 def test_groq_without_a_key_is_unconfigured(providers, monkeypatch):
