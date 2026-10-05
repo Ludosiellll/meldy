@@ -257,6 +257,34 @@ describe('ProReel', () => {
     expect(screen.queryByRole('button', { name: 'Пауза' })).toBeNull();
   });
 
+  it('goes to the PRO beat when the window says PRO was just bought (a new `jump`)', async () => {
+    window.__MELDY_PRO_REEL_EXPORT__ = true;
+    const { container, rerender } = render(<ProReel jump={0} />);
+    await act(async () => {
+      await window.__meldyProReel!.seek(1500);
+    });
+    const visible = () =>
+      Array.from(stage(container).querySelectorAll<HTMLElement>('.mr-layer'))
+        .filter((layer) => layer.style.visibility === 'visible')
+        .map((layer) => layer.textContent ?? '')
+        .join(' ');
+    expect(visible()).toContain('Сессия.');
+    // Waiting (not playing): the still frame of the PRO day.
+    act(() => {
+      rerender(<ProReel jump={1} />);
+    });
+    expect(visible()).not.toContain('Сессия.');
+    expect(visible()).toContain('Билет 12');
+    // The same jump again changes nothing.
+    await act(async () => {
+      await window.__meldyProReel!.seek(1500);
+    });
+    act(() => {
+      rerender(<ProReel jump={1} />);
+    });
+    expect(visible()).toContain('Сессия.');
+  });
+
   it('shows the numbers of the plans on the stage', async () => {
     window.__MELDY_PRO_REEL_EXPORT__ = true;
     const { container } = render(<ProReel />);

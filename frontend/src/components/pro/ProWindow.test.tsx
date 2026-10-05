@@ -2,14 +2,19 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+type RpcAnswer = { data: unknown; error: { code?: string; message: string } | null };
+
 const db = vi.hoisted(() => ({
   user: { id: 'user-1', email: 'student@example.com' } as { id: string; email: string } | null,
   isPro: false,
   profileError: null as unknown,
-  interest: null as { user_id: string } | null,
-  insertError: null as { code?: string; message: string } | null,
-  insert: vi.fn(),
+  startError: null as { code?: string; message: string } | null,
+  stopError: null as { code?: string; message: string } | null,
+  /** When set, the next RPC waits for this promise (a slow network). */
+  hold: null as Promise<void> | null,
   tables: [] as string[],
+  rpcs: [] as string[],
+  track: vi.fn(),
 }));
 
 vi.mock('../../lib/supabase', () => ({
@@ -25,26 +30,37 @@ vi.mock('../../lib/supabase', () => ({
           }),
         };
       }
-      if (table === 'pro_interest') {
-        return {
-          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: db.interest, error: null }) }) }),
-          insert: async (row: unknown) => {
-            db.insert(row);
-            return { data: null, error: db.insertError };
-          },
-        };
-      }
       throw new Error(`unexpected table ${table}`);
+    },
+    rpc: async (name: string): Promise<RpcAnswer> => {
+      db.rpcs.push(name);
+      if (db.hold) await db.hold;
+      if (name === 'start_pro_demo') {
+        if (db.startError) return { data: null, error: db.startError };
+        db.isPro = true;
+        return { data: { pro: true, since: '2026-10-05T12:00:00.000000+00:00' }, error: null };
+      }
+      if (name === 'stop_pro_demo') {
+        if (db.stopError) return { data: null, error: db.stopError };
+        db.isPro = false;
+        return { data: { pro: false }, error: null };
+      }
+      return { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name}` } };
     },
   },
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: db.user }) }));
-// The reel has its own tests (ProReel.test.tsx); here it is a stand-in in the same place.
-vi.mock('./ProReel', () => ({ default: () => <figure aria-label="Ролик: что будет с PRO" /> }));
+vi.mock('../../lib/telemetry', () => ({ track: (...args: unknown[]) => db.track(...args) }));
+// The reel has its own tests (ProReel.test.tsx); here it is a stand-in in the same place that shows the jump it got.
+vi.mock('./ProReel', () => ({
+  default: ({ jump = 0 }: { jump?: number }) => <figure aria-label="Ролик: что будет с PRO" data-jump={jump} />,
+}));
 
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { OPEN_PRO_EVENT, openProWindow } from '../../lib/plans';
 import { ProWindowProvider } from './ProWindow';
+import { DEMO_NOTE } from './ProWindowDialog';
+import { ProDemoClosedError, startProDemo, stopProDemo } from './proPlan';
 
 function Page() {
   const navigate = useNavigate();
@@ -83,18 +99,32 @@ async function openFrom(opener: HTMLElement) {
   return screen.findByRole('dialog', { name: 'PRO' });
 }
 
+/** The window's events after a plan change: the top line reads the limit and the profile again. */
+const heard: string[] = [];
+const listen = (event: Event) => heard.push(event.type);
+
 beforeEach(() => {
   db.user = { id: 'user-1', email: 'student@example.com' };
   db.isPro = false;
   db.profileError = null;
-  db.interest = null;
-  db.insertError = null;
+  db.startError = null;
+  db.stopError = null;
+  db.hold = null;
   db.tables = [];
+  db.rpcs = [];
+  db.track.mockReset();
+  heard.length = 0;
+  window.addEventListener('ai_usage_updated', listen);
+  window.addEventListener('profile_updated', listen);
   document.documentElement.style.overflow = '';
   document.body.style.overflow = '';
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.removeEventListener('ai_usage_updated', listen);
+  window.removeEventListener('profile_updated', listen);
+});
 
 describe('the PRO window', () => {
   it('opens on the meldy:open-pro event from anywhere, as a labelled modal dialog over the reel', async () => {
@@ -111,9 +141,20 @@ describe('the PRO window', () => {
     // What PRO changes, in numbers from lib/plans.ts.
     expect(within(win).getByText('До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.')).toBeInTheDocument();
     expect(await within(win).findByText('Сейчас у вас бесплатный тариф: 100 единиц ИИ в день.')).toBeInTheDocument();
-    expect(within(win).getByText('Оплата пока не подключена — стоимость появится вместе с ней.')).toBeInTheDocument();
-    // No checkout, no price.
-    expect(win.textContent).not.toMatch(/₽|оформить|купить|оплатить/i);
+  });
+
+  it('sells PRO honestly: «Купить PRO» with the demo line under it — no price, no card, no notify button', async () => {
+    renderApp();
+    act(() => openProWindow('pricing'));
+    const win = await screen.findByRole('dialog', { name: 'PRO' });
+    const buy = await within(win).findByRole('button', { name: /Купить PRO/ });
+    expect(buy).toHaveTextContent('Купить PRO');
+    expect(DEMO_NOTE).toBe('Демо: оплата не подключена — PRO включится бесплатно и сразу.');
+    const note = within(win).getByText(DEMO_NOTE);
+    expect(buy.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(win.textContent).not.toMatch(/₽|руб|оплатить|оформить|карт[аы]|чек|Сообщить|оплата заработает/i);
+    expect(win.querySelector('input, select, textarea')).toBeNull();
+    expect(db.rpcs).toEqual([]);
   });
 
   it('takes the focus, keeps Tab inside, closes on Escape and gives the focus back to the opener', async () => {
@@ -124,12 +165,12 @@ describe('the PRO window', () => {
     expect(document.documentElement.style.overflow).toBe('hidden');
 
     const close = within(win).getByRole('button', { name: 'Закрыть' });
-    const notify = await within(win).findByRole('button', { name: 'Сообщить, когда появится' });
-    notify.focus();
+    const buy = await within(win).findByRole('button', { name: /Купить PRO/ });
+    buy.focus();
     fireEvent.keyDown(win, { key: 'Tab' });
     expect(close).toHaveFocus();
     fireEvent.keyDown(win, { key: 'Tab', shiftKey: true });
-    expect(notify).toHaveFocus();
+    expect(buy).toHaveFocus();
     // Focus that slips out of the window is brought back into it.
     act(() => screen.getByRole('button', { name: 'Уйти', hidden: true }).focus());
     expect(win).toHaveFocus();
@@ -164,76 +205,128 @@ describe('the PRO window', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('notes the wish to be told: one row in pro_interest, then a pressed state that is not sent again', async () => {
+  it('«Купить PRO» switches PRO on for free: one call, «Готово — у вас PRO», the new day, the meter told, the reel to PRO', async () => {
     renderApp();
     const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
-    const notify = await within(win).findByRole('button', { name: 'Сообщить, когда появится' });
+    const reel = within(win).getByRole('figure', { name: 'Ролик: что будет с PRO' });
+    expect(reel).toHaveAttribute('data-jump', '0');
     await act(async () => {
-      fireEvent.click(notify);
+      fireEvent.click(await within(win).findByRole('button', { name: /Купить PRO/ }));
     });
-    expect(db.insert).toHaveBeenCalledTimes(1);
-    expect(db.insert).toHaveBeenCalledWith({ user_id: 'user-1', reason: 'pricing' });
-    const done = within(win).getByRole('button', { name: 'Сообщим, когда оплата заработает' });
-    expect(done).toHaveAttribute('aria-disabled', 'true');
-    // The same button: the keyboard focus stays on it.
-    expect(done).toBe(notify);
-    expect(within(win).getByText('Записали: сообщим, когда оплата заработает.')).toBeInTheDocument();
-    await act(async () => {
-      fireEvent.click(done);
-    });
-    expect(db.insert).toHaveBeenCalledTimes(1);
+    expect(db.rpcs).toEqual(['start_pro_demo']);
+    const done = within(win).getByText('Готово — у вас PRO');
+    expect(within(win).getByText('Дневной лимит теперь — 1000 единиц ИИ в день.')).toBeInTheDocument();
+    expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
+    // The focus goes to the line that replaced the button; screen readers hear the change.
+    expect(done.closest('p')).toHaveFocus();
+    expect(within(win).getByText('Готово — у вас PRO. Дневной лимит теперь — 1000 единиц ИИ в день.')).toHaveAttribute('aria-live', 'polite');
+    // The top line reads the limit (1000) and the profile again; the reel jumps to its PRO beat.
+    expect(heard).toEqual(['ai_usage_updated', 'profile_updated']);
+    expect(reel).toHaveAttribute('data-jump', '1');
+    expect(db.track).toHaveBeenCalledWith('pro_demo_bought', { reason: 'pricing' });
+    expect(db.track).not.toHaveBeenCalledWith('pro_interest_sent', expect.anything());
+    // The demo can be undone from here.
+    expect(within(win).getByRole('button', { name: 'Отключить PRO' })).toBeInTheDocument();
   });
 
-  it('reads a duplicate (23505) as already noted, and an already noted account opens in that state', async () => {
-    db.insertError = { code: '23505', message: 'duplicate key value violates unique constraint "pro_interest_pkey"' };
-    renderApp();
-    let win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
-    await act(async () => {
-      fireEvent.click(await within(win).findByRole('button', { name: 'Сообщить, когда появится' }));
+  it('is busy while the call runs and does not call twice', async () => {
+    let release: () => void = () => undefined;
+    db.hold = new Promise<void>((resolve) => {
+      release = resolve;
     });
-    expect(within(win).getByRole('button', { name: 'Сообщим, когда оплата заработает' })).toHaveAttribute('aria-disabled', 'true');
-    expect(within(win).queryByRole('alert')).toBeNull();
-    cleanup();
-
-    db.insertError = null;
-    db.interest = { user_id: 'user-1' };
-    db.insert.mockClear();
     renderApp();
-    win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
-    expect(await within(win).findByRole('button', { name: 'Сообщим, когда оплата заработает' })).toHaveAttribute('aria-disabled', 'true');
-    expect(db.insert).not.toHaveBeenCalled();
+    const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
+    const buy = await within(win).findByRole('button', { name: /Купить PRO/ });
+    act(() => {
+      fireEvent.click(buy);
+    });
+    expect(buy).toHaveAttribute('aria-busy', 'true');
+    expect(buy).toHaveTextContent('Включаем PRO…');
+    act(() => {
+      fireEvent.click(buy);
+    });
+    expect(db.rpcs).toEqual(['start_pro_demo']);
+    await act(async () => {
+      release();
+      await db.hold;
+    });
+    expect(await within(win).findByText('Готово — у вас PRO')).toBeInTheDocument();
+    expect(db.rpcs).toEqual(['start_pro_demo']);
   });
 
-  it('says so when the note could not be written, and lets the student try again', async () => {
+  it('says so when PRO could not be switched on, and lets the student try again', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    db.insertError = { code: '42501', message: 'permission denied' };
+    db.startError = { code: 'PGRST202', message: 'Could not find the function public.start_pro_demo' };
     renderApp();
     const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
     await act(async () => {
-      fireEvent.click(await within(win).findByRole('button', { name: 'Сообщить, когда появится' }));
+      fireEvent.click(await within(win).findByRole('button', { name: /Купить PRO/ }));
     });
-    expect(within(win).getByRole('alert')).toHaveTextContent('Не удалось записать. Проверьте подключение и нажмите ещё раз.');
-    const again = within(win).getByRole('button', { name: 'Сообщить, когда появится' });
-    expect(again).not.toHaveAttribute('aria-disabled');
-    db.insertError = null;
+    expect(within(win).getByRole('alert')).toHaveTextContent('Не удалось включить PRO. Проверьте подключение и нажмите ещё раз.');
+    const again = within(win).getByRole('button', { name: /Купить PRO/ });
+    expect(again).not.toHaveAttribute('aria-busy');
+    expect(heard).toEqual([]);
+    db.startError = null;
     await act(async () => {
       fireEvent.click(again);
     });
-    expect(db.insert).toHaveBeenCalledTimes(2);
+    expect(db.rpcs).toEqual(['start_pro_demo', 'start_pro_demo']);
     expect(within(win).queryByRole('alert')).toBeNull();
+    expect(within(win).getByText('Готово — у вас PRO')).toBeInTheDocument();
   });
 
-  it('shows «У вас PRO» to a PRO account, with nothing to ask for', async () => {
+  it('says the free demo is closed when the server switched it off', async () => {
+    db.startError = { code: 'P0001', message: 'PRO demo closed' };
+    renderApp();
+    const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
+    await act(async () => {
+      fireEvent.click(await within(win).findByRole('button', { name: /Купить PRO/ }));
+    });
+    expect(within(win).getByRole('alert')).toHaveTextContent('Бесплатное демо PRO закрыто.');
+    expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
+    expect(within(win).queryByText(DEMO_NOTE)).toBeNull();
+    expect(db.track).not.toHaveBeenCalledWith('pro_demo_bought', expect.anything());
+  });
+
+  it('with PRO: «У вас PRO» and a quiet «Отключить PRO» that brings the free day back', async () => {
     db.isPro = true;
     renderApp();
     const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
     expect(await within(win).findByText('У вас PRO')).toBeInTheDocument();
-    expect(within(win).queryByRole('button', { name: /Сообщ/ })).toBeNull();
-    expect(within(win).queryByText(/Оплата пока не подключена/)).toBeNull();
-    expect(db.tables).toEqual(expect.arrayContaining(['profiles', 'pro_interest']));
+    expect(within(win).getByText('Дневной лимит — 1000 единиц ИИ в день.')).toBeInTheDocument();
+    expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
+    expect(db.tables).toEqual(['profiles']);
+    await act(async () => {
+      fireEvent.click(within(win).getByRole('button', { name: 'Отключить PRO' }));
+    });
+    expect(db.rpcs).toEqual(['stop_pro_demo']);
+    expect(within(win).getByText('PRO отключён. Сейчас у вас бесплатный тариф: 100 единиц ИИ в день.')).toBeInTheDocument();
+    const buy = within(win).getByRole('button', { name: /Купить PRO/ });
+    expect(buy).toHaveFocus();
+    expect(heard).toEqual(['ai_usage_updated', 'profile_updated']);
+    expect(db.track).toHaveBeenCalledWith('pro_demo_cancelled', { reason: 'pricing' });
+    // And the demo can be taken again.
+    await act(async () => {
+      fireEvent.click(buy);
+    });
+    expect(within(win).getByText('Готово — у вас PRO')).toBeInTheDocument();
   });
 
-  it('opened because the day ran out, starts with the limit and when it comes back', async () => {
+  it('says so when PRO could not be switched off', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    db.isPro = true;
+    db.stopError = { code: '08006', message: 'connection failure' };
+    renderApp();
+    const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
+    await act(async () => {
+      fireEvent.click(await within(win).findByRole('button', { name: 'Отключить PRO' }));
+    });
+    expect(within(win).getByRole('alert')).toHaveTextContent('Не удалось отключить PRO. Проверьте подключение и нажмите ещё раз.');
+    expect(within(win).getByText('У вас PRO')).toBeInTheDocument();
+    expect(heard).toEqual([]);
+  });
+
+  it('opened because the day ran out, starts with the limit and when it comes back; after the purchase, with PRO', async () => {
     renderApp();
     act(() => openProWindow('limit'));
     const win = await screen.findByRole('dialog', { name: 'PRO' });
@@ -241,9 +334,10 @@ describe('the PRO window', () => {
     expect(win).toHaveAccessibleDescription(line);
     expect(within(win).getByText(line)).toHaveAttribute('data-reason', 'limit');
     await act(async () => {
-      fireEvent.click(await within(win).findByRole('button', { name: 'Сообщить, когда появится' }));
+      fireEvent.click(await within(win).findByRole('button', { name: /Купить PRO/ }));
     });
-    expect(db.insert).toHaveBeenCalledWith({ user_id: 'user-1', reason: 'limit' });
+    expect(db.track).toHaveBeenCalledWith('pro_demo_bought', { reason: 'limit' });
+    expect(win).toHaveAccessibleDescription('Тот же Meldy, только дневной лимит ИИ в 10 раз больше.');
   });
 
   it('treats an unknown reason as «pricing», and a second event while open only changes the reason', async () => {
@@ -258,18 +352,20 @@ describe('the PRO window', () => {
     expect(dialog()).toHaveAccessibleDescription(/Дневной лимит на сегодня исчерпан/);
   });
 
-  it('without an account asks to sign in instead of writing anything', async () => {
+  it('without an account asks to sign in, says PRO comes on after it, and changes nothing', async () => {
     db.user = null;
     renderApp();
     act(() => openProWindow('meter'));
     const win = await screen.findByRole('dialog', { name: 'PRO' });
-    expect(within(win).getByText('Войдите, и мы сообщим, когда оплата заработает.')).toBeInTheDocument();
+    expect(within(win).getByText('После входа PRO включится бесплатно: это демо, оплата не подключена.')).toBeInTheDocument();
+    expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
     act(() => {
       fireEvent.click(within(win).getByRole('link', { name: 'Войти' }));
     });
     expect(screen.getByText('Вход')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(db.tables).toEqual([]);
+    expect(db.rpcs).toEqual([]);
   });
 });
 
@@ -279,5 +375,22 @@ describe('the window is quiet when nothing asks for it', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Что даёт PRO' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(db.tables).toEqual([]);
+    expect(db.rpcs).toEqual([]);
+  });
+});
+
+describe('the demo calls (proPlan.ts)', () => {
+  it('start_pro_demo: the time PRO came on; the kill switch is its own error; anything else fails', async () => {
+    await expect(startProDemo()).resolves.toEqual({ since: '2026-10-05T12:00:00.000000+00:00' });
+    db.startError = { code: 'P0001', message: 'PRO demo closed' };
+    await expect(startProDemo()).rejects.toBeInstanceOf(ProDemoClosedError);
+    db.startError = { code: '42501', message: 'start_pro_demo: no signed-in user' };
+    await expect(startProDemo()).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('stop_pro_demo: resolves on {pro: false}, fails on an error', async () => {
+    await expect(stopProDemo()).resolves.toBeUndefined();
+    db.stopError = { code: '42501', message: 'stop_pro_demo: no signed-in user' };
+    await expect(stopProDemo()).rejects.toMatchObject({ code: '42501' });
   });
 });

@@ -13,10 +13,10 @@ import { Link } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
-import { FREE_DAILY_UNITS, type ProReason } from '../../lib/plans';
+import { FREE_DAILY_UNITS, PRO_DAILY_UNITS, type ProReason } from '../../lib/plans';
 import { track } from '../../lib/telemetry';
 import { proGainLine, proLede, unitsPerDay } from './planCopy';
-import { loadProState, recordProInterest, type ProState } from './proInterest';
+import { ProDemoClosedError, announcePlanChange, loadProState, startProDemo, stopProDemo, type ProState } from './proPlan';
 import './proWindow.css';
 
 /** The reel loads with the first opening: the rest of the app does not carry it. */
@@ -46,6 +46,18 @@ function ledeFor(reason: ProReason): string {
   return proLede();
 }
 
+/** The arrow in the dark circle of the main button (the language's primary pill). */
+function ArrowIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4 10h11M11 5.5 15.5 10 11 14.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The honest line under the action: there is no payment, PRO is switched on for free. */
+export const DEMO_NOTE = 'Демо: оплата не подключена — PRO включится бесплатно и сразу.';
+
 export interface WindowProps {
   reason: ProReason;
   onClose: () => void;
@@ -53,8 +65,10 @@ export interface WindowProps {
 
 /**
  * «PRO»: what the plan changes, in plain words and the real numbers of lib/plans.ts, under a reel
- * that shows it. Payment is not connected, so the window sells nothing: it shows the account's
- * plan and lets a student ask to be told when payment works (a row in pro_interest).
+ * that shows it. Payment is not connected, so «Купить PRO» is a demo (owner, 2026-10-05: «нажимаешь на
+ * купить и тебе ее выдаст просто бесплатно»): it switches PRO on at once and for free and says so under
+ * the button — no price, no card, no imitated payment. With PRO the window says so and offers «Отключить
+ * PRO», so the demo can be taken again. The top line's limit meter follows at once (proPlan.ts).
  */
 export default function ProWindow({ reason, onClose }: WindowProps) {
   const { user } = useAuth();
@@ -62,14 +76,18 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
   const titleId = useId();
   const ledeId = useId();
   const card = useRef<HTMLDivElement>(null);
-  const [pro, setPro] = useState<ProState | null>(userId ? null : { isPro: null, interested: false });
-  const [sending, setSending] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [noted, setNoted] = useState(false);
+  const doneLine = useRef<HTMLParagraphElement>(null);
+  const buyButton = useRef<HTMLButtonElement>(null);
+  const [pro, setPro] = useState<ProState | null>(userId ? null : { isPro: null });
+  const [busy, setBusy] = useState<'buy' | 'cancel' | null>(null);
+  const [failed, setFailed] = useState<'buy' | 'closed' | 'cancel' | null>(null);
+  const [done, setDone] = useState<'bought' | 'cancelled' | null>(null);
+  // Bumped after a purchase: the reel jumps to its PRO beat.
+  const [reelJump, setReelJump] = useState(0);
 
   useEffect(() => {
     if (!userId) {
-      setPro({ isPro: null, interested: false });
+      setPro({ isPro: null });
       return undefined;
     }
     let current = true;
@@ -139,25 +157,60 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
     }
   };
 
-  const interested = Boolean(pro?.interested) || noted;
-  const notify = async () => {
-    if (!userId || sending || interested) return;
-    setSending(true);
-    setFailed(false);
+  // «Купить PRO»: the demo switches PRO on; the meter in the top line and the reel follow at once.
+  const buy = async () => {
+    if (!userId || busy) return;
+    setBusy('buy');
+    setFailed(null);
     try {
-      await recordProInterest(userId, reason);
-      track('pro_interest_sent', { reason });
-      setNoted(true);
+      await startProDemo();
+      track('pro_demo_bought', { reason });
+      setPro({ isPro: true });
+      setDone('bought');
+      setReelJump((count) => count + 1);
+      announcePlanChange();
     } catch (error) {
-      console.error('Не удалось записать просьбу сообщить о PRO:', error);
-      setFailed(true);
+      if (error instanceof ProDemoClosedError) {
+        setFailed('closed');
+      } else {
+        console.error('Не удалось включить PRO:', error);
+        setFailed('buy');
+      }
     } finally {
-      setSending(false);
+      setBusy(null);
     }
   };
 
+  // «Отключить PRO»: back to the free day, so the demo can be repeated.
+  const cancel = async () => {
+    if (!userId || busy) return;
+    setBusy('cancel');
+    setFailed(null);
+    try {
+      await stopProDemo();
+      track('pro_demo_cancelled', { reason });
+      setPro({ isPro: false });
+      setDone('cancelled');
+      announcePlanChange();
+    } catch (error) {
+      console.error('Не удалось отключить PRO:', error);
+      setFailed('cancel');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // The control that was pressed is gone after the change: the focus goes to what replaced it.
+  useEffect(() => {
+    if (done === 'bought') doneLine.current?.focus();
+    if (done === 'cancelled') buyButton.current?.focus();
+  }, [done]);
+
   const loading = pro === null;
   const isPro = pro?.isPro === true;
+  const proDay = unitsPerDay(PRO_DAILY_UNITS);
+  const announcement =
+    done === 'bought' ? `Готово — у вас PRO. Дневной лимит теперь — ${proDay}.` : done === 'cancelled' ? 'PRO отключён.' : '';
 
   return (
     <div className="pw">
@@ -181,7 +234,7 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
         <div className="pw-reel">
           <ReelBoundary>
             <Suspense fallback={<div className="pw-reel-wait" aria-hidden="true" />}>
-              <ProReel />
+              <ProReel jump={reelJump} />
             </Suspense>
           </ReelBoundary>
         </div>
@@ -190,58 +243,87 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
           <h2 id={titleId} className="pw-h">
             PRO
           </h2>
-          <p id={ledeId} className="pw-lede" data-reason={reason}>
-            {ledeFor(reason)}
+          <p id={ledeId} className="pw-lede" data-reason={done === 'bought' ? undefined : reason}>
+            {done === 'bought' ? proLede() : ledeFor(reason)}
           </p>
           <p className="pw-gain">{proGainLine()}</p>
 
           {!userId ? (
             <>
-              <p className="pw-pay">Оплата пока не подключена — стоимость появится вместе с ней.</p>
-              <p className="pw-status">Войдите, и мы сообщим, когда оплата заработает.</p>
-              <Link className="pw-notify" to="/login">
+              <Link className="pw-buy" to="/login">
                 Войти
+                <i>
+                  <ArrowIcon />
+                </i>
               </Link>
+              <p className="pw-pay">После входа PRO включится бесплатно: это демо, оплата не подключена.</p>
             </>
           ) : loading ? (
             <div className="pw-wait" role="status" aria-label="Проверяем тариф" />
           ) : isPro ? (
-            <p className="pw-status">
-              <span className="pw-pill">
-                <Check aria-hidden="true" />У вас PRO
-              </span>
-            </p>
-          ) : (
             <>
-              {pro?.isPro === false ? <p className="pw-status">Сейчас у вас бесплатный тариф: {unitsPerDay(FREE_DAILY_UNITS)}.</p> : null}
-              <p className="pw-pay">Оплата пока не подключена — стоимость появится вместе с ней.</p>
+              <p ref={doneLine} className="pw-status" tabIndex={-1}>
+                <span className="pw-pill">
+                  <Check aria-hidden="true" />
+                  {done === 'bought' ? 'Готово — у вас PRO' : 'У вас PRO'}
+                </span>
+              </p>
+              <p className="pw-now">{done === 'bought' ? `Дневной лимит теперь — ${proDay}.` : `Дневной лимит — ${proDay}.`}</p>
+              <p className="pw-pay">Демо: оплата не подключена, PRO включён бесплатно.</p>
               <button
                 type="button"
-                className="pw-notify"
-                data-done={interested ? '' : undefined}
-                aria-disabled={interested || sending ? 'true' : undefined}
-                aria-busy={sending ? 'true' : undefined}
-                onClick={() => void notify()}
+                className="pw-quiet"
+                aria-disabled={busy ? 'true' : undefined}
+                aria-busy={busy === 'cancel' ? 'true' : undefined}
+                onClick={() => void cancel()}
               >
-                {interested ? (
-                  <>
-                    <Check aria-hidden="true" />
-                    Сообщим, когда оплата заработает
-                  </>
-                ) : (
-                  'Сообщить, когда появится'
-                )}
+                {busy === 'cancel' ? 'Отключаем…' : 'Отключить PRO'}
               </button>
-              {failed ? (
+              {failed === 'cancel' ? (
                 <p className="pw-error" role="alert">
-                  Не удалось записать. Проверьте подключение и нажмите ещё раз.
+                  Не удалось отключить PRO. Проверьте подключение и нажмите ещё раз.
                 </p>
               ) : null}
-              <p className="sr-only" aria-live="polite">
-                {noted ? 'Записали: сообщим, когда оплата заработает.' : ''}
-              </p>
+            </>
+          ) : (
+            <>
+              {pro?.isPro === false ? (
+                <p className="pw-status">
+                  {done === 'cancelled' ? 'PRO отключён. ' : ''}Сейчас у вас бесплатный тариф: {unitsPerDay(FREE_DAILY_UNITS)}.
+                </p>
+              ) : null}
+              {failed === 'closed' ? (
+                <p className="pw-status pw-closed" role="alert">
+                  Бесплатное демо PRO закрыто.
+                </p>
+              ) : (
+                <>
+                  <button
+                    ref={buyButton}
+                    type="button"
+                    className="pw-buy"
+                    aria-disabled={busy ? 'true' : undefined}
+                    aria-busy={busy === 'buy' ? 'true' : undefined}
+                    onClick={() => void buy()}
+                  >
+                    {busy === 'buy' ? 'Включаем PRO…' : 'Купить PRO'}
+                    <i>
+                      <ArrowIcon />
+                    </i>
+                  </button>
+                  <p className="pw-pay">{DEMO_NOTE}</p>
+                  {failed === 'buy' ? (
+                    <p className="pw-error" role="alert">
+                      Не удалось включить PRO. Проверьте подключение и нажмите ещё раз.
+                    </p>
+                  ) : null}
+                </>
+              )}
             </>
           )}
+          <p className="sr-only" aria-live="polite">
+            {announcement}
+          </p>
         </div>
       </div>
     </div>
