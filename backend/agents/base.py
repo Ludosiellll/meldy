@@ -454,12 +454,14 @@ class AIError(HTTPException):
         return cls(503, "ai_unconfigured", detail)
 
 
-# Models checked on 2026-10-04 (orchestrator's web check): gemini-2.0-flash is gone; the 2.5
-# models have conflicting retirement notices (Vertex AI lists 2026-10-20, the Gemini API page
-# names no date). On 2026-10-05 the live key answered not_found for both 2.5 models while
-# gemini-3.1-flash-lite answered (deep health check and the call log), so it goes first; the 2.5
-# models stay as spares for keys that still have them. Groq retired llama-3.3-70b-versatile on 2026-08-16.
-DEFAULT_GEMINI_MODELS = "gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash"
+# Gemini models (2026-10-05). The free tier gives every model its own daily quota, and the Flash-Lite
+# models get hundreds of requests a day where the full Flash models get a few dozen (web search
+# 2026-10-05; the project's real numbers are on the rate-limit page of AI Studio), so the app lives on
+# two Flash-Lite models: the newer 3.5 first where quality matters (analysis, list checks, answer
+# points), the 3.1 one with the larger quota first for quick checks. On 2026-10-05 the live key
+# answered not_found for both 2.5 models, so they are not in the lists.
+DEFAULT_GEMINI_MODELS = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+DEFAULT_GEMINI_FAST_MODELS = "gemini-3.1-flash-lite,gemini-3.5-flash-lite"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 DEFAULT_GROQ_FAST_MODEL = "openai/gpt-oss-20b"
 DEFAULT_GROQ_VISION_MODEL = "llama-3.2-90b-vision-preview"
@@ -503,8 +505,12 @@ def gemini_models_env() -> list[str]:
 
 
 def gemini_fast_models_env() -> list[str]:
-    """GEMINI_FAST_MODELS, empty when unset."""
-    return _model_list(os.getenv("GEMINI_FAST_MODELS", ""))
+    """GEMINI_FAST_MODELS; unset — the default quick list, or nothing when GEMINI_MODELS is set (quick calls
+    then follow the owner's own list)."""
+    named = _model_list(os.getenv("GEMINI_FAST_MODELS", ""))
+    if named or _model_list(os.getenv("GEMINI_MODELS", "")):
+        return named
+    return _model_list(DEFAULT_GEMINI_FAST_MODELS)
 
 
 def gemini_models(fast: bool = False) -> list[str]:

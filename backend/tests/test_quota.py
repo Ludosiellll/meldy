@@ -934,7 +934,7 @@ def test_every_real_call_is_logged_for_its_user_in_the_background(server, clean_
     run(go())
     logs = server.rpc("log_ai_call")
     assert len(logs) == 2
-    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.1-flash-lite",
+    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.5-flash-lite",
                        "p_ok": True, "p_ms": logs[0]["p_ms"]}
     assert logs[1]["p_units"] == 0 and isinstance(logs[0]["p_ms"], int)
     assert all(token == "token-a" for fn, _, token in server.calls)
@@ -954,7 +954,8 @@ def test_a_failed_call_is_logged_with_its_last_model_and_never_breaks_the_answer
 
     run(go())
     (log,) = server.rpc("log_ai_call")
-    assert log["p_ok"] is False and log["p_provider"] == "gemini" and log["p_model"] == "gemini-2.5-flash"
+    # The last model of the list is the one named for a call that failed on all of them.
+    assert log["p_ok"] is False and log["p_provider"] == "gemini" and log["p_model"] == base.gemini_models_env()[-1]
     assert log["p_kind"] == "visuals"
 
 
@@ -1002,7 +1003,7 @@ def test_health_names_the_model_that_answered_last_without_user_data(clean_agent
     assert client.get("/api/health").json()["ai"] == {"provider": None, "model": None, "at": None}
     asyncio.run(BaseAgent().run("Ты помощник.", "Вопрос"))
     ai = client.get("/api/health").json()["ai"]
-    assert ai["provider"] == "gemini" and ai["model"] == "gemini-3.1-flash-lite"
+    assert ai["provider"] == "gemini" and ai["model"] == "gemini-3.5-flash-lite"
     assert ai["at"].endswith("Z") and len(ai["at"]) == 20
     first_at = ai["at"]
     asyncio.run(BaseAgent().run("Ты помощник.", "Вопрос"))  # из кэша: «последний ответ» не меняется
@@ -1016,7 +1017,8 @@ def test_health_names_the_model_that_answered_last_without_user_data(clean_agent
 def test_default_models_and_the_fallback_when_the_first_one_is_gone(clean_agent, monkeypatch):
     from google.genai import errors
 
-    assert base.gemini_models_env() == ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+    assert base.gemini_models_env() == ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+    assert base.gemini_models(fast=True) == ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
     assert base.groq_model() == "openai/gpt-oss-120b" and base.groq_fast_model() == "openai/gpt-oss-20b"
     monkeypatch.setenv("GROQ_MODEL", "my-groq")
     monkeypatch.setenv("GROQ_FAST_MODEL", "my-fast")
