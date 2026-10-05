@@ -12,11 +12,11 @@ import {
 
 // The same numbers live in backend/plans.py (the server charges, tests/test_quota.py pins them there).
 describe('plans', () => {
-  it('keeps the limits of 2026-10-04 and the costs of 2026-10-05', () => {
+  it('keeps the limits of 2026-10-04 and the costs of 2026-10-05, the voice tutor included', () => {
     expect([FREE_DAILY_UNITS, PRO_DAILY_UNITS]).toEqual([100, 1000]);
     expect(AI_COSTS).toEqual({
       lecture: 20, examMapping: 10, answer: 4, answerPoints: 1, conversation: 5, visuals: 2, cheatsheet: 5,
-      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7,
+      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7, tutorTurn: 1,
     });
     expect(dailyUnits(false)).toBe(100);
     expect(dailyUnits(true)).toBe(1000);

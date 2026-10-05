@@ -439,3 +439,20 @@ async def stream_reply(
             if _resting(provider.name):
                 break
     raise attempt.error(configured=bool(providers))
+
+
+async def complete(system_prompt: str, turns: list[dict], **options: Any) -> str:
+    """The whole reply as one text (for answers that are read as a whole, e.g. JSON).
+
+    A reply broken halfway is no answer: it raises AIError.failed like a provider that never started.
+    """
+    pieces: list[str] = []
+    try:
+        async for piece in stream_reply(system_prompt, turns, **options):
+            pieces.append(piece)
+    except StreamBroken as exc:
+        raise AIError.failed() from exc
+    text = "".join(pieces)
+    if not text.strip():
+        raise AIError.failed()
+    return text
