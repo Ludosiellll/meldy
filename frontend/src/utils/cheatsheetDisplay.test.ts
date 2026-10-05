@@ -2,25 +2,30 @@ import { describe, expect, it } from 'vitest';
 import { displayCheatsheet } from './cheatsheetDisplay';
 
 describe('displayCheatsheet', () => {
-  it('shows the old first heading «Экспресс-шпаргалка» as «Выжимка» at the same level', () => {
-    expect(displayCheatsheet('# Экспресс-шпаргалка\n## Суть в 3 словах\nСпрос и предложение')).toBe(
-      '# Выжимка\n## Суть в 3 словах\nСпрос и предложение',
-    );
-    expect(displayCheatsheet('## Экспресс-шпаргалка\n\n- главное')).toBe('## Выжимка\n\n- главное');
-    expect(displayCheatsheet('###### Экспресс-шпаргалка')).toBe('###### Выжимка');
+  it('drops the first heading that only says the name: the card already says «Выжимка»', () => {
+    expect(displayCheatsheet('# Экспресс-шпаргалка\n## Суть в 3 словах\nСпрос и предложение')).toBe('## Суть в 3 словах\nСпрос и предложение');
+    expect(displayCheatsheet('## Экспресс-шпаргалка\n\n- главное')).toBe('- главное');
+    expect(displayCheatsheet('# Выжимка\n\n- уже новое имя')).toBe('- уже новое имя');
+    expect(displayCheatsheet('###### Выжимка\n- a')).toBe('- a');
   });
 
   it('ignores case, trailing spaces, blank lines before it and Windows line ends', () => {
-    expect(displayCheatsheet('# ЭКСПРЕСС-ШПАРГАЛКА\n- a')).toBe('# Выжимка\n- a');
-    expect(displayCheatsheet('# экспресс-шпаргалка   \n- a')).toBe('# Выжимка   \n- a');
-    expect(displayCheatsheet('\n\n  # Экспресс-шпаргалка\r\n- a')).toBe('\n\n  # Выжимка\r\n- a');
+    expect(displayCheatsheet('# ЭКСПРЕСС-ШПАРГАЛКА\n- a')).toBe('- a');
+    expect(displayCheatsheet('# экспресс-шпаргалка   \n- a')).toBe('- a');
+    expect(displayCheatsheet('\n\n  # Экспресс-шпаргалка\r\n- a')).toBe('\n\n- a');
   });
 
-  it('also covers the older «⚡ Экспресс-шпаргалка», a plain «Шпаргалка» and words after the name', () => {
-    expect(displayCheatsheet('# ⚡ Экспресс-шпаргалка\n- a')).toBe('# Выжимка\n- a');
-    expect(displayCheatsheet('# \u26A1\uFE0F Экспресс - шпаргалка\n- a')).toBe('# Выжимка\n- a');
-    expect(displayCheatsheet('# Шпаргалка\n\n- Главное')).toBe('# Выжимка\n\n- Главное');
-    expect(displayCheatsheet('# Экспресс-шпаргалка: Денежный рынок\n- a')).toBe('# Выжимка: Денежный рынок\n- a');
+  it('also covers the older «⚡ Экспресс-шпаргалка» and a plain «Шпаргалка»; words after the name stay as the heading', () => {
+    expect(displayCheatsheet('# ⚡ Экспресс-шпаргалка\n- a')).toBe('- a');
+    expect(displayCheatsheet('# ⚡️ Экспресс - шпаргалка\n- a')).toBe('- a');
+    expect(displayCheatsheet('# Шпаргалка\n\n- Главное')).toBe('- Главное');
+    expect(displayCheatsheet('# Экспресс-шпаргалка: Денежный рынок\n- a')).toBe('# Денежный рынок\n- a');
+    expect(displayCheatsheet('## Выжимка — Спрос\n\n- a')).toBe('## Спрос\n- a');
+  });
+
+  it('keeps a text that is only the heading, under the new name', () => {
+    expect(displayCheatsheet('# Экспресс-шпаргалка')).toBe('# Выжимка');
+    expect(displayCheatsheet('# Выжимка\n\n')).toBe('# Выжимка');
   });
 
   it('leaves every other text as it is', () => {
@@ -30,8 +35,8 @@ describe('displayCheatsheet', () => {
       'Экспресс-шпаргалка\n\n- без решётки это не заголовок',
       '#Экспресс-шпаргалка',
       '# Шпаргалки и конспекты',
+      '# Выжимки из лекций',
       '- # Экспресс-шпаргалка',
-      '# Выжимка\n\n- уже новое имя',
       '',
     ];
     for (const text of texts) expect(displayCheatsheet(text)).toBe(text);

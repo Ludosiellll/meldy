@@ -34,7 +34,7 @@ describe('SharedMaterial (finding F5)', () => {
     expect(db.from).not.toHaveBeenCalled();
   });
 
-  it('shows the old heading of a saved lecture text as «Выжимка»', async () => {
+  it('names the lecture text «Выжимка» once and hides its old heading', async () => {
     db.rpc.mockResolvedValue({
       data: {
         id: 'm1',
@@ -44,8 +44,8 @@ describe('SharedMaterial (finding F5)', () => {
       error: null,
     });
     const { container } = renderShared();
-    expect(await screen.findByRole('heading', { name: 'Выжимка' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Суть в 3 словах' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Суть в 3 словах' })).toBeInTheDocument();
+    expect(screen.getAllByText('Выжимка')).toHaveLength(1);
     expect(container.textContent).not.toMatch(/шпаргалк/i);
   });
 

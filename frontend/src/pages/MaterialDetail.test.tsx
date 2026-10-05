@@ -537,13 +537,13 @@ describe('mode switcher', () => {
 });
 
 describe('«Кратко»: the lecture text is «Выжимка»', () => {
-  it('shows the old heading of a saved text as «Выжимка» and does not rewrite the text', async () => {
+  it('says «Выжимка» once, hides the old heading of a saved text and does not rewrite the text', async () => {
     const saved = '# Экспресс-шпаргалка\n\n## Суть в 3 словах\n\nЭнтропия не убывает.';
     state.material = makeMaterial({ cheatsheet: saved, podcast: [] });
     renderPage('/library/m1?mode=express');
     const panel = await screen.findByRole('tabpanel');
     expect(await within(panel).findByRole('heading', { level: 2, name: 'Выжимка' })).toBeInTheDocument();
-    expect(within(panel).getByRole('heading', { level: 1, name: 'Выжимка' })).toBeInTheDocument();
+    expect(within(panel).getAllByText('Выжимка')).toHaveLength(1);
     expect(within(panel).getByRole('heading', { name: 'Суть в 3 словах' })).toBeInTheDocument();
     expect(panel.textContent).not.toMatch(/шпаргалк/i);
     expect(state.material.summary_json.cheatsheet).toBe(saved);

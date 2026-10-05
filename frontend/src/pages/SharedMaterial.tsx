@@ -122,7 +122,7 @@ export default function SharedMaterial() {
 
         {cheatsheet ? (
           <article className="shm-card">
-            <p className="shm-kicker">Краткий конспект</p>
+            <p className="shm-kicker">Выжимка</p>
             <div className="shm-md">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{displayCheatsheet(stripSourceMarkers(cheatsheet))}</ReactMarkdown>
             </div>
