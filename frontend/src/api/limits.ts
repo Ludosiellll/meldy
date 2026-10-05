@@ -1,5 +1,8 @@
-import { supabase } from '../lib/supabase';
 import { dailyUnits, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../lib/plans';
+import { loadSupabase } from '../lib/supabaseClient';
+
+// The Supabase client is a file of its own (lib/supabaseClient): the event and time helpers below are
+// part of the first screen (the limit dialog, lib/apiAuth); the client is read when a limit is checked.
 
 /**
  * Дневной лимит ИИ (единицы из lib/plans.ts). С 2026-10-04 единицы списывает сервер: до вызова
@@ -77,6 +80,7 @@ function unknownStatus(): AILimitStatus {
 
 /** Остаток по серверу: RPC ai_quota_status. null — функции нет или ответ не прочитан. */
 async function quotaFromServer(): Promise<Quota | null> {
+  const supabase = await loadSupabase();
   const { data, error } = await supabase.rpc('ai_quota_status');
   if (error || !isRecord(data)) return null;
   const limit = Number(data.limit);
@@ -86,6 +90,7 @@ async function quotaFromServer(): Promise<Quota | null> {
 
 /** Запасной путь (сервер ещё без функции): PRO из профиля и строка дня ai_usage. */
 async function quotaFromTables(userId: string): Promise<Quota | null> {
+  const supabase = await loadSupabase();
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('is_pro')

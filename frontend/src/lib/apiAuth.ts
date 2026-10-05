@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
 import { aiLimitFromBody, reportAILimit } from '../api/limits';
 import { captureApiFailure, TELEMETRY_ENDPOINT } from './telemetry';
+import { loadSupabase, storedAccessToken, supabaseIfLoaded, whenSupabaseLoaded } from './supabaseClient';
 
 let installed = false;
 /** The access token as the last auth event left it; undefined until the first event (then null when signed out). */
@@ -21,17 +21,33 @@ async function reportLimitRefusal(response: Response): Promise<void> {
   }
 }
 
-/** Keeps knownToken current, so a keepalive request (statistics as the tab closes) needs no await first. */
+/**
+ * Keeps knownToken current, so a keepalive request (statistics as the tab closes) needs no await first.
+ * The client is a file of its own (lib/supabaseClient): this starts listening once the app has loaded it.
+ */
 function watchSession() {
-  try {
-    const auth = supabase.auth as Partial<typeof supabase.auth>;
-    if (typeof auth.onAuthStateChange !== 'function') return;
-    auth.onAuthStateChange((_event, session) => {
-      knownToken = session?.access_token ?? null;
-    });
-  } catch {
-    // Every request still reads the session itself.
-  }
+  whenSupabaseLoaded((supabase) => {
+    try {
+      const auth = supabase.auth as Partial<typeof supabase.auth>;
+      if (typeof auth.onAuthStateChange !== 'function') return;
+      auth.onAuthStateChange((_event, session) => {
+        knownToken = session?.access_token ?? null;
+      });
+    } catch {
+      // Every request still reads the session itself.
+    }
+  });
+}
+
+/**
+ * The session's access token for a backend request. As the page goes away (keepalive) there is no
+ * time to fetch the client's file: before it has loaded, the session it keeps in this browser says it.
+ */
+async function sessionToken(keepalive: boolean): Promise<string | null> {
+  const ready = supabaseIfLoaded();
+  if (!ready && keepalive) return storedAccessToken();
+  const supabase = ready ?? (await loadSupabase());
+  return (await supabase.auth.getSession()).data.session?.access_token ?? null;
 }
 
 function isAbort(error: unknown): boolean {
@@ -69,7 +85,7 @@ export function installApiAuth() {
       // A keepalive request may be sent as the page goes away: the token it needs is read without waiting.
       const token = init?.keepalive && knownToken !== undefined
         ? knownToken
-        : (await supabase.auth.getSession()).data.session?.access_token;
+        : await sessionToken(Boolean(init?.keepalive));
       if (token) headers.set('Authorization', `Bearer ${token}`);
     }
 

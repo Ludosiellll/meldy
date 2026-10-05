@@ -1,11 +1,19 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, type ComponentType } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
-import Layout from './components/Layout';
 import PWAUpdater from './components/PWAUpdater';
 import RouteLoading from './components/RouteLoading';
+import IdlePrefetch from './components/IdlePrefetch';
 import { ProWindowProvider } from './components/pro/ProWindow';
+import { layoutPart, preloadSignedInScreen } from './lib/prefetch';
+import { useLazyPart } from './lib/lazyPart';
+// The reel's and the guide's styles stay in the first stylesheet, in their order ahead of the kit, as
+// before the shell became a file of its own. Rules of equal weight decide by order: the guide's stage
+// size wins over the reel's (.gd-stage after .mr-stage), and the kit's hover and current-page look of
+// «Добавить лекцию» wins over the guide's yellow ring (paper.css after guide.css).
+import './components/reel/reel.css';
+import './components/guide/guide.css';
 // Fonts and kit tokens for every route (Onest only since the 2026-10-04 redesign): the app does not
 // load fonts from a third-party host, which the production CSP blocks.
 import './styles/paper.css';
@@ -53,8 +61,29 @@ function TicketUnavailable() {
   );
 }
 
+/**
+ * The signed-in shell (menu, guide) is a file of its own: the landing, sign-in and /try do not carry
+ * it. The page loader stays until it has arrived. It renders without suspending, so the page inside
+ * it shows as soon as the page is in (React holds back a Suspense retry that suspends once more).
+ */
+function SignedInShell() {
+  const [failure, setFailure] = useState<{ error: unknown } | null>(null);
+  const Layout = useLazyPart(layoutPart, true, { onError: (error) => setFailure({ error }) });
+  // Like a page whose file did not load: the error goes to the boundary above.
+  if (failure) throw failure.error;
+  return Layout ? <Layout /> : <RouteLoading />;
+}
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, requestSession } = useAuth();
+  const { pathname } = useLocation();
+  // While the session is checked, the shell and the page start loading together (lib/prefetch.ts).
+  useEffect(() => {
+    requestSession?.();
+    preloadSignedInScreen(pathname);
+    // Only on entering the signed-in part: inside it, pages load with the shell already in place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   if (loading) return <RouteLoading />;
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
@@ -64,6 +93,7 @@ export default function App() {
     <BrowserRouter>
       <PWAUpdater />
       <ProWindowProvider />
+      <IdlePrefetch />
       <Toaster 
         position="top-right" 
         toastOptions={{ 
@@ -91,7 +121,7 @@ export default function App() {
         <Route path="/try/*" element={<TryExample />} />
         <Route path="/check" element={<Check />} />
         <Route path="/" element={
-          <PrivateRoute><Layout /></PrivateRoute>
+          <PrivateRoute><SignedInShell /></PrivateRoute>
         }>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="profile" element={<Profile />} />

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import { useAuth } from '../hooks/useAuth';
@@ -6,10 +6,16 @@ import HeroMosaic from '../components/home/HeroMosaic';
 import { jumpToReel, type ReelChapter } from '../components/home/reelJump';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { ty } from '../components/landing/typo';
+import { lazyPart, useLazyPart } from '../lib/lazyPart';
 import '../components/home/home.css';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 
-const MeldyReel = lazy(() => import('../components/reel/MeldyReel'));
+/**
+ * The reel is a file of its own, fetched once the page is up. Until it arrives its place holds the
+ * same empty frame; the page does not wait for it (a Suspense boundary here held the whole first
+ * screen back while the reel was still on its way).
+ */
+const meldyReelPart = lazyPart(() => import('../components/reel/MeldyReel').then((module) => module.default));
 
 /** The one primary action of the landing; the final call repeats it. */
 export const PRIMARY_LABEL = 'Начать со списка вопросов';
@@ -189,6 +195,9 @@ function Hero() {
 /** «Meldy за 35 секунд»: the motion reel right under the first screen (loaded after it). */
 function ReelSection() {
   const navigate = useNavigate();
+  const MeldyReel = useLazyPart(meldyReelPart, true, {
+    onError: (error) => console.error('Ролик не загрузился:', error),
+  });
   return (
     <section id="reel" className="hm-wrap hm-sec" aria-labelledby="reel-heading" style={{ paddingTop: 40 }}>
       <div className="hm-reel-head">
@@ -197,9 +206,7 @@ function ReelSection() {
         </h2>
         <p className="hm-sub">{ty('От списка вопросов до ответа вслух. Ролик без звука — главы можно листать.')}</p>
       </div>
-      <Suspense fallback={<div className="hm-reel-wait" aria-hidden="true" />}>
-        <MeldyReel onCta={() => navigate('/register')} />
-      </Suspense>
+      {MeldyReel ? <MeldyReel onCta={() => navigate('/register')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
     </section>
   );
 }

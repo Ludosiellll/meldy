@@ -2,7 +2,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { GUIDE_CHAPTERS } from './chapters';
 import { useGuide } from './GuideContext';
-import GuideClip from './GuideClip';
+import { guideClipPart } from './clipPart';
+import { useLazyPart } from '../../lib/lazyPart';
 import { track } from '../../lib/telemetry';
 import './guide.css';
 
@@ -120,6 +121,10 @@ export default function GuidePanel() {
   const opener = useRef<Element | null>(null);
   const open = Boolean(guide?.open);
   const mandatory = Boolean(guide?.mandatory);
+  // The clip is a file of its own (clipPart.ts): until it arrives the card keeps its empty frame.
+  const GuideClip = useLazyPart(guideClipPart, open, {
+    onError: (error) => console.error('Ролик раздела не загрузился:', error),
+  });
 
   // Opened by the student (or as the first run), the guide takes the focus and gives it back to
   // what had it on close.
@@ -213,7 +218,11 @@ export default function GuidePanel() {
       </div>
 
       <div className="gd-clip">
-        <GuideClip key={chapter.id} chapter={chapter.id} active={open} />
+        {GuideClip ? (
+          <GuideClip key={chapter.id} chapter={chapter.id} active={open} />
+        ) : (
+          <div className="gd-box" data-playing="false" aria-hidden="true" />
+        )}
       </div>
 
       <ol className="gd-steps" aria-label="Разделы">

@@ -1,20 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { markOnboardingTourSeen } from '../../api/social';
+import { useAuth } from '../../hooks/useAuth';
 import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapterId } from './chapters';
+import { GUIDE_SEEN_KEY, guideClipPart, guideSeenHere, isNewAccount } from './clipPart';
 
-/** Remembered on this device as soon as the guide is closed (the profile keeps it for other devices). */
-export const GUIDE_SEEN_KEY = 'meldy_guide_seen';
+export { GUIDE_SEEN_KEY };
 /** The profile's `onboarding_status` key. */
 export const GUIDE_PROFILE_KEY = 'guide';
-
-function readSeen(): boolean {
-  try {
-    return window.localStorage.getItem(GUIDE_SEEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 function writeSeen() {
   try {
@@ -71,7 +64,7 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [mandatory, setMandatory] = useState(false);
-  const seen = useRef(readSeen());
+  const seen = useRef(guideSeenHere());
   const autoTried = useRef(false);
   /** The page the guide took the app to last; null after the student moved on their own. */
   const brought = useRef<string | null>(null);
@@ -79,6 +72,15 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
   const touched = useRef(false);
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
+  const { user } = useAuth();
+  const newAccount = isNewAccount(user?.created_at);
+
+  // A first run is likely (the profile says so, or the account is new and the profile is on its
+  // way): the clips are fetched now, so the guide opens with them.
+  useEffect(() => {
+    if (seen.current) return;
+    if (seenInProfile === false || (seenInProfile === null && newAccount)) void guideClipPart.load().catch(() => undefined);
+  }, [seenInProfile, newAccount]);
 
   const markSeen = useCallback(() => {
     if (seen.current) return;
