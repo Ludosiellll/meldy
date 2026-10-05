@@ -61,14 +61,21 @@
 }
 
 /* ---------------------------------------------------------------- the grid and the cards */
+/* The exam on top of the main column and the lectures right under it; the side spans both rows. The second
+   row is the flexible one, so a taller side lengthens it under the lectures instead of opening a hole under
+   the exam. When the exam alone is about as tall as the side, the lectures go across the page instead
+   (data-lectures='below', chosen by measuring in Dashboard.tsx). */
 .td-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   gap: var(--td-gap);
   align-items: start;
   margin-top: 30px;
 }
-.td-side { display: flex; flex-direction: column; gap: var(--td-gap); min-width: 0; }
+.td-grid > .td-main { grid-column: 1; grid-row: 1; }
+.td-side { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: var(--td-gap); min-width: 0; }
+.td-grid > .td-lectures { grid-column: 1; grid-row: 2; margin-top: 16px; }
 
 .td-card {
   position: relative;
@@ -446,7 +453,7 @@
 .td .td-sec-h { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; }
 .td-lecs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   margin: 18px 0 0;
   padding: 0;
@@ -714,12 +721,24 @@
   from { opacity: 0; transform: translateY(10px); }
 }
 
+/* Wide screens, when the lectures under the exam would leave the bigger hole (useLecturePlace in Dashboard.tsx):
+   the side stays beside the exam only and the lectures go across the page under both, four in a row. */
+@media (min-width: 1200px) {
+  .td-grid[data-lectures='below'] { grid-template-rows: auto auto; }
+  .td-grid[data-lectures='below'] > .td-side { grid-row: 1; }
+  .td-grid[data-lectures='below'] > .td-lectures { grid-column: 1 / -1; margin-top: calc(56px - var(--td-gap)); }
+  .td-grid[data-lectures='below'] .td-lecs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 /* ---------------------------------------------------------------- sizes */
 /* Below 1200 px the dots would get too small beside the task cards: the main card takes the row. */
 @media (max-width: 1199px) {
-  .td-grid { grid-template-columns: minmax(0, 1fr); }
-  .td-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-  .td-lecs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .td-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .td-grid > .td-main,
+  .td-grid > .td-lectures { grid-column: auto; grid-row: auto; }
+  .td-side { grid-column: auto; grid-row: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  /* One column: the exam, the side, the lectures, 56 px above the lectures as before. */
+  .td-grid > .td-lectures { margin-top: calc(56px - var(--td-gap)); }
 }
 /* The steps one under another: the number on the left, the words and the action on the right. */
 @media (max-width: 959px) {
@@ -770,6 +789,7 @@
   .td-bars { gap: 4px; height: 120px; }
   .td-bar-v { font-size: 12px; }
   .td-sec { margin-top: 40px; }
+  .td-grid > .td-lectures { margin-top: 24px; }
   .td .td-sec-h { font-size: 26px; }
   /* Lectures as compact cards: the picture on the left, the words on the right. */
   .td-lecs { grid-template-columns: minmax(0, 1fr); gap: 12px; }

@@ -18,6 +18,7 @@ import Dashboard, {
   firstStepsDone,
   greeting,
   lectureMeta,
+  lecturePlace,
   pickExam,
   recentNote,
   reviewTime,
@@ -888,5 +889,64 @@ describe('«Сегодня»: below the desk', () => {
     expect(cardsMissingFromReview(LECTURES[0], inReview)).toBe(false);
     expect(cardsMissingFromReview(LECTURES[2], null)).toBe(false);
     expect(cardsMissingFromReview(LECTURES[1], new Set())).toBe(false);
+  });
+
+  it('keeps the page order the exam, today’s cards, the lectures, and leaves the place to the wide layout', async () => {
+    exam();
+    renderDashboard();
+    const grid = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section')!.parentElement!;
+    expect(grid).toHaveClass('td-grid');
+    const blocks = Array.from(grid.children).map((child) => ['td-main', 'td-side', 'td-lectures'].find((name) => child.classList.contains(name)));
+    expect(blocks).toEqual(['td-main', 'td-side', 'td-lectures']);
+    // No wide screen here (jsdom has no matchMedia): nothing is measured, one column in the page order.
+    expect(grid).not.toHaveAttribute('data-lectures');
+  });
+
+  it('puts the lectures under a short exam beside a taller side on a wide screen, and across the page under a tall one', async () => {
+    // jsdom lays nothing out: the blocks get the heights measured on a 1907 px screen (QA seed, 2026-10-05).
+    const SHORT = { main: 394, side: 862, lectures: 576 };
+    const TALL = { main: 731, side: 862, lectures: 576 };
+    let sizes = SHORT;
+    const box = (node: HTMLElement): [number, number] => {
+      if (!node.parentElement?.classList.contains('td-grid')) return [0, 0];
+      if (node.classList.contains('td-main')) return [0, sizes.main];
+      if (node.classList.contains('td-side')) return [0, sizes.side];
+      // With the lectures under the exam: 24 px of gap and 16 px of margin below the exam card.
+      if (node.classList.contains('td-lectures')) return [sizes.main + 40, sizes.lectures];
+      return [0, 0];
+    };
+    vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (this: HTMLElement) {
+      return box(this)[0];
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return box(this)[1];
+    });
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(min-width: 1200px)', media: query, addEventListener() {}, removeEventListener() {} }));
+    try {
+      exam();
+      const view = renderDashboard();
+      const grid = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section')!.parentElement!;
+      expect(grid).toHaveAttribute('data-lectures', 'main');
+
+      sizes = TALL;
+      view.rerender(
+        <MemoryRouter>
+          <Dashboard />
+        </MemoryRouter>,
+      );
+      expect(grid).toHaveAttribute('data-lectures', 'below');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('places the lectures where they leave the smaller hole, and does not move them for a near tie', () => {
+    // Bottoms measured on a 1907 px screen with the lectures under the exam (QA seed, 2026-10-05).
+    expect(lecturePlace({ main: 1053, side: 1522, column: 1669 })).toBe('main'); // a short exam beside the cards and two weeks
+    expect(lecturePlace({ main: 1391, side: 1522, column: 2007 })).toBe('below'); // the exam with its ribbon, nearly as tall as the side
+    expect(lecturePlace({ main: 1391, side: 1325, column: 2007 })).toBe('below'); // the exam taller than the side
+    // Holes of 300 and 300: wherever the lectures were, they stay.
+    expect(lecturePlace({ main: 1000, side: 1300, column: 1600 }, 'main')).toBe('main');
+    expect(lecturePlace({ main: 1000, side: 1300, column: 1600 }, 'below')).toBe('below');
   });
 });

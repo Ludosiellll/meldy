@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -996,16 +996,14 @@ export default function Dashboard() {
         {stepsShown ? <FirstStepsCard steps={steps} folded={stepsFolded} lead={stepsLead} onToggle={toggleSteps} /> : null}
         {/* A new account has only the steps: the desk would be empty cards and zeros. */}
         {newAccount && stepsLead ? null : (
-          <>
-            <Desk
-              data={data}
-              phone={frame.size === 's'}
-              lead={!stepsLead}
-              onRetry={() => void load()}
-              activity={<Activity days={days} streak={streak} />}
-            />
-            <Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />
-          </>
+          <Desk
+            data={data}
+            phone={frame.size === 's'}
+            lead={!stepsLead}
+            onRetry={() => void load()}
+            activity={<Activity days={days} streak={streak} />}
+            lectures={<Lectures data={data} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />}
+          />
         )}
       </>
     );
@@ -1148,12 +1146,94 @@ function ActionLink({ to, blue, size, children }: { to: string; blue: boolean; s
   );
 }
 
+export type LecturePlace = 'main' | 'below';
+
+/** A difference in holes smaller than this keeps the lectures where they are, so they do not jump back and forth. */
+const PLACE_SLACK_PX = 32;
+/** The two-column layout of Dashboard.css; narrower screens show the exam, the side and the lectures one under another. */
+const WIDE_QUERY = '(min-width: 1200px)';
+
 /**
- * The main card (the exam, or today's cards when there is no exam) and beside it the task cards.
+ * Where the lectures go on a wide screen, from the bottoms of the blocks measured with the lectures under the exam:
+ * under the exam (the main column) or across the page under both columns, whichever leaves the smaller hole beside
+ * the shorter column. A short exam card beside a tall side gets the lectures under it; a tall one keeps them below.
+ */
+export function lecturePlace(bottoms: { main: number; side: number; column: number }, was: LecturePlace = 'main'): LecturePlace {
+  const underExam = Math.abs(bottoms.column - bottoms.side);
+  const across = Math.abs(bottoms.side - bottoms.main);
+  if (was === 'below') return across <= underExam + PLACE_SLACK_PX ? 'below' : 'main';
+  return across + PLACE_SLACK_PX < underExam ? 'below' : 'main';
+}
+
+/** Some browsers have no matchMedia or throw from it (see themeInit): then the layout is taken as narrow. */
+function wideScreen(): boolean {
+  try {
+    return typeof window.matchMedia === 'function' && window.matchMedia(WIDE_QUERY).matches;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sets data-lectures on the grid before the paint: measured after every render, on a resize and once the fonts are in.
+ * The attribute is read only by the wide layout (Dashboard.css), so narrow screens keep the page order.
+ */
+function useLecturePlace(grid: RefObject<HTMLDivElement | null>) {
+  const place = useCallback(() => {
+    const el = grid.current;
+    if (!el || !wideScreen()) return;
+    const block = (name: string) => Array.from(el.children).find((node): node is HTMLElement => node instanceof HTMLElement && node.classList.contains(name));
+    const main = block('td-main');
+    const side = block('td-side');
+    const lectures = block('td-lectures');
+    if (!main || !side || !lectures) return;
+    const was: LecturePlace = el.dataset.lectures === 'below' ? 'below' : 'main';
+    el.dataset.lectures = 'main';
+    const bottom = (node: HTMLElement) => node.offsetTop + node.offsetHeight;
+    el.dataset.lectures = lecturePlace({ main: bottom(main), side: bottom(side), column: bottom(lectures) }, was);
+  }, [grid]);
+
+  useLayoutEffect(place);
+
+  useEffect(() => {
+    const el = grid.current;
+    let live = true;
+    void document.fonts?.ready.then(() => {
+      if (live) place();
+    });
+    const observer = el && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => place()) : null;
+    if (el) observer?.observe(el);
+    return () => {
+      live = false;
+      observer?.disconnect();
+    };
+  }, [grid, place]);
+}
+
+/**
+ * The main card (the exam, or today's cards when there is no exam) and beside it the task cards; the lectures under
+ * the main card or across the page, wherever they leave the smaller hole (owner, 2026-10-05: «нормально что снизу
+ * пустое место?»). The order in the page is the main card, the task cards, the lectures, also on narrow screens.
  * `lead` false: «Первые шаги» hold the page's blue pill, so the desk's actions are white pills.
  */
-function Desk({ data, phone, lead, onRetry, activity }: { data: DashboardData; phone: boolean; lead: boolean; onRetry: () => void; activity: ReactNode }) {
+function Desk({
+  data,
+  phone,
+  lead,
+  onRetry,
+  activity,
+  lectures,
+}: {
+  data: DashboardData;
+  phone: boolean;
+  lead: boolean;
+  onRetry: () => void;
+  activity: ReactNode;
+  lectures: ReactNode;
+}) {
   const { exam, dueCount, dueCards } = data;
+  const grid = useRef<HTMLDivElement>(null);
+  useLecturePlace(grid);
   const titles = useMemo(() => new Map(data.lectures.map((lecture) => [lecture.id, displayMaterialTitle(lecture.title)])), [data.lectures]);
   const firstQuestion = dueCards.find((card) => typeof card.question === 'string' && card.question.trim() !== '')?.question ?? '';
   const lecturesText = dueLecturesText(dueCards, titles, dueCount);
@@ -1191,7 +1271,7 @@ function Desk({ data, phone, lead, onRetry, activity }: { data: DashboardData; p
   }
 
   return (
-    <div className="td-grid">
+    <div className="td-grid" ref={grid}>
       {exam ? (
         <ExamBlock exam={exam} phone={phone} lead={lead} />
       ) : (
@@ -1201,6 +1281,7 @@ function Desk({ data, phone, lead, onRetry, activity }: { data: DashboardData; p
         {cards}
         {activity}
       </div>
+      {lectures}
     </div>
   );
 }
