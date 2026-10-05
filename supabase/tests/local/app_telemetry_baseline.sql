@@ -3,7 +3,7 @@
 -- (learning_events, exams). Adds what *_app_telemetry.sql reads that the baseline leaves out: auth.users.created_at
 -- (live auth.users has it), and fixtures for the views: A signed up 8 days ago (Moscow days) with a lecture, an
 -- exam and an answered ticket the next day, and came back on day 7; B signed up yesterday with nothing.
--- Order: baseline.sql, 20261003083154_hackathon_journal_exams_oral.sql, this file, 20261005120000_app_telemetry.sql
+-- Order: baseline.sql, 20261003083154_hackathon_journal_exams_oral.sql, this file, 20261005042323_app_telemetry.sql
 -- (twice), app_telemetry_behaviour.sql, then supabase/tests/app_telemetry.sql (contract_ok must be true).
 alter table auth.users add column if not exists created_at timestamptz not null default now();
 

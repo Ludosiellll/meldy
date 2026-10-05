@@ -4,7 +4,7 @@ server_error events from the global exception handler and the analysis stream â€
 route pattern, the exception class and the error id, never the exception's text.
 
 Supabase is a mocked httpx transport (supabase_rest._transport) standing in for the RPC log_app_events of
-supabase/migrations/20261005120000_app_telemetry.sql.
+supabase/migrations/20261005042323_app_telemetry.sql.
 """
 import asyncio
 import base64

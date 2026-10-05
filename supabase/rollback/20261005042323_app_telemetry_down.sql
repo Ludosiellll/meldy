@@ -1,4 +1,4 @@
--- Rollback of 20261005120000_app_telemetry.sql. NOT applied by any package or agent; the owner runs it by hand
+-- Rollback of 20261005042323_app_telemetry.sql. NOT applied by any package or agent; the owner runs it by hand
 -- only if the statistics have to go. It drops the four analytics views, the schema analytics when nothing else is
 -- left in it, the function log_app_events and the table app_events with every recorded event and error report
 -- (export them first if they are needed). The site keeps working: POST /api/telemetry answers 204 and the backend

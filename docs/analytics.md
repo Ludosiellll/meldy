@@ -8,7 +8,7 @@ Meldy сам записывает, какими экранами и функци
 
 - `frontend/src/lib/telemetry.ts` — запись событий в браузере;
 - `backend/telemetry_api.py` — приём `POST /api/telemetry` и ошибки сервера;
-- `supabase/migrations/20261005120000_app_telemetry.sql` — таблица, функция записи и представления для чтения;
+- `supabase/migrations/20261005042323_app_telemetry.sql` — таблица, функция записи и представления для чтения;
 - `supabase/tests/app_telemetry.sql` — проверка после применения миграции (`contract_ok`).
 
 ## Что записывается
@@ -288,7 +288,7 @@ delete from public.app_events where created_at < now() - interval '180 days';
 
 ## После выкладки
 
-1. Применить миграцию `supabase/migrations/20261005120000_app_telemetry.sql`. Перед этим проверить, что схемы
+1. Применить миграцию `supabase/migrations/20261005042323_app_telemetry.sql`. Перед этим проверить, что схемы
    `analytics` ещё нет: `select 1 from pg_namespace where nspname = 'analytics';` — пусто.
 2. Запустить `supabase/tests/app_telemetry.sql`: в ответе `contract_ok` должен быть `true`.
 3. Схему `analytics` не добавлять в «Exposed schemas» настроек API Supabase.

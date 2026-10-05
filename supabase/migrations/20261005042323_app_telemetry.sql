@@ -1,6 +1,7 @@
 -- app_telemetry
--- Repo file: supabase/migrations/20261005120000_app_telemetry.sql (the orchestrator applies it and renames it
--- to the version apply_migration records). Written on 2026-10-05.
+-- Repo file: supabase/migrations/20261005042323_app_telemetry.sql. Written on 2026-10-05; applied to the live
+-- project by the orchestrator on 2026-10-05 through apply_migration (version 20261005042323, the statements
+-- below without this header); contract supabase/tests/app_telemetry.sql — contract_ok: true.
 --
 -- First-party error reports and product statistics, kept in this project's own database: no third-party
 -- service, nothing leaves the site and this database (152-FZ, and the production CSP allows only 'self' and
@@ -34,7 +35,7 @@
 -- public.learning_events(user_id, kind, created_at) from 20261003083154_hackathon_journal_exams_oral.sql.
 -- The schema analytics does not exist on the live project before this migration (checked by the orchestrator
 -- before the apply: select 1 from pg_namespace where nspname = 'analytics').
--- Rollback: supabase/rollback/20261005120000_app_telemetry_down.sql. Contract check after the apply:
+-- Rollback: supabase/rollback/20261005042323_app_telemetry_down.sql. Contract check after the apply:
 -- supabase/tests/app_telemetry.sql. Local rehearsal: supabase/tests/local/baseline.sql,
 -- 20261003083154_hackathon_journal_exams_oral.sql, supabase/tests/local/app_telemetry_baseline.sql, this file
 -- twice, supabase/tests/local/app_telemetry_behaviour.sql, supabase/tests/app_telemetry.sql.
