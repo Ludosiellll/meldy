@@ -133,14 +133,20 @@ def _extension(name: str) -> str:
 
 
 async def _read_text(
-    upload: Any, allowed: tuple[str, ...], format_detail: str, rate_key: str | None = None
+    upload: Any,
+    allowed: tuple[str, ...],
+    format_detail: str,
+    rate_key: str | None = None,
+    request: Request | None = None,
 ) -> tuple[str, str, int | None]:
     """(текст, имя файла, сколько страниц распознано со скана — или None) или HTTPException:
     415 формат, 413 размер или скан длиннее предела страниц, 422 нет текста, 429 лимит
-    распознавания или сервис занят, 502/504 распознавание не удалось.
+    распознавания, дневной лимит ИИ (ai_limit) или сервис занят, 502/504 распознавание не удалось.
 
     PDF с пустым или крошечным текстовым слоем распознаётся (ocr.py), если есть ключ Gemini;
-    rate_key — ключ лимита распознавания (user_or_ip_key).
+    rate_key — ключ лимита распознавания (user_or_ip_key). Распознавание стоит единиц дневного
+    лимита (plans.scan_cost, списывает request до модели; сбой распознавания их возвращает) —
+    до 2026-10-05 оно было бесплатным в режиме «только текст» и в списке вопросов.
     """
     name = _file_name(upload)
     extension = _extension(name)
@@ -160,10 +166,15 @@ async def _read_text(
         text = ""
     try:
         scanned = await asyncio.to_thread(ocr.scan_pages, contents, f"upload.{extension}", text)
-        if scanned is not None:
-            text = await ocr.recognize_scan(contents, scanned, rate_key=rate_key)
     except OcrError as exc:
         raise exc.http_exception() from None
+    if scanned is not None:
+        spent = await quota.charge(request, "scanPages", quota.scan_units(scanned))
+        async with quota.refund_on_failure(spent):
+            try:
+                text = await ocr.recognize_scan(contents, scanned, rate_key=rate_key)
+            except OcrError as exc:
+                raise exc.http_exception() from None
     if not text.strip():
         raise HTTPException(status_code=422, detail=PPTX_NO_TEXT_DETAIL if extension == "pptx" else NO_TEXT_DETAIL)
     # Одиночный суррогат (битый текстовый слой PDF) не кодируется в UTF-8: ни JSON, ни база его не примут.
@@ -278,7 +289,7 @@ async def parse_exam_questions(request: Request):
         raise HTTPException(status_code=400, detail=NO_INPUT_DETAIL)
     scanned = None
     if has_file:
-        text, _, scanned = await _read_text(upload, LIST_EXTENSIONS, LIST_FORMAT_DETAIL, user_or_ip_key(request))
+        text, _, scanned = await _read_text(upload, LIST_EXTENSIONS, LIST_FORMAT_DETAIL, user_or_ip_key(request), request)
     else:
         text = text_value
     try:
@@ -300,7 +311,7 @@ async def parse_exam_questions(request: Request):
 @router.post("/api/extract")
 @limiter.limit("10/minute", key_func=user_or_ip_key)
 async def extract_lecture_text(request: Request):
-    """Текст лекции без единиц лимита (режим «только текст»): без ИИ, кроме распознавания скана.
+    """Текст лекции (режим «только текст»): без ИИ и без единиц, кроме распознавания скана (plans.scan_cost).
 
     Распознанный скан: ocr: true и pages в ответе.
     """
@@ -308,7 +319,7 @@ async def extract_lecture_text(request: Request):
     upload = form.get("file")
     if not _is_upload(upload):
         raise HTTPException(status_code=400, detail=NO_FILE_DETAIL)
-    text, name, scanned = await _read_text(upload, LECTURE_EXTENSIONS, LECTURE_FORMAT_DETAIL, user_or_ip_key(request))
+    text, name, scanned = await _read_text(upload, LECTURE_EXTENSIONS, LECTURE_FORMAT_DETAIL, user_or_ip_key(request), request)
     warnings: list[str] = []
     if scanned is None and len(text.strip()) < SHORT_TEXT_CHARS:
         warnings.append(SHORT_TEXT_WARNING)

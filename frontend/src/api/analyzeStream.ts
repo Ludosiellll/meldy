@@ -7,6 +7,7 @@
  * текстом и признаком, поможет ли повтор. Отмена пользователем — исход aborted.
  */
 import { readSseStream, StreamError, STREAM_MESSAGES } from './sseStream';
+import { AI_LIMIT_MESSAGE, aiLimitFromBody, reportAILimit } from './limits';
 import type { AnalysisErrorKind, AnalysisResults, SectionName } from '../types';
 import {
   displayResults,
@@ -103,6 +104,13 @@ export function analyzeErrorFromEvent(event: Record<string, unknown>): AnalyzeEr
       return new AnalyzeError('bad_request', message ?? ANALYZE_MESSAGES.noText, false);
     case 'too_large':
       return new AnalyzeError('too_large', message ?? STREAM_MESSAGES.tooLarge, false);
+    case 'ai_limit': {
+      // A scan's recognition did not fit the day's rest (the lecture's units went back): the limit
+      // dialog opens, as for a 429 before the stream; a repeat today will not help.
+      const info = aiLimitFromBody(event);
+      if (info) reportAILimit(info);
+      return new AnalyzeError('rate_limited', message ?? AI_LIMIT_MESSAGE, false);
+    }
     default:
       return new AnalyzeError('server', message ?? ANALYZE_MESSAGES.server, true);
   }

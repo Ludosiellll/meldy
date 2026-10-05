@@ -230,7 +230,7 @@ describe('TokenInfoModal', () => {
     expect(screen.getByText(new RegExp(`Лимит обновится в ${formatLimitReset(nextLimitReset())}\\.`))).toBeInTheDocument();
     // Цены — из lib/plans.ts; списывает сервер, при сбое ИИ единицы возвращаются.
     expect(container.textContent).toContain(
-      'Единицы списываются, когда Meldy обращается к ИИ: анализ материала — 20, сверка списка с лекциями — 10 за каждые 40 новых вопросов, ответ на билет — 4, разговор — 5, шпаргалка — 5. Если ИИ не справился, единицы возвращаются.',
+      'Единицы списываются, когда Meldy обращается к ИИ: анализ материала — 20 (скан PDF — ещё 5 за каждые 15 страниц), сверка списка с лекциями — 10 за каждые 40 новых вопросов, ответ на билет — 4, разговор — 5, шпаргалка — 5. Если ИИ не справился, единицы возвращаются.',
     );
     expect(container.textContent).not.toMatch(/⚡|PRO|тариф|Энергия/);
     expect(container.querySelector('.animate-pulse, [class*="gradient"], [class*="shadow-[0_0"]')).toBeNull();

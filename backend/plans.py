@@ -25,14 +25,30 @@ AI_COSTS = {
     "gradebookScan": 1,
     "careerProfile": 5,
     "careerReview": 5,
+    # Закрыто 2026-10-05: вызовы модели, которые раньше ничего не стоили.
+    # Распознавание скана PDF — за каждые начатые OCR_PAGES_PER_CHARGE страниц (фото страницы
+    # входит в анализ, как любой медиафайл).
+    "scanPages": 5,
+    # Раздел анализа заново. Бесплатно — только починка раздела, который не получился в уже
+    # оплаченном анализе своей лекции (сервер сверяет это по базе).
+    "analysisSection": 7,
+    # Устный экзамен у «профессора»: каждый вопрос и каждая оценка ответа.
+    "professorQuestion": 1,
+    "professorEvaluate": 1,
+    # Карьера (скрытый раздел): реплика или подсказка — 1, курс, тест, задание, проект — 3.
+    "careerChat": 1,
+    "careerGenerate": 3,
 }
 
 # Сверка списка: AI_COSTS["examMapping"] за каждые начатые столько новых вопросов.
 EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40
 
-# Устный экзамен у «профессора» (/exam): весь экзамен по числу вопросов, списывается
-# один раз — при первом вопросе. Длина не из списка — как у обычного билета (5).
-PROFESSOR_EXAM_COSTS = {3: 1, 5: 2, 10: 4}
+# Распознавание скана: AI_COSTS["scanPages"] за каждые начатые столько страниц (кусок ocr.py).
+OCR_PAGES_PER_CHARGE = 15
+
+# Устный экзамен у «профессора» (/exam): вопрос и оценка ответа списываются каждый раз; цена
+# экзамена — для проверки остатка до начала. Длина не из списка — как у обычного билета (5).
+PROFESSOR_EXAM_LENGTHS = (3, 5, 10)
 PROFESSOR_EXAM_DEFAULT_LENGTH = 5
 
 
@@ -42,8 +58,14 @@ def exam_mapping_cost(questions: int) -> int:
     return AI_COSTS["examMapping"] * math.ceil(count / EXAM_MAPPING_QUESTIONS_PER_CHARGE)
 
 
+def scan_cost(pages) -> int:
+    """Единицы распознавания скана PDF: 5 за каждые начатые 15 страниц."""
+    count = max(0, int(pages))
+    return AI_COSTS["scanPages"] * math.ceil(count / OCR_PAGES_PER_CHARGE)
+
+
 def professor_exam_cost(length) -> int:
-    """Единицы устного экзамена у «профессора» по числу вопросов (3, 5 или 10)."""
-    if isinstance(length, bool) or length not in PROFESSOR_EXAM_COSTS:
+    """Единицы всего устного экзамена у «профессора» (3, 5 или 10 вопросов): вопрос и оценка на каждый."""
+    if isinstance(length, bool) or length not in PROFESSOR_EXAM_LENGTHS:
         length = PROFESSOR_EXAM_DEFAULT_LENGTH
-    return PROFESSOR_EXAM_COSTS[length]
+    return length * (AI_COSTS["professorQuestion"] + AI_COSTS["professorEvaluate"])

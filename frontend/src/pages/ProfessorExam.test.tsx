@@ -54,7 +54,7 @@ vi.mock('../api/quests', () => ({
   updateQuestProgress: (...args: unknown[]) => db.updateQuestProgress(...args),
   recordStudyActivity: (...args: unknown[]) => db.recordStudyActivity(...args),
 }));
-// The server charges the exam with its first question; the page refreshes the meter after it.
+// The server charges every question and every evaluation; the page refreshes the meter after each.
 vi.mock('../api/limits', () => ({
   notifyAIUsageChanged: (...args: unknown[]) => db.incrementAIUsage(...args),
   AI_LIMIT_MESSAGE: 'Дневной лимит ИИ на сегодня исчерпан.',
@@ -161,11 +161,12 @@ describe('starting an old-format oral exam', () => {
 
     await waitFor(() => expect(db.alert).toHaveBeenCalled());
     expect(db.alert.mock.calls[0][0]).toMatchObject({ message: 'ИИ-сервис сейчас не ответил. Попробуйте ещё раз.' });
-    expect(db.verifyEnergy).toHaveBeenCalledWith('user-1', 1, 'Устный экзамен');
+    // Three questions: a question and an evaluation each (lib/plans professorExamCost).
+    expect(db.verifyEnergy).toHaveBeenCalledWith('user-1', 6, 'Устный экзамен');
     expect(db.incrementAIUsage).not.toHaveBeenCalled();
   });
 
-  it('charges once after the first question arrives', async () => {
+  it('refreshes the meter once after the first question arrives', async () => {
     saveState({});
     fetchMock.mockResolvedValue(jsonResponse(200, { question: 'Что такое ключевая ставка?' }));
     const user = userEvent.setup();
@@ -262,7 +263,7 @@ describe('the last answer of an old-format oral exam', () => {
     expect(rows.length).toBe(3);
     for (const row of rows) expect(row.exam_session_id).toBe('session-1');
     expect(db.recordStudyActivity).toHaveBeenCalledWith('user-1', 0, 0);
-    expect(db.incrementAIUsage).not.toHaveBeenCalled();
+    expect(db.incrementAIUsage).toHaveBeenCalledTimes(1); // the evaluation was charged
   });
 
   it('says «Билет сдан» from grade 3 up', async () => {
@@ -293,6 +294,20 @@ describe('the last answer of an old-format oral exam', () => {
     expect(await screen.findByDisplayValue('Повышает ставку')).toBeInTheDocument();
     expect(exam().some((query) => args(query, 'insert').length > 0)).toBe(false);
     expect(db.recordStudyActivity).not.toHaveBeenCalled();
+  });
+
+  it('keeps the answer and opens no second dialog when the evaluation is refused by the daily limit', async () => {
+    lastQuestionState();
+    fetchMock.mockResolvedValue(jsonResponse(429, { detail: 'Дневной лимит ИИ на сегодня исчерпан.', code: 'ai_limit', used: 100, limit: 100 }));
+    const user = userEvent.setup();
+    renderExam();
+
+    await user.click(await screen.findByRole('button', { name: /Ответить Профессору/ }));
+
+    expect(await screen.findByDisplayValue('Повышает ставку')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(db.alert).not.toHaveBeenCalled(); // the limit dialog (AILimitDialogHost) is the one that opens
+    expect(db.incrementAIUsage).not.toHaveBeenCalled();
   });
 
   it('treats an answer without a usable grade as a failure, never as a default grade', async () => {

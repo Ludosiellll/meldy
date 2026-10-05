@@ -30,7 +30,8 @@ import quota  # noqa: E402
 import supabase_rest  # noqa: E402
 from agents import base  # noqa: E402
 from agents.base import AIError, BaseAgent  # noqa: E402
-from plans import AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, exam_mapping_cost, professor_exam_cost  # noqa: E402
+from plans import AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, exam_mapping_cost, professor_exam_cost, scan_cost  # noqa: E402
+from test_lecture_formats import FakeGemini, gemini_error, scan_pdf  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 DEMO_FILE = REPO / "frontend" / "src" / "data" / "demo" / "lecture.txt"
@@ -266,8 +267,21 @@ def test_a_failed_refund_is_logged_not_raised(server, capsys):
 def test_costs_come_from_plans():
     assert (FREE_DAILY_UNITS, PRO_DAILY_UNITS) == (100, 1000)
     assert [exam_mapping_cost(n) for n in (0, 1, 40, 41, 80, 81)] == [0, 10, 10, 20, 20, 30]
-    assert [professor_exam_cost(n) for n in (3, 5, 10, None, 7, True)] == [1, 2, 4, 2, 2, 2]
-    assert quota.exam_mapping_units(41) == 20 and quota.professor_exam_units(10) == 4
+    # Экзамен у «профессора»: вопрос и оценка на каждый вопрос (цена для проверки остатка до начала).
+    assert [professor_exam_cost(n) for n in (3, 5, 10, None, 7, True)] == [6, 10, 20, 10, 10, 10]
+    assert quota.exam_mapping_units(41) == 20 and quota.professor_exam_units(10) == 20
+    # Скан PDF: 5 единиц за каждые начатые 15 страниц.
+    assert [scan_cost(n) for n in (0, 1, 15, 16, 60)] == [0, 5, 5, 10, 20]
+    assert quota.scan_units(31) == 15
+
+
+def test_the_browser_shows_the_prices_the_server_charges():
+    import re
+
+    source = (REPO / "frontend" / "src" / "lib" / "plans.ts").read_text(encoding="utf-8")
+    block = source.split("export const AI_COSTS = {", 1)[1].split("} as const;", 1)[0]
+    assert {name: int(units) for name, units in re.findall(r"^\s*(\w+): (\d+),$", block, re.M)} == AI_COSTS
+    assert "OCR_PAGES_PER_CHARGE = 15;" in source and "EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40;" in source
 
 
 # ── Эндпоинты: списание до модели, возврат, 429 ────────────────────────────────
@@ -324,11 +338,16 @@ PODCAST_LINE = {"speaker": "Макс", "text": "О чём лекция?", "sourc
         ("/api/career/evaluate_task", {"profession": "Аналитик", "module_title": "SQL", "task_description": "SELECT",
                                        "practice_type": "sql", "student_solution": "SELECT 1"}, "careerReview", 5),
         ("/api/academic/scan", {"text": "Оценки: 5, 4"}, "gradebookScan", 1),
-        ("/api/professor/question", {"context": "Лекция.", "exam_length": 10}, "professorExam", 4),
+        ("/api/professor/question", {"context": "Лекция.", "exam_length": 10}, "professorQuestion", 1),
+        # Закрыто 2026-10-05: раньше эти вызовы модели ничего не стоили.
+        ("/api/professor/evaluate", {"context": "Лекция.", "question": "Что такое ВВП?", "student_answer": "Сумма."},
+         "professorEvaluate", 1),
+        ("/api/career/chat", {"message": "Хочу в аналитику", "history": []}, "careerChat", 1),
+        ("/api/analyze/section", {"section": "quiz", "text": "Лекция про инфляцию. " * 20}, "analysisSection", 7),
     ],
 )
 def test_every_model_endpoint_reserves_its_plan_cost_and_refunds_when_the_model_fails(api, path, body, kind, units):
-    assert units == (professor_exam_cost(10) if kind == "professorExam" else AI_COSTS[kind])
+    assert units == AI_COSTS[kind]
     api.answer_with(AIError.failed())
     api.post(path, json=body)
     assert api.server.rpc("consume_ai_units") == [{"p_units": units, "p_kind": kind}]
@@ -337,30 +356,76 @@ def test_every_model_endpoint_reserves_its_plan_cost_and_refunds_when_the_model_
     assert api.server.used == 0
 
 
+MATERIAL_ID = "11111111-2222-4333-8444-555555555555"
+STORED_TEXT = "Сохранённый текст лекции про инфляцию и ключевую ставку. " * 12
+
+
+def material_row(*, owner="token-a", status="failed", text=STORED_TEXT):
+    sections = {"summarizer": {"status": "ok"}}
+    if status is not None:
+        sections["quiz"] = {"status": status}
+    return {"user_id": TOKENS[owner], "summary_json": {"sections": sections}, "original_text": text}
+
+
+def serve_material(server, row):
+    seen = []
+
+    def inner(request):
+        seen.append(request)
+        if request.url.path.endswith("/rest/v1/materials"):
+            return httpx.Response(200, json=[row] if row else [])
+        return httpx.Response(404, json={"code": "PGRST205"})
+
+    server.inner = inner
+    return seen
+
+
+def test_a_section_that_failed_in_a_paid_analysis_is_repaired_free_from_the_saved_text(api):
+    seen = serve_material(api.server, material_row())
+    api.answer_with(AIError.failed())
+    api.post("/api/analyze/section", json={"section": "quiz", "text": "Чужой текст, присланный браузером.", "material_id": MATERIAL_ID})
+    assert api.server.rpc("consume_ai_units") == []
+    assert seen and f"eq.{MATERIAL_ID}" in str(seen[0].url)
+    sent = " ".join(call["user"] + call["system"] for call in api.calls)
+    assert "Сохранённый текст лекции" in sent and "Чужой текст" not in sent
+
+
 @pytest.mark.parametrize(
-    "path,body",
+    "row",
     [
-        ("/api/professor/evaluate", {"context": "Лекция.", "question": "Что такое ВВП?", "student_answer": "Сумма."}),
-        ("/api/career/chat", {"message": "Хочу в аналитику", "history": []}),
-        ("/api/analyze/section", {"section": "quiz", "text": "Лекция про инфляцию. " * 20}),
+        material_row(status="ok"),        # раздел уже есть: это не починка
+        material_row(status=None),        # раздел не заказывали (лекция «только текст» и т. п.)
+        material_row(owner="token-b"),    # чужой материал читается, но не чинится бесплатно
+        material_row(text=""),            # нет сохранённого текста
+        None,                             # материала нет
     ],
 )
-def test_endpoints_the_client_never_charged_stay_free(api, path, body):
+def test_a_section_that_is_not_a_repair_costs_its_price(api, row):
+    serve_material(api.server, row)
     api.answer_with(AIError.failed())
-    api.post(path, json=body)
-    assert api.server.rpc("consume_ai_units") == []
+    api.post("/api/analyze/section", json={"section": "quiz", "text": "Лекция про инфляцию. " * 20, "material_id": MATERIAL_ID})
+    assert api.server.rpc("consume_ai_units") == [{"p_units": AI_COSTS["analysisSection"], "p_kind": "analysisSection"}]
 
 
-def test_professor_exam_charges_once_at_the_first_question(api):
+def test_every_professor_question_and_evaluation_costs_a_unit(api):
     api.answer_with("Что такое ключевая ставка?")
     first = api.post("/api/professor/question", json={"context": "Лекция.", "exam_length": 3})
-    assert first.status_code == 200
     following = api.post("/api/professor/question", json={"context": "Лекция.", "history_text": "Билет 1. В: …", "exam_length": 3})
-    assert following.status_code == 200
-    unknown = api.post("/api/professor/question", json={"context": "Лекция."})
-    assert unknown.status_code == 200
-    assert api.server.rpc("consume_ai_units") == [{"p_units": 1, "p_kind": "professorExam"},
-                                                  {"p_units": 2, "p_kind": "professorExam"}]
+    assert (first.status_code, following.status_code) == (200, 200)
+    assert api.server.rpc("consume_ai_units") == [{"p_units": 1, "p_kind": "professorQuestion"}] * 2
+
+
+def test_every_career_call_to_the_model_is_charged():
+    import inspect
+
+    import main
+
+    source = inspect.getsource(main)
+    charged = source.count('@quota.charged("careerChat")') + source.count('@quota.charged("careerGenerate")')
+    assert charged == 17
+    for path in ("/api/career/chat", "/api/career/course", "/api/career/mock_interview_start", "/api/career/github_readme"):
+        head = source.split(f'@app.post("{path}")', 1)[1].split("async def", 1)[0]
+        assert "@quota.charged(" in head, path
 
 
 def test_successful_answers_keep_their_units(api):
@@ -466,6 +531,117 @@ def test_the_limit_is_a_429_before_the_stream_and_the_model_never_runs(analyze):
     assert FakeCoordinator.runs == 0
     response = analyze.post("/api/analyze/url", data={"url": "https://example.com/lecture"})
     assert response.status_code == 429 and response.json()["code"] == "ai_limit"
+
+
+# ── Распознавание сканов: «только текст», список вопросов, анализ ───────────────
+
+SCAN_QUESTIONS = "Вопросы к экзамену\n1. Предмет и метод макроэкономики.\n2. ВВП и способы его измерения.\n3. Инфляция и её виды."
+
+
+@pytest.fixture
+def gemini(monkeypatch):
+    """Подменённый Gemini распознавания (FakeGemini из test_lecture_formats): gemini(behaviour) ставит его."""
+
+    def install_fake(behaviour=None):
+        return (FakeGemini() if behaviour is None else FakeGemini(behaviour)).install(monkeypatch)
+
+    yield install_fake
+    base._GENAI_CLIENTS.clear()
+    base._MODEL_SKIP.clear()
+
+
+def scan_file(pages=2, name="scan.pdf"):
+    return {"file": (name, scan_pdf(pages), "application/pdf")}
+
+
+def stream_events(response):
+    return [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+
+
+def test_a_scan_imported_as_text_or_as_a_question_list_costs_its_recognition(api, gemini):
+    gemini()
+    lecture = api.post("/api/extract", files=scan_file(16, "Лекция.pdf"))
+    plain = api.post("/api/extract", files={"file": ("lecture.txt", ("Деньги — особый товар. " * 30).encode(), "text/plain")})
+    gemini(lambda call: (SCAN_QUESTIONS, "STOP"))
+    questions = api.post("/api/exams/parse", files=scan_file(1, "Вопросы.pdf"))
+    assert lecture.status_code == 200 and lecture.json()["ocr"] is True, lecture.text
+    assert plain.status_code == 200 and questions.status_code == 200, questions.text
+    assert api.server.rpc("consume_ai_units") == [
+        {"p_units": 2 * AI_COSTS["scanPages"], "p_kind": "scanPages"},  # 16 страниц — два куска по 15
+        {"p_units": AI_COSTS["scanPages"], "p_kind": "scanPages"},
+    ]
+    assert api.server.rpc("refund_ai_units") == []
+
+
+def test_a_failed_recognition_gives_its_units_back_and_a_spent_limit_stops_it_before_the_model(api, gemini):
+    gemini(lambda call: gemini_error(429, "RESOURCE_EXHAUSTED"))
+    busy = api.post("/api/extract", files=scan_file())
+    assert busy.status_code == 429 and busy.json()["code"] == "ai_busy"
+    (refund,) = api.server.rpc("refund_ai_units")
+    assert (refund["p_kind"], refund["p_units"]) == ("scanPages", AI_COSTS["scanPages"]) and api.server.used == 0
+
+    fake = gemini(lambda call: (SCAN_QUESTIONS, "STOP"))
+    api.server.used = FREE_DAILY_UNITS - 1
+    spent = api.post("/api/exams/parse", files=scan_file(1, "Вопросы.pdf"))
+    assert spent.status_code == 429 and set(spent.json()) == LIMIT_BODY_KEYS
+    assert spent.json()["code"] == "ai_limit" and spent.json()["units"] == AI_COSTS["scanPages"]
+    assert fake.calls == []
+
+
+def test_the_analysis_of_a_scan_adds_its_recognition_to_the_lecture(analyze, gemini):
+    gemini()
+    response = analyze.post("/api/analyze", files=scan_file(), data={"enabled_agents": json.dumps(["summarizer"])})
+    assert sse_types(response)[-1] == "done", response.text
+    assert analyze.server.rpc("consume_ai_units") == [
+        {"p_units": AI_COSTS["lecture"], "p_kind": "lecture"},
+        {"p_units": AI_COSTS["scanPages"], "p_kind": "scanPages"},
+    ]
+    assert analyze.server.rpc("refund_ai_units") == [] and analyze.server.used == AI_COSTS["lecture"] + AI_COSTS["scanPages"]
+
+
+@pytest.mark.parametrize("failure", ["analysis", "recognition"])
+def test_a_scan_analysis_without_results_gives_back_the_lecture_and_the_recognition(analyze, gemini, failure):
+    if failure == "analysis":
+        gemini()
+        FakeCoordinator.outcome = "error"
+    else:
+        gemini(lambda call: gemini_error(429, "RESOURCE_EXHAUSTED"))
+    response = analyze.post("/api/analyze", files=scan_file(), data={"enabled_agents": json.dumps(["summarizer"])})
+    assert sse_types(response)[-1] == "error"
+    assert sorted(args["p_kind"] for args in analyze.server.rpc("refund_ai_units")) == ["lecture", "scanPages"]
+    assert analyze.server.used == 0
+
+
+def test_a_scan_over_the_rest_of_the_limit_ends_the_stream_with_ai_limit_before_recognition(analyze, gemini):
+    fake = gemini()
+    left = AI_COSTS["lecture"]  # хватает на лекцию, но не на лекцию со сканом
+    analyze.server.used = FREE_DAILY_UNITS - left
+    response = analyze.post("/api/analyze", files=scan_file(), data={"enabled_agents": json.dumps(["summarizer"])})
+    events = stream_events(response)
+    assert [event["type"] for event in events] == ["status", "error"]
+    # Окно лимита считает день без вернувшихся единиц лекции и цену всего прогона.
+    assert {key: events[-1][key] for key in ("code", "used", "limit", "units")} == {
+        "code": "ai_limit", "used": FREE_DAILY_UNITS - left, "limit": FREE_DAILY_UNITS,
+        "units": AI_COSTS["lecture"] + AI_COSTS["scanPages"],
+    }
+    assert fake.calls == [] and FakeCoordinator.runs == 0
+    assert analyze.server.used == FREE_DAILY_UNITS - left
+
+
+def test_a_spent_day_or_hour_window_says_so_instead_of_wait_a_minute():
+    from limits import parse_many
+    from slowapi.errors import RateLimitExceeded
+
+    import ratelimit
+
+    def detail(window):
+        (item,) = parse_many(window)
+        return ratelimit._detail_for(RateLimitExceeded(SimpleNamespace(limit=item, error_message=None)))
+
+    assert detail("5/minute") == ratelimit.RATE_LIMIT_DETAIL
+    assert detail("30/day") == ratelimit.RATE_LIMIT_DAY_DETAIL
+    assert detail("100/hour") == ratelimit.RATE_LIMIT_HOUR_DETAIL
+    assert "завтра" in ratelimit.RATE_LIMIT_DAY_DETAIL
 
 
 # ── Ответ вслух ────────────────────────────────────────────────────────────────
@@ -787,7 +963,7 @@ def test_the_auth_middleware_binds_the_user_and_the_path_kind(api, monkeypatch):
     api.post("/api/professor/evaluate", json={"context": "Лекция.", "question": "В?", "student_answer": "О."})
     api.post("/api/chat", json={"message": "Вопрос", "context": "Лекция.", "history": []})
     assert [(ctx.token, ctx.kind, ctx.units) for ctx in seen] == [
-        ("token-a", "professor_evaluate", 0), ("token-a", "chatMessage", 1)]
+        ("token-a", "professorEvaluate", 1), ("token-a", "chatMessage", 1)]
     assert quota.kind_from_path(f"/api/exams/{uuid.uuid4()}/map") == "exams_map"
     assert quota.kind_from_path("/api/oral/check") == "oral_check"
 

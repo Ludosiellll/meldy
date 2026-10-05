@@ -342,7 +342,9 @@ def test_endpoints_are_rate_limited_per_user(api, monkeypatch):
 
     source = inspect.getsource(oral_api)
     assert '@limiter.limit("20/minute", key_func=user_or_ip_key)\nasync def oral_rubric' in source
-    assert '@limiter.limit("40/minute", key_func=user_or_ip_key)\nasync def oral_check' in source
+    # Быстрая проверка бесплатна, но с дневным потолком (2026-10-05): ею нельзя сжечь суточную квоту модели.
+    assert '@limiter.limit("40/minute;600/day", key_func=user_or_ip_key)\nasync def oral_check' in source
+    assert '@limiter.limit("40/minute;3000/day", key_func=user_or_ip_key)\nasync def oral_transcribe' in source
     assert '@limiter.limit("10/minute", key_func=user_or_ip_key)\nasync def oral_evaluate' in source
 
     monkeypatch.setattr(api.main.limiter, "enabled", True)

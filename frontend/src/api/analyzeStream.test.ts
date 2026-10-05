@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalyzeError, analyzeErrorFromEvent, ANALYZE_MESSAGES, runAnalyzeStream } from './analyzeStream';
 import { STREAM_MESSAGES } from './sseStream';
+import { AI_LIMIT_EVENT, resetAILimitReportsForTests } from './limits';
 import { RUN_FAILURE_MESSAGES } from '../utils/analysisSections';
 import type { SectionName } from '../types';
 
@@ -167,6 +168,23 @@ describe('runAnalyzeStream outcomes', () => {
     expect(error.kind).toBe(kind);
     expect(error.retryable).toBe(retryable);
     expect(error.message).toBe('Не удалось завершить анализ. Код ошибки: abc123');
+  });
+
+  it('a daily limit inside the stream opens the limit window once and is not worth a repeat', () => {
+    resetAILimitReportsForTests();
+    const opened = vi.fn();
+    window.addEventListener(AI_LIMIT_EVENT, opened);
+    try {
+      const error = analyzeErrorFromEvent({
+        type: 'error', code: 'ai_limit', message: 'Дневной лимит ИИ на сегодня исчерпан.',
+        used: 80, limit: 100, resets_at: '2026-10-06T00:00:00Z', pro: false, units: 25,
+      });
+      expect([error.kind, error.retryable, error.message]).toEqual(['rate_limited', false, 'Дневной лимит ИИ на сегодня исчерпан.']);
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect((opened.mock.calls[0][0] as CustomEvent).detail).toMatchObject({ used: 80, limit: 100, units: 25, pro: false });
+    } finally {
+      window.removeEventListener(AI_LIMIT_EVENT, opened);
+    }
   });
 
   it('an English or missing error message is replaced by Russian text', () => {

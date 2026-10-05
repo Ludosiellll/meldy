@@ -44,6 +44,19 @@ export const AI_COSTS = {
   careerProfile: 5,
   /** Экспертное ревью решения (карьера). */
   careerReview: 5,
+  // Закрыто 2026-10-05: вызовы модели, которые раньше ничего не стоили.
+  /** Распознавание скана PDF — за каждые начатые 15 страниц (фото страницы входит в анализ). */
+  scanPages: 5,
+  /** Раздел анализа заново. Бесплатно — починка раздела, который не получился в оплаченном анализе. */
+  analysisSection: 7,
+  /** Устный экзамен у «профессора»: каждый вопрос… */
+  professorQuestion: 1,
+  /** …и каждая оценка ответа. */
+  professorEvaluate: 1,
+  /** Карьера: реплика в чате или подсказка. */
+  careerChat: 1,
+  /** Карьера: курс, тест, задание, проект. */
+  careerGenerate: 3,
 } as const;
 
 export type AICostKind = keyof typeof AI_COSTS;
@@ -57,11 +70,25 @@ export function examMappingCost(questions: number): number {
   return AI_COSTS.examMapping * Math.ceil(count / EXAM_MAPPING_QUESTIONS_PER_CHARGE);
 }
 
-/** Устный экзамен у «профессора»: весь экзамен по числу вопросов, списывается при первом вопросе. */
-export const PROFESSOR_EXAM_COSTS: Readonly<Record<number, number>> = { 3: 1, 5: 2, 10: 4 };
+/** Распознавание скана: AI_COSTS.scanPages за каждые начатые столько страниц. */
+export const OCR_PAGES_PER_CHARGE = 15;
 
+/** Единицы распознавания скана PDF: 5 за каждые начатые 15 страниц. */
+export function scanCost(pages: number): number {
+  const count = Math.max(0, Math.trunc(Number(pages) || 0));
+  return AI_COSTS.scanPages * Math.ceil(count / OCR_PAGES_PER_CHARGE);
+}
+
+/** Длины устного экзамена у «профессора»; другая длина считается как 5 вопросов. */
+export const PROFESSOR_EXAM_LENGTHS: readonly number[] = [3, 5, 10];
+
+/**
+ * Весь экзамен у «профессора»: вопрос и оценка ответа на каждый из length вопросов. Сервер списывает
+ * их по одному; страница сверяет цену всего экзамена с остатком до начала.
+ */
 export function professorExamCost(length: number): number {
-  return PROFESSOR_EXAM_COSTS[length] ?? PROFESSOR_EXAM_COSTS[5];
+  const questions = PROFESSOR_EXAM_LENGTHS.includes(length) ? length : 5;
+  return questions * (AI_COSTS.professorQuestion + AI_COSTS.professorEvaluate);
 }
 
 /** Дневной лимит аккаунта в единицах. */

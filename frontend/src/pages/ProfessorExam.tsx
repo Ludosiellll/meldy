@@ -123,7 +123,10 @@ const EXAM_LENGTHS = [
   { value: 10, label: 'Полный зачёт', cost: professorExamCost(10), xp: 100, desc: 'Полная строгая проверка по всем нюансам лекции.' }
 ];
 
-/** Units of the daily limit for the whole exam (lib/plans.ts); the server charges them with the first question. */
+/**
+ * Units of the daily limit for the whole exam (lib/plans.ts), checked before it starts; the server
+ * charges a unit for every question and every evaluation, and gives it back when the model fails.
+ */
 const getEnergyCost = (length: number) => professorExamCost(length);
 
 const EVALUATE_FAILED = 'Не удалось оценить ответ. Попробуйте ещё раз.';
@@ -552,8 +555,8 @@ export default function ProfessorExam() {
     const examHistory = examHistoryRes.data || [];
     const recentMistakes = (mistakesRes.data || []).map(m => m.topic).filter(Boolean);
 
-    // Энергия проверяется перед новым экзаменом, а списывается один раз и только после того,
-    // как первый вопрос действительно пришёл: неудачный старт ничего не стоит.
+    // Остаток на весь экзамен проверяется перед новым экзаменом; списывает сервер — по единице
+    // за вопрос и за оценку ответа, неудачный вызов ничего не стоит.
     const cost = getEnergyCost(examLength);
     if (clearHistory && user?.id) {
       const ok = await verifyEnergy(user.id, cost, 'Устный экзамен');
@@ -585,7 +588,7 @@ export default function ProfessorExam() {
       if (!question) throw new Error(QUESTION_FAILED);
       setCurrentQuestion(question);
       setPhase('question');
-      if (clearHistory) notifyAIUsageChanged(); // the server charged the exam with its first question
+      notifyAIUsageChanged(); // the server charged the question
     } catch (err) {
       console.error(err);
       const message = err instanceof Error && /[А-Яа-яЁё]/.test(err.message) ? err.message : QUESTION_FAILED;
@@ -616,7 +619,7 @@ export default function ProfessorExam() {
       : (selectedMaterial.summary_json?.content || '');
     const context = (selectedMaterial.original_text || summary || '').slice(0, 20000);
 
-    // Энергия уже списана при старте! Внутри шагов мы её больше не списываем
+    // Оценка стоит единицу: её списывает сервер и возвращает, если оценки нет.
     try {
       const res = await fetch('/api/professor/evaluate', {
         method: 'POST',
@@ -634,6 +637,7 @@ export default function ProfessorExam() {
       if (!evalData) throw new Error(EVALUATE_FAILED);
       
       setEvaluation(evalData);
+      notifyAIUsageChanged(); // the server charged the evaluation
       
       // Конфетти при отличной оценке (5)
       if (evalData.grade === '5') {
@@ -722,7 +726,8 @@ export default function ProfessorExam() {
       console.error(err);
       // Ответ остаётся в поле: его можно отправить ещё раз.
       const message = err instanceof Error && /[А-Яа-яЁё]/.test(err.message) ? err.message : EVALUATE_FAILED;
-      await alert({ title: 'Ответ не оценён', message, type: 'danger' });
+      // The daily limit has its own dialog (opened for every 429 ai_limit): no second one here.
+      if (message !== AI_LIMIT_MESSAGE) await alert({ title: 'Ответ не оценён', message, type: 'danger' });
       setPhase('question');
     }
   };

@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 import time
 import uuid
@@ -43,6 +44,7 @@ from agents import base as ai_base
 from agents.base import AIError, BaseAgent, parse_model_json
 from agents.coordinator import CORE_SECTIONS, CoordinatorAgent
 import quota
+import supabase_rest
 from plans import AI_COSTS
 from utils import extract_relevant_paragraphs, scrape_url
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
@@ -470,7 +472,8 @@ async def event_stream(
     enabled_agents: Optional[str] = None,
     ocr_key: Optional[str] = None,
     *,
-    charge: Optional["quota.Charge"] = None,
+    charge: Optional["quota.ChargeGroup"] = None,
+    charge_scan=None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress for an uploaded document (already read by the route).
 
@@ -494,6 +497,22 @@ async def event_stream(
             return
         if scan is not None:
             yield {"type": "status", "message": ocr.OCR_STATUS_MESSAGE}
+            # Recognition costs units of its own (plans.scan_cost); they go back with the
+            # analysis's when no results come (the stream's ChargeGroup).
+            if charge_scan is not None:
+                try:
+                    spent = await charge_scan(quota.scan_units(scan))
+                except quota.AILimitExceeded as exc:
+                    event = exc.event()
+                    if charge is not None and charge.units:
+                        # The lecture's units go back with this error: the limit window counts the
+                        # day without them and the price of the whole run (lecture + recognition).
+                        event["used"] = max(0, event["used"] - charge.units)
+                        event["units"] += charge.units
+                    yield event
+                    return
+                if charge is not None:
+                    charge.add(spent)
             try:
                 text = await ocr.recognize_scan(contents, scan, rate_key=ocr_key)
             except (OcrError, AIError) as exc:
@@ -539,7 +558,8 @@ async def analyze(
     # The built-in demo text is free; anything else reserves a lecture's units before the
     # stream, so the daily limit is a real 429, and gets them back without results.
     demo = quota.is_demo_upload(contents, file.filename or "")
-    charge = await quota.charge(request, "lecture", 0 if demo else AI_COSTS["lecture"])
+    # A scanned PDF adds its recognition (plans.scan_cost) to the group inside the stream.
+    charge = quota.ChargeGroup(await quota.charge(request, "lecture", 0 if demo else AI_COSTS["lecture"]))
 
     return StreamingResponse(
         with_keepalive(event_stream(
@@ -547,6 +567,7 @@ async def analyze(
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
             charge=charge,
+            charge_scan=lambda units: quota.charge(request, "scanPages", units),
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -738,17 +759,63 @@ class AnalyzeSectionRequest(BaseModel):
     section: str
     text: str
     settings: Optional[dict] = None
+    # The saved material the section is for: a repair of a paid analysis is free (see below).
+    material_id: Optional[str] = None
 
 
 ANALYZE_SECTION_MAX_CHARS = 300000
+SECTION_REPAIR_TIMEOUT_SECONDS = 5.0
+_MATERIAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+async def _section_repair_text(request: Request, material_id: Optional[str], section: str) -> Optional[str]:
+    """The saved text of the caller's own material whose paid analysis left this section without
+    content (summary_json.sections[section].status is not ok), or None: then the section is charged.
+
+    Read with the caller's token (RLS), and the owner is compared too: a public material of someone
+    else is readable but not repairable for free. Any failure of the check means «not a repair».
+    The row is the owner's own and editable by them, so this trusts it: the route's day cap
+    (20 sections) bounds what a forged «failed» section can get for free.
+    """
+    user = getattr(request.state, "user", None)
+    if not material_id or not _MATERIAL_ID_RE.match(material_id) or not isinstance(user, dict) or not user.get("id"):
+        return None
+    try:
+        async with supabase_rest.SupabaseRest(supabase_rest.bearer_token(request), timeout=SECTION_REPAIR_TIMEOUT_SECONDS) as db:
+            row = await db.select_one(
+                "materials", {"select": "user_id,summary_json,original_text", "id": f"eq.{material_id}"}
+            )
+    except Exception as exc:
+        print(f"Section repair check failed: {type(exc).__name__}")
+        return None
+    if not isinstance(row, dict) or row.get("user_id") != user["id"]:
+        return None
+    summary = row.get("summary_json")
+    if isinstance(summary, str):
+        try:
+            summary = json.loads(summary)
+        except ValueError:
+            summary = None
+    sections = summary.get("sections") if isinstance(summary, dict) else None
+    state = sections.get(section) if isinstance(sections, dict) else None
+    if not isinstance(state, dict) or state.get("status") in (None, "ok"):
+        return None
+    text = row.get("original_text")
+    if not isinstance(text, str) or not text.strip():
+        return None
+    return text[:ANALYZE_SECTION_MAX_CHARS]
 
 
 @app.post("/api/analyze/section")
-@limiter.limit("5/minute", key_func=user_or_ip_key)
+@limiter.limit("5/minute;20/day", key_func=user_or_ip_key)
 async def analyze_section(request: Request, req: AnalyzeSectionRequest):
-    """«Досоздать»: one core section for an analysed material; never charged.
+    """«Создать … заново»: one core section for an analysed material.
 
-    The text is chunked exactly like the analysis, so the S-ids match the saved material.
+    Free only as a repair: the caller's own material whose paid analysis left this section without
+    content — then its saved text is used, not the text sent. Anything else costs
+    AI_COSTS["analysisSection"]: free sections over a free text-only import were a whole analysis
+    without the daily limit (2026-10-05). The text is chunked exactly like the analysis, so the
+    S-ids match the saved material.
     """
     if req.section not in CORE_SECTIONS:
         raise HTTPException(status_code=400, detail="Этот раздел нельзя создать отдельно.")
@@ -757,8 +824,13 @@ async def analyze_section(request: Request, req: AnalyzeSectionRequest):
     if len(req.text) > ANALYZE_SECTION_MAX_CHARS:
         raise HTTPException(status_code=413, detail="Текст слишком длинный: максимум 300 000 символов.")
     _require_ai_configured()
-    coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
-    return await coordinator.run_section(req.section, req.text, req.settings if isinstance(req.settings, dict) else None)
+    repair_text = await _section_repair_text(request, req.material_id, req.section)
+    text = repair_text if repair_text is not None else req.text
+    units = 0 if repair_text is not None else AI_COSTS["analysisSection"]
+    charge = await quota.charge(request, "analysisSection", units)
+    async with quota.refund_on_failure(charge):
+        coordinator = CoordinatorAgent(api_key=GROQ_API_KEY)
+        return await coordinator.run_section(req.section, text, req.settings if isinstance(req.settings, dict) else None)
 
 
 # --- Model diagnostics (owner only) ------------------------------------------------------
@@ -1299,11 +1371,10 @@ async def professor_question(request: Request, req: ProfessorQuestionRequest):
         system_prompt += f"\n\nАДАПТИВНАЯ СЛОЖНОСТЬ (УСПЕВАЕМОСТЬ И ОШИБКИ): {adaptive_instr}"
     system_prompt += socratic_instr
 
-    # The whole exam is charged once, with its first question (no history yet); the next
-    # questions and the evaluations of the answers are part of it.
-    new_exam = not (req.history_text or "").strip()
-    units = quota.professor_exam_units(req.exam_length) if new_exam else 0
-    charge = await quota.charge(request, "professorExam", units)
+    # Every question and every evaluation is charged (plans.AI_COSTS): a free follow-up with a
+    # made-up history was a way around the daily limit (2026-10-05). The page checks the whole
+    # exam's price (plans.professor_exam_cost) before the first question.
+    charge = await quota.charge(request, "professorQuestion", AI_COSTS["professorQuestion"])
     async with quota.refund_on_failure(charge):
         # The question is plain text even when the lecture itself talks about JSON.
         try:
@@ -1322,14 +1393,16 @@ async def professor_evaluate(request: Request, req: ProfessorEvaluateRequest):
     """A grade only from a usable model answer: no default «50 баллов, тройка» on failure."""
     agent = BaseAgent(api_key=GROQ_API_KEY)
     system_prompt = build_professor_evaluation_prompt(req.context, req.question, req.student_answer, req.professor_id)
-    try:
-        raw = await agent.run(system_prompt, "Оцени мой ответ.", json_mode=True)
-    except Exception as exc:
-        raise _ai_failure(exc, PROFESSOR_EVALUATE_FAILURE_DETAIL)
-    evaluation = validate_professor_evaluation(raw)
-    if evaluation is None:
-        BaseAgent.forget(raw)
-        raise AIError.failed(PROFESSOR_EVALUATE_FAILURE_DETAIL)
+    charge = await quota.charge(request, "professorEvaluate", AI_COSTS["professorEvaluate"])
+    async with quota.refund_on_failure(charge):
+        try:
+            raw = await agent.run(system_prompt, "Оцени мой ответ.", json_mode=True)
+        except Exception as exc:
+            raise _ai_failure(exc, PROFESSOR_EVALUATE_FAILURE_DETAIL)
+        evaluation = validate_professor_evaluation(raw)
+        if evaluation is None:
+            BaseAgent.forget(raw)
+            raise AIError.failed(PROFESSOR_EVALUATE_FAILURE_DETAIL)
     return evaluation
 
 @app.post("/api/missions/generate")
@@ -1755,6 +1828,7 @@ async def get_career_vacancies(request: Request, req: CareerVacanciesRequest):
 
 @app.post("/api/career/vacancy_chat")
 @limiter.limit("15/minute")
+@quota.charged("careerChat")
 async def career_vacancy_chat(request: Request, req: CareerVacancyChatRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
@@ -1792,6 +1866,7 @@ async def career_vacancy_chat(request: Request, req: CareerVacancyChatRequest):
 
 @app.post("/api/career/chat")
 @limiter.limit("20/minute")
+@quota.charged("careerChat")
 async def career_chat(request: Request, req: CareerChatRequest):
     agent = BaseAgent(api_key=GROQ_API_KEY)
     
@@ -1863,6 +1938,7 @@ async def career_chat(request: Request, req: CareerChatRequest):
 
 @app.post("/api/career/course")
 @limiter.limit("5/minute")
+@quota.charged("careerGenerate")
 async def career_course(request: Request, req: CareerCourseGenerateRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
@@ -1931,6 +2007,7 @@ async def career_course(request: Request, req: CareerCourseGenerateRequest):
 
 @app.post("/api/career/expand")
 @limiter.limit("5/minute")
+@quota.charged("careerGenerate")
 async def career_expand(request: Request, req: CareerCourseExpandRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
@@ -1950,6 +2027,7 @@ async def career_expand(request: Request, req: CareerCourseExpandRequest):
 
 @app.post("/api/career/next_module")
 @limiter.limit("5/minute")
+@quota.charged("careerGenerate")
 async def career_next_module(request: Request, req: CareerNextModuleRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен на сервере")
@@ -2147,6 +2225,7 @@ class CareerSocraticChatRequest(BaseModel):
 
 @app.post("/api/career/review_test")
 @limiter.limit("20/minute")
+@quota.charged("careerGenerate")
 async def career_review_test(request: Request, req: CareerReviewTestRequest):
     """Generate a Spaced Repetition or module review test."""
     if not GROQ_API_KEY:
@@ -2167,6 +2246,7 @@ async def career_review_test(request: Request, req: CareerReviewTestRequest):
 
 @app.post("/api/career/retry_task")
 @limiter.limit("10/minute")
+@quota.charged("careerGenerate")
 async def career_retry_task(request: Request, req: CareerRetryTaskRequest):
     """Generate an alternative practice task when student scores below mastery threshold (70)."""
     if not GROQ_API_KEY:
@@ -2187,6 +2267,7 @@ async def career_retry_task(request: Request, req: CareerRetryTaskRequest):
 
 @app.post("/api/career/module_hint")
 @limiter.limit("30/minute")
+@quota.charged("careerChat")
 async def career_module_hint(request: Request, req: CareerModuleHintRequest):
     """Socratic Micro-Tutor: explain a theory paragraph in a different way."""
     if not GROQ_API_KEY:
@@ -2202,6 +2283,7 @@ async def career_module_hint(request: Request, req: CareerModuleHintRequest):
 
 @app.post("/api/career/mock_interview_start")
 @limiter.limit("5/minute")
+@quota.charged("careerGenerate")
 async def career_mock_interview_start(request: Request, req: CareerMockInterviewStartRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2227,6 +2309,7 @@ async def career_mock_interview_start(request: Request, req: CareerMockInterview
 
 @app.post("/api/career/mock_interview_respond")
 @limiter.limit("15/minute")
+@quota.charged("careerChat")
 async def career_mock_interview_respond(request: Request, req: CareerMockInterviewRespondRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2260,6 +2343,7 @@ async def career_mock_interview_respond(request: Request, req: CareerMockIntervi
 
 @app.post("/api/career/mock_interview_evaluate")
 @limiter.limit("5/minute")
+@quota.charged("careerGenerate")
 async def career_mock_interview_evaluate(request: Request, req: CareerMockInterviewEvaluateRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2305,6 +2389,7 @@ async def career_mock_interview_evaluate(request: Request, req: CareerMockInterv
 
 @app.post("/api/career/socratic_chat")
 @limiter.limit("20/minute")
+@quota.charged("careerChat")
 async def career_socratic_chat(request: Request, req: CareerSocraticChatRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2470,6 +2555,7 @@ async def career_parse_vacancy(request: Request, req: CareerVacancyParseRequest)
 
 @app.post("/api/career/diagnostic_test")
 @limiter.limit("10/minute")
+@quota.charged("careerGenerate")
 async def career_diagnostic_test(request: Request, req: CareerDiagnosticTestRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2508,6 +2594,7 @@ async def career_diagnostic_test(request: Request, req: CareerDiagnosticTestRequ
 
 @app.post("/api/career/code_diagnostics")
 @limiter.limit("15/minute")
+@quota.charged("careerChat")
 async def career_code_diagnostics(request: Request, req: CareerCodeDiagnosticsRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2556,6 +2643,7 @@ async def career_code_diagnostics(request: Request, req: CareerCodeDiagnosticsRe
 
 @app.post("/api/career/github_readme")
 @limiter.limit("10/minute")
+@quota.charged("careerGenerate")
 async def career_github_readme(request: Request, req: CareerGithubReadmeRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2597,6 +2685,7 @@ async def career_github_readme(request: Request, req: CareerGithubReadmeRequest)
 
 @app.post("/api/career/generate_pet_projects")
 @limiter.limit("10/minute")
+@quota.charged("careerGenerate")
 async def career_generate_pet_projects(request: Request, req: CareerPetProjectsRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -2649,6 +2738,7 @@ async def career_generate_pet_projects(request: Request, req: CareerPetProjectsR
 
 @app.post("/api/career/evaluate_pet_project")
 @limiter.limit("10/minute")
+@quota.charged("careerGenerate")
 async def career_evaluate_pet_project(request: Request, req: CareerPetProjectEvaluateRequest):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY не настроен")
@@ -3177,7 +3267,7 @@ async def _tts_shared_clip(key: str, text: str, voice_id: str) -> Optional[bytes
 
 
 @app.post("/api/tts")
-@limiter.limit("120/minute", key_func=user_or_ip_key)
+@limiter.limit("120/minute;3000/day", key_func=user_or_ip_key)
 async def text_to_speech(request: Request, req: TTSRequest):
     voice_id = EDGE_TTS_VOICES.get(req.role, EDGE_TTS_VOICES["professor"])
     text = req.text.strip()[:4000]

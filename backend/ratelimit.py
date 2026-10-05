@@ -13,6 +13,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 RATE_LIMIT_DETAIL = "Слишком много запросов. Подождите минуту и повторите."
+# Дневные потолки бесплатных вызовов модели (быстрая проверка ответа, распознавание голоса, озвучка,
+# раздел заново): ждать минуту бесполезно.
+RATE_LIMIT_DAY_DETAIL = "На сегодня предел этой функции исчерпан — он обновится завтра."
+RATE_LIMIT_HOUR_DETAIL = "Слишком много запросов за час. Подождите немного и повторите."
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -42,9 +46,23 @@ def _retry_after_seconds(request: Request) -> int | None:
         return None
 
 
+def _detail_for(exc: RateLimitExceeded) -> str:
+    """The detail for the window that was exceeded (minute — the default text)."""
+    try:
+        granularity = exc.limit.limit.GRANULARITY.name
+    except AttributeError:
+        return RATE_LIMIT_DETAIL
+    if granularity in ("day", "month", "year"):
+        return RATE_LIMIT_DAY_DETAIL
+    if granularity == "hour":
+        return RATE_LIMIT_HOUR_DETAIL
+    return RATE_LIMIT_DETAIL
+
+
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
-    """429 with a plain Russian ``detail`` (slowapi's default body has none)."""
-    response = JSONResponse({"detail": RATE_LIMIT_DETAIL}, status_code=429)
+    """429 with a plain Russian ``detail`` (slowapi's default body has none); a spent day or hour
+    says so instead of «подождите минуту»."""
+    response = JSONResponse({"detail": _detail_for(exc)}, status_code=429)
     active = getattr(request.app.state, "limiter", None) or limiter
     try:
         response = active._inject_headers(response, getattr(request.state, "view_rate_limit", None))

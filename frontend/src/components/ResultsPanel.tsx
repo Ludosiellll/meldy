@@ -384,14 +384,23 @@ function settingsBody(settings?: AnalysisSettings) {
   };
 }
 
-/** POST /api/analyze/section: один раздел по исходному тексту, без списания энергии. */
-async function requestSection(section: CoreSection, text: string, settings?: AnalysisSettings) {
+/**
+ * POST /api/analyze/section: один раздел по исходному тексту. Раздел, который не получился в анализе
+ * своего материала, сервер создаёт бесплатно по сохранённому тексту (по material_id); иначе — по цене
+ * AI_COSTS.analysisSection (lib/plans.ts).
+ */
+async function requestSection(section: CoreSection, text: string, materialId: string, settings?: AnalysisSettings) {
   let response: Response;
   try {
     response = await fetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ section, text: text.slice(0, SECTION_TEXT_LIMIT), settings: settingsBody(settings) }),
+      body: JSON.stringify({
+        section,
+        text: text.slice(0, SECTION_TEXT_LIMIT),
+        material_id: materialId,
+        settings: settingsBody(settings),
+      }),
     });
   } catch {
     throw new Error(STREAM_MESSAGES.network);
@@ -677,7 +686,7 @@ export default function ResultsPanel({
     }
   };
 
-  /** «Создать … заново»: раздел по исходному тексту, сохранение в материал, без списания. */
+  /** «Создать … заново»: раздел по исходному тексту, сохранение в материал (починка — без списания). */
   const recreateSection = async (section: CoreSection) => {
     const targetId = materialId;
     if (!targetId || runningRef.current || !canEdit || !originalText?.trim()) return;
@@ -685,7 +694,7 @@ export default function ResultsPanel({
     setRunning(section);
     setSectionErrors(prev => ({ ...prev, [section]: undefined }));
     try {
-      const { result, grounding } = await requestSection(section, originalText, analysisSettings);
+      const { result, grounding } = await requestSection(section, originalText, targetId, analysisSettings);
       const nextSections: SectionStates = { ...(view.sections ?? {}), [section]: { status: 'ok' } };
       const missingGrounding = !view.grounding && grounding ? grounding : undefined;
       await persistSection(targetId, section, result, nextSections, missingGrounding);

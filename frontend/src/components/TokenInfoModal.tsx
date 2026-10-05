@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
-import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
+import { AI_COSTS, dailyUnits, EXAM_MAPPING_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, PRO_DAILY_UNITS } from '../lib/plans';
 
 interface Props {
   isOpen: boolean;
@@ -67,7 +67,8 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro }: P
         <p className="ac-modal-p">
           {remaining === 0 ? `На сегодня лимит исчерпан, он обновится в ${resetAt}.` : `Лимит обновится в ${resetAt}.`}{' '}
           {isPro ? `У аккаунта PRO — до ${PRO_DAILY_UNITS} единиц в день. ` : ''}
-          Единицы списываются, когда Meldy обращается к ИИ: анализ материала — {AI_COSTS.lecture}, сверка списка
+          Единицы списываются, когда Meldy обращается к ИИ: анализ материала — {AI_COSTS.lecture} (скан PDF — ещё{' '}
+          {AI_COSTS.scanPages} за каждые {OCR_PAGES_PER_CHARGE} страниц), сверка списка
           с лекциями — {AI_COSTS.examMapping} за каждые {EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов, ответ на
           билет — {AI_COSTS.answer}, разговор — {AI_COSTS.conversation}, шпаргалка — {AI_COSTS.cheatsheet}. Если ИИ
           не справился, единицы возвращаются.
