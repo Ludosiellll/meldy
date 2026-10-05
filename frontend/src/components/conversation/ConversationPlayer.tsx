@@ -6,7 +6,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useEnergyConfirm } from '../../hooks/useEnergyConfirm';
 import { notifyAIUsageChanged } from '../../api/limits';
 import { AI_COSTS } from '../../lib/plans';
-import { updateQuestProgress } from '../../api/quests';
 import {
   forgetTTSFailures,
   getTTSPlaybackRate,
@@ -316,7 +315,6 @@ export default function ConversationPlayer({
   const runRef = useRef(0);
   const currentRef = useRef(0);
   const restartOnResumeRef = useRef(false);
-  const questCountedRef = useRef(false);
   const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const waitTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const warmedRef = useRef<string | null>(null);
@@ -565,7 +563,6 @@ export default function ConversationPlayer({
             clearWaitNote();
             setPlayback('idle');
             setFinished(true);
-            questCountedRef.current = false;
             announce('Разговор закончился.');
           }
         },
@@ -585,11 +582,6 @@ export default function ConversationPlayer({
           clearWaitNote();
           setPlayback('playing');
           prefetchAhead(index);
-          // Задание «послушать разговор» засчитывается один раз за прослушивание, когда звук реально пошёл.
-          if (!questCountedRef.current && user?.id) {
-            questCountedRef.current = true;
-            void Promise.resolve(updateQuestProgress(user.id, 'podcast', 1)).catch(() => undefined);
-          }
         },
         HOST_VOICE,
       ),

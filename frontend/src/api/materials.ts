@@ -35,11 +35,6 @@ export async function updateMaterialTitle(id: string, title: string) {
   if (error) console.error('updateMaterialTitle error:', error);
 }
 
-export async function updateMaterialVisibility(id: string, is_public: boolean) {
-  const { error } = await supabase.from('materials').update({ is_public }).eq('id', id);
-  if (error) console.error('updateMaterialVisibility error:', error);
-}
-
 /**
  * Меняет видимость материала и сообщает о неудаче: ошибка запроса или запись,
  * которая не изменила ни одной строки (материал чужой), — исключение. Тогда
@@ -49,12 +44,4 @@ export async function setMaterialVisibility(id: string, isPublic: boolean): Prom
   const { data, error } = await supabase.from('materials').update({ is_public: isPublic }).eq('id', id).select('id');
   if (error) throw error;
   if (Array.isArray(data) && data.length === 0) throw new Error('Материал не изменён: нет прав на запись');
-}
-
-export async function updateMaterialMissions(id: string, missions: any[]) {
-  const { error } = await supabase
-    .from('materials')
-    .update({ missions_json: { missions } })
-    .eq('id', id);
-  if (error) console.error('updateMaterialMissions error:', error);
 }

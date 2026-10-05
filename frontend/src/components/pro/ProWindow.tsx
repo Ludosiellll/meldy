@@ -14,7 +14,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
-import { FREE_DAILY_UNITS, OPEN_PRO_EVENT, openProWindow, type ProReason } from '../../lib/plans';
+import { FREE_DAILY_UNITS, OPEN_PRO_EVENT, type ProReason } from '../../lib/plans';
 import { track } from '../../lib/telemetry';
 import { proGainLine, proLede, unitsPerDay } from './planCopy';
 import { loadProState, recordProInterest, type ProState } from './proInterest';
@@ -27,11 +27,6 @@ const REASONS: readonly ProReason[] = ['pricing', 'limit', 'meter'];
 const isReason = (value: unknown): value is ProReason => typeof value === 'string' && (REASONS as readonly string[]).includes(value);
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/** Opens the PRO window from a component — the same as openProWindow(reason) from anywhere. */
-export function useProWindow(): (reason?: ProReason) => void {
-  return useCallback((reason: ProReason = 'pricing') => openProWindow(reason), []);
-}
 
 /**
  * Mounted once inside the router (App.tsx): listens for `meldy:open-pro` (lib/plans.ts

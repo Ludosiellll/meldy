@@ -205,19 +205,10 @@ export interface StudySession {
   cards_reviewed?: number;
 }
 
-export interface ExamResult {
-  date: string;
-  score: number;
-}
-
 export interface Mistake {
   topic?: string;
   mistake_id?: string;
   question?: string;
-}
-
-export interface Achievement {
-  achievement_id: string;
 }
 
 export interface Material {

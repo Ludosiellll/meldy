@@ -8,7 +8,6 @@ import { supabase } from '../lib/supabase';
 const api = vi.hoisted(() => ({
   getDueCards: vi.fn(),
   updateCardProgress: vi.fn(),
-  updateQuestProgress: vi.fn(),
   recordStudyActivity: vi.fn(),
   playFlipSound: vi.fn(),
   playSuccessSound: vi.fn(),
@@ -19,8 +18,7 @@ vi.mock('../api/flashcards', () => ({
   updateCardProgress: api.updateCardProgress,
 }));
 
-vi.mock('../api/quests', () => ({
-  updateQuestProgress: api.updateQuestProgress,
+vi.mock('../api/studyActivity', () => ({
   recordStudyActivity: api.recordStudyActivity,
 }));
 
@@ -76,7 +74,6 @@ describe('Review answer persistence', () => {
   beforeEach(() => {
     api.getDueCards.mockResolvedValue(oneCard);
     api.updateCardProgress.mockResolvedValue({ card_id: 'card-1', duplicate: false });
-    api.updateQuestProgress.mockResolvedValue(undefined);
     api.recordStudyActivity.mockResolvedValue(undefined);
   });
 
@@ -114,7 +111,6 @@ describe('Review answer persistence', () => {
     expect(screen.getByText('Что такое интервальное повторение?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Помню' })).toBeEnabled();
     expect(screen.queryByRole('heading', { name: /^Повторили/ })).not.toBeInTheDocument();
-    expect(api.updateQuestProgress).not.toHaveBeenCalled();
     expect(api.recordStudyActivity).not.toHaveBeenCalled();
   });
 

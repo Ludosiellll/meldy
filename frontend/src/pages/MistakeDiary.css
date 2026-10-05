@@ -15,21 +15,7 @@
 .md-text:first-child { margin-top: 0; }
 .md-h2 { margin: 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.08; font-weight: 500; letter-spacing: -.035em; color: var(--sf-ink); text-wrap: balance; }
 .md-h3 { margin: 0; font-size: 24px; line-height: 1.15; font-weight: 500; letter-spacing: -.025em; color: var(--sf-ink); }
-.md-warn { color: var(--m-yellow-ink); font-weight: 500; }
 .md-alert { margin: 12px 0 0; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--sf-ink); }
-.md-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 18px 0 0;
-  padding: 6px 14px 6px 12px;
-  border-radius: 999px;
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 500;
-}
-.md-pill::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.md-pill[data-tone='green'] { background: var(--m-green-soft); color: var(--m-green-ink); }
 
 /* ---------------------------------------------------------------- the summary card */
 .md-head { max-width: 900px; }

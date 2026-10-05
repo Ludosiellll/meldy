@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkAndAwardAchievements, recordStudyActivity } from './quests';
+import { recordStudyActivity } from './studyActivity';
 
 const database = vi.hoisted(() => ({ from: vi.fn() }));
 
@@ -142,30 +142,5 @@ describe('recordStudyActivity', () => {
     });
 
     await expect(recordStudyActivity('user-1', 1, 0)).resolves.toBeUndefined();
-  });
-});
-
-describe('checkAndAwardAchievements', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it('counts only exams of the old format, not answers to exam tickets', async () => {
-    const earned = query({ data: [{ achievement_id: 'first_exam' }] });
-    const exams = query({ data: [] });
-    const sessions = query({ data: [] });
-    const materials = query({ data: [] });
-    const mistakes = query({ data: [] });
-    const xp = query({ data: { total_xp: 0 } });
-    database.from
-      .mockReturnValueOnce(earned.builder)
-      .mockReturnValueOnce(exams.builder)
-      .mockReturnValueOnce(sessions.builder)
-      .mockReturnValueOnce(materials.builder)
-      .mockReturnValueOnce(mistakes.builder)
-      .mockReturnValueOnce(xp.builder);
-
-    await expect(checkAndAwardAchievements('user-1')).resolves.toEqual([]);
-    expect(exams.args('eq')).toContainEqual(['kind', 'professor']);
   });
 });

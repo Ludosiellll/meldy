@@ -21,16 +21,14 @@ vi.mock('./pages/ExamEditor', () => ({ default: () => <h1>Редактор эк�
 vi.mock('./pages/ExamDetail', () => ({ default: () => <h1>Лист экзамена</h1> }));
 vi.mock('./pages/ExamDraw', () => ({ default: () => <h1>Тянуть билет</h1> }));
 vi.mock('./pages/ExamTicket.tsx', () => ({ default: () => <h1>Экран ответа</h1> }));
-vi.mock('./pages/ProfessorExam', () => ({ default: () => <h1>Старый экзамен</h1> }));
-vi.mock('./pages/MoodTracker', () => ({ default: () => <h1>Настроение</h1> }));
+vi.mock('./pages/MistakeDiary', () => ({ default: () => <h1>Дневник ошибок</h1> }));
+vi.mock('./pages/Landing', () => ({ default: () => <h1>Главная</h1> }));
 vi.mock('./pages/TryExample', () => ({ default: () => <h1>Пример экзамена</h1> }));
 vi.mock('./api/materials', () => ({
   getMaterials: vi.fn(async () => materials.list),
   deleteMaterial: vi.fn(),
   updateMaterialTitle: vi.fn(),
-  updateMaterialVisibility: vi.fn(),
 }));
-vi.mock('./api/groups', () => ({ getAssignedMaterials: vi.fn(async () => []), joinGroup: vi.fn() }));
 const shelves = vi.hoisted(() => ({ list: [] as unknown[] }));
 vi.mock('./api/exams', () => ({ listExamShelves: vi.fn(async () => shelves.list) }));
 vi.mock('./contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => false) }));
@@ -75,10 +73,33 @@ describe('exam routes', () => {
       await within(layout).findByText(/Экран ответа|Экран ответа пока недоступен/),
     ).toBeInTheDocument();
   });
+});
 
-  it('keeps the old oral exam at /exam', async () => {
-    openAt('/exam');
-    expect(await screen.findByRole('heading', { name: 'Старый экзамен' })).toBeInTheDocument();
+describe('removed sections', () => {
+  it.each([
+    '/exam',
+    '/mood',
+    '/network',
+    '/career',
+    '/messages/user-2',
+    '/assignment/a-1',
+    '/co-study/room-1',
+    '/courses',
+    '/planner',
+    '/chat',
+    '/play',
+    '/teacher',
+    '/study-session',
+    '/pricing',
+    '/quick-prep',
+    '/profile/user-2',
+    '/shorts/m-1',
+    '/hh-callback',
+  ])('%s leads to the start page', async (path) => {
+    openAt(path);
+    expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/');
+    expect(screen.queryByTestId('layout')).toBeNull();
   });
 });
 
@@ -93,11 +114,11 @@ describe('loaders', () => {
   });
 
   it('uses the same loader while a lazy page loads', async () => {
-    const { container } = openAt('/mood');
+    const { container } = openAt('/mistakes');
     const loader = screen.getByRole('status', { name: 'Загрузка страницы' });
     expect(loader.className).toContain('bg-[var(--sf-canvas)]');
     expect(container.innerHTML).not.toContain('07111f');
-    expect(await screen.findByRole('heading', { name: 'Настроение' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Дневник ошибок' })).toBeInTheDocument();
   });
 });
 

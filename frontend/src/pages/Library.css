@@ -366,37 +366,6 @@
   from { opacity: 0; transform: translate(-50%, -42%) rotate(-4deg); }
 }
 
-/* ---------------------------------------------------------------- the join dialog */
-.lib-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(11, 18, 28, .42);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-}
-.lib-dialog {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 440px;
-  padding: 32px;
-  border-radius: 36px;
-  background: var(--sf-surface);
-  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
-  color: var(--sf-ink);
-  font-family: var(--ph-sans);
-}
-.lib-dialog h2 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; }
-.lib-dialog p { margin: 10px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
-.lib-dialog .sf-input { display: block; width: 100%; margin-top: 12px; }
-.lib-dialog .sf-input:first-of-type { margin-top: 20px; }
-.lib-dialog-error { color: var(--sf-ink) !important; }
-.lib-dialog-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 24px; margin-top: 26px; }
-
 /* ---------------------------------------------------------------- narrower */
 @media (max-width: 1023px) {
   .lib-empty { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px; border-radius: 44px; }
@@ -419,7 +388,6 @@
   .lib-empty-text { padding: 16px 12px 22px; }
   .lib-empty-p { font-size: 17px; }
   .lib-art { height: 220px; border-radius: 28px; }
-  .lib-dialog { padding: 26px 22px; border-radius: 30px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

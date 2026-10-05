@@ -44,14 +44,13 @@ vi.mock('./ProReel', () => ({ default: () => <figure aria-label="Ролик: ч�
 
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { OPEN_PRO_EVENT, openProWindow } from '../../lib/plans';
-import { ProWindowProvider, useProWindow } from './ProWindow';
+import { ProWindowProvider } from './ProWindow';
 
 function Page() {
-  const open = useProWindow();
   const navigate = useNavigate();
   return (
     <>
-      <button type="button" onClick={() => open('pricing')}>
+      <button type="button" onClick={() => openProWindow('pricing')}>
         Что даёт PRO
       </button>
       <button type="button" onClick={() => navigate('/other')}>
@@ -63,10 +62,10 @@ function Page() {
 
 function renderApp() {
   return render(
-    <MemoryRouter initialEntries={['/pricing']}>
+    <MemoryRouter initialEntries={['/dashboard']}>
       <ProWindowProvider />
       <Routes>
-        <Route path="/pricing" element={<Page />} />
+        <Route path="/dashboard" element={<Page />} />
         <Route path="/other" element={<p>Другая страница</p>} />
         <Route path="/login" element={<p>Вход</p>} />
       </Routes>
@@ -271,25 +270,6 @@ describe('the PRO window', () => {
     expect(screen.getByText('Вход')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(db.tables).toEqual([]);
-  });
-});
-
-describe('useProWindow', () => {
-  it('fires the same window event as openProWindow', () => {
-    const seen: unknown[] = [];
-    const listen = (event: Event) => seen.push((event as CustomEvent).detail);
-    window.addEventListener(OPEN_PRO_EVENT, listen);
-    try {
-      render(
-        <MemoryRouter>
-          <Page />
-        </MemoryRouter>,
-      );
-      fireEvent.click(screen.getByRole('button', { name: 'Что даёт PRO' }));
-      expect(seen).toEqual([{ reason: 'pricing' }]);
-    } finally {
-      window.removeEventListener(OPEN_PRO_EVENT, listen);
-    }
   });
 });
 

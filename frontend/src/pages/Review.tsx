@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useAuth } from '../hooks/useAuth';
 import { getDueCards, updateCardProgress, type DueCard } from '../api/flashcards';
-import { recordStudyActivity } from '../api/quests';
+import { recordStudyActivity } from '../api/studyActivity';
 import { newEventId } from '../api/learning';
 import { supabase } from '../lib/supabase';
 import { pluralRu } from '../components/conversation/visuals';

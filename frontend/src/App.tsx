@@ -20,27 +20,12 @@ const Analyze = lazy(() => import('./pages/Analyze'));
 const Library = lazy(() => import('./pages/Library'));
 const MaterialDetail = lazy(() => import('./pages/MaterialDetail'));
 const Review = lazy(() => import('./pages/Review'));
-const Courses = lazy(() => import('./pages/Courses'));
-const Chat = lazy(() => import('./pages/Chat'));
-const ProfessorExam = lazy(() => import('./pages/ProfessorExam'));
-const Missions = lazy(() => import('./pages/Missions'));
 const MistakeDiary = lazy(() => import('./pages/MistakeDiary'));
-const MoodTracker = lazy(() => import('./pages/MoodTracker'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const KnowledgeMap = lazy(() => import('./pages/KnowledgeMap'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
-const HHCallback = lazy(() => import('./pages/HHCallback'));
-const SocialHub = lazy(() => import('./pages/SocialHub'));
-const CoStudy = lazy(() => import('./pages/CoStudy'));
-const Career = lazy(() => import('./pages/Career'));
-const StudySession = lazy(() => import('./pages/StudySession'));
 const Profile = lazy(() => import('./pages/Profile'));
-const Messages = lazy(() => import('./pages/Messages'));
-const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
-const Pricing = lazy(() => import('./pages/Pricing'));
-const ShortsPlayer = lazy(() => import('./pages/ShortsPlayer'));
 const SharedMaterial = lazy(() => import('./pages/SharedMaterial'));
-const AssignmentView = lazy(() => import('./pages/AssignmentView'));
 const Exams = lazy(() => import('./pages/Exams'));
 const ExamEditor = lazy(() => import('./pages/ExamEditor'));
 const ExamDetail = lazy(() => import('./pages/ExamDetail'));
@@ -109,17 +94,10 @@ export default function App() {
           <PrivateRoute><Layout /></PrivateRoute>
         }>
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="network" element={<SocialHub />} />
-          <Route path="career" element={<Career />} />
           <Route path="profile" element={<Profile />} />
-          <Route path="profile/:id" element={<Profile />} />
-          <Route path="messages" element={<Messages />} />
-          <Route path="messages/:id" element={<Messages />} />
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />
           <Route path="library/:id" element={<MaterialDetail />} />
-          <Route path="assignment/:id" element={<AssignmentView />} />
-          <Route path="co-study/:id" element={<CoStudy />} />
           <Route path="review" element={<Review />} />
           <Route path="exams" element={<Exams />} />
           <Route path="exams/new" element={<ExamEditor />} />
@@ -127,26 +105,12 @@ export default function App() {
           <Route path="exams/:id/edit" element={<ExamEditor />} />
           <Route path="exams/:id/draw" element={<ExamDraw />} />
           <Route path="exams/:id/ticket" element={<ExamTicket />} />
-          <Route path="study-session" element={<StudySession />} />
-          <Route path="planner" element={<Navigate to="/courses" replace />} />
-          <Route path="courses" element={<Courses />} />
-          <Route path="chat" element={<Chat />} />
-          <Route path="exam" element={<ProfessorExam />} />
-          <Route path="play" element={<Missions />} />
           <Route path="mistakes" element={<MistakeDiary />} />
-          <Route path="mood" element={<MoodTracker />} />
           <Route path="analytics" element={<Analytics />} />
-          <Route path="quick-prep" element={<Navigate to="/library" replace />} />
           <Route path="knowledge-map" element={<KnowledgeMap />} />
-          <Route path="teacher" element={<TeacherDashboard />} />
-          <Route path="pricing" element={<Pricing />} />
         </Route>
-        <Route path="/shorts/:id" element={
-          <PrivateRoute><ShortsPlayer /></PrivateRoute>
-        } />
         <Route path="/shared/:id" element={<SharedMaterial />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/hh-callback" element={<PrivateRoute><HHCallback /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>

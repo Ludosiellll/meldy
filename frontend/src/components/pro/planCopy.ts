@@ -1,6 +1,6 @@
 /**
  * Words about the plans, built from the shared numbers in lib/plans.ts (nothing on screen is typed
- * by hand): the free card of «Тарифы», the PRO window and its reel say the same thing.
+ * by hand): the PRO window and its reel say the same thing.
  */
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, type AICostKind } from '../../lib/plans';
 
@@ -38,16 +38,6 @@ const checks = (units: number) => {
 export function unitsPerDay(units: number): string {
   return `${units} ${plural(units, UNITS)} ИИ в день`;
 }
-
-/** A day's units with examples: «100 единиц ИИ в день — например, 5 лекций или 25 проверок ответов». */
-export function limitLine(units: number): string {
-  return `${unitsPerDay(units)} — например, ${lectures(units)} или ${checks(units)}`;
-}
-
-/** The free card's limit. */
-export const freeLimitLine = () => limitLine(FREE_DAILY_UNITS);
-/** The PRO card's limit. */
-export const proLimitLine = () => limitLine(PRO_DAILY_UNITS);
 
 /** What PRO changes: «До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.» */
 export function proGainLine(): string {

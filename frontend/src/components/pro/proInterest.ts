@@ -1,6 +1,6 @@
 /**
- * What the PRO window reads and writes in Supabase: the account's plan (profiles.is_pro, as on
- * «Тарифы») and the «Сообщить, когда появится» note (table pro_interest, migration
+ * What the PRO window reads and writes in Supabase: the account's plan (profiles.is_pro) and the
+ * «Сообщить, когда появится» note (table pro_interest, migration
  * 20261004204007_pro_interest: one row per account, the owner adds and reads it, nobody changes it).
  */
 import { supabase } from '../../lib/supabase';

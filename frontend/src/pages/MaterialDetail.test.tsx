@@ -70,7 +70,6 @@ vi.mock('../api/materials', async importOriginal => ({
 }));
 // The server charges the AI jobs; the page only refreshes the meter afterwards.
 vi.mock('../api/limits', () => ({ notifyAIUsageChanged: (...args: unknown[]) => state.increment(...args) }));
-vi.mock('../api/quests', () => ({ updateQuestProgress: vi.fn(() => Promise.resolve(true)) }));
 vi.mock('../hooks/useEnergyConfirm', () => ({ useEnergyConfirm: () => ({ verifyEnergy: vi.fn(async () => true) }) }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: state.userId } }) }));
 vi.mock('../contexts/ConfirmContext', () => ({

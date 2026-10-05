@@ -69,7 +69,7 @@ const NAME_RE = /^[a-z0-9_.:-]{1,60}$/;
 const PROP_KEY_RE = /^[a-z0-9_]{1,40}$/;
 const SESSION_RE = /^[A-Za-z0-9_-]{8,40}$/;
 const VERSION_RE = /^[A-Za-z0-9._+-]{1,40}$/;
-/** A path segment kept as it is: a lowercase word (dashboard, co-study, code_diagnostics); anything else is an id. */
+/** A path segment kept as it is: a lowercase word (dashboard, knowledge-map, code_diagnostics); anything else is an id. */
 const WORD_SEGMENT_RE = /^[a-z][a-z_-]{0,39}$/;
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
@@ -401,7 +401,7 @@ function recordPageView(): void {
   }
 }
 
-/** A redirect (/planner → /courses) settles first: only the page that stays is counted. */
+/** A redirect (a signed-out /dashboard → /login) settles first: only the page that stays is counted. */
 function schedulePageView(): void {
   if (state.pageTimer !== null) clearTimeout(state.pageTimer);
   state.pageTimer = setTimeout(() => {

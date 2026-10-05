@@ -10,7 +10,7 @@ import { DEMO_SETTINGS, DEMO_TEXT, DEMO_TEXT_ID, DEMO_TITLE, isDemoText } from '
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { syncFlashcards } from '../api/flashcards';
-import { recordStudyActivity } from '../api/quests';
+import { recordStudyActivity } from '../api/studyActivity';
 import { hasBadWords } from '../utils/moderation';
 import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, nextLimitReset, notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
