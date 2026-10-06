@@ -1945,8 +1945,10 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
 
 /* ---------------------------------------------------------------- «Шпаргалка · Вопросы» (cheat sheet spec 4.1) */
 /* The two views of the sheet as one pill pair at the start of the filter row; the filters follow in «Вопросы». */
-.sf-page .ex-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 18px; }
-.sf-page .ex-bar .ex-filter { margin: 0; }
+.sf-page .ex-viewbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 18px; }
+.sf-page .ex-viewbar .ex-filter { margin: 0; }
+.sf-page .ex-viewbar[data-empty] { display: none; }
+.sf-page .ex-viewbar-top { margin: 16px 0 0; }
 .sf-page .ex-views {
   display: inline-flex;
   flex: none;
@@ -1978,10 +1980,13 @@ html[data-stage] .sf-page [data-stage-hide] { display: none; }
   .sf-page .ex-views [role='tab'] { min-height: 40px; }
 }
 
+/* On the sheet the paper takes the room: two columns of handwriting need it more than the column does. */
+.sf-page[data-view='sheet'][data-frame='xl'] .ex-body { grid-template-columns: minmax(0, 1fr) 380px; gap: 40px; }
+
 /* A low window on the sheet (1532 × 734): the paper starts on the first screen. */
 @media (min-width: 1024px) and (max-height: 820px) {
   .sf-page[data-view='sheet'] .ex-crumb { display: none; }
-  .sf-page[data-view='sheet'] .ex-bar { margin-bottom: 14px; }
+  .sf-page[data-view='sheet'] .ex-viewbar { margin-bottom: 14px; }
 }
 @media (min-width: 1024px) and (min-height: 781px) and (max-height: 820px) {
   .sf-page[data-view='sheet'] .ex-head { padding-top: 28px; }

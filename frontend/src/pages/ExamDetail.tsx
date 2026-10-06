@@ -1108,6 +1108,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
         </div>
       )}
 
+      {/* Phones and tablets: the two views right under the header, above everything they change. */}
+      {!frame.side && <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div>}
+
       {!frame.side && (
         <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
           {onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn}
@@ -1116,8 +1119,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
       <div className="ex-body">
         <div style={{ minWidth: 0 }}>
-          <div className="ex-bar">
-            {viewTabs}
+          <div className="ex-viewbar" data-empty={!frame.side && onSheet ? '' : undefined}>
+            {frame.side && viewTabs}
             {!onSheet && (
               <ul className="ex-filter" aria-label="Показать вопросы">
                 <li>
@@ -1200,6 +1203,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
           </aside>
         )}
       </div>
+
+      {!frame.side && onSheet && sheetPage.after && <section className="ex-col ex-col-after">{sheetPage.after}</section>}
 
       {!frame.side && onSheet && sheetPage.overlay}
 

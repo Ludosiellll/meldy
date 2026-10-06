@@ -223,14 +223,14 @@
   vertical-align: baseline;
 }
 
-/* Rubbed paper under a line that was rubbed (rubbed, erased, due, returned): the grid shows at 40 % under
+/* Rubbed paper under a line that was rubbed (rubbed, erased, due, returned): the grid shows at 55 % under
    a graphite haze, so the place looks dull, not lighter; 6 px wider than the words. */
 .cs-patch {
   position: absolute;
   inset: 1px -3px;
   z-index: -1;
   border-radius: 10px;
-  background: linear-gradient(rgba(90, 96, 105, .05), rgba(90, 96, 105, .05)), color-mix(in srgb, var(--cs-paper) 60%, transparent);
+  background: linear-gradient(rgba(90, 96, 105, .045), rgba(90, 96, 105, .045)), color-mix(in srgb, var(--cs-paper) 45%, transparent);
   opacity: 0;
 }
 .cs-line:is([data-state='rubbed'], [data-state='erased'], [data-state='due'], [data-state='returned']) .cs-patch { opacity: 1; }
@@ -509,6 +509,7 @@
 .sf-page .cs-write .ex-stmt { font-size: 17px; line-height: 25px; }
 .sf-page .cs-write-go { margin: 20px 0 8px; }
 .sf-page .cs-write-go .sf-primary { width: 100%; justify-content: space-between; }
+.sf-page .cs-write-go .ex-secondary { width: 100%; }
 .sf-page .cs-write-fine { color: var(--sf-muted); }
 .sf-page .cs-outcome { font-weight: 500; }
 .sf-page .cs-write .ex-fine + .ex-fine { margin-top: 4px; }
@@ -520,7 +521,15 @@
 .sf-page .cs-loading { padding-top: 8px; }
 .sf-page .cs-events-error { margin-top: 4px; }
 
-/* Phones and tablets: the count and «Только то, что осталось» above the paper, compact. */
-.sf-page .cs-sum[data-compact] .cs-count { margin-top: 8px; }
-.sf-page .cs-sum[data-compact] .ex-big { font-size: 44px; }
-.sf-page .cs-sum[data-compact] .cs-toggles { margin-top: 10px; }
+/* Phones and tablets: the count and «Только то, что осталось» above the paper, compact; the rest under it. */
+.sf-page .ex-col > .cs-sum[data-variant='top'] { padding: 16px 20px 10px; border-radius: 24px; }
+.sf-page .cs-sum[data-variant='top'] .cs-count { margin-top: 0; gap: 2px 10px; }
+.sf-page .cs-sum[data-variant='top'] .ex-big { font-size: 40px; }
+.sf-page .cs-sum[data-variant='top'] .cs-count-l { font-size: 16px; line-height: 22px; }
+.sf-page .cs-sum[data-variant='top'] .cs-sub { margin-top: 2px; font-size: 14px; line-height: 20px; }
+.sf-page .cs-sum[data-variant='top'] .cs-toggles { margin-top: 6px; }
+.sf-page .cs-sum[data-variant='after'] .cs-share { margin-top: 0; padding-top: 0; border-top: 0; }
+.sf-page .cs-sum[data-variant='after'] .cs-toggles { margin-top: 10px; }
+.sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write { padding: 18px 20px; border-radius: 24px; }
+.sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write .cs-write-go { margin: 12px 0 6px; }
+.sf-page .cs-write-short { font-size: 15px; line-height: 22px; }

@@ -61,6 +61,8 @@ export interface SheetPage {
   column: ReactNode;
   /** Phones and tablets: the counter and the one switch above the paper, and writing. */
   top: ReactNode;
+  /** Phones and tablets: the share, the self-test, the last answer and the history, under the paper. */
+  after: ReactNode;
   /** Phones and tablets: the bottom sheet of a line. */
   overlay: ReactNode;
   /** The column holds the one filled pill now («Написать шпаргалку», «Ответить на этот вопрос»). */
@@ -327,7 +329,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
   const lineOpen = Boolean(selected);
   const primaryInColumn = active && (lineOpen || (firstWrite && !writing));
 
-  const summary = (compact: boolean) => (
+  const summary = (variant: 'full' | 'top' | 'after') => (
     <SheetSummaryCard
       counts={counts}
       left={left}
@@ -340,7 +342,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
       onHistory={lastSession && !history ? onHistory : null}
       history={historyView}
       onHistoryStop={() => (history?.running ? stopHistory() : setHistory(null))}
-      compact={compact}
+      variant={variant}
     />
   );
   const writeCard = (compact: boolean) =>
@@ -398,7 +400,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
   } else {
     column = (
       <>
-        {firstWrite ? writeCard(false) : summary(false)}
+        {firstWrite ? writeCard(false) : summary('full')}
         {firstWrite ? null : writeCard(false)}
         {data.eventsState === 'error' && data.eventsError && (
           <p className="ex-fine cs-events-error">
@@ -412,15 +414,24 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
     );
   }
 
+  // A phone shows the paper on the first screen: above it the count and the first write (spec 3.1, «на
+  // телефоне — над листом»); writing what is left, the self-test and the rest come under it.
   const top =
     data.status === 'ready' ? (
       <>
-        {counts.total > 0 && summary(true)}
-        {writeCard(true)}
+        {counts.total > 0 && summary('top')}
+        {(firstWrite || writing || input.unmapped) && writeCard(true)}
       </>
     ) : (
       column
     );
+  const after =
+    data.status === 'ready' && (counts.total > 0 || !firstWrite) ? (
+      <>
+        {!(firstWrite || writing || input.unmapped) && writeCard(true)}
+        {counts.total > 0 && summary('after')}
+      </>
+    ) : null;
 
   const overlay =
     !input.side && selected ? (
@@ -461,5 +472,5 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
       />
     ) : null;
 
-  return { data, paper, column, top, overlay, primaryInColumn, lineOpen, closeLine };
+  return { data, paper, column, top, after, overlay, primaryInColumn, lineOpen, closeLine };
 }

@@ -84,7 +84,12 @@ export interface SheetSummaryProps {
   onHistory: (() => void) | null;
   history: { frame: HistoryFrame; first: HistoryFrame; running: boolean } | null;
   onHistoryStop: () => void;
-  compact?: boolean;
+  /**
+   * full — the column beside the sheet; on a phone the card is cut in two: top — the count and «Только
+   * то, что осталось» above the paper, after — the share, the self-test, the last answer and the history
+   * under it.
+   */
+  variant?: 'full' | 'top' | 'after';
 }
 
 function Toggle({ label, on, onChange, hint }: { label: string; on: boolean; onChange: (on: boolean) => void; hint?: string }) {
@@ -98,13 +103,42 @@ function Toggle({ label, on, onChange, hint }: { label: string; on: boolean; onC
 
 export function SheetSummaryCard(props: SheetSummaryProps) {
   const { counts, mode, onMode } = props;
+  const variant = props.variant ?? 'full';
   const details = counterDetails(counts);
   const history = props.history;
   const shownLeft = history ? history.frame.left : props.left;
+  const showCount = variant !== 'after' && counts.total > 0;
+  const acts = (props.onReplay || props.onHistory || history) && (variant !== 'top' || history?.running) && (
+    <div className="cs-acts">
+      {history?.running ? (
+        <button type="button" className="sf-link" onClick={props.onHistoryStop}>
+          Остановить
+        </button>
+      ) : (
+        <>
+          {props.onReplay && (
+            <button type="button" className="sf-link" onClick={props.onReplay}>
+              Показать последний ответ
+            </button>
+          )}
+          {props.onHistory && (
+            <button type="button" className="sf-link" onClick={props.onHistory}>
+              История листа
+            </button>
+          )}
+          {history && (
+            <button type="button" className="sf-link" data-muted="" onClick={props.onHistoryStop}>
+              Вернуться к сегодня
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
   return (
-    <div className="ex-summary cs-sum" data-compact={props.compact ? '' : undefined}>
-      <p className="ex-why-t cs-flag">Шпаргалка</p>
-      {counts.total > 0 && (
+    <div className="ex-summary cs-sum" data-variant={variant}>
+      {variant === 'full' && <p className="ex-why-t cs-flag">Шпаргалка</p>}
+      {showCount && (
         <div className="cs-count" aria-live="polite">
           <span className="ex-big cs-big">
             <RollingNumber value={shownLeft} roll={props.roll || Boolean(history)} />
@@ -112,58 +146,29 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
           <span className="cs-count-l">{counterLabel({ left: shownLeft, total: history ? history.frame.total : counts.total })}</span>
         </div>
       )}
-      {history ? (
-        <p className="cs-sub">
-          {history.running ? `${formatShortDay(history.frame.day)}` : historyResult(history.first, history.frame)}
-        </p>
-      ) : (
-        details && <p className="cs-sub">{details}</p>
-      )}
-      {props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
-      {props.shareLine && !props.compact && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
+      {showCount &&
+        (history ? (
+          <p className="cs-sub">{history.running ? formatShortDay(history.frame.day) : historyResult(history.first, history.frame)}</p>
+        ) : (
+          details && <p className="cs-sub">{details}</p>
+        ))}
+      {variant !== 'after' && props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
+      {variant !== 'top' && props.shareLine && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
       {counts.total > 0 && (
         <div className="cs-toggles">
-          <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />
-          {!props.compact && (
-            <>
-              <Toggle
-                label="Закрыть строки"
-                on={mode.cover}
-                onChange={(on) => onMode({ ...mode, cover: on })}
-                hint="Строки закрыты — вспомните их сами. Открыть строку значит подсмотреть"
-              />
-              <Toggle label="Весь лист" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />
-            </>
+          {variant !== 'after' && <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
+          {variant !== 'top' && (
+            <Toggle
+              label="Закрыть строки"
+              on={mode.cover}
+              onChange={(on) => onMode({ ...mode, cover: on })}
+              hint="Строки закрыты — вспомните их сами. Открыть строку значит подсмотреть"
+            />
           )}
+          {variant === 'full' && <Toggle label="Весь лист" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />}
         </div>
       )}
-      {(props.onReplay || props.onHistory || history) && (
-        <div className="cs-acts">
-          {history?.running ? (
-            <button type="button" className="sf-link" onClick={props.onHistoryStop}>
-              Остановить
-            </button>
-          ) : (
-            <>
-              {props.onReplay && (
-                <button type="button" className="sf-link" onClick={props.onReplay}>
-                  Показать последний ответ
-                </button>
-              )}
-              {props.onHistory && (
-                <button type="button" className="sf-link" onClick={props.onHistory}>
-                  История листа
-                </button>
-              )}
-              {history && (
-                <button type="button" className="sf-link" data-muted="" onClick={props.onHistoryStop}>
-                  Вернуться к сегодня
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      {acts}
     </div>
   );
 }
@@ -262,6 +267,9 @@ export function SheetWriteCard(props: SheetWriteProps) {
   return (
     <div className="ex-blk cs-write" data-first={first ? '' : undefined}>
       {outcome && <p className="ex-stmt cs-outcome">{glue(outcome)}</p>}
+      {first && props.compact && (
+        <p className="ex-stmt cs-write-short">Meldy выпишет из ваших лекций пункты ответа на каждый вопрос. Стирают их только ваши ответы.</p>
+      )}
       {first && !props.compact && (
         <>
           <h3 className="cs-write-h">Шпаргалка ещё не написана</h3>
@@ -273,7 +281,8 @@ export function SheetWriteCard(props: SheetWriteProps) {
       )}
       {affordable > 0 ? (
         <div className="cs-write-go">
-          <button type="button" className="sf-primary" onClick={() => props.onWrite(affordable < props.toWrite ? affordable : undefined)}>
+          {/* The column's filled pill only before the first write; then «Тянуть билет» stays the one. */}
+          <button type="button" className={first ? 'sf-primary' : 'ex-secondary'} onClick={() => props.onWrite(affordable < props.toWrite ? affordable : undefined)}>
             {label}
           </button>
         </div>
