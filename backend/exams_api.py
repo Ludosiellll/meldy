@@ -6,7 +6,8 @@
 провайдеров и исключений. Разбор и извлечение текста бесплатны (единиц лимита не тратят)
 и обходятся без ИИ, кроме скана: PDF без текстового слоя распознаёт Gemini (ocr.py, свой
 лимит на пользователя и предел страниц), а ответ получает ocr: true и pages. Модель
-вызывает ещё разметка (/map).
+вызывает ещё разметка (/map); начатая разметка останавливает запись шпаргалки этого экзамена
+(oral_sheet.stop_for_mapping, как «Остановить»).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import ocr
+import oral_sheet  # oral_sheet не импортирует exams_api: круга нет
 from exams_map import MAX_QUESTION_IDS, MapError, prepare_mapping, release_unstarted, run_mapping
 from exams_parse import ParseError, parse_question_list
 from ocr import OcrError
@@ -375,6 +377,9 @@ async def map_exam(exam_id: str, request: Request):
     except BaseException:
         await db.aclose()
         raise
+    # Сверка началась (блокировка взята): запись шпаргалки этого экзамена новых вопросов не начинает —
+    # эталоны по прежним вопросам и ключам новой сверке не нужны, а единицы за них списались бы.
+    oral_sheet.stop_for_mapping(request, token, exam_id)
     # Сверка списывает дневной лимит перед судьёй: за вопросы, которые уходят модели.
     job.reserve_units = functools.partial(quota.reserve, token, "examMapping")
     return StreamingResponse(

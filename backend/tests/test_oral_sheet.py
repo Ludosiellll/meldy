@@ -2,12 +2,14 @@
 
 Ключ /api/oral/rubric и листа — одна формула; подбор фрагментов по лекциям, загруженным один раз на
 задачу, тот же. Чтение листа: 0, 1 и 300 вопросов (адреса запросов короче 8 КБ), чужие ключи и
-rebuilt, испорченная строка, урезанные поля, short только своей версии эталона, страницы, лист без
-колонки sheet. Запись: поток SSE (только data:), кэш перед списанием, одна оплата на двоих с
-/rubric, возвраты, 429/504 → busy и стоп, лимит на середине → ai_limit, уход клиента, второй POST,
-сверка → 409, не больше двух сборок на процесс со сдвигом стартов, keepalive, истёкший токен →
-auth, «Остановить», дневной потолок, несохранённый эталон. Короткие строки: проверка кодом, PATCH
-только sheet с created_at, пробованные пункты модели больше не отдаются, без единиц, пачки до 60.
+rebuilt (только эталон из лекций этого экзамена), испорченная строка, урезанные поля, short только
+своей версии эталона, страницы, лист без колонки sheet. Запись: поток SSE (только data:), кэш перед
+списанием, одна оплата на двоих с /rubric, возвраты, 429/504 → busy и стоп, лимит на середине →
+ai_limit со счётом запуска, уход клиента, второй POST, сверка → 409, начатая сверка останавливает
+запись, не больше двух сборок на процесс со сдвигом стартов, keepalive, истёкший токен → auth,
+«Остановить», дневной потолок, несохранённый эталон. Короткие строки: проверка кодом, PATCH только
+sheet с created_at, пробованные пункты модели больше не отдаются, ответ без запрошенных ключей не
+помечает ничего, без единиц, пачки до 60, события refresh без счёта.
 
 Supabase — PostgREST в памяти из test_oral_api (здесь ещё JSON-пути в select, offset, колонка sheet,
 истекающий токен), модель — подменённый BaseAgent.run, дневной лимит — QuotaServer из test_quota.
@@ -48,7 +50,7 @@ QUESTIONS = [
 ]
 TITLES_SHORT = {
     "Цель политики — ценовая стабильность": "цель — ценовая стабильность",
-    "Основной инструмент — ключевая ставка": "гл. инструмент — ключ. ставка",
+    "Основной инструмент — ключевая ставка": "осн. инструмент — ключ. ставка",
     "Операции на открытом рынке": "операции на откр. рынке",
     "Нормы обязательных резервов": "нормы обяз. резервов",
 }
@@ -143,7 +145,22 @@ class SheetSupabase(FakeSupabase):
 
     @staticmethod
     def _matches(row, params):
-        return FakeSupabase._matches(row, [(key, value) for key, value in params if key != "offset"])
+        plain = [(key, value) for key, value in params if key not in ("offset", "or")]
+        either = [value for key, value in params if key == "or"]
+        return FakeSupabase._matches(row, plain) and all(SheetSupabase._either(row, value) for value in either)
+
+    @staticmethod
+    def _either(row, value):
+        """or=(…) блокировки сверки (/map): хватает одного условия из neq, is.null и lt."""
+        for term in value.strip("()").split(","):
+            column, op, operand = term.split(".", 2)
+            actual, operand = row.get(column), operand.strip('"')
+            if op == "is" and operand == "null":
+                if actual is None:
+                    return True
+            elif actual is not None and (op == "neq" and str(actual) != operand or op == "lt" and str(actual) < operand):
+                return True  # как в SQL: с NULL ни neq, ни lt не верны
+        return False
 
     @staticmethod
     def _ordered(rows, order):
@@ -631,6 +648,31 @@ def test_other_keys_are_ignored_and_rebuilt_says_the_points_were_rebuilt(sheet):
     assert body["to_write"] == 3
 
 
+def test_rebuilt_is_only_about_rubrics_from_this_exam_s_lectures(sheet):
+    """Строка oral_rubrics не хранит ни экзамен, ни вопрос: «пункты пересобраны» — только про эталон,
+    собранный из лекций этого экзамена, а не про тот же текст вопроса в другом экзамене."""
+    fake = sheet.fake
+    exam_a, (question_a,), _ = course(fake, [ECON_QUESTION], lectures=(("Денежный рынок", ECON), ("Бюджет", BUDGET)))
+    lectures_a = [link["material_id"] for link in fake.tables["exam_materials"] if link["exam_id"] == exam_a]
+    rubric = stored_rubric(lectures_a[0])
+    rubric["materials"].append({"key": "M2", "material_id": lectures_a[1], "title": "Бюджет"})
+    rubric_row(fake, question_a, lectures_a[0], rubric=rubric)  # написан в экзамене A из обеих его лекций
+    # Экзамен B: тот же вопрос, другие лекции — здесь его не писали.
+    exam_b, (question_b,), _ = course(fake, [ECON_QUESTION], fingerprint="fp-other")
+    assert fake.row("exam_questions", question_b)["question_hash"] == fake.row("exam_questions", question_a)["question_hash"]
+    fake.requests.clear()
+    (question,) = read_sheet(sheet, exam_b)["questions"]
+    assert question["rubric"] is None and question["rebuilt"] is False
+    assert fake.paths().count("exam_materials") == 1  # лекции экзамена читаются, только когда есть что сверять
+    # Одна лекция A есть и в B, но эталон собран ещё и из второй — тоже не эталон вопроса B.
+    fake.link(exam_b, lectures_a[0])
+    assert read_sheet(sheet, exam_b)["questions"][0]["rebuilt"] is False
+    # В самом A сверка поменяла ключ: прежний эталон из его лекций — «пункты пересобраны».
+    fake.row("exam_questions", question_a)["materials_fingerprint"] = "fp-econ-2"
+    (question,) = read_sheet(sheet, exam_a)["questions"]
+    assert question["rubric"] is None and question["rebuilt"] is True
+
+
 def test_a_corrupt_row_counts_as_to_write_and_is_rebuilt_in_place(sheet):
     fake = sheet.fake
     exam_id, (question_id,), material_id = course(fake, QUESTIONS[:1])
@@ -781,9 +823,13 @@ def test_question_ids_pick_from_the_writable_ones_and_a_run_takes_at_most_sixty(
     rubric_row(fake, third, material_id)
     events = events_of(write(sheet, exam_id, question_ids=[fourth, second, third, "не-uuid"]))
     assert events[0] == {"type": "progress", "done": 0, "total": 1}
-    # third уже написан: в запуск не входит, ему только дописываются короткие строки (без счёта done).
+    # third уже написан: в запуск не входит, ему только дописываются короткие строки — событие refresh
+    # без done и total, счёт «N из M» оно не трогает.
     assert sorted(statuses(events)) == sorted([(fourth, "written"), (third, "cached")])
-    assert [event["done"] for event in events if event.get("status") == "cached"] == [0]
+    (refresh,) = [event for event in events if event.get("status") == "cached"]
+    assert refresh["refresh"] is True and "done" not in refresh and "total" not in refresh
+    (written,) = [event for event in events if event.get("status") == "written"]
+    assert "refresh" not in written and (written["done"], written["total"]) == (1, 1)
     monkeypatch.setattr(oral_sheet, "MAX_RUN_QUESTIONS", 1)
     events = events_of(write(sheet, exam_id))
     assert events[0]["total"] == 1 and statuses(events) == [(first, "written")]
@@ -877,8 +923,11 @@ def test_the_ai_limit_mid_run_ends_with_ai_limit_and_charges_nothing_more(paid, 
     events = events_of(write(paid, exam_id))
     assert statuses(events) == [(ids[0], "written"), (ids[1], "written"), (ids[2], "limit"), (ids[3], "limit")]
     last = events[-1]
+    # Событие лимита как у AILimitExceeded (type, code, message, limit — дневной предел) и счёт запуска,
+    # как у done: клиент пишет «Написано 2 из 4»; units — списано за запуск.
     assert last == {"type": "error", "code": "ai_limit", "message": quota.AI_LIMIT_DETAIL, "used": FREE_DAILY_UNITS,
-                    "limit": FREE_DAILY_UNITS, "resets_at": "2026-10-05T00:00:00Z", "pro": False, "units": 1}
+                    "limit": FREE_DAILY_UNITS, "resets_at": "2026-10-05T00:00:00Z", "pro": False,
+                    "written": 2, "failed": 0, "busy": 0, "units": 2, "total": 4, "auth": 0, "stopped": 0}
     assert not any(event["type"] == "done" for event in events)
     consumed = paid.server.rpc("consume_ai_units")
     assert len(consumed) == 3 and paid.server.used == FREE_DAILY_UNITS  # третий отказ, четвёртого запроса нет
@@ -1114,6 +1163,51 @@ def test_stop_finishes_started_questions_and_starts_no_more(sheet, monkeypatch):
     assert again.json() == {"stopped": False, "running": 0}
 
 
+def test_a_mapping_run_stops_the_sheet_job_of_its_exam(sheet, monkeypatch):
+    """«Сверить с лекциями» во время записи: сверка поменяет вопросы и ключи, поэтому запись этого
+    экзамена новых вопросов не начинает — как «Остановить», начатый вопрос дописывается."""
+    import exams_api
+
+    monkeypatch.setattr(oral_sheet, "BUILD_SLOTS", 1)
+    fake = sheet.fake
+    exam_id, ids, _ = course(fake, QUESTIONS)
+    other_exam, _, _ = course(fake, QUESTIONS[:1])
+    sheet.model.delay = 0.3
+
+    async def mapping_without_judge(job):
+        # Сама сверка здесь не нужна (её проверяет test_exams_map): только то, что её начало делает с записью.
+        job.started = True
+        await job.db.aclose()
+        yield {"type": "done", "state": "done"}
+
+    monkeypatch.setattr(exams_api, "run_mapping", mapping_without_judge)
+    body = {"question_ids": None, "force": False}
+
+    async def scenario(client):
+        running = asyncio.ensure_future(client.post("/api/oral/sheet/write", json={"exam_id": exam_id}))
+        await until(lambda: sheet.model.rubric_calls)
+        elsewhere = await client.post(f"/api/exams/{other_exam}/map", json=body)
+        exam = fake.row("exams", exam_id)
+        exam.update(mapping_state="running", mapping_started_at=datetime.now(timezone.utc).isoformat())
+        refused = await client.post(f"/api/exams/{exam_id}/map", json=body)  # блокировку держит другая сверка
+        halt = oral_sheet._jobs[("user-a", exam_id)].halt
+        exam.update(mapping_state="done", mapping_started_at=None)
+        mapped = await client.post(f"/api/exams/{exam_id}/map", json=body)
+        job = (await client.get(f"/api/oral/sheet?exam_id={exam_id}")).json()["job"]
+        return elsewhere, refused, halt, mapped, job, await running
+
+    elsewhere, refused, halt, mapped, job, streamed = in_one_loop(sheet.main, scenario)
+    # Сверка другого экзамена и сверка, которая не началась, запись не трогают.
+    assert elsewhere.status_code == 200 and refused.status_code == 409 and halt is None
+    assert mapped.status_code == 200 and fake.row("exams", exam_id)["mapping_state"] == "running"
+    assert job["state"] == "stopping"
+    events = events_of(streamed)
+    assert statuses(events) == [(ids[0], "written")]
+    assert events[-1] == {"type": "done", "written": 1, "failed": 0, "busy": 0, "limit": False, "units": 0,
+                          "total": 4, "auth": 0, "stopped": 3}
+    assert len(sheet.model.rubric_calls) == 1 and len(fake.rubrics()) == 1 and oral_sheet._jobs == {}
+
+
 def test_the_daily_build_cap_of_the_process_marks_the_rest_busy(sheet, monkeypatch):
     monkeypatch.setenv("SHEET_DAILY_BUILDS", "1")
     monkeypatch.setattr(oral_sheet, "BUILD_SLOTS", 1)
@@ -1172,7 +1266,7 @@ def test_a_crashing_job_ends_the_stream_with_an_error(sheet, monkeypatch):
     "short, title, problem",
     [
         ("цель — ценовая стабильность", "Цель политики — ценовая стабильность", None),
-        ("гл. инструмент — ключ. ставка", "Основной инструмент — ключевая ставка", None),
+        ("осн. инструмент — ключ. ставка", "Основной инструмент — ключевая ставка", None),
         ("цена ↑ → спрос ↓", "Чем выше цена, тем меньше спрос", None),
         ("ставка ↑ → инфляция ↓", "Рост ставки снижает инфляцию", None),
         ("нормы ↑ → мульт. ↓", "Рост норм сокращает денежный мультипликатор", None),
@@ -1197,6 +1291,37 @@ def test_a_crashing_job_ends_the_stream_with_an_error(sheet, monkeypatch):
         ("цель политики ценовая стабильность", "Цель политики — ценовая стабильность", "same"),
         ("", "Нормы обязательных резервов", "empty"),
         (None, "Нормы обязательных резервов", "empty"),
+        # Ни одного слова или знака сверх title.
+        ("инфл. не всегда вредна и всегда полезна", "Инфляция не всегда вредна и не всегда полезна", "negation"),
+        ("инфл. всегда не вредна и не всегда полезна", "Инфляция не всегда вредна и не всегда полезна", "negation"),
+        ("инфл. не всегда вредна и не всегда полезна", "Инфляция не всегда вредна и не всегда полезна", None),
+        ("постоянные не ↑ с выпуском", "Постоянные издержки не растут с выпуском", None),
+        ("постоянные не ↓ с выпуском", "Постоянные издержки не растут с выпуском", "negation"),
+        ("инфл. 16% при ставке 4%", "Инфляция составила 4% при ключевой ставке 16%", "numbers"),
+        ("инфл. 4% при ставке 16%", "Инфляция составила 4% при ключевой ставке 16%", None),
+        ("ставка 2%", "Ставка — 2,5% годовых", "numbers"),
+        ("ставка 2.5%", "Ставка — 2,5% годовых", None),
+        ("реальн. ставка < инфляции", "Реальная ставка выше инфляции", "comparison"),
+        ("реальн. ставка > инфляции", "Реальная ставка выше инфляции", "comparison"),
+        ("спрос эластичный, если E > 1", "Спрос эластичный, если эластичность E > 1", None),
+        ("ставка ↑ → ввп ↓", "Рост ставки снижает инфляцию", "short_word"),
+        ("доходность до 2% годовых", "Доходность облигаций — от 2% годовых", "short_word"),
+        ("доходность от 2% годовых", "Доходность облигаций — от 2% годовых", None),
+        ("гл. инструмент — ключ. ставка", "Основной инструмент — ключевая ставка", "short_word"),
+        ("спрос: от доходов, цен др. товаров", "Спрос зависит от доходов и цен других товаров", None),
+        ("инфляция ↓ → ставка ↑", "Инфляция снижается, когда растёт ставка", "cause"),
+        ("ставка ↑ → инфляция ↓", "Инфляция снижается из-за роста ставки", "cause"),
+        ("инфляция ↓ → ставка ↑", "Рост ставки снижает инфляцию", "cause"),
+        ("ставка ↑ ← инфляция ↓", "Рост ставки снижает инфляцию", "cause"),
+        ("инфляция ↓ ← ставка ↑", "Рост ставки снижает инфляцию", None),
+        ("ставка ↑ ⇒ инфляция ↓", "Рост ставки снижает инфляцию", None),
+        ("прибыль = выручка + издержки", "Прибыль — разница между выручкой и издержками", "arithmetic"),
+        ("прибыль = выручка − издержки", "Прибыль — разница между выручкой и издержками", None),
+        ("прибыль = выручка - издержки", "Прибыль — разница между выручкой и издержками", None),
+        ("выручка - издержки", "Выручка и издержки фирмы за год", "arithmetic"),
+        ("выручка-издержки фирмы", "Выручка и издержки фирмы за год", None),
+        ("спрос / цена", "Спрос и цена товара на рынке", "arithmetic"),
+        ("выручка = цена × количество", "Выручка — цена, умноженная на количество", None),
     ],
 )
 def test_short_lines_are_checked_by_code(short, title, problem):
@@ -1234,7 +1359,9 @@ def test_tried_points_are_never_sent_to_the_model_again(sheet):
 
     def answer(text, kwargs):
         keys = [key for key, _ in _KEY_LINE_RE.findall(text)]
-        return {keys[0]: "цель — ценовая стабильность", keys[1]: "гл. инструмент — 2% инфляции", keys[2]: ""}
+        # «Пробовали» — только пункты, на которые модель ответила: строкой, не прошедшей проверку, или "".
+        return {keys[0]: "цель — ценовая стабильность", keys[1]: "гл. инструмент — 2% инфляции", keys[2]: "",
+                keys[3]: "нормы резервов ↑"}
 
     sheet.model.shorts = answer
     first = events_of(write(sheet, exam_id))
@@ -1269,6 +1396,57 @@ def test_a_cut_off_short_answer_marks_tried_only_what_came(sheet):
     assert set(row["sheet"]["short"]) == {"p1", "p3", "p4"}
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Вот строки шпаргалки: цель — ценовая стабильность, основной инструмент — ставка.",  # проза без JSON
+        "{}",
+        '{"q1": {"p1": "цель — ценовая стабильность", "p2": "осн. инструмент — ключ. ставка"}}',  # другая вложенность
+        '{"Q1P1": null, "q1p2": 5}',  # ключи есть, строк нет
+    ],
+)
+def test_an_answer_without_the_requested_keys_marks_nothing_and_is_not_kept(sheet, monkeypatch, answer):
+    fake = sheet.fake
+    exam_id, (question_id,), _ = course(fake, QUESTIONS[:1])
+    forgotten = []
+    monkeypatch.setattr(BaseAgent, "forget", classmethod(lambda cls, raw: forgotten.append(raw)))
+    sheet.model.shorts = lambda text, kwargs: answer
+    events = events_of(write(sheet, exam_id))
+    assert statuses(events) == [(question_id, "written")]
+    assert [point["short"] for point in events[1]["rubric"]["points"]] == [""] * 4
+    (row,) = fake.rubrics()
+    # Сбой вызова: ни строк, ни «пробовали» (PATCH не было), а ответ не остался в кэше модели.
+    assert row["sheet"] is None and not any(request.method == "PATCH" for request in fake.requests)
+    assert forgotten == [answer]
+    # Следующий запуск снова отдаёт модели все четыре пункта, и годный ответ ложится в лист.
+    sheet.model.shorts = None
+    events = events_of(write(sheet, exam_id))
+    assert re.findall(r"q\dp\d", sheet.model.short_calls[-1]["text"]) == ["q1p1", "q1p2", "q1p3", "q1p4"]
+    assert row["sheet"]["short"] == dict(zip(["p1", "p2", "p3", "p4"], TITLES_SHORT.values()))
+    assert row["sheet"]["tried"] == {} and len(sheet.model.rubric_calls) == 1
+    assert [point["short"] for point in events[1]["rubric"]["points"]] == list(TITLES_SHORT.values())
+
+
+def test_only_the_points_the_model_answered_are_marked_tried(sheet):
+    fake = sheet.fake
+    exam_id, (question_id,), _ = course(fake, QUESTIONS[:1])
+
+    def partial(text, kwargs):
+        keys = [key for key, _ in _KEY_LINE_RE.findall(text)]
+        return {keys[0]: "цель — ценовая стабильность", keys[1]: ""}  # p3 и p4 модель пропустила, ответ не оборван
+
+    sheet.model.shorts = partial
+    events_of(write(sheet, exam_id))
+    (row,) = fake.rubrics()
+    assert row["sheet"]["short"] == {"p1": "цель — ценовая стабильность"} and row["sheet"]["tried"] == {"p2": True}
+    sheet.model.shorts = None
+    events_of(write(sheet, exam_id))
+    assert re.findall(r"q\dp\d", sheet.model.short_calls[-1]["text"]) == ["q1p3", "q1p4"]
+    assert row["sheet"]["short"] == {"p1": "цель — ценовая стабильность", "p3": TITLES_SHORT["Операции на открытом рынке"],
+                                     "p4": TITLES_SHORT["Нормы обязательных резервов"]}
+    assert row["sheet"]["tried"] == {"p2": True}
+
+
 def test_short_lines_cost_no_units(paid):
     exam_id, ids, material_id = course(paid.fake, QUESTIONS[:3])
     rubric_row(paid.fake, ids[2], material_id)
@@ -1287,7 +1465,9 @@ def test_rubrics_that_already_existed_are_shortened_in_batches_of_sixty_points(s
     assert events[0] == {"type": "progress", "done": 0, "total": 0}
     cached = [event for event in events if event["type"] == "question"]
     assert sorted(event["question_id"] for event in cached) == sorted(ids)
-    assert all(event["status"] == "cached" and event["done"] == 0 and event["total"] == 0 for event in cached)
+    # Эталоны были до запуска: refresh без done и total (иначе клиент насчитал бы «16 из 0»).
+    assert all(event["status"] == "cached" and event["refresh"] is True for event in cached)
+    assert all("done" not in event and "total" not in event for event in cached)
     assert all(point["short"] for event in cached for point in event["rubric"]["points"])
     assert events[-1]["written"] == 0 and events[-1]["units"] == 0
     sizes = [len(re.findall(r"^q\d+p\d:", call["text"], flags=re.M)) for call in sheet.model.short_calls]
