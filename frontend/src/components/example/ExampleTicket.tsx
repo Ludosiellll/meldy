@@ -20,9 +20,8 @@ import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } 
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
 import { track } from '../../lib/telemetry';
-import { answerChange } from '../exams/sheet/answerChange';
+import { answerChange, type AnswerChange } from '../exams/sheet/answerChange';
 import { protocolSheetLine } from '../exams/sheet/copy';
-import type { ChangeSummary } from '../../lib/exams/cheatSheet';
 import type { Evaluation } from '../../lib/oral/oralApi';
 import { exampleRubric } from '../../data/example';
 import {
@@ -97,16 +96,16 @@ export default function ExampleTicket() {
 }
 
 /** What one answer of the example changed on the example's sheet («На шпаргалке: …»). */
-function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0, answers: [answer], peeks: [] })): ChangeSummary | null {
+function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0, answers: [answer], peeks: [] })): AnswerChange | null {
   const sheetQuestion = trySheetQuestions().find((item) => item.question_id === answer.questionId);
   return sheetQuestion ? answerChange(sheetQuestion, events, answer.session, Date.now()) : null;
 }
 
 /** «На шпаргалке: 3 строки стёрлись, 1 — наполовину · посмотреть». */
-function SheetChangeLine({ change }: { change: ChangeSummary }) {
+function SheetChangeLine({ change }: { change: AnswerChange }) {
   return (
     <p className="or-save-line or-sheet-change">
-      {glue(protocolSheetLine(change))}
+      {glue(protocolSheetLine(change.summary, change.quiet))}
       {' · '}
       <Link className="sf-link" to={TRY_SHEET_PATH}>
         посмотреть
@@ -158,7 +157,11 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
         </section>
         <section className="or-side" aria-label="Оценка">
           <p className="or-readonly-note">
-            {glue(seeded ? `Ответ примера от ${when}: так пример «ответил вчера» — его строки на шпаргалке потёрты.` : `Ваш ответ от ${when}. Протокол только для чтения.`)}
+            {glue(
+              seeded
+                ? `Ответ примера: считаем, что он дан вчера, ${when}. Названные в нём пункты он стёр на шпаргалке наполовину.`
+                : `Ваш ответ от ${when}. Протокол только для чтения.`,
+            )}
           </p>
           {seeded ? <p className="or-readonly-note tx-kept-said">{`«${answer.transcript}»`}</p> : null}
           <ExampleGrade result={grade}>
@@ -311,7 +314,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
 
   // ── The protocol keeps the answer in this tab: the example's sheet erases by it (sheet spec 4.3) ──
   const keptSession = useRef<{ attempt: string; session: string } | null>(null);
-  const [sheetChange, setSheetChange] = useState<ChangeSummary | null>(null);
+  const [sheetChange, setSheetChange] = useState<AnswerChange | null>(null);
   useEffect(() => {
     if (state.phase !== 'protocol' || state.evaluation.status !== 'done' || !state.attempt) return;
     const attemptId = state.attempt.attemptId;
@@ -377,6 +380,19 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     }
     speech.reset(state.typed);
     if (speech.start()) dispatch({ type: state.phase === 'answering' ? 'mode' : 'start', mode: 'voice', now: Date.now() });
+  };
+
+  /** «Вставить ответ примера»: the example's own answer in the text field, whatever the mode was. */
+  const insertExample = () => {
+    focusTextRef.current = true;
+    if (state.phase === 'ready') {
+      dispatch({ type: 'start', mode: 'text', now: Date.now() });
+    } else if (state.phase === 'answering' && voiceAnswer) {
+      speech.reset(EXAMPLE_ANSWER_Q5);
+      dispatch({ type: 'mode', mode: 'text', typed: EXAMPLE_ANSWER_Q5, now: Date.now() });
+      return;
+    }
+    dispatch({ type: 'typed', text: EXAMPLE_ANSWER_Q5 });
   };
 
   const startText = () => {
@@ -598,22 +614,23 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           <section className="or-side" aria-label="Оценка">
             <ExampleGrade result={grade}>
               {sheetChange ? <SheetChangeLine change={sheetChange} /> : null}
-              <p className="tx-grade-back">
-                <Link className="sf-link" data-muted="" to={TRY_SHEET_PATH}>
-                  К шпаргалке
-                </Link>
-                <button type="button" className="sf-link" data-muted="" onClick={answerAgain}>
-                  Ответить ещё раз
-                </button>
-              </p>
+              {/* The example's story goes on on its sheet: the answer is played there (sheet spec 4.3). */}
               <div className="or-acts" data-wide="">
-                <Link className="sf-primary" to={createHref}>
-                  Создать свой экзамен
+                <Link className="sf-primary" to={TRY_SHEET_PATH}>
+                  К шпаргалке
                 </Link>
                 <button type="button" className="sf-link" onClick={() => navigate('/try/draw')}>
                   Ещё билет
                 </button>
               </div>
+              <p className="tx-grade-back">
+                <Link className="ex-secondary" to={createHref}>
+                  Создать свой экзамен
+                </Link>
+                <button type="button" className="sf-link" data-muted="" onClick={answerAgain}>
+                  Ответить ещё раз
+                </button>
+              </p>
             </ExampleGrade>
           </section>
         </main>
@@ -659,6 +676,11 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       <>
         {!speech.supported ? <p className="or-message or-message-muted">{SPEECH_UNSUPPORTED_MESSAGE}</p> : null}
         {answerChoice}
+        {question.id === EXAMPLE_ANSWER_QUESTION ? (
+          <button type="button" className="sf-link tx-insert" onClick={insertExample}>
+            Вставить ответ примера
+          </button>
+        ) : null}
         <p className="or-privacy">{EXAMPLE_PRIVACY_LINE}</p>
         <p className="or-links">
           <Link className="sf-link" data-muted="" to="/try/draw">
@@ -691,6 +713,11 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           </p>
         ) : null}
         {silence ? <p className="or-hint">Говорите — я слушаю.</p> : null}
+        {voiceAnswer && question.id === EXAMPLE_ANSWER_QUESTION && !answerText.trim() ? (
+          <button type="button" className="sf-link tx-insert" onClick={insertExample}>
+            Вставить ответ примера
+          </button>
+        ) : null}
         {elapsed >= LONG_ANSWER_MS ? <p className="or-hint">Обычно на ответ дают 2–3 минуты.</p> : null}
         <div className="or-acts">
           <button type="button" className="sf-primary" onClick={finish} data-anchor={voiceAnswer ? '' : undefined}>
@@ -829,7 +856,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
         />
         {/* The example's own answer to the question its sheet asks for (sheet spec 4.3). */}
         {question.id === EXAMPLE_ANSWER_QUESTION && !state.typed.trim() ? (
-          <button type="button" className="sf-link tx-insert" onClick={() => dispatch({ type: 'typed', text: EXAMPLE_ANSWER_Q5 })}>
+          <button type="button" className="sf-link tx-insert" onClick={insertExample}>
             Вставить ответ примера
           </button>
         ) : null}

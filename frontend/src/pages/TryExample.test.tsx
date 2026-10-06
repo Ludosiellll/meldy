@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -17,6 +18,7 @@ import { EXAMPLE_NOTE } from '../components/example/ExampleSheet';
 import { EXAMPLE_GRADE_NOTE } from '../components/example/ExampleGrade';
 import { CLOSING_PAUSE_MS, EXAMINER_PAUSE_MS, EXAMPLE_PRIVACY_LINE, FOLLOWUP_LISTEN_MS } from '../components/example/ExampleTicket';
 import { resetExampleDraws } from '../components/example/exampleFlow';
+import { EXAMPLE_ANSWER_Q5 } from '../components/example/trySheet';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────────────
 
@@ -59,8 +61,8 @@ const recognition = () => FakeRecognition.instances[FakeRecognition.instances.le
 
 let fetchSpy: ReturnType<typeof vi.fn>;
 
-function renderAt(url: string) {
-  return render(
+function renderAt(url: string, options: { strict?: boolean } = {}) {
+  const tree = (
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/try/*" element={<TryExample />} />
@@ -70,8 +72,9 @@ function renderAt(url: string) {
         <Route path="/exams" element={<h1>Экзамены</h1>} />
         <Route path="/" element={<h1>Главная</h1>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+  return render(options.strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
@@ -246,7 +249,8 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(window.localStorage.length).toBe(0);
     const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index));
     expect(keys.every((key) => key?.startsWith('meldy_try_'))).toBe(true);
-    expect(JSON.parse(window.sessionStorage.getItem('meldy_try_sheet') ?? '{}').answers).toHaveLength(3);
+    // Yesterday's three answers of the example and the guest's own.
+    expect(JSON.parse(window.sessionStorage.getItem('meldy_try_sheet') ?? '{}').answers).toHaveLength(4);
   });
 
   it('closes a full answer with «Хорошо, по существу всё» and a 5, with no follow-up', async () => {
@@ -363,18 +367,22 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(within(lectures).getAllByRole('group')).toHaveLength(3);
     expect(within(lectures).getByText('Спрос и предложение', { selector: '.tx-lecture-t' })).toBeInTheDocument();
   });
-  it('opens on the cheat sheet: written, with yesterday’s answers to 5 and 9 rubbed in, and says so', () => {
+  it('opens on the cheat sheet: written, with yesterday’s answers to 1, 5 and 9 rubbed in, and says so', () => {
     renderAt('/try');
     expect(screen.getByRole('tab', { name: 'Шпаргалка' })).toHaveAttribute('aria-selected', 'true');
     expect(plain(document.querySelector('.tx-sheet-cap')?.textContent)).toBe(
-      'Для примера считаем, что вчера в это же время вы ответили на вопросы 5 и 9 — их строки потёрты. Ответьте на вопрос 5: что назовёте, сотрётся. В примере ответ проверяется по ключевым словам.',
+      'Для примера считаем, что вчера в это время вы ответили на вопросы 1, 5 и 9: названное стёрто наполовину, остальное подчёркнуто волной. Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ в примере проверяется по ключевым словам.',
     );
     expect(screen.getByRole('link', { name: 'Ответьте на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
     const paper = screen.getByRole('region', { name: 'Шпаргалка' });
     const states = (id: string) => [...paper.querySelectorAll<HTMLElement>(`#cs-q-${id} .cs-line`)].map((line) => line.dataset.state);
     expect(states('q5')).toEqual(['rubbed', 'rubbed', 'rubbed', 'missed', 'missed']);
     expect(states('q9')).toEqual(['rubbed', 'missed', 'rubbed', 'missed', 'missed']);
-    expect(states('q1')).toEqual(['fresh', 'fresh', 'fresh', 'fresh']);
+    // Question 1 is on the first screen of every size: the rubbed lines are seen at once.
+    expect(states('q1')).toEqual(['rubbed', 'rubbed', 'missed', 'missed']);
+    expect(states('q2')).toEqual(['fresh', 'fresh', 'fresh']);
+    // Nothing touched yet: no «Начать пример заново».
+    expect(screen.queryByRole('button', { name: 'Начать пример заново' })).toBeNull();
     // The lines are the hand-written short ones; a question in no lecture says so, with no link to add one.
     expect(plain(paper.querySelector('#cs-q-q7 .cs-line .cs-ink')?.textContent)).toBe('выручка = цена × количество');
     expect(plain(paper.querySelector('#cs-q-q12 .cs-pnote')?.textContent)).toBe('Ни в одной из 3 лекций нет фрагмента об этом');
@@ -396,7 +404,9 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(plain(item.textContent)).toMatch(/^3 окт\., 19:30 — назван \(ответ примера\)$/);
     fireEvent.click(item);
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 9' })).toBeInTheDocument();
-    expect(plain(document.querySelector('.or-readonly-note')?.textContent)).toMatch(/^Ответ примера от 3 октября, 19:30/);
+    expect(plain(document.querySelector('.or-readonly-note')?.textContent)).toBe(
+      'Ответ примера: считаем, что он дан вчера, 3 октября, 19:30. Названные в нём пункты он стёр на шпаргалке наполовину.',
+    );
     expect(screen.getByText('Оценка 2 · неудовлетворительно')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'К шпаргалке' })).toHaveAttribute('href', '/try?view=sheet');
   });
@@ -420,6 +430,33 @@ describe('«Попробовать на примере» (/try)', () => {
     expect([...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state)).toEqual(['erased', 'erased', 'erased', 'rubbed', 'missed']);
     // Every main line erased: the question's tick.
     expect(paper.querySelector('#cs-q-q5 .cs-tick')).not.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('in StrictMode too: «Вставить ответ примера» before choosing a way, the protocol’s next steps, the sheet plays the answer, «Начать пример заново»', async () => {
+    renderAt('/try/ticket?q=q5', { strict: true });
+    // Straight from the ticket: the example's answer goes into a text answer.
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
+    expect(screen.getByLabelText(/^Ваш ответ/)).toHaveValue(EXAMPLE_ANSWER_Q5);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await toExaminer();
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
+    // The sheet first: «К шпаргалке» is the filled pill, «Ещё билет» next to it; the rest is quieter.
+    const toSheet = screen.getByRole('link', { name: 'К шпаргалке' });
+    expect(toSheet).toHaveClass('sf-primary');
+    expect(screen.getByRole('button', { name: 'Ещё билет' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveClass('ex-secondary');
+    fireEvent.click(toSheet);
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    // A render run twice must not take the after-answer flag away: the change is played.
+    expect(await screen.findByText((_, node) => node?.classList.contains('cs-change') === true && plain(node.textContent) === 'После ответа: 3 строки стёрлись, 1 — наполовину.', {}, { timeout: 8000 })).toBeInTheDocument();
+    const states = () => [...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state);
+    expect(states()).toEqual(['erased', 'erased', 'erased', 'rubbed', 'missed']);
+    // The guest's answer is in: the example can start again, with yesterday's answers only.
+    fireEvent.click(screen.getByRole('button', { name: 'Начать пример заново' }));
+    expect(states()).toEqual(['rubbed', 'rubbed', 'rubbed', 'missed', 'missed']);
+    expect(screen.queryByRole('button', { name: 'Начать пример заново' })).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

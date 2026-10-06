@@ -9,9 +9,11 @@ import type { CheatSheetData } from '../exams/sheet/useCheatSheet';
 /**
  * The example's cheat sheet (/try, sheet spec 4.3): «Микроэкономика» written from the start (the
  * points' short lines are written by hand in data/example), and yesterday's answers of the example
- * — at this very time a day ago (the 20-hour rule), questions 5 and 9 — so their named lines are
- * half erased. The guest's answers, peeks and the time of the first visit live only in this tab
- * (sessionStorage `meldy_try_sheet`): nothing goes to the server, as everywhere in the example.
+ * — at this very time a day ago (the 20-hour rule), questions 1, 5 and 9 — so their named lines are
+ * half erased (question 1 is on the first screen of every size). The guest's answers, peeks and the
+ * time of the first visit live only in this tab (sessionStorage `meldy_try_sheet`): nothing goes to
+ * the server, as everywhere in the example. A tab kept to another day starts the example again, so
+ * «вчера» stays true.
  */
 
 export const TRY_SHEET_KEY = 'meldy_try_sheet';
@@ -63,9 +65,14 @@ interface TryStore {
  */
 export const SEEDED_ANSWERS: ReadonlyArray<{ questionId: string; transcript: string; named: readonly string[] }> = [
   {
+    questionId: 'q1',
+    transcript: 'Спрос — это зависимость между ценой и количеством, которое покупатели готовы купить. Закон спроса: чем выше цена, тем меньше покупают.',
+    named: ['p1', 'p2'],
+  },
+  {
     questionId: 'q5',
     transcript:
-      'Эластичность — это реакция спроса на цену: на сколько процентов он изменится, если цена изменится на один процент. Считают как отношение процентного изменения спроса к процентному изменению цены. Если модуль больше единицы, спрос эластичный.',
+      'Эластичность — это реакция спроса на цену: на сколько процентов он изменится, если цена изменится на один процент. Считают как отношение процентного изменения спроса к процентному изменению цены. Если модуль больше единицы, спрос эластичный, если меньше — неэластичный.',
     named: ['p1', 'p2', 'p3'],
   },
   {
@@ -111,24 +118,29 @@ export function isSeededSession(session: string): boolean {
   return session.startsWith(SEED_PREFIX);
 }
 
-function parseStore(raw: string | null): TryStore | null {
+/** A moment the store may hold: after 2000 and not later than a day ahead (a forged 1e20 would throw in toISOString). */
+function sane(at: unknown, now: number): at is number {
+  return typeof at === 'number' && Number.isFinite(at) && at > 946_684_800_000 && at < now + DAY_MS;
+}
+
+function parseStore(raw: string | null, now: number): TryStore | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<TryStore>;
-    if (!value || value.v !== 1 || typeof value.seededAt !== 'number' || !Number.isFinite(value.seededAt)) return null;
+    if (!value || value.v !== 1 || !sane(value.seededAt, now)) return null;
     const answers = (Array.isArray(value.answers) ? value.answers : []).filter(
       (answer): answer is TryAnswer =>
         Boolean(answer) &&
         typeof answer.session === 'string' &&
         typeof answer.questionId === 'string' &&
         exampleQuestion(answer.questionId) !== null &&
-        typeof answer.at === 'number' &&
+        sane(answer.at, now) &&
         typeof answer.transcript === 'string' &&
         Boolean(answer.statuses) &&
         typeof answer.statuses === 'object',
     );
     const peeks = (Array.isArray(value.peeks) ? value.peeks : []).filter(
-      (peek): peek is TryPeek => Boolean(peek) && typeof peek.questionId === 'string' && typeof peek.pointId === 'string' && typeof peek.at === 'number',
+      (peek): peek is TryPeek => Boolean(peek) && typeof peek.questionId === 'string' && typeof peek.pointId === 'string' && sane(peek.at, now),
     );
     return { v: 1, seededAt: value.seededAt, answers, peeks };
   } catch {
@@ -136,18 +148,32 @@ function parseStore(raw: string | null): TryStore | null {
   }
 }
 
+/** Kept to another day (and not just past midnight of a late visit): the example starts again. */
+const RESEED_AFTER_MS = 6 * 3_600_000;
+
 /** The tab's example: yesterday's answers on the first read, then whatever the guest added. */
 export function readTryStore(now: number = Date.now()): TryStore {
   let stored: TryStore | null = null;
   try {
-    stored = parseStore(window.sessionStorage.getItem(TRY_SHEET_KEY));
+    stored = parseStore(window.sessionStorage.getItem(TRY_SHEET_KEY), now);
   } catch {
     stored = null;
   }
-  if (stored) return stored;
+  if (stored && !(localDayOf(stored.seededAt) !== localDayOf(now) && now - stored.seededAt > RESEED_AFTER_MS)) return stored;
   const fresh: TryStore = { v: 1, seededAt: now, answers: seededAnswers(now), peeks: [] };
   writeTryStore(fresh);
   return fresh;
+}
+
+/** «Начать пример заново»: yesterday's answers again, the guest's answers and peeks gone. */
+export function restartTry(now: number = Date.now()): TryStore {
+  try {
+    window.sessionStorage.removeItem(TRY_SHEET_KEY);
+    window.sessionStorage.removeItem(TRY_PEAK_KEY);
+  } catch {
+    // Nothing kept: the next read seeds anyway.
+  }
+  return readTryStore(now);
 }
 
 function writeTryStore(store: TryStore) {
@@ -292,7 +318,7 @@ const NO_NOTES: ReadonlyMap<string, string> = new Map();
 const noop = () => undefined;
 
 /** The example's sheet in the shape of a real one (useCheatSheet): written, nothing to write or read. */
-export function useTrySheetData(): CheatSheetData {
+export function useTrySheetData(): CheatSheetData & { restart: () => void } {
   const [store, setStore] = useState(() => readTryStore());
   const [now, setNow] = useState(() => Date.now());
   const questions = useMemo(() => trySheetQuestions(), []);
@@ -307,6 +333,11 @@ export function useTrySheetData(): CheatSheetData {
     setStore(next);
     setNow(at);
   }, []);
+  const restart = useCallback(() => {
+    const at = Date.now();
+    setStore(restartTry(at));
+    setNow(at);
+  }, []);
   return {
     status: 'ready',
     error: null,
@@ -314,6 +345,7 @@ export function useTrySheetData(): CheatSheetData {
     events,
     eventsState: 'ready',
     eventsError: null,
+    journalRead: true,
     toWrite: 0,
     units: 0,
     serverJob: null,
@@ -328,5 +360,6 @@ export function useTrySheetData(): CheatSheetData {
     stopWrite: async () => 0,
     peek,
     settleFresh: noop,
+    restart,
   };
 }

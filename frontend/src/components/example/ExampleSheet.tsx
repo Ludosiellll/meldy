@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ExamSheet, { type SheetRowView } from '../exams/ExamSheet';
 import { Mark } from '../marks';
@@ -81,7 +81,7 @@ const FILTERS: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string
 export default function ExampleSheet() {
   const navigate = useNavigate();
   const frame = useFrame<HTMLDivElement>();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<SheetFilter>('all');
   const [view, setView] = useState<TryView>(() => {
@@ -90,7 +90,15 @@ export default function ExampleSheet() {
   });
   const onSheet = view === 'sheet';
   // The guest's answer just given: the sheet plays what it changed, once (the after-answer flag).
-  const peakFlags = useRef<PeakFlag[] | null>(parsePeakFlags(takeTryPeak()));
+  // Taken in an effect, once: a render may run twice (StrictMode) and must not take the flag away.
+  // Declared before the sheet's hook: effects run in order, and the sheet reads the flag in its own.
+  const peakFlags = useRef<PeakFlag[] | null>(null);
+  const peakTaken = useRef(false);
+  useEffect(() => {
+    if (peakTaken.current) return;
+    peakTaken.current = true;
+    peakFlags.current = parsePeakFlags(takeTryPeak());
+  }, []);
   const sheetData = useTrySheetData();
   const sheetPage = useSheetView(
     {
@@ -107,6 +115,8 @@ export default function ExampleSheet() {
       mappingRunning: false,
       unmapped: false,
       onQuestion: (id) => setSelectedId((current) => (current === id ? null : id)),
+      // A line's details take the column: «почему» of a question closes (it would stand in front of them).
+      onLineOpen: () => setSelectedId(null),
       links: TRY_LINKS,
     },
     sheetData,
@@ -119,6 +129,17 @@ export default function ExampleSheet() {
     setSelectedId(null);
     if (next === 'questions') closeSheetLine();
     else setFilter('all');
+    // A ?view= that brought the guest here must not win over this choice on reload or Back.
+    if (params.has('view')) {
+      setParams(
+        (current) => {
+          const updated = new URLSearchParams(current);
+          updated.set('view', next);
+          return updated;
+        },
+        { replace: true },
+      );
+    }
   };
 
   const examQuestions = useMemo(() => EXAMPLE_QUESTIONS.map(exampleExamQuestion), []);
@@ -241,14 +262,24 @@ export default function ExampleSheet() {
     </div>
   );
 
-  // Yesterday's answers of the example, said plainly above the paper (sheet spec 4.3).
+  // Yesterday's answers of the example, said plainly above the paper (sheet spec 4.3); the guest who
+  // answered or peeked can start the example again (a rehearsal must not use up the show).
+  const touched = sheetData.events.some((event) => event.kind === 'sheet_peek' || (event.session_id !== null && !isSeededSession(event.session_id)));
   const sheetCaption = (
     <p className="tx-sheet-cap">
-      {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 5 и 9 — их строки потёрты. ')}
+      {glue('Для примера считаем, что вчера в это время вы ответили на вопросы 1, 5 и 9: названное стёрто наполовину, остальное подчёркнуто волной. ')}
       <Link className="sf-ref" to={`/try/ticket?q=${EXAMPLE_ANSWER_QUESTION}`}>
         Ответьте на вопрос 5
       </Link>
-      {glue(': что назовёте, сотрётся. В примере ответ проверяется по ключевым словам.')}
+      {glue(' — что назовёте снова, сотрётся совсем. Ответ в примере проверяется по ключевым словам.')}
+      {touched ? (
+        <>
+          {' '}
+          <button type="button" className="sf-link tx-restart" data-muted="" onClick={sheetData.restart}>
+            Начать пример заново
+          </button>
+        </>
+      ) : null}
     </p>
   );
   const sheetColumn = selected ? whyPanel('column') : sheetPage.column;
@@ -371,7 +402,7 @@ function ExampleLectures() {
       <h2 id="tx-lectures-h" className="tx-h2">
         Лекции примера
       </h2>
-      <p className="tx-sub">Цитаты на листе и пункты ответа взяты из этих текстов слово в слово.</p>
+      <p className="tx-sub">Все цитаты из лекций взяты из этих текстов слово в слово.</p>
       <div className="tx-lecture-list">
         {EXAMPLE_LECTURES.map((lecture) => (
           <details key={lecture.key} className="tx-lecture">
