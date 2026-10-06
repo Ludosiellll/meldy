@@ -131,7 +131,7 @@ afterEach(() => {
 
 describe('«Попробовать на примере» (/try)', () => {
   it('takes a guest from the sheet through the draw, a typed answer and the examiner’s follow-up to the protocol', async () => {
-    renderAt('/try');
+    renderAt('/try?view=questions');
 
     // (a) The example's sheet: the subject, the honest note, numbers from the marks, the twelve questions.
     expect(screen.getByRole('heading', { level: 1, name: 'Микроэкономика' })).toBeInTheDocument();
@@ -241,10 +241,12 @@ describe('«Попробовать на примере» (/try)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ещё билет' }));
     expect(screen.getByRole('article', { name: 'Вопрос 2' })).toBeInTheDocument();
 
-    // Nothing left the page and nothing was saved.
+    // Nothing left the page: the answer is kept only in this tab, for the example's cheat sheet.
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(window.localStorage.length).toBe(0);
-    expect(window.sessionStorage.length).toBe(0);
+    const keys = Array.from({ length: window.sessionStorage.length }, (_, index) => window.sessionStorage.key(index));
+    expect(keys.every((key) => key?.startsWith('meldy_try_'))).toBe(true);
+    expect(JSON.parse(window.sessionStorage.getItem('meldy_try_sheet') ?? '{}').answers).toHaveLength(3);
   });
 
   it('closes a full answer with «Хорошо, по существу всё» and a 5, with no follow-up', async () => {
@@ -351,7 +353,7 @@ describe('«Попробовать на примере» (/try)', () => {
   });
 
   it('filters the sheet by its marks and opens the lectures it was checked against', () => {
-    renderAt('/try');
+    renderAt('/try?view=questions');
     fireEvent.click(screen.getByRole('button', { name: '1 вопроса нет ни в одной лекции. Показать его' }));
     const sheet = screen.getByRole('article', { name: 'Список вопросов кафедры с пометками' });
     expect(within(sheet).getAllByRole('button').map((row) => plain(row.textContent))).toEqual(['Рынок труда: спрос на труд и заработная плата.']);
@@ -360,5 +362,64 @@ describe('«Попробовать на примере» (/try)', () => {
     const lectures = screen.getByRole('region', { name: 'Лекции примера' });
     expect(within(lectures).getAllByRole('group')).toHaveLength(3);
     expect(within(lectures).getByText('Спрос и предложение', { selector: '.tx-lecture-t' })).toBeInTheDocument();
+  });
+  it('opens on the cheat sheet: written, with yesterday’s answers to 5 and 9 rubbed in, and says so', () => {
+    renderAt('/try');
+    expect(screen.getByRole('tab', { name: 'Шпаргалка' })).toHaveAttribute('aria-selected', 'true');
+    expect(plain(document.querySelector('.tx-sheet-cap')?.textContent)).toBe(
+      'Для примера считаем, что вчера в это же время вы ответили на вопросы 5 и 9 — их строки потёрты. Ответьте на вопрос 5: что назовёте, сотрётся. В примере ответ проверяется по ключевым словам.',
+    );
+    expect(screen.getByRole('link', { name: 'Ответьте на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');
+    const paper = screen.getByRole('region', { name: 'Шпаргалка' });
+    const states = (id: string) => [...paper.querySelectorAll<HTMLElement>(`#cs-q-${id} .cs-line`)].map((line) => line.dataset.state);
+    expect(states('q5')).toEqual(['rubbed', 'rubbed', 'rubbed', 'missed', 'missed']);
+    expect(states('q9')).toEqual(['rubbed', 'missed', 'rubbed', 'missed', 'missed']);
+    expect(states('q1')).toEqual(['fresh', 'fresh', 'fresh', 'fresh']);
+    // The lines are the hand-written short ones; a question in no lecture says so, with no link to add one.
+    expect(plain(paper.querySelector('#cs-q-q7 .cs-line .cs-ink')?.textContent)).toBe('выручка = цена × количество');
+    expect(plain(paper.querySelector('#cs-q-q12 .cs-pnote')?.textContent)).toBe('Ни в одной из 3 лекций нет фрагмента об этом');
+    expect(paper.querySelector('#cs-q-q12 .cs-pnote a')).toBeNull();
+    // The counter: 47 lines, 5 of them rubbed (still there).
+    expect(document.querySelector('.cs-big')?.textContent).toBe('47');
+    expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expectAccessibleScreen();
+  });
+
+  it('a rubbed line of yesterday’s answer: its history says «ответ примера» and opens that answer’s protocol', async () => {
+    renderAt('/try');
+    const paper = screen.getByRole('region', { name: 'Шпаргалка' });
+    fireEvent.click(paper.querySelector<HTMLButtonElement>('#cs-q-q9 .cs-line .cs-lbtn')!);
+    const panel = document.querySelector('.cs-lp') as HTMLElement;
+    expect(within(panel).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/try/ticket?q=q9');
+    const item = within(panel.querySelector('.cs-lp-history') as HTMLElement).getByRole('link');
+    expect(plain(item.textContent)).toMatch(/^3 окт\., 19:30 — назван \(ответ примера\)$/);
+    fireEvent.click(item);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 9' })).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-readonly-note')?.textContent)).toMatch(/^Ответ примера от 3 октября, 19:30/);
+    expect(screen.getByText('Оценка 2 · неудовлетворительно')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'К шпаргалке' })).toHaveAttribute('href', '/try?view=sheet');
+  });
+
+  it('answer 5 with the example’s answer: the protocol says what erased, and the sheet plays it', async () => {
+    renderAt('/try/ticket?q=q5');
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
+    expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 4 из 5');
+    expect(screen.queryByRole('button', { name: 'Вставить ответ примера' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await toExaminer();
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
+    // Named yesterday and again today, the three main points are erased; the sign of the elasticity is half.
+    const line = document.querySelector('.or-sheet-change') as HTMLElement;
+    expect(plain(line.textContent)).toBe('На шпаргалке: 3 строки стёрлись, 1 — наполовину · посмотреть');
+    fireEvent.click(within(line).getByRole('link', { name: 'посмотреть' }));
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    expect(await screen.findByText((_, node) => node?.classList.contains('cs-change') === true && plain(node.textContent) === 'После ответа: 3 строки стёрлись, 1 — наполовину.', {}, { timeout: 8000 })).toBeInTheDocument();
+    expect([...paper.querySelectorAll<HTMLElement>('#cs-q-q5 .cs-line')].map((node) => node.dataset.state)).toEqual(['erased', 'erased', 'erased', 'rubbed', 'missed']);
+    // Every main line erased: the question's tick.
+    expect(paper.querySelector('#cs-q-q5 .cs-tick')).not.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

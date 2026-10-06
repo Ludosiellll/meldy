@@ -42,6 +42,8 @@ export interface SheetReplay {
 
 export interface CheatSheetProps {
   examId: string;
+  /** «Добавить материал» under a question that is in no lecture (the exam's lectures by default; null: none). */
+  addMaterialHref?: string | null;
   blocks: SheetBlock[];
   /** exams.ticket_layout.section_titles: printed above the first question of each section. */
   sectionTitles: readonly string[];
@@ -402,6 +404,7 @@ type Phase = 'idle' | 'before' | 'marker' | 'lines';
 
 export default function CheatSheet({
   examId,
+  addMaterialHref,
   blocks,
   sectionTitles,
   lectureCount,
@@ -687,7 +690,7 @@ export default function CheatSheet({
                 block={block}
                 heading={heading}
                 note={note}
-                addMaterial={block.kind === 'gap' && block.coverage === 'none' ? `/exams/${examId}/edit#lectures` : null}
+                addMaterial={block.kind === 'gap' && block.coverage === 'none' ? (addMaterialHref === undefined ? `/exams/${examId}/edit#lectures` : addMaterialHref) : null}
                 states={overrides}
                 motions={motions}
                 kept={kept}

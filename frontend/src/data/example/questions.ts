@@ -29,6 +29,11 @@ export interface ExampleNearest {
 
 export interface ExamplePoint {
   title: string;
+  /**
+   * The point's line on the cheat sheet, written by hand by the rules the server's short lines keep
+   * (sheet spec 3.3): only the title's own words, ↑ ↓ → = > < as the title says, no new fact.
+   */
+  short: string;
   essential: boolean;
   /** Word for word from the lecture: a continuous piece of the fragments below. */
   quote: string;
@@ -76,6 +81,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Спрос — зависимость количества покупок от цены товара',
+
+        short: 'спрос = зависимость покупок от цены',
         essential: true,
         quote: 'Спрос — это зависимость между ценой товара и тем количеством, которое покупатели готовы и могут купить за определённый период.',
         fragments: ['S02'],
@@ -87,6 +94,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Закон спроса: чем выше цена, тем меньше величина спроса',
+
+        short: 'закон спроса: цена ↑ → спрос ↓',
         essential: true,
         quote: 'Закон спроса гласит: при прочих равных условиях чем выше цена, тем меньше величина спроса, и наоборот.',
         fragments: ['S02'],
@@ -98,6 +107,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Кривая спроса имеет отрицательный наклон',
+
+        short: 'кривая спроса: наклон отрицательный',
         essential: false,
         quote: 'На графике спрос изображают кривой спроса с отрицательным наклоном',
         fragments: ['S02'],
@@ -109,6 +120,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Величина спроса — количество, которое покупают при конкретной цене',
+
+        short: 'величина спроса = количество при конкретной цене',
         essential: false,
         quote: 'Количество, которое покупают при конкретной цене, называют величиной спроса.',
         fragments: ['S02'],
@@ -140,6 +153,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Спрос зависит от доходов, вкусов, цен других товаров и ожиданий',
+
+        short: 'спрос зависит от доходов, вкусов, цен, ожиданий',
         essential: true,
         quote: 'Спрос зависит от доходов покупателей, их вкусов, цен на товары-заменители и дополняющие товары, ожиданий и числа покупателей на рынке.',
         fragments: ['S03'],
@@ -151,6 +166,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Изменение цены самого товара — движение вдоль кривой спроса',
+
+        short: 'изменение цены товара → движение вдоль кривой',
         essential: true,
         quote: 'Изменение цены самого товара означает движение вдоль кривой спроса.',
         fragments: ['S03'],
@@ -162,6 +179,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Неценовой фактор сдвигает кривую: вправо при росте спроса, влево при падении',
+
+        short: 'неценовой фактор: спрос ↑ → вправо, ↓ → влево',
         essential: true,
         quote: 'Изменение любого неценового фактора сдвигает всю кривую: вправо, если спрос растёт, и влево, если он падает.',
         fragments: ['S03'],
@@ -194,6 +213,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Закон предложения: чем выше цена, тем больше величина предложения',
+
+        short: 'закон предложения: цена ↑ → предложение ↑',
         essential: true,
         quote: 'Закон предложения гласит: при прочих равных условиях чем выше цена, тем больше величина предложения.',
         fragments: ['S04'],
@@ -205,6 +226,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Высокая цена делает производство выгоднее и привлекает новых продавцов',
+
+        short: 'высокая цена → выгоднее, привлекает новых продавцов',
         essential: true,
         quote: 'Высокая цена делает производство выгоднее и привлекает на рынок новых продавцов.',
         fragments: ['S04'],
@@ -216,6 +239,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Кривая предложения имеет положительный наклон',
+
+        short: 'кривая предложения: наклон положительный',
         essential: false,
         quote: 'Поэтому кривая предложения имеет положительный наклон.',
         fragments: ['S04'],
@@ -227,6 +252,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Предложение сдвигают цены ресурсов, технология, налоги и субсидии',
+
+        short: 'сдвигают: цены ресурсов, технология, налоги, субсидии',
         essential: true,
         quote: 'Кривую предложения сдвигают неценовые факторы: цены ресурсов, технология, налоги и субсидии, число продавцов и их ожидания.',
         fragments: ['S05'],
@@ -255,6 +282,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Равновесие — точка пересечения кривых спроса и предложения',
+
+        short: 'равновесие = пересечение спроса и предложения',
         essential: true,
         quote: 'Точка пересечения кривых спроса и предложения называется точкой равновесия.',
         fragments: ['S06'],
@@ -266,6 +295,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'При равновесной цене величина спроса равна величине предложения',
+
+        short: 'при равновесной цене: спрос = предложение',
         essential: true,
         quote: 'При равновесной цене величина спроса равна величине предложения',
         fragments: ['S06'],
@@ -277,6 +308,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Цена ниже равновесной — дефицит: спрос больше предложения',
+
+        short: 'цена ниже равновесной → дефицит',
         essential: true,
         quote: 'Если цена ниже равновесной, величина спроса превышает величину предложения и возникает дефицит',
         fragments: ['S07'],
@@ -288,6 +321,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Цена выше равновесной — излишек: продавцы снижают цену',
+
+        short: 'цена выше равновесной → излишек',
         essential: true,
         quote: 'Если цена выше равновесной, величина предложения превышает величину спроса и возникает излишек',
         fragments: ['S07'],
@@ -299,6 +334,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Цена сама движется к равновесию',
+
+        short: 'цена сама → к равновесию',
         essential: false,
         quote: 'В обоих случаях цена движется к равновесию.',
         fragments: ['S07'],
@@ -327,6 +364,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Эластичность — на сколько процентов изменится спрос при изменении цены на 1 %',
+
+        short: 'эластичность = % изменения спроса на 1 % цены',
         essential: true,
         quote: 'Ценовая эластичность спроса показывает, на сколько процентов изменится величина спроса при изменении цены на один процент.',
         fragments: ['S02'],
@@ -338,6 +377,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Её считают как отношение процентных изменений спроса и цены',
+
+        short: 'считают: % спроса / % цены',
         essential: true,
         quote: 'Её считают как отношение процентного изменения величины спроса к процентному изменению цены.',
         fragments: ['S02'],
@@ -349,6 +390,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Модуль больше единицы — спрос эластичный, меньше единицы — неэластичный',
+
+        short: 'модуль > единицы — эластичный, < — неэластичный',
         essential: true,
         quote: 'Если модуль эластичности больше единицы, спрос эластичный: покупатели реагируют на цену сильнее, чем меняется сама цена.',
         fragments: ['S03'],
@@ -360,6 +403,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Знак эластичности обычно отрицательный, поэтому сравнивают модуль',
+
+        short: 'знак отрицательный → сравнивают модуль',
         essential: false,
         quote: 'Из-за закона спроса знак почти всегда отрицательный, поэтому обычно сравнивают её модуль.',
         fragments: ['S02'],
@@ -371,6 +416,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Крайние случаи: совершенно неэластичный и совершенно эластичный спрос',
+
+        short: 'крайние: совершенно неэластичный / эластичный',
         essential: false,
         quote:
           'Крайние случаи — совершенно неэластичный спрос, когда величина спроса не зависит от цены, и совершенно эластичный, когда малейший рост цены обнуляет покупки.',
@@ -397,6 +444,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Чем больше близких заменителей, тем эластичнее спрос',
+
+        short: 'заменителей ↑ → спрос эластичнее',
         essential: true,
         quote: 'Спрос тем эластичнее, чем больше у товара близких заменителей: если подорожал один сорт яблок, легко купить другой.',
         fragments: ['S04'],
@@ -408,6 +457,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Чем больше доля товара в бюджете, тем выше эластичность',
+
+        short: 'доля в бюджете ↑ → эластичность ↑',
         essential: true,
         quote: 'Эластичность выше у товаров, на которые уходит большая доля бюджета, и ниже у дешёвых мелочей вроде соли.',
         fragments: ['S04'],
@@ -419,6 +470,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Товары первой необходимости — неэластичный спрос, роскошь — эластичный',
+
+        short: 'необходимость — неэластичный, роскошь — эластичный',
         essential: true,
         quote: 'Товары первой необходимости, например лекарства, обычно имеют неэластичный спрос, а предметы роскоши — эластичный.',
         fragments: ['S04'],
@@ -430,6 +483,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Со временем спрос становится эластичнее',
+
+        short: 'со временем спрос эластичнее',
         essential: false,
         quote: 'со временем спрос становится эластичнее: у покупателей появляется время найти замену.',
         fragments: ['S04'],
@@ -455,6 +510,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Выручка — цена, умноженная на количество проданного товара',
+
+        short: 'выручка = цена × количество',
         essential: true,
         quote: 'Выручка продавца равна цене, умноженной на количество проданного товара.',
         fragments: ['S05'],
@@ -466,6 +523,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'При эластичном спросе снижение цены увеличивает выручку',
+
+        short: 'эластичный: снижение цены → выручка ↑',
         essential: true,
         quote: 'Если спрос эластичный, снижение цены увеличивает выручку: прирост продаж перекрывает потерю в цене.',
         fragments: ['S05'],
@@ -477,6 +536,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'При неэластичном спросе выручку увеличивает повышение цены',
+
+        short: 'неэластичный: повышение цены → выручка ↑',
         essential: true,
         quote: 'Если спрос неэластичный, выручку увеличивает повышение цены.',
         fragments: ['S05'],
@@ -488,6 +549,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'При единичной эластичности выручка не меняется',
+
+        short: 'единичная эластичность: выручка не меняется',
         essential: false,
         quote: 'При единичной эластичности выручка от изменения цены не меняется.',
         fragments: ['S05'],
@@ -519,6 +582,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Перекрёстная эластичность — реакция спроса на цену другого товара',
+
+        short: 'перекрёстная: реакция спроса на цену другого товара',
         essential: true,
         quote: 'Перекрёстная эластичность показывает, как величина спроса на один товар реагирует на изменение цены другого.',
         fragments: ['S06'],
@@ -530,6 +595,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Для товаров-заменителей перекрёстная эластичность положительна',
+
+        short: 'заменители: перекрёстная положительна',
         essential: true,
         quote: 'Для товаров-заменителей она положительна: подорожал кофе — растёт спрос на чай.',
         fragments: ['S06'],
@@ -541,6 +608,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Для дополняющих товаров перекрёстная эластичность отрицательна',
+
+        short: 'дополняющие: перекрёстная отрицательна',
         essential: false,
         quote: 'Для дополняющих товаров она отрицательна: подорожали принтеры — падает спрос на картриджи.',
         fragments: ['S06'],
@@ -552,6 +621,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'По доходу: у нормальных товаров эластичность положительна, у низших — отрицательна',
+
+        short: 'по доходу: нормальные — положит., низшие — отрицат.',
         essential: true,
         quote: 'У нормальных товаров она положительна, у низших товаров — отрицательна: с ростом дохода люди покупают их меньше.',
         fragments: ['S06'],
@@ -584,6 +655,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Явные издержки — прямые платежи фирмы',
+
+        short: 'явные = прямые платежи фирмы',
         essential: true,
         quote: 'Явные издержки — это прямые платежи фирмы: зарплата работникам, аренда, оплата сырья и электроэнергии.',
         fragments: ['S02'],
@@ -595,6 +668,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Неявные издержки — альтернативная стоимость собственных ресурсов',
+
+        short: 'неявные = альтернативная стоимость ресурсов',
         essential: true,
         quote: 'Неявные издержки — это альтернативная стоимость ресурсов, которые принадлежат самому владельцу.',
         fragments: ['S02'],
@@ -606,6 +681,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Бухгалтерская прибыль — выручка минус явные издержки',
+
+        short: 'бухгалтерская прибыль = выручка − явные',
         essential: true,
         quote: 'Бухгалтерская прибыль равна выручке за вычетом явных издержек.',
         fragments: ['S03'],
@@ -617,6 +694,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Экономическая прибыль учитывает и неявные издержки, поэтому она меньше',
+
+        short: 'экономическая учитывает неявные → меньше',
         essential: true,
         quote: 'Экономическая прибыль равна выручке за вычетом и явных, и неявных издержек, поэтому она всегда меньше бухгалтерской.',
         fragments: ['S03'],
@@ -628,6 +707,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Нулевая экономическая прибыль называется нормальной',
+
+        short: 'нулевая экономическая = нормальная прибыль',
         essential: false,
         quote: 'Нулевая экономическая прибыль называется нормальной',
         fragments: ['S03'],
@@ -656,6 +737,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Постоянные издержки не зависят от объёма выпуска',
+
+        short: 'постоянные не зависят от выпуска',
         essential: true,
         quote: 'Постоянные издержки не зависят от объёма выпуска: арендная плата за помещение остаётся прежней, даже если кофейня не продала ни одной чашки.',
         fragments: ['S04'],
@@ -667,6 +750,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Переменные издержки растут вместе с выпуском',
+
+        short: 'переменные растут с выпуском',
         essential: true,
         quote: 'Переменные издержки растут вместе с выпуском: это зерно, молоко, стаканчики, сдельная оплата бариста.',
         fragments: ['S04'],
@@ -678,6 +763,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Общие издержки — сумма постоянных и переменных',
+
+        short: 'общие = постоянные + переменные',
         essential: false,
         quote: 'Сумма постоянных и переменных издержек составляет общие издержки.',
         fragments: ['S04'],
@@ -689,6 +776,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Средние издержки — общие издержки на единицу продукции',
+
+        short: 'средние = общие / единицу продукции',
         essential: true,
         quote: 'Средние издержки — это общие издержки в расчёте на единицу продукции.',
         fragments: ['S05'],
@@ -700,6 +789,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Предельные издержки — прирост издержек от ещё одной единицы',
+
+        short: 'предельные = прирост от ещё одной единицы',
         essential: true,
         quote: 'Предельные издержки — это прирост общих издержек при выпуске ещё одной единицы.',
         fragments: ['S05'],
@@ -731,6 +822,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
     points: [
       {
         title: 'Предельная выручка — прирост выручки от ещё одной единицы',
+
+        short: 'предельная выручка = прирост от ещё одной',
         essential: true,
         quote: 'Предельная выручка — это прирост выручки от продажи ещё одной единицы.',
         fragments: ['S06'],
@@ -742,6 +835,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Пока предельная выручка больше предельных издержек, выпуск выгодно увеличивать',
+
+        short: 'пред. выручка > пред. издержек → выпуск ↑',
         essential: true,
         quote: 'Пока предельная выручка больше предельных издержек, увеличение выпуска добавляет прибыль.',
         fragments: ['S06'],
@@ -753,6 +848,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Оптимальный выпуск — там, где предельная выручка равна предельным издержкам',
+
+        short: 'оптимальный выпуск: пред. выручка = пред. издержки',
         essential: true,
         quote: 'Поэтому оптимальный объём выпуска находится там, где предельная выручка равна предельным издержкам.',
         fragments: ['S06'],
@@ -764,6 +861,8 @@ export const EXAMPLE_QUESTIONS: readonly ExampleQuestion[] = [
       },
       {
         title: 'Прибыль — разница между выручкой и общими издержками',
+
+        short: 'прибыль = разница выручки и издержек',
         essential: false,
         quote: 'Фирма стремится к максимальной прибыли — разнице между выручкой и общими издержками.',
         fragments: ['S06'],

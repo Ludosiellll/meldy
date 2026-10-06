@@ -1203,6 +1203,17 @@ def test_short_lines_are_checked_by_code(short, title, problem):
     assert oral_sheet.short_problem(short, title) == problem
 
 
+EXAMPLE_QUESTIONS_TS = Path(__file__).resolve().parents[2] / "frontend" / "src" / "data" / "example" / "questions.ts"
+
+
+@pytest.mark.skipif(not EXAMPLE_QUESTIONS_TS.exists(), reason="фронтенда нет рядом (сборка только бэкенда)")
+def test_the_example_s_hand_written_lines_keep_the_rules_of_short_lines():
+    """Пример /try пишет строки шпаргалки вручную (frontend/src/data/example/questions.ts) — по тем же правилам."""
+    pairs = re.findall(r"title: '([^']*)',\s*short: '([^']*)'", EXAMPLE_QUESTIONS_TS.read_text(encoding="utf-8"))
+    assert len(pairs) == 47
+    assert [(title, short, oral_sheet.short_problem(short, title)) for title, short in pairs if oral_sheet.short_problem(short, title)] == []
+
+
 def test_only_the_sheet_column_of_the_rubrics_version_is_patched(sheet):
     fake = sheet.fake
     exam_id, (question_id,), _ = course(fake, QUESTIONS[:1])

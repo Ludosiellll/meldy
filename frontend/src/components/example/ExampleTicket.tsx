@@ -16,10 +16,29 @@ import { answerTime, closingLine, initialTicketState, ticketReducer, type Answer
 import type { AnswerInput } from '../../lib/oral/oralPersistence';
 import { elapsedLabel, glue, longDateTime, plural } from '../../lib/oral/format';
 import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQuestion } from '../../data/example';
-import { exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
+import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
 import { track } from '../../lib/telemetry';
+import { answerChange } from '../exams/sheet/answerChange';
+import { protocolSheetLine } from '../exams/sheet/copy';
+import type { ChangeSummary } from '../../lib/exams/cheatSheet';
+import type { Evaluation } from '../../lib/oral/oralApi';
+import { exampleRubric } from '../../data/example';
+import {
+  EXAMPLE_ANSWER_Q5,
+  EXAMPLE_ANSWER_QUESTION,
+  findTryAnswer,
+  isSeededSession,
+  saveTryAnswer,
+  setTryPeak,
+  trySheetQuestions,
+  tryEvents,
+  type TryAnswer,
+} from './trySheet';
+
+/** The example's cheat sheet: the answers erase its lines (sheet spec 4.3). */
+const TRY_SHEET_PATH = '/try?view=sheet';
 
 /** «Экзаменатор слушает ответ…» stays this long after «Готово» (the real screen waits for its quick check). */
 export const EXAMINER_PAUSE_MS = 900;
@@ -71,7 +90,91 @@ export default function ExampleTicket() {
   const [params] = useSearchParams();
   const question = exampleQuestion(params.get('q'));
   if (!question || question.coverage === 'none' || question.points.length === 0) return <TicketMissing question={question} />;
+  // An answer kept in this tab (the line's history of the sheet): its protocol, to read.
+  const kept = findTryAnswer(params.get('answer'));
+  if (kept && kept.questionId === question.id) return <KeptProtocol question={question} answer={kept} />;
   return <ExampleRoom key={question.id} question={question} />;
+}
+
+/** What one answer of the example changed on the example's sheet («На шпаргалке: …»). */
+function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0, answers: [answer], peeks: [] })): ChangeSummary | null {
+  const sheetQuestion = trySheetQuestions().find((item) => item.question_id === answer.questionId);
+  return sheetQuestion ? answerChange(sheetQuestion, events, answer.session, Date.now()) : null;
+}
+
+/** «На шпаргалке: 3 строки стёрлись, 1 — наполовину · посмотреть». */
+function SheetChangeLine({ change }: { change: ChangeSummary }) {
+  return (
+    <p className="or-save-line or-sheet-change">
+      {glue(protocolSheetLine(change))}
+      {' · '}
+      <Link className="sf-link" to={TRY_SHEET_PATH}>
+        посмотреть
+      </Link>
+    </p>
+  );
+}
+
+/**
+ * The protocol of an answer kept in this tab: yesterday's answers of the example, or the guest's own.
+ * The same paper as after an answer, read only: the points as they were named, the grade, the way
+ * back to the sheet and to answering again.
+ */
+function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer: TryAnswer }) {
+  const rubric = exampleRubric(question);
+  if (!rubric) return <TicketMissing question={question} />;
+  const evaluation: Evaluation = {
+    points: rubric.points.map((point) => {
+      const status = answer.statuses[point.id] ?? 'missing';
+      return { id: point.id, status, student_quote: status === 'missing' ? '' : answerQuote(answer.transcript, point.anchors), comment: '' };
+    }),
+    errors: [],
+    verdict: '',
+  };
+  const named = new Set(rubric.points.filter((point) => answer.statuses[point.id] === 'covered').map((point) => point.id));
+  const grade = gradeAnswer(
+    rubric.points.map((point) => ({ id: point.id, essential: point.essential, status: answer.statuses[point.id] ?? 'unrated' })),
+    answer.followup ? { point_id: answer.followup.pointId, status: answer.followup.status, judgedBy: answer.followup.judgedBy } : null,
+  );
+  const heading = ticketHeading(null, 0, 1, String(question.number));
+  const seeded = isSeededSession(answer.session);
+  const when = longDateTime(new Date(answer.at));
+  return (
+    <>
+      <TryBar where="Лист примера" back="/try" />
+      <main className="sf-page or-room tx-room" data-phase="protocol">
+        <h1 className="sr-only or-sr-title" tabIndex={-1}>
+          {`Протокол ответа, ${heading.strong}`}
+        </h1>
+        <section className="or-left" aria-label="Пункты ответа и ваш ответ">
+          <ProtocolSheet
+            heading={glue(`${heading.strong} · ответ ${when}`)}
+            points={livePoints(rubric, evaluation, named)}
+            followup={answer.followup ? { ...answer.followup } : null}
+            stamp="none"
+            seed={`example:${question.id}:${answer.session}`}
+            animate={false}
+          />
+        </section>
+        <section className="or-side" aria-label="Оценка">
+          <p className="or-readonly-note">
+            {glue(seeded ? `Ответ примера от ${when}: так пример «ответил вчера» — его строки на шпаргалке потёрты.` : `Ваш ответ от ${when}. Протокол только для чтения.`)}
+          </p>
+          {seeded ? <p className="or-readonly-note tx-kept-said">{`«${answer.transcript}»`}</p> : null}
+          <ExampleGrade result={grade}>
+            <div className="or-acts" data-wide="">
+              <Link className="sf-primary" to={`/try/ticket?q=${encodeURIComponent(question.id)}`}>
+                Ответить на этот вопрос
+              </Link>
+              <Link className="sf-link" to={TRY_SHEET_PATH}>
+                К шпаргалке
+              </Link>
+            </div>
+          </ExampleGrade>
+        </section>
+      </main>
+    </>
+  );
 }
 
 function TicketMissing({ question }: { question: ExampleQuestion | null }) {
@@ -205,6 +308,31 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     const timer = setTimeout(() => dispatch({ type: 'protocol' }), state.closing ? CLOSING_PAUSE_MS : 0);
     return () => clearTimeout(timer);
   }, [state.phase, state.evaluation.status, state.closing]);
+
+  // ── The protocol keeps the answer in this tab: the example's sheet erases by it (sheet spec 4.3) ──
+  const keptSession = useRef<{ attempt: string; session: string } | null>(null);
+  const [sheetChange, setSheetChange] = useState<ChangeSummary | null>(null);
+  useEffect(() => {
+    if (state.phase !== 'protocol' || state.evaluation.status !== 'done' || !state.attempt) return;
+    const attemptId = state.attempt.attemptId;
+    if (keptSession.current?.attempt === attemptId) return;
+    const session = `try-${Date.now().toString(36)}-${attemptId}`;
+    keptSession.current = { attempt: attemptId, session };
+    const statuses: TryAnswer['statuses'] = {};
+    for (const point of state.evaluation.result.points) if (point.status !== 'unrated') statuses[point.id] = point.status;
+    const f = state.followup;
+    const answer: TryAnswer = {
+      session,
+      questionId: question.id,
+      at: Date.parse(state.attempt.startedAt) || Date.now(),
+      transcript: state.attempt.transcript ?? '',
+      statuses,
+      followup: f && f.status ? { pointId: f.pointId, question: f.question, answer: f.answer, status: f.status, judgedBy: f.judgedBy } : null,
+    };
+    const store = saveTryAnswer(answer);
+    setTryPeak(question.id);
+    setSheetChange(sheetChangeOf(answer, tryEvents(store)));
+  }, [question.id, state.phase, state.evaluation, state.attempt, state.followup]);
 
   // ── The grade: the app's formula over the key-word statuses and the follow-up ──
   const grade: GradeResult | null = useMemo(() => {
@@ -469,9 +597,10 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           </section>
           <section className="or-side" aria-label="Оценка">
             <ExampleGrade result={grade}>
+              {sheetChange ? <SheetChangeLine change={sheetChange} /> : null}
               <p className="tx-grade-back">
-                <Link className="sf-link tx-narrow-only" data-muted="" to="/try">
-                  Лист примера
+                <Link className="sf-link" data-muted="" to={TRY_SHEET_PATH}>
+                  К шпаргалке
                 </Link>
                 <button type="button" className="sf-link" data-muted="" onClick={answerAgain}>
                   Ответить ещё раз
@@ -698,6 +827,12 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
           data-anchor=""
         />
+        {/* The example's own answer to the question its sheet asks for (sheet spec 4.3). */}
+        {question.id === EXAMPLE_ANSWER_QUESTION && !state.typed.trim() ? (
+          <button type="button" className="sf-link tx-insert" onClick={() => dispatch({ type: 'typed', text: EXAMPLE_ANSWER_Q5 })}>
+            Вставить ответ примера
+          </button>
+        ) : null}
       </div>
     ) : (
       <LiveTranscript

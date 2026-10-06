@@ -34,6 +34,26 @@ const HISTORY_MIN_STEP = 140;
 /** After the longest of the questions being written in has finished. */
 const FRESH_SETTLE_MARGIN_MS = 400;
 
+/** Where the sheet's links lead: a real exam's pages, or the example's (/try). */
+export interface SheetLinks {
+  /** «Ответить на этот вопрос». */
+  answer: (questionId: string) => string;
+  /** An answer in a line's history: its protocol, or null for no link. */
+  session: (sessionId: string) => string | null;
+  /** Words after an answer of the history («ответ примера»), or null. */
+  sessionNote?: (sessionId: string) => string | null;
+  /** «Добавить материал» under a question that is in no lecture; null for none. */
+  addMaterial: string | null;
+}
+
+export function examSheetLinks(examId: string): SheetLinks {
+  return {
+    answer: (questionId) => `/exams/${examId}/ticket?q=${encodeURIComponent(questionId)}`,
+    session: (sessionId) => `/exams/${examId}/ticket?session=${encodeURIComponent(sessionId)}`,
+    addMaterial: `/exams/${examId}/edit#lectures`,
+  };
+}
+
 export interface SheetPageInput {
   examId: string;
   userId: string | null;
@@ -53,6 +73,8 @@ export interface SheetPageInput {
   unmapped: boolean;
   /** A tap on a printed question: «почему» of «Вопросы». */
   onQuestion: (questionId: string) => void;
+  /** The exam's pages by default. */
+  links?: SheetLinks;
 }
 
 export interface SheetPage {
@@ -108,9 +130,16 @@ function questionOfSession(blocks: readonly SheetBlock[], session: string): stri
   return null;
 }
 
+/** The sheet of a real exam: read from the server and its journal (useCheatSheet). */
 export function useSheetPage(input: SheetPageInput): SheetPage {
+  const data = useCheatSheet(input.examId, { examDate: input.examDate, enabled: Boolean(input.userId) });
+  return useSheetView(input, data);
+}
+
+/** The sheet's view over any data of the same shape: a real exam's, or the example's on the device. */
+export function useSheetView(input: SheetPageInput, data: CheatSheetData): SheetPage {
   const { examId, examDate, active } = input;
-  const data = useCheatSheet(examId, { examDate, enabled: Boolean(input.userId) });
+  const links = useMemo(() => input.links ?? examSheetLinks(examId), [input.links, examId]);
   // The price line needs the units left today, only while the sheet is on screen.
   const unitsLeft = useUnitsLeft(active ? input.userId : null);
   const [mode, setMode] = useState<SheetViewMode>({ onlyLeft: false, cover: false, zoom: false });
@@ -393,7 +422,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
     column = (
       <LinePanel
         key={selected.line.key}
-        examId={examId}
+        links={links}
         line={selected.line}
         block={selected.block}
         state={selected.line.status.state}
@@ -444,7 +473,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
     !input.side && selected ? (
       <LinePanel
         key={selected.line.key}
-        examId={examId}
+        links={links}
         line={selected.line}
         block={selected.block}
         state={selected.line.status.state}
@@ -461,6 +490,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
     data.status === 'ready' ? (
       <CheatSheet
         examId={examId}
+        addMaterialHref={links.addMaterial}
         blocks={blocks}
         sectionTitles={input.sectionTitles}
         lectureCount={input.lectureCount}

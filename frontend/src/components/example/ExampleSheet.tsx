@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ExamSheet, { type SheetRowView } from '../exams/ExamSheet';
 import { Mark } from '../marks';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../exams/marks';
@@ -23,13 +23,47 @@ import { pluralRu } from '../conversation/visuals';
 import { KIND_LABELS } from '../../lib/exams/format';
 import { splitFragmentHeading } from '../../utils/fragmentText';
 import { EXAMPLE_EXAM, EXAMPLE_LECTURES, EXAMPLE_QUESTIONS, answerableQuestions, exampleExamQuestion } from '../../data/example';
+import { parsePeakFlags, type PeakFlag } from '../exams/peak';
+import { loadSheetFont } from '../exams/sheet/sheetFont';
+import { useSheetView, type SheetLinks } from '../exams/sheet/useSheetPage';
 import ExampleWhy from './ExampleWhy';
 import TryBar from './TryBar';
+import { EXAMPLE_ANSWER_QUESTION, TRY_VIEW_KEY, findTryAnswer, isSeededSession, takeTryPeak, useTrySheetData } from './trySheet';
 
 /** The honest note of the example (the owner's brief, word for word). */
 export const EXAMPLE_NOTE = 'Пример: три лекции и список вопросов уже сверены. В своём экзамене это сделает Meldy по вашим лекциям.';
 
 const WHY_ID = 'tx-why';
+
+type TryView = 'sheet' | 'questions';
+
+/** The example opens on its cheat sheet: it is written from the start (sheet spec 4.3). */
+function storedTryView(): TryView {
+  try {
+    return window.sessionStorage.getItem(TRY_VIEW_KEY) === 'questions' ? 'questions' : 'sheet';
+  } catch {
+    return 'sheet';
+  }
+}
+
+function storeTryView(view: TryView) {
+  try {
+    window.sessionStorage.setItem(TRY_VIEW_KEY, view);
+  } catch {
+    // This tab only.
+  }
+}
+
+/** The example's sheet leads to the example's own answer screen and protocols. */
+const TRY_LINKS: SheetLinks = {
+  answer: (questionId) => `/try/ticket?q=${encodeURIComponent(questionId)}`,
+  session: (session) => {
+    const answer = findTryAnswer(session);
+    return answer ? `/try/ticket?q=${encodeURIComponent(answer.questionId)}&answer=${encodeURIComponent(session)}` : null;
+  },
+  sessionNote: (session) => (isSeededSession(session) ? 'ответ примера' : null),
+  addMaterial: null,
+};
 
 /** The sheet's legend as filters, with the rows' own pencil marks (ExamDetail). */
 const FILTERS: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string }> = [
@@ -47,8 +81,45 @@ const FILTERS: Array<{ value: SheetFilter; coverage: SheetCoverage; word: string
 export default function ExampleSheet() {
   const navigate = useNavigate();
   const frame = useFrame<HTMLDivElement>();
+  const [params] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<SheetFilter>('all');
+  const [view, setView] = useState<TryView>(() => {
+    const asked = params.get('view');
+    return asked === 'sheet' || asked === 'questions' ? asked : storedTryView();
+  });
+  const onSheet = view === 'sheet';
+  // The guest's answer just given: the sheet plays what it changed, once (the after-answer flag).
+  const peakFlags = useRef<PeakFlag[] | null>(parsePeakFlags(takeTryPeak()));
+  const sheetData = useTrySheetData();
+  const sheetPage = useSheetView(
+    {
+      examId: EXAMPLE_EXAM.id,
+      userId: null,
+      examDate: null,
+      sectionTitles: [],
+      lectureCount: EXAMPLE_LECTURES.length,
+      active: onSheet,
+      side: frame.side,
+      frameBox: frame.box,
+      peakFlags,
+      shareLine: null,
+      mappingRunning: false,
+      unmapped: false,
+      onQuestion: (id) => setSelectedId((current) => (current === id ? null : id)),
+      links: TRY_LINKS,
+    },
+    sheetData,
+  );
+  const closeSheetLine = sheetPage.closeLine;
+  const chooseView = (next: TryView) => {
+    storeTryView(next);
+    if (next === view) return;
+    setView(next);
+    setSelectedId(null);
+    if (next === 'questions') closeSheetLine();
+    else setFilter('all');
+  };
 
   const examQuestions = useMemo(() => EXAMPLE_QUESTIONS.map(exampleExamQuestion), []);
   const allRows: SheetRowView[] = useMemo(
@@ -111,7 +182,7 @@ export default function ExampleSheet() {
         <p className="ex-caveat">{glue(caveatSentence(shares, counts.total))}</p>
       </div>
       <div className="ex-blk">
-        <p className="ex-stmt">Ответы в примере нигде не сохраняются.</p>
+        <p className="ex-stmt">Ответы примера не уходят на сервер: их помнит только эта вкладка.</p>
         <p className="ex-fine">
           {glue(`В своём экзамене вопрос подтверждается, когда ответ на него засчитан дважды, в разные дни. Тянуть билет можно из ${answerable} ${pluralRu(answerable, ['вопроса', 'вопросов', 'вопросов'])} примера, которые есть в лекциях.`)}
         </p>
@@ -132,19 +203,60 @@ export default function ExampleSheet() {
       />
     ) : null;
 
-  // While «почему» offers «Ответить на этот вопрос» beside the sheet, that is the one filled pill and
-  // «Тянуть билет» steps down to the white one (the real sheet's rule, ExamDetail).
+  // While «почему» or a line offers «Ответить на этот вопрос» beside the sheet, that is the one filled
+  // pill and «Тянуть билет» steps down to the white one (the real sheet's rule, ExamDetail).
   const whyAnswers = frame.side && selected !== null && selected.coverage !== 'none';
+  const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
   const drawButton = (
-    <button type="button" className={whyAnswers ? 'ex-secondary' : 'sf-primary'} onClick={draw}>
+    <button type="button" className={drawSteps ? 'ex-secondary' : 'sf-primary'} onClick={draw}>
       Тянуть билет
     </button>
   );
 
+  const viewTabs = (
+    <div className="ex-views" role="tablist" aria-label="Вид листа примера">
+      {(['sheet', 'questions'] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          role="tab"
+          id={`tx-view-${item}`}
+          aria-selected={view === item}
+          aria-controls="tx-view-panel"
+          tabIndex={view === item ? 0 : -1}
+          onClick={() => chooseView(item)}
+          onMouseEnter={item === 'sheet' ? () => void loadSheetFont() : undefined}
+          onFocus={item === 'sheet' ? () => void loadSheetFont() : undefined}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            const next = item === 'sheet' ? 'questions' : 'sheet';
+            chooseView(next);
+            window.setTimeout(() => document.getElementById(`tx-view-${next}`)?.focus(), 0);
+          }}
+        >
+          {item === 'sheet' ? 'Шпаргалка' : 'Вопросы'}
+        </button>
+      ))}
+    </div>
+  );
+
+  // Yesterday's answers of the example, said plainly above the paper (sheet spec 4.3).
+  const sheetCaption = (
+    <p className="tx-sheet-cap">
+      {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 5 и 9 — их строки потёрты. ')}
+      <Link className="sf-ref" to={`/try/ticket?q=${EXAMPLE_ANSWER_QUESTION}`}>
+        Ответьте на вопрос 5
+      </Link>
+      {glue(': что назовёте, сотрётся. В примере ответ проверяется по ключевым словам.')}
+    </p>
+  );
+  const sheetColumn = selected ? whyPanel('column') : sheetPage.column;
+
   return (
     <>
       <TryBar />
-      <div className="sf-page tx-page" ref={frame.ref} data-frame={frame.size}>
+      <div className="sf-page tx-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
         <header className="ex-head">
           <div style={{ minWidth: 0 }}>
             <p className="tx-flag">Пример экзамена</p>
@@ -154,75 +266,94 @@ export default function ExampleSheet() {
           {frame.side ? <div className="ex-draw">{drawButton}</div> : null}
         </header>
 
-        <div className="ex-notes">
-          <p className="ex-note tx-note">{EXAMPLE_NOTE}</p>
-        </div>
+        {/* The note is about the list checked in advance; the sheet's own caption says what is set up there. */}
+        {onSheet ? null : (
+          <div className="ex-notes">
+            <p className="ex-note tx-note">{EXAMPLE_NOTE}</p>
+          </div>
+        )}
+
+        {!frame.side ? <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div> : null}
 
         {!frame.side ? (
-          <section className="ex-col" aria-label="Сводка">
-            {summary}
+          <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
+            {onSheet ? sheetPage.top : summary}
           </section>
         ) : null}
 
         <div className="ex-body">
           <div style={{ minWidth: 0 }}>
-            <ul className="ex-filter" aria-label="Показать вопросы">
-              <li>
-                <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-                  <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
-                </button>
-              </li>
-              {FILTERS.map((item) => {
-                const kind = COVERAGE_MARK[item.coverage];
-                const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
-                const active = filter === item.value;
-                return (
-                  <li key={item.value}>
-                    <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => toggle(item.value)}>
-                      {kind && size ? (
-                        <span className="ex-filter-mark" aria-hidden="true">
-                          <Mark
-                            kind={kind}
-                            seed={301 + item.value.length}
-                            width={Math.round(size.width * PILL_MARK_SCALE)}
-                            height={Math.round(size.height * PILL_MARK_SCALE)}
-                            weight={size.weight}
-                          />
-                        </span>
-                      ) : null}
-                      <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{counts[item.coverage as 'full' | 'partial' | 'none']}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="tx-sheet-hint">Нажмите на вопрос, чтобы увидеть, где в лекциях ответ на него.</p>
-            <ExamSheet
-              examId={EXAMPLE_EXAM.id}
-              title={EXAMPLE_EXAM.sheetTitle}
-              rows={rows}
-              sectionTitles={[]}
-              selectedId={selectedId}
-              rateMode={false}
-              frame={frame.size}
-              whyId={WHY_ID}
-              onOpen={(id) => setSelectedId((current) => (current === id ? null : id))}
-              onRate={() => undefined}
-              onRateDone={() => undefined}
-              ratingPending={new Set()}
-              ratingErrors={{}}
-              peak={null}
-              dim={false}
-              emptyText={rows.length === 0 ? 'В этом фильтре вопросов нет.' : null}
-            />
+            {frame.side ? <div className="ex-viewbar">{viewTabs}</div> : null}
+            <div id="tx-view-panel" role="tabpanel" aria-labelledby={`tx-view-${view}`}>
+              {onSheet ? (
+                <>
+                  {sheetCaption}
+                  {sheetPage.paper}
+                </>
+              ) : (
+                <>
+                  <ul className="ex-filter" aria-label="Показать вопросы">
+                    <li>
+                      <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+                        <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
+                      </button>
+                    </li>
+                    {FILTERS.map((item) => {
+                      const kind = COVERAGE_MARK[item.coverage];
+                      const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
+                      const active = filter === item.value;
+                      return (
+                        <li key={item.value}>
+                          <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => toggle(item.value)}>
+                            {kind && size ? (
+                              <span className="ex-filter-mark" aria-hidden="true">
+                                <Mark
+                                  kind={kind}
+                                  seed={301 + item.value.length}
+                                  width={Math.round(size.width * PILL_MARK_SCALE)}
+                                  height={Math.round(size.height * PILL_MARK_SCALE)}
+                                  weight={size.weight}
+                                />
+                              </span>
+                            ) : null}
+                            <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{counts[item.coverage as 'full' | 'partial' | 'none']}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="tx-sheet-hint">Нажмите на вопрос, чтобы увидеть, где в лекциях ответ на него.</p>
+                  <ExamSheet
+                    examId={EXAMPLE_EXAM.id}
+                    title={EXAMPLE_EXAM.sheetTitle}
+                    rows={rows}
+                    sectionTitles={[]}
+                    selectedId={selectedId}
+                    rateMode={false}
+                    frame={frame.size}
+                    whyId={WHY_ID}
+                    onOpen={(id) => setSelectedId((current) => (current === id ? null : id))}
+                    onRate={() => undefined}
+                    onRateDone={() => undefined}
+                    ratingPending={new Set()}
+                    ratingErrors={{}}
+                    peak={null}
+                    dim={false}
+                    emptyText={rows.length === 0 ? 'В этом фильтре вопросов нет.' : null}
+                  />
+                </>
+              )}
+            </div>
           </div>
           {frame.side ? (
-            <aside className="ex-col" aria-label="Что это значит для билетов" id={selected ? WHY_ID : undefined}>
-              {selected ? whyPanel('column') : summary}
+            <aside className="ex-col" aria-label={onSheet ? 'Шпаргалка' : 'Что это значит для билетов'} id={selected ? WHY_ID : undefined}>
+              {onSheet ? sheetColumn : selected ? whyPanel('column') : summary}
             </aside>
           ) : null}
         </div>
 
+        {!frame.side && onSheet && sheetPage.after ? <section className="ex-col ex-col-after">{sheetPage.after}</section> : null}
+        {!frame.side && onSheet ? sheetPage.overlay : null}
         {!frame.side && selected ? <div id={WHY_ID}>{whyPanel('sheet')}</div> : null}
 
         <ExampleLectures />

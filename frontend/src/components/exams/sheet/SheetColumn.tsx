@@ -8,6 +8,7 @@ import { glue, NBSP } from '../sheetModel';
 import type { FrameBox } from '../useFrame';
 import { counterDetails, counterLabel, erasableSentence, historyLine, lineNote, linesWord, priceLine, questionsWord } from './copy';
 import type { SheetViewMode } from './CheatSheet';
+import type { SheetLinks } from './useSheetPage';
 
 /**
  * Meldy's column beside the cheat sheet (spec 4.1, 8): how many lines are left, writing the sheet
@@ -304,7 +305,8 @@ export function outcomeLine(write: SheetWriteState, toWrite: number): string | n
 // ── The details of one line ────────────────────────────────────────────────────────────────
 
 export interface LinePanelProps {
-  examId: string;
+  /** Where «Ответить на этот вопрос» and the answers of the history lead. */
+  links: Pick<SheetLinks, 'answer' | 'session' | 'sessionNote'>;
   line: SheetLine;
   block: SheetBlock;
   /** The line's state as drawn now. */
@@ -332,7 +334,7 @@ function quoteCaption(line: SheetLine, block: SheetBlock): string | null {
 }
 
 export function LinePanel(props: LinePanelProps) {
-  const { line, block, state, peeked, examId, onClose, variant } = props;
+  const { line, block, state, peeked, links, onClose, variant } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dragStart = useRef<number | null>(null);
@@ -425,20 +427,17 @@ export function LinePanel(props: LinePanelProps) {
         <div className="ex-blk">
           <p className="ex-why-t">История строки</p>
           <ul className="ex-attempts cs-lp-history">
-            {history.map((event, index) => (
-              <li key={`${event.at}:${index}`}>
-                {event.sessionId ? (
-                  <Link to={`/exams/${examId}/ticket?session=${encodeURIComponent(event.sessionId)}`}>{historyLine(event)}</Link>
-                ) : (
-                  <span>{historyLine(event)}</span>
-                )}
-              </li>
-            ))}
+            {history.map((event, index) => {
+              const href = event.sessionId ? links.session(event.sessionId) : null;
+              const note = event.sessionId ? links.sessionNote?.(event.sessionId) ?? null : null;
+              const text = note ? `${historyLine(event)} (${note})` : historyLine(event);
+              return <li key={`${event.at}:${index}`}>{href ? <Link to={href}>{text}</Link> : <span>{text}</span>}</li>;
+            })}
           </ul>
         </div>
       )}
       <div className="ex-why-go">
-        <Link className="sf-primary" to={`/exams/${examId}/ticket?q=${encodeURIComponent(line.questionId)}`}>
+        <Link className="sf-primary" to={links.answer(line.questionId)}>
           Ответить на этот вопрос
         </Link>
       </div>

@@ -7,6 +7,7 @@ vi.mock('../../../lib/supabase', () => ({ supabase: {} }));
 import type { SheetWriteState } from '../../../api/cheatSheet';
 import type { HistoryFrame, LineState, LineStatus, SheetBlock, SheetCounts, SheetLine } from '../../../lib/exams/cheatSheet';
 import { historyResult, LinePanel, outcomeLine, SheetSummaryCard, SheetWriteCard, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
+import { examSheetLinks } from './useSheetPage';
 
 afterEach(() => {
   cleanup();
@@ -268,7 +269,7 @@ function panel(line: SheetLine, extra: { peeked?: boolean; variant?: 'column' | 
   const view = render(
     <MemoryRouter>
       <LinePanel
-        examId="exam-1"
+        links={examSheetLinks('exam-1')}
         line={line}
         block={blockOf(line)}
         state={extra.state ?? line.status.state}
@@ -326,6 +327,29 @@ describe('LinePanel', () => {
     // Newest first; an answer with a protocol is a link to it.
     expect(within(items[0]).queryByRole('link')).toBeNull();
     expect(within(items[1]).getByRole('link').getAttribute('href')).toBe('/exams/exam-1/ticket?session=s1');
+  });
+
+  it('leads where its links say: the example’s answers carry their note and open nowhere else', () => {
+    const history = [{ at: '2026-10-05T07:05:00Z', date: '2026-10-05', outcome: 'named' as const, word: 'named' as const, sessionId: 'try-seed-q5' }];
+    render(
+      <MemoryRouter>
+        <LinePanel
+          links={{ answer: (id) => `/try/ticket?q=${id}`, session: () => null, sessionNote: (id) => (id.startsWith('try-seed') ? 'ответ примера' : null) }}
+          line={lineOf('missed', { history })}
+          block={blockOf(lineOf('missed', { history }))}
+          state="missed"
+          peeked={false}
+          onPeek={vi.fn()}
+          onClose={vi.fn()}
+          variant="column"
+          headingId="cs-lp-h"
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/try/ticket?q=q25');
+    const item = within(document.querySelector('.cs-lp-history') as HTMLElement).getByRole('listitem');
+    expect(within(item).queryByRole('link')).toBeNull();
+    expect(plain(item.textContent)).toMatch(/— назван \(ответ примера\)$/);
   });
 
   it('a phone bottom sheet: a dialog that takes the focus, holds the page and keeps Tab inside', () => {
