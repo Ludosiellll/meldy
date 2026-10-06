@@ -54,6 +54,10 @@ import {
   lecturesPhrase,
   matchesFilter,
   numberOf,
+  perTicketOf,
+  allQuestionsWord,
+  shareText,
+  questionShareText,
   ratingCounts,
   readinessWords,
   sheetCoverage,
@@ -64,6 +68,8 @@ import {
 } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
 import DrawModeMenu, { DRAW_CAPTIONS } from '../components/exams/DrawModeMenu';
+import { useSheetPage } from '../components/exams/sheet/useSheetPage';
+import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -85,6 +91,32 @@ interface PeakRun {
 
 function hashKey(question: ExamQuestion): string {
   return question.question_hash ?? `row:${question.id}`;
+}
+
+/**
+ * «Шпаргалка · Вопросы» (cheat sheet spec 4.1): the view chosen last on this exam is remembered
+ * (`meldy_sheet_view_<examId>`); until the sheet has a written question the page opens on «Вопросы»,
+ * after that on «Шпаргалка» — from the next visit, never in the middle of one. A link with a filter
+ * («почему», coverage) opens «Вопросы»; `?view=sheet` (the protocol, «Сегодня») opens the sheet.
+ */
+export type PageView = 'sheet' | 'questions';
+export const SHEET_VIEW_PREFIX = 'meldy_sheet_view_';
+
+function storedView(examId: string): PageView | null {
+  try {
+    const value = window.localStorage.getItem(SHEET_VIEW_PREFIX + examId);
+    return value === 'sheet' || value === 'questions' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeView(examId: string, view: PageView) {
+  try {
+    window.localStorage.setItem(SHEET_VIEW_PREFIX + examId, view);
+  } catch {
+    // Private mode: the view is chosen again next time.
+  }
 }
 
 /** Phases of a run started in this tab (a wait for another tab's run is 'waiting', then 'idle'). */
@@ -145,6 +177,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // anything that is not a known filter shows every question.
   const [searchParams] = useSearchParams();
   const [openedFilter] = useState<SheetFilter>(() => sheetFilterOf(searchParams.get('filter')));
+  const [view, setView] = useState<PageView>(() => {
+    if (searchParams.get('filter')) return 'questions';
+    const asked = searchParams.get('view');
+    if (asked === 'sheet' || asked === 'questions') return asked;
+    return storedView(examId) ?? 'questions';
+  });
   const userId = user?.id ?? null;
   const navigate = useNavigate();
   const { confirm } = useConfirm();
@@ -436,6 +474,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   // ------------------------------------------------------------------ peak 3
   useEffect(() => {
+    // On the cheat sheet its own show plays the answer (one controller of the flag, sheet spec 4.2).
+    if (view === 'sheet') return;
     const flags = peakFlags.current;
     if (!flags || flags.length === 0 || eventsState !== 'ready' || !bundle) return;
     peakFlags.current = null;
@@ -484,7 +524,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       });
       break;
     }
-  }, [eventsState, bundle, answersByHash, events, summary, confirmed, layout.per_ticket, confirmedBeforeToday, now]);
+  }, [view, eventsState, bundle, answersByHash, events, summary, confirmed, layout.per_ticket, confirmedBeforeToday, now]);
 
   // A mapping run that finished on this page draws the strike over the question share in, once.
   const strikeLive = job.phase === 'done' && job.finishedSeq !== openedSeq && job.finishedSeq !== strikeSeen;
@@ -515,6 +555,58 @@ function ExamSheetPage({ examId }: { examId: string }) {
       events.forEach((name) => window.removeEventListener(name, undim));
     };
   }, [peak?.dim]);
+
+  // ------------------------------------------------------------------ cheat sheet
+  // «35 % билетов, где оба вопроса есть в лекциях» beside the sheet's counter, as «Вопросы» says it.
+  const sheetShareLine = useMemo(() => {
+    const low = shares.low;
+    if (!low.ok || counts.total === 0 || counts.unmapped + counts.checking >= counts.total) return null;
+    if ((low.mode === 'random' || low.mode === 'sections') && low.q <= 1) return `${questionShareText(counts)} вопросов есть в лекциях`;
+    const ticketShare = shareText(shares, 'all');
+    if (!ticketShare) return null;
+    const label = low.mode === 'fixed' ? 'билетов, где все вопросы есть в лекциях' : `билетов, где ${allQuestionsWord(perTicketOf(low, layout.per_ticket))} есть в лекциях`;
+    return `${ticketShare} ${label}`;
+  }, [shares, counts, layout.per_ticket]);
+  const sheetPage = useSheetPage({
+    examId,
+    userId,
+    examDate: bundle?.exam.exam_date ?? null,
+    sectionTitles: bundle?.exam.ticket_layout.section_titles ?? [],
+    lectureCount: bundle?.materials.length ?? 0,
+    active: view === 'sheet' && status === 'ready',
+    side: frame.side,
+    frameBox: frame.box,
+    peakFlags,
+    shareLine: sheetShareLine,
+    mappingRunning: running || job.phase === 'waiting',
+    unmapped: questions.length > 0 && questions.every((question) => question.coverage === null),
+    onQuestion: (id) => {
+      setManualError(null);
+      setSelectedId((currentId) => (currentId === id ? null : id));
+    },
+  });
+  // Once something is written, the page opens on the sheet from the next visit (unless the student chose).
+  const sheetWritten = sheetPage.data.status === 'ready' && sheetPage.data.written > 0;
+  useEffect(() => {
+    if (sheetWritten && storedView(examId) === null) storeView(examId, 'sheet');
+  }, [sheetWritten, examId]);
+  const closeSheetLine = sheetPage.closeLine;
+  const chooseView = useCallback(
+    (next: PageView) => {
+      storeView(examId, next);
+      if (next === view) return;
+      setView(next);
+      setSelectedId(null);
+      setPeak(null);
+      if (next === 'sheet') {
+        setRateMode(false);
+        setFilter('all');
+      } else {
+        closeSheetLine();
+      }
+    },
+    [examId, view, closeSheetLine],
+  );
 
   // ------------------------------------------------------------------ actions
   /*
@@ -613,7 +705,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
     const id = selectedId;
     setSelectedId(null);
     setManualError(null);
-    if (id) window.setTimeout(() => document.getElementById(`exam-q-${id}`)?.querySelector<HTMLButtonElement>('.ex-open')?.focus(), 0);
+    if (id) {
+      window.setTimeout(() => {
+        const row = document.getElementById(`exam-q-${id}`)?.querySelector<HTMLButtonElement>('.ex-open');
+        (row ?? document.getElementById(`cs-q-${id}`)?.querySelector<HTMLButtonElement>('.cs-qbtn'))?.focus();
+      }, 0);
+    }
   }, [selectedId]);
 
   const onManualMark = async () => {
@@ -887,8 +984,39 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const sheetTitle = sheetHeader(exam.title, exam.kind);
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
 
+  const onSheet = view === 'sheet';
+  // The column offers its own filled pill («Написать шпаргалку», «Ответить на этот вопрос»): «Тянуть билет» steps down.
+  const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
+  const viewTabs = (
+    <div className="ex-views" role="tablist" aria-label="Вид листа экзамена">
+      {(['sheet', 'questions'] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          role="tab"
+          id={`ex-view-${item}`}
+          aria-selected={view === item}
+          aria-controls="ex-view-panel"
+          tabIndex={view === item ? 0 : -1}
+          onClick={() => chooseView(item)}
+          onMouseEnter={item === 'sheet' ? () => void loadSheetFont() : undefined}
+          onFocus={item === 'sheet' ? () => void loadSheetFont() : undefined}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            const next = item === 'sheet' ? 'questions' : 'sheet';
+            chooseView(next);
+            window.setTimeout(() => document.getElementById(`ex-view-${next}`)?.focus(), 0);
+          }}
+        >
+          {item === 'sheet' ? 'Шпаргалка' : 'Вопросы'}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
+    <div className="sf-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
       <header className="ex-head">
         <div style={{ minWidth: 0 }}>
           <p className="ex-crumb">
@@ -914,11 +1042,16 @@ function ExamSheetPage({ examId }: { examId: string }) {
             <button
               type="button"
               className="sf-link"
-              aria-pressed={rateMode}
+              aria-pressed={rateMode && !onSheet}
               onClick={() => {
                 setSelectedId(null);
-                setRateMode((value) => !value);
                 setFilter('all');
+                if (onSheet) {
+                  chooseView('questions');
+                  setRateMode(true);
+                  return;
+                }
+                setRateMode((value) => !value);
               }}
             >
               Самооценка
@@ -938,7 +1071,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
               {/* While «почему» offers «Ответить на этот вопрос», that is the one filled pill (redesign critique 6). */}
               <Link
                 ref={drawPillRef}
-                className={whyAnswers ? 'ex-secondary' : 'sf-primary'}
+                className={drawSteps ? 'ex-secondary' : 'sf-primary'}
                 to={drawHref}
                 onMouseEnter={preloadTicketScreen}
                 onFocus={preloadTicketScreen}
@@ -975,85 +1108,102 @@ function ExamSheetPage({ examId }: { examId: string }) {
         </div>
       )}
 
-      {!frame.side && <section className="ex-col" aria-label="Сводка">{rateMode ? rateColumn : showPeak ? peakColumn : compactColumn}</section>}
+      {!frame.side && (
+        <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
+          {onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn}
+        </section>
+      )}
 
       <div className="ex-body">
         <div style={{ minWidth: 0 }}>
-          <ul className="ex-filter" aria-label="Показать вопросы">
-            <li>
-              <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-                <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
-              </button>
-            </li>
-            {coverageFilters
-              .filter((item) => showCoverageFilters && (item.count > 0 || item.value === 'cov:full' || item.value === 'cov:partial' || item.value === 'cov:none'))
-              .map((item) => {
-                const kind = COVERAGE_MARK[item.coverage];
-                const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
-                const active = filter === item.value;
-                return (
-                  <li key={item.value}>
-                    {/* A status pill in its colour, with the same pencil mark as the rows' pills. */}
-                    <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => setFilter(active ? 'all' : item.value)}>
-                      {kind && size && (
-                        <span className="ex-filter-mark" aria-hidden="true">
-                          <Mark
-                            kind={kind}
-                            seed={301 + item.value.length}
-                            width={Math.round(size.width * PILL_MARK_SCALE)}
-                            height={Math.round(size.height * PILL_MARK_SCALE)}
-                            weight={size.weight}
-                          />
-                        </span>
-                      )}
-                      <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{item.count}</span>
-                    </button>
-                  </li>
-                );
-              })}
-          </ul>
-          <ExamSheet
-            examId={exam.id}
-            title={sheetTitle}
-            rows={rows}
-            sectionTitles={exam.ticket_layout.section_titles ?? []}
-            selectedId={selectedId}
-            rateMode={rateMode}
-            frame={frame.size}
-            whyId={whyId}
-            onOpen={(id) => {
-              setManualError(null);
-              setSelectedId((currentId) => (currentId === id ? null : id));
-            }}
-            onRate={(row, rating) => void onRate(row, rating)}
-            onRateDone={() => {
-              setRateMode(false);
-              setFilter('all');
-            }}
-            ratingPending={ratingPending}
-            ratingErrors={ratingErrors}
-            peak={
-              peak
-                ? ({
-                    questionId: peak.questionId,
-                    animate: peak.phase === 'draw' && peak.draws,
-                    because: peak.because,
-                    count: frame.side ? undefined : peakCountLine(peak.view),
-                  } satisfies SheetPeak)
-                : null
-            }
-            dim={Boolean(peak?.dim)}
-            emptyText={rows.length === 0 ? 'В этом фильтре вопросов нет.' : null}
-          />
+          <div className="ex-bar">
+            {viewTabs}
+            {!onSheet && (
+              <ul className="ex-filter" aria-label="Показать вопросы">
+                <li>
+                  <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+                    <span className="ex-filter-word">Все</span> <span className="ex-count">{counts.total}</span>
+                  </button>
+                </li>
+                {coverageFilters
+                  .filter((item) => showCoverageFilters && (item.count > 0 || item.value === 'cov:full' || item.value === 'cov:partial' || item.value === 'cov:none'))
+                  .map((item) => {
+                    const kind = COVERAGE_MARK[item.coverage];
+                    const size = kind ? COVERAGE_MARK_SIZE[kind] : null;
+                    const active = filter === item.value;
+                    return (
+                      <li key={item.value}>
+                        {/* A status pill in its colour, with the same pencil mark as the rows' pills. */}
+                        <button type="button" data-cov={item.coverage} aria-pressed={active} onClick={() => setFilter(active ? 'all' : item.value)}>
+                          {kind && size && (
+                            <span className="ex-filter-mark" aria-hidden="true">
+                              <Mark
+                                kind={kind}
+                                seed={301 + item.value.length}
+                                width={Math.round(size.width * PILL_MARK_SCALE)}
+                                height={Math.round(size.height * PILL_MARK_SCALE)}
+                                weight={size.weight}
+                              />
+                            </span>
+                          )}
+                          <span className="ex-filter-word">{item.word}</span> <span className="ex-count">{item.count}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+          </div>
+          <div id="ex-view-panel" role="tabpanel" aria-labelledby={`ex-view-${view}`}>
+            {onSheet ? (
+              (sheetPage.paper ?? (sheetPage.data.status === 'loading' ? <p className="ex-loading">Загружаем шпаргалку…</p> : null))
+            ) : (
+              <ExamSheet
+                examId={exam.id}
+                title={sheetTitle}
+                rows={rows}
+                sectionTitles={exam.ticket_layout.section_titles ?? []}
+                selectedId={selectedId}
+                rateMode={rateMode}
+                frame={frame.size}
+                whyId={whyId}
+                onOpen={(id) => {
+                  setManualError(null);
+                  setSelectedId((currentId) => (currentId === id ? null : id));
+                }}
+                onRate={(row, rating) => void onRate(row, rating)}
+                onRateDone={() => {
+                  setRateMode(false);
+                  setFilter('all');
+                }}
+                ratingPending={ratingPending}
+                ratingErrors={ratingErrors}
+                peak={
+                  peak
+                    ? ({
+                        questionId: peak.questionId,
+                        animate: peak.phase === 'draw' && peak.draws,
+                        because: peak.because,
+                        count: frame.side ? undefined : peakCountLine(peak.view),
+                      } satisfies SheetPeak)
+                    : null
+                }
+                dim={Boolean(peak?.dim)}
+                emptyText={rows.length === 0 ? 'В этом фильтре вопросов нет.' : null}
+              />
+            )}
+          </div>
         </div>
         {frame.side && (
-          <aside className="ex-col" aria-label="Что это значит для билетов" id={selectedRow ? whyId : undefined}>
-            {column}
+          <aside className="ex-col" aria-label={onSheet ? 'Шпаргалка' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
+            {onSheet ? (selectedRow ? whyPanel('column') : sheetPage.column) : column}
           </aside>
         )}
       </div>
 
-      {!frame.side && !rateMode && !showPeak && (
+      {!frame.side && onSheet && sheetPage.overlay}
+
+      {!frame.side && !onSheet && !rateMode && !showPeak && (
         <section className="ex-col ex-col-after" aria-label="Ответы по билетам">
           {coverage('rest')}
           {readiness('rest')}
@@ -1075,7 +1225,13 @@ function ExamSheetPage({ examId }: { examId: string }) {
             </>
           ) : (
             <>
-              <Link ref={drawPillRef} className="sf-primary" to={drawHref} onTouchStart={preloadTicketScreen} onFocus={preloadTicketScreen}>
+              <Link
+                ref={drawPillRef}
+                className={onSheet && sheetPage.primaryInColumn ? 'ex-secondary' : 'sf-primary'}
+                to={drawHref}
+                onTouchStart={preloadTicketScreen}
+                onFocus={preloadTicketScreen}
+              >
                 {drawLabel}
               </Link>
               {/* Phones and tablets choose the way of drawing here too (stage QA round 2): a bottom sheet. */}

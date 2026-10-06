@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
   checkAILimit: vi.fn(),
   verifyEnergy: vi.fn(),
   confirm: vi.fn(),
+  fetchSheet: vi.fn(),
+  fetchSheetEvents: vi.fn(),
+  recordSheetPeek: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -39,7 +42,14 @@ vi.mock('../api/learning', async (importOriginal) => {
     fetchQuestionEvents: mocks.fetchQuestionEvents,
     fetchSessionPoints: mocks.fetchSessionPoints,
     recordSelfRating: mocks.recordSelfRating,
+    fetchSheetEvents: mocks.fetchSheetEvents,
+    recordSheetPeek: mocks.recordSheetPeek,
   };
+});
+// The cheat sheet's read (GET /api/oral/sheet); the mapping tests count the page's own fetches.
+vi.mock('../api/cheatSheet', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/cheatSheet')>();
+  return { ...actual, fetchSheet: mocks.fetchSheet };
 });
 vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
@@ -252,6 +262,9 @@ beforeEach(() => {
   mocks.incrementAIUsage.mockResolvedValue(undefined);
   mocks.verifyEnergy.mockResolvedValue(true);
   mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: false, count: 0, ok: true });
+  mocks.fetchSheet.mockResolvedValue({ examId: 'exam-1', mappingState: 'none', questions: [], toWrite: 0, units: 0, job: null });
+  mocks.fetchSheetEvents.mockResolvedValue([]);
+  mocks.recordSheetPeek.mockResolvedValue(undefined);
   mocks.confirm.mockResolvedValue(true);
   mocks.markQuestionManual.mockResolvedValue(undefined);
   setWidth(1280);

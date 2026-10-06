@@ -198,6 +198,7 @@ const LineView = memo(function LineView({ line, block, state, motion, selected, 
   return (
     <li
       className="cs-line"
+      data-key={line.key}
       data-state={state}
       data-anim={motion?.anim}
       data-trace={motion?.anim === 'return' ? (fromErased ? 'erased' : 'rubbed') : undefined}

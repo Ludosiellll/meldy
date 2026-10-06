@@ -435,3 +435,92 @@
   .cs-paper[data-font='ready'] .cs-lines,
   .cs-rubnote { animation: none; }
 }
+
+/* ---------------------------------------------------------------- Meldy's column beside the sheet */
+/* The card «Шпаргалка»: its flag in the pink of the paper's margin line, the big count, the quiet switches. */
+.sf-page .cs-sum > .cs-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin: 0 0 4px;
+  padding: 0 26px 0 14px;
+  background: var(--m-pink);
+  color: #0b121c;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%);
+}
+.sf-page .cs-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-top: 14px; }
+.sf-page .cs-count-l { font-size: 18px; line-height: 25px; }
+.sf-page .cs-sub { margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .cs-change { margin-top: 14px; font-size: 17px; line-height: 25px; color: var(--sf-ink); text-wrap: pretty; animation: cs-fade 300ms ease-out both; }
+.sf-page .cs-share { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--sf-line); font-size: 16px; line-height: 23px; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .cs-toggles { display: grid; gap: 2px; margin: 16px -8px 0; }
+.sf-page .cs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--sf-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .2s ease;
+}
+.sf-page .cs-toggle:hover { background: var(--ex-hover); }
+.sf-page .cs-toggle:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 1px; }
+.sf-page .cs-toggle-box {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--sf-line-strong);
+  transition: background-color .25s var(--m-ease);
+}
+.sf-page .cs-toggle-box::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(11, 18, 28, .2);
+  transition: transform .25s var(--m-ease);
+}
+.sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box { background: var(--sf-accent); }
+.sf-page .cs-toggle[aria-checked='true'] .cs-toggle-box::after { transform: translateX(14px); }
+.sf-page .cs-acts { display: flex; flex-wrap: wrap; gap: 0 20px; margin-top: 8px; }
+.sf-page .cs-acts .sf-link { font-size: 16px; }
+
+/* Writing the sheet: on the blue-tinted panel; before the first write it is the column's one filled pill. */
+.sf-page .cs-write-h { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.015em; color: var(--sf-ink); }
+.sf-page .cs-write-h + .ex-stmt,
+.sf-page .cs-write .ex-stmt + .ex-stmt { margin-top: 10px; }
+.sf-page .cs-write .ex-stmt { font-size: 17px; line-height: 25px; }
+.sf-page .cs-write-go { margin: 20px 0 8px; }
+.sf-page .cs-write-go .sf-primary { width: 100%; justify-content: space-between; }
+.sf-page .cs-write-fine { color: var(--sf-muted); }
+.sf-page .cs-outcome { font-weight: 500; }
+.sf-page .cs-write .ex-fine + .ex-fine { margin-top: 4px; }
+
+/* The details of a line (as «почему»): the state in words, «Подсмотреть», the lecture's words, the history. */
+.sf-page .cs-lp-peek { display: grid; justify-items: start; gap: 10px; margin-top: 16px; }
+.sf-page .cs-lp-peeked { margin-top: 12px; color: var(--ph-focus); }
+.sf-page .cs-lp-quote { margin: 0; padding: 16px 20px; font-size: 16px; line-height: 24px; }
+.sf-page .cs-loading { padding-top: 8px; }
+.sf-page .cs-events-error { margin-top: 4px; }
+
+/* Phones and tablets: the count and «Только то, что осталось» above the paper, compact. */
+.sf-page .cs-sum[data-compact] .cs-count { margin-top: 8px; }
+.sf-page .cs-sum[data-compact] .ex-big { font-size: 44px; }
+.sf-page .cs-sum[data-compact] .cs-toggles { margin-top: 10px; }
