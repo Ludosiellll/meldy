@@ -13,7 +13,8 @@ import { notifyAIUsageChanged } from './limits';
 import type { SheetCoverage, SheetMaterial, SheetPoint, SheetQuestion, SheetRubric } from '../lib/exams/cheatSheet';
 
 export interface SheetJobInfo {
-  state: 'running';
+  /** stopping: «Остановить» was pressed; the questions already started are being finished. */
+  state: 'running' | 'stopping';
   done: number;
   total: number;
   startedAt: string | null;
@@ -142,9 +143,15 @@ export function parseSheetQuestion(value: unknown): SheetQuestion | null {
 export function parseSheetResponse(value: unknown): SheetResponse {
   if (!isRecord(value) || !Array.isArray(value.questions)) throw new SheetError(SHEET_LOAD_MESSAGE);
   const questions = value.questions.map(parseSheetQuestion).filter((item): item is SheetQuestion => item !== null);
-  const job = isRecord(value.job) && value.job.state === 'running'
-    ? { state: 'running' as const, done: count(value.job.done), total: count(value.job.total), startedAt: str(value.job.started_at, 40) || null }
-    : null;
+  const job =
+    isRecord(value.job) && (value.job.state === 'running' || value.job.state === 'stopping')
+      ? {
+          state: value.job.state === 'stopping' ? ('stopping' as const) : ('running' as const),
+          done: count(value.job.done),
+          total: count(value.job.total),
+          startedAt: str(value.job.started_at, 40) || null,
+        }
+      : null;
   return {
     examId: str(value.exam_id, 64),
     mappingState: str(value.mapping_state, 16),
@@ -217,8 +224,14 @@ function idleState(examId: string): SheetWriteState {
   return { examId, phase: 'idle', done: 0, total: 0, written: 0, failed: 0, busy: 0, limit: false, results: {}, message: null, seq: 0, stopping: false };
 }
 
+/** The exam's writing state; the same object until it changes (a React external store). */
 export function getSheetWrite(examId: string): SheetWriteState {
-  return states.get(examId) ?? idleState(examId);
+  let state = states.get(examId);
+  if (!state) {
+    state = idleState(examId);
+    states.set(examId, state);
+  }
+  return state;
 }
 
 export function subscribeSheetWrites(listener: () => void): () => void {

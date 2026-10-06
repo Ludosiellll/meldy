@@ -584,9 +584,10 @@ export function changeSummary(changes: readonly LineChange[]): { erased: number;
  * The answer session whose events are the newest among the sheet's lines (the last answer that
  * changed the sheet), or null.
  */
-export function lastAnswerSession(sheet: Sheet): string | null {
+export function lastAnswerSession(sheet: Sheet, questionIds?: ReadonlySet<string>): string | null {
   let newest: LineEvent | null = null;
   for (const block of sheet.blocks) {
+    if (questionIds && !questionIds.has(block.questionId)) continue;
     for (const line of block.lines) {
       for (const event of line.status.history) {
         if (event.sessionId && (!newest || event.at > newest.at)) newest = event;
@@ -596,17 +597,18 @@ export function lastAnswerSession(sheet: Sheet): string | null {
   return newest?.sessionId ?? null;
 }
 
-/** The sheet as it was before one answer session: the same build without that session's events. */
+/** The sheet as it was before one answer session (or several): the same build without their events. */
 export function sheetWithout(
   questions: readonly SheetQuestion[],
   events: readonly LearningEvent[],
-  sessionId: string,
+  sessionId: string | ReadonlySet<string>,
   now: Date | number = new Date(),
   options: LineOptions = {},
 ): Sheet {
+  const left = typeof sessionId === 'string' ? new Set([sessionId]) : sessionId;
   return buildSheet(
     questions,
-    events.filter((event) => event.session_id !== sessionId),
+    events.filter((event) => !event.session_id || !left.has(event.session_id)),
     now,
     options,
   );
