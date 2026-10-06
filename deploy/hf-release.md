@@ -4,6 +4,42 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-06 — «Шпаргалка, которая исчезает» on the exam page (from 3f571e3)
+
+Adds to release 25 (tree of 4fe73ec). The owner, 2026-10-05, on the idea: «со шпаргалкой звучит неплохо, реально
+неплохо, но это нужно идеально реализовать и продумать до мелочей». Spec v2 after five critics, then a second round of
+five critics on the built screens.
+
+- The exam page has two views, «Шпаргалка · Вопросы». The sheet is squared paper: the department's questions printed,
+  under each the answer points from the student's lectures written by hand — the same points the ticket's answer is
+  checked against. Where the lectures lack a question, a pencil note says so.
+- Only answers erase it: a point named in an answer rubs its line half-way (the words are no longer readable,
+  «Подсмотреть» opens them and is logged, and a naming the same day after a peek does not count); named again on
+  another day, at least 20 hours later, the line is erased; not named later, it comes back with a wave; erased lines
+  come back for a check after 5/12/25/50 days and in the last days before the exam date. Reading erases nothing.
+- «Написать шпаргалку» writes the missing questions on the server (one AI unit a question, the same price and cache as
+  the ticket's answer points; the run finishes without the page, «Остановить» starts no new questions); the price is
+  said before the button.
+- Back from an answer the sheet plays what it changed (marker, eraser, the count rolling) and says it in words,
+  including lines named again too soon; «Показать последний ответ», «История шпаргалки» (the sheet day by day),
+  «Только то, что осталось», «Закрыть строки» (a self-test), «Весь лист». On a projector (stage mode) the show waits
+  for «Показать» and goes slower. Phones: the count above the paper, line details in a bottom sheet, the change in
+  a chip.
+- The protocol of an answer says «На шпаргалке: …» with a link; «Сегодня» shows the sheet's line under the exam;
+  a first-use tip with a short clip; the guide's words.
+- /try: the example's sheet is written from the start, yesterday's answers to questions 1, 5 and 9 are rubbed in,
+  «Ответьте на вопрос 5» and «Вставить ответ примера» erase lines for real; «Начать пример заново».
+- The lecture's own summary is called «Выжимка» everywhere a person reads it (the sheet is the exam's).
+
+Database: migration `20261005143420_cheat_sheet` was applied on 2026-10-05 (additive: `oral_rubrics.sheet`, the
+journal kind `sheet_peek`; the old client keeps working). Statistics: `sheet_view`, `sheet_write_started`,
+`sheet_write_done`, `sheet_peek`, `sheet_replay`, `sheet_history` (counts in buckets).
+Verified before release: tsc -b, Vitest 2102/2102, pytest 1025, production build; on mocked Supabase/API the sheet at
+1532×734, 1024×700 and 390×844 in both themes (rubbed and erased also at 2×), the line panel and bottom sheet, peek,
+the switches, the history with its date, the after-answer show frame by frame, the empty sheet, the tip, «Сегодня»
+and /try — no horizontal overflow, no console errors. Not verified: writing a real sheet with the live AI providers —
+check right after the release.
+
 ## 2026-10-05 — The PRO window and «Дневной лимит ИИ»: wide and compact, no demo line (from 4fe73ec)
 
 Adds to release 24 (tree of c42b383). The owner, 2026-10-05: «не все вмещается, размер слишком большой у всего, нужно
