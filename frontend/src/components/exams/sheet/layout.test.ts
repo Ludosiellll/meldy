@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSheet, type SheetQuestion } from '../../../lib/exams/cheatSheet';
-import { blockRows, paperGeometry, rowMetrics, splitColumns, splitIndex } from './layout';
+import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitIndex } from './layout';
 
 function question(position: number, points: number, extra: Partial<SheetQuestion> = {}): SheetQuestion {
   return {
@@ -69,6 +69,27 @@ describe('the paper layout', () => {
     const gone = { ...erased, lines: erased.lines.map((line) => ({ ...line, status: { ...line.status, state: 'erased' as const } })) };
     expect(blockRows(gone, metrics, { hideErased: true, note: 'заметка' })).toBe(1 + 1);
     expect(blockRows(gone, metrics, { hideErased: true, keep: new Set([gone.lines[2].key]) })).toBe(1 + 1 + 1);
+  });
+
+  it('counts a question still to be written as tall as the written ones', () => {
+    const metrics = rowMetrics(360);
+    const unwritten = buildSheet([question(1, 0)], [], Date.now()).blocks[0];
+    expect(unwritten.kind).toBe('unwritten');
+    expect(estimateRows([unwritten], metrics)).toBe(4);
+    const written = buildSheet([question(2, 3), question(3, 5), question(1, 0)], [], Date.now()).blocks;
+    expect(estimateRows(written, metrics)).toBe(4);
+    expect(blockRows(unwritten, metrics, { estimate: 4 })).toBe(1 + 4 + 1);
+    // A written question or a gap is measured as it is.
+    const three = written.find((block) => block.questionId === 'q2')!;
+    expect(blockRows(three, metrics, { estimate: 4 })).toBe(1 + 3 + 1);
+  });
+
+  it('keeps a held split while it fits, else splits anew', () => {
+    const rows = [5, 5, 5, 5, 5, 5];
+    expect(splitColumns(['a', 'b', 'c', 'd', 'e', 'f'], rows, 2, 2)).toEqual([['a', 'b'], ['c', 'd', 'e', 'f']]);
+    expect(splitColumns(['a', 'b', 'c', 'd', 'e', 'f'], rows, 2, 0)).toEqual([['a', 'b', 'c'], ['d', 'e', 'f']]);
+    expect(splitColumns(['a', 'b', 'c', 'd', 'e', 'f'], rows, 2, 9)).toEqual([['a', 'b', 'c'], ['d', 'e', 'f']]);
+    expect(splitColumns(['a', 'b'], [5, 5], 1, 1)).toEqual([['a', 'b']]);
   });
 
   it('starts the second column where the halves are closest', () => {

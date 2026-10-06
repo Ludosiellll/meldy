@@ -465,6 +465,7 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
         writeNotes={data.writeNotes}
         mode={history ? { ...mode, cover: false } : mode}
         freshIds={data.freshIds}
+        writing={data.write.phase === 'running'}
         selectedKey={lineKey}
         peeked={peeked}
         opened={opened}

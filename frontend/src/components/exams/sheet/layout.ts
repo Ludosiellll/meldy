@@ -71,6 +71,28 @@ export interface BlockRowOptions {
   heading?: boolean;
   /** Erased lines that stay in view all the same (the ones an answer has just erased). */
   keep?: ReadonlySet<string>;
+  /**
+   * Rows a question still to be written is expected to take once written (estimateRows): counted
+   * already, so the questions do not move between the columns while the sheet is being written.
+   */
+  estimate?: number;
+}
+
+/** Questions whose lines are still to be written (or written again). */
+function toBeWritten(block: SheetBlock): boolean {
+  return block.kind === 'unwritten' || block.kind === 'rebuilt';
+}
+
+/** The rows of a block's handwritten lines and their notes. */
+function lineRows(block: SheetBlock, metrics: RowMetrics): number {
+  return block.lines.reduce((sum, line) => sum + rowsFor(line.text, metrics.hand), 0);
+}
+
+/** Rows a question to be written is expected to take: the mean of the written ones, else four lines. */
+export function estimateRows(blocks: readonly SheetBlock[], metrics: RowMetrics): number {
+  const written = blocks.filter((block) => block.kind === 'lines' && block.lines.length > 0);
+  if (written.length === 0) return 4;
+  return Math.max(1, Math.round(written.reduce((sum, block) => sum + lineRows(block, metrics), 0) / written.length));
 }
 
 /** A block's height in grid rows: a section title, the printed question, its lines and their notes, the block's note and one row of air. */
@@ -87,6 +109,7 @@ export function blockRows(block: SheetBlock, metrics: RowMetrics, options: Block
       if (state === 'missed' || state === 'returned' || state === 'due' || line.status.peekedToday) rows += 1;
     }
     if (options.note) rows += rowsFor(options.note, metrics.note);
+    if (options.estimate && toBeWritten(block)) rows += options.estimate;
   }
   return rows + 1;
 }
@@ -112,9 +135,12 @@ export function splitIndex(rows: readonly number[]): number {
   return best;
 }
 
-/** The blocks of each column. */
-export function splitColumns<T>(blocks: readonly T[], rows: readonly number[], columns: 1 | 2): T[][] {
+/**
+ * The blocks of each column. `held`: the index where the second column started before, kept while
+ * the sheet is being written (the estimate is close, not exact: no block moves under the pen).
+ */
+export function splitColumns<T>(blocks: readonly T[], rows: readonly number[], columns: 1 | 2, held: number | null = null): T[][] {
   if (columns === 1 || blocks.length < 2) return [blocks.slice()];
-  const index = splitIndex(rows);
+  const index = held !== null && held > 0 && held < blocks.length ? held : splitIndex(rows);
   return [blocks.slice(0, index), blocks.slice(index)];
 }

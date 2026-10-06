@@ -4,7 +4,7 @@ import type { LineChange, LineState, SheetBlock, SheetLine } from '../../../lib/
 import { MarginStroke, Mark, PencilUnder, seedFrom } from '../../marks';
 import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
 import { blockNote, lineLabel, lineNote } from './copy';
-import { blockRows, paperGeometry, rowMetrics, splitColumns } from './layout';
+import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns } from './layout';
 import { SheetText } from './SheetText';
 import { loadSheetFont } from './sheetFont';
 import './sheet.css';
@@ -52,6 +52,8 @@ export interface CheatSheetProps {
   mode: SheetViewMode;
   /** Questions that just arrived from the writer: their lines are written in, once. */
   freshIds: ReadonlySet<string>;
+  /** The sheet is being written: no question changes its column until the writing ends. */
+  writing?: boolean;
   selectedKey: string | null;
   /** Lines uncovered now: key → until when (ms). */
   peeked: ReadonlyMap<string, number>;
@@ -406,6 +408,7 @@ export default function CheatSheet({
   writeNotes,
   mode,
   freshIds,
+  writing = false,
   selectedKey,
   peeked,
   opened,
@@ -467,7 +470,12 @@ export default function CheatSheet({
 
   const geometry = useMemo(() => paperGeometry(width), [width]);
 
-  // Section titles and notes, then the split into columns by the blocks' height in grid rows.
+  // The question that starts the second column, held while the sheet is being written.
+  const secondStart = useRef<string | null>(null);
+
+  // Section titles and notes, then the split into columns by the blocks' height in grid rows. A
+  // question still to be written counts as tall as the written ones, so the split hardly moves when
+  // it gets its lines; while the writing goes on it does not move at all.
   const laid = useMemo(() => {
     let previous: number | null = null;
     const items = blocks.map((block) => {
@@ -478,9 +486,16 @@ export default function CheatSheet({
       return { block, heading, note };
     });
     const metrics = rowMetrics(geometry.column);
-    const rows = items.map((item) => blockRows(item.block, metrics, { hideErased: mode.onlyLeft, keep: kept, note: item.note, heading: Boolean(item.heading) }));
-    return splitColumns(items, rows, geometry.columns);
-  }, [blocks, sectionTitles, writeNotes, lectureCount, geometry.column, geometry.columns, mode.onlyLeft, kept]);
+    const estimate = estimateRows(blocks, metrics);
+    const rows = items.map((item) =>
+      blockRows(item.block, metrics, { hideErased: mode.onlyLeft, keep: kept, note: item.note, heading: Boolean(item.heading), estimate }),
+    );
+    const held = writing && secondStart.current ? items.findIndex((item) => item.block.questionId === secondStart.current) : -1;
+    return splitColumns(items, rows, geometry.columns, held > 0 ? held : null);
+  }, [blocks, sectionTitles, writeNotes, lectureCount, geometry.column, geometry.columns, mode.onlyLeft, kept, writing]);
+  useEffect(() => {
+    secondStart.current = laid[1]?.[0]?.block.questionId ?? null;
+  }, [laid]);
 
   // «Весь лист»: the paper scaled to the window's height; its layout stays the same.
   useLayoutEffect(() => {

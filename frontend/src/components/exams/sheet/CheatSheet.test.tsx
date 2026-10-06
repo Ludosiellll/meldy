@@ -342,6 +342,34 @@ describe('the cheat sheet', () => {
     expect(lines.map((line) => line.style.getPropertyValue('--cs-delay'))).toEqual(['0ms', `${Math.round(writeMs(POINTS[0].short) * 0.9)}ms`, `${Math.round(writeMs(POINTS[0].short) * 0.9) + Math.round(writeMs(POINTS[1].short) * 0.9)}ms`]);
   });
 
+  it('while the sheet is being written no question changes its column', () => {
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 1000 });
+    try {
+      const unwritten = Array.from({ length: 10 }, (_, index) => question(index + 1, { rubric: null }));
+      const secondColumn = (container: HTMLElement) => container.querySelectorAll('.cs-col')[1]?.querySelector<HTMLElement>('.cs-q')?.dataset.qid;
+      const before = buildSheet(unwritten, [], NOW);
+      const { container, rerender } = renderSheet(props(before.blocks, { writing: true }));
+      expect(container.querySelectorAll('.cs-col')).toHaveLength(2);
+      const held = secondColumn(container);
+      // The first question gets its lines with a long note under it: measured anew, the split would move up.
+      const longer = unwritten.map((item, index) => (index === 0 ? question(1, { coverage: 'partial', missing_note: 'x'.repeat(400) }) : item));
+      const during = buildSheet(longer, [], NOW);
+      const view = (blocks: SheetBlock[], writing: boolean) => (
+        <MemoryRouter>
+          <CheatSheet {...props(blocks, { writing })} />
+        </MemoryRouter>
+      );
+      rerender(view(during.blocks, true));
+      expect(secondColumn(container)).toBe(held);
+      // The writing over, the columns are balanced again.
+      rerender(view(during.blocks, false));
+      expect(secondColumn(container)).not.toBe(held);
+    } finally {
+      if (width) Object.defineProperty(HTMLElement.prototype, 'clientWidth', width);
+    }
+  });
+
   it('in «Весь лист» a click on a question leaves the overview there', () => {
     const sheet = buildSheet([question(1), question(2)], [], NOW);
     const p = props(sheet.blocks, { mode: { onlyLeft: false, cover: false, zoom: true } });
