@@ -286,10 +286,10 @@ function panel(line: SheetLine, extra: { peeked?: boolean; variant?: 'column' | 
 
 describe('LinePanel', () => {
   it('a rubbed line: hidden words, when it erases, «Подсмотреть», the way to answer; Escape closes', () => {
-    const { onPeek, onClose } = panel(lineOf('rubbed', { erasableFrom: '2026-10-07T12:40:00Z' }));
+    const { onPeek, onClose } = panel(lineOf('rubbed', { erasableFrom: new Date(Date.now() + 86_400_000).toISOString() }));
     expect(screen.getByRole('heading', { name: named('Строка стёрта наполовину') })).toBeTruthy();
     expect(screen.queryByText(/отношение денежной массы/)).toBeNull();
-    expect(plain(screen.getByText(/Сотрётся, если назовёте снова после/).textContent)).toMatch(/7 окт\./);
+    expect(plain(screen.getByText(/Сотрётся, если назовёте снова после/).textContent)).toMatch(/\d{1,2} [а-я]+\.?, \d{1,2}:\d\d\.$/);
     expect(plain(screen.getByText(/^Вопрос 25/).textContent)).toBe('Вопрос 25 · главный пункт');
     fireEvent.click(screen.getByRole('button', { name: 'Подсмотреть' }));
     expect(onPeek).toHaveBeenCalledTimes(1);

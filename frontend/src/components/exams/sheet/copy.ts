@@ -124,18 +124,31 @@ export function blockNote(
   }
 }
 
-/** For a rubbed line: «Сотрётся, если назовёте снова после 6 окт., 15:40.» */
-export function erasableSentence(status: LineStatus): string | null {
+/** The part of a rubbed line's sentence after «Сотрётся, если назовёте снова»: the moment, while it is ahead. */
+function erasableWhen(erasableFrom: string, now: number): string | null {
+  const at = Date.parse(erasableFrom);
+  return Number.isFinite(at) && at > now ? ` после ${moment(erasableFrom)}` : null;
+}
+
+/**
+ * For a rubbed line: «Сотрётся, если назовёте снова после 7 окт., 15:40.» — or, once that moment has
+ * come, «Назовёте в ответе снова — сотрётся.» (no moment that is already past).
+ */
+export function erasableSentence(status: LineStatus, now: number = Date.now()): string | null {
   if (status.state !== 'rubbed' || !status.erasableFrom) return null;
-  return `Сотрётся, если назовёте снова после ${moment(status.erasableFrom)}.`;
+  const when = erasableWhen(status.erasableFrom, now);
+  return when ? `Сотрётся, если назовёте снова${when}.` : 'Назовёте в ответе снова — сотрётся.';
 }
 
 /** What the screen reader hears for a line: the words only where the eye can read them too. */
-export function lineLabel(text: string, status: LineStatus, essential: boolean): string {
+export function lineLabel(text: string, status: LineStatus, essential: boolean, now: number = Date.now()): string {
   const kind = essential ? 'Главный пункт' : 'Пункт';
   switch (status.state) {
-    case 'rubbed':
-      return `${kind} стёрт наполовину${status.erasableFrom ? `; сотрётся, если назовёте снова после ${moment(status.erasableFrom)}` : ''}. Подсмотреть`;
+    case 'rubbed': {
+      const when = status.erasableFrom ? erasableWhen(status.erasableFrom, now) : null;
+      const rest = status.erasableFrom ? (when ? `; сотрётся, если назовёте снова${when}` : '; назовёте в ответе снова — сотрётся') : '';
+      return `${kind} стёрт наполовину${rest}. Подсмотреть`;
+    }
     case 'erased':
       return `${kind} стёрт${status.erasedOn ? ` ${day(status.erasedOn)}` : ''}`;
     case 'due':

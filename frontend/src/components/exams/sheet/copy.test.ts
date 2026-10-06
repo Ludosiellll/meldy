@@ -69,9 +69,12 @@ describe('cheat sheet words', () => {
     expect(blockNote({ ...base, kind: 'lines', coverage: 'full', coverageMethod: 'manual' }, 3)).toBe('Отмечено вами — Meldy этого не проверял');
   });
 
-  it('says when a rubbed line can be erased, by moment', () => {
-    const sentence = erasableSentence(status({ state: 'rubbed', erasableFrom: new Date(2026, 9, 6, 15, 40).toISOString() }));
-    expect(plain(sentence)).toBe('Сотрётся, если назовёте снова после 6 окт., 15:40.');
+  it('says when a rubbed line can be erased, by moment — and no moment once it has come', () => {
+    const rubbed = status({ state: 'rubbed', erasableFrom: new Date(2026, 9, 6, 15, 40).toISOString() });
+    expect(plain(erasableSentence(rubbed, new Date(2026, 9, 6, 9, 0).getTime()))).toBe('Сотрётся, если назовёте снова после 6 окт., 15:40.');
+    expect(erasableSentence(rubbed, new Date(2026, 9, 6, 15, 41).getTime())).toBe('Назовёте в ответе снова — сотрётся.');
+    expect(plain(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 6, 9, 0).getTime()))).toBe('Главный пункт стёрт наполовину; сотрётся, если назовёте снова после 6 окт., 15:40. Подсмотреть');
+    expect(lineLabel('цена ↑', rubbed, true, new Date(2026, 9, 7, 9, 0).getTime())).toBe('Главный пункт стёрт наполовину; назовёте в ответе снова — сотрётся. Подсмотреть');
     expect(erasableSentence(status({ state: 'fresh' }))).toBeNull();
   });
 
