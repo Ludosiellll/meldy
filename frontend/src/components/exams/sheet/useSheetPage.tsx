@@ -13,7 +13,7 @@ import {
   type SheetBlock,
   type SheetLine,
 } from '../../../lib/exams/cheatSheet';
-import { track } from '../../../lib/telemetry';
+import { countBucket, track } from '../../../lib/telemetry';
 import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
 import CheatSheet, { writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
@@ -178,7 +178,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   useEffect(() => {
     if (!active || !ready || viewTracked.current) return;
     viewTracked.current = true;
-    track('sheet_view', { left: sheet.counts.left, total: sheet.counts.total });
+    track('sheet_view', { left: countBucket(sheet.counts.left), total: countBucket(sheet.counts.total) });
   }, [active, ready, sheet.counts.left, sheet.counts.total]);
 
   // Uncovered lines close by themselves after 6 s; the column follows the paper.
@@ -220,7 +220,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         sentence: changeSentence(summary) ?? 'После ответа строки не изменились: стирает только пункт, названный в другой день.',
       });
       setReplayLive(true);
-      track('sheet_replay', { erased: summary.erased, rubbed: summary.rubbed, returned: summary.returned });
+      track('sheet_replay', { erased: countBucket(summary.erased), rubbed: countBucket(summary.rubbed), returned: countBucket(summary.returned) });
       return true;
     },
     [data.questions, data.events, data.now, examDate, sheet],
@@ -261,7 +261,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
     setReplay(null);
     setLineKey(null);
     setHistory({ frames, index: 0, running: true });
-    track('sheet_history', { days: frames.length });
+    track('sheet_history', { days: countBucket(frames.length) });
   }, [data.questions, data.events, data.now, examDate]);
   useEffect(() => {
     if (!history?.running) return undefined;

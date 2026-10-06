@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }));
-vi.mock('../../../lib/telemetry', () => ({ track: (...args: unknown[]) => mocks.track(...args) }));
+vi.mock('../../../lib/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/telemetry')>()),
+  track: (...args: unknown[]) => mocks.track(...args),
+}));
 vi.mock('../../../api/limits', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../api/limits')>()),
   notifyAIUsageChanged: () => undefined,
@@ -128,7 +131,7 @@ describe('useCheatSheet', () => {
 
     act(() => result.current.startWrite());
     await waitFor(() => expect(result.current.write.phase).toBe('running'));
-    expect(mocks.track).toHaveBeenCalledWith('sheet_write_started', { questions: 1, units: 1 });
+    expect(mocks.track).toHaveBeenCalledWith('sheet_write_started', { questions: '1-2', units: '1-2' });
 
     await act(async () => {
       stream.send({ type: 'question', question_id: '11111111-1111-4111-8111-111111111111', status: 'written', rubric: null, done: 1, total: 2 });
@@ -156,7 +159,7 @@ describe('useCheatSheet', () => {
     });
     await waitFor(() => expect(result.current.write.phase).toBe('done'));
     await waitFor(() => expect(mocks.fetchSheet.mock.calls.length).toBe(reads + 1));
-    expect(mocks.track).toHaveBeenCalledWith('sheet_write_done', expect.objectContaining({ written: 1, phase: 'done' }));
+    expect(mocks.track).toHaveBeenCalledWith('sheet_write_done', expect.objectContaining({ written: '1-2', phase: 'done' }));
   });
 
   it('follows a job the server reports, without starting one', async () => {

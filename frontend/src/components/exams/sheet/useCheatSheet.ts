@@ -11,7 +11,7 @@ import {
   type SheetWriteState,
 } from '../../../api/cheatSheet';
 import { buildSheet, sheetHashes, type Sheet, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
-import { track } from '../../../lib/telemetry';
+import { countBucket, track } from '../../../lib/telemetry';
 import { writeStatusNote } from './copy';
 
 /**
@@ -176,7 +176,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     const previous = lastPhase.current;
     lastPhase.current = write.phase;
     if (previous === 'running' && write.phase !== 'running') {
-      if (write.phase !== 'idle') track('sheet_write_done', { written: write.written, failed: write.failed, limit: write.limit, phase: write.phase });
+      if (write.phase !== 'idle') track('sheet_write_done', { written: countBucket(write.written), failed: countBucket(write.failed), limit: write.limit, phase: write.phase });
       void load(true);
     }
   }, [write.phase, write.written, write.failed, write.limit, load]);
@@ -210,7 +210,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
 
   const startWrite = useCallback(
     (questionIds?: string[]) => {
-      track('sheet_write_started', { questions: questionIds?.length ?? toWrite, units });
+      track('sheet_write_started', { questions: countBucket(questionIds?.length ?? toWrite), units: countBucket(units) });
       void startSheetWrite(examId, questionIds);
     },
     [examId, toWrite, units],
