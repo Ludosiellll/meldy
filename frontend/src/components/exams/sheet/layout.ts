@@ -69,16 +69,19 @@ export interface BlockRowOptions {
   note?: string | null;
   /** A section title printed above the block. */
   heading?: boolean;
+  /** Erased lines that stay in view all the same (the ones an answer has just erased). */
+  keep?: ReadonlySet<string>;
 }
 
 /** A block's height in grid rows: a section title, the printed question, its lines and their notes, the block's note and one row of air. */
 export function blockRows(block: SheetBlock, metrics: RowMetrics, options: BlockRowOptions = {}): number {
   let rows = (options.heading ? 1 : 0) + rowsFor(`${block.number}. ${block.text}`, metrics.print);
-  const folded = options.hideErased && block.lines.length > 0 && block.lines.every((line) => line.status.state === 'erased');
+  const hidden = (line: SheetBlock['lines'][number]) => Boolean(options.hideErased) && line.status.state === 'erased' && !options.keep?.has(line.key);
+  const folded = block.lines.length > 0 && block.lines.every(hidden);
   if (!folded) {
     for (const line of block.lines) {
       const state = line.status.state;
-      if (options.hideErased && state === 'erased') continue;
+      if (hidden(line)) continue;
       rows += rowsFor(line.text, metrics.hand);
       // The pencil note under it (copy.lineNote).
       if (state === 'missed' || state === 'returned' || state === 'due' || line.status.peekedToday) rows += 1;

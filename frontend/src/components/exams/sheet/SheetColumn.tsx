@@ -25,7 +25,7 @@ export function useUnitsLeft(userId: string | null): number | null {
     let alive = true;
     const read = () => {
       void checkAILimit(userId, 0).then((status) => {
-        if (alive) setLeft(status.ok ? Math.max(0, status.limit - status.count) : null);
+        if (alive) setLeft(status.ok && Number.isFinite(status.limit - status.count) ? Math.max(0, status.limit - status.count) : null);
       });
     };
     read();
@@ -199,8 +199,6 @@ export interface SheetWriteProps {
   /** Units left today (null: unknown). */
   unitsLeft: number | null;
   write: SheetWriteState;
-  /** A server job that this tab follows (after a reload). */
-  following: boolean;
   onWrite: (count?: number) => void;
   onStop: () => void;
   /** The mapping is running: nothing can be written until it ends. */
@@ -212,10 +210,8 @@ export interface SheetWriteProps {
 
 export function SheetWriteCard(props: SheetWriteProps) {
   const { write } = props;
-  const [stopNote, setStopNote] = useState<string | null>(null);
-  const runningNow = write.phase === 'running';
 
-  if (runningNow) {
+  if (write.phase === 'running') {
     const total = write.total || props.toWrite;
     return (
       <div className="ex-blk cs-write" role="status">
@@ -223,18 +219,10 @@ export function SheetWriteCard(props: SheetWriteProps) {
           {glue(`Пишем шпаргалку: ${write.done} из ${total || '…'}`)}
           <span className="cs-write-fine"> · можно закрыть страницу — допишется</span>
         </p>
-        {stopNote ? (
-          <p className="ex-fine">{stopNote}</p>
+        {write.stopping ? (
+          <p className="ex-fine">Новые вопросы не начнутся. Уже начатые допишутся и будут списаны.</p>
         ) : (
-          <button
-            type="button"
-            className="sf-link"
-            disabled={write.stopping}
-            onClick={async () => {
-              props.onStop();
-              setStopNote('Новые вопросы не начнутся. Уже начатые допишутся и будут списаны.');
-            }}
-          >
+          <button type="button" className="sf-link" onClick={props.onStop}>
             Остановить
           </button>
         )}

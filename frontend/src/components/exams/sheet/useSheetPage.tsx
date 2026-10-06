@@ -16,7 +16,7 @@ import {
 import { track } from '../../../lib/telemetry';
 import type { PeakFlag } from '../peak';
 import type { FrameBox } from '../useFrame';
-import CheatSheet, { type SheetReplay, type SheetViewMode } from './CheatSheet';
+import CheatSheet, { writeDuration, type SheetReplay, type SheetViewMode } from './CheatSheet';
 import { LinePanel, SheetSummaryCard, SheetWriteCard, useUnitsLeft } from './SheetColumn';
 import { changeSentence } from './copy';
 import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
@@ -31,7 +31,8 @@ import { useCheatSheet, type CheatSheetData } from './useCheatSheet';
 const PEEK_MS = 6000;
 const HISTORY_MS = 7000;
 const HISTORY_MIN_STEP = 140;
-const FRESH_SETTLE_MS = 4500;
+/** After the longest of the questions being written in has finished. */
+const FRESH_SETTLE_MARGIN_MS = 400;
 
 export interface SheetPageInput {
   examId: string;
@@ -125,13 +126,17 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
   const ready = data.status === 'ready' && data.eventsState === 'ready';
   const sheet = data.sheet;
 
-  // «Только то, что осталось» turns on by itself when half the lines are erased or the exam is today or tomorrow.
+  // «Только то, что осталось» turns on by itself when half the lines are erased or the exam is today or
+  // tomorrow. Decided once a visit, when the sheet is first there: an answer that crosses the half
+  // does not make the erased lines vanish in the middle of its show.
+  const modeDecided = useRef(false);
   useEffect(() => {
-    if (!ready || modeTouched.current || sheet.counts.total === 0) return;
+    if (!ready || modeTouched.current || modeDecided.current || sheet.counts.total === 0) return;
+    modeDecided.current = true;
     const days = daysUntil(examDate);
     const auto = sheet.counts.erased * 2 >= sheet.counts.total || (days !== null && days >= 0 && days <= 1);
-    setMode((current) => (current.onlyLeft === auto ? current : { ...current, onlyLeft: auto }));
-  }, [ready, sheet.counts.erased, sheet.counts.total, examDate, data.now]);
+    if (auto) setMode((current) => (current.onlyLeft ? current : { ...current, onlyLeft: true }));
+  }, [ready, sheet.counts.erased, sheet.counts.total, examDate]);
 
   const onMode = useCallback((next: SheetViewMode) => {
     modeTouched.current = true;
@@ -158,9 +163,10 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
   useEffect(() => {
     if (freshIds.size === 0) return undefined;
     const ids = [...freshIds];
-    const timer = window.setTimeout(() => settleFresh(ids), FRESH_SETTLE_MS);
+    const longest = Math.max(0, ...sheet.blocks.filter((block) => freshIds.has(block.questionId)).map((block) => writeDuration(block.lines)));
+    const timer = window.setTimeout(() => settleFresh(ids), longest + FRESH_SETTLE_MARGIN_MS);
     return () => window.clearTimeout(timer);
-  }, [freshIds, settleFresh]);
+  }, [freshIds, settleFresh, sheet.blocks]);
 
   // ── The replay of an answer ────────────────────────────────────────────────────────────
   const startReplay = useCallback(
@@ -357,7 +363,6 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
         units={data.units}
         unitsLeft={unitsLeft}
         write={data.write}
-        following={Boolean(data.serverJob)}
         onWrite={onWrite}
         onStop={() => void data.stopWrite()}
         mappingRunning={input.mappingRunning}

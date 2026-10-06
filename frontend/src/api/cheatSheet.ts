@@ -269,11 +269,14 @@ function aiLimitTerminal(data: Record<string, unknown>): boolean {
 /**
  * Writes the exam's missing questions (or only `questionIds`). Resolves when the stream ends; the
  * page does not need to await it. A second call while one runs for the exam does nothing.
+ * `follow`: only join the server's running job (the sheet reported one); when it has ended meanwhile
+ * the server starts nothing and charges nothing, and the state goes back to idle. `stopping`: the job
+ * joined was already told to stop.
  */
-export async function startSheetWrite(examId: string, questionIds?: string[]): Promise<void> {
+export async function startSheetWrite(examId: string, questionIds?: string[], options: { follow?: boolean; stopping?: boolean } = {}): Promise<void> {
   if (running.has(examId)) return;
   running.add(examId);
-  set(examId, (previous) => ({ ...idleState(examId), seq: previous.seq, phase: 'running' }));
+  set(examId, (previous) => ({ ...idleState(examId), seq: previous.seq, phase: 'running', stopping: options.stopping === true }));
   try {
     let terminal: Record<string, unknown> | null = null;
     try {
@@ -282,7 +285,11 @@ export async function startSheetWrite(examId: string, questionIds?: string[]): P
         init: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ exam_id: examId, ...(questionIds && questionIds.length > 0 ? { question_ids: questionIds } : {}) }),
+          body: JSON.stringify({
+            exam_id: examId,
+            ...(questionIds && questionIds.length > 0 ? { question_ids: questionIds } : {}),
+            ...(options.follow ? { follow: true } : {}),
+          }),
         },
         onEvent: (data) => handleEvent(examId, data),
         idleMs: WRITE_IDLE_MS,
@@ -306,6 +313,8 @@ export async function startSheetWrite(examId: string, questionIds?: string[]): P
     notifyAIUsageChanged(); // the server charged the written questions
     if (!terminal) {
       set(examId, (previous) => ({ ...previous, phase: 'interrupted', message: 'Связь прервалась. Шпаргалка дописывается на сервере — обновите страницу через минуту.' }));
+    } else if (terminal.type === 'done' && terminal.joined === false) {
+      set(examId, (previous) => ({ ...idleState(examId), seq: previous.seq }));
     } else if (terminal.type === 'done') {
       set(examId, (previous) => ({
         ...previous,
@@ -326,7 +335,10 @@ export async function startSheetWrite(examId: string, questionIds?: string[]): P
   }
 }
 
-/** No new questions; the ones already running finish (and are charged). */
+/**
+ * No new questions; the ones already running finish (and are charged). Resolves to how many are
+ * still running; a request that failed takes «stopping» back, so «Остановить» can be pressed again.
+ */
 export async function stopSheetWrite(examId: string): Promise<number> {
   set(examId, (previous) => ({ ...previous, stopping: true }));
   try {
@@ -335,10 +347,11 @@ export async function stopSheetWrite(examId: string): Promise<number> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ exam_id: examId }),
     });
-    if (!response.ok) return 0;
+    if (!response.ok) throw new Error(`stop ${response.status}`);
     const json: unknown = await response.json().catch(() => null);
     return isRecord(json) ? count(json.running) : 0;
   } catch {
+    set(examId, (previous) => ({ ...previous, stopping: false }));
     return 0;
   }
 }

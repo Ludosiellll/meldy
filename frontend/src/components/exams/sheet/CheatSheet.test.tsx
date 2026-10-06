@@ -262,6 +262,34 @@ describe('the cheat sheet', () => {
     expect(container.querySelector('.cs-qm')?.getAttribute('data-marker')).toBe('still');
   });
 
+  it('under «Только то, что осталось» a line the answer erased stays in view until the switch is turned', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const earlier = [named(q1, 'p1', NOW - 2 * DAY, true, 'old')];
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
+    const after = buildSheet([q1], [...earlier, ...answer], NOW);
+    const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
+    const onlyLeft = { onlyLeft: true, cover: false, zoom: false };
+    const p = props(after.blocks, { mode: onlyLeft, replay: { token: 5, changes, focusQuestionId: 'q1', slow: false, waitForClick: false } });
+    const { container, rerender } = renderSheet(p);
+    const states = () => [...container.querySelectorAll<HTMLElement>('.cs-line')].map((line) => line.dataset.state);
+    expect(states()).toEqual(['rubbed', 'fresh', 'fresh']);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(5);
+    // The show is over: the erased line is still there, still erased.
+    expect(states()).toEqual(['erased', 'fresh', 'fresh']);
+    const view = (mode: CheatSheetProps['mode']) => (
+      <MemoryRouter>
+        <CheatSheet {...p} mode={mode} />
+      </MemoryRouter>
+    );
+    rerender(view({ ...onlyLeft, onlyLeft: false }));
+    rerender(view(onlyLeft));
+    expect(states()).toEqual(['fresh', 'fresh']);
+  });
+
   it('any key skips the replay to its end', async () => {
     vi.useFakeTimers();
     const q1 = question(1);

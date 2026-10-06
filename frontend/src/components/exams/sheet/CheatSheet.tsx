@@ -79,6 +79,8 @@ interface Motion {
 
 const GONE: ReadonlySet<LineState> = new Set<LineState>(['erased', 'due']);
 const READABLE: ReadonlySet<LineState> = new Set<LineState>(['fresh', 'missed', 'returned']);
+const NO_MOTIONS: ReadonlyMap<string, Motion> = new Map();
+const NO_KEYS: ReadonlySet<string> = new Set();
 
 /** The movement that takes a line from one state to another (null: it just changes). */
 export function animFor(from: LineState, to: LineState): Exclude<Anim, 'write'> | null {
@@ -93,6 +95,25 @@ export function animFor(from: LineState, to: LineState): Exclude<Anim, 'write'> 
 /** How long a line takes to be written: 26 ms a character, between 280 ms and 1 s (spec 6). */
 export function writeMs(text: string): number {
   return Math.min(1000, Math.max(280, text.length * 26));
+}
+
+/** Each line of a question is written from 90 % of the one before (spec 6). */
+function writeSteps(lines: readonly { key: string; text: string }[]): Map<string, Motion> {
+  const map = new Map<string, Motion>();
+  let at = 0;
+  for (const line of lines) {
+    const ms = writeMs(line.text);
+    map.set(line.key, { anim: 'write', delay: at, ms });
+    at += Math.round(ms * 0.9);
+  }
+  return map;
+}
+
+/** How long a question's lines take to be written in, ms. */
+export function writeDuration(lines: readonly { key: string; text: string }[]): number {
+  let end = 0;
+  for (const step of writeSteps(lines).values()) end = Math.max(end, step.delay + step.ms);
+  return end;
 }
 
 /** Durations and the start of the next line after this one, ms (spec 4.2). */
@@ -260,6 +281,8 @@ interface BlockViewProps {
   addMaterial: string | null;
   states: ReadonlyMap<string, LineState>;
   motions: ReadonlyMap<string, Motion>;
+  /** Erased lines that stay in view under «Только то, что осталось» (the last answer erased them). */
+  kept: ReadonlySet<string>;
   tickDelay: number | null;
   marker: 'none' | 'still' | 'draw';
   mode: SheetViewMode;
@@ -279,6 +302,7 @@ const BlockView = memo(function BlockView({
   addMaterial,
   states,
   motions,
+  kept,
   tickDelay,
   marker,
   mode,
@@ -296,19 +320,10 @@ const BlockView = memo(function BlockView({
   const learned = deciding.length > 0 && deciding.every((line) => GONE.has(stateOf(line)));
   // «Только то, что осталось»: a question folds to its printed line only when nothing of it is left
   // (every line erased); a secondary line still there stays in view under the tick.
-  const folded = mode.onlyLeft && block.lines.length > 0 && block.lines.every((line) => stateOf(line) === 'erased' && !motions.has(line.key));
-  // Written in one after another: each line starts at 90 % of the one before (spec 6).
-  const writes = useMemo(() => {
-    const map = new Map<string, Motion>();
-    if (!fresh) return map;
-    let at = 0;
-    for (const line of block.lines) {
-      const ms = writeMs(line.text);
-      map.set(line.key, { anim: 'write', delay: at, ms });
-      at += Math.round(ms * 0.9);
-    }
-    return map;
-  }, [fresh, block.lines]);
+  const hidden = (line: SheetLine) => mode.onlyLeft && stateOf(line) === 'erased' && !motions.has(line.key) && !kept.has(line.key);
+  const folded = block.lines.length > 0 && block.lines.every(hidden);
+  // Written in one after another.
+  const writes = useMemo(() => (fresh ? writeSteps(block.lines) : NO_MOTIONS), [fresh, block.lines]);
   const titleId = `cs-qh-${block.questionId}`;
   return (
     <article
@@ -343,8 +358,8 @@ const BlockView = memo(function BlockView({
       {!folded && block.lines.length > 0 && (
         <ul className="cs-lines">
           {block.lines.map((line) => {
+            if (hidden(line)) return null;
             const state = stateOf(line);
-            if (mode.onlyLeft && state === 'erased' && !motions.has(line.key)) return null;
             const peekedNow = (peeked.get(line.key) ?? 0) > now;
             return (
               <LineView
@@ -409,6 +424,9 @@ export default function CheatSheet({
   const [phase, setPhase] = useState<Phase>('idle');
   const [overrides, setOverrides] = useState<ReadonlyMap<string, LineState>>(() => new Map());
   const [motions, setMotions] = useState<ReadonlyMap<string, Motion>>(() => new Map());
+  // Lines the last answer erased stay under «Только то, что осталось» until the switch is turned:
+  // they vanish on the next visit, never under the eye (and the columns do not jump after the show).
+  const [kept, setKept] = useState<ReadonlySet<string>>(NO_KEYS);
   const [ticks, setTicks] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [focusId, setFocusId] = useState<string | null>(null);
   const [awaitingClick, setAwaitingClick] = useState(false);
@@ -460,9 +478,9 @@ export default function CheatSheet({
       return { block, heading, note };
     });
     const metrics = rowMetrics(geometry.column);
-    const rows = items.map((item) => blockRows(item.block, metrics, { hideErased: mode.onlyLeft, note: item.note, heading: Boolean(item.heading) }));
+    const rows = items.map((item) => blockRows(item.block, metrics, { hideErased: mode.onlyLeft, keep: kept, note: item.note, heading: Boolean(item.heading) }));
     return splitColumns(items, rows, geometry.columns);
-  }, [blocks, sectionTitles, writeNotes, lectureCount, geometry.column, geometry.columns, mode.onlyLeft]);
+  }, [blocks, sectionTitles, writeNotes, lectureCount, geometry.column, geometry.columns, mode.onlyLeft, kept]);
 
   // «Весь лист»: the paper scaled to the window's height; its layout stays the same.
   useLayoutEffect(() => {
@@ -483,9 +501,16 @@ export default function CheatSheet({
     return () => window.removeEventListener('resize', measure);
   }, [mode.zoom, laid, width]);
 
+  // Turning the switch shows (or hides) every erased line alike. Declared before the replay, which
+  // sets its own lines in the same commit when both change at once.
+  useEffect(() => {
+    setKept(NO_KEYS);
+  }, [mode.onlyLeft]);
+
   // ── The replay of an answer (spec 4.2): into view → marker → lines one by one → the column. ──
   useEffect(() => {
     if (!replay) return undefined;
+    setKept(replay.changes.length > 0 ? new Set(replay.changes.map((change) => change.key)) : NO_KEYS);
     const signal: Signal = { cancelled: false };
     const factor = replay.slow ? 2 : 1;
     const focus = replay.focusQuestionId ?? replay.changes[0]?.questionId ?? null;
@@ -650,6 +675,7 @@ export default function CheatSheet({
                 addMaterial={block.kind === 'gap' && block.coverage === 'none' ? `/exams/${examId}/edit#lectures` : null}
                 states={overrides}
                 motions={motions}
+                kept={kept}
                 tickDelay={ticks.get(block.questionId) ?? null}
                 marker={markerOf(block.questionId)}
                 mode={mode}

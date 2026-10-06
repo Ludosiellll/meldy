@@ -57,6 +57,20 @@ describe('the paper layout', () => {
     expect(blockRows(sheet.blocks[1], metrics, { note: 'x'.repeat(100), heading: true })).toBe(1 + 1 + 3 + 1);
   });
 
+  it('under «Только то, что осталось» counts no erased line, except the ones kept in view', () => {
+    const sheet = buildSheet([question(1, 3)], [], Date.now());
+    const block = sheet.blocks[0];
+    const erased = { ...block, lines: block.lines.map((line, index) => (index < 2 ? { ...line, status: { ...line.status, state: 'erased' as const } } : line)) };
+    const metrics = rowMetrics(360);
+    expect(blockRows(erased, metrics)).toBe(1 + 3 + 1);
+    expect(blockRows(erased, metrics, { hideErased: true })).toBe(1 + 1 + 1);
+    expect(blockRows(erased, metrics, { hideErased: true, keep: new Set([erased.lines[0].key]) })).toBe(1 + 2 + 1);
+    // Every line erased: only the printed question, unless one is kept.
+    const gone = { ...erased, lines: erased.lines.map((line) => ({ ...line, status: { ...line.status, state: 'erased' as const } })) };
+    expect(blockRows(gone, metrics, { hideErased: true, note: 'заметка' })).toBe(1 + 1);
+    expect(blockRows(gone, metrics, { hideErased: true, keep: new Set([gone.lines[2].key]) })).toBe(1 + 1 + 1);
+  });
+
   it('starts the second column where the halves are closest', () => {
     expect(splitIndex([5, 5, 5, 5])).toBe(2);
     expect(splitIndex([10, 2, 2, 2, 2, 2])).toBe(1);

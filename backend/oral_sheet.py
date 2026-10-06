@@ -12,8 +12,10 @@ short, essential, source_quote, source_ids. to_write — вопросы «ест
 ключом делят эталон и единицу. rebuilt — годного эталона по нынешнему ключу нет, а с пунктами по
 другому ключу есть (лекции или сверка поменялись). job — идёт ли запись.
 
-POST /api/oral/sheet/write {exam_id, question_ids?} (6/мин). Запуск записи или подключение к
+POST /api/oral/sheet/write {exam_id, question_ids?, follow?} (6/мин). Запуск записи или подключение к
 идущей; ответ — поток SSE (data: {"type": …}, keepalive 15 с, как у сверки). Во время сверки — 409.
+follow: true — только подключение (страница увидела job в GET): если запись уже кончилась, новая не
+начинается и ничего не списывается — поток из одного done с нулями и "joined": false.
 Запись — фоновая задача процесса в реестре (пользователь, экзамен): клиент ушёл — задача дописывает
 то, за что нажали кнопку; второй POST получает события с текущего места, первое — progress. За
 запуск — не больше 60 вопросов. Каждый вопрос идёт путём /api/oral/rubric: та же общая задача
@@ -1171,6 +1173,16 @@ def _job_key(request: Request, token: str, exam_id: str) -> tuple[str, str]:
     return oral_api.flight_owner(oral_api._user_id(request), token), exam_id
 
 
+def _not_joined_event() -> dict:
+    """follow без идущей записи: та уже кончилась, а новая без нажатия не начинается."""
+    return {"type": "done", "written": 0, "failed": 0, "busy": 0, "limit": False, "units": 0, "total": 0,
+            "auth": 0, "stopped": 0, "joined": False}
+
+
+async def _one_frame(event: dict) -> AsyncIterator[str]:
+    yield sse_event(event)
+
+
 async def _frames(job: SheetJob, queue: asyncio.Queue) -> AsyncIterator[str]:
     try:
         while True:
@@ -1200,10 +1212,13 @@ async def oral_sheet_write(request: Request):
     body = await oral_api._read_json(request)
     exam_id = _exam_id(body.get("exam_id"))
     question_ids = _question_ids(body.get("question_ids"))
+    follow = body.get("follow") is True
     token = bearer_token(request)
     user_id = oral_api._user_id(request)
     key = _job_key(request, token, exam_id)
     job = _running_job(key)
+    if job is None and follow:
+        return StreamingResponse(_one_frame(_not_joined_event()), media_type="text/event-stream", headers=SSE_HEADERS)
     if job is None:
         async with SupabaseRest(token) as db:
             state = await _load_state(db, exam_id, user_id, with_material_ids=True)

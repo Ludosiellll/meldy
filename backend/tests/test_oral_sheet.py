@@ -956,6 +956,31 @@ def test_a_second_post_attaches_to_the_running_job_with_a_fresh_token(sheet):
     assert "Bearer token-a2" in tokens and oral_sheet._jobs == {}
 
 
+def test_follow_joins_a_running_job_and_never_starts_a_new_one(sheet):
+    fake = sheet.fake
+    exam_id, _, _ = course(fake, QUESTIONS[:3])
+    # Запись уже кончилась (или её не было): подключение не запускает новую и ничего не списывает.
+    events = events_of(write(sheet, exam_id, follow=True))
+    assert events == [{"type": "done", "written": 0, "failed": 0, "busy": 0, "limit": False, "units": 0, "total": 0,
+                       "auth": 0, "stopped": 0, "joined": False}]
+    assert sheet.model.calls == [] and fake.rubrics() == [] and oral_sheet._jobs == {}
+    assert read_sheet(sheet, exam_id)["to_write"] == 3
+
+    sheet.model.delay = 0.15
+
+    async def scenario(client):
+        first = asyncio.ensure_future(client.post("/api/oral/sheet/write", json={"exam_id": exam_id}))
+        await until(lambda: sheet.model.rubric_calls)
+        followed = await client.post("/api/oral/sheet/write", json={"exam_id": exam_id, "follow": True})
+        return await first, followed
+
+    first, followed = in_one_loop(sheet.main, scenario)
+    followed_events = events_of(followed)
+    assert followed_events[0]["type"] == "progress" and followed_events[-1] == events_of(first)[-1]
+    assert "joined" not in followed_events[-1] and followed_events[-1]["written"] == 3
+    assert len(sheet.model.rubric_calls) == 3 and len(fake.rubrics()) == 3
+
+
 def test_a_running_mapping_is_409_and_a_stale_lock_is_not(sheet):
     fake = sheet.fake
     now = datetime.now(timezone.utc)

@@ -100,8 +100,11 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
         setStatus('ready');
         setError(null);
         setNow(Date.now());
-        // The server is writing this exam (another tab, or a page that was left): follow it.
-        if (response.job && getSheetWrite(examId).phase !== 'running') void startSheetWrite(examId);
+        // The server is writing this exam (another tab, or a page that was left): follow it. Only
+        // follow: a job that has ended meanwhile must not become a new run nobody pressed.
+        if (response.job && getSheetWrite(examId).phase !== 'running') {
+          void startSheetWrite(examId, undefined, { follow: true, stopping: response.job.state === 'stopping' });
+        }
       } catch (failure) {
         if (seq !== loadSeq.current) return;
         setError(failure instanceof Error && failure.message ? failure.message : SHEET_LOAD_MESSAGE);
@@ -145,29 +148,35 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   // Questions arriving from the writer: their rubric goes into the sheet, and the lines of a question
   // written now are written in. A question written before comes again (status cached) when its short
   // lines are ready: the same rubric with `short` filled in, the lines' states stay.
+  // Results that come while the sheet is still being read wait for it: they are merged into what it read.
   useEffect(() => {
-    if (write.seq === mergedSeq.current) return;
+    if (status !== 'ready' || write.seq === mergedSeq.current) return;
     mergedSeq.current = write.seq;
     const arrived = Object.entries(write.results).filter(([, result]) => result.rubric);
     if (arrived.length === 0) return;
-    const fresh: string[] = [];
+    // Decided on the sheet as it is now, outside the updater: React may run an updater later, or twice.
+    const fresh = questions
+      .filter((question) => {
+        const rubric = write.results[question.question_id]?.rubric;
+        return !question.rubric && rubric != null && rubric.points.length > 0;
+      })
+      .map((question) => question.question_id);
     setQuestions((current) =>
       current.map((question) => {
         const result = write.results[question.question_id];
         if (!result?.rubric || sameRubric(question.rubric, result.rubric)) return question;
-        if (!question.rubric && result.rubric.points.length > 0) fresh.push(question.question_id);
         return { ...question, rubric: result.rubric, rebuilt: false };
       }),
     );
     if (fresh.length > 0) setFreshIds((current) => new Set([...current, ...fresh]));
-  }, [write.seq, write.results]);
+  }, [status, write.seq, write.results, questions]);
 
   // A run that ended: the sheet is read again (prices, what is left to write, the server's state).
   useEffect(() => {
     const previous = lastPhase.current;
     lastPhase.current = write.phase;
     if (previous === 'running' && write.phase !== 'running') {
-      track('sheet_write_done', { written: write.written, failed: write.failed, limit: write.limit, phase: write.phase });
+      if (write.phase !== 'idle') track('sheet_write_done', { written: write.written, failed: write.failed, limit: write.limit, phase: write.phase });
       void load(true);
     }
   }, [write.phase, write.written, write.failed, write.limit, load]);
@@ -248,6 +257,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   }, []);
 
   const written = useMemo(() => questions.filter((question) => question.rubric).length, [questions]);
+  const reload = useCallback(() => void load(true), [load]);
 
   return {
     status,
@@ -265,7 +275,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     freshIds,
     writeNotes,
     written,
-    reload: () => void load(true),
+    reload,
     startWrite,
     stopWrite,
     peek,

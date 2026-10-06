@@ -1425,3 +1425,182 @@ describe('ExamDetail on a phone', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
+
+// ------------------------------------------------------------------------------------ the cheat sheet view
+
+describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
+  const VIEW_KEY = 'meldy_sheet_view_exam-1';
+
+  /** The server's sheet for these questions: the listed positions are written (two points each). */
+  function sheetOf(questions: ExamQuestion[], written: number[]): import('../api/cheatSheet').SheetResponse {
+    const out = questions.map((item) => ({
+      question_id: item.id,
+      position: item.position,
+      label: item.label ?? '',
+      section: item.section,
+      text: item.text,
+      question_hash: item.question_hash ?? '',
+      coverage: item.coverage,
+      coverage_method: item.coverage_method,
+      coverage_reason: item.coverage_reason,
+      missing_note: item.missing_note,
+      rubric: written.includes(item.position)
+        ? {
+            rubric_id: `r${item.position}`,
+            built_at: '2026-10-01T10:00:00Z',
+            coverage: 'full' as const,
+            coverage_note: '',
+            materials: [{ key: 'M1', material_id: 'm1', title: 'Денежный рынок' }],
+            points: [
+              { id: 'p1', title: `Первый пункт ${item.position}`, short: `первое ${item.position}`, essential: true, source_quote: '', source_ids: [] },
+              { id: 'p2', title: `Второй пункт ${item.position}`, short: `второе ${item.position}`, essential: false, source_quote: '', source_ids: [] },
+            ],
+          }
+        : null,
+      rebuilt: false,
+    }));
+    const toWrite = out.filter((item) => !item.rubric && (item.coverage === 'full' || item.coverage === 'partial')).length;
+    return { examId: 'exam-1', mappingState: 'done', questions: out, toWrite, units: toWrite, job: null };
+  }
+
+  function pointEvent(n: number, point: 'p1' | 'p2', day: string, session: string, at = '10:00:00'): LearningEvent {
+    const title = point === 'p1' ? `Первый пункт ${n}` : `Второй пункт ${n}`;
+    return {
+      id: `pt-${n}-${point}-${day}-${session}`,
+      created_at: `${day}T${at}Z`,
+      local_date: day,
+      material_id: null,
+      kind: 'oral_point',
+      item_key: `oral:r${n}:${point}`,
+      correct: true,
+      score: null,
+      confidence: null,
+      source_ids: [],
+      session_id: session,
+      payload: { v: 1, question_hash: hash(n), rubric_id: `r${n}`, point_id: point, title, status: 'covered', essential: point === 'p1', live: true, followup_status: null },
+    };
+  }
+
+  const tab = (name: 'Шпаргалка' | 'Вопросы') => screen.getByRole('tab', { name });
+  const drawPill = () => document.querySelector('.ex-draw a[href^="/exams/exam-1/draw"]') as HTMLElement;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.checkAILimit.mockResolvedValue({ allowed: true, isPro: false, count: 10, ok: true, limit: 100, resetsAt: new Date() });
+  });
+
+  it('opens on «Вопросы» before anything is written; the tabs switch, remember the choice and follow the arrows', async () => {
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), []));
+    renderDetail();
+    await opened();
+    expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Шпаргалка')).toHaveAttribute('tabindex', '-1');
+    expect(document.querySelector('[data-view]')).toHaveAttribute('data-view', 'questions');
+    expect(drawPill()).toHaveClass('sf-primary');
+
+    fireEvent.click(tab('Шпаргалка'));
+    expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
+    expect(window.localStorage.getItem(VIEW_KEY)).toBe('sheet');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'ex-view-sheet');
+    expect(await screen.findByRole('region', { name: 'Шпаргалка' })).toBeInTheDocument();
+    // The first write is the column's filled pill, and «Тянуть билет» steps down to the quiet one.
+    expect(await screen.findByRole('button', { name: 'Написать шпаргалку' })).toHaveClass('sf-primary');
+    expect(drawPill()).toHaveClass('ex-secondary');
+    expect(screen.queryByRole('list', { name: 'Показать вопросы' })).toBeNull();
+
+    fireEvent.keyDown(tab('Шпаргалка'), { key: 'ArrowRight' });
+    expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(tab('Вопросы')).toHaveFocus());
+    expect(window.localStorage.getItem(VIEW_KEY)).toBe('questions');
+    expect(drawPill()).toHaveClass('sf-primary');
+    expect(screen.getByRole('list', { name: 'Показать вопросы' })).toBeInTheDocument();
+  });
+
+  it('once a question is written, the next visit opens on the sheet; this one stays where it is', async () => {
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1, 2]));
+    const first = renderDetail();
+    await opened();
+    await waitFor(() => expect(window.localStorage.getItem(VIEW_KEY)).toBe('sheet'));
+    expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
+    first.unmount();
+
+    renderDetail();
+    await opened();
+    expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    expect(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
+    // Something is written already: «Тянуть билет» is the filled pill again, «Дописать» is quiet.
+    expect(await screen.findByRole('button', { name: named('Дописать 29 вопросов') })).toHaveClass('ex-secondary');
+    expect(drawPill()).toHaveClass('sf-primary');
+  });
+
+  it('a chosen view wins over that default; ?view=sheet and a filter link win over the choice', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'questions');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    renderDetail();
+    await opened();
+    await waitFor(() => expect(mocks.fetchSheet).toHaveBeenCalled());
+    expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
+    expect(window.localStorage.getItem(VIEW_KEY)).toBe('questions');
+    cleanup();
+
+    renderDetail({ path: '/exams/exam-1?view=sheet' });
+    await opened();
+    expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
+    cleanup();
+
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    renderDetail({ path: '/exams/exam-1?filter=cov:none' });
+    await opened();
+    expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
+    const filters = screen.getByRole('list', { name: 'Показать вопросы' });
+    expect(within(filters).getByRole('button', { name: /нет ни в одной/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('«Самооценка» on the sheet goes to «Вопросы» to rate', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    renderDetail();
+    await opened();
+    expect(tab('Шпаргалка')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Самооценка' }));
+    expect(tab('Вопросы')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Самооценка' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('a line opens its details in the column, which then holds the filled pill', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    renderDetail();
+    await opened();
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    fireEvent.click(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') }));
+    const details = await screen.findByRole('heading', { name: named('Первый пункт 1') });
+    const panel = details.closest('section') as HTMLElement;
+    expect(within(panel).getByRole('link', { name: 'Ответить на этот вопрос' })).toHaveAttribute('href', '/exams/exam-1/ticket?q=q1');
+    expect(drawPill()).toHaveClass('ex-secondary');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Закрыть' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull());
+    expect(drawPill()).toHaveClass('sf-primary');
+  });
+
+  it('back from an answer, the sheet plays what the answer changed instead of «Вопросы» (one show)', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(1), before: 'once' }));
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    // p1 named three days ago and now: erased; p2 named now for the first time: half.
+    mocks.fetchSheetEvents.mockResolvedValue([pointEvent(1, 'p1', dayKey(-3), 's-old'), pointEvent(1, 'p1', dayKey(0), 's-new'), pointEvent(1, 'p2', dayKey(0), 's-new')]);
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's-old'), answer(1, dayKey(0), true, 's-new')]);
+    renderDetail();
+    await opened();
+    expect(window.sessionStorage.getItem('meldy_exam_peak_exam-1')).toBeNull();
+    const change = await screen.findByText(named('После ответа: 1 строка стёрлась, 1 — наполовину.'), {}, { timeout: 6000 });
+    expect(change).toHaveClass('cs-change');
+    // The show of «Вопросы» is not played as well.
+    expect(document.querySelector('.ex-peak')).toBeNull();
+    const paper = screen.getByRole('region', { name: 'Шпаргалка' });
+    expect(paper.querySelector('[data-key="r1:p1"]')).toHaveAttribute('data-state', 'erased');
+    expect(paper.querySelector('[data-key="r1:p2"]')).toHaveAttribute('data-state', 'rubbed');
+  });
+});
