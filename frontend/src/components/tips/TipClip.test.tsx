@@ -72,7 +72,8 @@ describe('TipClip', () => {
       const stage = document.querySelector('.tp-stage') as HTMLElement;
       expect(stage.textContent).toContain('12. Денежный мультипликатор.');
       expect(stage.textContent).toContain('мультипликатор = масса / база');
-      expect(stage.textContent).toContain('Ответ в другой день: пункты 1 и 2');
+      expect(stage.textContent).toContain('Ответ: назван первый пункт');
+      expect(stage.textContent).toContain('Через день: первый и второй');
       const inks = Array.from(document.querySelectorAll<HTMLElement>('[data-a="ink"]'));
       const patches = Array.from(document.querySelectorAll<HTMLElement>('[data-a="patch"]'));
       // Before the answer the lines are whole.
@@ -80,8 +81,9 @@ describe('TipClip', () => {
       expect(inks.map((ink) => ink.style.getPropertyValue('mask-image'))).toEqual(['none', 'none', 'none']);
       // The still frame: the first line erased, the second rubbed, the third whole.
       void window.__meldyTipClip?.seek(TIP_CLIPS.sheet.poster);
-      expect(inks[0].style.getPropertyValue('mask-image')).toContain('rgba(0,0,0,0.22)');
-      expect(inks[1].style.getPropertyValue('mask-image')).toContain('rgba(0,0,0,0.55)');
+      // The sheet's levels: erased leaves a trace of the ink, rubbed keeps most of it in torn strokes.
+      expect(inks[0].style.getPropertyValue('mask-image')).toContain('rgba(0,0,0,0.07)');
+      expect(inks[1].style.getPropertyValue('mask-image')).toContain('rgba(0,0,0,0.8)');
       expect(inks[2].style.getPropertyValue('mask-image')).toBe('none');
       expect(patches.map((patch) => patch.style.opacity)).toEqual(['1', '1', '0']);
       // It ends on empty paper too.

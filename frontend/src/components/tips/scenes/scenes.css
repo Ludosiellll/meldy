@@ -87,9 +87,9 @@
 .tsh-paper {
   --tsh-row: 64px;
   --tsh-grid: rgba(31, 61, 148, .13);
-  /* The sheet's two passes of the eraser (sheet.css --cs-pass-a/b) at this scale. */
-  --tsh-pass-a: repeating-linear-gradient(97deg, #000 0 4px, rgba(0, 0, 0, .16) 4px 10.2px, rgba(0, 0, 0, .7) 10.2px 12.4px, rgba(0, 0, 0, .1) 12.4px 20px);
-  --tsh-pass-b: repeating-linear-gradient(79deg, #000 0 5.8px, rgba(0, 0, 0, .22) 5.8px 14.2px, rgba(0, 0, 0, .6) 14.2px 16.4px, rgba(0, 0, 0, .14) 16.4px 24.4px);
+  /* The sheet's two passes of the eraser (sheet.css --cs-pass-a/b) at this scale (its hand is 3× the sheet's). */
+  --tsh-pass-a: repeating-linear-gradient(100deg, #000 0 15px, rgba(0, 0, 0, .06) 15px 36px);
+  --tsh-pass-b: repeating-linear-gradient(74deg, #000 0 21px, rgba(0, 0, 0, .12) 21px 39px);
   position: absolute;
   left: 64px;
   top: 54px;
@@ -107,6 +107,8 @@
   box-shadow: 0 0 0 2px rgba(16, 41, 90, .1), 0 40px 80px -48px rgba(16, 41, 90, .32);
   color: #1f3d94;
 }
+/* At night the sheet's paper is a dimmed light paper (sheet.css), and so is the clip's. */
+.dark .tsh-paper { background-color: #dedbd1; }
 .tsh-q { margin: 0; font-size: 46px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; color: #0b121c; }
 .tsh-q-t { position: relative; display: inline-block; isolation: isolate; }
 /* The ticket's marker, as the sheet draws it over the printed words of the last answer's question. */
@@ -128,10 +130,11 @@
 .tsh-body { position: relative; isolation: isolate; }
 .tsh-patch {
   position: absolute;
-  inset: 4px -10px;
+  inset: 6px -24px;
   z-index: -1;
-  border-radius: 22px;
   background: rgba(90, 96, 105, .07);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent);
 }
 .tsh-ink {
   display: inline-block;
@@ -143,17 +146,17 @@
   -webkit-mask-composite: source-in, source-over, source-in;
   mask-composite: intersect, add, intersect;
 }
-/* The answers, on the margin's side: one day, then another. */
-.tsh-days { position: absolute; left: 72px; right: 150px; bottom: 44px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+/* The answers: one day, then another — large enough to read in the card (the clip is scaled down ~5×). */
+.tsh-days { position: absolute; left: 72px; right: 150px; bottom: 40px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
 .tsh-day {
   margin: 0;
-  padding: 12px 26px;
+  padding: 14px 32px;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 0 0 2px #e4e4de;
-  font-size: 32px;
-  font-weight: 500;
-  line-height: 1.2;
+  box-shadow: 0 0 0 3px #e4e4de;
+  font-size: 50px;
+  font-weight: 600;
+  line-height: 1.15;
   color: #0b121c;
   white-space: nowrap;
 }

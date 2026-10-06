@@ -82,9 +82,17 @@ export function SheetArrow({ direction, seed }: { direction: Direction; seed: nu
   );
 }
 
+/**
+ * The line's words with no arrow alone at the start of a row: ↑ and ↓ hold on to the word before
+ * them, → ⇒ ← to the word after them (a no-break space instead of the space).
+ */
+export function gluedArrows(text: string): string {
+  return text.replace(/[ \t]+([↑↓])/g, '\u00a0$1').replace(/([→⇒←])[ \t]+/g, '$1\u00a0');
+}
+
 /** The line's text with its arrows drawn; `seedBase` keeps every arrow's wobble stable. */
 export function SheetText({ text, seedBase }: { text: string; seedBase: string }) {
-  const parts = useMemo(() => text.split(ARROWS).filter((part) => part !== ''), [text]);
+  const parts = useMemo(() => gluedArrows(text).split(ARROWS).filter((part) => part !== ''), [text]);
   return (
     <>
       {parts.map((part, index) =>

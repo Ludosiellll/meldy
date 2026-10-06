@@ -1606,7 +1606,8 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     await opened();
     const text = await screen.findByText(named('Назвали пункт в ответе — строка стирается наполовину. Назвали снова в другой день — стирается совсем. От чтения ничего не стирается.'), {}, { timeout: 3000 });
     const tip = text.closest('section') as HTMLElement;
-    expect(within(tip).getByRole('link', { name: 'Попробовать' })).toHaveAttribute('href', '/exams/exam-1/draw');
+    // The action says what it does: the sheet's tip leads to a ticket, as the column's pill.
+    expect(within(tip).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
     fireEvent.click(within(tip).getByRole('button', { name: 'Не сейчас' }));
     expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
     expect(window.localStorage.getItem('meldy_tip_sheet')).toBe('1');
@@ -1664,5 +1665,66 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     const paper = screen.getByRole('region', { name: 'Шпаргалка' });
     expect(paper.querySelector('[data-key="r1:p1"]')).toHaveAttribute('data-state', 'erased');
     expect(paper.querySelector('[data-key="r1:p2"]')).toHaveAttribute('data-state', 'rubbed');
+  });
+  it('on a phone, where the count is above the paper, the end of the show says the change in a chip', async () => {
+    setWidth(390);
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(1), before: 'once' }));
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    mocks.fetchSheetEvents.mockResolvedValue([pointEvent(1, 'p1', dayKey(-3), 's-old'), pointEvent(1, 'p1', dayKey(0), 's-new'), pointEvent(1, 'p2', dayKey(0), 's-new')]);
+    mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's-old'), answer(1, dayKey(0), true, 's-new')]);
+    renderDetail();
+    await opened();
+    await waitFor(() => expect(document.querySelector('.cs-chip')).not.toBeNull(), { timeout: 6000 });
+    const chip = document.querySelector('.cs-chip') as HTMLElement;
+    expect(plain(chip.querySelector('.cs-chip-t')?.textContent)).toBe('После ответа: 1 строка стёрлась, 1 — наполовину.');
+    // Rubbed lines are still there: one of the two is left.
+    expect(plain(chip.querySelector('.cs-chip-n')?.textContent)).toBe('1 строка осталась из 2');
+    fireEvent.click(chip);
+    expect(document.querySelector('.cs-chip')).toBeNull();
+  });
+
+  it('the paper waits for the journal; a failed read says so, and «Повторить» reads it again', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    mocks.fetchSheetEvents.mockRejectedValueOnce(new Error('Не удалось загрузить ответы.')).mockResolvedValue([]);
+    renderDetail();
+    await opened();
+    const alert = await screen.findByText(named('Не удалось загрузить ответы. Без них не видно, какие строки стёрты.'));
+    // No lines in full ink before their states are known.
+    expect(screen.queryByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeNull();
+    fireEvent.click(within(alert.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Повторить' }));
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    expect(await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
+  });
+
+  it('«Закрыть строки»: a tap opens a closed line, and that is not a peek', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    renderDetail();
+    await opened();
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') });
+    fireEvent.click(screen.getByRole('switch', { name: 'Закрыть строки' }));
+    expect(screen.getByText('Нажмите на закрытую строку, чтобы открыть её. Стирать строки это не мешает.')).toBeInTheDocument();
+    fireEvent.click(within(paper).getByRole('button', { name: 'Главный пункт закрыт. Открыть' }));
+    expect(within(paper).getByRole('button', { name: named('Главный пункт: Первый пункт 1') })).toBeInTheDocument();
+    // Opening it is the self-test, not a look at the answer: nothing goes to the journal, no line panel.
+    expect(mocks.recordSheetPeek).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull();
+  });
+
+  it('a line opened while «почему» of a question is shown takes the column', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    renderDetail();
+    await opened();
+    const paper = await screen.findByRole('region', { name: 'Шпаргалка' });
+    const line = await within(paper).findByRole('button', { name: named('Главный пункт: Первый пункт 1') });
+    fireEvent.click(paper.querySelector('#cs-q-q1 .cs-qbtn') as HTMLElement);
+    expect(await screen.findByRole('heading', { name: named('Есть в ваших лекциях') })).toBeInTheDocument();
+    fireEvent.click(line);
+    expect(await screen.findByRole('heading', { name: named('Первый пункт 1') })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: named('Есть в ваших лекциях') })).toBeNull();
   });
 });

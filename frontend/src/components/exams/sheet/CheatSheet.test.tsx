@@ -179,7 +179,7 @@ describe('the cheat sheet', () => {
     const line = container.querySelectorAll<HTMLElement>('.cs-line')[0];
     expect(line.dataset.peek).toBe('');
     expect(within(line).getByRole('button')).toHaveAccessibleName(`Главный пункт: ${POINTS[0].title}`);
-    expect(line.querySelector('.cs-note')).toHaveTextContent('Подсмотрели — сегодня эта строка не сотрётся');
+    expect(line.querySelector('.cs-note')).toHaveTextContent('подсмотрели — сегодня не сотрётся');
   });
 
   it('«Только то, что осталось» hides erased lines and folds a question only when nothing of it is left', () => {
@@ -220,8 +220,8 @@ describe('the cheat sheet', () => {
     expect(screen.getByText('Спрос')).toHaveClass('cs-sec');
     expect(screen.getAllByText('Эластичность')).toHaveLength(1);
     const note = screen.getByText(/нет фрагмента об этом/);
-    expect(note.textContent?.replace(/ /g, ' ')).toBe('Ни в одной из 3 лекций нет фрагмента об этом Добавить материал');
-    expect(within(note).getByRole('link', { name: 'Добавить материал' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
+    expect(note.textContent?.replace(/ /g, ' ')).toBe('Ни в одной из 3 лекций нет фрагмента об этом Добавить лекцию');
+    expect(within(note).getByRole('link', { name: 'Добавить лекцию' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
     expect(screen.getByText('Не хватает: товаров Гиффена')).toBeInTheDocument();
   });
 
@@ -349,15 +349,15 @@ describe('the cheat sheet', () => {
       const unwritten = Array.from({ length: 10 }, (_, index) => question(index + 1, { rubric: null }));
       const secondColumn = (container: HTMLElement) => container.querySelectorAll('.cs-col')[1]?.querySelector<HTMLElement>('.cs-q')?.dataset.qid;
       const before = buildSheet(unwritten, [], NOW);
-      const { container, rerender } = renderSheet(props(before.blocks, { writing: true }));
+      const { container, rerender } = renderSheet(props(before.blocks, { holdColumns: true }));
       expect(container.querySelectorAll('.cs-col')).toHaveLength(2);
       const held = secondColumn(container);
       // The first question gets its lines with a long note under it: measured anew, the split would move up.
       const longer = unwritten.map((item, index) => (index === 0 ? question(1, { coverage: 'partial', missing_note: 'x'.repeat(400) }) : item));
       const during = buildSheet(longer, [], NOW);
-      const view = (blocks: SheetBlock[], writing: boolean) => (
+      const view = (blocks: SheetBlock[], holdColumns: boolean) => (
         <MemoryRouter>
-          <CheatSheet {...props(blocks, { writing })} />
+          <CheatSheet {...props(blocks, { holdColumns })} />
         </MemoryRouter>
       );
       rerender(view(during.blocks, true));

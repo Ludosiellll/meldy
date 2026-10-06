@@ -152,8 +152,8 @@ const SHEET_DAY_2 = 3650;
 const SHEET_ERASE_1 = 3950;
 const SHEET_RUB_2 = 4250;
 const SHEET_SWEEP = 560;
-const RUB_LEVEL = 0.55;
-const ERASED_LEVEL = 0.22;
+const RUB_LEVEL = 0.8;
+const ERASED_LEVEL = 0.07;
 
 /** The line's ink: full, then each step sweeps a new level from left to right (ink and patch). */
 function inkAt(l: number, steps: ReadonlyArray<{ at: number; to: number }>): { mask: string; patch: number } {
@@ -217,10 +217,10 @@ function Sheet() {
           </ul>
           <div className="tsh-days">
             <p data-a="day1" className="tsh-day" style={{ opacity: 0 }}>
-              <span data-a="day1-t">Ответ: назван пункт 1</span>
+              <span data-a="day1-t">Ответ: назван первый пункт</span>
             </p>
             <p data-a="day2" className="tsh-day" style={{ opacity: 0 }}>
-              Ответ в другой день: пункты 1 и 2
+              Через день: первый и второй
             </p>
           </div>
         </div>

@@ -144,3 +144,77 @@ export function splitColumns<T>(blocks: readonly T[], rows: readonly number[], c
   const index = held !== null && held > 0 && held < blocks.length ? held : splitIndex(rows);
   return [blocks.slice(0, index), blocks.slice(index)];
 }
+
+/**
+ * The blocks in `count` columns, the department's order down each one: the cut that makes the tallest
+ * column as short as it can be (the smallest height that a greedy fill fits in `count` columns).
+ */
+export function splitMany<T>(blocks: readonly T[], rows: readonly number[], count: number): T[][] {
+  const columns = Math.max(1, Math.min(count, blocks.length));
+  if (columns <= 1) return [blocks.slice()];
+  const fits = (limit: number) => {
+    let used = 1;
+    let height = 0;
+    for (const value of rows) {
+      if (value > limit) return false;
+      if (height + value > limit) {
+        used += 1;
+        height = 0;
+      }
+      height += value;
+    }
+    return used <= columns;
+  };
+  let low = Math.max(0, ...rows);
+  let high = rows.reduce((sum, value) => sum + value, 0);
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (fits(middle)) high = middle;
+    else low = middle + 1;
+  }
+  const out: T[][] = [[]];
+  let height = 0;
+  blocks.forEach((block, index) => {
+    // Cut where the limit says so, and keep enough blocks for the columns still to fill.
+    const left = blocks.length - index;
+    const empty = columns - out.length;
+    if (out[out.length - 1].length > 0 && (height + rows[index] > low || left <= empty)) {
+      out.push([]);
+      height = 0;
+    }
+    out[out.length - 1].push(block);
+    height += rows[index];
+  });
+  return out;
+}
+
+export interface ZoomPlan {
+  columns: number;
+  scale: number;
+  /** The paper's own width at this many columns, px (before it is scaled). */
+  width: number;
+}
+
+/**
+ * «Весь лист» (spec 7.4): how many columns and what scale show the whole paper in the window — more
+ * columns of the same width instead of an ever smaller scale, while that makes the paper larger.
+ */
+export function zoomPlan(input: { wrapWidth: number; available: number; rows: readonly number[]; geometry: PaperGeometry; maxColumns?: number }): ZoomPlan {
+  const { wrapWidth, available, rows, geometry } = input;
+  const pad = geometry.narrow ? PAPER_PAD_NARROW : PAPER_PAD;
+  const most = Math.max(geometry.columns, Math.min(input.maxColumns ?? 8, rows.length));
+  let best: ZoomPlan = { columns: geometry.columns, scale: 1, width: wrapWidth };
+  let bestScale = -1;
+  for (let count = geometry.columns; count <= most; count += 1) {
+    const width = count === geometry.columns ? wrapWidth : pad.left + pad.right + count * geometry.column + (count - 1) * COLUMN_GAP;
+    const parts = splitMany(rows, rows, count);
+    const tallest = Math.max(0, ...parts.map((part) => part.reduce((sum, value) => sum + value, 0)));
+    const height = (tallest + 2) * geometry.row;
+    const scale = Math.min(1, wrapWidth / width, available / Math.max(1, height));
+    if (scale > bestScale + 0.005) {
+      bestScale = scale;
+      best = { columns: count, scale, width };
+    }
+  }
+  return best;
+}

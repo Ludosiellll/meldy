@@ -6,7 +6,21 @@ import type { HistoryFrame, LineState, SheetBlock, SheetCounts, SheetLine } from
 import { formatShortDay, fragmentNumber } from '../../../lib/exams/format';
 import { glue, NBSP } from '../sheetModel';
 import type { FrameBox } from '../useFrame';
-import { counterDetails, counterLabel, erasableSentence, historyLine, lineNote, linesWord, priceLine, questionsWord } from './copy';
+import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
+import { splitFragmentHeading } from '../../../utils/fragmentText';
+import {
+  counterDetails,
+  counterLabel,
+  erasableSentence,
+  historyLine,
+  lineNote,
+  linesWord,
+  priceLine,
+  questionsWord,
+  SHEET_RULE,
+  SHEET_RULE_SHORT,
+  writtenLabel,
+} from './copy';
 import type { SheetViewMode } from './CheatSheet';
 import type { SheetLinks } from './useSheetPage';
 
@@ -41,28 +55,34 @@ export function useUnitsLeft(userId: string | null): number | null {
 
 // ── A number that rolls to its new value (450 ms, spec 6) ─────────────────────────────────
 
+/**
+ * The digits roll from the number on screen to the new one (a roll cut short by the next value goes on
+ * from where it stood, so the history's fast frames never jump back); no roll under reduced motion.
+ */
 export function RollingNumber({ value, roll }: { value: number; roll: boolean }) {
+  const reduced = usePrefersReducedMotion();
   const [shown, setShown] = useState(value);
-  const from = useRef(value);
+  const current = useRef(value);
   useEffect(() => {
-    if (!roll || typeof requestAnimationFrame !== 'function') {
-      from.current = value;
+    if (!roll || reduced || typeof requestAnimationFrame !== 'function') {
+      current.current = value;
       setShown(value);
       return undefined;
     }
     const start = performance.now();
-    const origin = from.current;
+    const origin = current.current;
     let frame = 0;
     const step = (time: number) => {
       const t = Math.min(1, (time - start) / 450);
       const eased = 1 - Math.pow(1 - t, 3);
-      setShown(Math.round(origin + (value - origin) * eased));
+      const next = Math.round(origin + (value - origin) * eased);
+      current.current = next;
+      setShown(next);
       if (t < 1) frame = requestAnimationFrame(step);
-      else from.current = value;
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [value, roll]);
+  }, [value, roll, reduced]);
   return <>{shown}</>;
 }
 
@@ -73,6 +93,8 @@ export interface SheetSummaryProps {
   /** The counter's number now (during a replay: the count before the answer). */
   left: number;
   roll: boolean;
+  /** The sheet is being written: on a sheet nothing has touched yet the counter says «строк написано». */
+  writing?: boolean;
   /** «35 % билетов, где оба вопроса есть в лекциях», as in «Вопросы». */
   shareLine: string | null;
   /** «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» */
@@ -108,10 +130,16 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
   const details = counterDetails(counts);
   const history = props.history;
   const shownLeft = history ? history.frame.left : props.left;
+  const shownTotal = history ? history.frame.total : counts.total;
   const showCount = variant !== 'after' && counts.total > 0;
-  const acts = (props.onReplay || props.onHistory || history) && (variant !== 'top' || history?.running) && (
+  // Writing a sheet nothing has touched yet: «12 строк написано», not «12 строк осталось из 12».
+  const firstLines = Boolean(props.writing) && !history && counts.left === counts.total && counts.rubbed === 0;
+  const countLabel = firstLines ? writtenLabel(counts.total) : counterLabel({ left: shownLeft, total: shownTotal });
+  const countValue = firstLines ? counts.total : shownLeft;
+  const playing = Boolean(history?.running);
+  const acts = (props.onReplay || props.onHistory || history) && (variant !== 'top' || playing) && (
     <div className="cs-acts">
-      {history?.running ? (
+      {playing ? (
         <button type="button" className="sf-link" onClick={props.onHistoryStop}>
           Остановить
         </button>
@@ -124,12 +152,12 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
           )}
           {props.onHistory && (
             <button type="button" className="sf-link" onClick={props.onHistory}>
-              История листа
+              История шпаргалки
             </button>
           )}
           {history && (
             <button type="button" className="sf-link" data-muted="" onClick={props.onHistoryStop}>
-              Вернуться к сегодня
+              Закрыть историю
             </button>
           )}
         </>
@@ -140,11 +168,15 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
     <div className="ex-summary cs-sum" data-variant={variant}>
       {variant === 'full' && <p className="ex-why-t cs-flag">Шпаргалка</p>}
       {showCount && (
-        <div className="cs-count" aria-live="polite">
-          <span className="ex-big cs-big">
-            <RollingNumber value={shownLeft} roll={props.roll || Boolean(history)} />
+        <div className="cs-count">
+          <span className="ex-big cs-big" aria-hidden="true">
+            <RollingNumber value={countValue} roll={props.roll || Boolean(history)} />
           </span>
-          <span className="cs-count-l">{counterLabel({ left: shownLeft, total: history ? history.frame.total : counts.total })}</span>
+          <span className="cs-count-l" aria-hidden="true">
+            {countLabel}
+          </span>
+          {/* Read once, at the new number: the rolling digits are not announced frame by frame. */}
+          <span className="sr-only" aria-live="polite">{`${countValue} ${countLabel}`}</span>
         </div>
       )}
       {showCount &&
@@ -154,21 +186,19 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
           details && <p className="cs-sub">{details}</p>
         ))}
       {variant !== 'after' && props.changeLine && !history && <p className="cs-change">{glue(props.changeLine)}</p>}
+      {/* The promise stays on screen after the first-use tip: what erases the lines. */}
+      {showCount && !history && <p className="cs-rule">{glue(variant === 'top' ? SHEET_RULE_SHORT : SHEET_RULE)}</p>}
       {variant !== 'top' && props.shareLine && !history && <p className="cs-share">{glue(props.shareLine)}</p>}
-      {counts.total > 0 && (
+      {counts.total > 0 && !playing && (
         <div className="cs-toggles">
           {variant !== 'after' && <Toggle label="Только то, что осталось" on={mode.onlyLeft} onChange={(on) => onMode({ ...mode, onlyLeft: on })} />}
           {variant !== 'top' && (
-            <Toggle
-              label="Закрыть строки"
-              on={mode.cover}
-              onChange={(on) => onMode({ ...mode, cover: on })}
-              hint="Строки закрыты — вспомните их сами. Открыть строку значит подсмотреть"
-            />
+            <Toggle label="Закрыть строки" on={mode.cover} onChange={(on) => onMode({ ...mode, cover: on })} hint="Строки закрыты — вспомните их сами, нажатие открывает строку" />
           )}
           {variant === 'full' && <Toggle label="Весь лист" on={mode.zoom} onChange={(on) => onMode({ ...mode, zoom: on })} />}
         </div>
       )}
+      {mode.cover && variant !== 'top' && !playing && <p className="cs-sub cs-cover-note">Нажмите на закрытую строку, чтобы открыть её. Стирать строки это не мешает.</p>}
       {acts}
     </div>
   );
@@ -221,7 +251,7 @@ export function SheetWriteCard(props: SheetWriteProps) {
           <span className="cs-write-fine"> · можно закрыть страницу — допишется</span>
         </p>
         {write.stopping ? (
-          <p className="ex-fine">Новые вопросы не начнутся. Уже начатые допишутся и будут списаны.</p>
+          <p className="ex-fine">Новые вопросы не начнутся. Начатые допишутся — единицы за них спишутся.</p>
         ) : (
           <button type="button" className="sf-link" onClick={props.onStop}>
             Остановить
@@ -257,14 +287,16 @@ export function SheetWriteCard(props: SheetWriteProps) {
     <div className="ex-blk cs-write" data-first={first ? '' : undefined}>
       {outcome && <p className="ex-stmt cs-outcome">{glue(outcome)}</p>}
       {first && props.compact && (
-        <p className="ex-stmt cs-write-short">Meldy выпишет из ваших лекций пункты ответа на каждый вопрос. Стирают их только ваши ответы.</p>
+        <p className="ex-stmt cs-write-short">
+          Meldy выпишет из ваших лекций пункты ответа на вопросы, которые в них есть. Стирают их только ваши ответы. От чтения ничего не стирается.
+        </p>
       )}
       {first && !props.compact && (
         <>
           <h3 className="cs-write-h">Шпаргалка ещё не написана</h3>
           <p className="ex-stmt">
-            Meldy выпишет из ваших лекций пункты ответа на каждый вопрос — по ним проверяется ваш ответ на билет. Эту шпаргалку стирают только
-            ответы: назвали пункт — строка стирается наполовину, назвали снова в другой день — совсем. От чтения ничего не стирается.
+            Meldy выпишет из ваших лекций пункты ответа на вопросы, которые в них есть. Эту шпаргалку стирают только ответы: назвали пункт —
+            строка стирается наполовину, назвали снова в другой день — совсем. От чтения ничего не стирается.
           </p>
         </>
       )}
@@ -280,10 +312,10 @@ export function SheetWriteCard(props: SheetWriteProps) {
       )}
       <p className="ex-fine">{glue(priceLine(props.toWrite, props.units, props.unitsLeft))}</p>
       {affordable > 0 && affordable < props.toWrite && (
-        <p className="ex-fine">{glue(`Остальные ${props.toWrite - affordable} — после обновления лимита в ${formatLimitReset(nextLimitReset())}`)}</p>
+        <p className="ex-fine">{glue(`Ещё ${props.toWrite - affordable}${NBSP}${questionsWord(props.toWrite - affordable)} — после обновления лимита в ${formatLimitReset(nextLimitReset())}`)}</p>
       )}
       {first && !props.compact && (
-        <p className="ex-fine">Это те же пункты, по которым проверяется ответ на билет: второй раз за них платить не придётся.</p>
+        <p className="ex-fine">Это те же пункты, по которым проверяется ответ на билет: когда будете отвечать, за них второй раз платить не придётся.</p>
       )}
     </div>
   );
@@ -322,6 +354,15 @@ export interface LinePanelProps {
 
 const READABLE: ReadonlySet<LineState> = new Set<LineState>(['fresh', 'missed', 'returned']);
 
+/**
+ * The lecture's words under a line: a heading on its own line at the start of the fragment is left
+ * out (it is not part of the sentence), and a quote cut off mid-sentence ends with «…».
+ */
+export function quoteText(quote: string): string {
+  const body = splitFragmentHeading(quote).body.trim();
+  return /[.!?…»"”)]$/u.test(body) ? body : `${body}…`;
+}
+
 /** «Лекция «Спрос и предложение», фрагмент 12» for the line's quote. */
 function quoteCaption(line: SheetLine, block: SheetBlock): string | null {
   const id = line.sourceIds[0];
@@ -336,7 +377,7 @@ function quoteCaption(line: SheetLine, block: SheetBlock): string | null {
 export function LinePanel(props: LinePanelProps) {
   const { line, block, state, peeked, links, onClose, variant } = props;
   const rootRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const dragStart = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
   const sheet = variant === 'sheet';
@@ -344,9 +385,16 @@ export function LinePanel(props: LinePanelProps) {
   const readable = READABLE.has(state) || peeked;
   const canPeek = !peeked && (state === 'rubbed' || state === 'due');
 
+  // The panel takes the focus when it opens (Enter on a line lands on its details, «Подсмотреть» is
+  // next); after «Подсмотреть» the button is gone, and the focus goes to the heading, which now reads
+  // the line's words.
   useEffect(() => {
-    if (sheet) closeRef.current?.focus();
+    headingRef.current?.focus({ preventScroll: !sheet });
   }, [sheet, line.key]);
+  const onPeek = () => {
+    props.onPeek();
+    window.setTimeout(() => headingRef.current?.focus({ preventScroll: true }), 0);
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -374,7 +422,6 @@ export function LinePanel(props: LinePanelProps) {
     };
   }, [sheet]);
 
-  const kind = line.essential ? 'главный пункт' : 'пункт';
   let heading: string;
   if (readable) heading = line.title;
   else if (state === 'rubbed') heading = 'Строка стёрта наполовину';
@@ -386,21 +433,23 @@ export function LinePanel(props: LinePanelProps) {
     const when = erasableSentence(status);
     if (when) lines.push(when);
   }
-  if (state === 'due' && !peeked) lines.push('Назовите этот пункт в ответе на вопрос — так станет ясно, помните ли вы его.');
-  if (state === 'erased') lines.push('Чтобы увидеть её снова, ответьте на вопрос: строка вернётся, если пункт не прозвучит.');
+  if (state === 'due' && !peeked) lines.push('Назовите этот пункт в ответе: назовёте — снова сотрётся, нет — вернётся.');
+  if (state === 'erased') lines.push('Стёртую строку не подсмотреть. Она вернётся, если в ответе этот пункт не будет назван.');
   if (!canPeek && (state === 'missed' || state === 'returned')) {
     const note = lineNote(status);
     if (note) lines.push(note.charAt(0).toUpperCase() + note.slice(1));
   }
-  if (status.peekedToday && !peeked && state !== 'erased') lines.push('Сегодня вы подсматривали эту строку: сегодня она не сотрётся.');
+  if (status.peekedToday && !peeked && state !== 'erased') lines.push('Вы подсматривали эту строку — до конца дня ответ её не сотрёт.');
 
   const caption = readable ? quoteCaption(line, block) : null;
+  const quote = readable && line.quote ? quoteText(line.quote) : null;
   const history = [...line.status.history].reverse();
+  const place = block.lines.indexOf(line) + 1;
 
   const content = (
     <>
-      <p className="ex-why-t">{`Вопрос ${block.number} · ${kind}`}</p>
-      <h3 id={props.headingId} className={readable ? 'cs-lp-title' : undefined}>
+      <p className="ex-why-t">{`Вопрос ${block.number} · пункт ${place > 0 ? place : 1}${line.essential ? ' · главный' : ''}`}</p>
+      <h3 id={props.headingId} ref={headingRef} tabIndex={-1} className={readable ? 'cs-lp-title' : undefined}>
         {glue(heading)}
       </h3>
       {lines.map((text, index) => (
@@ -410,17 +459,17 @@ export function LinePanel(props: LinePanelProps) {
       ))}
       {canPeek && (
         <div className="cs-lp-peek">
-          <p className="ex-fine">Подсмотреть — значит прочитать: сегодня эта строка уже не сотрётся.</p>
-          <button type="button" className="sf-secondary" onClick={props.onPeek}>
+          <p className="ex-fine">Если подсмотреть, сегодня ответ её не сотрёт.</p>
+          <button type="button" className="sf-secondary" onClick={onPeek}>
             Подсмотреть
           </button>
         </div>
       )}
-      {peeked && <p className="ex-fine cs-lp-peeked">Подсмотрели — сегодня эта строка не сотрётся.</p>}
-      {readable && line.quote && (
+      {peeked && <p className="ex-fine cs-lp-peeked">Подсмотрели — сегодня ответ её не сотрёт.</p>}
+      {quote && (
         <>
           {caption && <p className="ex-slip-cap">{caption}</p>}
-          <blockquote className="sf-slip cs-lp-quote">{line.quote}</blockquote>
+          <blockquote className="sf-slip cs-lp-quote">{quote}</blockquote>
         </>
       )}
       {history.length > 0 && (
@@ -503,7 +552,7 @@ export function LinePanel(props: LinePanelProps) {
           <span className="ex-grip" aria-hidden="true" />
         </div>
         <div className="ex-sheet-close">
-          <button ref={closeRef} type="button" className="sf-link" data-muted="" onClick={onClose}>
+          <button type="button" className="sf-link cs-lp-close" data-muted="" onClick={onClose}>
             Закрыть
           </button>
         </div>

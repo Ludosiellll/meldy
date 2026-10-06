@@ -202,13 +202,15 @@ export function PencilUnder({ seed, children, hand = 'pencil', animate = false, 
       const host = element.offsetParent as HTMLElement | null;
       if (!host) return;
       const hostBox = host.getBoundingClientRect();
+      // A scaled ancestor (the cheat sheet's «Весь лист») scales the rects too: back to the host's own px.
+      const scale = host.offsetWidth > 0 && hostBox.width > 0 ? hostBox.width / host.offsetWidth : 1;
       const next = Array.from(element.getClientRects())
         .filter((rect) => rect.width > 0 && rect.height > 0)
         .map((rect) => ({
-          x: rect.left - hostBox.left - host.clientLeft + host.scrollLeft,
-          y: rect.top - hostBox.top - host.clientTop + host.scrollTop,
-          w: rect.width,
-          h: rect.height,
+          x: (rect.left - hostBox.left) / scale - host.clientLeft + host.scrollLeft,
+          y: (rect.top - hostBox.top) / scale - host.clientTop + host.scrollTop,
+          w: rect.width / scale,
+          h: rect.height / scale,
         }));
       setRects((previous) => (sameRects(previous, next) ? previous : next));
     };
@@ -246,7 +248,8 @@ export function PencilUnder({ seed, children, hand = 'pencil', animate = false, 
       {rects.map((rect, index) => {
         const w = rect.w + 4;
         const h = 6;
-        const options = kind === 'wave' ? { weight, period: 8 } : { weight };
+        // The cheat sheet's wave under a missed point: long and calm, not a spell-checker's squiggle.
+        const options = kind === 'wave' ? { weight, period: 13 } : { weight };
         return (
           <PencilSvg
             key={index}

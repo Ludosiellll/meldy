@@ -178,7 +178,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const { user } = useAuth();
   // /exams/:id?filter=cov:none opens the sheet filtered (the «Сегодня» link «9 вопросов без материала»);
   // anything that is not a known filter shows every question.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [openedFilter] = useState<SheetFilter>(() => sheetFilterOf(searchParams.get('filter')));
   const [view, setView] = useState<PageView>(() => {
     if (searchParams.get('filter')) return 'questions';
@@ -587,6 +587,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
       setManualError(null);
       setSelectedId((currentId) => (currentId === id ? null : id));
     },
+    // A line's details take the column: «почему» of a question closes (it would stand in front of them).
+    onLineOpen: () => setSelectedId(null),
   });
   // The first time the sheet shows lines, one tip under its tab says what erases them (sheet spec 8):
   // not over a replay or the history, not while a line's details are open.
@@ -619,8 +621,20 @@ function ExamSheetPage({ examId }: { examId: string }) {
       } else {
         closeSheetLine();
       }
+      // A ?view= that brought the student here (the protocol, «Сегодня») must not win over this choice on
+      // reload or Back.
+      if (searchParams.has('view')) {
+        setSearchParams(
+          (current) => {
+            const updated = new URLSearchParams(current);
+            updated.set('view', next);
+            return updated;
+          },
+          { replace: true },
+        );
+      }
     },
-    [examId, view, closeSheetLine],
+    [examId, view, closeSheetLine, searchParams, setSearchParams],
   );
 
   // ------------------------------------------------------------------ actions

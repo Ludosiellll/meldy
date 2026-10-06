@@ -6,7 +6,7 @@ vi.mock('../../../lib/supabase', () => ({ supabase: {} }));
 
 import type { SheetWriteState } from '../../../api/cheatSheet';
 import type { HistoryFrame, LineState, LineStatus, SheetBlock, SheetCounts, SheetLine } from '../../../lib/exams/cheatSheet';
-import { historyResult, LinePanel, outcomeLine, SheetSummaryCard, SheetWriteCard, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
+import { historyResult, LinePanel, outcomeLine, quoteText, SheetSummaryCard, SheetWriteCard, type SheetSummaryProps, type SheetWriteProps } from './SheetColumn';
 import { examSheetLinks } from './useSheetPage';
 
 afterEach(() => {
@@ -65,7 +65,10 @@ describe('SheetSummaryCard', () => {
     expect(screen.getByText('Шпаргалка')).toBeTruthy();
     expect(document.querySelector('.cs-big')?.textContent).toBe('39');
     expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
-    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('главных — 21 · пора проверить — 3 · 9 вопросов без пунктов');
+    expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('из них главных — 21 · наполовину — 5 · пора проверить — 3 · 6 вопросов без пунктов');
+    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Стирают строки только ответы: назвали пункт — наполовину, назвали снова в другой день — совсем.');
+    // The rolling digits are hidden from a screen reader; the count is read once, whole.
+    expect(plain(document.querySelector('.cs-count .sr-only')?.textContent)).toBe('39 строк осталось из 47');
     expect(plain(document.querySelector('.cs-change')?.textContent)).toBe('После ответа: 2 строки стёрлись, 1 — наполовину.');
     expect(plain(document.querySelector('.cs-share')?.textContent)).toContain('35 % билетов');
     const switches = screen.getAllByRole('switch');
@@ -75,7 +78,7 @@ describe('SheetSummaryCard', () => {
     expect(props.onMode).toHaveBeenCalledWith({ ...MODE, zoom: true });
     fireEvent.click(screen.getByRole('button', { name: 'Показать последний ответ' }));
     expect(props.onReplay).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'История листа' }));
+    fireEvent.click(screen.getByRole('button', { name: 'История шпаргалки' }));
     expect(props.onHistory).toHaveBeenCalledTimes(1);
   });
 
@@ -97,7 +100,7 @@ describe('SheetSummaryCard', () => {
     expect(document.querySelector('.cs-change')).toBeNull();
     expect(document.querySelector('.cs-share')).toBeTruthy();
     expect(screen.getAllByRole('switch').map((item) => item.textContent)).toEqual(['Закрыть строки']);
-    expect(screen.getByRole('button', { name: 'История листа' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'История шпаргалки' })).toBeTruthy();
   });
 
   it('no links without an answer or a history, and no switches on an empty sheet', () => {
@@ -107,7 +110,33 @@ describe('SheetSummaryCard', () => {
     expect(document.querySelector('.cs-big')).toBeNull();
   });
 
-  it('the history: its day while it plays with «Остановить», then the result and «Вернуться к сегодня»', () => {
+  it('top: the short rule; while the first lines are written the count says how many are written', () => {
+    summary({ variant: 'top' });
+    expect(plain(document.querySelector('.cs-rule')?.textContent)).toBe('Стирают строки только ответы.');
+    cleanup();
+    summary({ writing: true, counts: { ...COUNTS, left: 12, total: 12, rubbed: 0 }, left: 12 });
+    expect(document.querySelector('.cs-big')?.textContent).toBe('12');
+    expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк написано');
+    cleanup();
+    // Once an answer has touched the sheet the count is the usual one, even while more is written.
+    summary({ writing: true });
+    expect(plain(document.querySelector('.cs-count-l')?.textContent)).toBe('строк осталось из 47');
+  });
+
+  it('closed lines: a note says what a tap does; while the history plays the switches and notes step aside', () => {
+    summary({ mode: { ...MODE, cover: true } });
+    expect(plain(document.querySelector('.cs-cover-note')?.textContent)).toBe('Нажмите на закрытую строку, чтобы открыть её. Стирать строки это не мешает.');
+    cleanup();
+    const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
+    summary({ mode: { ...MODE, cover: true }, history: { frame: first, first, running: true } });
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(document.querySelector('.cs-cover-note')).toBeNull();
+    expect(document.querySelector('.cs-rule')).toBeNull();
+    expect(document.querySelector('.cs-share')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Показать последний ответ' })).toBeNull();
+  });
+
+  it('the history: its day while it plays with «Остановить», then the result and «Закрыть историю»', () => {
     const first: HistoryFrame = { day: '2026-09-01', at: 0, left: 180, total: 180 };
     const frame: HistoryFrame = { day: '2026-09-15', at: 0, left: 120, total: 180 };
     const props = summary({ history: { frame, first, running: true } });
@@ -120,7 +149,7 @@ describe('SheetSummaryCard', () => {
     const last: HistoryFrame = { day: '2026-10-06', at: 0, left: 61, total: 180 };
     summary({ history: { frame: last, first, running: false } });
     expect(plain(document.querySelector('.cs-sub')?.textContent)).toBe('180 → 61 строка за 5 недель');
-    expect(screen.getByRole('button', { name: 'Вернуться к сегодня' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Закрыть историю' })).toBeTruthy();
   });
 });
 
@@ -182,7 +211,7 @@ describe('SheetWriteCard', () => {
     const { props } = writeCard({ written: 2, toWrite: 5, units: 5, unitsLeft: 2 });
     fireEvent.click(screen.getByRole('button', { name: named('Написать 2 вопроса') }));
     expect(props.onWrite).toHaveBeenCalledWith(2);
-    expect(plain(document.querySelector('.cs-write')?.textContent)).toMatch(/Остальные 3 — после обновления лимита в/);
+    expect(plain(document.querySelector('.cs-write')?.textContent)).toMatch(/Ещё 3 вопроса — после обновления лимита в/);
     cleanup();
     writeCard({ unitsLeft: 0 });
     expect(screen.queryByRole('button')).toBeNull();
@@ -196,7 +225,7 @@ describe('SheetWriteCard', () => {
     expect(props.onStop).toHaveBeenCalledTimes(1);
     view.rerender(<SheetWriteCard {...props} write={idle({ phase: 'running', done: 1, total: 3, stopping: true })} />);
     expect(screen.queryByRole('button', { name: 'Остановить' })).toBeNull();
-    expect(screen.getByText(/Уже начатые допишутся и будут списаны/)).toBeTruthy();
+    expect(screen.getByText('Новые вопросы не начнутся. Начатые допишутся — единицы за них спишутся.')).toBeTruthy();
     // A new run after that: «Остановить» is back.
     view.rerender(<SheetWriteCard {...props} write={idle({ phase: 'running', done: 0, total: 2 })} />);
     expect(screen.getByRole('button', { name: 'Остановить' })).toBeTruthy();
@@ -266,22 +295,23 @@ function blockOf(line: SheetLine): SheetBlock {
 function panel(line: SheetLine, extra: { peeked?: boolean; variant?: 'column' | 'sheet'; state?: LineState } = {}) {
   const onPeek = vi.fn();
   const onClose = vi.fn();
-  const view = render(
+  const tree = (peeked: boolean) => (
     <MemoryRouter>
       <LinePanel
         links={examSheetLinks('exam-1')}
         line={line}
         block={blockOf(line)}
         state={extra.state ?? line.status.state}
-        peeked={extra.peeked ?? false}
+        peeked={peeked}
         onPeek={onPeek}
         onClose={onClose}
         variant={extra.variant ?? 'column'}
         headingId="cs-lp-h"
       />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
-  return { onPeek, onClose, view };
+  const view = render(tree(extra.peeked ?? false));
+  return { onPeek, onClose, view, peek: () => view.rerender(tree(true)) };
 }
 
 describe('LinePanel', () => {
@@ -290,7 +320,8 @@ describe('LinePanel', () => {
     expect(screen.getByRole('heading', { name: named('Строка стёрта наполовину') })).toBeTruthy();
     expect(screen.queryByText(/отношение денежной массы/)).toBeNull();
     expect(plain(screen.getByText(/Сотрётся, если назовёте снова после/).textContent)).toMatch(/\d{1,2} [а-я]+\.?, \d{1,2}:\d\d\.$/);
-    expect(plain(screen.getByText(/^Вопрос 25/).textContent)).toBe('Вопрос 25 · главный пункт');
+    expect(plain(screen.getByText(/^Вопрос 25/).textContent)).toBe('Вопрос 25 · пункт 1 · главный');
+    expect(screen.getByText('Если подсмотреть, сегодня ответ её не сотрёт.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Подсмотреть' }));
     expect(onPeek).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('link', { name: 'Ответить на этот вопрос' }).getAttribute('href')).toBe('/exams/exam-1/ticket?q=q25');
@@ -302,7 +333,7 @@ describe('LinePanel', () => {
     panel(lineOf('rubbed'), { peeked: true });
     expect(screen.getByRole('heading', { name: named('Мультипликатор — отношение денежной массы к денежной базе') })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Подсмотреть' })).toBeNull();
-    expect(screen.getByText('Подсмотрели — сегодня эта строка не сотрётся.')).toBeTruthy();
+    expect(screen.getByText('Подсмотрели — сегодня ответ её не сотрёт.')).toBeTruthy();
     expect(plain(document.querySelector('.ex-slip-cap')?.textContent)).toBe('Лекция «Денежный рынок», фрагмент 12');
     expect(document.querySelector('.cs-lp-quote')?.textContent).toMatch(/Денежный мультипликатор показывает/);
   });
@@ -311,7 +342,27 @@ describe('LinePanel', () => {
     panel(lineOf('erased', { erasedOn: '2026-10-05' }));
     expect(screen.getByRole('heading', { name: named('Строка стёрта') })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Подсмотреть' })).toBeNull();
-    expect(screen.getByText(/строка вернётся, если пункт не прозвучит/)).toBeTruthy();
+    expect(plain(screen.getByText(/^Стёртую строку не подсмотреть/).textContent)).toBe('Стёртую строку не подсмотреть. Она вернётся, если в ответе этот пункт не будет назван.');
+  });
+
+  it('a line due for a check: what an answer will do to it, and it can be peeked', () => {
+    panel(lineOf('due', { dueAt: '2026-10-06T08:00:00Z', erasedOn: '2026-09-20' }));
+    expect(screen.getByRole('heading', { name: named('Строка стёрта — пора проверить') })).toBeTruthy();
+    expect(plain(screen.getByText(/^Назовите этот пункт/).textContent)).toBe('Назовите этот пункт в ответе: назовёте — снова сотрётся, нет — вернётся.');
+    expect(screen.getByRole('button', { name: 'Подсмотреть' })).toBeTruthy();
+  });
+
+  it('a line peeked earlier today says so; after «Подсмотреть» the heading with the words takes the focus', async () => {
+    const { onPeek, peek } = panel(lineOf('rubbed', { peekedToday: true }));
+    expect(plain(screen.getByText(/^Вы подсматривали/).textContent)).toBe('Вы подсматривали эту строку — до конца дня ответ её не сотрёт.');
+    fireEvent.click(screen.getByRole('button', { name: 'Подсмотреть' }));
+    expect(onPeek).toHaveBeenCalledTimes(1);
+    peek();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const heading = screen.getByRole('heading', { name: named('Мультипликатор — отношение денежной массы к денежной базе') });
+    expect(document.activeElement).toBe(heading);
+    // Once open, the morning's peek is not repeated: one sentence says it.
+    expect(screen.queryByText(/^Вы подсматривали/)).toBeNull();
   });
 
   it('a missed line says when it was missed, and its history links to the protocols', () => {
@@ -352,12 +403,13 @@ describe('LinePanel', () => {
     expect(plain(item.textContent)).toMatch(/— назван \(ответ примера\)$/);
   });
 
-  it('a phone bottom sheet: a dialog that takes the focus, holds the page and keeps Tab inside', () => {
+  it('a phone bottom sheet: a dialog that takes the focus to its heading, holds the page and keeps Tab inside', () => {
     const { view } = panel(lineOf('rubbed'), { variant: 'sheet' });
     const dialog = screen.getByRole('dialog');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     const close = within(dialog).getByRole('button', { name: 'Закрыть' });
-    expect(document.activeElement).toBe(close);
+    // The heading takes the focus (a screen reader starts at what the line is); Tab goes on to the buttons.
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading'));
     expect(document.documentElement.style.overflow).toBe('hidden');
     expect(document.body.style.overflow).toBe('hidden');
     const answer = within(dialog).getByRole('link', { name: 'Ответить на этот вопрос' });
@@ -369,5 +421,15 @@ describe('LinePanel', () => {
     view.unmount();
     expect(document.documentElement.style.overflow).toBe('');
     expect(document.body.style.overflow).toBe('');
+  });
+});
+
+describe('quoteText', () => {
+  it('drops the fragment heading and marks a quote cut mid-sentence with «…»', () => {
+    expect(quoteText('Денежный мультипликатор показывает, во сколько раз')).toBe('Денежный мультипликатор показывает, во сколько раз…');
+    expect(quoteText('Спрос растёт, когда цена падает.')).toBe('Спрос растёт, когда цена падает.');
+    expect(quoteText('Эластичность спроса\nКоэффициент показывает, на сколько процентов изменится величина спроса при изменении цены.')).toBe(
+      'Коэффициент показывает, на сколько процентов изменится величина спроса при изменении цены.',
+    );
   });
 });

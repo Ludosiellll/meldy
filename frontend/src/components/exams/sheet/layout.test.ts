@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSheet, type SheetQuestion } from '../../../lib/exams/cheatSheet';
-import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitIndex } from './layout';
+import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitIndex, splitMany, zoomPlan } from './layout';
 
 function question(position: number, points: number, extra: Partial<SheetQuestion> = {}): SheetQuestion {
   return {
@@ -107,5 +107,32 @@ describe('the paper layout', () => {
     ]);
     expect(splitColumns(['a', 'b', 'c'], [3, 3, 3], 1)).toEqual([['a', 'b', 'c']]);
     expect(splitColumns(['a'], [3], 2)).toEqual([['a']]);
+  });
+
+  it('«Весь лист» splits into many columns in order, never more than asked, the tallest as low as it can be', () => {
+    expect(splitMany(['a', 'b', 'c', 'd'], [3, 3, 3, 3], 2)).toEqual([
+      ['a', 'b'],
+      ['c', 'd'],
+    ]);
+    // The tallest column is the 5-row block alone; every column gets something.
+    expect(splitMany(['a', 'b', 'c', 'd', 'e', 'f'], [5, 1, 1, 1, 1, 1], 3)).toEqual([['a'], ['b', 'c', 'd', 'e'], ['f']]);
+    expect(splitMany(['a', 'b', 'c', 'd', 'e', 'f'], [2, 2, 2, 2, 2, 2], 4).map((part) => part.length)).toEqual([2, 2, 1, 1]);
+    expect(splitMany(['a', 'b'], [3, 3], 5)).toEqual([['a'], ['b']]);
+    expect(splitMany(['a', 'b', 'c'], [3, 3, 3], 1)).toEqual([['a', 'b', 'c']]);
+    expect(splitMany([], [], 3)).toEqual([[]]);
+  });
+
+  it('«Весь лист» takes more columns of the same width rather than an ever smaller scale', () => {
+    const geometry = paperGeometry(1000);
+    // A short sheet is shown as it is.
+    expect(zoomPlan({ wrapWidth: 1000, available: 800, rows: [5, 5, 5, 5], geometry })).toEqual({ columns: 2, scale: 1, width: 1000 });
+    // 30 questions of 6 rows: in two columns 92 rows high (scale 0.32); four columns of 408 px are larger (0.53).
+    const rows = Array.from({ length: 30 }, () => 6);
+    const plan = zoomPlan({ wrapWidth: 1000, available: 700, rows, geometry });
+    expect(plan.columns).toBe(4);
+    expect(plan.width).toBe(24 + 72 + 4 * 408 + 3 * 48);
+    expect(plan.scale).toBeCloseTo(1000 / plan.width, 5);
+    // Never more columns than allowed.
+    expect(zoomPlan({ wrapWidth: 1000, available: 300, rows, geometry, maxColumns: 3 }).columns).toBeLessThanOrEqual(3);
   });
 });
