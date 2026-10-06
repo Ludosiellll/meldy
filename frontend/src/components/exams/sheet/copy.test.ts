@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { LineStatus } from '../../../lib/exams/cheatSheet';
-import { blockNote, changeSentence, counterDetails, protocolSheetLine, counterLabel, erasableSentence, historyLine, lineLabel, lineNote, priceLine } from './copy';
+import {
+  blockNote,
+  changeSentence,
+  counterDetails,
+  protocolSheetLine,
+  counterLabel,
+  erasableSentence,
+  historyLine,
+  lineLabel,
+  lineNote,
+  priceLine,
+  writeStatusNote,
+  writtenLabel,
+} from './copy';
 
 const NBSP = ' ';
 const plain = (text: string | null) => (text ?? '').replace(/ /g, ' ');
@@ -26,12 +39,33 @@ describe('cheat sheet words', () => {
     expect(plain(counterLabel({ left: 39, total: 47 }))).toBe('строк осталось из 47');
     expect(plain(counterLabel({ left: 21, total: 47 }))).toBe('строка осталась из 47');
     expect(plain(counterLabel({ left: 3, total: 47 }))).toBe('строки осталось из 47');
+    // While the first lines are written: how many there are, not «6 из 6 осталось».
+    expect(writtenLabel(6)).toBe('строк написано');
+    expect(writtenLabel(21)).toBe('строка написана');
+    expect(writtenLabel(3)).toBe('строки написано');
   });
 
-  it('lists what else matters under the counter, leaving out empty parts', () => {
+  it('lists what else matters under the counter: the main lines left, the half-erased, the due, the questions without points', () => {
     const counts = { total: 47, left: 39, essentialTotal: 30, essentialLeft: 21, rubbed: 5, erased: 3, due: 3, readable: 34, learned: 1, withoutLines: 9, gaps: 3, unwritten: 6, rebuilt: 0, unmapped: 0, unverified: 0, questions: 40 };
-    expect(plain(counterDetails(counts))).toBe('главных — 21 · пора проверить — 3 · 9 вопросов без пунктов');
-    expect(counterDetails({ ...counts, due: 0, withoutLines: 0, essentialTotal: 47 })).toBe('');
+    // «Без пунктов» are the questions the lectures do not answer (and the unchecked ones): the 6 still to
+    // be written are counted by «Дописать 6 вопросов».
+    expect(plain(counterDetails(counts))).toBe('из них главных — 21 · наполовину — 5 · пора проверить — 3 · 3 вопроса без пунктов');
+    expect(plain(counterDetails({ ...counts, gaps: 1, unmapped: 1, unverified: 1, rubbed: 0 }))).toBe('из них главных — 21 · пора проверить — 3 · 3 вопроса без пунктов');
+    expect(counterDetails({ ...counts, due: 0, rubbed: 0, gaps: 0, essentialTotal: 47 })).toBe('');
+  });
+
+  it('notes on unwritten questions only once some of the sheet is written; «В лекции» for the only lecture', () => {
+    const base = { coverage: 'full' as const, coverageMethod: 'llm' as const, coverageReason: '', missing: '', partial: false };
+    expect(blockNote({ ...base, kind: 'unwritten' }, 3)).toBeNull();
+    expect(blockNote({ ...base, kind: 'unwritten' }, 3, { anyWritten: true })).toBe('Ещё не написано');
+    expect(plain(blockNote({ ...base, kind: 'gap', coverage: 'none' }, 1))).toBe('В лекции нет фрагмента об этом');
+    expect(plain(blockNote({ ...base, kind: 'gap', coverage: 'none' }, 9))).toBe('Ни в одной из 9 лекций нет фрагмента об этом');
+  });
+
+  it('promises nothing the sheet does not do when a question was not written', () => {
+    expect(writeStatusNote('busy')).toBe('ИИ был занят — вопрос не написан. Допишите его позже.');
+    expect(writeStatusNote('limit', '3:00')).toBe('Лимит ИИ на сегодня кончился. Дописать можно после 3:00.');
+    expect(writeStatusNote('limit')).toBe('Лимит ИИ на сегодня кончился. Дописать можно после его обновления.');
   });
 
   it('writes the history in the protocol’s words with the day and time', () => {
@@ -47,7 +81,8 @@ describe('cheat sheet words', () => {
     expect(plain(lineNote(status({ state: 'due', erasedOn: '2026-09-20' })))).toBe('стёрта 20 сент. · пора проверить');
     expect(lineNote(status({ state: 'rubbed' }))).toBeNull();
     expect(lineNote(status({ state: 'fresh' }))).toBeNull();
-    expect(lineNote(status({ state: 'rubbed' }), true)).toBe('Подсмотрели — сегодня эта строка не сотрётся');
+    // The same words as the note of a line peeked at earlier today.
+    expect(lineNote(status({ state: 'rubbed' }), true)).toBe('подсмотрели — сегодня не сотрётся');
     expect(lineNote(status({ state: 'rubbed', peekedToday: true }))).toBe('подсмотрели — сегодня не сотрётся');
     expect(lineNote(status({ state: 'fresh', peekedToday: true }))).toBe('подсмотрели — сегодня не сотрётся');
     expect(plain(lineNote(missed))).toBe(plain(lineNote({ ...missed, peekedToday: true })));
@@ -56,7 +91,7 @@ describe('cheat sheet words', () => {
   it('prints the notes of «Вопросы» under questions without lines, and what a partial question lacks', () => {
     const base = { coverage: 'none' as const, coverageMethod: 'llm' as const, coverageReason: '', missing: '', partial: false };
     expect(plain(blockNote({ ...base, kind: 'gap' }, 9))).toBe('Ни в одной из 9 лекций нет фрагмента об этом');
-    expect(plain(blockNote({ ...base, kind: 'gap', coverageReason: 'Ни одного фрагмента с этими словами' }, 1))).toBe('Ни в одной из 1 лекции нет фрагмента с этими словами');
+    expect(plain(blockNote({ ...base, kind: 'gap', coverageReason: 'Ни одного фрагмента с этими словами' }, 1))).toBe('В лекции нет фрагмента с этими словами');
     expect(blockNote({ ...base, kind: 'gap', coverageReason: 'Нет подтверждающего фрагмента' }, 3)).toBe('Нет фрагмента, который подтверждает ответ');
     expect(blockNote({ ...base, kind: 'gap', coverage: 'full' }, 3)).toBe('В лекциях не нашлось пунктов ответа');
     expect(blockNote({ ...base, kind: 'unmapped', coverage: null }, 3)).toBe('Вопрос ещё не сверен с лекциями');
@@ -86,19 +121,57 @@ describe('cheat sheet words', () => {
     expect(plain(lineLabel('x', status({ state: 'erased', erasedOn: '2026-10-04' }), false))).toBe('Пункт стёрт 4 окт.');
   });
 
-  it('tells what an answer did, the noun once', () => {
-    expect(plain(changeSentence({ erased: 2, rubbed: 3, returned: 1, due: 0, missed: 0 }))).toBe('После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.');
-    expect(plain(changeSentence({ erased: 0, rubbed: 1, returned: 0, due: 0, missed: 2 }))).toBe('После ответа: 1 строка — наполовину, 2 не прозвучали.');
-    expect(plain(changeSentence({ erased: 21, rubbed: 0, returned: 0, due: 0, missed: 0 }))).toBe('После ответа: 21 строка стёрлась.');
-    expect(changeSentence({ erased: 0, rubbed: 0, returned: 0, due: 0, missed: 0 })).toBeNull();
+  const none = { erased: 0, rubbed: 0, checked: 0, returned: 0, stayed: 0 };
+
+  it('tells what an answer did, the noun once; «— наполовину» only after «стёрлись»', () => {
+    expect(plain(changeSentence({ ...none, erased: 2, rubbed: 3, returned: 1 }))).toBe('После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.');
+    // The first answer: nothing erased yet, the half-erased say so in full.
+    expect(plain(changeSentence({ ...none, rubbed: 3, stayed: 2 }))).toBe('После ответа: 3 строки стёрлись наполовину, 2 остались.');
+    expect(plain(changeSentence({ ...none, rubbed: 1 }))).toBe('После ответа: 1 строка стёрлась наполовину.');
+    expect(plain(changeSentence({ ...none, erased: 21 }))).toBe('После ответа: 21 строка стёрлась.');
     // A due line named again: it passed its check (and is erased again).
-    expect(plain(changeSentence({ erased: 1, rubbed: 0, returned: 0, due: 0, missed: 0, checked: 2 }))).toBe('После ответа: 1 строка стёрлась, 2 прошли проверку.');
-    expect(plain(changeSentence({ erased: 0, rubbed: 0, returned: 0, due: 0, missed: 0, checked: 1 }))).toBe('После ответа: 1 строка прошла проверку.');
+    expect(plain(changeSentence({ ...none, erased: 1, checked: 2 }))).toBe('После ответа: 1 строка стёрлась, 2 прошли проверку.');
+    expect(plain(changeSentence({ ...none, checked: 1 }))).toBe('После ответа: 1 строка прошла проверку.');
+    // «— наполовину» never breaks away from its number.
+    expect(changeSentence({ ...none, erased: 1, rubbed: 1 })).toContain(`1${NBSP}—${NBSP}наполовину`);
   });
 
-  it('says the change on the answer’s protocol, or why nothing changed', () => {
-    expect(plain(protocolSheetLine({ erased: 2, rubbed: 1, returned: 0, missed: 0 }))).toBe('На шпаргалке: 2 строки стёрлись, 1 — наполовину');
-    expect(plain(protocolSheetLine({ erased: 0, rubbed: 0, returned: 0, missed: 0 }))).toBe('На шпаргалке строки не изменились: стирает только пункт, названный в другой день');
+  it('says why nothing changed, from the answer’s own lines — or only that nothing did', () => {
+    const now = new Date(2026, 9, 6, 9, 0).getTime();
+    const from = new Date(2026, 9, 6, 15, 40).toISOString();
+    expect(plain(changeSentence(none, { kind: 'wait', from, count: 1 }, now))).toBe('После ответа строки не изменились: названное сотрётся, если назовёте его снова после 6 окт., 15:40.');
+    expect(plain(changeSentence(none, { kind: 'wait', from, count: 1 }, new Date(2026, 9, 6, 16, 0).getTime()))).toBe(
+      'После ответа строки не изменились: названное сотрётся, если назовёте его снова.',
+    );
+    expect(changeSentence(none, { kind: 'peek' })).toBe('После ответа строки не изменились: подсмотренная строка в тот же день не стирается.');
+    expect(changeSentence(none, { kind: 'erased' })).toBe('После ответа строки не изменились: названные пункты уже стёрты.');
+    expect(changeSentence(none)).toBe('После ответа строки не изменились.');
+  });
+
+  it('after a change, says which named lines stayed as they were, and why', () => {
+    const now = new Date(2026, 9, 6, 9, 0).getTime();
+    const from = new Date(2026, 9, 6, 15, 40).toISOString();
+    expect(plain(changeSentence({ ...none, rubbed: 1, stayed: 1 }, { kind: 'wait', from, count: 1 }, now))).toBe(
+      'После ответа: 1 строка стёрлась наполовину, 1 осталась. 1 строка названа снова слишком рано: сотрётся совсем, если назвать её после 6 окт., 15:40.',
+    );
+    expect(plain(changeSentence({ ...none, erased: 2 }, { kind: 'wait', from, count: 3 }, now))).toBe(
+      'После ответа: 2 строки стёрлись. 3 строки названы снова слишком рано: сотрутся совсем, если назвать их после 6 окт., 15:40.',
+    );
+    // The moment has come by the time the show is watched: no moment in the past.
+    expect(plain(changeSentence({ ...none, rubbed: 1 }, { kind: 'wait', from, count: 1 }, new Date(2026, 9, 6, 16, 0).getTime()))).toBe(
+      'После ответа: 1 строка стёрлась наполовину. 1 строка названа снова слишком рано: назовёте её ещё раз — сотрётся совсем.',
+    );
+    expect(changeSentence({ ...none, rubbed: 1 }, { kind: 'peek' })).toBe('После ответа: 1 строка стёрлась наполовину. Подсмотренное сегодня ответ не стирает.');
+    // Lines named when already erased need no word after a change; nor does the protocol's short line.
+    expect(plain(changeSentence({ ...none, rubbed: 1 }, { kind: 'erased' }))).toBe('После ответа: 1 строка стёрлась наполовину.');
+    expect(plain(protocolSheetLine({ ...none, rubbed: 1 }, { kind: 'wait', from, count: 1 }, now))).toBe('На шпаргалке: 1 строка стёрлась наполовину');
+  });
+
+  it('says the change on the answer’s protocol, or that nothing changed and why', () => {
+    expect(plain(protocolSheetLine({ ...none, erased: 2, rubbed: 1 }))).toBe('На шпаргалке: 2 строки стёрлись, 1 — наполовину');
+    expect(plain(protocolSheetLine({ ...none, rubbed: 3, returned: 1 }))).toBe('На шпаргалке: 3 строки стёрлись наполовину, 1 вернулась');
+    expect(protocolSheetLine(none)).toBe('На шпаргалке строки не изменились');
+    expect(protocolSheetLine(none, { kind: 'peek' })).toBe('На шпаргалке строки не изменились: подсмотренная строка в тот же день не стирается');
   });
 
   it('states the price in units', () => {

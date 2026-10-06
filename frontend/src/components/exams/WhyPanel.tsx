@@ -54,7 +54,9 @@ interface Verdict {
 }
 
 function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount: number): Verdict {
-  const lectures = lectureCount > 0 ? `Ни в одной из ${lectureCount}${NBSP}${lecturesGenitive(lectureCount)}` : 'Ни в одной лекции';
+  // «В лекции» for the only one: «ни в одной из 1 лекции» is not Russian.
+  const lectures =
+    lectureCount === 1 ? 'В лекции' : lectureCount > 1 ? `Ни в одной из ${lectureCount}${NBSP}${lecturesGenitive(lectureCount)}` : 'Ни в одной лекции';
   switch (coverage) {
     case 'checking':
       return { title: 'Проверяем по лекциям…', lead: [] };

@@ -66,7 +66,10 @@ export interface LineStatus {
   state: LineState;
   /** Checked answers of the line, oldest first (unrated ones are left out; skipped ones stay, marked). */
   history: LineEvent[];
-  /** rubbed: the earliest moment a naming erases the line — the later of +20 hours and the next local midnight (ISO). */
+  /**
+   * rubbed: the earliest moment a naming erases the line — the later of +20 hours and the next local
+   * midnight, and after a peek today not before the next midnight (ISO).
+   */
   erasableFrom: string | null;
   /** erased, due: the naming that erased the line and its local day. */
   erasedAt: string | null;
@@ -238,7 +241,10 @@ export function lineStatus(events: readonly LearningEvent[], now: Date | number 
   const midnight = start ? midnightAfter(start.local_date) : null;
   let erasableFrom: string | null = null;
   if (begin !== null || midnight !== null) {
-    const from = Math.max(begin !== null ? begin + CONFIRM_MIN_HOURS * HOUR_MS : -Infinity, midnight ?? -Infinity);
+    let from = Math.max(begin !== null ? begin + CONFIRM_MIN_HOURS * HOUR_MS : -Infinity, midnight ?? -Infinity);
+    // Uncovered today: a naming later today does not count either, so not before the next midnight.
+    const tomorrow = peekedToday ? midnightAfter(today) : null;
+    if (tomorrow !== null) from = Math.max(from, tomorrow);
     erasableFrom = new Date(from).toISOString();
   }
   return { ...status, state: 'rubbed', erasableFrom };
@@ -341,7 +347,7 @@ export interface SheetBlock {
   partial: boolean;
   materials: SheetMaterial[];
   lines: SheetLine[];
-  /** Every essential line is erased (or due). Never true for a block without lines. */
+  /** Every essential line is erased (a due line waits for its check). Never true for a block without lines. */
   learned: boolean;
 }
 
@@ -371,6 +377,25 @@ export interface SheetCounts {
 export interface Sheet {
   blocks: SheetBlock[];
   counts: SheetCounts;
+}
+
+// The words after «Не хватает:» (backend/exams_map.py: clean_missing): a model's «В лекции нет
+// примеров» or «не хватает примеров» says the same as the label, so only «примеров» is left.
+const MISSING_PREFIX =
+  /^(?:(?:в|во)\s+(?:лекци\p{L}*|фрагмент\p{L}*(?:\s+\d+)?|материал\p{L}*|тексте)\s+)?(?:нет|не\s+хватает|не\s+хватило|недоста[её]т|отсутству\p{L}*|не\s+(?:указан|приведен|приведён|назван|раскрыт|описан|рассмотрен|дан|представлен|упомянут)\p{L}*)(?:\s*[:—–-]\s*|\s+)/iu;
+const MISSING_EMPTY = /^(?:нет|ничего|всё есть|все есть|—|-)?[.!]?$/iu;
+
+/** What the lectures lack, as it goes after «Не хватает:» (empty when nothing is said). */
+export function cleanMissing(text: string): string {
+  const one = text.replace(/\s+/g, ' ').trim();
+  if (!one || MISSING_EMPTY.test(one)) return '';
+  const stripped = one.replace(MISSING_PREFIX, '').replace(/^[\s:—–-]+|[\s:—–-]+$/gu, '');
+  if (!stripped) return '';
+  const word = /^\p{L}+/u.exec(stripped)?.[0] ?? '';
+  // «Классификации» → «классификации»; «ВВП» stays.
+  return word.length > 0 && word[0] !== word[0].toLowerCase() && (word.length === 1 || word[1] === word[1].toLowerCase())
+    ? stripped[0].toLowerCase() + stripped.slice(1)
+    : stripped;
 }
 
 /** The question's number on the sheet: the department's label, else its position. */
@@ -405,6 +430,8 @@ interface LineIdentity {
   rubricId: string;
   pointId: string;
   title: string;
+  /** Another point of the same rubric has the same words: within that rubric the point's id decides. */
+  twin: boolean;
 }
 
 /** Does the event belong to this line: the same question and the same point words (or, without words, the same key). */
@@ -412,7 +439,16 @@ function belongs(event: LearningEvent, line: LineIdentity): boolean {
   const payload = payloadOf(event);
   const hash = typeof payload.question_hash === 'string' ? payload.question_hash : '';
   const title = normalizeTitle(payload.title);
-  if (title) return (!hash || hash === line.hash) && title === normalizeTitle(line.title) && (hash !== '' || payload.rubric_id === line.rubricId);
+  if (title) {
+    if ((hash && hash !== line.hash) || title !== normalizeTitle(line.title)) return false;
+    const rubric = typeof payload.rubric_id === 'string' ? payload.rubric_id.toLowerCase() : '';
+    const sameRubric = rubric !== '' && rubric === line.rubricId.toLowerCase();
+    if (!hash && !sameRubric) return false;
+    // Words alone carry a point across rebuilt rubrics; two points of one rubric with the same words
+    // are told apart by their ids.
+    if (line.twin && sameRubric && typeof payload.point_id === 'string' && payload.point_id) return payload.point_id === line.pointId;
+    return true;
+  }
   const prefix = event.kind === 'sheet_peek' ? 'peek' : 'oral';
   return event.item_key === `${prefix}:${line.rubricId}:${line.pointId}`;
 }
@@ -466,10 +502,18 @@ export function buildSheet(
     const kind = blockKind(question);
     const rubric = question.rubric;
     const pool = [...(byHash.get(question.question_hash) ?? []), ...loose];
+    const words = new Map<string, number>();
+    if (kind === 'lines' && rubric) for (const point of rubric.points) words.set(normalizeTitle(point.title), (words.get(normalizeTitle(point.title)) ?? 0) + 1);
     const lines: SheetLine[] =
       kind === 'lines' && rubric
         ? rubric.points.map((point) => {
-            const identity = { hash: question.question_hash, rubricId: rubric.rubric_id, pointId: point.id, title: point.title };
+            const identity = {
+              hash: question.question_hash,
+              rubricId: rubric.rubric_id,
+              pointId: point.id,
+              title: point.title,
+              twin: (words.get(normalizeTitle(point.title)) ?? 0) > 1,
+            };
             return {
               key: lineKey(rubric.rubric_id, point.id),
               questionId: question.question_id,
@@ -513,7 +557,7 @@ export function buildSheet(
     if (kind !== 'lines') counts.withoutLines += 1;
 
     const deciding = lines.some((line) => line.essential) ? lines.filter((line) => line.essential) : lines;
-    const learned = deciding.length > 0 && deciding.every((line) => line.status.state === 'erased' || line.status.state === 'due');
+    const learned = deciding.length > 0 && deciding.every((line) => line.status.state === 'erased');
     if (learned) counts.learned += 1;
 
     const partial = question.coverage === 'partial' || rubric?.coverage === 'partial';
@@ -526,7 +570,7 @@ export function buildSheet(
       coverage: question.coverage,
       coverageMethod: question.coverage_method,
       coverageReason: question.coverage_reason,
-      missing: partial ? (question.missing_note || rubric?.coverage_note || '').replace(/\s+/g, ' ').trim() : '',
+      missing: partial ? cleanMissing(question.missing_note || rubric?.coverage_note || '') : '',
       partial,
       materials: rubric?.materials ?? [],
       lines,
@@ -543,53 +587,91 @@ export interface LineChange {
   questionId: string;
   from: LineState;
   to: LineState;
+  /** The line as it was before (its notes and history then): the replay draws it so first. */
+  before?: LineStatus;
 }
 
 /** Lines whose state differs between two builds of the same sheet, in the sheet's order. */
 export function sheetChanges(before: Sheet, after: Sheet): LineChange[] {
-  const previous = new Map<string, LineState>();
-  for (const block of before.blocks) for (const line of block.lines) previous.set(line.key, line.status.state);
+  const previous = new Map<string, LineStatus>();
+  for (const block of before.blocks) for (const line of block.lines) previous.set(line.key, line.status);
   const changes: LineChange[] = [];
   const seen = new Set<string>();
   for (const block of after.blocks) {
     for (const line of block.lines) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
-      const from = previous.get(line.key);
-      if (!from || from === line.status.state) continue;
-      changes.push({ key: line.key, questionId: block.questionId, from, to: line.status.state });
+      const was = previous.get(line.key);
+      if (!was || was.state === line.status.state) continue;
+      changes.push({ key: line.key, questionId: block.questionId, from: was.state, to: line.status.state, before: was });
     }
   }
   return changes;
 }
 
-/** «2 строки стёрлись, 3 — наполовину, 1 вернулась»: what the changes did. */
+/** «2 строки стёрлись, 3 — наполовину, 1 вернулась»: what the changes of an answer did. */
 export interface ChangeSummary {
+  /** Erased by the answer (a line erased then and due by now counts here too). */
   erased: number;
+  /** Rubbed half-way. */
   rubbed: number;
-  returned: number;
-  due: number;
-  missed: number;
   /** Lines that were due and were named: the check passed, they are erased again. */
   checked: number;
+  /** Back in ink: an erased line not named (returned), or a rubbed one not named this time. */
+  returned: number;
+  /** Still there as written: a fresh line not named this time (it gets the pencil wave). */
+  stayed: number;
 }
 
 export function changeSummary(changes: readonly LineChange[]): ChangeSummary {
-  let erased = 0;
-  let rubbed = 0;
-  let returned = 0;
-  let due = 0;
-  let missed = 0;
-  let checked = 0;
+  const summary: ChangeSummary = { erased: 0, rubbed: 0, checked: 0, returned: 0, stayed: 0 };
   for (const change of changes) {
-    if (change.to === 'erased' && change.from === 'due') checked += 1;
-    else if (change.to === 'erased') erased += 1;
-    else if (change.to === 'rubbed') rubbed += 1;
-    else if (change.to === 'returned') returned += 1;
-    else if (change.to === 'due') due += 1;
-    else if (change.to === 'missed') missed += 1;
+    if (change.to === 'erased') {
+      if (change.from === 'due') summary.checked += 1;
+      else summary.erased += 1;
+    } else if (change.to === 'due') summary.erased += 1;
+    else if (change.to === 'rubbed') summary.rubbed += 1;
+    else if (change.to === 'returned') summary.returned += 1;
+    else if (change.to === 'missed') {
+      if (change.from === 'fresh') summary.stayed += 1;
+      else summary.returned += 1;
+    }
   }
-  return { erased, rubbed, returned, due, missed, checked };
+  return summary;
+}
+
+/**
+ * Why an answer left lines it named as they were, from its own events: lines named again before
+ * their moment (how many, and the earliest moment), a line uncovered the same day, lines already
+ * erased — or null (nothing named: the protocol says what was missed). `changed`: the keys of the
+ * lines the answer did change, which need no reason (without it every line of the answer counts).
+ */
+export type QuietReason = { kind: 'wait'; from: string; count: number } | { kind: 'peek' } | { kind: 'erased' };
+
+export function quietReason(sheet: Sheet, sessions: ReadonlySet<string>, changed: ReadonlySet<string> = new Set()): QuietReason | null {
+  let wait: string | null = null;
+  let waiting = 0;
+  let peek = false;
+  let erased = false;
+  for (const block of sheet.blocks) {
+    for (const line of block.lines) {
+      if (changed.has(line.key)) continue;
+      const own = line.status.history.filter((event) => event.sessionId !== null && sessions.has(event.sessionId));
+      if (own.length === 0) continue;
+      if (own.some((event) => event.word === 'after_peek')) peek = true;
+      if (!own.some((event) => event.outcome === 'named')) continue;
+      const { state, erasableFrom } = line.status;
+      if (state === 'rubbed' && erasableFrom) {
+        waiting += 1;
+        if (wait === null || Date.parse(erasableFrom) < Date.parse(wait)) wait = erasableFrom;
+      }
+      if (state === 'erased' || state === 'due') erased = true;
+    }
+  }
+  if (wait) return { kind: 'wait', from: wait, count: waiting };
+  if (peek) return { kind: 'peek' };
+  if (erased) return { kind: 'erased' };
+  return null;
 }
 
 /**

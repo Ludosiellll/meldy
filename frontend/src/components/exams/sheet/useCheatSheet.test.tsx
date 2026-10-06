@@ -183,6 +183,40 @@ describe('useCheatSheet', () => {
     expect(mocks.track).not.toHaveBeenCalledWith('sheet_write_done', expect.anything());
   });
 
+  it('follows a job once: a follow refused at once is not repeated by the read after it; a new job is followed', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: 'Слишком часто.' }), { status: 429, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const job = { state: 'running' as const, done: 1, total: 3, startedAt: '2026-10-06T09:00:00Z' };
+    mocks.fetchSheet.mockResolvedValue(response([question('q1', 1)], { job }));
+    const { result } = renderHook(() => useCheatSheet(EXAM));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // The refused follow ends the run; its end reads the sheet again, and the server still reports the job.
+    await waitFor(() => expect(mocks.fetchSheet).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.write.phase).toBe('failed');
+    // Another start of a job (another tab pressed «Написать»): that one is followed.
+    mocks.fetchSheet.mockResolvedValue(response([question('q1', 1)], { job: { ...job, startedAt: '2026-10-06T09:05:00Z' } }));
+    act(() => result.current.reload());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('waits for the journal: a failed read says so, and «Повторить» reads the journal again though the questions stay', async () => {
+    mocks.fetchSheet.mockResolvedValue(response([question('q1', 1, { rubric: rubric('ffffffff-ffff-4fff-8fff-ffffffffffff', ['Пункт']) })]));
+    mocks.fetchSheetEvents.mockRejectedValueOnce(new Error('Не удалось загрузить ответы.')).mockResolvedValue([]);
+    const { result } = renderHook(() => useCheatSheet(EXAM));
+    await waitFor(() => expect(result.current.eventsState).toBe('error'));
+    // Until the journal is read the lines' states are unknown: the page must not draw them in full ink.
+    expect(result.current.journalRead).toBe(false);
+    expect(result.current.eventsError).toBe('Не удалось загрузить ответы.');
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.eventsState).toBe('ready'));
+    expect(result.current.journalRead).toBe(true);
+    expect(mocks.fetchSheetEvents).toHaveBeenCalledTimes(2);
+  });
+
   it('merges a question that arrived while the sheet was being read', async () => {
     let resolveRead: (value: SheetResponse) => void = () => undefined;
     mocks.fetchSheet.mockReturnValueOnce(new Promise<SheetResponse>((resolve) => (resolveRead = resolve)));

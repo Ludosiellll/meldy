@@ -108,9 +108,9 @@ describe('WhyPanel: a question that is not in the lectures', () => {
     expect(screen.getByText(/без ссылки на конкретный фрагмент засчитать нельзя/)).toBeInTheDocument();
   });
 
-  it('uses the singular after one lecture', () => {
+  it('says «В лекции» when there is only one («ни в одной из 1 лекции» is not Russian)', () => {
     renderPanel({ lectureCount: 1 });
-    expect(screen.getByRole('heading', { name: named('Ни в одной из 1 лекции нет фрагмента об этом') })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: named('В лекции нет фрагмента об этом') })).toBeInTheDocument();
   });
 
   it('shows a failed manual mark', () => {

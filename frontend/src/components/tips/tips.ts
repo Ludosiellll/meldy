@@ -34,12 +34,13 @@ export const TIPS: Record<TipId, TipDef> = {
   },
   // The cheat sheet of an exam (components/exams/sheet): its lines are erased by answers only — a point named
   // once is half erased, named again on another day it is erased; reading it erases nothing (sheet spec 8).
-  // The title is the tab's own name; «Попробовать» draws a ticket, the one thing that erases.
+  // The title is the tab's own name; the action draws a ticket, the one thing that erases, and says so.
+  // No-break spaces keep «—» off the start of a row on a phone.
   sheet: {
     id: 'sheet',
     title: 'Шпаргалка',
-    text: 'Назвали пункт в ответе — строка стирается наполовину. Назвали снова в другой день — стирается совсем. От чтения ничего не стирается.',
-    action: 'Попробовать',
+    text: 'Назвали пункт в ответе\u00a0— строка стирается наполовину. Назвали снова в другой день\u00a0— стирается совсем. От чтения ничего не стирается.',
+    action: 'Тянуть билет',
     later: 'Не сейчас',
   },
 };

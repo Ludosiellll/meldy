@@ -29,6 +29,8 @@ export interface TicketExam {
   title: string;
   kind: ExamKind;
   layout: TicketLayoutInfo;
+  /** exams.exam_date ('yyyy-MM-dd'): the cheat sheet's last days before the exam (lines due sooner). */
+  examDate?: string | null;
 }
 
 /** A lecture fragment that answers the question (exam_questions.evidence). */
@@ -192,10 +194,11 @@ function decodeURIComponentSafe(value: string): string {
 /** The exam row (title for the top line, tickets for «Билет N»). Null when it is missing or not the user's. */
 export async function loadExam(examId: string): Promise<TicketExam | null> {
   if (!isUuid(examId)) return null;
-  const { data, error } = await supabase.from('exams').select('id, title, kind, ticket_layout').eq('id', examId).maybeSingle();
+  const { data, error } = await supabase.from('exams').select('id, title, kind, exam_date, ticket_layout').eq('id', examId).maybeSingle();
   if (error) throw new TicketLoadError('failed', TICKET_LOAD_FAILED);
   if (!isRecord(data)) return null;
-  return { id: str(data.id, 64), title: str(data.title, 200), kind: examKind(data.kind), layout: ticketLayoutOf(data.ticket_layout) };
+  const examDate = typeof data.exam_date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(data.exam_date) ? data.exam_date.slice(0, 10) : null;
+  return { id: str(data.id, 64), title: str(data.title, 200), kind: examKind(data.kind), layout: ticketLayoutOf(data.ticket_layout), examDate };
 }
 
 /** The exam and the ticket's questions in the requested order; a question outside the exam is an error. */

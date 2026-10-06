@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { fetchSheetEvents, type LearningEvent } from '../../../api/learning';
-import { buildSheet, changeSummary, sheetChanges, sheetWithout, type ChangeSummary, type SheetQuestion } from '../../../lib/exams/cheatSheet';
+import {
+  buildSheet,
+  changeSummary,
+  quietReason,
+  sheetChanges,
+  sheetWithout,
+  type ChangeSummary,
+  type LineOptions,
+  type QuietReason,
+  type SheetQuestion,
+} from '../../../lib/exams/cheatSheet';
 import type { RubricResponse } from '../../../lib/oral/oralApi';
 
 /**
@@ -51,12 +61,28 @@ export function answerSheetQuestion(question: AnsweredQuestion, response: Rubric
   };
 }
 
-/** The change of the answer `sessionId`, or null when the journal has none of its events yet. */
-export function answerChange(question: SheetQuestion, events: readonly LearningEvent[], sessionId: string, now: number): ChangeSummary | null {
+/** What an answer did on the sheet, and why nothing changed when nothing did. */
+export interface AnswerChange {
+  summary: ChangeSummary;
+  quiet: QuietReason | null;
+}
+
+/**
+ * The change of the answer `sessionId`, or null when the journal has none of its events yet.
+ * `options.examDate`: the last days before the exam make lines due sooner, as on the sheet.
+ */
+export function answerChange(
+  question: SheetQuestion,
+  events: readonly LearningEvent[],
+  sessionId: string,
+  now: number,
+  options: LineOptions = {},
+): AnswerChange | null {
   if (!events.some((event) => event.session_id === sessionId && event.kind === 'oral_point')) return null;
-  const after = buildSheet([question], events, now);
-  const before = sheetWithout([question], events, sessionId, now);
-  return changeSummary(sheetChanges(before, after));
+  const after = buildSheet([question], events, now, options);
+  const before = sheetWithout([question], events, sessionId, now, options);
+  const changes = sheetChanges(before, after);
+  return { summary: changeSummary(changes), quiet: quietReason(after, new Set([sessionId]), new Set(changes.map((change) => change.key))) };
 }
 
 /** A just-saved write may not be in the next read yet: read once more after this long. */
@@ -66,9 +92,15 @@ const REREAD_MS = 1200;
  * The change of a saved answer, read from the journal once the answer is saved (null until then,
  * and when it cannot be read: the protocol then simply has no such line).
  */
-export function useAnswerSheetChange(input: { question: AnsweredQuestion | null; response: RubricResponse | null; sessionId: string | null }): ChangeSummary | null {
+export function useAnswerSheetChange(input: {
+  question: AnsweredQuestion | null;
+  response: RubricResponse | null;
+  sessionId: string | null;
+  examDate?: string | null;
+}): AnswerChange | null {
   const { question, response, sessionId } = input;
-  const [change, setChange] = useState<{ sessionId: string; summary: ChangeSummary } | null>(null);
+  const examDate = input.examDate ?? null;
+  const [change, setChange] = useState<{ sessionId: string; summary: AnswerChange } | null>(null);
   useEffect(() => {
     if (!question || !response || !sessionId || !question.question_hash) return undefined;
     let alive = true;
@@ -78,7 +110,7 @@ export function useAnswerSheetChange(input: { question: AnsweredQuestion | null;
       try {
         const events = await fetchSheetEvents([question.question_hash]);
         if (!alive) return;
-        const summary = answerChange(sheetQuestion, events, sessionId, Date.now());
+        const summary = answerChange(sheetQuestion, events, sessionId, Date.now(), { examDate });
         if (summary) setChange({ sessionId, summary });
         else if (again) timer = window.setTimeout(() => void read(false), REREAD_MS);
       } catch {
@@ -90,6 +122,6 @@ export function useAnswerSheetChange(input: { question: AnsweredQuestion | null;
       alive = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [question, response, sessionId]);
+  }, [question, response, sessionId, examDate]);
   return change && change.sessionId === sessionId ? change.summary : null;
 }

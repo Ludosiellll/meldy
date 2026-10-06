@@ -424,6 +424,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     question,
     response: rubricResponse,
     sessionId: state.phase === 'protocol' && state.save.status === 'saved' ? state.save.result.sessionId : null,
+    examDate: state.exam?.examDate ?? null,
   });
   const voiceAnswer = state.mode === 'voice';
   const finalText = voiceAnswer ? speech.finalText : state.typed;
@@ -1520,7 +1521,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                     </p>
                     {sheetChange ? (
                       <p className="or-save-line or-sheet-change">
-                        {glue(protocolSheetLine(sheetChange))}
+                        {glue(protocolSheetLine(sheetChange.summary, sheetChange.quiet))}
                         {' · '}
                         <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
                           посмотреть

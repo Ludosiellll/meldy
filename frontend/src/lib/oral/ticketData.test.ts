@@ -82,13 +82,14 @@ describe('loading a ticket', () => {
   it('returns the exam and the questions in the order of the ticket', async () => {
     const fake = createFakeSupabase({
       tables: {
-        exams: [{ id: EXAM, title: 'Микроэкономика', kind: 'exam' }],
+        exams: [{ id: EXAM, title: 'Микроэкономика', kind: 'exam', exam_date: '2026-10-20' }],
         exam_questions: [question(Q1, EXAM, 1), question(Q2, EXAM, 7, { coverage: 'none', nearest: [{ material_id: 'm1', material_title: 'Лекция', source_id: 'S07', excerpt: 'Похожее', matched: ['ставка'] }] })],
       },
     });
     state.client = fake.client;
     const { exam, questions } = await loadTicket(EXAM, [Q2, Q1]);
-    expect(exam).toEqual({ id: EXAM, title: 'Микроэкономика', kind: 'exam', layout: { mode: 'random', tickets: [] } });
+    // The exam date moves the cheat sheet's checks in the last days before the exam.
+    expect(exam).toEqual({ id: EXAM, title: 'Микроэкономика', kind: 'exam', layout: { mode: 'random', tickets: [] }, examDate: '2026-10-20' });
     expect(questions.map((item) => item.id)).toEqual([Q2, Q1]);
     expect(questions[0].nearest[0]).toMatchObject({ source_id: 'S07', matched: ['ставка'] });
     expect(questions[1].evidence[0]).toMatchObject({ material_id: 'm1', source_id: 'S12' });
@@ -175,7 +176,8 @@ describe('the department’s tickets (Jury_Check items 4, 9, 11)', () => {
     state.client = fake.client;
     const { exam } = await loadTicket(EXAM, [Q1, Q2]);
     expect(exam.layout).toEqual({ mode: 'fixed', tickets: [{ number: 7, questionIds: [Q1, Q2] }] });
-    expect(fake.calls.find((call) => call.table === 'exams')?.columns).toBe('id, title, kind, ticket_layout');
+    expect(exam.examDate).toBeNull();
+    expect(fake.calls.find((call) => call.table === 'exams')?.columns).toBe('id, title, kind, exam_date, ticket_layout');
   });
 });
 

@@ -10,6 +10,7 @@ import {
   type SheetJobInfo,
   type SheetWriteState,
 } from '../../../api/cheatSheet';
+import { formatLimitReset, nextLimitReset } from '../../../api/limits';
 import { buildSheet, sheetHashes, type Sheet, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
 import { countBucket, track } from '../../../lib/telemetry';
 import { writeStatusNote } from './copy';
@@ -27,6 +28,11 @@ export interface CheatSheetData {
   events: LearningEvent[];
   eventsState: 'loading' | 'ready' | 'error';
   eventsError: string | null;
+  /**
+   * The journal has been read once for this exam: until then the lines' states are unknown, and the
+   * paper and the counter wait (a sheet in full ink that then loses 8 lines would be false).
+   */
+  journalRead: boolean;
   /** Questions that can be written and are not, and their price in AI units. */
   toWrite: number;
   units: number;
@@ -79,12 +85,17 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   const [events, setEvents] = useState<LearningEvent[]>([]);
   const [eventsState, setEventsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [eventsError, setEventsError] = useState<string | null>(null);
+  const [journalRead, setJournalRead] = useState(false);
+  // «Повторить» reads the journal again even when the questions did not change.
+  const [eventsRound, setEventsRound] = useState(0);
   const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(NO_FRESH);
   const [now, setNow] = useState(() => Date.now());
   const loadSeq = useRef(0);
   const eventsSeq = useRef(0);
   const mergedSeq = useRef(write.seq);
   const lastPhase = useRef(write.phase);
+  // The server's job followed already (by its start): a follow that fails fast must not loop with the reload.
+  const followedJob = useRef<string | null>(null);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -101,9 +112,14 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
         setError(null);
         setNow(Date.now());
         // The server is writing this exam (another tab, or a page that was left): follow it. Only
-        // follow: a job that has ended meanwhile must not become a new run nobody pressed.
-        if (response.job && getSheetWrite(examId).phase !== 'running') {
-          void startSheetWrite(examId, undefined, { follow: true, stopping: response.job.state === 'stopping' });
+        // follow: a job that has ended meanwhile must not become a new run nobody pressed. Once per
+        // job: a follow that fails (429, 5xx) ends the run, the run's end reads the sheet again, and
+        // that read must not follow the same job again.
+        const job = response.job;
+        const jobId = job ? job.startedAt ?? 'job' : null;
+        if (job && jobId !== followedJob.current && getSheetWrite(examId).phase !== 'running') {
+          followedJob.current = jobId;
+          void startSheetWrite(examId, undefined, { follow: true, stopping: job.state === 'stopping' });
         }
       } catch (failure) {
         if (seq !== loadSeq.current) return;
@@ -133,6 +149,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
       });
       setEventsState('ready');
       setEventsError(null);
+      setJournalRead(true);
       setNow(Date.now());
     } catch (failure) {
       if (seq !== eventsSeq.current) return;
@@ -143,7 +160,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   useEffect(() => {
     if (!enabled || status !== 'ready') return;
     void loadEvents(hashKey ? hashKey.split(',') : []);
-  }, [enabled, status, hashKey, loadEvents]);
+  }, [enabled, status, hashKey, loadEvents, eventsRound]);
 
   // Questions arriving from the writer: their rubric goes into the sheet, and the lines of a question
   // written now are written in. A question written before comes again (status cached) when its short
@@ -202,7 +219,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     for (const [questionId, result] of Object.entries(write.results)) {
       const question = questions.find((item) => item.question_id === questionId);
       if (question?.rubric) continue;
-      const note = result.status === 'none' ? 'В лекциях не нашлось пунктов ответа' : writeStatusNote(result.status);
+      const note = result.status === 'none' ? 'В лекциях не нашлось пунктов ответа' : writeStatusNote(result.status, formatLimitReset(nextLimitReset()));
       if (note) notes.set(questionId, note);
     }
     return notes;
@@ -257,7 +274,10 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
   }, []);
 
   const written = useMemo(() => questions.filter((question) => question.rubric).length, [questions]);
-  const reload = useCallback(() => void load(true), [load]);
+  const reload = useCallback(() => {
+    setEventsRound((round) => round + 1);
+    void load(true);
+  }, [load]);
 
   return {
     status,
@@ -266,6 +286,7 @@ export function useCheatSheet(examId: string, options: { examDate?: string | nul
     events,
     eventsState,
     eventsError,
+    journalRead,
     toWrite,
     units,
     serverJob,

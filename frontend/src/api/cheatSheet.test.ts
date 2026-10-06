@@ -221,14 +221,61 @@ describe('startSheetWrite', () => {
       ),
     );
     await startSheetWrite(EXAM);
-    expect(getSheetWrite(EXAM)).toMatchObject({ phase: 'done', limit: true, message: null });
+    // An older server sends no counts with the limit: they are counted from the questions that arrived.
+    expect(getSheetWrite(EXAM)).toMatchObject({ phase: 'done', limit: true, message: null, written: 1, failed: 0, busy: 0, total: 2 });
+  });
+
+  it('the limit keeps the counts it carries: the whole run, not only this page’s part of it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          ev({ type: 'question', question_id: Q1, status: 'written', rubric: rubric(), done: 8, total: 12 }),
+          ev({ type: 'error', code: 'ai_limit', message: 'Лимит ИИ на сегодня кончился.', written: 7, failed: 1, busy: 0, total: 12, units: 7 }),
+        ]),
+      ),
+    );
+    await startSheetWrite(EXAM, undefined, { follow: true });
+    expect(getSheetWrite(EXAM)).toMatchObject({ phase: 'done', limit: true, written: 7, failed: 1, busy: 0, total: 12 });
+  });
+
+  it('a question written before that only got its short lines («refresh») merges without moving the progress', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          ev({ type: 'progress', done: 0, total: 1 }),
+          ev({ type: 'question', question_id: Q2, status: 'written', rubric: rubric(), refresh: true }),
+          ev({ type: 'question', question_id: Q1, status: 'written', rubric: rubric(), done: 1, total: 1 }),
+          ev({ type: 'done', written: 1, failed: 0, busy: 0, limit: false, units: 1, total: 1, auth: 0, stopped: 0 }),
+        ]),
+      ),
+    );
+    const seen: Array<[number, number]> = [];
+    const unsubscribe = subscribeSheetWrites(() => {
+      const state = getSheetWrite(EXAM);
+      seen.push([state.done, state.total]);
+    });
+    await startSheetWrite(EXAM);
+    unsubscribe();
+    // Start, progress, the refreshed question (still 0 of 1), the written one, the end.
+    expect(seen).toEqual([
+      [0, 0],
+      [0, 1],
+      [0, 1],
+      [1, 1],
+      [1, 1],
+    ]);
+    const state = getSheetWrite(EXAM);
+    expect(state).toMatchObject({ phase: 'done', written: 1, seq: 2 });
+    expect(Object.keys(state.results).sort()).toEqual([Q1, Q2].sort());
   });
 
   it('says why when the mapping holds the exam, and when the connection drops', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Идёт сверка.' }), { status: 409, headers: { 'content-type': 'application/json' } })));
     await startSheetWrite(EXAM);
     expect(getSheetWrite(EXAM).phase).toBe('failed');
-    expect(getSheetWrite(EXAM).message).toMatch(/сверка списка с лекциями/);
+    expect(getSheetWrite(EXAM).message).toBe('Сейчас идёт сверка списка с лекциями. Шпаргалку можно будет написать, когда сверка закончится.');
 
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
     await startSheetWrite(EXAM);

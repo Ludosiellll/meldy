@@ -253,13 +253,29 @@ function handleEvent(examId: string, data: Record<string, unknown>) {
   const questionId = str(data.question_id, 64);
   const status = typeof data.status === 'string' && WRITE_STATUSES.has(data.status) ? (data.status as WriteStatus) : 'failed';
   const rubric = parseRubric(data.rubric);
+  // A question written before that got its short lines in this run ("refresh"): its rubric is merged,
+  // the progress of the run does not move.
+  const refresh = data.refresh === true;
   set(examId, (previous) => ({
     ...previous,
-    done: count(data.done) || previous.done + 1,
-    total: count(data.total) || previous.total,
+    done: refresh ? previous.done : typeof data.done === 'number' ? count(data.done) : previous.done + 1,
+    total: refresh ? previous.total : count(data.total) || previous.total,
     results: questionId ? { ...previous.results, [questionId]: { status, rubric } } : previous.results,
     seq: previous.seq + 1,
   }));
+}
+
+/** written (with cached and none), failed (with unverifiable) and busy, counted from the questions that arrived. */
+function tally(results: SheetWriteState['results']): { written: number; failed: number; busy: number } {
+  let written = 0;
+  let failed = 0;
+  let busy = 0;
+  for (const { status } of Object.values(results)) {
+    if (status === 'written' || status === 'cached' || status === 'none') written += 1;
+    else if (status === 'failed' || status === 'unverifiable') failed += 1;
+    else if (status === 'busy') busy += 1;
+  }
+  return { written, failed, busy };
 }
 
 function aiLimitTerminal(data: Record<string, unknown>): boolean {
@@ -297,7 +313,7 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
     } catch (error) {
       const message =
         error instanceof StreamError && error.kind === 'http' && error.status === 409
-          ? 'Сейчас идёт сверка списка с лекциями. Шпаргалку можно будет написать, когда она закончится.'
+          ? 'Сейчас идёт сверка списка с лекциями. Шпаргалку можно будет написать, когда сверка закончится.'
           : error instanceof StreamError && (error.kind === 'network' || error.kind === 'timeout')
             ? 'Связь прервалась. Шпаргалка дописывается на сервере — обновите страницу через минуту.'
             : error instanceof StreamError
@@ -326,7 +342,22 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
         message: null,
       }));
     } else if (aiLimitTerminal(terminal)) {
-      set(examId, (previous) => ({ ...previous, phase: 'done', limit: true, message: null }));
+      // The day's AI limit ended the run: «Написано 20 из 31». The server sends the counts with the
+      // limit; an older server does not, and then they are counted from the questions that arrived.
+      const end = terminal;
+      set(examId, (previous) => {
+        const counted = tally(previous.results);
+        return {
+          ...previous,
+          phase: 'done',
+          written: typeof end.written === 'number' ? count(end.written) : counted.written,
+          failed: typeof end.failed === 'number' ? count(end.failed) : counted.failed,
+          busy: typeof end.busy === 'number' ? count(end.busy) : counted.busy,
+          total: count(end.total) || previous.total,
+          limit: true,
+          message: null,
+        };
+      });
     } else {
       set(examId, (previous) => ({ ...previous, phase: 'failed', message: str(terminal?.message, 200) || 'Запись остановилась. Повторите через минуту.' }));
     }
