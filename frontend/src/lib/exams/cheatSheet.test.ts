@@ -419,7 +419,16 @@ describe('after an answer, and the history', () => {
       { key: 'r1:p1', questionId: 'q-1', from: 'rubbed', to: 'erased' },
       { key: 'r1:p2', questionId: 'q-1', from: 'rubbed', to: 'missed' },
     ]);
-    expect(changeSummary(changes)).toEqual({ erased: 1, rubbed: 0, returned: 0, due: 0, missed: 1 });
+    expect(changeSummary(changes)).toEqual({ erased: 1, rubbed: 0, returned: 0, due: 0, missed: 1, checked: 0 });
+    // A due line named again passed its check: counted apart from the newly erased ones.
+    expect(changeSummary([{ key: 'r:p1', questionId: 'q', from: 'due', to: 'erased' }, { key: 'r:p2', questionId: 'q', from: 'rubbed', to: 'erased' }])).toEqual({
+      erased: 1,
+      rubbed: 0,
+      returned: 0,
+      due: 0,
+      missed: 0,
+      checked: 1,
+    });
   });
 
   it('has nothing to replay without answers', () => {

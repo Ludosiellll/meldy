@@ -91,6 +91,8 @@ import {
 import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { secondsBucket, track } from '../lib/telemetry';
+import { useAnswerSheetChange } from '../components/exams/sheet/answerChange';
+import { protocolSheetLine } from '../components/exams/sheet/copy';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -417,6 +419,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
   );
   const rubricResponse = state.rubric.status === 'ready' ? state.rubric.response : null;
   const points = useMemo(() => rubricResponse?.rubric.points ?? [], [rubricResponse]);
+  // What the saved answer changed on the cheat sheet, for the protocol (sheet spec 4.2).
+  const sheetChange = useAnswerSheetChange({
+    question,
+    response: rubricResponse,
+    sessionId: state.phase === 'protocol' && state.save.status === 'saved' ? state.save.result.sessionId : null,
+  });
   const voiceAnswer = state.mode === 'voice';
   const finalText = voiceAnswer ? speech.finalText : state.typed;
   const interimText = voiceAnswer ? speech.interimText : '';
@@ -1502,13 +1510,24 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                     Сохраняем…
                   </p>
                 ) : state.save.status === 'saved' ? (
-                  <p className="or-save-line" role="status">
-                    Сохранено в историю и{' '}
-                    <Link className="sf-ref" to="/mistakes">
-                      дневник ошибок
-                    </Link>
-                    .
-                  </p>
+                  <>
+                    <p className="or-save-line" role="status">
+                      Сохранено в историю и{' '}
+                      <Link className="sf-ref" to="/mistakes">
+                        дневник ошибок
+                      </Link>
+                      .
+                    </p>
+                    {sheetChange ? (
+                      <p className="or-save-line or-sheet-change">
+                        {glue(protocolSheetLine(sheetChange))}
+                        {' · '}
+                        <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
+                          посмотреть
+                        </button>
+                      </p>
+                    ) : null}
+                  </>
                 ) : state.save.status === 'no_grade' ? (
                   <p className="or-save-line" role="status">
                     Оценки нет: ни один пункт не оценён. Ответ не сохранён, лимит не списан.
@@ -1527,8 +1546,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                 <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index)}>
                   Ответить ещё раз
                 </button>
-                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(`/exams/${examId}`)}>
-                  Лист экзамена
+                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
+                  К шпаргалке
                 </button>
               </div>
             </ProtocolGrade>

@@ -309,6 +309,22 @@
 .td-tally b { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .td-answers { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--td-tint-edge); }
+/* «Шпаргалка: 39 строк осталось из 47» — the last line of the readiness, into the exam's cheat sheet. */
+.td-sheet { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--td-tint-edge); }
+.td-ready > .td-sheet:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.td-exam > .td-sheet { margin-top: 22px; padding-top: 0; border-top: 0; }
+.td-sheet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sf-ink);
+  text-decoration: none;
+}
+.td-sheet-link:hover .td-arrow { transform: translateX(4px); }
+.td-sheet-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .td-ready > .td-answers:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .td-answers .td-body { margin: 0; font-size: 16px; }
 

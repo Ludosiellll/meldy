@@ -564,20 +564,32 @@ export function sheetChanges(before: Sheet, after: Sheet): LineChange[] {
 }
 
 /** «2 строки стёрлись, 3 — наполовину, 1 вернулась»: what the changes did. */
-export function changeSummary(changes: readonly LineChange[]): { erased: number; rubbed: number; returned: number; due: number; missed: number } {
+export interface ChangeSummary {
+  erased: number;
+  rubbed: number;
+  returned: number;
+  due: number;
+  missed: number;
+  /** Lines that were due and were named: the check passed, they are erased again. */
+  checked: number;
+}
+
+export function changeSummary(changes: readonly LineChange[]): ChangeSummary {
   let erased = 0;
   let rubbed = 0;
   let returned = 0;
   let due = 0;
   let missed = 0;
+  let checked = 0;
   for (const change of changes) {
-    if (change.to === 'erased' && change.from !== 'due') erased += 1;
+    if (change.to === 'erased' && change.from === 'due') checked += 1;
+    else if (change.to === 'erased') erased += 1;
     else if (change.to === 'rubbed') rubbed += 1;
     else if (change.to === 'returned') returned += 1;
     else if (change.to === 'due') due += 1;
     else if (change.to === 'missed') missed += 1;
   }
-  return { erased, rubbed, returned, due, missed };
+  return { erased, rubbed, returned, due, missed, checked };
 }
 
 /**

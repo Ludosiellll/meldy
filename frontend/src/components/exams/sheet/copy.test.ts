@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LineStatus } from '../../../lib/exams/cheatSheet';
-import { blockNote, changeSentence, counterDetails, counterLabel, erasableSentence, historyLine, lineLabel, lineNote, priceLine } from './copy';
+import { blockNote, changeSentence, counterDetails, protocolSheetLine, counterLabel, erasableSentence, historyLine, lineLabel, lineNote, priceLine } from './copy';
 
 const NBSP = ' ';
 const plain = (text: string | null) => (text ?? '').replace(/ /g, ' ');
@@ -88,6 +88,14 @@ describe('cheat sheet words', () => {
     expect(plain(changeSentence({ erased: 0, rubbed: 1, returned: 0, due: 0, missed: 2 }))).toBe('После ответа: 1 строка — наполовину, 2 не прозвучали.');
     expect(plain(changeSentence({ erased: 21, rubbed: 0, returned: 0, due: 0, missed: 0 }))).toBe('После ответа: 21 строка стёрлась.');
     expect(changeSentence({ erased: 0, rubbed: 0, returned: 0, due: 0, missed: 0 })).toBeNull();
+    // A due line named again: it passed its check (and is erased again).
+    expect(plain(changeSentence({ erased: 1, rubbed: 0, returned: 0, due: 0, missed: 0, checked: 2 }))).toBe('После ответа: 1 строка стёрлась, 2 прошли проверку.');
+    expect(plain(changeSentence({ erased: 0, rubbed: 0, returned: 0, due: 0, missed: 0, checked: 1 }))).toBe('После ответа: 1 строка прошла проверку.');
+  });
+
+  it('says the change on the answer’s protocol, or why nothing changed', () => {
+    expect(plain(protocolSheetLine({ erased: 2, rubbed: 1, returned: 0, missed: 0 }))).toBe('На шпаргалке: 2 строки стёрлись, 1 — наполовину');
+    expect(plain(protocolSheetLine({ erased: 0, rubbed: 0, returned: 0, missed: 0 }))).toBe('На шпаргалке строки не изменились: стирает только пункт, названный в другой день');
   });
 
   it('states the price in units', () => {

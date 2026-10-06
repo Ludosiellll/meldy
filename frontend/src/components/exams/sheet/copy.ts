@@ -8,7 +8,7 @@
 import { formatShortDay, formatShortMoment } from '../../../lib/exams/format';
 import { pluralRu } from '../../conversation/visuals';
 import { lecturesGenitive } from '../sheetModel';
-import type { LineEvent, LineStatus, SheetBlock, SheetCounts } from '../../../lib/exams/cheatSheet';
+import type { ChangeSummary, LineEvent, LineStatus, SheetBlock, SheetCounts } from '../../../lib/exams/cheatSheet';
 import type { WriteStatus } from '../../../api/cheatSheet';
 
 const NBSP = ' ';
@@ -152,18 +152,31 @@ function singular(count: number): boolean {
   return count % 10 === 1 && count % 100 !== 11;
 }
 
-/** «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась». The noun once, after the first number. Null when nothing changed. */
-export function changeSentence(summary: { erased: number; rubbed: number; returned: number; due: number; missed: number }): string | null {
+type ChangeCounts = Pick<ChangeSummary, 'erased' | 'rubbed' | 'returned' | 'missed'> & Partial<Pick<ChangeSummary, 'due' | 'checked'>>;
+
+/** «2 строки стёрлись, 3 — наполовину, 1 вернулась»: the noun once, after the first number. Null when nothing changed. */
+export function changeParts(summary: ChangeCounts): string | null {
   const items: Array<{ count: number; verb: string }> = [];
+  const checked = summary.checked ?? 0;
   if (summary.erased > 0) items.push({ count: summary.erased, verb: singular(summary.erased) ? 'стёрлась' : 'стёрлись' });
   if (summary.rubbed > 0) items.push({ count: summary.rubbed, verb: '— наполовину' });
+  if (checked > 0) items.push({ count: checked, verb: singular(checked) ? 'прошла проверку' : 'прошли проверку' });
   if (summary.returned > 0) items.push({ count: summary.returned, verb: singular(summary.returned) ? 'вернулась' : 'вернулись' });
   if (summary.missed > 0) items.push({ count: summary.missed, verb: singular(summary.missed) ? 'не прозвучала' : 'не прозвучали' });
   if (items.length === 0) return null;
-  const parts = items.map((item, index) =>
-    index === 0 ? `${item.count}${NBSP}${linesWord(item.count)} ${item.verb}` : `${item.count}${NBSP}${item.verb}`,
-  );
-  return `После ответа: ${parts.join(', ')}.`;
+  return items.map((item, index) => (index === 0 ? `${item.count}${NBSP}${linesWord(item.count)} ${item.verb}` : `${item.count}${NBSP}${item.verb}`)).join(', ');
+}
+
+/** «После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.» Null when nothing changed. */
+export function changeSentence(summary: ChangeCounts): string | null {
+  const parts = changeParts(summary);
+  return parts ? `После ответа: ${parts}.` : null;
+}
+
+/** The answer's protocol (spec 4.2): «На шпаргалке: 2 строки стёрлись» — or why nothing changed. */
+export function protocolSheetLine(summary: ChangeCounts): string {
+  const parts = changeParts(summary);
+  return parts ? `На шпаргалке: ${parts}` : 'На шпаргалке строки не изменились: стирает только пункт, названный в другой день';
 }
 
 /** The price under «Написать шпаргалку». */

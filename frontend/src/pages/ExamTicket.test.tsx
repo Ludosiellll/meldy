@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   checkAILimit: vi.fn(),
   incrementAIUsage: vi.fn(async () => undefined),
   recordSelfRating: vi.fn(async () => undefined),
+  fetchSheetEvents: vi.fn(async (): Promise<unknown[]> => []),
 }));
 
 vi.mock('../lib/supabase', () => ({
@@ -25,6 +26,7 @@ vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: moc
 vi.mock('../api/learning', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/learning')>()),
   recordSelfRating: mocks.recordSelfRating,
+  fetchSheetEvents: mocks.fetchSheetEvents,
 }));
 // The server's recognition: off unless a test turns it on; the test hands out the pieces and their text.
 const media = vi.hoisted(() => ({
@@ -254,8 +256,11 @@ function seedDatabase(
 }
 
 let location = '';
+let search = '';
 function Where() {
-  location = useLocation().pathname;
+  const current = useLocation();
+  location = current.pathname;
+  search = current.search;
   return <p>Другая страница</p>;
 }
 
@@ -308,6 +313,7 @@ beforeEach(() => {
   ttsFailing = new Set();
   cacheStore = new Map();
   location = '';
+  search = '';
   window.localStorage.clear();
   window.sessionStorage.clear();
   mocks.confirm.mockReset();
@@ -317,6 +323,8 @@ beforeEach(() => {
   mocks.incrementAIUsage.mockClear();
   mocks.recordSelfRating.mockReset();
   mocks.recordSelfRating.mockResolvedValue(undefined);
+  mocks.fetchSheetEvents.mockReset();
+  mocks.fetchSheetEvents.mockResolvedValue([]);
 
   api = {
     '/api/oral/rubric': vi.fn<Handler>(async () => json(200, demoRubricResponse())),
@@ -643,6 +651,58 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     expect(screen.queryByText(`«${Q4}»`)).toBeNull();
     await waitFor(() => expect(audiosFor('Хорошо, по существу всё')).toHaveLength(1));
+  });
+
+  it('says on the protocol what the answer changed on the cheat sheet, and leads there', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: { ...SAVED, card_added: false }, error: null })) });
+    api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
+    // p1 was named three days ago too: this answer erases it; the other four are named for the first time.
+    const point = (id: string, session: string, daysAgo: number) => {
+      const at = new Date(Date.now() - daysAgo * 86_400_000 - 60_000);
+      const title = DEMO_RUBRIC.points.find((item) => item.id === id)!.title;
+      return {
+        id: `${session}-${id}`,
+        created_at: at.toISOString(),
+        local_date: `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`,
+        material_id: null,
+        kind: 'oral_point',
+        item_key: `oral:${RUBRIC_ID}:${id}`,
+        correct: true,
+        score: null,
+        confidence: null,
+        source_ids: [],
+        session_id: session,
+        payload: { v: 1, question_hash: HASH, rubric_id: RUBRIC_ID, point_id: id, title, status: 'covered' },
+      };
+    };
+    mocks.fetchSheetEvents.mockResolvedValue([point('p1', PREVIOUS_SESSION, 3), ...['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => point(id, SESSION, 0))]);
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(FULL_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
+    const line = await screen.findByText((_, element) => element?.classList.contains('or-sheet-change') === true);
+    expect(line.textContent?.replace(/\u00a0/g, ' ')).toBe('На шпаргалке: 1 строка стёрлась, 4 — наполовину · посмотреть');
+    expect(mocks.fetchSheetEvents).toHaveBeenCalledWith([HASH]);
+    expect(screen.queryByRole('button', { name: 'Лист экзамена' })).not.toBeNull(); // the top line keeps its way back
+    fireEvent.click(within(line).getByRole('button', { name: 'посмотреть' }));
+    await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}?view=sheet`));
+  });
+
+  it('«К шпаргалке» on the protocol opens the exam on its cheat sheet', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: { ...SAVED, card_added: false }, error: null })) });
+    api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    typeAnswer(FULL_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
+    // No events of this answer in the journal: no line, the link is there all the same.
+    expect(document.querySelector('.or-sheet-change')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'К шпаргалке' }));
+    await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}?view=sheet`));
   });
 
   it('switches to the point the model names when the browser’s candidate was covered', async () => {

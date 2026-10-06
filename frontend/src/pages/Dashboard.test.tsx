@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { LearningEvent } from '../api/learning';
@@ -42,6 +42,8 @@ const db = vi.hoisted(() => {
     getDueCards: vi.fn(),
     syncFlashcards: vi.fn(),
     fetchQuestionEvents: vi.fn(),
+    fetchSheetEvents: vi.fn(),
+    fetchSheet: vi.fn(),
     user: { id: 'user-1', user_metadata: { full_name: 'Алина Соколова' } } as { id: string; user_metadata: Record<string, unknown> },
   };
   const from = (table: string) => {
@@ -73,7 +75,12 @@ vi.mock('../api/flashcards', () => ({
   getDueCards: (...args: unknown[]) => db.getDueCards(...args),
   syncFlashcards: (...args: unknown[]) => db.syncFlashcards(...args),
 }));
-vi.mock('../api/learning', () => ({ fetchQuestionEvents: (...args: unknown[]) => db.fetchQuestionEvents(...args) }));
+vi.mock('../api/learning', () => ({
+  fetchQuestionEvents: (...args: unknown[]) => db.fetchQuestionEvents(...args),
+  fetchSheetEvents: (...args: unknown[]) => db.fetchSheetEvents(...args),
+}));
+// The exam's cheat sheet (GET /api/oral/sheet): empty unless a test writes one.
+vi.mock('../api/cheatSheet', () => ({ fetchSheet: (...args: unknown[]) => db.fetchSheet(...args) }));
 
 // ------------------------------------------------------------------------------------------------
 // Fixtures: Saturday, 3 October 2026; the seeded list of 40 questions in two sections
@@ -215,6 +222,8 @@ beforeEach(() => {
   db.getDueCards.mockReset().mockResolvedValue(dueCards());
   db.syncFlashcards.mockReset().mockResolvedValue({ inserted: 1, skipped: 0 });
   db.fetchQuestionEvents.mockReset().mockResolvedValue(HISTORY);
+  db.fetchSheet.mockReset().mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [], toWrite: 0, units: 0, job: null });
+  db.fetchSheetEvents.mockReset().mockResolvedValue([]);
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -311,6 +320,74 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
     expect(args('exam_questions', 'eq')).toEqual([['exam_id', 'e-1']]);
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith(Array.from({ length: 40 }, (_, i) => hash(i + 1)), ['exam_answer']);
+  });
+
+  it('adds «Шпаргалка: N строк осталось из M» once the cheat sheet has lines, into its view', async () => {
+    exam();
+    const written = (position: number) => ({
+      question_id: `q${position}`,
+      position,
+      label: String(position),
+      section: null,
+      text: `Вопрос ${position}`,
+      question_hash: hash(position),
+      coverage: 'full',
+      coverage_method: 'llm',
+      coverage_reason: '',
+      missing_note: '',
+      rebuilt: false,
+      rubric: {
+        rubric_id: `r${position}`,
+        built_at: null,
+        coverage: 'full',
+        coverage_note: '',
+        materials: [],
+        points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
+      },
+    });
+    // Point 1 of question 1 named on two days: erased; one line of six is gone.
+    const named = (day: number, session: string) => ({
+      id: `${session}-p1`,
+      created_at: new Date(2026, 9, day, 10, 0).toISOString(),
+      local_date: localDateKey(new Date(2026, 9, day, 10, 0)),
+      material_id: null,
+      kind: 'oral_point',
+      item_key: 'oral:r1:p1',
+      correct: true,
+      score: null,
+      confidence: null,
+      source_ids: [],
+      session_id: session,
+      payload: { v: 1, question_hash: hash(1), rubric_id: 'r1', point_id: 'p1', title: 'Пункт 1 вопроса 1', status: 'covered' },
+    });
+    db.fetchSheet.mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [written(1), written(2)], toWrite: 0, units: 0, job: null });
+    db.fetchSheetEvents.mockResolvedValue([named(1, 's-a'), named(2, 's-b')]);
+    renderDashboard();
+    const heading = await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ });
+    const block = heading.closest('article')!;
+    const line = await within(block).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 5 строк осталось из 6' });
+    expect(line).toHaveAttribute('href', '/exams/e-1?view=sheet');
+    expect(db.fetchSheet).toHaveBeenCalledWith('e-1');
+    expect(db.fetchSheetEvents).toHaveBeenCalledWith([hash(1), hash(2)]);
+    // Above the actions, still one tactile primary.
+    const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
+    expect(line.compareDocumentPosition(draw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+  });
+
+  it('has no cheat sheet line before anything is written, or when the sheet cannot be read', async () => {
+    exam();
+    renderDashboard();
+    const heading = await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ });
+    await waitFor(() => expect(db.fetchSheet).toHaveBeenCalledWith('e-1'));
+    expect(within(heading.closest('article')!).queryByRole('link', { name: /Шпаргалка/ })).toBeNull();
+    expect(db.fetchSheetEvents).not.toHaveBeenCalled();
+    cleanup();
+    db.fetchSheet.mockRejectedValue(new Error('offline'));
+    renderDashboard();
+    const again = await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ });
+    await waitFor(() => expect(db.fetchSheet).toHaveBeenCalledTimes(2));
+    expect(within(again.closest('article')!).queryByRole('link', { name: /Шпаргалка/ })).toBeNull();
   });
 
   it('draws one mark per question in list order: 2 rows of 20 on a computer, numbers 1, 20, 21, 40', async () => {

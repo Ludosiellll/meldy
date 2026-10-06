@@ -21,6 +21,8 @@ import './Dashboard.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { analysisCards } from '../utils/lectureCards';
 import { track } from '../lib/telemetry';
+import { useSheetCount } from '../components/exams/sheet/sheetCount';
+import { counterLabel } from '../components/exams/sheet/copy';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -1300,6 +1302,16 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const heading = examHeadingParts({ title: exam.title, kind: exam.kind, daysLeft: exam.daysLeft });
   const soon = exam.daysLeft !== null && exam.daysLeft <= 3;
   const drawWord = exam.layout.mode !== 'fixed' && exam.layout.per_ticket === 1 ? 'Тянуть вопрос' : 'Тянуть билет';
+  // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4).
+  const sheetCounts = useSheetCount(mapped ? exam.id : null, exam.examDate);
+  const sheetLine = sheetCounts ? (
+    <p className="td-sheet">
+      <Link className="td-sheet-link" to={`/exams/${exam.id}?view=sheet`}>
+        {glue(`Шпаргалка: ${sheetCounts.left} ${counterLabel(sheetCounts)}`)}
+        <ArrowIcon className="td-arrow" />
+      </Link>
+    </p>
+  ) : null;
   const ready = Boolean(figure) || mapped || Boolean(sentence) || Boolean(note);
   return (
     <article className="td-card td-main td-exam td-rise" data-d="2" aria-labelledby="td-exam-h">
@@ -1346,8 +1358,11 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
               {note ? <p className="td-note">{glue(note)}</p> : null}
             </div>
           ) : null}
+          {sheetLine}
         </div>
-      ) : null}
+      ) : (
+        sheetLine
+      )}
       <div className="td-actions">
         {total > 0 ? (
           <ActionLink to={`/exams/${exam.id}/draw`} blue={lead}>
