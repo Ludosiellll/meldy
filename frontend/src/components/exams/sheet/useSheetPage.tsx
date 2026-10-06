@@ -70,6 +70,8 @@ export interface SheetPage {
   primaryInColumn: boolean;
   /** A line's details are open. */
   lineOpen: boolean;
+  /** An answer is being replayed or the history plays: nothing else should ask for the eye. */
+  playing: boolean;
   closeLine: () => void;
 }
 
@@ -478,5 +480,6 @@ export function useSheetPage(input: SheetPageInput): SheetPage {
       />
     ) : null;
 
-  return { data, paper, column, top, after, overlay, primaryInColumn, lineOpen, closeLine };
+  const playing = replayLive || Boolean(history?.running);
+  return { data, paper, column, top, after, overlay, primaryInColumn, lineOpen, playing, closeLine };
 }

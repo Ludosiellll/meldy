@@ -64,6 +64,34 @@ describe('TipClip', () => {
     expect(document.querySelector('.tp-box')).toHaveAttribute('data-playing', 'false');
   });
 
+  it('plays the cheat sheet clip: the question, its lines, an answer and another day', () => {
+    stubReducedMotion(false);
+    window.__MELDY_TIP_EXPORT__ = true;
+    try {
+      render(<TipClip clip={TIP_CLIPS.sheet} active />);
+      const stage = document.querySelector('.tp-stage') as HTMLElement;
+      expect(stage.textContent).toContain('12. Денежный мультипликатор.');
+      expect(stage.textContent).toContain('мультипликатор = масса / база');
+      expect(stage.textContent).toContain('Ответ в другой день: пункты 1 и 2');
+      const inks = Array.from(document.querySelectorAll<HTMLElement>('[data-a="ink"]'));
+      const patches = Array.from(document.querySelectorAll<HTMLElement>('[data-a="patch"]'));
+      // Before the answer the lines are whole.
+      void window.__meldyTipClip?.seek(2000);
+      expect(inks.map((ink) => ink.style.getPropertyValue('mask-image'))).toEqual(['none', 'none', 'none']);
+      // The still frame: the first line erased, the second rubbed, the third whole.
+      void window.__meldyTipClip?.seek(TIP_CLIPS.sheet.poster);
+      expect(inks[0].style.getPropertyValue('mask-image')).toContain('rgba(0,0,0,0.22)');
+      expect(inks[1].style.getPropertyValue('mask-image')).toContain('rgba(0,0,0,0.55)');
+      expect(inks[2].style.getPropertyValue('mask-image')).toBe('none');
+      expect(patches.map((patch) => patch.style.opacity)).toEqual(['1', '1', '0']);
+      // It ends on empty paper too.
+      void window.__meldyTipClip?.seek(TIP_CLIPS.sheet.total - 40);
+      expect((document.querySelector('[data-a="ui"]') as HTMLElement).style.opacity).toBe('0');
+    } finally {
+      delete window.__MELDY_TIP_EXPORT__;
+    }
+  });
+
   it('starts and ends on empty paper, so the loop is seamless', () => {
     stubReducedMotion(false);
     window.__MELDY_TIP_EXPORT__ = true;

@@ -69,6 +69,9 @@ import {
 import { useFrame } from '../components/exams/useFrame';
 import DrawModeMenu, { DRAW_CAPTIONS } from '../components/exams/DrawModeMenu';
 import { useSheetPage } from '../components/exams/sheet/useSheetPage';
+import TipCard from '../components/tips/TipCard';
+import { TIPS } from '../components/tips/tips';
+import { useFirstUseTip } from '../components/tips/useFirstUseTip';
 import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
@@ -585,6 +588,18 @@ function ExamSheetPage({ examId }: { examId: string }) {
       setSelectedId((currentId) => (currentId === id ? null : id));
     },
   });
+  // The first time the sheet shows lines, one tip under its tab says what erases them (sheet spec 8):
+  // not over a replay or the history, not while a line's details are open.
+  const sheetTabRef = useRef<HTMLButtonElement>(null);
+  const sheetTip = useFirstUseTip('sheet', {
+    enabled:
+      view === 'sheet' &&
+      status === 'ready' &&
+      sheetPage.data.status === 'ready' &&
+      sheetPage.data.sheet.counts.total > 0 &&
+      !sheetPage.lineOpen &&
+      !sheetPage.playing,
+  });
   // Once something is written, the page opens on the sheet from the next visit (unless the student chose).
   const sheetWritten = sheetPage.data.status === 'ready' && sheetPage.data.written > 0;
   useEffect(() => {
@@ -988,31 +1003,38 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // The column offers its own filled pill («Написать шпаргалку», «Ответить на этот вопрос»): «Тянуть билет» steps down.
   const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
   const viewTabs = (
-    <div className="ex-views" role="tablist" aria-label="Вид листа экзамена">
-      {(['sheet', 'questions'] as const).map((item) => (
-        <button
-          key={item}
-          type="button"
-          role="tab"
-          id={`ex-view-${item}`}
-          aria-selected={view === item}
-          aria-controls="ex-view-panel"
-          tabIndex={view === item ? 0 : -1}
-          onClick={() => chooseView(item)}
-          onMouseEnter={item === 'sheet' ? () => void loadSheetFont() : undefined}
-          onFocus={item === 'sheet' ? () => void loadSheetFont() : undefined}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-            event.preventDefault();
-            const next = item === 'sheet' ? 'questions' : 'sheet';
-            chooseView(next);
-            window.setTimeout(() => document.getElementById(`ex-view-${next}`)?.focus(), 0);
-          }}
-        >
-          {item === 'sheet' ? 'Шпаргалка' : 'Вопросы'}
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="ex-views" role="tablist" aria-label="Вид листа экзамена">
+        {(['sheet', 'questions'] as const).map((item) => (
+          <button
+            key={item}
+            ref={item === 'sheet' ? sheetTabRef : undefined}
+            type="button"
+            role="tab"
+            id={`ex-view-${item}`}
+            aria-selected={view === item}
+            aria-controls="ex-view-panel"
+            tabIndex={view === item ? 0 : -1}
+            onClick={() => chooseView(item)}
+            onMouseEnter={item === 'sheet' ? () => void loadSheetFont() : undefined}
+            onFocus={item === 'sheet' ? () => void loadSheetFont() : undefined}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              const next = item === 'sheet' ? 'questions' : 'sheet';
+              chooseView(next);
+              window.setTimeout(() => document.getElementById(`ex-view-${next}`)?.focus(), 0);
+            }}
+          >
+            {item === 'sheet' ? 'Шпаргалка' : 'Вопросы'}
+          </button>
+        ))}
+      </div>
+      {/* After the tabs, so Tab goes from «Шпаргалка» to its tip; the card lies over the page. */}
+      {onSheet && sheetTip.show ? (
+        <TipCard tip={TIPS.sheet} anchor={sheetTabRef} to={drawHref} onAction={sheetTip.done} onDismiss={sheetTip.dismiss} />
+      ) : null}
+    </>
   );
 
   return (

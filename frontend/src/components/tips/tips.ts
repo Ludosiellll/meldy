@@ -8,7 +8,7 @@
  * a file of their own with the reel engine (clipPart.ts, clips.ts), so this list costs a page nothing.
  */
 
-export type TipId = 'talk';
+export type TipId = 'talk' | 'sheet';
 
 export interface TipDef {
   id: TipId;
@@ -29,6 +29,16 @@ export const TIPS: Record<TipId, TipDef> = {
     id: 'talk',
     title: 'Поговорить о лекции',
     text: 'Meldy задаст вопросы по карточкам этой лекции, подскажет и покажет нужный фрагмент. Отвечайте голосом или текстом.',
+    action: 'Попробовать',
+    later: 'Не сейчас',
+  },
+  // The cheat sheet of an exam (components/exams/sheet): its lines are erased by answers only — a point named
+  // once is half erased, named again on another day it is erased; reading it erases nothing (sheet spec 8).
+  // The title is the tab's own name; «Попробовать» draws a ticket, the one thing that erases.
+  sheet: {
+    id: 'sheet',
+    title: 'Шпаргалка',
+    text: 'Назвали пункт в ответе — строка стирается наполовину. Назвали снова в другой день — стирается совсем. От чтения ничего не стирается.',
     action: 'Попробовать',
     later: 'Не сейчас',
   },

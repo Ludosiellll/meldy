@@ -79,3 +79,81 @@
   letter-spacing: -.012em;
   color: var(--ink);
 }
+
+/* ------------------------------------------------------------------ «Шпаргалка» */
+
+/* The sheet's paper at the clip's scale: a 48 px grid (the sheet's 24 px, twice), the pink margin line,
+   the printed question in Onest and the lines in the sheet's hand, blue. */
+.tsh-paper {
+  --tsh-row: 64px;
+  --tsh-grid: rgba(31, 61, 148, .13);
+  /* The sheet's two passes of the eraser (sheet.css --cs-pass-a/b) at this scale. */
+  --tsh-pass-a: repeating-linear-gradient(97deg, #000 0 4px, rgba(0, 0, 0, .16) 4px 10.2px, rgba(0, 0, 0, .7) 10.2px 12.4px, rgba(0, 0, 0, .1) 12.4px 20px);
+  --tsh-pass-b: repeating-linear-gradient(79deg, #000 0 5.8px, rgba(0, 0, 0, .22) 5.8px 14.2px, rgba(0, 0, 0, .6) 14.2px 16.4px, rgba(0, 0, 0, .14) 16.4px 24.4px);
+  position: absolute;
+  left: 64px;
+  top: 54px;
+  width: 1152px;
+  height: 692px;
+  box-sizing: border-box;
+  padding: 48px 150px 0 72px;
+  border-radius: 10px;
+  background-color: #fffefa;
+  background-image:
+    linear-gradient(to right, transparent calc(100% - 104px), #e3a2b8 calc(100% - 104px), #e3a2b8 calc(100% - 100px), transparent calc(100% - 100px)),
+    linear-gradient(to bottom, var(--tsh-grid) 2px, transparent 2px),
+    linear-gradient(to right, var(--tsh-grid) 2px, transparent 2px);
+  background-size: 100% 100%, 100% 48px, 48px 100%;
+  box-shadow: 0 0 0 2px rgba(16, 41, 90, .1), 0 40px 80px -48px rgba(16, 41, 90, .32);
+  color: #1f3d94;
+}
+.tsh-q { margin: 0; font-size: 46px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; color: #0b121c; }
+.tsh-q-t { position: relative; display: inline-block; isolation: isolate; }
+/* The ticket's marker, as the sheet draws it over the printed words of the last answer's question. */
+.tsh-mark {
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 46%;
+  bottom: 6%;
+  z-index: -1;
+  background: rgba(244, 196, 91, .55);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  mix-blend-mode: multiply;
+}
+.tsh-lines { margin: 30px 0 0; padding: 0; list-style: none; }
+.tsh-line { display: flex; align-items: baseline; gap: 22px; height: 96px; }
+.tsh-bullet { flex: none; width: 24px; font-family: 'Meldy Hand', var(--ph-sans, sans-serif); font-size: 56px; text-align: center; }
+.tsh-body { position: relative; isolation: isolate; }
+.tsh-patch {
+  position: absolute;
+  inset: 4px -10px;
+  z-index: -1;
+  border-radius: 22px;
+  background: rgba(90, 96, 105, .07);
+}
+.tsh-ink {
+  display: inline-block;
+  font-family: 'Meldy Hand', var(--ph-sans, sans-serif);
+  font-size: 66px;
+  font-weight: 500;
+  line-height: 1.1;
+  white-space: nowrap;
+  -webkit-mask-composite: source-in, source-over, source-in;
+  mask-composite: intersect, add, intersect;
+}
+/* The answers, on the margin's side: one day, then another. */
+.tsh-days { position: absolute; left: 72px; right: 150px; bottom: 44px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.tsh-day {
+  margin: 0;
+  padding: 12px 26px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 2px #e4e4de;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #0b121c;
+  white-space: nowrap;
+}

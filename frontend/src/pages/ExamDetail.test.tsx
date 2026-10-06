@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   fetchSheet: vi.fn(),
   fetchSheetEvents: vi.fn(),
   recordSheetPeek: vi.fn(),
+  getProfile: vi.fn(),
+  markOnboardingTourSeen: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -55,6 +57,15 @@ vi.mock('../api/limits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/limits')>();
   // The server charges the check of the list; the page only refreshes the meter (counted by incrementAIUsage here).
   return { ...actual, notifyAIUsageChanged: mocks.incrementAIUsage, checkAILimit: mocks.checkAILimit };
+});
+// The first-use tip of the cheat sheet reads the profile (the guide seen, the tip seen); none by default.
+vi.mock('../api/social', () => ({
+  getProfile: (...args: unknown[]) => mocks.getProfile(...args),
+  markOnboardingTourSeen: (...args: unknown[]) => mocks.markOnboardingTourSeen(...args),
+}));
+vi.mock('../components/tips/clipPart', async () => {
+  const { lazyPart } = await import('../lib/lazyPart');
+  return { tipClipPart: lazyPart(async () => () => <div data-testid="clip" />) };
 });
 // The draw and answer screens are preloaded while the sheet is idle; not in these tests.
 vi.mock('../components/exams/preload', () => ({
@@ -265,6 +276,8 @@ beforeEach(() => {
   mocks.fetchSheet.mockResolvedValue({ examId: 'exam-1', mappingState: 'none', questions: [], toWrite: 0, units: 0, job: null });
   mocks.fetchSheetEvents.mockResolvedValue([]);
   mocks.recordSheetPeek.mockResolvedValue(undefined);
+  mocks.getProfile.mockResolvedValue(null);
+  mocks.markOnboardingTourSeen.mockResolvedValue(undefined);
   mocks.confirm.mockResolvedValue(true);
   mocks.markQuestionManual.mockResolvedValue(undefined);
   setWidth(1280);
@@ -1583,6 +1596,55 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Закрыть' }));
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull());
     expect(drawPill()).toHaveClass('sf-primary');
+  });
+
+  it('the first time the sheet shows lines, a tip under «Шпаргалка» says what erases them, once', async () => {
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    mocks.getProfile.mockResolvedValue({ onboarding_status: { guide: true } });
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    const first = renderDetail();
+    await opened();
+    const text = await screen.findByText(named('Назвали пункт в ответе — строка стирается наполовину. Назвали снова в другой день — стирается совсем. От чтения ничего не стирается.'), {}, { timeout: 3000 });
+    const tip = text.closest('section') as HTMLElement;
+    expect(within(tip).getByRole('link', { name: 'Попробовать' })).toHaveAttribute('href', '/exams/exam-1/draw');
+    fireEvent.click(within(tip).getByRole('button', { name: 'Не сейчас' }));
+    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
+    expect(window.localStorage.getItem('meldy_tip_sheet')).toBe('1');
+    await waitFor(() => expect(mocks.markOnboardingTourSeen).toHaveBeenCalledWith('user-1', 'tip_sheet'));
+    first.unmount();
+    // Gone for good on this device.
+    renderDetail();
+    await opened();
+    await screen.findByRole('region', { name: 'Шпаргалка' });
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
+  });
+
+  it('no tip on an empty sheet, on «Вопросы», or before the guide was seen', async () => {
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), []));
+    mocks.getProfile.mockResolvedValue({ onboarding_status: { guide: true } });
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    renderDetail();
+    await opened();
+    await screen.findByRole('button', { name: 'Написать шпаргалку' });
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
+    cleanup();
+    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
+    window.localStorage.setItem(VIEW_KEY, 'questions');
+    renderDetail();
+    await opened();
+    await waitFor(() => expect(mocks.fetchSheet).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
+    cleanup();
+    mocks.getProfile.mockResolvedValue({ onboarding_status: {} });
+    window.localStorage.setItem(VIEW_KEY, 'sheet');
+    renderDetail();
+    await opened();
+    await screen.findByRole('region', { name: 'Шпаргалка' });
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
   });
 
   it('back from an answer, the sheet plays what the answer changed instead of «Вопросы» (one show)', async () => {
