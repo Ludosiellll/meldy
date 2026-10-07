@@ -503,7 +503,8 @@ describe('«Попробовать на примере» (/try)', () => {
     // Every main line erased: the question's tick.
     expect(paper.querySelector('#cs-q-q5 .cs-tick')).not.toBeNull();
     expect(tryRequests.map((request) => request.body)).toEqual([{ question_id: 'q5', transcript: EXAMPLE_ANSWER_Q5 }]);
-  });
+    // The sheet replays the answer in real time (its own wait is up to 8 s): the default 5 s is too tight on a busy machine.
+  }, 15_000);
 
   it('in StrictMode too: «Вставить ответ примера» before choosing a way, the protocol’s next steps, the sheet plays the answer, «Начать пример заново»', async () => {
     renderAt('/try/ticket?q=q5', { strict: true });
@@ -531,7 +532,8 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.queryByRole('button', { name: 'Начать пример заново' })).toBeNull();
     // Effects run twice in StrictMode; the answer is still checked once.
     expect(tryRequests.map((request) => request.body)).toEqual([{ question_id: 'q5', transcript: EXAMPLE_ANSWER_Q5 }]);
-  });
+    // The sheet replays the answer in real time (its own wait is up to 8 s): the default 5 s is too tight on a busy machine.
+  }, 15_000);
 });
 
 /** A retelling in the guest's own words: none of question 1's key words, all of its meaning for points 1 and 2. */
