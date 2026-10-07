@@ -13,7 +13,7 @@
   font-size: 15px;
   line-height: 1.45;
 }
-.ia-note p { margin: 0; }
+.ia-note p { margin: 0; text-wrap: pretty; }
 .ia-h { margin: 0; font-size: 18px; line-height: 1.3; font-weight: 600; color: var(--sf-ink); }
 .ia-do { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
 .ia-note .au-link { color: inherit; }
