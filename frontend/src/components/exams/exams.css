@@ -333,6 +333,18 @@
 .sf-page .ex-note[data-quiet]::before { display: none; }
 .sf-page .ex-notes { display: grid; justify-items: start; gap: 10px; margin-top: 24px; }
 .sf-page .ex-notes .ex-note { margin-top: 0; }
+/* «Тексты ответов» (AnswerTextConsent) at the bottom of the exam page: as wide as the sheet above it (not one
+   1 000 px line under both columns), the dot hanging by the sentence's first line (on a phone it stood alone
+   above it), and «Разрешить» and «Нет, спасибо» together on the next line, from the sentence's left edge (on a
+   wide page one of them ended the sentence's line and the other started a line of its own). */
+.sf-page .ex-consent { max-width: 760px; margin-top: 24px; }
+.sf-page[data-frame='l'] .ex-consent { max-width: calc(100% - 376px); }
+.sf-page[data-view='sheet'][data-frame='xl'] .ex-consent { max-width: calc(100% - 420px); }
+.sf-page[data-frame='m'] .ex-consent,
+.sf-page[data-frame='s'] .ex-consent { max-width: none; }
+.sf-page .ex-consent:not([data-quiet]) { position: relative; row-gap: 8px; padding-left: 37px; }
+.sf-page .ex-consent:not([data-quiet])::before { position: absolute; left: 16px; top: calc(13px + (1.45em - 9px) / 2); margin: 0; }
+.sf-page .ex-consent > span:first-child { flex: 1 1 100%; }
 .sf-page .ex-error { max-width: 560px; padding-top: 56px; }
 .sf-page .ex-error h2 { font-size: 30px; line-height: 1.12; font-weight: 500; letter-spacing: -.028em; }
 .sf-page .ex-error p { margin-top: 10px; font-size: 17px; line-height: 26px; color: var(--sf-muted); }

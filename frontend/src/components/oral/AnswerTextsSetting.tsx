@@ -12,6 +12,7 @@ import {
   setAnswerTextConsent,
   type AnswerTextConsent,
 } from '../../lib/oral/answerTexts';
+import { glue } from '../../lib/oral/format';
 
 export const TEXTS_ON_TOAST = 'Тексты ответов будут сохраняться.';
 export const TEXTS_OFF_TOAST = 'Тексты новых ответов не сохраняются.';
@@ -109,7 +110,7 @@ export default function AnswerTextsSetting() {
           <p className="ac-row-t" id="profile-answers-switch">
             Сохранять текст ответов
           </p>
-          <p className="ac-row-d">{ANSWER_TEXT_CONSENT_TEXT}</p>
+          <p className="ac-row-d">{glue(ANSWER_TEXT_CONSENT_TEXT)}</p>
         </div>
         <button
           type="button"

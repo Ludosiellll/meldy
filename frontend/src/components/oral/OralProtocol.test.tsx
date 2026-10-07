@@ -227,7 +227,7 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(document.querySelector('.or-grade-label')?.textContent).toBe('Итог');
     expect(document.querySelector('.or-how')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(document.querySelector('.or-how')?.textContent).toContain('строку шпаргалки такой пункт не стирает');
+    expect(document.querySelector('.or-how')?.textContent?.replace(/\u00a0/g, ' ')).toContain('строку шпаргалки такой пункт не стирает');
     // The previous answer is its own line under «Как считается» (redesign critique 4, round 2).
     const row = screen.getByRole('button', { name: 'Как считается' }).closest('.or-how-row') as HTMLElement;
     expect(row.textContent).toBe('Как считается');

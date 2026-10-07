@@ -418,16 +418,21 @@ export function ProtocolSheet({ heading, points, followup, sheetNote = null, see
  * keep it out), said as the student meets it.
  */
 export function HowCounted() {
+  // glue: on a phone the lines ended in «до» and «С» (a short word stays with the next one, spec 3.10).
   return (
     <div className="or-how">
       <p className="or-how-text">
-        Сами — пункт назван в ответе, до вопроса экзаменатора. После вопроса — пункт назван только в ответ на вопрос экзаменатора:
-        строку шпаргалки такой пункт не стирает. Ошибка — пункт назван неверно.
+        {glue(
+          'Сами — пункт назван в ответе, до вопроса экзаменатора. После вопроса — пункт назван только в ответ на вопрос экзаменатора: ' +
+            'строку шпаргалки такой пункт не стирает. Ошибка — пункт назван неверно.',
+        )}
       </p>
       <p className="or-how-text">
-        Вопрос подтверждается, когда дважды, в разные дни, в ответе названо достаточно: около двух третей пунктов, если главный
-        считать за два, а упомянутый и названный после вопроса — за половину. С двумя ошибками ответ вопрос не подтверждает. Если
-        экзаменатор спросил о главном пункте, на его вопрос нужно ответить хотя бы частично.
+        {glue(
+          'Вопрос подтверждается, когда дважды, в разные дни, в ответе названо достаточно: около двух третей пунктов, если главный ' +
+            'считать за два, а упомянутый и названный после вопроса — за половину. С двумя ошибками ответ вопрос не подтверждает. Если ' +
+            'экзаменатор спросил о главном пункте, на его вопрос нужно ответить хотя бы частично.',
+        )}
       </p>
     </div>
   );
@@ -448,6 +453,14 @@ interface ProtocolResultProps {
 }
 
 /**
+ * The summary line typeset (glue) with the number of «после вопроса 1» and «ошибок: 1» kept on its word's
+ * line: on a 320–340 px phone the line broke as «после вопроса» / «1 · ошибок: 1».
+ */
+function summaryText(line: string): string {
+  return glue(line).replace(/(вопроса|ошибок:) (\d)/g, '$1\u00a0$2');
+}
+
+/**
  * The result on the desk (Ф1, 2026-10-07): no grade, no «Засчитано» — «Назвали сами 3 из 4 главных ·
  * после вопроса 1 · ошибок: 1», the counts in a plain sentence, «Как считается» and the line that the
  * teacher grades on the 10-point scale.
@@ -465,7 +478,7 @@ export function ProtocolResult({ points, followup, previous, fine, children }: P
       <p className="or-grade-label" aria-hidden="true">
         Итог
       </p>
-      <p className="or-sum">{line ? glue(line) : 'Ни один пункт не оценён.'}</p>
+      <p className="or-sum">{line ? summaryText(line) : 'Ни один пункт не оценён.'}</p>
       {line ? <p className="or-grade-why">{glue(countsSentence(summary.counts))}</p> : null}
       <p className="or-how-row">
         <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
@@ -478,7 +491,7 @@ export function ProtocolResult({ points, followup, previous, fine, children }: P
           <HowCounted />
         </div>
       ) : null}
-      {fine ?? <p className="or-grade-fine">{SCALE_NOTE}</p>}
+      {fine ?? <p className="or-grade-fine">{glue(SCALE_NOTE)}</p>}
       {children}
     </div>
   );
