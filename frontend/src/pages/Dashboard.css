@@ -332,6 +332,8 @@
 .td-erase { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 4px 0 0; }
 .td-erase-t { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; color: var(--sf-ink); }
 .td-erase-next { margin-top: 2px; }
+/* Under it the ways back on another day (components/reminders, components/exams/share/QuestionOfDay): quiet lines. */
+.td-back { display: grid; gap: 0; margin-top: 4px; }
 .td-answers .td-body { margin: 0; font-size: 16px; }
 
 /* ---------------------------------------------------------------- without an exam: the cards lead */

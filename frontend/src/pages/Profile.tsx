@@ -7,6 +7,7 @@ import UniversitySelect from '../components/UniversitySelect';
 import toast from 'react-hot-toast';
 import ImageCropper from '../components/ImageCropper';
 import AnswerTextsSetting from '../components/oral/AnswerTextsSetting';
+import DailyReminder from '../components/reminders/DailyReminder';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 
 /**
@@ -269,6 +270,8 @@ export default function Profile() {
 
       <section className="ac-card ac-rise" aria-labelledby="profile-push-title">
         <h2 id="profile-push-title" className="ac-card-h">Уведомления</h2>
+        {/* First: a calendar event on the student's own device (push subscriptions do not survive a release). */}
+        <DailyReminder variant="profile" />
         <div className="ac-row">
           <span className={`ac-row-i ${pushEnabled ? 'ac-row-i--on' : ''}`} aria-hidden="true">
             {pushEnabled ? <Bell /> : <BellOff />}

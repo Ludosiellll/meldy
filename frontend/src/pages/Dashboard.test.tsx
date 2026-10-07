@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { LearningEvent } from '../api/learning';
@@ -472,6 +472,33 @@ describe('«Сегодня»: the exam on the desk', () => {
       const again = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       expect(await within(again).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 9 строк осталось из 9' })).toBeInTheDocument();
       expect(again.querySelector('.td-erase, .td-erase-next')).toBeNull();
+    });
+
+    // Week 2 of the plan: the sheet erases lines only with answers on different days, so «Сегодня» offers a way
+    // back — the student's own calendar.
+    it('offers «Напоминать каждый день» under «Можно стереть», quietly: the card keeps one blue pill', async () => {
+      exam();
+      sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      const line = await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
+      const remind = within(block).getByRole('button', { name: 'Напоминать каждый день' });
+      expect(line.compareDocumentPosition(remind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
+      expect(remind.compareDocumentPosition(draw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+      fireEvent.click(remind);
+      expect(within(block).getByRole('group', { name: 'Во сколько напоминать' })).toBeInTheDocument();
+    });
+
+    it('reads «Напоминание в 20:00 — изменить» once a file was downloaded on this device', async () => {
+      window.localStorage.setItem('meldy_daily_reminder_user-1', JSON.stringify({ time: '20:00', exam: 'e-1', at: '2026-10-02T17:00:00.000Z' }));
+      exam();
+      sheetOf([HOUR_AGO]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      const change = await within(block).findByRole('button', { name: 'Изменить время напоминания' });
+      expect(plain(change.closest('p')?.textContent)).toBe('Напоминание в 20:00 — изменить');
     });
   });
 
