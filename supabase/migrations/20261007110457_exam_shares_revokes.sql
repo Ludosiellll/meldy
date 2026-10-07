@@ -1,4 +1,5 @@
--- OPTIONAL hardening of 20261007093200_exam_shares.sql, for the owner to run by hand in the Supabase SQL Editor after
+-- Hardening of 20261007110403_exam_shares.sql, applied 2026-10-07 through apply_migration (version 20261007110457;
+-- the connector did not hold it). Originally written for the owner to run by hand in the Supabase SQL Editor after
 -- that migration (the Supabase connector holds REVOKE statements until a human confirms them, so the agent does not run
 -- this). Safety does not depend on it: every function of the migration checks auth.uid(), the owner and the code
 -- itself, RLS has no policy for anon, and PostgREST cannot TRUNCATE. It only takes back what Supabase's default

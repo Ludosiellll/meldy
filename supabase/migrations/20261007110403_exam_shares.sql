@@ -1,7 +1,8 @@
 -- exam_shares
--- Repo file: supabase/migrations/20261007093200_exam_shares.sql. NOT applied by the agent: the owner runs it in the
--- Supabase SQL Editor (or through apply_migration — it has no DROP, DELETE or REVOKE, so the connector does not hold it).
--- Rollback: supabase/rollback/20261007093200_exam_shares_down.sql. Contract check after the apply:
+-- Repo file: supabase/migrations/20261007110403_exam_shares.sql. Applied 2026-10-07 through apply_migration (version
+-- 20261007110403); the function bodies match this file (md5 of prosrc compared with a local apply). The seat binding
+-- was tightened before the apply: a seat that has a copy cannot be pointed at another exam.
+-- Rollback: supabase/rollback/20261007110403_exam_shares_down.sql. Contract check after the apply:
 -- supabase/tests/exam_shares.sql. Local rehearsal: supabase/tests/local/exam_shares_behaviour.sql.
 --
 -- «Группа по ссылке» (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07, «Лента B — группа»): the author of
@@ -42,7 +43,7 @@
 --
 -- Every function protects itself (auth.uid(), the owner, the code) instead of relying on taken-back grants: the
 -- Supabase connector holds REVOKE statements for a human. The optional hardening (REVOKE from anon, TRUNCATE) is in
--- supabase/pending/2026-10-07_exam_shares_revokes.sql for the owner. PostgREST cannot TRUNCATE, so the tables are safe
+-- supabase/migrations/20261007110457_exam_shares_revokes.sql for the owner. PostgREST cannot TRUNCATE, so the tables are safe
 -- without it.
 -- Errors (SQLSTATE → backend/exam_shares.py): 28000 not signed in; MS001 no such link; MS002 revoked; MS003 expired;
 -- MS004 no seat left; MS005 the author's own link; MS006 a copy the database refuses (bad shape).
@@ -416,10 +417,16 @@ begin
   if not exists (select 1 from public.exams e where e.id = p_exam_id and e.user_id = v_user) then
     raise exception 'not the caller''s exam' using errcode = 'MS006';
   end if;
+  -- A seat is bound once: pointing it at another exam would let that exam pass for the copy, and the real copy
+  -- (the author's lecture texts) could then be shared on. A seat whose copy was deleted is free again (SET NULL).
   update public.exam_share_members
      set member_exam_id = p_exam_id
-   where share_id = p_share_id and user_id = v_user;
+   where share_id = p_share_id and user_id = v_user
+     and (member_exam_id is null or member_exam_id = p_exam_id);
   if not found then
+    if exists (select 1 from public.exam_share_members m where m.share_id = p_share_id and m.user_id = v_user) then
+      raise exception 'the seat already has a copy' using errcode = 'MS006';
+    end if;
     raise exception 'no such link' using errcode = 'MS001';
   end if;
 end;

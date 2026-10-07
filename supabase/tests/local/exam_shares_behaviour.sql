@@ -1,6 +1,6 @@
 -- LOCAL ONLY; NEVER RUN AGAINST THE LIVE PROJECT. Behaviour test of *_exam_shares.sql on the local baseline:
 -- supabase/tests/local/baseline.sql, 20261003083154_hackathon_journal_exams_oral.sql, 20261005143420_cheat_sheet.sql,
--- supabase/tests/local/exam_shares_baseline.sql, then 20261007093200_exam_shares.sql (twice), then this file.
+-- supabase/tests/local/exam_shares_baseline.sql, then 20261007110403_exam_shares.sql (twice), then this file.
 -- A is the author (lecture 11111111-…, from the baseline), B and C are classmates. Runs as role authenticated with
 -- request.jwt.claim.sub switching between users, and as anon; one transaction that rolls back. A failure raises an
 -- exception; success prints EXAM SHARES CHECKS PASSED and ANON CHECKS PASSED. The copy here is a small hand-made
@@ -158,7 +158,7 @@ begin
   perform pg_temp.expect_error(
     $$insert into public.exam_share_members (share_id, user_id) values ('5a000000-0000-4000-8000-000000000001', 'cccccccc-0000-0000-0000-000000000003')$$,
     '42501', 'a seat written by hand');
-  -- No UPDATE or DELETE policy: nothing is touched (or, with supabase/pending/2026-10-07_exam_shares_revokes.sql
+  -- No UPDATE or DELETE policy: nothing is touched (or, with supabase/migrations/20261007110457_exam_shares_revokes.sql
   -- applied, the statement itself is refused).
   begin
     update public.exam_shares set revoked_at = null where id = '5a000000-0000-4000-8000-000000000002';
@@ -316,6 +316,18 @@ begin
   if (select count(*) from public.exam_share_members) <> 1 then
     raise exception 'FAILED: the classmate does not read their own seat';
   end if;
+
+  -- A seat with a copy cannot be pointed at another exam of the classmate (that exam would pass for the copy and
+  -- the real copy could then be shared on).
+  insert into public.exams (id, user_id, title) values ('e0000000-0000-4000-8000-0000000000b2',
+    'bbbbbbbb-0000-0000-0000-000000000002', 'Другой экзамен B');
+  perform pg_temp.expect_error(
+    $$select public.exam_share_bind('5a000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-0000000000b2')$$,
+    'MS006', 'rebinding a seat that has a copy');
+  if (select member_exam_id from public.exam_share_members where share_id = '5a000000-0000-4000-8000-000000000001') <> v_exam then
+    raise exception 'FAILED: the seat was rebound to another exam';
+  end if;
+  delete from public.exams where id = 'e0000000-0000-4000-8000-0000000000b2';
 
   -- The copy cannot be shared on.
   perform pg_temp.expect_error(

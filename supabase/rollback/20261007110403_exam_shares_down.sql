@@ -1,4 +1,4 @@
--- Rollback of 20261007093200_exam_shares.sql. NOT applied by any package or agent; the owner runs it by hand only if
+-- Rollback of 20261007110403_exam_shares.sql. NOT applied by any package or agent; the owner runs it by hand only if
 -- «группа по ссылке» has to go entirely. Deploy the backend without exam_shares.py first (the invitation page and the
 -- «Пригласить группу» button then answer «пока нельзя»), otherwise joins fail with 503.
 -- In one transaction it drops the six functions and the three tables (their policies and indexes go with them):
