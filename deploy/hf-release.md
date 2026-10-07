@@ -4,6 +4,40 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — Release 29: a check the jury can try, a mapping that cannot borrow a quote, one face before sign-in (from the commit of this entry)
+
+Plan v2, week 2 items brought forward, and what the browser QA and the second live run of release 28 found.
+
+- **`/try` checks the answer with the AI.** `POST /api/try/evaluate` (no sign-in) judges the example's answer with the
+  same evaluation as a real ticket; the server holds the example's questions and points itself (`try_example.json`,
+  a test fails on drift), so the route cannot be used as a free model. Own key `TRY_GEMINI_API_KEY` (cap
+  `TRY_AI_DAILY_CAP`, 400 a day); until the owner adds it, the main keys within `TRY_AI_DAILY_CAP_SHARED` (60 a day).
+  Per visitor `TRY_AI_CLIENT_LIMIT` (12 per 10 minutes, 40 a day). No key, cap, timeout or error → the key-word
+  check, and the protocol says so and why. No units, nothing saved; the privacy line says the text goes to Google.
+  `/api/health/deep` shows `try: {key, day, calls, cap}`.
+- **Mapping guard (the wrong-lecture quote of the first live run).** Judge labels are numbered through the whole batch
+  (a fragment shared by two questions keeps one label), so a label from a neighbour's list is never one of the
+  question's own. For «есть» / «частично» the judge copies 5–15 words of the fragment; the server finds them there
+  (or moves the support to the one own fragment that has them, or drops it). A question left without a verified
+  support is retried, then «проверено только по словам» — never a false «нет». A lecture plan no longer takes the
+  places of real text in the candidates. `MAP_VERSION` unchanged (a bump would re-charge everyone and stop group links).
+- **Why panel** says why a question was checked only by words (busy service, no answer, quote not confirmed).
+- **Landing, link preview, icons.** «Тренажёр устного экзамена по билетам кафедры. ИИ не отвечает за вас — он вас
+  спрашивает»; the hero is the vanishing sheet playing one answer; four steps (the department's list → quotes from
+  your lectures → aloud with a follow-up → lines erased only by answers on different days); the honest result; the
+  group link. Open Graph image 1200×630, PNG icons 192/512/maskable and apple-touch-icon, manifest and READMEs say
+  the same; no «Конспекты, карточки и тесты» left in the bundle.
+- **Browser QA of release 28 screens:** the consent card, the result's lines on phones, the profile rows.
+- **Blind labeling kit** (`backend/scripts/blind_labeling.py`, `docs/blind-labeling.md`): sheets for two labelers
+  without Meldy's verdicts, then agreement (kappa) and Meldy's accuracy with intervals.
+
+Database: `20261007112314_security_advisor` applied on 2026-10-07 (trigger functions and unused legacy RPCs closed to
+API roles; sign-up checked live after it).
+
+Verified before release: pytest 1396, tsc -b, Vitest 2336/2336, production build. Not verified yet: a real Gemini
+call on the `/try` route and the visitor address behind the HF proxy (after this release), real Telegram and VK
+previews of the new image.
+
 ## 2026-10-07 — Release 28: an honest result, the group link and the fixes from the first live run (from the commit of this entry)
 
 Plan v2 for CodingFest-11 (notes: `10_Project/CodingFest_11_Improvement_Plan_2026-10-07`). The first live run of the
