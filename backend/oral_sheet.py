@@ -24,6 +24,8 @@ follow: true — только подключение (страница увид�
 в том числе rubric_unverifiable и несохранённом эталоне. Лекции и их фрагменты загружаются один раз
 на задачу. Общий предел процесса — не больше 2 сборок сразу, старты через 3 с, SHEET_DAILY_BUILDS
 сборок за сутки UTC (по умолчанию 400; кончились — новые вопросы не начинаются, остальные capped).
+Вызов модели сборки и пачка коротких строк ещё и ждут места в общей очереди тяжёлых вызовов
+процесса (сверка, анализ, эталоны: agents.base.heavy_slot, AI_HEAVY_CONCURRENCY).
 Первый ai_busy или таймаут модели — новые вопросы не начинаются, остальные busy; кончился дневной
 лимит ИИ — остальные limit, затем завершающее событие AILimitExceeded.event() (вместо done: type,
 code, message и limit — дневной предел — как у него) со счётом запуска, как у done (written,
@@ -71,7 +73,7 @@ from starlette.background import BackgroundTask
 
 import oral
 import oral_api
-from agents.base import AIError, BaseAgent
+from agents.base import AIError, BaseAgent, heavy_slot
 from exams_map import LOCK_STALE_SECONDS
 from plans import AI_COSTS
 from quota import AILimitExceeded, Charge
@@ -701,19 +703,21 @@ async def ask_shorts(text: str, keys: list[str]) -> dict[str, str] | None:
     (не JSON, {}, другая вложенность вроде {"q1": {"p1": …}}); тогда ничего не помечается
     «пробовали». Такой ответ и ответ, оборванный на пределе длины, не остаются в кэше модели.
     Быстрая модель, температура 0, JSON; единиц не стоит (спека 3.1: только для оплаченных эталонов).
+    Вызов тяжёлый (пачка до 60 пунктов): ждёт места в общей очереди процесса (heavy_slot).
     """
     meta: dict = {}
     try:
-        raw = await oral_api._run_model(
-            SHORT_PROMPT,
-            text,
-            budget=SHORT_TIMEOUT_SECONDS,
-            fast=True,
-            temperature=0,
-            max_tokens=SHORT_BASE_TOKENS + SHORT_TOKENS_PER_POINT * len(keys),
-            json_mode=True,
-            meta=meta,
-        )
+        async with heavy_slot():
+            raw = await oral_api._run_model(
+                SHORT_PROMPT,
+                text,
+                budget=SHORT_TIMEOUT_SECONDS,
+                fast=True,
+                temperature=0,
+                max_tokens=SHORT_BASE_TOKENS + SHORT_TOKENS_PER_POINT * len(keys),
+                json_mode=True,
+                meta=meta,
+            )
     except AIError as exc:
         print(f"Cheat sheet short lines failed: {exc.code}")
         return None

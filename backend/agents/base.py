@@ -1,14 +1,17 @@
 import asyncio
 import base64
+import contextlib
+import email.utils
 import hashlib
 import json
+import math
 import os
 import random
 import re
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 from typing import Any, Literal, Optional
 
 import httpx
@@ -609,6 +612,285 @@ def skip_model(provider: str, key: str, model: str) -> None:
     _MODEL_SKIP[(provider, _key_fingerprint(key), model)] = _skip_clock() + model_skip_seconds()
 
 
+# --- a pair that answered 429 rests until its quota is back (AI_COOLDOWN) -------------------
+# Quotas belong to a model on a key's project (Gemini) or organization (Groq), so a 429 says
+# nothing about the next pair: only that (provider, key, model) rests, and the call goes on to the
+# next pair at once. How long: until the next midnight in Pacific time when the error names a daily
+# quota («PerDay» in its details: Gemini's daily quotas reset then, and its retryDelay of a few
+# seconds would only buy another 429), else the Retry-After header or RetryInfo.retryDelay, else
+# COOLDOWN_DEFAULT_SECONDS. A call whose every pair rests fails at once with ai_busy, without a
+# request. Process memory only: a restart forgets it. AI_COOLDOWN=0 switches it off (every call
+# asks every pair again, as before 2026-10-07); the diagnostics probes never look at it.
+COOLDOWN_DEFAULT_SECONDS = 60.0
+COOLDOWN_MIN_SECONDS = 1.0
+COOLDOWN_MAX_SECONDS = 25 * 3600.0  # a day in Pacific time is 23 to 25 hours long
+# Right after midnight a daily-quota 429 may still come from the day before; it rests like any other
+# 429 instead of a whole day.
+DAILY_RESET_GRACE_SECONDS = 600.0
+PACIFIC_ZONE = "America/Los_Angeles"
+_COOLDOWN: dict[tuple[str, str, str], float] = {}
+_OFF_VALUES = ("0", "false", "no", "off")
+_RETRY_DELAY_RE = re.compile(r"^\s*(\d{1,7}(?:\.\d{1,9})?)s\s*$")
+
+
+def cooldown_enabled() -> bool:
+    return os.getenv("AI_COOLDOWN", "").strip().lower() not in _OFF_VALUES
+
+
+def _wall_clock() -> datetime:
+    """UTC now, for the Pacific day (tests replace it)."""
+    return datetime.now(timezone.utc)
+
+
+def pair_resting(provider: str, key: str, model: str) -> bool:
+    if not cooldown_enabled():
+        return False
+    entry = (provider, _key_fingerprint(key), model)
+    until = _COOLDOWN.get(entry)
+    if until is None:
+        return False
+    if _skip_clock() >= until:
+        _COOLDOWN.pop(entry, None)
+        return False
+    return True
+
+
+def rest_pair(provider: str, key: str, model: str, seconds: float) -> None:
+    entry = (provider, _key_fingerprint(key), model)
+    _COOLDOWN[entry] = max(_COOLDOWN.get(entry, 0.0), _skip_clock() + seconds)
+
+
+def reset_cooldowns() -> None:
+    """Forget every resting pair (tests)."""
+    _COOLDOWN.clear()
+
+
+def _pacific_zone() -> Any:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(PACIFIC_ZONE)
+    except Exception:  # an image without the tz database: the US rule below
+        return None
+
+
+def _nth_sunday(year: int, month: int, n: int) -> date:
+    first = date(year, month, 1)
+    return first + timedelta(days=(6 - first.weekday()) % 7 + 7 * (n - 1))
+
+
+def _us_pacific_offset(moment: datetime) -> int:
+    """UTC offset in hours of US Pacific time at ``moment`` by the rule in force since 2007: daylight
+    time from the second Sunday of March, 02:00 PST, to the first Sunday of November, 02:00 PDT."""
+    year = moment.year
+    starts = datetime.combine(_nth_sunday(year, 3, 2), dtime(10), tzinfo=timezone.utc)
+    ends = datetime.combine(_nth_sunday(year, 11, 1), dtime(9), tzinfo=timezone.utc)
+    return -7 if starts <= moment < ends else -8
+
+
+def _us_pacific_midnight(day: date) -> datetime:
+    """The UTC moment of 00:00 of ``day`` in US Pacific time (never in a switch: they come at 02:00)."""
+    for offset in (-8, -7):
+        moment = datetime.combine(day, dtime.min, tzinfo=timezone.utc) - timedelta(hours=offset)
+        if _us_pacific_offset(moment) == offset:
+            return moment
+    return datetime.combine(day, dtime.min, tzinfo=timezone.utc) + timedelta(hours=8)
+
+
+def pacific_day_position(now: datetime, zone: Any = "auto") -> tuple[float, float]:
+    """(seconds since the last midnight in Pacific time, seconds until the next one), summer and
+    winter time included: the day of a switch lasts 23 or 25 hours. zone=None uses the US rule
+    without the tz database."""
+    now = now.astimezone(timezone.utc) if now.tzinfo else now.replace(tzinfo=timezone.utc)
+    if zone == "auto":
+        zone = _pacific_zone()
+    if zone is not None:
+        day = now.astimezone(zone).date()
+        start = datetime.combine(day, dtime.min, tzinfo=zone).astimezone(timezone.utc)
+        end = datetime.combine(day + timedelta(days=1), dtime.min, tzinfo=zone).astimezone(timezone.utc)
+    else:
+        day = (now + timedelta(hours=_us_pacific_offset(now))).date()
+        start, end = _us_pacific_midnight(day), _us_pacific_midnight(day + timedelta(days=1))
+    return (now - start).total_seconds(), (end - now).total_seconds()
+
+
+def _error_details(exc: BaseException) -> list:
+    """The google.rpc details of a provider error (Gemini: APIError.details, the body's
+    error.details), or []."""
+    for attribute in ("details", "body"):
+        raw = getattr(exc, attribute, None)
+        if isinstance(raw, list) and len(raw) == 1:
+            raw = raw[0]
+        if isinstance(raw, dict):
+            error = raw.get("error") if isinstance(raw.get("error"), dict) else raw
+            items = error.get("details")
+            if isinstance(items, list):
+                return items
+    return []
+
+
+def _mentions(value: Any, needle: str, depth: int = 6) -> bool:
+    if isinstance(value, str):
+        return needle in value
+    if depth <= 0:
+        return False
+    if isinstance(value, dict):
+        return any(_mentions(item, needle, depth - 1) for item in value.values())
+    if isinstance(value, list):
+        return any(_mentions(item, needle, depth - 1) for item in value[:50])
+    return False
+
+
+def _daily_quota(exc: BaseException) -> bool:
+    """The 429 names a daily quota: «PerDay» in a quota id of its details
+    (GenerateRequestsPerDayPerProjectPerModel-FreeTier)."""
+    return _mentions(_error_details(exc), "PerDay")
+
+
+def _parse_retry_after(value: Any) -> Optional[float]:
+    """Seconds from a Retry-After header: a number of seconds or an HTTP date."""
+    text = str(value).strip() if value is not None else ""
+    if not text:
+        return None
+    try:
+        seconds = float(text)
+    except ValueError:
+        try:
+            when = email.utils.parsedate_to_datetime(text)
+        except (TypeError, ValueError, IndexError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        seconds = (when - _wall_clock()).total_seconds()
+    return seconds if math.isfinite(seconds) and seconds >= 0 else None
+
+
+def _retry_after_seconds(exc: BaseException) -> Optional[float]:
+    """Retry-After of the response (Groq sends it), else RetryInfo.retryDelay of the details
+    (Gemini: «33s», «0.5s»), else None."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    if headers is not None:
+        try:
+            seconds = _parse_retry_after(headers.get("retry-after"))
+        except Exception:
+            seconds = None
+        if seconds is not None:
+            return seconds
+    for item in _error_details(exc):
+        if isinstance(item, dict) and str(item.get("@type", "")).endswith("RetryInfo"):
+            match = _RETRY_DELAY_RE.match(str(item.get("retryDelay", "")))
+            if match:
+                return float(match.group(1))
+    return None
+
+
+def cooldown_for(exc: BaseException) -> tuple[float, str]:
+    """(seconds, why) a pair rests after this 429; why is 'day', 'retry' or 'default'."""
+    retry = _retry_after_seconds(exc)
+    if _daily_quota(exc):
+        since, until = pacific_day_position(_wall_clock())
+        if since >= DAILY_RESET_GRACE_SECONDS:
+            return min(COOLDOWN_MAX_SECONDS, max(COOLDOWN_MIN_SECONDS, until, retry or 0.0)), "day"
+    if retry is not None:
+        return min(COOLDOWN_MAX_SECONDS, max(COOLDOWN_MIN_SECONDS, retry)), "retry"
+    return COOLDOWN_DEFAULT_SECONDS, "default"
+
+
+def rest_after_429(provider: str, key: str, key_index: Optional[int], model: str, exc: BaseException) -> None:
+    """Puts the pair to rest for its 429 (nothing when AI_COOLDOWN=0)."""
+    if not cooldown_enabled():
+        return
+    seconds, why = cooldown_for(exc)
+    rest_pair(provider, key, model, seconds)
+    where = f"key#{key_index} " if key_index is not None else ""
+    print(f"AI {provider} {where}model={model} rests {int(math.ceil(seconds))} s after 429 ({why})")
+
+
+# --- heavy calls wait in one line for the whole process (AI_HEAVY_CONCURRENCY) ------------------
+# The list check (exams_map), the answer points and short lines of the cheat sheet (oral_api,
+# oral_sheet) and the analysis of a lecture (agents/coordinator) send long prompts in bulk, and each
+# job had only its own limit (MAX_IN_FLIGHT = 3 per list check), so a few jobs at once spent the
+# provider's minute before a student's answer got its turn. Those calls hold a heavy_slot() around
+# their model call and wait first come, first served while AI_HEAVY_CONCURRENCY (default 6) run;
+# 0 lifts the limit. The quick answer check and the protocol never take a slot. The slot is taken
+# before a call's own time budget starts, so the wait does not eat it.
+DEFAULT_HEAVY_CONCURRENCY = 6
+
+
+def heavy_concurrency() -> int:
+    raw = os.getenv("AI_HEAVY_CONCURRENCY", "").strip()
+    if not raw:
+        return DEFAULT_HEAVY_CONCURRENCY
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_HEAVY_CONCURRENCY
+    return value if value >= 0 else DEFAULT_HEAVY_CONCURRENCY
+
+
+class _HeavyLine:
+    """Slots handed out in order of arrival; the limit is read on every acquire and release."""
+
+    def __init__(self) -> None:
+        self.running = 0
+        self.waiters: deque = deque()
+
+    def _room(self) -> bool:
+        limit = heavy_concurrency()
+        return limit == 0 or self.running < limit
+
+    async def acquire(self) -> None:
+        if not self.waiters and self._room():
+            self.running += 1
+            return
+        waiter = asyncio.get_running_loop().create_future()
+        self.waiters.append(waiter)
+        try:
+            await waiter
+        except BaseException:
+            if waiter.done() and not waiter.cancelled():
+                self.release()  # the slot came together with the cancellation: pass it on
+            else:
+                with contextlib.suppress(ValueError):
+                    self.waiters.remove(waiter)
+            raise
+
+    def release(self) -> None:
+        self.running = max(0, self.running - 1)
+        while self.waiters and self._room():
+            waiter = self.waiters.popleft()
+            if waiter.done():
+                continue
+            try:
+                waiter.set_result(None)
+            except RuntimeError:  # its event loop is gone
+                continue
+            self.running += 1
+
+
+_HEAVY = _HeavyLine()
+
+
+@contextlib.asynccontextmanager
+async def heavy_slot():
+    """One slot of the heavy-call line for the block (AI_HEAVY_CONCURRENCY)."""
+    await _HEAVY.acquire()
+    try:
+        yield
+    finally:
+        _HEAVY.release()
+
+
+def heavy_state() -> dict[str, int]:
+    return {"limit": heavy_concurrency(), "running": _HEAVY.running, "waiting": len(_HEAVY.waiters)}
+
+
+def reset_heavy_line() -> None:
+    """Forget the heavy-call line (tests)."""
+    _HEAVY.running = 0
+    _HEAVY.waiters.clear()
+
+
 # --- error kinds (never provider text) --------------------------------------------------
 ERROR_KINDS = ("not_found", "rate_limited", "permission", "invalid_argument", "timeout", "network", "empty", "other")
 
@@ -1102,7 +1384,9 @@ class BaseAgent:
 
         Gemini keys and models are tried first (GEMINI_MODELS, or GEMINI_FAST_MODELS when
         ``fast``), then Groq (GROQ_MODEL / GROQ_FAST_MODEL). ``timeout`` is the budget for the
-        whole call across models and providers (AI_CALL_TIMEOUT_SECONDS by default).
+        whole call across models and providers (AI_CALL_TIMEOUT_SECONDS by default). A pair that
+        answered 429 is skipped while it rests (AI_COOLDOWN); with every pair resting the call is
+        429 ai_busy at once.
         """
         keys = gemini_keys()
         max_chars = 300000 if keys else 80000
@@ -1214,6 +1498,9 @@ class BaseAgent:
                 for model in models:
                     if model_skipped("gemini", key, model):
                         continue
+                    if pair_resting("gemini", key, model):
+                        outcome.note("rate_limited")  # every pair resting: ai_busy at once
+                        continue
                     if remaining() <= MIN_ATTEMPT_SECONDS:
                         outcome.note("timeout")
                         break
@@ -1235,6 +1522,8 @@ class BaseAgent:
                 model = self.model or groq_model()
             if model_skipped("groq", self.groq_api_key, model):
                 pass
+            elif pair_resting("groq", self.groq_api_key, model):
+                outcome.note("rate_limited")
             elif remaining() <= MIN_ATTEMPT_SECONDS:
                 outcome.note("timeout")
             else:
@@ -1262,6 +1551,8 @@ class BaseAgent:
                     _log_failure("groq", None, model, kind, exc, secrets)
                     if kind in ("not_found", "permission"):
                         skip_model("groq", self.groq_api_key, model)
+                    elif kind == "rate_limited":
+                        rest_after_429("groq", self.groq_api_key, None, model, exc)
                 else:
                     if answer and answer.strip():
                         result = (answer, "groq", model, "default", finish)
@@ -1331,6 +1622,9 @@ class BaseAgent:
                 _log_failure("gemini", key_index, model, kind, exc, secrets)
                 if kind in ("not_found", "permission"):
                     skip_model("gemini", key, model)
+                    return None
+                if kind == "rate_limited":
+                    rest_after_429("gemini", key, key_index, model, exc)  # the next pair at once
                     return None
                 if kind == "invalid_argument" and config is not None and not retried_thinking and _mentions_thinking(exc):
                     retried_thinking = True

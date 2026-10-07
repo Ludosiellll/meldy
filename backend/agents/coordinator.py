@@ -31,6 +31,7 @@ from .base import (
     build_podcast_prompt,
     build_quiz_prompt,
     build_summarizer_prompt,
+    heavy_slot,
     parse_model_json,
     split_outer_fence,
 )
@@ -510,7 +511,14 @@ class CoordinatorAgent:
         self.base = BaseAgent(api_key)
 
     async def _run_agent(self, name: str, prompt: str, text: str, source_chunks: list) -> tuple[str, Any]:
-        """(status, payload): ok | empty | busy | failed | timeout, within the per-section deadline."""
+        """(status, payload): ok | empty | busy | failed | timeout, within the per-section deadline.
+
+        A heavy call: the section first waits for its place in the process-wide line
+        (heavy_slot, AI_HEAVY_CONCURRENCY); its deadline starts once it has one."""
+        async with heavy_slot():
+            return await self._run_agent_now(name, prompt, text, source_chunks)
+
+    async def _run_agent_now(self, name: str, prompt: str, text: str, source_chunks: list) -> tuple[str, Any]:
         loop = asyncio.get_running_loop()
         deadline_seconds = agent_timeout_seconds()
         deadline = loop.time() + deadline_seconds

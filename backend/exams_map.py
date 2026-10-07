@@ -9,7 +9,8 @@
 3. Кандидаты — BM25 (retrieval.py) по всем фрагментам лекций: топ-6, не больше 3 из
    одной лекции. Нет ни одного общего слова — «нет» без модели (событие lexical).
 4. Судья (P3) пачками: 10 вопросов при ключе Gemini, иначе 4 (фрагменты по 450 знаков);
-   до 3 пачек сразу со сдвигом 0,8 с. Проверки честности: метки только из кандидатов
+   до 3 пачек сразу со сдвигом 0,8 с, и каждая пачка ждёт места в общей очереди тяжёлых
+   вызовов процесса (agents.base.heavy_slot, AI_HEAVY_CONCURRENCY). Проверки честности: метки только из кандидатов
    своего вопроса; «есть»/«частично» без подтверждающей метки — «нет»; пропущенные
    номера — один повтор пачкой вдвое меньше, затем «проверено только по словам»;
    429/502/504 — пачка проверена только по словам (batch_failed).
@@ -1115,16 +1116,18 @@ async def _ask_judge(agent: Any, groups: list[_Group], fragment_chars: int | Non
         ],
         fragment_chars,
     )
-    raw = await agent.run(
-        JUDGE_PROMPT,
-        block,
-        temperature=0,
-        max_tokens=JUDGE_MAX_TOKENS,
-        json_mode=True,
-        timeout=JUDGE_TIMEOUT_SECONDS,
-        thinking="low",
-        use_cache=use_cache,
-    )
+    # A heavy call: it waits in the process-wide line (AI_HEAVY_CONCURRENCY) before its 45 s start.
+    async with ai_base.heavy_slot():
+        raw = await agent.run(
+            JUDGE_PROMPT,
+            block,
+            temperature=0,
+            max_tokens=JUDGE_MAX_TOKENS,
+            json_mode=True,
+            timeout=JUDGE_TIMEOUT_SECONDS,
+            thinking="low",
+            use_cache=use_cache,
+        )
     verdicts, complete = validate_judge_answer(raw, [len(group.hits) for group in groups])
     if not complete:
         BaseAgent.forget(raw)  # повтор должен спросить модель заново, а не взять тот же ответ из кеша
