@@ -2,7 +2,7 @@
 /**
  * Renders the pictures a newcomer meets before signing in, from sources kept in the repository:
  *
- *   og.html               → public/og-image.png            the link preview (og:image), 1200 × 630
+ *   og.html               → public/og-image.jpg            the link preview (og:image), 1200 × 630, JPEG
  *   public/pwa-512x512.svg → public/pwa-192x192.png         icon, 192 × 192
  *                          → public/pwa-512x512.png         icon, 512 × 512
  *                          → public/pwa-maskable-512x512.png  maskable icon: full-bleed blue, the mark
@@ -13,6 +13,11 @@
  * It needs Playwright with Chromium: the project's own package if one is installed, else a global
  * one (npm i -g playwright && npx playwright install chromium). PLAYWRIGHT_BROWSERS_PATH is honoured.
  * After a run, look at the files: the link preview must still read at 300 px wide.
+ *
+ * The Space refuses a pushed binary file over 100 KB unless it is stored with Xet (release 29, run 36:
+ * «Your push was rejected because it contains binary files», og-image.png at 143 KB). The preview is
+ * therefore a JPEG, the highest quality that stays under OG_MAX_BYTES; a palette PNG turned the yellow
+ * dot beige.
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
@@ -21,6 +26,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
+/** Under the Space's 100 KB limit for binary files pushed without Xet, with room to spare. */
+const OG_MAX_BYTES = 95 * 1024;
 const publicDir = resolve(here, '../../public');
 
 async function loadPlaywright() {
@@ -60,9 +67,17 @@ try {
 
   await page.goto(pathToFileURL(join(here, 'og.html')).href, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
-  const og = join(publicDir, 'og-image.png');
-  await page.locator('.og').screenshot({ path: og });
-  console.log(`og-image.png  ${Math.round(statSync(og).size / 1024)} KB`);
+  const og = join(publicDir, 'og-image.jpg');
+  let written = 0;
+  for (const quality of [92, 90, 88, 86, 84, 82, 80, 78, 75]) {
+    await page.locator('.og').screenshot({ path: og, type: 'jpeg', quality });
+    written = statSync(og).size;
+    if (written <= OG_MAX_BYTES) {
+      console.log(`og-image.jpg  ${Math.round(written / 1024)} KB (quality ${quality})`);
+      break;
+    }
+  }
+  if (written > OG_MAX_BYTES) throw new Error(`og-image.jpg is ${written} bytes even at quality 75`);
 
   for (const icon of ICONS) {
     await page.setViewportSize({ width: icon.size, height: icon.size });

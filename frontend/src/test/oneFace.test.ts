@@ -3,7 +3,7 @@ import indexHtml from '../../index.html?raw';
 import viteConfigSource from '../../vite.config.ts?raw';
 import readme from '../../../README.md?raw';
 import readmeHf from '../../../README_HF.md?raw';
-import ogImage from '../../public/og-image.png?inline';
+import ogImage from '../../public/og-image.jpg?inline';
 import icon192 from '../../public/pwa-192x192.png?inline';
 import icon512 from '../../public/pwa-512x512.png?inline';
 import iconMaskable from '../../public/pwa-maskable-512x512.png?inline';
@@ -21,7 +21,6 @@ const OLD = /Конспекты, карточки и тесты|помощник
 
 /** The public PNGs, inlined by Vite as data: URLs (their bytes, base64). */
 const PNG: Record<string, string> = {
-  'og-image.png': ogImage,
   'pwa-192x192.png': icon192,
   'pwa-512x512.png': icon512,
   'pwa-maskable-512x512.png': iconMaskable,
@@ -32,6 +31,28 @@ function pngBytes(name: string): Uint8Array {
   const url = PNG[name];
   expect(url, name).toMatch(/^data:image\/png;base64,/);
   return Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (char) => char.charCodeAt(0));
+}
+
+/** The link preview's bytes (a JPEG: the Space refuses a pushed binary file over 100 KB, see scripts/og/render.mjs). */
+function ogBytes(): Uint8Array {
+  expect(ogImage).toMatch(/^data:image\/jpeg;base64,/);
+  return Uint8Array.from(atob(ogImage.slice(ogImage.indexOf(',') + 1)), (char) => char.charCodeAt(0));
+}
+
+/** Width and height from a JPEG's first start-of-frame marker (SOF0–SOF15 except DHT, JPG, DAC). */
+function jpegSize(bytes: Uint8Array): [number, number] {
+  expect([bytes[0], bytes[1]]).toEqual([0xff, 0xd8]);
+  let at = 2;
+  while (at + 9 < bytes.length) {
+    if (bytes[at] !== 0xff) throw new Error(`no marker at ${at}`);
+    const marker = bytes[at + 1];
+    const length = (bytes[at + 2] << 8) | bytes[at + 3];
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return [(bytes[at + 7] << 8) | bytes[at + 8], (bytes[at + 5] << 8) | bytes[at + 6]];
+    }
+    at += 2 + length;
+  }
+  throw new Error('no start-of-frame marker');
 }
 
 /** Width and height from a PNG's IHDR chunk. */
@@ -65,15 +86,15 @@ describe('index.html', () => {
     expect(meta('property', 'og:site_name')).toBe('Meldy');
     expect(meta('property', 'og:locale')).toBe('ru_RU');
     expect(meta('property', 'og:url')).toBe(SITE);
-    expect(meta('property', 'og:image')).toBe(`${SITE}og-image.png`);
-    expect(meta('property', 'og:image:type')).toBe('image/png');
+    expect(meta('property', 'og:image')).toBe(`${SITE}og-image.jpg`);
+    expect(meta('property', 'og:image:type')).toBe('image/jpeg');
     expect(meta('property', 'og:image:width')).toBe('1200');
     expect(meta('property', 'og:image:height')).toBe('630');
     expect(meta('property', 'og:image:alt')).toBeTruthy();
     expect(meta('name', 'twitter:card')).toBe('summary_large_image');
-    expect(pngSize('og-image.png')).toEqual([1200, 630]);
-    // A preview image that messengers fetch quickly.
-    expect(pngBytes('og-image.png').length).toBeLessThan(300 * 1024);
+    expect(jpegSize(ogBytes())).toEqual([1200, 630]);
+    // Under the Space's 100 KB limit for binary files pushed without Xet (release 29 was refused at 143 KB).
+    expect(ogBytes().length).toBeLessThan(100 * 1024);
   });
 
   it('links the SVG and PNG icons and the apple-touch-icon, and says the same without JavaScript', () => {
