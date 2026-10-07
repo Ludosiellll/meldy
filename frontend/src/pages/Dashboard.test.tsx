@@ -685,7 +685,8 @@ describe('«Сегодня»: without an exam, and a new account', () => {
     const card = stepsCard()!;
     expect(within(card).getByText('Сделано 0 из 3')).toBeInTheDocument();
     const add = within(stepItem('Добавьте лекцию')).getByRole('link', { name: named('Добавить лекцию') });
-    expect(add).toHaveAttribute('href', '/analyze');
+    // Free: «Новый экзамен» with its text-only import of lectures, not the analysis (20 units a lecture).
+    expect(add).toHaveAttribute('href', '/exams/new#lectures');
     expect(add).toHaveClass('sf-primary');
     expect(within(stepItem('Добавьте лекцию')).getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
     expect(within(stepItem('Вставьте список вопросов к экзамену')).getByRole('link', { name: named('Создать экзамен') })).toHaveClass('sf-secondary');
@@ -835,7 +836,10 @@ describe('«Сегодня»: «Первые шаги»', () => {
     expect(firstStepsDone({ lecture: true, list: true, answer: true, drawExamId: 'e-1' })).toBe(3);
     const views = firstStepViews(steps);
     expect(views.map((view) => view.title)).toEqual(['Добавьте лекцию', 'Вставьте список вопросов к экзамену', 'Вытяните билет и ответьте']);
-    expect(views.map((view) => view.action?.to ?? null)).toEqual(['/analyze', '/exams/new', null]);
+    expect(views.map((view) => view.action?.to ?? null)).toEqual(['/exams/new#lectures', '/exams/new', null]);
+    // The step adds a lecture's text for free: it promises no summary and no cards.
+    expect(views[0].text).not.toMatch(/конспект|карточ/i);
+    expect(views[0].text).toMatch(/без расхода лимита/);
     expect(firstStepViews({ ...steps, list: true, drawExamId: 'e-7' })[2].action).toEqual({ to: '/exams/e-7/draw', label: 'Тянуть билет' });
     expect(views.map((view) => `${view.title} ${view.text}`).join(' ')).not.toMatch(/разметк|эталон|Библиотек/i);
     expect(startGreeting('Алина Соколова')).toBe('Алина, с чего начнём?');
