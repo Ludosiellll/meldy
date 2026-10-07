@@ -39,7 +39,8 @@ POST /api/oral/evaluate (10/мин). Протокол (температура 0,
 писать короче, если до конца 15 с осталось ≥ 5 с, иначе 502. Главный пункт без статуса —
 тоже 502; пропущенный второстепенный — unrated. Пункт с ошибкой в errors — wrong
 (oral.validate_evaluation). Пустой ответ и «не знаю» — все пункты missing без модели и
-без списания единиц.
+без списания единиц. Ту же оценку (judge_answer, dont_know_evaluation) без списания зовёт пример
+без регистрации /try (try_api.py) — со своим ключом, своими потолками и бюджетом 8 с.
 """
 
 from __future__ import annotations
@@ -200,13 +201,21 @@ def _points_field(raw: Any, *, with_quote: bool) -> list[dict]:
 
 
 async def _run_model(
-    system_prompt: str, user_text: str, *, budget: float, groq_model: str | None = None, **options: Any
+    system_prompt: str,
+    user_text: str,
+    *,
+    budget: float,
+    groq_model: str | None = None,
+    agent: BaseAgent | None = None,
+    **options: Any,
 ) -> str:
     """Текст модели или AIError (429/502/503/504). budget — и бюджет BaseAgent, и жёсткий потолок.
 
     groq_model — модель запасного Groq вместо GROQ_MODEL (для обычного, не fast, вызова).
+    agent — свой агент со своими ключами (пример /try, try_api.py); по умолчанию — ключи окружения.
     """
-    agent = BaseAgent(api_key=os.getenv("GROQ_API_KEY", ""), model=groq_model)
+    if agent is None:
+        agent = BaseAgent(api_key=os.getenv("GROQ_API_KEY", ""), model=groq_model)
     try:
         return await asyncio.wait_for(
             agent.run(system_prompt, user_text, timeout=budget, **options), timeout=budget + GUARD_SECONDS
@@ -294,47 +303,76 @@ async def oral_evaluate(request: Request):
     question = _question_field(body)
     points = _points_field(body.get("points"), with_quote=True)
     transcript = _transcript_field(body, EVALUATE_TRANSCRIPT_CHARS, EVALUATE_TOO_LONG_DETAIL)
-    dont_know = oral.says_dont_know(transcript)
-    if dont_know or not oral.words(transcript):
+    shortcut = dont_know_evaluation(points, transcript)
+    if shortcut is not None:
         # Пустой ответ и «не знаю» — ответ кнопки «Не знаю»: без модели и без списания единиц.
-        return {
-            "points": [{"id": p["id"], "status": "missing", "student_quote": "", "comment": ""} for p in points],
-            "errors": [],
-            "verdict": DONT_KNOW_VERDICT if dont_know else EMPTY_ANSWER_VERDICT,
-        }
+        return shortcut
     # Ответ на билет (быстрые проверки, переспрос и протокол) стоит AI_COSTS["answer"]:
     # списывается здесь, до модели; протокол не получился — единицы возвращаются.
     charge = await quota.charge(request, "answer", AI_COSTS["answer"])
     async with quota.refund_on_failure(charge):
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + EVALUATE_TIMEOUT_SECONDS
-        user_text = oral.build_evaluate_input(question, points, transcript)
-        for attempt in range(2):
-            shorter = attempt > 0
-            meta: dict = {}
-            raw = await _run_model(
-                oral.build_evaluate_prompt(shorter=shorter),
-                user_text,
-                budget=max(0.0, deadline - loop.time()) if shorter else EVALUATE_TIMEOUT_SECONDS,
-                temperature=0.2,
-                max_tokens=EVALUATE_RETRY_MAX_TOKENS if shorter else EVALUATE_MAX_TOKENS,
-                json_mode=True,
-                thinking="low",
-                meta=meta,
-            )
-            if not _cut_off(meta):
-                break
-            # Протокол оборван: пункты, до которых модель не дошла, стали бы unrated, а формула
-            # клиента их не считает — оценка выросла бы за счёт пропусков. Такой ответ не
-            # отдаём и не держим в кэше; один повтор с запасом длины, если хватает времени.
-            BaseAgent.forget(raw)
-            print(f"Oral evaluate answer cut off at the length limit (attempt {attempt + 1})")
-            if shorter or deadline - loop.time() < EVALUATE_RETRY_MIN_SECONDS:
-                raise AIError.failed()
-        result = await asyncio.to_thread(oral.validate_evaluation, _parsed(raw), points, transcript)
-        if result is None:
-            BaseAgent.forget(raw)
+        result = await judge_answer(question, points, transcript)
+    return result
+
+
+def dont_know_evaluation(points: list[dict], transcript: str) -> dict | None:
+    """Протокол без модели: пустой ответ или «не знаю» — все пункты missing; иначе None."""
+    dont_know = oral.says_dont_know(transcript)
+    if not dont_know and oral.words(transcript):
+        return None
+    return {
+        "points": [{"id": p["id"], "status": "missing", "student_quote": "", "comment": ""} for p in points],
+        "errors": [],
+        "verdict": DONT_KNOW_VERDICT if dont_know else EMPTY_ANSWER_VERDICT,
+    }
+
+
+async def judge_answer(
+    question: str,
+    points: list[dict],
+    transcript: str,
+    *,
+    budget: float = EVALUATE_TIMEOUT_SECONDS,
+    agent: BaseAgent | None = None,
+    **options: Any,
+) -> dict:
+    """Протокол ответа моделью: промпт D, один повтор при обрыве, validate_evaluation; AIError при сбое.
+
+    Без списания — его делает вызывающий (/api/oral/evaluate; пример /try не списывает ничего).
+    budget — время на всё вместе с повтором; agent — свой агент со своими ключами (try_api.py);
+    options уходят в BaseAgent.run (use_cache=False у примера).
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + budget
+    user_text = oral.build_evaluate_input(question, points, transcript)
+    for attempt in range(2):
+        shorter = attempt > 0
+        meta: dict = {}
+        raw = await _run_model(
+            oral.build_evaluate_prompt(shorter=shorter),
+            user_text,
+            budget=max(0.0, deadline - loop.time()) if shorter else budget,
+            agent=agent,
+            temperature=0.2,
+            max_tokens=EVALUATE_RETRY_MAX_TOKENS if shorter else EVALUATE_MAX_TOKENS,
+            json_mode=True,
+            thinking="low",
+            meta=meta,
+            **options,
+        )
+        if not _cut_off(meta):
+            break
+        # Протокол оборван: пункты, до которых модель не дошла, стали бы unrated, а формула
+        # клиента их не считает — оценка выросла бы за счёт пропусков. Такой ответ не
+        # отдаём и не держим в кэше; один повтор с запасом длины, если хватает времени.
+        BaseAgent.forget(raw)
+        print(f"Oral evaluate answer cut off at the length limit (attempt {attempt + 1})")
+        if shorter or deadline - loop.time() < EVALUATE_RETRY_MIN_SECONDS:
             raise AIError.failed()
+    result = await asyncio.to_thread(oral.validate_evaluation, _parsed(raw), points, transcript)
+    if result is None:
+        BaseAgent.forget(raw)
+        raise AIError.failed()
     return result
 
 

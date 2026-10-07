@@ -129,6 +129,9 @@ docker run --rm -p 7860:7860 --env-file ../meldy.env meldy
 | `SUPABASE_URL`, `SUPABASE_KEY` | нет | без них сервер берёт адрес и публичный ключ того же проекта |
 | `DIAGNOSTICS_USER_IDS` | нет | id владельца для `/api/diagnostics/models` |
 | `VAPID_PRIVATE_KEY` | нет | push-уведомления; для показа не нужны |
+| `TRY_GEMINI_API_KEY` | нет | ключ Gemini из отдельного проекта Google для проверки ИИ в примере `/try` (можно несколько через запятую). Без него пример берёт основные ключи, но не больше `TRY_AI_DAILY_CAP_SHARED` проверок в сутки |
+| `TRY_AI_DAILY_CAP`, `TRY_AI_DAILY_CAP_SHARED` | нет | проверок ИИ в примере за сутки (по Тихоокеанскому времени): на своём ключе — 400, на основных — 60; дальше пример проверяет по ключевым словам и пишет об этом |
+| `TRY_AI_CLIENT_LIMIT` | нет | предел проверок примера с одного адреса, по умолчанию `12/10 minutes;40/day`; если зал сидит за одним Wi-Fi, поднимите, например `60/10 minutes;300/day` |
 
 Аргументы сборки `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` тоже не обязательны: без них фронтенд обращается к тому же проекту Supabase. Передать их явно можно так (значения публичные, лежат в `frontend/.env`): `docker build --build-arg VITE_SUPABASE_URL=… --build-arg VITE_SUPABASE_ANON_KEY=… -t meldy .`
 

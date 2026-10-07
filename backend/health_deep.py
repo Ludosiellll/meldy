@@ -35,6 +35,7 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+import try_api
 from agents import base as ai_base
 from ratelimit import limiter
 
@@ -266,5 +267,12 @@ def reset_cache() -> None:
 @router.get("/api/health/deep")
 @limiter.limit(RATE_LIMIT)
 async def health_deep(request: Request):
-    """Real tiny calls to Gemini, Groq, edge-tts and Supabase; cached 10 minutes. See the module doc."""
-    return JSONResponse(await deep_health(), headers={"Cache-Control": "no-store"})
+    """Real tiny calls to Gemini, Groq, edge-tts and Supabase; cached 10 minutes. See the module doc.
+
+    Beside the checks, `try` — the /try example's AI check as of this moment (try_api.health_view): whose key
+    it uses (own, shared or none; never the key), today's model calls against its cap, and how many answers
+    of the day fell back to key words. It costs no call and is never cached.
+    """
+    body = await deep_health()
+    body["try"] = try_api.health_view()
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})

@@ -2,7 +2,8 @@
  * «Попробовать на примере» (/try): a ready example exam — three lectures of an original short course
  * in microeconomics and the department's list of twelve questions, already checked against them, with
  * the answer points of every question that can be answered. Everything is static: the page runs it
- * on the device, with no account, no /api call and nothing saved.
+ * on the device, with no account and nothing saved; the server keeps a copy of the questions and points
+ * for the AI check of an answer (serverCopy.ts → backend/try_example.json).
  *
  * The converters below give the data the app's own shapes, so the example is drawn and answered by
  * the same components and rules as a real exam: ExamQuestion for the sheet (components/exams), Rubric

@@ -4,6 +4,7 @@ Every module decorates its routes with this one ``limiter`` object, so turning
 it off (``main.limiter.enabled = False`` in tests) turns off every limit, and
 the 429 answer has the same Russian JSON body everywhere.
 """
+import ipaddress
 import time
 
 from slowapi import Limiter
@@ -31,6 +32,53 @@ def user_or_ip_key(request: Request) -> str:
     if isinstance(user, dict) and user.get("id"):
         return f"user:{user['id']}"
     return get_remote_address(request)
+
+
+def _address(value: str) -> str | None:
+    """One X-Forwarded-For entry as an IP address (a port after it dropped), or None (a name, «unknown», garbage)."""
+    text = value.strip()
+    if text.startswith("[") and "]" in text:
+        text = text[1:text.index("]")]  # [2001:db8::1]:443
+    elif text.count(":") == 1:
+        text = text.split(":", 1)[0]  # 203.0.113.5:443
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return None
+
+
+def visitor_ip(request: Request) -> str:
+    """The visitor's own address behind the Hugging Face proxy, for limits of paths open without an account.
+
+    On the Space (checked 2026-10-07 against a public httpbin Space) the HF proxy puts the visitor's
+    address last in X-Forwarded-For — whatever the visitor sent stays to its left — and the container's
+    nginx appends the proxy's own address after it ($proxy_add_x_forwarded_for). uvicorn trusts nginx
+    and takes that last address, the HF proxy, which is the same for every visitor
+    (get_remote_address). So the visitor is the address before the last. A request with one address
+    came without the HF proxy (nginx run locally): that address. No usable address — the connection's.
+    """
+    raw = ",".join(request.headers.getlist("x-forwarded-for"))
+    entries = [entry for entry in (part.strip() for part in raw.split(",")) if entry]
+    if entries:
+        found = _address(entries[-2] if len(entries) >= 2 else entries[-1])
+        if found is not None:
+            return found
+    return get_remote_address(request)
+
+
+def visitor_ip_key(request: Request) -> str:
+    """Rate-limit key of a visitor without an account: their address (visitor_ip); an IPv6 address by its
+    /64 network, which one home or phone usually gets whole."""
+    address = visitor_ip(request)
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return f"visitor:{address}"
+    if parsed.version == 6 and parsed.ipv4_mapped is not None:
+        parsed = parsed.ipv4_mapped
+    if parsed.version == 6:
+        return f"visitor:{ipaddress.ip_network(f'{parsed}/64', strict=False)}"
+    return f"visitor:{parsed}"
 
 
 def _retry_after_seconds(request: Request) -> int | None:

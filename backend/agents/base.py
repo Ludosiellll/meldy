@@ -1358,13 +1358,22 @@ class BaseAgent:
             cls._run_cache.pop(key, None)
             cls._cache_info.pop(key, None)
 
-    def __init__(self, api_key: str = "", model: Optional[str] = None):
+    def __init__(self, api_key: str = "", model: Optional[str] = None, gemini_api_keys: Optional[list[str]] = None):
         self.groq_api_key = (api_key or "").strip()
         # An explicit model overrides GROQ_MODEL for this agent (normal calls only).
         self.model = model
-        self.gemini_keys = gemini_keys()
+        # Explicit Gemini keys replace GEMINI_API_KEY for this agent (the /try example's own project,
+        # try_api.py); None — the keys of the environment, read at every call as before. A pair of these
+        # keys that answers 429 rests by its own fingerprint, so the main keys never rest for it.
+        self.own_gemini_keys: Optional[list[str]] = (
+            None if gemini_api_keys is None else [key.strip() for key in gemini_api_keys if key and key.strip()]
+        )
+        self.gemini_keys = self._gemini_keys()
         self.groq_client = get_groq_client(self.groq_api_key) if self.groq_api_key else None
         self.safety_settings = SAFETY_SETTINGS
+
+    def _gemini_keys(self) -> list[str]:
+        return list(self.own_gemini_keys) if self.own_gemini_keys is not None else gemini_keys()
 
     async def run(
         self,
@@ -1388,7 +1397,7 @@ class BaseAgent:
         answered 429 is skipped while it rests (AI_COOLDOWN); with every pair resting the call is
         429 ai_busy at once.
         """
-        keys = gemini_keys()
+        keys = self._gemini_keys()
         max_chars = 300000 if keys else 80000
         truncated = user_text[:max_chars]
         if len(user_text) > max_chars:
@@ -1415,7 +1424,7 @@ class BaseAgent:
     ) -> str:
         """Same contract as run(); Gemini gets the images inline, Groq uses GROQ_VISION_MODEL."""
         return await self._generate(
-            system_prompt, user_text, keys=gemini_keys(), images=list(images_base64 or []), mime_type=mime_type,
+            system_prompt, user_text, keys=self._gemini_keys(), images=list(images_base64 or []), mime_type=mime_type,
             temperature=temperature, max_tokens=max_tokens, json_mode=json_mode, timeout=timeout,
             fast=False, thinking=None, use_cache=use_cache, meta=meta,
         )

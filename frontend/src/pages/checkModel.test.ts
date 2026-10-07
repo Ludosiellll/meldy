@@ -168,6 +168,24 @@ describe('the AI on the server (/api/health/deep)', () => {
     expect(view.note).toBe('Проверено только что. Результат хранится 10 минут, чтобы проверка не тратила дневной лимит запросов. Свежая проверка — через 10 мин.');
   });
 
+  it('adds the /try example’s AI check: whose key, today’s calls against the cap, never the key', () => {
+    const own = deepView(deep(healthy, { try: { key: 'own', day: '2026-10-07', calls: 12, cap: 400, keywords: 0 } }));
+    expect(own.result.state).toBe('ok');
+    expect(own.rows[4]).toEqual({ id: 'try', ok: true, text: 'Пример /try: ответы проверяет ИИ на своём ключе, сегодня 12 из 400.' });
+    const shared = deepView(deep(healthy, { try: { key: 'shared', day: '2026-10-07', calls: 60, cap: 60, keywords: 3 } }));
+    expect(shared.rows[4]).toEqual({
+      id: 'try',
+      ok: false,
+      text: 'Пример /try: ответы проверяет ИИ на основных ключах (своего ключа у примера нет), сегодня 60 из 60. Проверки на сегодня закончились, дальше — по ключевым словам. По ключевым словам сегодня проверено ответов: 3.',
+    });
+    const none = deepView(deep(healthy, { try: { key: 'none', day: '2026-10-07', calls: 0, cap: 0, keywords: 1 } }));
+    expect(none.rows[4]).toEqual({ id: 'try', ok: false, text: 'Пример /try: ключа Gemini нет, ответы проверяются по ключевым словам. По ключевым словам сегодня проверено ответов: 1.' });
+    // The example does not change the verdict on the AI, and an older server without `try` shows no row.
+    expect(none.result.state).toBe('ok');
+    expect(deepView(deep(healthy)).rows).toHaveLength(4);
+    expect(deepView(deep(healthy, { try: { key: 'secret-key-value' } })).rows).toHaveLength(4);
+  });
+
   it('says when a spare Gemini model answered and how old a cached answer is', () => {
     const view = deepView(deep({ ...healthy, gemini: ok({ model: 'model-b', fallback: true }) }, { cached: true, age_seconds: 250, fresh_in_seconds: 350 }));
     expect(view.rows[0].text).toBe('Gemini отвечает: model-b, 640 мс. Первая модель из списка не ответила — работает запасная.');
