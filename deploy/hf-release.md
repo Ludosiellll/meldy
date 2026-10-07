@@ -4,6 +4,39 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — The cheat sheet after four critics: unreadable rubbed lines, honest shows, keyboard and screen readers (from 9c363f9)
+
+Adds to release 26 (tree of 3f571e3). The owner, 2026-10-07: «Продолжи, доработай что нужно». Four critics (words,
+visual and motion, accessibility, edge cases) went over the released sheet; every finding was checked in code.
+
+- Rubbed lines could be read on a phone or a 2× laptop: the eraser's two passes beat into a moiré. Both now share one
+  period; at 1×, 1.25× and 3× only scraps of letters are left.
+- A check passes only when the line was due (naming it earlier only starts its wait again: five days in a row are no
+  three checks). An answer is replayed as of its own moment («После ответа 4 окт.: …»); both questions of a ticket are
+  played in turn where they are, both marked; named too soon and peeked are said together; a history with lines that
+  went and came back says «1 → 0 → 1», shows at most 50 days and always ends today.
+- A peek that could not be saved waits on the device and is sent before the next answer is saved; still not saved,
+  the panel says so with «Повторить». A tab coming back reads the journal again.
+- Short lines that change the meaning are rejected on the server (a reversed cause, a dropped «не-», swapped sides
+  of = − < >, similar long words); lines saved under the older check are not given out; the server's own daily cap
+  is said as such.
+- Words: one plain sentence after an answer and a quieter reason under it; one paragraph per line state in the panel;
+  «Спрятать строки», «Вся шпаргалка», «Показать, что изменилось»; the whole rule on every size.
+- Phones: the paper's lines on the first screen (the count and one switch above it, the rest and the page's links
+  under it), the history played in view with its day over the bottom bar, every line a 24 px target. The projector's
+  button stands in the column or over the bottom bar, never on «Тянуть билет». No layout shift when the paper comes.
+- Keyboard and screen readers: focus follows the history, the write and «Показать», never hides under the bars; one
+  status line says what changed; a readable line is named by its visible words; a peeked line stays open while its
+  details are; a printed question says its «почему» is open; Windows High Contrast keeps the switches' state.
+
+No migrations. New journal-free device key `studyforge_sheet_peeks_pending` (peeks waiting to be sent).
+Verified before release: tsc -b, Vitest 2132/2132, pytest 1066, production build; on mocked Supabase/API the sheet at
+1532×734, 1024×700 and 390×844 in both themes, the after-answer show of a two-question ticket frame by frame, the
+projector's wait, reduced motion, the phone's history, keyboard focus through the history and the skip button, the
+phone's bottom sheet inert behind; 300 questions: 60 fps scroll, layout shift 0 on a phone and 0.0004 at 1532×734,
+no CSP violations, no console errors. Not verified: a real sheet written by the live AI providers under the stricter
+check — check right after the release.
+
 ## 2026-10-06 — «Шпаргалка, которая исчезает» on the exam page (from 3f571e3)
 
 Adds to release 25 (tree of 4fe73ec). The owner, 2026-10-05, on the idea: «со шпаргалкой звучит неплохо, реально
