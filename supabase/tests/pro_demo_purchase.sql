@@ -15,7 +15,8 @@
 --     anon cannot read pro_since;
 --   * the data fix held: no profile has is_pro without pro_since.
 -- Report: demo_open (false once the kill switch replaced start_pro_demo), the number of accounts on the demo, whether
--- anon and PUBLIC may execute the functions (expected true: Supabase's defaults; the guard refuses them), each
+-- anon and PUBLIC may execute the functions (false since 20261007064401_pro_demo_anon_execute; before it Supabase's
+-- defaults made them true, and the guard refused them anyway), each
 -- function's owner, config and ACL, the column, and the last 3 schema_migrations rows.
 WITH
 prof AS (
