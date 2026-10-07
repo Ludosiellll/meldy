@@ -15,6 +15,7 @@ import {
 } from '../lib/returnTo';
 import { deferGuideOnce } from '../components/guide/guideLater';
 import { track } from '../lib/telemetry';
+import { rememberGroupLink } from '../lib/groups/groupLinks';
 import './JoinGroup.css';
 
 /**
@@ -24,7 +25,8 @@ import './JoinGroup.css';
  * Google refuses to sign in and the microphone is often missing, so the page first asks to open the link in
  * Chrome or Safari («Скопировать ссылку», on Android a link straight into Chrome, on iPhone where to tap).
  * Signed in, the page joins at once and opens the classmate's own copy on its cheat sheet; the mandatory guide
- * waits for a later visit (components/guide/guideLater).
+ * waits for a later visit (components/guide/guideLater). The author on their own open link: this device keeps its
+ * code for «Вопрос дня» (lib/groups/groupLinks.ts), as the device where the link was made does.
  */
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: SharePreview } | { state: 'error'; message: string };
@@ -155,6 +157,14 @@ export default function JoinGroup() {
     }
   }, [code, navigate]);
 
+  // The author's own open link opened here (say, from the group's chat): «Вопрос дня» can carry it from this device.
+  const [kept, setKept] = useState(false);
+  useEffect(() => {
+    if (!code || preview.state !== 'ready') return;
+    const { status, link, examId } = preview.value;
+    if (status === 'own' && link === 'active' && examId) setKept(rememberGroupLink(examId, code));
+  }, [code, preview]);
+
   // Signed in and the link is live (or already joined): straight to the copy.
   useEffect(() => {
     if (!code || !user || preview.state !== 'ready') return;
@@ -225,6 +235,9 @@ export default function JoinGroup() {
                   {OWN_HEADINGS[value.link ?? 'unknown']}
                 </h1>
                 <p className="au-lede">{ownLede(value)}</p>
+                {kept && value.link === 'active' && (
+                  <p className="jg-kept">На этом устройстве Meldy запомнил ссылку: «Вопрос дня» теперь копируется вместе с ней.</p>
+                )}
                 {value.examId && (
                   <p className="jg-actions">
                     <Link className="sf-primary" to={`/exams/${value.examId}`}>

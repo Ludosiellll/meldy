@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchSheet } from '../../../api/cheatSheet';
 import { fetchSheetEvents } from '../../../api/learning';
-import { buildSheet, erasableNow, sheetHashes, type ErasableNow, type SheetCounts } from '../../../lib/exams/cheatSheet';
+import { buildSheet, erasableNow, sheetHashes, type ErasableNow, type SheetCounts, type SheetQuestion } from '../../../lib/exams/cheatSheet';
 
 /** The exam's cheat sheet as «Сегодня» and the draw «Ждут подтверждения» need it. */
 export interface SheetToday {
@@ -9,6 +9,8 @@ export interface SheetToday {
   counts: SheetCounts;
   /** «Можно стереть: N вопросов» (Сегодня-lite): the questions whose lines an answer erases now, and when the next ones can be. */
   erasable: ErasableNow;
+  /** The sheet's questions as read: «Вопрос дня» asks the group about one of those with answer points. */
+  questions: SheetQuestion[];
 }
 
 /**
@@ -24,7 +26,7 @@ export async function readSheetToday(examId: string, examDate: string | null = n
   const now = Date.now();
   const built = buildSheet(sheet.questions, events, now, { examDate });
   if (built.counts.total === 0) return null;
-  return { counts: built.counts, erasable: erasableNow(built, now) };
+  return { counts: built.counts, erasable: erasableNow(built, now), questions: sheet.questions };
 }
 
 /**

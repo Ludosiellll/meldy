@@ -25,6 +25,7 @@ import JoinGroup from './JoinGroup';
 import Login from './Login';
 import { GUIDE_LATER_KEY } from '../components/guide/guideLater';
 import { JOIN_PENDING_KEY } from '../lib/returnTo';
+import { storedGroupLinks } from '../lib/groups/groupLinks';
 
 const CODE = 'abcd2fghjkmn';
 const COPY = '0f8c9a52-3b1e-4c6d-9a7f-2e5b8c1d4a60';
@@ -236,6 +237,23 @@ describe('/join/<код> signed in', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Это ваша ссылка' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Открыть экзамен' })).toHaveAttribute('href', `/exams/${COPY}`);
     expect(calls).not.toContain('POST /api/exam-shares/join');
+  });
+
+  it('the author on their own open link: this device keeps it for «Вопрос дня»; a closed one is not kept', async () => {
+    auth.state = { user: { id: 'author-1' }, loading: false };
+    server({ preview: { ...ACTIVE, status: 'own', exam_id: COPY, link: 'active' } });
+    renderAt(`/join/${CODE}`);
+    expect(await screen.findByText('На этом устройстве Meldy запомнил ссылку: «Вопрос дня» теперь копируется вместе с ней.')).toBeInTheDocument();
+    expect(storedGroupLinks(COPY)).toEqual([{ code: CODE, share: null }]);
+    cleanup();
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+
+    server({ preview: { ...ACTIVE, status: 'own', exam_id: COPY, link: 'revoked' } });
+    renderAt(`/join/${CODE}`);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Вы закрыли эту ссылку' })).toBeInTheDocument();
+    expect(storedGroupLinks(COPY)).toEqual([]);
+    expect(screen.queryByText(/Meldy запомнил ссылку/)).toBeNull();
   });
 
   it('the author on their own closed or expired link sees that it is closed and where to make a new one', async () => {

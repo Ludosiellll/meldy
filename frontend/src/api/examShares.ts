@@ -3,6 +3,7 @@
  * opens it gets their own copy — questions, the lectures' text and the cheat sheet with its answer points — at
  * no AI units. The session's token is added by lib/apiAuth (every /api/* path); the preview needs none.
  */
+import { supabase } from '../lib/supabase';
 
 export type ShareState = 'active' | 'revoked' | 'expired';
 
@@ -170,6 +171,37 @@ export async function fetchShareState(examId: string): Promise<ExamShareState> {
     maxMembers: count(raw.max_members) || 80,
     shares: Array.isArray(raw.shares) ? raw.shares.map(parseShare).filter((item): item is ShareInfo => item !== null) : [],
   };
+}
+
+/** One of the author's links of an exam as the database keeps it (RLS «Exam shares: read own»). */
+export interface OwnShareRow {
+  id: string;
+  /** sha256 of the code: the code itself is never stored. */
+  codeHash: string;
+  state: ShareState;
+}
+
+/**
+ * The author's links of an exam, newest first, read straight from the table (four columns, no snapshot of the
+ * exam as GET /api/exam-shares makes): for «Вопрос дня», which needs only whether a link is open and which one.
+ * A classmate's copy has none (the policy shows a link to its owner only). Throws when unreadable.
+ */
+export async function fetchOwnShareRows(examId: string, now: number = Date.now()): Promise<OwnShareRow[]> {
+  const { data, error } = await supabase
+    .from('exam_shares')
+    .select('id, code_hash, expires_at, revoked_at')
+    .eq('exam_id', examId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  const rows: OwnShareRow[] = [];
+  for (const raw of Array.isArray(data) ? data : []) {
+    if (!isRecord(raw) || !uuid(raw.id) || typeof raw.code_hash !== 'string') continue;
+    const expires = typeof raw.expires_at === 'string' ? Date.parse(raw.expires_at) : NaN;
+    const state: ShareState = raw.revoked_at ? 'revoked' : Number.isFinite(expires) && expires <= now ? 'expired' : 'active';
+    rows.push({ id: raw.id as string, codeHash: raw.code_hash, state });
+  }
+  return rows;
 }
 
 /** The author makes a link after the consent; the code comes once. */

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { LearningEvent } from '../api/learning';
@@ -30,6 +30,8 @@ import Dashboard, {
   type TodayQuestion,
 } from './Dashboard';
 import { localDateKey } from '../utils/streak';
+import { rememberGroupLink } from '../lib/groups/groupLinks';
+import { sha256Hex } from '../lib/sha256';
 
 type TableResult = { data?: unknown; error?: unknown };
 type Query = { table: string; select: string; calls: Array<[string, unknown[]]> };
@@ -472,6 +474,60 @@ describe('«Сегодня»: the exam on the desk', () => {
       const again = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       expect(await within(again).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 9 строк осталось из 9' })).toBeInTheDocument();
       expect(again.querySelector('.td-erase, .td-erase-next')).toBeNull();
+    });
+
+    // Week 2 of the plan: the sheet erases lines only with answers on different days, so «Сегодня» offers two ways
+    // back — the student's own calendar and, for the author of an open group link, «Вопрос дня» for the chat.
+    it('offers «Напоминать каждый день» under «Можно стереть», quietly: the card keeps one blue pill', async () => {
+      exam();
+      sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      const line = await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
+      const remind = within(block).getByRole('button', { name: 'Напоминать каждый день' });
+      expect(line.compareDocumentPosition(remind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
+      expect(remind.compareDocumentPosition(draw) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+      fireEvent.click(remind);
+      expect(within(block).getByRole('group', { name: 'Во сколько напоминать' })).toBeInTheDocument();
+      // No group link of this account: no «Вопрос дня».
+      await waitFor(() => expect(db.queries.some((query) => query.table === 'exam_shares')).toBe(true));
+      expect(within(block).queryByRole('button', { name: /вопрос дня/ })).toBeNull();
+    });
+
+    it('reads «Напоминание в 20:00 — изменить» once a file was downloaded on this device', async () => {
+      window.localStorage.setItem('meldy_daily_reminder_user-1', JSON.stringify({ time: '20:00', exam: 'e-1', at: '2026-10-02T17:00:00.000Z' }));
+      exam();
+      sheetOf([HOUR_AGO]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      const change = await within(block).findByRole('button', { name: 'Изменить время напоминания' });
+      expect(plain(change.closest('p')?.textContent)).toBe('Напоминание в 20:00 — изменить');
+    });
+
+    it('gives the author of an open group link «Скопировать вопрос дня» with the link kept on this device', async () => {
+      const code = 'k7m2pq9rst4v';
+      const share = '5a000000-0000-4000-8000-000000000001';
+      rememberGroupLink('e-1', code, share);
+      db.tables.exam_shares = () => ({ data: [{ id: share, code_hash: sha256Hex(code), expires_at: '2027-01-05T09:00:00Z', revoked_at: null }] });
+      const writeText = vi.fn(async () => undefined);
+      Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
+      exam();
+      sheetOf([YESTERDAY]);
+      renderDashboard();
+      const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
+      const copy = await within(block).findByRole('button', { name: 'Скопировать вопрос дня' });
+      expect(args('exam_shares', 'eq')).toEqual([['exam_id', 'e-1']]);
+      // The sheet the card has read already: not read a second time.
+      expect(db.fetchSheet).toHaveBeenCalledTimes(1);
+      fireEvent.click(copy);
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      const [message] = writeText.mock.calls[0] as unknown as [string];
+      const lines = message.split('\n');
+      expect(lines[0]).toBe('Вопрос дня — «Цифровая экономика»');
+      expect(lines[1]).toMatch(/^[123]\. Вопрос [123]$/);
+      expect(lines[2]).toBe(`Ответить в Meldy: ${window.location.origin}/join/${code}`);
     });
   });
 

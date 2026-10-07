@@ -1,6 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import InviteGroup, { groupMessage } from './InviteGroup';
+import { rememberGroupLink, storedGroupLinks } from '../../../lib/groups/groupLinks';
+import { sha256Hex } from '../../../lib/sha256';
+
+// The author's links as the table keeps them (for «Вопрос дня»); the rest of the dialog talks to the server below.
+const rows = vi.hoisted(() => vi.fn());
+vi.mock('../../../api/examShares', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../api/examShares')>()),
+  fetchOwnShareRows: (...args: unknown[]) => rows(...args),
+}));
 
 const EXAM = 'e1d2c3b4-a596-4877-8899-aabbccddeeff';
 const SHARE = '5a000000-0000-4000-8000-000000000001';
@@ -31,6 +40,9 @@ function server(state: Record<string, unknown>) {
     if (method === 'POST' && url === `/api/exam-shares/${OLD}/revoke`) {
       return json(200, { id: OLD, revoked_at: '2026-10-07T12:00:00Z' });
     }
+    if (method === 'GET' && url === `/api/oral/sheet?exam_id=${encodeURIComponent(EXAM)}`) {
+      return json(200, { exam_id: EXAM, mapping_state: 'done', questions: [sheetQuestion(1)], to_write: 0, units: 0, job: null });
+    }
     return json(404, { detail: 'Нет такого адреса' });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -38,6 +50,29 @@ function server(state: Record<string, unknown>) {
 }
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
+
+function sheetQuestion(position: number) {
+  return {
+    question_id: `00000000-0000-4000-8000-00000000000${position}`,
+    position,
+    label: String(position),
+    section: null,
+    text: 'Эластичность спроса по цене',
+    question_hash: position.toString(16).padStart(32, '0'),
+    coverage: 'full',
+    coverage_method: 'llm',
+    coverage_reason: '',
+    missing_note: '',
+    rubric: {
+      rubric_id: `00000000-0000-4000-8000-0000000000a${position}`,
+      built_at: null,
+      coverage: 'full',
+      coverage_note: '',
+      materials: [],
+      points: [{ id: 'p1', title: 'Пункт', short: '', essential: true, source_quote: '', source_ids: [] }],
+    },
+  };
+}
 
 async function openDialog() {
   fireEvent.click(screen.getByRole('button', { name: 'Пригласить группу' }));
@@ -47,6 +82,8 @@ async function openDialog() {
 let writeText: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  window.localStorage.clear();
+  rows.mockReset().mockResolvedValue([]);
   writeText = vi.fn(async () => undefined);
   Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
 });
@@ -82,9 +119,11 @@ describe('«Пригласить группу»', () => {
       url: '/api/exam-shares',
       body: { exam_id: EXAM, consent: true },
     });
-    expect(plain(within(dialog).getByText(/Ссылку видно только сейчас/).textContent)).toBe(
-      'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.',
+    // The server keeps only the hash; this device keeps the code for «Вопрос дня».
+    expect(plain(within(dialog).getByText(/Meldy хранит у себя только отпечаток/).textContent)).toBe(
+      'Meldy хранит у себя только отпечаток ссылки. Сама ссылка останется на этом устройстве — для «Вопроса дня». Потеряете — создайте новую, а эту закройте.',
     );
+    expect(storedGroupLinks(EXAM)).toEqual([{ code: CODE, share: SHARE }]);
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Скопировать' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(url));
@@ -140,6 +179,49 @@ describe('«Пригласить группу»', () => {
     fireEvent.click(within(first).getByRole('button', { name: 'Да, закрыть' }));
     await waitFor(() => expect(plain(first.textContent)).toContain('· закрыта'));
     expect(calls.some((call) => call.method === 'POST' && call.url === `/api/exam-shares/${OLD}/revoke`)).toBe(true);
+  });
+
+  it('says the link is shown only now when this browser keeps nothing; «Вопрос дня» still has it while the dialog is open', async () => {
+    server({});
+    rows.mockResolvedValue([{ id: SHARE, codeHash: sha256Hex(CODE), state: 'active' }]);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    });
+    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    const dialog = await openDialog();
+    fireEvent.click(await within(dialog).findByRole('checkbox'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Создать ссылку' }));
+    expect(plain((await within(dialog).findByText(/Ссылку видно только сейчас/)).textContent)).toBe(
+      'Ссылку видно только сейчас: Meldy хранит не её, а отпечаток. Потеряете — создайте новую, а эту закройте.',
+    );
+    const field = (await within(dialog).findByRole('textbox', { name: 'Вопрос дня для беседы группы' })) as HTMLTextAreaElement;
+    expect(field.value.split('\n').pop()).toBe(`Ответить в Meldy: ${window.location.origin}/join/${CODE}`);
+  });
+
+  it('ends with «Вопрос дня» while a link is open, and forgets the code of a closed link', async () => {
+    rememberGroupLink(EXAM, CODE, OLD);
+    rows.mockResolvedValue([{ id: OLD, codeHash: sha256Hex(CODE), state: 'active' }]);
+    server({ shares: [share(OLD, { members: 5 })] });
+    render(<InviteGroup examId={EXAM} examTitle="Макроэкономика" />);
+    const dialog = await openDialog();
+    const section = (await within(dialog).findByRole('heading', { name: 'Вопрос дня' })).closest('section')!;
+    const field = (await within(section).findByRole('textbox', { name: 'Вопрос дня для беседы группы' })) as HTMLTextAreaElement;
+    expect(field.value.split('\n')).toEqual([
+      'Вопрос дня — «Макроэкономика»',
+      '1. Эластичность спроса по цене',
+      `Ответить в Meldy: ${window.location.origin}/join/${CODE}`,
+    ]);
+    fireEvent.click(within(section).getByRole('button', { name: 'Скопировать вопрос дня' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(field.value));
+
+    // Closing the link forgets its code here; with no open link left, «Вопрос дня» goes.
+    rows.mockResolvedValue([{ id: OLD, codeHash: sha256Hex(CODE), state: 'revoked' }]);
+    const [first] = within(within(dialog).getByRole('list')).getAllByRole('listitem');
+    fireEvent.click(within(first).getByRole('button', { name: 'Закрыть ссылку' }));
+    fireEvent.click(within(first).getByRole('button', { name: 'Да, закрыть' }));
+    await waitFor(() => expect(plain(first.textContent)).toContain('· закрыта'));
+    expect(storedGroupLinks(EXAM)).toEqual([]);
+    await waitFor(() => expect(within(dialog).queryByRole('heading', { name: 'Вопрос дня' })).toBeNull());
   });
 
   it('keeps the focus inside; Esc closes and gives it back to the button', async () => {

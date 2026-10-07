@@ -14,6 +14,7 @@ import { COVERAGE_MARK, markSeed, type CoverageMarkKind, type SheetCoverage } fr
 import { Mark } from '../components/marks';
 import { useFrame } from '../components/exams/useFrame';
 import { currentStreak, isDateKey, localDateKey, shiftDateKey } from '../utils/streak';
+import { EXAM_HORIZON_DAYS, pickExam } from '../lib/exams/leading';
 import { pluralRu } from '../components/conversation/visuals';
 import type { StudySession } from '../types';
 import '../styles/paper.css';
@@ -24,6 +25,8 @@ import { countBucket, track } from '../lib/telemetry';
 import { useSheetToday } from '../components/exams/sheet/sheetCount';
 import { counterLabel, erasableLine, nextErasableLine } from '../components/exams/sheet/copy';
 import type { ErasableNow } from '../lib/exams/cheatSheet';
+import DailyReminder from '../components/reminders/DailyReminder';
+import QuestionOfDay from '../components/exams/share/QuestionOfDay';
 
 /**
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
@@ -43,8 +46,8 @@ import type { ErasableNow } from '../lib/exams/cheatSheet';
  * on an empty account).
  */
 
-/** Exams dated from today up to this many days ahead lead «Сегодня». */
-export const EXAM_HORIZON_DAYS = 21;
+/** The leading exam (lib/exams/leading.ts): «Профиль» names the same one for the daily reminder. */
+export { EXAM_HORIZON_DAYS, pickExam };
 const CHART_DAYS = 14;
 const RECENT_LECTURES = 4;
 /** Due cards read for the stack and the lecture names (the count itself is exact). */
@@ -203,20 +206,6 @@ function toQuestion(raw: unknown): TodayQuestion | null {
     hash: typeof raw.question_hash === 'string' && raw.question_hash !== '' ? raw.question_hash : null,
     coverage: typeof raw.coverage === 'string' && COVERAGES.has(raw.coverage) ? (raw.coverage as SheetCoverage) : 'unmapped',
   };
-}
-
-/**
- * The exam «Сегодня» leads with: the nearest one dated from today up to three weeks ahead; without
- * one, the newest exam that has no date (a list pasted without a date is still the student's exam).
- */
-export function pickExam(exams: Array<Pick<ExamRow, 'id' | 'exam_date' | 'created_at'>>, today: string = localDateKey()): string | null {
-  const horizon = shiftDateKey(today, EXAM_HORIZON_DAYS);
-  const near = exams
-    .filter((exam) => isDateKey(exam.exam_date) && exam.exam_date >= today && exam.exam_date <= horizon)
-    .sort((a, b) => (a.exam_date! < b.exam_date! ? -1 : a.exam_date! > b.exam_date! ? 1 : a.created_at > b.created_at ? -1 : 1));
-  if (near.length > 0) return near[0].id;
-  const undated = exams.filter((exam) => !exam.exam_date).sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
-  return undated.length > 0 ? undated[0].id : null;
 }
 
 /** Whether the account has a lecture with text: one id at most, no text is transferred. */
@@ -1330,8 +1319,9 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
   const heading = examHeadingParts({ title: exam.title, kind: exam.kind, daysLeft: exam.daysLeft });
   const soon = exam.daysLeft !== null && exam.daysLeft <= 3;
   const drawWord = exam.layout.mode !== 'fixed' && exam.layout.per_ticket === 1 ? 'Тянуть вопрос' : 'Тянуть билет';
-  // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4), and right
-  // under it «Можно стереть: N вопросов · Ответить» (Сегодня-lite).
+  // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4), right under it
+  // «Можно стереть: N вопросов · Ответить» (Сегодня-lite), then the two ways back on another day: the student's
+  // own calendar («Напоминать каждый день») and, for the author of an open group link, «Скопировать вопрос дня».
   const sheet = useSheetToday(mapped ? exam.id : null, exam.examDate);
   const sheetCounts = sheet?.counts ?? null;
   const sheetLine = sheetCounts ? (
@@ -1349,6 +1339,10 @@ function ExamBlock({ exam, phone, lead }: { exam: TodayExam; phone: boolean; lea
     <>
       {sheetLine}
       <EraseLine examId={exam.id} erasable={sheet.erasable} />
+      <div className="td-back">
+        <DailyReminder variant="today" examId={exam.id} />
+        <QuestionOfDay examId={exam.id} examTitle={exam.title} questions={sheet.questions} from="today" />
+      </div>
     </>
   ) : null;
   const ready = Boolean(figure) || mapped || Boolean(sentence) || Boolean(note);
