@@ -1748,6 +1748,8 @@ async def run_mapping(job: MappingJob) -> AsyncIterator[dict]:
             # Ни один вопрос не проверила модель: единицы возвращаются (в фоне — finally может
             # идти и после ухода клиента; фон ответа дожидается возврата).
             charge.refund_soon()
+        elif charge is not None:
+            charge.keep()  # итог списания: журнал вызовов пишет единицы, которые остались
         for task in job.tasks:
             if not task.done():
                 task.cancel()

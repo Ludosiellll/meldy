@@ -67,6 +67,9 @@ class Charges:
             def refund_soon(self):
                 charges.refunded.append((kind, units))
 
+            def keep(self):  # refund_on_failure: блок прошёл — единицы остаются
+                pass
+
         return Spent()
 
 

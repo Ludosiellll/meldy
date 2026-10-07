@@ -683,9 +683,10 @@ async def _build_rubric(job: RubricJob, lectures: ExamLectures | None = None) ->
             if stored is not None:
                 job.force = True  # испорченная строка кэша: собрать заново и перезаписать её
         # Новые пункты ответа стоят AI_COSTS["answerPoints"] (сохранённые — бесплатно). Списание здесь,
-        # в общей задаче: два одновременных запроса одного эталона платят один раз.
+        # в общей задаче: два одновременных запроса одного эталона платят один раз. Итог списания
+        # объявляет тот, кто получил эталон (keep или возврат в листе): по нему журнал пишет единицы.
         charge = await quota.reserve(job.token, "answerPoints", AI_COSTS["answerPoints"])
-        async with quota.refund_on_failure(charge):
+        async with quota.refund_on_failure(charge, keep=False):
             try:
                 rubric, model = await _rubric_from_model(selection, job.question_text, use_cache=not job.force)
             except AIError as exc:
@@ -754,6 +755,8 @@ async def oral_rubric(request: Request):
 
     flight = (flight_owner(user_id, token), job.question_hash, job.key, "force" if job.force else "build")
     built = await _single_flight(flight, lambda: _build_rubric(job))
+    if built.charge is not None:
+        built.charge.keep()  # эталон отдан: единица остаётся списанной
     return built.body
 
 

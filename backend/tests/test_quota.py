@@ -947,10 +947,110 @@ def test_every_real_call_is_logged_for_its_user_in_the_background(server, clean_
     run(go())
     logs = server.rpc("log_ai_call")
     assert len(logs) == 2
-    assert logs[0] == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.5-flash-lite",
-                       "p_ok": True, "p_ms": logs[0]["p_ms"]}
-    assert logs[1]["p_units"] == 0 and isinstance(logs[0]["p_ms"], int)
+    # Строка первого вызова ждала итога списания (его не объявили — drain_background пишет как есть) и
+    # ушла второй: единицы несёт она одна.
+    (carrying,) = [log for log in logs if log["p_units"]]
+    assert carrying == {"p_kind": "answerPoints", "p_units": 1, "p_provider": "gemini", "p_model": "gemini-3.5-flash-lite",
+                        "p_ok": True, "p_ms": carrying["p_ms"]}
+    assert sorted(log["p_units"] for log in logs) == [0, 1] and isinstance(carrying["p_ms"], int)
     assert all(token == "token-a" for fn, _, token in server.calls)
+
+
+def real_call(ok=True):
+    """Настоящий вызов модели, как о нём сообщает BaseAgent наблюдателям (журнал вызовов)."""
+    base._record_call("gemini", "test-model", ok, 7)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "units"),
+    [("refund", 0), ("refund_soon", 0), ("keep", 4), ("keep_share", 2), ("not announced", 4)],
+)
+def test_the_call_that_carries_units_logs_only_what_stayed_charged(server, clean_agent, outcome, units):
+    """ai_calls читают для экономики: единицы, которые вернулись, в журнале не остаются."""
+
+    async def go():
+        spent = await quota.reserve("token-a", "answerPoints", 4)
+        real_call()  # несёт единицы действия: ждёт итога списания
+        real_call()  # следующие — без единиц, пишутся сразу
+        if outcome == "refund":
+            await spent.refund()
+        elif outcome == "refund_soon":
+            spent.refund_soon()
+        elif outcome == "keep":
+            spent.keep()
+        elif outcome == "keep_share":
+            spent.keep_share(1, 2)  # отдана половина: 2 из 4 остаются, 2 возвращаются
+        await quota.drain_background()
+
+    run(go())
+    logs = server.rpc("log_ai_call")
+    assert sorted(log["p_units"] for log in logs) == sorted([units, 0])
+    assert server.used == units  # журнал и счётчик дня сходятся
+
+
+def test_a_held_line_is_written_when_its_wait_ends_and_after_the_outcome_at_once(server, clean_agent, monkeypatch):
+    monkeypatch.setattr(quota, "LOG_HOLD_SECONDS", 0.05)
+
+    async def go():
+        spent = await quota.reserve("token-a", "answerPoints", 1)
+        real_call()
+        assert server.rpc("log_ai_call") == []  # ждёт итога
+        await asyncio.sleep(0.2)
+        waited = [log["p_units"] for log in server.rpc("log_ai_call")]
+        # Итог после записи строки журнал уже не меняет; новое действие ждёт своего итога заново.
+        await spent.refund()
+        again = await quota.reserve("token-a", "answerPoints", 1)
+        real_call()
+        again.keep()
+        await quota.drain_background()
+        return waited
+
+    assert run(go()) == [1]
+    assert [log["p_units"] for log in server.rpc("log_ai_call")] == [1, 1]
+
+
+def test_nothing_charged_logs_no_units(server, clean_agent, monkeypatch):
+    async def go(units):
+        await quota.reserve("token-a", "answerPoints", units)
+        real_call()
+        await quota.drain_background()
+
+    monkeypatch.setenv("AI_QUOTA_DISABLED", "1")  # не списывать — и в журнале 0
+    run(go(1))
+    monkeypatch.delenv("AI_QUOTA_DISABLED")
+    server.fail = 503  # проверка лимита недоступна: действие разрешено без списания
+    run(go(1))
+    assert [log["p_units"] for log in server.rpc("log_ai_call")] == [0, 0]
+
+
+def test_answer_points_whose_unit_went_back_are_logged_without_it(oral, clean_agent):
+    """Живой прогон: ai_calls писал единицу за пункты ответа, чьи цитаты не прошли проверку и единица вернулась."""
+    import main
+    from fastapi.testclient import TestClient
+    from test_oral_api import econ_exam, econ_points, rubric_answer
+
+    exam_id, question_id, _ = econ_exam(oral.fake)
+    invented = econ_points()
+    for point in invented[1:]:
+        point["source_quote"] = "Такой фразы в лекции нет совсем, модель её придумала"
+
+    def calling(answer):
+        def item(system, text, kwargs):
+            real_call()
+            return answer
+        return item
+
+    body = {"exam_id": exam_id, "question_id": question_id}
+    with TestClient(main.app, headers={"Authorization": "Bearer token-a"}) as client:
+        oral.model.answer(calling(rubric_answer(invented)), calling(rubric_answer(invented[:2])))
+        assert client.post("/api/oral/rubric", json=body).status_code == 422  # два вызова, единица вернулась
+        oral.model.answer(calling(rubric_answer()))
+        assert client.post("/api/oral/rubric", json=body).status_code == 200  # один вызов, единица осталась
+        client.portal.call(quota.drain_background)
+    logs = oral.server.rpc("log_ai_call")
+    assert [log["p_kind"] for log in logs] == ["answerPoints"] * 3
+    assert sorted(log["p_units"] for log in logs) == [0, 0, AI_COSTS["answerPoints"]]
+    assert len(oral.server.rpc("refund_ai_units")) == 1 and oral.server.used == AI_COSTS["answerPoints"]
 
 
 def test_a_failed_call_is_logged_with_its_last_model_and_never_breaks_the_answer(server, clean_agent, monkeypatch):

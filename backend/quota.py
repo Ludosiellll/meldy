@@ -17,7 +17,12 @@ refund_ai_units возвращает единицы этого списания 
 провайдер, модель, успех, время. Здесь это уходит в log_ai_call токеном пользователя в
 фоне, с коротким таймаутом: ответ пользователю журнал не ждёт и не ломает. Токен и вид
 действия кладёт в contextvar middleware авторизации (вид — по пути запроса), charge()
-уточняет вид и единицы. Единицы в журнале — только у первого удачного вызова действия.
+уточняет вид и единицы. Единицы в журнале — только у первого удачного вызова действия, и
+ровно те, что остались списанными: строка этого вызова ждёт итога списания (keep, возврат,
+доля) и уходит с units минус возвращённое — пункты ответа, у которых цитаты не прошли
+проверку, или сверка, где модель ничего не проверила, пишутся с 0 (по таблице ai_calls
+считают экономику). Итог, который так и не объявлен (общая задача эталона, чей клиент ушёл),
+пишется через LOG_HOLD_SECONDS как есть; drain_background() пишет такие строки сразу.
 
 Аварийные выключатели: AI_QUOTA_DISABLED=1 — не списывать, AI_CALL_LOG_DISABLED=1 — не
 вести журнал. Тесты выключают оба (backend/tests/conftest.py), кроме своих.
@@ -62,6 +67,7 @@ __all__ = [
 AI_LIMIT_DETAIL = "Дневной лимит ИИ на сегодня исчерпан."
 QUOTA_TIMEOUT_SECONDS = 3.0
 LOG_TIMEOUT_SECONDS = 2.0
+LOG_HOLD_SECONDS = 600.0  # строка с единицами ждёт итога списания не дольше (страховка: итог объявляют все пути)
 KIND_MAX = 40
 PROVIDER_MAX = 20
 MODEL_MAX = 80
@@ -131,7 +137,12 @@ def _spawn(coro) -> Optional[asyncio.Task]:
 
 
 async def drain_background() -> None:
-    """Дождаться фоновых возвратов и записей журнала (тесты и остановка процесса)."""
+    """Дождаться фоновых возвратов и записей журнала (тесты и остановка процесса).
+
+    Строки журнала, которые ещё ждут итога списания, пишутся сразу — с единицами, списанными на сейчас.
+    """
+    for spent in list(_HELD_LOGS.values()):
+        spent._settle_log()
     while _BACKGROUND:
         await asyncio.gather(*list(_BACKGROUND), return_exceptions=True)
 
@@ -203,6 +214,8 @@ class _CallContext:
     kind: str
     units: int = 0
     units_logged: bool = False
+    # Списание действия (reserve): строка вызова с единицами ждёт его итога и пишет списанное.
+    charge: Optional["Charge"] = None
 
 
 _CALL_CONTEXT: contextvars.ContextVar[Optional[_CallContext]] = contextvars.ContextVar("meldy_ai_call", default=None)
@@ -233,9 +246,12 @@ def bind_request(request: Any) -> None:
         _CALL_CONTEXT.set(_CallContext(token=token, kind=kind_from_path(path)))
 
 
-def _bind_call(token: Optional[str], kind: str, units: int) -> None:
-    if token:
-        _CALL_CONTEXT.set(_CallContext(token=token, kind=kind, units=units))
+def _bind_call(token: Optional[str], kind: str, units: int) -> Optional[_CallContext]:
+    if not token:
+        return None
+    context = _CallContext(token=token, kind=kind, units=units)
+    _CALL_CONTEXT.set(context)
+    return context
 
 
 def _short(value: Any, limit: int) -> Optional[str]:
@@ -245,22 +261,33 @@ def _short(value: Any, limit: int) -> Optional[str]:
 
 
 def _on_model_call(record: dict) -> None:
-    """Наблюдатель BaseAgent: настоящий вызов модели → log_ai_call в фоне."""
+    """Наблюдатель BaseAgent: настоящий вызов модели → log_ai_call в фоне.
+
+    Первый удачный вызов действия несёт его единицы: столько, сколько списание оставит за собой.
+    Пока итог списания не известен, строка ждёт его (Charge.hold_log).
+    """
     context = _CALL_CONTEXT.get()
     if context is None or not call_log_enabled():
         return
-    units = 0
-    if record.get("ok") and context.units > 0 and not context.units_logged:
-        units = context.units
+    carries = bool(record.get("ok")) and context.units > 0 and not context.units_logged
+    if carries:
         context.units_logged = True
     payload = {
         "p_kind": context.kind,
-        "p_units": units,
+        "p_units": 0,
         "p_provider": _short(record.get("provider"), PROVIDER_MAX),
         "p_model": _short(record.get("model"), MODEL_MAX),
         "p_ok": bool(record.get("ok")),
         "p_ms": min(_count(record.get("ms")), 3_600_000),
     }
+    if carries:
+        spent = context.charge
+        if spent is None:
+            payload["p_units"] = context.units
+        elif spent.hold_log(context.token, payload):
+            return
+        else:
+            payload["p_units"] = spent.charged_units
     _spawn(_post_log(context.token, payload))
 
 
@@ -280,9 +307,17 @@ ai_base.add_call_observer(_on_model_call)
 # ── Списание и возврат ─────────────────────────────────────────────────────────
 
 
+# Списания, чья строка журнала ждёт итога: id(списания) → списание (Charge сравнивается по полям, в set не кладётся).
+_HELD_LOGS: dict[int, "Charge"] = {}
+
+
 @dataclass
 class Charge:
-    """Списание единиц за одно действие. units — сколько списано в базе (0: бесплатно, выключено или fail-open)."""
+    """Списание единиц за одно действие. units — сколько списано в базе (0: бесплатно, выключено или fail-open).
+
+    returned — сколько из них возвращено (всё при возврате, остаток при keep_share). Итог списания
+    (keep, keep_share, refund, refund_soon) пишет строку журнала, которая ждёт его (hold_log).
+    """
 
     kind: str
     units: int = 0
@@ -291,15 +326,54 @@ class Charge:
     status: Optional[dict] = None
     refunded: bool = False
     kept: bool = False
+    returned: int = 0
+    settled: bool = False
     _refund_task: Optional[asyncio.Task] = field(default=None, repr=False, compare=False)
+    _held_log: Optional[tuple[str, dict]] = field(default=None, repr=False, compare=False)
+    _hold_timer: Optional[asyncio.TimerHandle] = field(default=None, repr=False, compare=False)
 
     @property
     def reserved(self) -> bool:
         return self.units > 0 and bool(self.charge_id) and bool(self.token) and not self.refunded
 
+    @property
+    def charged_units(self) -> int:
+        """Сколько единиц этого действия осталось списанными."""
+        return max(0, self.units - self.returned)
+
+    def hold_log(self, token: str, payload: dict) -> bool:
+        """Строка журнала вызова, который несёт единицы действия, ждёт итога списания: True — ждёт.
+
+        Итог уже известен или вернуть единицы нельзя (нет списания, нет номера) — False: пишется сразу.
+        Без итога строка уходит через LOG_HOLD_SECONDS с тем, что списано к тому времени.
+        """
+        if self.settled or not self.reserved or self._held_log is not None:
+            return False
+        self._held_log = (token, payload)
+        _HELD_LOGS[id(self)] = self
+        try:
+            self._hold_timer = asyncio.get_running_loop().call_later(LOG_HOLD_SECONDS, self._settle_log)
+        except RuntimeError:
+            self._hold_timer = None  # нет цикла событий: строку напишет итог или drain_background
+        return True
+
+    def _settle_log(self) -> None:
+        """Итог списания известен: строка журнала, если ждала, уходит с единицами, которые остались списанными."""
+        self.settled = True
+        if self._hold_timer is not None:
+            self._hold_timer.cancel()
+            self._hold_timer = None
+        held, self._held_log = self._held_log, None
+        _HELD_LOGS.pop(id(self), None)
+        if held is not None:
+            token, payload = held
+            payload["p_units"] = self.charged_units
+            _spawn(_post_log(token, payload))
+
     def keep(self) -> None:
         """Результат действия отдан: единицы остаются списанными."""
         self.kept = True
+        self._settle_log()
 
     async def release_unkept(self) -> None:
         """Фон ответа-потока: вернуть единицы, если результат так и не ушёл (клиент ушёл до потока)."""
@@ -317,6 +391,8 @@ class Charge:
         if not self.reserved:
             return
         self.refunded = True
+        self.returned = self.units
+        self._settle_log()
         await self._send_refund()
 
     async def wait_refund(self) -> None:
@@ -336,6 +412,9 @@ class Charge:
         self._refund_task = _spawn(self._send_refund())
         if self._refund_task is None:
             self.refunded = False  # нет цикла событий: вернёт следующий refund()
+            return
+        self.returned = self.units
+        self._settle_log()
 
     def keep_share(self, given: int, total: int) -> None:
         """Отдана часть результата (given из total частей): её доля единиц (с округлением вверх)
@@ -343,12 +422,13 @@ class Charge:
         не возвращают."""
         given, total = _count(given), _count(total)
         self.kept = True
-        if total <= 0 or given >= total:
-            return
-        back = self.units - math.ceil(self.units * given / total)
-        if back <= 0 or not self.reserved or self._refund_task is not None:
-            return
-        self._refund_task = _spawn(self._send_refund(back))
+        if total > 0 and given < total:
+            back = self.units - math.ceil(self.units * given / total)
+            if back > 0 and self.reserved and self._refund_task is None:
+                self._refund_task = _spawn(self._send_refund(back))
+                if self._refund_task is not None:
+                    self.returned = back
+        self._settle_log()
 
     async def _send_refund(self, units: Optional[int] = None) -> None:
         args = {"p_units": self.units if units is None else units, "p_kind": self.kind, "p_charge": self.charge_id}
@@ -370,7 +450,14 @@ async def reserve(token: Optional[str], kind: str, units: int) -> Charge:
     if not isinstance(kind, str) or not _KIND_RE.match(kind):
         raise ValueError("invalid AI action kind")
     units = _count(units)
-    _bind_call(token, kind, units)
+    context = _bind_call(token, kind, units)
+    spent = await _consume(token, kind, units)
+    if context is not None:
+        context.charge = spent  # вызовы модели этого действия пишут в журнал то, что списано
+    return spent
+
+
+async def _consume(token: Optional[str], kind: str, units: int) -> Charge:
     if units == 0 or not quota_enabled():
         return Charge(kind=kind, token=token)
     if not token:
@@ -413,8 +500,12 @@ async def charge(request: Any, kind: str, units: int) -> Charge:
 
 
 @contextlib.asynccontextmanager
-async def refund_on_failure(spent: Charge):
-    """Любое исключение внутри блока (ошибка модели, таймаут, негодный ответ) возвращает единицы."""
+async def refund_on_failure(spent: Charge, *, keep: bool = True):
+    """Любое исключение внутри блока (ошибка модели, таймаут, негодный ответ) возвращает единицы.
+
+    Блок прошёл без исключения — результат есть, единицы остаются (keep). keep=False — итог объявит
+    вызывающий: общая задача эталона, чьи пункты лист ещё может вернуть, если они не сохранились.
+    """
     try:
         yield spent
     except asyncio.CancelledError:
@@ -423,6 +514,8 @@ async def refund_on_failure(spent: Charge):
     except BaseException:
         await spent.refund()
         raise
+    if keep:
+        spent.keep()
 
 
 class ChargeGroup:
