@@ -6,7 +6,7 @@ import { digitsWidth, textWidth } from './textMetrics';
 
 /**
  * A question number with its readiness mark, as on the exam sheet: a ring (подтверждено), a line
- * under it (засчитано, не подтверждено), a wavy line (не засчитано), nothing (не проверялось).
+ * under it (названо достаточно, не подтверждено), a wavy line (названо недостаточно), nothing (не проверялось).
  * Its box is computed from the digits (Onest 500 tabular figures), so a card with ten numbers does not
  * measure ten elements. The mark is aria-hidden: say what it means next to it in words.
  */

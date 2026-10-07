@@ -143,7 +143,7 @@ export const REVIEW_COLUMNS: ReviewColumn[] = [
 
 /** Notes floating around the readiness grid. */
 export const READY_NOTES = [
-  { text: 'Билет 7 — засчитано', tone: 'green', x: 330, y: 500 },
+  { text: 'Вопрос 7 — подтверждён', tone: 'green', x: 330, y: 500 },
   { text: '12 карточек на сегодня', tone: 'blue', x: 1590, y: 450 },
   { text: 'Пункт 1 — в повторение', tone: 'yellow', x: 350, y: 800 },
   { text: 'Вопрос 14 — разобран', tone: 'sky', x: 1580, y: 790 },

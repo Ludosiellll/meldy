@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import type { EvidenceItem, ExamQuestion, NearestItem } from '../../api/exams';
 import type { LearningEvent } from '../../api/learning';
 import { compareEventTime, questionState, type QuestionState } from '../../lib/learning/readiness';
-import { formatShortDay, formatShortMoment, fragmentNumber, GRADE_WORDS } from '../../lib/exams/format';
+import { formatShortDay, formatShortMoment, fragmentNumber } from '../../lib/exams/format';
 import { normalizeForMatch } from '../conversation/visuals';
 import { splitFragmentHeading } from '../../utils/fragmentText';
 import { PencilUnder, seedFrom } from '../marks';
@@ -84,7 +84,7 @@ function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount
       if (question.coverage_reason === REASON_NO_SUPPORT) {
         return {
           title: 'Нет фрагмента, который подтверждает ответ',
-          lead: ['Похожие места есть, но без ссылки на конкретный фрагмент засчитать нельзя.'],
+          lead: ['Похожие места есть, но без ссылки на конкретный фрагмент вопрос не считается найденным.'],
         };
       }
       if (question.coverage_reason === REASON_NO_OVERLAP) {
@@ -160,43 +160,41 @@ function Excerpt({ item, matched = [], seedKey }: { item: EvidenceItem; matched?
   );
 }
 
-function gradeOf(event: LearningEvent): number | null {
-  const value = event.payload?.grade;
-  const grade = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
-  return Number.isInteger(grade) && grade >= 2 && grade <= 5 ? grade : null;
-}
-
-/** «7 окт. · 4 · хорошо» */
+/**
+ * «7 окт., 14:02 · названо достаточно» — one answer in «Ответы», its protocol a click away. No grade
+ * (Ф1): whether the answer named enough of the points (the readiness rule's passed answer) or not.
+ */
 export function attemptLabel(event: LearningEvent): string {
-  const grade = gradeOf(event);
-  const day = formatShortDay(event.local_date) || formatShortDay(event.created_at.slice(0, 10));
-  return grade === null ? `${day} · без оценки` : `${day} · ${grade} · ${GRADE_WORDS[grade]}`;
+  const when = formatShortMoment(event.created_at) || formatShortDay(event.local_date);
+  if (event.correct === true) return `${when} · названо достаточно`;
+  if (event.correct === false) return `${when} · названо недостаточно`;
+  return when;
 }
 
 /**
- * Where the question stands by the rule «подтверждено» (Jury_Check items 3 and 6):
- * - confirmed: «Подтверждено 3 октября — 2 дня назад.» counted from the last засчитанный answer (the
+ * Where the question stands by the rule «подтверждено» (Jury_Check items 3 and 6), with no grade and
+ * no «засчитано» (Ф1):
+ * - confirmed: «Подтверждено 3 октября — 2 дня назад.» counted from the last passed answer (the
  *   moment the 14-day rule uses), «Подтверждено 16 дней назад — пора проверить.» when it is stale;
- * - once: «Засчитано 3 окт., 14:02. Подтвердит засчитанный ответ на другой день, не раньше 4 окт., 10:02.»;
- * - not_passed: «Последний ответ 3 окт. — «удовлетворительно», не засчитано. Серия начнётся заново
- *   со следующего засчитанного ответа.»
+ * - once: «Ответ 3 окт., 14:02 — названо достаточно. Подтвердит такой же ответ на другой день, не
+ *   раньше 4 окт., 10:02.»;
+ * - not_passed: «Последний ответ 3 окт. — названо недостаточно. Серия начнётся заново со следующего
+ *   ответа, где названо достаточно.»
  * Null for a question that has no graded answer.
  */
 export function readinessLine(state: QuestionState, answers: LearningEvent[], now: Date = new Date()): string | null {
   if (state.readiness === 'confirmed') return confirmedAgeSentence(state, now);
   if (state.readiness === 'once') {
-    const passed = state.seriesStartAt ? `Засчитано ${formatShortMoment(state.seriesStartAt, now)}.` : 'Засчитано.';
-    if (state.awaiting) return `${passed} Засчитанный ответ сейчас подтвердит вопрос.`;
+    const passed = state.seriesStartAt ? `Ответ ${formatShortMoment(state.seriesStartAt, now)} — названо достаточно.` : 'Названо достаточно.';
+    if (state.awaiting) return `${passed} Такой же ответ сейчас подтвердит вопрос.`;
     const from = formatShortMoment(state.confirmableFrom, now);
-    return `${passed} Подтвердит засчитанный ответ на другой день${from ? `, не раньше ${from}` : ''}.`;
+    return `${passed} Подтвердит такой же ответ на другой день${from ? `, не раньше ${from}` : ''}.`;
   }
   if (state.readiness === 'not_passed') {
     const failed = answers.filter((event) => event.kind === 'exam_answer' && event.correct === false).sort(compareEventTime);
     const last = failed[failed.length - 1];
-    const grade = last ? gradeOf(last) : null;
     const day = last ? formatShortDay(last.local_date, now) : '';
-    const head = grade !== null ? `Последний ответ${day ? ` ${day}` : ''} — «${GRADE_WORDS[grade]}», не засчитано.` : 'Последний ответ не засчитан.';
-    return `${head} Серия начнётся заново со следующего засчитанного ответа.`;
+    return `Последний ответ${day ? ` ${day}` : ''} — названо недостаточно. Серия начнётся заново со следующего ответа, где названо достаточно.`;
   }
   return null;
 }

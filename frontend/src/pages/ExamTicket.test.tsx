@@ -5,6 +5,8 @@ import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
 import { CHOSE_SERVER_NOTICE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE } from './ExamTicket';
+import { SCALE_NOTE } from '../components/oral/OralProtocol';
+import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown as ReturnType<typeof import('../lib/oral/testing/fakeSupabase').createFakeSupabase>['client'],
@@ -590,16 +592,16 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     expect(fetchMock.mock.calls.length).toBe(requests);
 
-    // The memo's stage example: «Не знаю» on the follow-up about a missing main point is a 3,
-    // (2 + 2 + 1 + 0 + 1) / 9 = 67, not counted towards readiness (Jury_Check item 3).
-    expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
+    // The memo's stage example: «Не знаю» on the follow-up about a missing main point. Its grade, a 3
+    // ((2 + 2 + 1 + 0 + 1) / 9 = 67, capped), goes to the save only (Ф1): the screen says what was named.
+    expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Назвали сами 2 из 4 главных');
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
-    expect(screen.getByText('В готовность не засчитано')).toBeInTheDocument();
-    expect(container.querySelector('svg[data-mark="oval"]')).toBeNull();
-    expect(container.textContent).not.toMatch(/[Зз]ачтено/);
+    expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Итог' })).toBeInTheDocument();
+    expect(container.querySelector('svg[data-mark="oval"], .or-stamp')).toBeNull();
+    expect(container.textContent).not.toMatch(/[Зз]ачтено|[Зз]асчитан|Оценка|удовлетвор|хорошо ·/);
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 3')).toBeInTheDocument();
-    expect(screen.getByText('Здесь оценку ограничил пункт 4: на вопрос экзаменатора о нём не было верного ответа.')).toBeInTheDocument();
+    expect(container.querySelector('.or-how')?.textContent).not.toMatch(/из 100|→|оценк/);
     expect(screen.getByText('Пропущенный пункт стал карточкой — она вернётся в повторении завтра.')).toBeInTheDocument();
     expect(container.querySelector('.or-extra')?.textContent).toContain('ответ: не знаю.');
 
@@ -705,6 +707,43 @@ describe('ExamTicket: answering by text', () => {
     await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}?view=sheet`));
   });
 
+  it('refuses a pasted ready text in the answer and in the reply to the examiner, says why, and lets a term in («Чистый ответ», Н7)', async () => {
+    const READY = 'Обучение сети — это подбор весов, которые минимизируют функцию потерь на обучающей выборке.';
+    const paste = (target: HTMLElement, text: string) => fireEvent.paste(target, { clipboardData: { getData: () => text } });
+    const drop = (target: HTMLElement, text: string) => fireEvent.drop(target, { dataTransfer: { getData: () => text } });
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    const field = screen.getByRole('textbox');
+    // More than 8 words: the paste is cancelled, nothing goes in, and the line under the field says why.
+    expect(paste(field, READY)).toBe(false);
+    expect(field).toHaveValue('');
+    expect(screen.getByText(PASTE_REFUSED)).toHaveAttribute('role', 'status');
+    expect(field).toHaveAccessibleDescription(PASTE_REFUSED);
+    // Typing by hand takes the line away; a term (up to 8 words) is pasted as usual.
+    typeAnswer('Обучение сети');
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    expect(paste(field, 'функция потерь')).toBe(true);
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    // Dropped text is the same as pasted; one's own words moved inside the field are not.
+    expect(drop(field, READY)).toBe(false);
+    expect(screen.getByText(PASTE_REFUSED)).toBeInTheDocument();
+    fireEvent.dragStart(field);
+    expect(drop(field, READY)).toBe(true);
+
+    // The reply to the examiner's question: the same rule.
+    typeAnswer(DEMO_ANSWER);
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    const reply = await screen.findByRole('textbox', { name: 'Ответ на вопрос экзаменатора' });
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    expect(paste(reply, READY)).toBe(false);
+    expect(reply).toHaveValue('');
+    expect(reply).toHaveAccessibleDescription(PASTE_REFUSED);
+    fireEvent.change(reply, { target: { value: 'Будут колебания' } });
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+  });
+
   it('switches to the point the model names when the browser’s candidate was covered', async () => {
     seedDatabase();
     api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'wrong', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: 'p2' }));
@@ -739,8 +778,8 @@ describe('ExamTicket: answering by text', () => {
   });
 
   it.each([
-    ['Если взять слишком большую скорость обучения', 'missing', 'по ключевым словам не засчитан'],
-    ['Будут колебания, и сеть может не сойтись', 'partial', 'по ключевым словам засчитан частично'],
+    ['Если взять слишком большую скорость обучения', 'missing', 'по ключевым словам пункт не назван'],
+    ['Будут колебания, и сеть может не сойтись', 'partial', 'по ключевым словам пункт упомянут'],
   ])('decides «%s» in the browser when the follow-up check fails → %s, and says so', async (answer, status, verdict) => {
     const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
     seedDatabase({ rpc });
@@ -779,7 +818,7 @@ describe('ExamTicket: answering by text', () => {
       await vi.advanceTimersByTimeAsync(2600);
     });
     await screen.findByText(/Сохранено в историю и/);
-    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам засчитан частично.');
+    expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам пункт упомянут.');
   });
 
   it('keeps an answer whose evaluation failed: no grade, no save, no charge, and the previous protocol', async () => {
@@ -811,9 +850,8 @@ describe('ExamTicket: answering by text', () => {
     typeAnswer(FULL_ANSWER);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByText('Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.')).toBeInTheDocument();
-    expect(screen.queryByText('Оценка')).toBeNull();
-    expect(screen.queryByText('Засчитано')).toBeNull();
-    expect(screen.queryByText('В готовность не засчитано')).toBeNull();
+    expect(document.querySelector('.or-sum, .or-ph-sheet')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/[Зз]асчитан|Оценк/);
     expect(screen.getByText('Предварительно: по ключевым словам')).toBeInTheDocument();
     expect(rpc).not.toHaveBeenCalled();
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
@@ -828,12 +866,12 @@ describe('ExamTicket: answering by text', () => {
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem('meldy_oral_attempt')).toBeNull();
-    // The previous answer has its own muted line under «Как считается»; its date leads to that protocol,
-    // its grade is in words (redesign critique 4, round 2).
+    // The previous answer has its own muted line under «Как считается»; its date leads to that protocol
+    // (redesign critique 4, round 2), with no grade word (Ф1).
     const before = screen.getByRole('link', { name: /^Протокол прошлого ответа, 6\sокт\.$/ });
     expect(before).toHaveAttribute('href', `/exams/${EXAM}/ticket?session=${PREVIOUS_SESSION}`);
     expect(before.textContent?.replace(/\s/g, ' ')).toBe('6 окт.');
-    expect(before.closest('.or-prev-line')?.textContent?.replace(/\s/g, ' ')).toBe('Прошлый ответ, 6 окт.: «хорошо».');
+    expect(before.closest('.or-prev-line')?.textContent?.replace(/\s/g, ' ')).toBe('Прошлый ответ, 6 окт.');
     expect(before.closest('.or-how-row')).toBeNull();
   });
 
@@ -880,12 +918,14 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     expect(await screen.findByText(/Результат не сохранён/)).toBeInTheDocument();
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
-    // Not saved means not counted: no «Засчитано» / «не засчитано» stamp yet (jury review).
-    expect(document.querySelector('.or-stamp')).toBeNull();
+    // Not saved means nothing on the cheat sheet: the journal is not even read for its line yet.
+    expect(document.querySelector('.or-ph-sheet, .or-stamp')).toBeNull();
+    expect(mocks.fetchSheetEvents).not.toHaveBeenCalled();
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
-    expect(document.querySelector('.or-stamp')).not.toBeNull();
+    await waitFor(() => expect(mocks.fetchSheetEvents).toHaveBeenCalledWith([HASH]));
+    expect(document.querySelector('.or-stamp')).toBeNull();
     const ids = rpc.mock.calls.map((call) => (call as unknown as [string, { p_attempt: { attempt_id: string } }])[1].p_attempt.attempt_id);
     expect(ids).toHaveLength(2);
     expect(ids[0]).toBe(ids[1]);
@@ -1237,7 +1277,7 @@ describe('ExamTicket: answering aloud', () => {
     const followupCheck = callsTo('/api/oral/check').map(bodyOf).find((body) => body.only === 'p4');
     expect(followupCheck).toMatchObject({ transcript: 'Будут колебания', followup_question: Q4 });
     // The check answered: its verdict is given as is.
-    expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «Будут колебания», засчитан частично.`);
+    expect(container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${Q4}» — ответ: «Будут колебания», пункт упомянут.`);
   });
 
   it('stages peak 2: one secondary count line, the question shows, the voice comes 300 ms later (redesign critique 3, round 2; Jury_Check 7, 9)', async () => {
@@ -1617,10 +1657,12 @@ describe('ExamTicket: a saved protocol, read only', () => {
     seedDatabase({ rpc, sessions: [sessionRow] });
     const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
     expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
-    // A 4 given with «не знаю» before formula v2: shown as saved, with the rule of that day.
-    expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
-    expect(screen.getByText('Засчитано')).toBeInTheDocument();
-    expect(screen.getByText('Этот ответ оценён по правилу, которое действовало в день ответа: без потолка за главный пункт, не восстановленный на вопросе экзаменатора.')).toBeInTheDocument();
+    // A 4 saved with «не знаю» before formula v2: the grade is not shown (Ф1), only what was named.
+    expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+    expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/[Зз]асчитан|Оценк|хорошо ·|правилу, которое действовало/);
+    // A saved protocol read later does not know what it did to the sheet then: no line under the date.
+    expect(container.querySelector('.or-ph-sheet, .or-stamp')).toBeNull();
     for (const point of DEMO_RUBRIC.points) expect(screen.getByText(point.title)).toBeInTheDocument();
     expect(container.querySelector('.or-extra')?.textContent).toContain('ответ: не знаю.');
     expect(container.querySelector('[data-point="p1"] .or-q2 [data-mark="under"]')).not.toBeNull();
@@ -1712,6 +1754,11 @@ describe('ExamTicket: a ticket of two questions', () => {
   });
 });
 
+/** The result's line («Назвали сами 2 из 4 главных · …») as plain text. */
+function summaryText(): string | undefined {
+  return document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ');
+}
+
 describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
   beforeEach(() => {
     ttsFailing.add('Так…');
@@ -1747,12 +1794,12 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       await answerAndGetAsked();
       await answerFollowup('Веса станут меньше');
       await screen.findByText(/Сохранено в историю и/);
-      expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
-      expect(screen.getByText('В готовность не засчитано')).toBeInTheDocument();
+      // The grade goes to the save (record_oral_attempt requires it); the screen says what was named.
+      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
       expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 3, followup: { status: 'wrong' } });
     });
 
-    it('gives a partial answer to it (2 + 2 + 1 + 0,5 + 1) / 9 = 72 → «4 · хорошо», «Засчитано»', async () => {
+    it('saves a partial answer to it as (2 + 2 + 1 + 0,5 + 1) / 9 = 72 → 4, and shows no grade', async () => {
       const rpc = vi.fn(async () => ({ data: SAVED, error: null }));
       seedDatabase({ rpc });
       api['/api/oral/check'].mockImplementation(async (body) =>
@@ -1761,11 +1808,12 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       const { container } = await answerAndGetAsked();
       await answerFollowup('Будут колебания');
       await screen.findByText(/Сохранено в историю и/);
-      expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
-      expect(screen.getByText('Засчитано')).toBeInTheDocument();
-      expect(container.querySelector('.or-stamp svg[data-mark="oval"]')).not.toBeNull();
+      // A partial reply to the question is no naming: «после вопроса» stays out.
+      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+      expect(container.querySelector('.or-stamp, svg[data-mark="oval"]')).toBeNull();
+      expect(container.textContent).not.toMatch(/[Зз]асчитан|Оценк|хорошо ·/);
       fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-      expect(screen.getByText('(2 + 2 + 1 + 0,5 + 1) / 9 = 72 из 100 → 4')).toBeInTheDocument();
+      expect(container.querySelector('.or-how')?.textContent).not.toMatch(/72|из 100|→/);
       expect(savedPayload(rpc)).toMatchObject({ score: 72, grade: 4 });
     });
 
@@ -1780,12 +1828,8 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
         await vi.advanceTimersByTimeAsync(2600);
       });
       await screen.findByText(/Сохранено в историю и/);
-      expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
-      expect(screen.getByText('Засчитано')).toBeInTheDocument();
-      expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам не засчитан');
-      fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-      expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 4')).toBeInTheDocument();
-      expect(screen.getByText('Ответ на вопрос экзаменатора проверен только по ключевым словам, поэтому этот потолок здесь не применён.')).toBeInTheDocument();
+      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
+      expect(container.querySelector('.or-extra')?.textContent).toContain('по ключевым словам пункт не назван');
       expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 4, followup: { status: 'missing' } });
     });
 
@@ -1817,8 +1861,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       // Silence again: the follow-up is not answered.
       fireEvent.click(await screen.findByRole('button', { name: 'Готово' }));
       await screen.findByText(/Сохранено в историю и/);
-      expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
-      expect(screen.getByText('В готовность не засчитано')).toBeInTheDocument();
+      expect(summaryText()).toBe('Назвали сами 2 из 4 главных');
       expect(savedPayload(rpc)).toMatchObject({ score: 67, grade: 3, followup: { status: 'missing' } });
     });
   });

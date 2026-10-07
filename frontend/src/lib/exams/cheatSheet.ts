@@ -880,3 +880,60 @@ export function sheetHistory(
     return { day: localDayOf(at), at, left: sheet.counts.left, total: sheet.counts.total };
   });
 }
+
+// ------------------------------------------------------------------ what an answer can erase now («Сегодня»)
+
+/**
+ * The moment from which naming the line in an answer erases it (ms), read off the line's own state:
+ * - rubbed: its `erasableFrom` (the other day and the 20 hours of the rule, and not today after a peek);
+ * - due: now — the naming is its check — unless the line was uncovered today (a naming after a peek
+ *   does not count), then the next local midnight;
+ * - erased: the moment it becomes due (`dueAt`);
+ * - fresh, missed, returned: null — a naming only rubs such a line, it erases nothing yet.
+ */
+export function erasableAt(status: LineStatus, now: Date | number = new Date()): number | null {
+  const at = timeOf(now);
+  const moment = (iso: string | null): number | null => {
+    const ms = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(ms) ? ms : null;
+  };
+  switch (status.state) {
+    case 'rubbed':
+      return moment(status.erasableFrom);
+    case 'due':
+      return status.peekedToday ? midnightAfter(localDayOf(at)) : Math.min(moment(status.dueAt) ?? at, at);
+    case 'erased':
+      return moment(status.dueAt);
+    default:
+      return null;
+  }
+}
+
+export interface ErasableNow {
+  /** Questions (ids, in the sheet's order) with at least one line an answer erases now. */
+  questions: string[];
+  /** The earliest later moment an answer erases a line of the sheet (ISO); null when no line waits for one. */
+  next: string | null;
+}
+
+/**
+ * «Можно стереть: N вопросов» on «Сегодня» and the draw «Ждут подтверждения» (Сегодня-lite): the questions
+ * where naming a point now erases its line — a rubbed line whose moment has come, or a line due for its
+ * check (erasableAt) — and when the next such moment comes for the rest of the sheet.
+ */
+export function erasableNow(sheet: Sheet, now: Date | number = new Date()): ErasableNow {
+  const at = timeOf(now);
+  const questions: string[] = [];
+  let next: number | null = null;
+  for (const block of sheet.blocks) {
+    let ready = false;
+    for (const line of block.lines) {
+      const from = erasableAt(line.status, at);
+      if (from === null) continue;
+      if (from <= at) ready = true;
+      else if (next === null || from < next) next = from;
+    }
+    if (ready && !questions.includes(block.questionId)) questions.push(block.questionId);
+  }
+  return { questions, next: next === null ? null : new Date(next).toISOString() };
+}

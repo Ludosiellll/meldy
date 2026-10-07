@@ -8,7 +8,7 @@
  * - The examiner's follow-up is chosen by followup.ts: the browser's candidate (the first main point
  *   with an explicit miss), confirmed or changed by the key-word statuses in place of the quick check —
  *   main points first, then the others (chooseFollowup, §7.5).
- * - The answer to the follow-up: «не знаю» (said, typed or the button) is «не засчитан»; anything else
+ * - The answer to the follow-up: «не знаю» (said, typed or the button) does not name the point; anything else
  *   gets the browser's key-word rule (followupFallback, the one a real ticket uses when the check does
  *   not answer in time), labelled «по ключевым словам» in the protocol.
  * - The grade is oralGrade.gradeAnswer, the app's formula.

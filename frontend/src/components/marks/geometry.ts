@@ -11,8 +11,9 @@
  * - cup (an open lower half of an ellipse): «частично», a point only mentioned;
  * - dash (the boldest mark, 3.4): «нет ни в одной лекции», a point not named;
  * - cross: said wrong; dot: being checked now;
- * - ring / under / wave around a question number: confirmed / засчитано, не подтверждено / не засчитано;
- * - under (per line of words): the words that matched; oval: «Засчитано»;
+ * - ring / under / wave around a question number: подтверждено / названо достаточно, не подтверждено /
+ *   названо недостаточно;
+ * - under (per line of words): the words that matched; oval: a word in a pencil oval (the reels' stamp);
  * - strike: a figure crossed out by hand — one rising diagonal across the whole figure, past both
  *   ends («60 %» of peak 1). Never a horizontal mid-height line (it turns 0 into «θ») and never a
  *   short slash (it turns 0 into «ø»);

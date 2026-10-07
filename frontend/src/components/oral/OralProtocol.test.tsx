@@ -2,23 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import {
   ASKED_SCROLL_MS,
-  CAP_SKIPPED_SENTENCE,
-  HowGraded,
-  OLD_RULE_NOTE,
-  ProtocolGrade,
+  HowCounted,
+  ProtocolResult,
   ProtocolSheet,
   ReviewCard,
-  SAVED_GRADE_NOTE,
+  SCALE_NOTE,
   keywordNote,
   lectureMentions,
   livePoints,
-  stampFor,
-  storedGrade,
   storedPoints,
   type ProtocolFollowup,
   type ProtocolPoint,
 } from './OralProtocol';
-import { gradeAnswer } from '../../lib/oral/oralGrade';
 import { DEMO_RUBRIC } from '../../lib/oral/testing/fixtures';
 import type { Evaluation } from '../../lib/oral/oralApi';
 import type { StoredProtocol } from '../../lib/oral/ticketData';
@@ -67,7 +62,7 @@ describe('<ProtocolSheet>', () => {
   it('shows every point with its title, status, «Вы» and the lecture', () => {
     stubReducedMotion(false);
     const { container } = render(
-      <ProtocolSheet heading="Билет 12, вопрос 1 · ответ 3 октября, 14:12" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" />,
+      <ProtocolSheet heading="Билет 12, вопрос 1 · ответ 3 октября, 14:12" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} seed="attempt-1" />,
     );
     for (const point of DEMO_RUBRIC.points) expect(screen.getByText(point.title)).toBeInTheDocument();
     const p1 = container.querySelector('[data-point="p1"]')!;
@@ -112,7 +107,7 @@ describe('<ProtocolSheet>', () => {
     };
     const allCovered: Evaluation = { ...evaluation, points: evaluation.points.map((point) => ({ ...point, status: 'covered' as const })), errors: [] };
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(twoLectures, allCovered)} followup={null} stamp="passed" seed="a" />,
+      <ProtocolSheet heading="h" points={livePoints(twoLectures, allCovered)} followup={null} seed="a" />,
     );
     const label = (id: string) =>
       Array.from(container.querySelectorAll(`[data-point="${id}"] .or-q2-label`)).map((node) => node.textContent ?? '');
@@ -128,59 +123,33 @@ describe('<ProtocolSheet>', () => {
       ],
       errors: [],
     } as unknown as StoredProtocol;
-    const { container } = render(<ProtocolSheet heading="h" points={storedPoints(stored, {})} followup={null} stamp="none" seed="s" />);
+    const { container } = render(<ProtocolSheet heading="h" points={storedPoints(stored, {})} followup={null} seed="s" />);
     const labels = Array.from(container.querySelectorAll('[data-point="p1"] .or-q2-label')).map((node) => node.textContent?.replace(/\u00a0/g, ' '));
     expect(labels).toEqual(['Вы:', 'Лекция «Нейронные сети и глубокое обучение», фрагмент 4:']);
     expect(container.querySelector('[data-point="p2"]')?.textContent).toContain('Лекция, фрагмент 5:');
   });
 
-  it('draws «Засчитано» in the same pencil oval for the same attempt and another one for another attempt', () => {
-    stubReducedMotion(false);
+  it('says under the heading what the answer did to the cheat sheet, where the «Засчитано» stamp was (Ф1)', () => {
     const points = livePoints(DEMO_RUBRIC, evaluation);
-    const first = render(<ProtocolSheet heading="h" points={points} followup={null} stamp="passed" seed="attempt-1" />);
-    const oval = () => first.container.querySelector('svg[data-mark="oval"] path')!.getAttribute('d');
-    const d1 = oval();
-    first.rerender(<ProtocolSheet heading="h" points={points} followup={null} stamp="passed" seed="attempt-1" />);
-    expect(oval()).toBe(d1);
-    first.rerender(<ProtocolSheet heading="h" points={points} followup={null} stamp="passed" seed="attempt-2" />);
-    expect(oval()).not.toBe(d1);
-    expect(screen.getByText('Засчитано')).toBeInTheDocument();
-    expect(first.container.textContent).not.toMatch(/Зачтено/);
-  });
-
-  it('draws the oval in for a fresh answer and keeps it still under reduced motion', () => {
-    stubReducedMotion(false);
-    const points = livePoints(DEMO_RUBRIC, evaluation);
-    const { container, unmount } = render(<ProtocolSheet heading="h" points={points} followup={null} stamp="passed" seed="a" animate />);
-    expect(container.querySelector('svg[data-mark="oval"]')).toHaveAttribute('data-drawn', 'live');
-    unmount();
-    stubReducedMotion(true);
-    const still = render(<ProtocolSheet heading="h" points={points} followup={null} stamp="passed" seed="a" animate />);
-    expect(still.container.querySelector('svg[data-mark="oval"]')).toHaveAttribute('data-drawn', 'still');
-  });
-
-  it('stamps a 5 and a 4 «Засчитано» in the oval, a 3 and a 2 «В готовность не засчитано» without one (Jury_Check item 11)', () => {
-    expect([5, 4, 3, 2, null].map(stampFor)).toEqual(['passed', 'passed', 'not_passed', 'not_passed', 'none']);
-    for (const grade of [5, 4, 3, 2]) {
-      const { container, unmount } = render(
-        <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={null} stamp={stampFor(grade)} seed="a" />,
-      );
-      const stamp = container.querySelector('.or-stamp') as HTMLElement;
-      if (grade >= 4) {
-        expect(stamp.textContent).toBe('Засчитано');
-        expect(stamp.querySelector('svg[data-mark="oval"]')).not.toBeNull();
-      } else {
-        expect(stamp.textContent).toBe('В готовность не засчитано');
-        expect(container.querySelector('svg[data-mark="oval"]')).toBeNull();
-      }
-      expect(container.textContent).not.toMatch(/[Зз]ачтено/);
-      unmount();
-    }
+    const { container, rerender } = render(
+      <ProtocolSheet heading="h" points={points} followup={followup} sheetNote="На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась" seed="a" />,
+    );
+    const note = container.querySelector('.or-ph .or-ph-sheet') as HTMLElement;
+    expect(note.textContent).toBe('На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась');
+    // Right under the date, before the line about the asked point.
+    expect(container.querySelector('.or-ph-date')!.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No stamp, no oval, no verdict on the answer.
+    expect(container.querySelector('.or-stamp, svg[data-mark="oval"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/[Зз]асчитан|[Зз]ачтено|отлично|хорошо|удовлетвор/);
+    // Not known (not saved yet, a saved protocol read later): nothing in its place.
+    rerender(<ProtocolSheet heading="h" points={points} followup={followup} seed="a" />);
+    expect(container.querySelector('.or-ph-sheet')).toBeNull();
+    expect(container.querySelector('.or-ph')?.textContent).toBe('h');
   });
 
   it('marks every main point «главный пункт» at the start of its status line, and only those', () => {
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation, new Set(['p1', 'p2', 'p3', 'p5']))} followup={followup} stamp="not_passed" seed="a" />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation, new Set(['p1', 'p2', 'p3', 'p5']))} followup={followup} seed="a" />,
     );
     const lines = Object.fromEntries(
       DEMO_RUBRIC.points.map((point) => [point.id, container.querySelector(`[data-point="${point.id}"] .or-ppt-st`)?.textContent ?? '']),
@@ -197,22 +166,23 @@ describe('<ProtocolSheet>', () => {
     const points = livePoints(DEMO_RUBRIC, evaluation);
     const answer = 'Будут колебания, и сеть может не сойтись';
     const byKeywords = render(
-      <ProtocolSheet heading="h" points={points} followup={{ ...followup, answer, status: 'partial', judgedBy: 'keywords' }} stamp="passed" seed="a" />,
+      <ProtocolSheet heading="h" points={points} followup={{ ...followup, answer, status: 'partial', judgedBy: 'keywords' }} seed="a" />,
     );
     expect(byKeywords.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe(
-      `главный пункт · не назван; на вопрос экзаменатора — «${answer}», по ключевым словам засчитан частично`,
+      `главный пункт · не назван; на вопрос экзаменатора — «${answer}», по ключевым словам пункт упомянут`,
     );
     expect(byKeywords.container.querySelector('.or-extra')?.textContent).toBe(
-      `Дополнительный вопрос: «${followup.question}» — ответ: «${answer}», по ключевым словам засчитан частично.`,
+      `Дополнительный вопрос: «${followup.question}» — ответ: «${answer}», по ключевым словам пункт упомянут.`,
     );
     byKeywords.unmount();
 
-    const byCheck = render(<ProtocolSheet heading="h" points={points} followup={{ ...followup, answer, status: 'partial', judgedBy: 'check' }} stamp="passed" seed="a" />);
+    const byCheck = render(<ProtocolSheet heading="h" points={points} followup={{ ...followup, answer, status: 'partial', judgedBy: 'check' }} seed="a" />);
     expect(byCheck.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe(`главный пункт · не назван; на вопрос экзаменатора — «${answer}»`);
-    expect(byCheck.container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${followup.question}» — ответ: «${answer}», засчитан частично.`);
+    expect(byCheck.container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${followup.question}» — ответ: «${answer}», пункт упомянут.`);
+    expect(byCheck.container.textContent).not.toMatch(/засчитан/);
     byCheck.unmount();
 
-    const silent = render(<ProtocolSheet heading="h" points={points} followup={{ ...followup, answer: '', status: 'missing' }} stamp="passed" seed="a" />);
+    const silent = render(<ProtocolSheet heading="h" points={points} followup={{ ...followup, answer: '', status: 'missing' }} seed="a" />);
     expect(silent.container.querySelector('[data-point="p4"] .or-ppt-st')?.textContent).toBe('главный пункт · не назван; на вопрос экзаменатора ответа не прозвучало');
     expect(silent.container.querySelector('.or-extra')?.textContent).toBe(`Дополнительный вопрос: «${followup.question}» — ответа не прозвучало.`);
     expect(silent.container.textContent).not.toContain('«»');
@@ -220,7 +190,7 @@ describe('<ProtocolSheet>', () => {
 
   it('labels the browser’s own marks as preliminary when the evaluation failed', () => {
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, null, new Set(['p1', 'p2']))} followup={null} stamp="none" seed="a" preliminary />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, null, new Set(['p1', 'p2']))} followup={null} seed="a" preliminary />,
     );
     expect(screen.getByText('Предварительно: по ключевым словам')).toBeInTheDocument();
     // Named by key words only: the provisional pencil dot, never a tick before the check (Jury_Check item 7).
@@ -232,34 +202,53 @@ describe('<ProtocolSheet>', () => {
   });
 });
 
-describe('<ProtocolGrade>', () => {
-  it('shows the grade, the counts in a sentence and the formula on request', () => {
-    const result = gradeAnswer(
-      [
-        { id: 'p1', essential: true, status: 'covered' },
-        { id: 'p2', essential: true, status: 'covered' },
-        { id: 'p3', essential: true, status: 'partial' },
-        { id: 'p4', essential: true, status: 'missing' },
-        { id: 'p5', essential: false, status: 'covered' },
-      ],
-      { point_id: 'p4', status: 'missing' },
-    );
-    render(<ProtocolGrade result={result} previous="Прошлый ответ, 1 окт.: «удовлетворительно»." />);
-    // The memo's stage example: «не знаю» on the follow-up about a missing main point is a 3.
-    expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
-    // The long word is set smaller, on the digit's line.
-    expect(document.querySelector('.or-grade-word')).toHaveAttribute('data-long');
+describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
+  const points = livePoints(DEMO_RUBRIC, {
+    points: [
+      { id: 'p1', status: 'covered', student_quote: '', comment: '' },
+      { id: 'p2', status: 'covered', student_quote: '', comment: '' },
+      { id: 'p3', status: 'partial', student_quote: '', comment: '' },
+      { id: 'p4', status: 'missing', student_quote: '', comment: '' },
+      { id: 'p5', status: 'covered', student_quote: '', comment: '' },
+    ],
+    errors: [],
+    verdict: '',
+  });
+  const sum = () => document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ');
+
+  it('says what was named, the counts in a sentence, «Как считается» on request and who grades', () => {
+    render(<ProtocolResult points={points} followup={{ pointId: 'p4', status: 'missing' }} previous="Прошлый ответ, 1 окт." />);
+    // The memo's stage example: «не знаю» on the follow-up about a missing main point.
+    expect(sum()).toBe('Назвали сами 2 из 4 главных');
     expect(screen.getByText('Раскрыто 3 пункта из 5, один упомянут, один не назван.')).toBeInTheDocument();
-    expect(screen.queryByText(/\/ 9 = 67 из 100 → 3/)).toBeNull();
+    expect(screen.getByText(SCALE_NOTE)).toBeInTheDocument();
+    expect(SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.');
+    // «Итог» as the card's flag, not «Оценка».
+    expect(document.querySelector('.or-grade-label')?.textContent).toBe('Итог');
+    expect(document.querySelector('.or-how')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 3')).toBeInTheDocument();
-    expect(screen.getByText('Здесь оценку ограничил пункт 4: на вопрос экзаменатора о нём не было верного ответа.')).toBeInTheDocument();
-    expect(screen.getByText('Оценка тренировочная: по пунктам ответа из ваших лекций, а не по требованиям преподавателя.')).toBeInTheDocument();
-    // The previous answer is its own line under «Как считается», a grade in words (redesign critique 4, round 2).
+    expect(document.querySelector('.or-how')?.textContent).toContain('строку шпаргалки такой пункт не стирает');
+    // The previous answer is its own line under «Как считается» (redesign critique 4, round 2).
     const row = screen.getByRole('button', { name: 'Как считается' }).closest('.or-how-row') as HTMLElement;
     expect(row.textContent).toBe('Как считается');
-    expect(screen.getByText('Прошлый ответ, 1 окт.: «удовлетворительно».')).toHaveClass('or-prev-line');
-    expect(document.body.textContent).not.toMatch(/3 из 5/);
+    expect(screen.getByText('Прошлый ответ, 1 окт.')).toHaveClass('or-prev-line');
+    // Nothing of a grade: no digit, no word, no «Засчитано».
+    expect(document.body.textContent).not.toMatch(/Оценка|отлично|хорошо|удовлетвор|[Зз]асчитан|→ [2-5]/);
+  });
+
+  it('adds the point named after the examiner’s question and the errors, only when there are any', () => {
+    const wrong = points.map((point) => (point.id === 'p5' ? { ...point, status: 'wrong' as const } : point));
+    render(<ProtocolResult points={wrong} followup={{ pointId: 'p4', status: 'covered' }} />);
+    expect(sum()).toBe('Назвали сами 2 из 4 главных · после вопроса 1 · ошибок: 1');
+  });
+
+  it('says plainly when no point was judged, and lets the example put its own small lines', () => {
+    const unrated = points.map((point) => ({ ...point, status: 'unrated' as const }));
+    render(<ProtocolResult points={unrated} followup={null} fine={<p className="or-grade-fine">Своя строка.</p>} />);
+    expect(sum()).toBe('Ни один пункт не оценён.');
+    expect(document.querySelector('.or-grade-why')).toBeNull();
+    expect(screen.getByText('Своя строка.')).toBeInTheDocument();
+    expect(screen.queryByText(SCALE_NOTE)).toBeNull();
   });
 });
 
@@ -290,49 +279,21 @@ describe('a saved protocol', () => {
       source_label: `«Нейронные сети», фрагмент 1${index + 2}`,
       live: index !== 3,
     })),
-    followup: { point_id: 'p4', question: 'А что будет?', expected: 'Колебания.', status: 'missing', student_quote: 'не знаю', chosen_by: 'check' },
+    followup: { point_id: 'p4', question: 'А что будет?', expected: 'Колебания.', status: 'covered', student_quote: 'колебания', chosen_by: 'check' },
     errors: [],
     verdict: '',
   };
 
-  it('shows a grade that today’s formula gives exactly like a fresh protocol', () => {
-    const capped = storedGrade({ ...stored, score: 67, grade: 3 });
-    expect(capped.note).toBeNull();
-    expect(capped.result).toMatchObject({ score: 67, grade: 3, passed: false, cap: 'essential_unrecovered', capPoint: { id: 'p4', number: 4 } });
-    expect(capped.result.terms).toHaveLength(5);
+  it('counts the result from its saved points and follow-up, whatever grade was saved', () => {
     expect(storedPoints(stored, { p1: [['вес']] })[0]).toMatchObject({ fragments: 'фрагмент 12', anchors: [['вес']] });
-  });
-
-  it('shows a 4 given under the old rule with «не знаю» by the old rule, its formula and a note', () => {
-    const old = storedGrade(stored);
-    expect(old.result).toMatchObject({ score: 67, grade: 4, word: 'хорошо', passed: true, cap: null, capSkipped: null, capPoint: null });
-    expect(old.note).toBe(OLD_RULE_NOTE);
-    // Nothing heard after «Не расслышал ответ» is the same case.
-    const silent = storedGrade({ ...stored, followup: { ...stored.followup!, student_quote: '' } });
-    expect(silent.note).toBe(OLD_RULE_NOTE);
-    // Another answer to the question may have been judged by key words that day: a neutral note.
-    const said = storedGrade({ ...stored, followup: { ...stored.followup!, student_quote: 'колебания' } });
-    expect(said.result.grade).toBe(4);
-    expect(said.note).toBe(SAVED_GRADE_NOTE);
-    render(<ProtocolGrade result={old.result} note={old.note} />);
-    expect(screen.getByText('Оценка 4 · хорошо')).toBeInTheDocument();
-    expect(document.querySelector('.or-grade-word')).not.toHaveAttribute('data-long');
-    expect(screen.getByText(OLD_RULE_NOTE)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(screen.getByText('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 4')).toBeInTheDocument();
-    expect(screen.queryByText(CAP_SKIPPED_SENTENCE)).toBeNull();
-  });
-
-  it('shows a saved grade that matches neither reading as it was saved, without a formula line', () => {
-    const neither = storedGrade({ ...stored, score: 90, grade: 5 });
-    expect(neither.result).toMatchObject({ score: 90, grade: 5, word: 'отлично', passed: true, terms: [], cap: null });
-    expect(neither.note).toBe(SAVED_GRADE_NOTE);
-    render(<ProtocolGrade result={neither.result} note={neither.note} />);
-    expect(screen.getByText('Оценка 5 · отлично')).toBeInTheDocument();
-    expect(screen.getByText(SAVED_GRADE_NOTE)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(document.querySelector('.or-how-formula')).toBeNull();
-    expect(document.body.textContent).not.toMatch(/\(\)\s*\//);
+    for (const grade of [5, 4, 3, 2]) {
+      const { unmount } = render(
+        <ProtocolResult points={storedPoints({ ...stored, grade }, {})} followup={{ pointId: 'p4', status: 'covered' }} />,
+      );
+      expect(document.querySelector('.or-sum')?.textContent?.replace(/\u00a0/g, ' ')).toBe('Назвали сами 2 из 4 главных · после вопроса 1');
+      expect(document.body.textContent).not.toMatch(new RegExp(`Оценка|${grade} ·`));
+      unmount();
+    }
   });
 });
 
@@ -349,7 +310,7 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
   it('says above the fold which point the examiner asked about and why', () => {
     stubReducedMotion(false);
     const { container, rerender } = render(
-      <ProtocolSheet heading="Вопрос 12 · ответ 4 октября, 1:13" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" />,
+      <ProtocolSheet heading="Вопрос 12 · ответ 4 октября, 1:13" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} seed="attempt-1" />,
     );
     const note = container.querySelector('.or-asked') as HTMLElement;
     // The wording is kept; it is a button now (Jury_Check item 9).
@@ -363,20 +324,20 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
         heading="Вопрос 12 · ответ 4 октября, 1:13"
         points={livePoints(DEMO_RUBRIC, evaluation)}
         followup={{ ...followup, pointId: 'p5' }}
-        stamp="passed"
+       
         seed="attempt-1"
       />,
     );
     expect(container.querySelector('.or-asked')?.textContent).toBe('В пункте 5 ошибка — о ней спросил экзаменатор.');
 
-    rerender(<ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={null} stamp="passed" seed="attempt-1" />);
+    rerender(<ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={null} seed="attempt-1" />);
     expect(container.querySelector('.or-asked')).toBeNull();
   });
 
   it('names a lecture on its first quote only', () => {
     stubReducedMotion(false);
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} seed="attempt-1" />,
     );
     const labels = Array.from(container.querySelectorAll('.or-q2-label, .or-slip-cap'))
       .map((item) => item.textContent?.replace(/\s/g, ' ') ?? '')
@@ -386,10 +347,10 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
     expect(labels.slice(1)).toContain('Лекция, фрагмент 14');
   });
 
-  it('draws the point marks in lecture order and the oval after the last one', () => {
+  it('draws the point marks in lecture order', () => {
     stubReducedMotion(false);
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="passed" seed="attempt-1" animate />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} seed="attempt-1" animate />,
     );
     const delays = Array.from(container.querySelectorAll('.or-ppt > .or-pt-m svg'))
       .map((svg) => svg.querySelector('mask path, path.sf-mark-fade') as SVGElement | null)
@@ -397,76 +358,32 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
     expect(delays).toHaveLength(5);
     expect(delays[0]).toBe(0);
     expect(delays).toEqual([...delays].sort((a, b) => a - b));
-    const oval = container.querySelector('.or-stamp svg mask path') as SVGElement;
-    // 5 points: the last mark starts at 240 ms and takes 250 ms; the oval starts at 490 ms.
-    expect(parseInt(oval.style.animationDelay, 10)).toBe(4 * 60 + 250);
-    expect(Math.max(...delays)).toBeLessThan(parseInt(oval.style.animationDelay, 10));
+    // 5 points: the last mark starts at 240 ms; no oval comes after it any more (Ф1).
+    expect(Math.max(...delays)).toBe(4 * 60);
+    expect(container.querySelector('svg[data-mark="oval"]')).toBeNull();
   });
 
   it('marks the rows named by key words with the provisional dot on a preliminary sheet', () => {
     stubReducedMotion(false);
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, null, new Set(['p1', 'p2']))} followup={null} stamp="none" seed="attempt-1" preliminary />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, null, new Set(['p1', 'p2']))} followup={null} seed="attempt-1" preliminary />,
     );
     expect(container.querySelectorAll('svg[data-mark="dot"]')).toHaveLength(2);
     expect(container.querySelector('svg[data-mark="tick"], svg[data-mark="dtick"]')).toBeNull();
   });
 });
 
-describe('«Как считается», formula v2', () => {
-  const stage = [
-    { id: 'p1', essential: true, status: 'covered' as const },
-    { id: 'p2', essential: true, status: 'covered' as const },
-    { id: 'p3', essential: true, status: 'partial' as const },
-    { id: 'p4', essential: true, status: 'missing' as const },
-    { id: 'p5', essential: false, status: 'covered' as const },
-  ];
-  const RULE = 'Если экзаменатор спросил о главном пункте, который не назван или назван неверно, а ответа на его вопрос нет или он неверный, — не выше 3.';
-
-  it('states the weights, the credits and all three caps', () => {
-    const { container } = render(<HowGraded result={gradeAnswer(stage, null)} />);
-    const text = container.textContent ?? '';
-    expect(text).toContain('Главный пункт весит 2, остальные — 1.');
-    expect(text).toContain('Ответ на вопрос экзаменатора поднимает свой пункт до 0,5, частичный ответ — до 0,25.');
-    expect(text).toContain('Ошибка в главном пункте — не выше 4, две ошибки — не выше 3.');
-    expect(text).toContain(RULE);
-    expect(text).toContain('В готовность засчитываются ответы на 4 и 5.');
-    expect(container.querySelector('.or-how-cap')).toBeNull();
-  });
-
-  it('names the point that capped the grade', () => {
-    const { container } = render(<HowGraded result={gradeAnswer(stage, { point_id: 'p4', status: 'missing' })} />);
-    expect(container.querySelector('.or-how-formula')?.textContent).toBe('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 3');
-    expect(container.querySelector('.or-how-cap')?.textContent).toBe('Здесь оценку ограничил пункт 4: на вопрос экзаменатора о нём не было верного ответа.');
-  });
-
-  it('says the cap was not applied to a follow-up judged only by key words', () => {
-    const { container } = render(<HowGraded result={gradeAnswer(stage, { point_id: 'p4', status: 'missing', judgedBy: 'keywords' })} />);
-    expect(container.querySelector('.or-how-formula')?.textContent).toBe('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 4');
-    expect(container.querySelector('.or-how-cap')?.textContent).toBe(CAP_SKIPPED_SENTENCE);
-    expect(CAP_SKIPPED_SENTENCE).toBe('Ответ на вопрос экзаменатора проверен только по ключевым словам, поэтому этот потолок здесь не применён.');
-  });
-
-  it('names the other two caps when they set the grade', () => {
-    const wrong = gradeAnswer(
-      [
-        { id: 'p1', essential: true, status: 'wrong' },
-        { id: 'p2', essential: true, status: 'covered' },
-        { id: 'p3', essential: true, status: 'covered' },
-        { id: 'p4', essential: true, status: 'covered' },
-        { id: 'p5', essential: false, status: 'covered' },
-      ],
-      { point_id: 'p1', status: 'covered' },
-    );
-    const first = render(<HowGraded result={wrong} />);
-    expect(first.container.querySelector('.or-how-cap')?.textContent).toBe('Здесь оценку ограничила ошибка в главном пункте.');
-    first.unmount();
-    const two = gradeAnswer(
-      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].map((id, index) => ({ id, essential: true, status: index < 2 ? ('wrong' as const) : ('covered' as const) })),
-      null,
-    );
-    const second = render(<HowGraded result={two} />);
-    expect(second.container.querySelector('.or-how-cap')?.textContent).toBe('Здесь оценку ограничили две ошибки.');
+describe('«Как считается» without a grade (Ф1)', () => {
+  it('says what «сами», «после вопроса» and «ошибка» mean and when a question is confirmed, in words', () => {
+    const { container } = render(<HowCounted />);
+    const text = (container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('Сами — пункт назван в ответе, до вопроса экзаменатора.');
+    expect(text).toContain('После вопроса — пункт назван только в ответ на вопрос экзаменатора: строку шпаргалки такой пункт не стирает.');
+    expect(text).toContain('Ошибка — пункт назван неверно.');
+    expect(text).toContain('Вопрос подтверждается, когда дважды, в разные дни, в ответе названо достаточно');
+    expect(text).toContain('С двумя ошибками ответ вопрос не подтверждает.');
+    // No digits of a grade, no formula, no «засчитано».
+    expect(text).not.toMatch(/[Оо]ценк|из 100|→|[Зз]асчит|не выше [2-5]/);
   });
 });
 
@@ -494,7 +411,7 @@ describe('key words versus the check (Jury_Check item 7)', () => {
       verdict: '',
     };
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, stub, new Set(['p1', 'p2', 'p3', 'p5']))} followup={followup} stamp="not_passed" seed="a" />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, stub, new Set(['p1', 'p2', 'p3', 'p5']))} followup={followup} seed="a" />,
     );
     const p3 = container.querySelector('[data-point="p3"]') as HTMLElement;
     expect(p3.querySelector('.or-ppt-why')?.textContent).toBe('По ключевым словам пункт назван; проверка по всему ответу: упомянут.');
@@ -514,7 +431,7 @@ describe('key words versus the check (Jury_Check item 7)', () => {
       ],
       errors: [],
     } as unknown as StoredProtocol;
-    const { container } = render(<ProtocolSheet heading="h" points={storedPoints(stored, {})} followup={null} stamp="passed" seed="s" />);
+    const { container } = render(<ProtocolSheet heading="h" points={storedPoints(stored, {})} followup={null} seed="s" />);
     expect(container.querySelector('[data-point="p1"] .or-ppt-why')?.textContent).toBe('По ключевым словам пункт не назван; проверка по всему ответу: раскрыт.');
     expect(container.querySelector('[data-point="p1"] .or-ppt-cm')?.textContent).toBe('Сказано своими словами.');
     expect(container.querySelector('[data-point="p2"] .or-ppt-why')?.textContent).toBe('По ключевым словам пункт не назван; проверка по всему ответу: упомянут.');
@@ -546,7 +463,7 @@ describe('lecture labels: «там же» against the quote right above (QA r3 #
 
   it('labels the covered quotes and the slips the same way', () => {
     const covered: Evaluation = { points: evaluation.points.map((point) => ({ ...point, status: 'covered' as const })), errors: [], verdict: '' };
-    const sheet = render(<ProtocolSheet heading="h" points={livePoints(twoLectures, covered)} followup={null} stamp="passed" seed="a" />);
+    const sheet = render(<ProtocolSheet heading="h" points={livePoints(twoLectures, covered)} followup={null} seed="a" />);
     const labels = () => lectureLabels(sheet.container);
     expect(labels()).toEqual([
       'Лекция «Нейронные сети и глубокое обучение», фрагмент 8:',
@@ -562,7 +479,7 @@ describe('lecture labels: «там же» against the quote right above (QA r3 #
       errors: [],
       verdict: '',
     };
-    const qa = render(<ProtocolSheet heading="h" points={livePoints(twoLectures, mixed)} followup={null} stamp="passed" seed="a" />);
+    const qa = render(<ProtocolSheet heading="h" points={livePoints(twoLectures, mixed)} followup={null} seed="a" />);
     expect(lectureLabels(qa.container)).toEqual([
       'Лекция «Нейронные сети и глубокое обучение», фрагмент 8:',
       'Лекция, фрагмент 9:',
@@ -596,7 +513,7 @@ describe('the line about the asked point (Jury_Check item 9)', () => {
     const scrollTo = vi.fn();
     vi.stubGlobal('scrollTo', scrollTo);
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="not_passed" seed="a" />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} seed="a" />,
     );
     const row = container.querySelector('[data-point="p4"]') as HTMLElement;
     vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 900, bottom: 1000, left: 0, right: 0, width: 0, height: 100, x: 0, y: 900, toJSON: () => ({}) });
@@ -628,7 +545,7 @@ describe('the line about the asked point (Jury_Check item 9)', () => {
     const scrollTo = vi.fn();
     vi.stubGlobal('scrollTo', scrollTo);
     const { container } = render(
-      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} stamp="not_passed" seed="a" />,
+      <ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={followup} seed="a" />,
     );
     const row = container.querySelector('[data-point="p4"]') as HTMLElement;
     vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 640, bottom: 700, left: 0, right: 0, width: 0, height: 60, x: 0, y: 640, toJSON: () => ({}) });

@@ -287,8 +287,8 @@ function examLine(exam: ExamBlock): string {
 }
 
 /**
- * The ledger foot of an exam (Jury_Check items 4 and 11): «Засчитано, не подтверждено — 2, не
- * засчитано — 1.», then the share of tickets with every question confirmed as a small line
+ * The ledger foot of an exam (Jury_Check items 4 and 11): «Названо достаточно, не подтверждено — 2,
+ * названо недостаточно — 1.» (no «засчитано» since Ф1), then the share of tickets with every question confirmed as a small line
  * («Билетов, где подтверждены оба вопроса, — 3 %.»), then self-assessment against answers.
  */
 export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'confirmedTickets' | 'perTicket'>): string {
@@ -307,7 +307,7 @@ export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'con
   }
   parts.push(
     confidence.enoughData
-      ? `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${confidence.ratedKnowAnswered} таких, на которые вы ответили, засчитано ${confidence.ratedKnowPassed}.`
+      ? `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${confidence.ratedKnowAnswered} таких, на которые вы ответили, в ${confidence.ratedKnowPassed} названо достаточно.`
       : 'Самооценка против ответов: мало данных.',
   );
   return parts.join(' ');
@@ -763,7 +763,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
           <p>
             «Повторения на неделю» — сколько карточек придёт на повторение в каждый из ближайших дней по их расписанию; в «сегодня»
             входят и пропущенные. «Тест» — первая попытка теста лекции, повторные показаны отдельно. Вопрос экзамена «подтверждён»,
-            когда его засчитали два раза в разные дни.
+            когда дважды, в разные дни, в ответе на него названо достаточно пунктов.
           </p>
         </div>
       ) : null}

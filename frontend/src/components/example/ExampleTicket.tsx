@@ -11,7 +11,6 @@ import ExaminerLine, { ExaminerThinking } from '../oral/ExaminerLine';
 import PrivacySheet from '../oral/PrivacySheet';
 import { ProtocolSheet, livePoints, type ProtocolFollowup } from '../oral/OralProtocol';
 import { liveMarks, namedPoints, underlinedFinalWords, words } from '../../lib/oral/rubricMatch';
-import { gradeAnswer, type GradeResult } from '../../lib/oral/oralGrade';
 import { answerTime, closingLine, initialTicketState, ticketReducer, type AnswerMode, type TicketState } from '../../lib/oral/ticketMachine';
 import type { AnswerInput } from '../../lib/oral/oralPersistence';
 import { elapsedLabel, glue, longDateTime, plural } from '../../lib/oral/format';
@@ -19,7 +18,9 @@ import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQues
 import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
 import ExampleGrade from './ExampleGrade';
 import TryBar from './TryBar';
-import { track } from '../../lib/telemetry';
+import { countBucket, track } from '../../lib/telemetry';
+import { usePasteGuard } from '../oral/usePasteGuard';
+import PasteNotice from '../oral/PasteNotice';
 import { answerChange, type AnswerChange } from '../exams/sheet/answerChange';
 import { protocolSheetLine } from '../exams/sheet/copy';
 import type { Evaluation } from '../../lib/oral/oralApi';
@@ -101,14 +102,17 @@ function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0
   return sheetQuestion ? answerChange(sheetQuestion, events, answer.session, Date.now()) : null;
 }
 
-/** «На шпаргалке: 3 строки стёрлись, 1 — наполовину»; «К шпаргалке» right under it leads there. */
-function SheetChangeLine({ change }: { change: AnswerChange }) {
-  return <p className="or-save-line or-sheet-change">{glue(protocolSheetLine(change.summary, change.quiet))}</p>;
+/**
+ * «На шпаргалке: 3 строки стёрлись, 1 — наполовину» — in the protocol's header, where the real protocol
+ * says what the answer did to the sheet (Ф1); «К шпаргалке» on the desk leads there.
+ */
+function sheetNoteOf(change: AnswerChange | null): string | null {
+  return change ? glue(protocolSheetLine(change.summary, change.quiet)) : null;
 }
 
 /**
  * The protocol of an answer kept in this tab: yesterday's answers of the example, or the guest's own.
- * The same paper as after an answer, read only: the points as they were named, the grade, the way
+ * The same paper as after an answer, read only: the points as they were named, the result, the way
  * back to the sheet and to answering again.
  */
 function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer: TryAnswer }) {
@@ -123,10 +127,8 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
     verdict: '',
   };
   const named = new Set(rubric.points.filter((point) => answer.statuses[point.id] === 'covered').map((point) => point.id));
-  const grade = gradeAnswer(
-    rubric.points.map((point) => ({ id: point.id, essential: point.essential, status: answer.statuses[point.id] ?? 'unrated' })),
-    answer.followup ? { point_id: answer.followup.pointId, status: answer.followup.status, judgedBy: answer.followup.judgedBy } : null,
-  );
+  const points = livePoints(rubric, evaluation, named);
+  const followup = answer.followup ? { ...answer.followup } : null;
   const heading = ticketHeading(null, 0, 1, String(question.number));
   const seeded = isSeededSession(answer.session);
   const when = longDateTime(new Date(answer.at));
@@ -140,14 +142,13 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
         <section className="or-left" aria-label="Пункты ответа и ваш ответ">
           <ProtocolSheet
             heading={glue(`${heading.strong} · ответ ${when}`)}
-            points={livePoints(rubric, evaluation, named)}
-            followup={answer.followup ? { ...answer.followup } : null}
-            stamp="none"
+            points={points}
+            followup={followup}
             seed={`example:${question.id}:${answer.session}`}
             animate={false}
           />
         </section>
-        <section className="or-side" aria-label="Оценка">
+        <section className="or-side" aria-label="Итог">
           <p className="or-readonly-note">
             {glue(
               seeded
@@ -156,7 +157,7 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
             )}
           </p>
           {seeded ? <p className="or-readonly-note tx-kept-said">{`«${answer.transcript}»`}</p> : null}
-          <ExampleGrade result={grade}>
+          <ExampleGrade points={points} followup={followup}>
             <div className="or-acts" data-wide="">
               <Link className="sf-primary" to={`/try/ticket?q=${encodeURIComponent(question.id)}`}>
                 Ответить на этот вопрос
@@ -198,7 +199,7 @@ function TicketMissing({ question }: { question: ExampleQuestion | null }) {
  * The live room of the example: the same machine and paper as a real ticket (lib/oral/ticketMachine,
  * components/oral) — the ticket card, the answer sheet whose points open as their key words are said
  * or typed, «Готово», the examiner's follow-up on a point that was not named, the protocol with the
- * lecture quotes and the app's grade. Only the checking differs: the key words on this device stand in
+ * lecture quotes and the result. Only the checking differs: the key words on this device stand in
  * for the AI (exampleFlow.ts). No /api call, nothing saved.
  */
 function ExampleRoom({ question }: { question: ExampleQuestion }) {
@@ -307,6 +308,9 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   // ── The protocol keeps the answer in this tab: the example's sheet erases by it (sheet spec 4.3) ──
   const keptSession = useRef<{ attempt: string; session: string } | null>(null);
   const [sheetChange, setSheetChange] = useState<AnswerChange | null>(null);
+  // «Чистый ответ» (Н7), as on a real ticket: a pasted ready text is refused; «Вставить ответ примера» is a button.
+  const answerPaste = usePasteGuard((words) => track('try_answer_paste_refused', { field: 'answer', words: countBucket(words) }));
+  const followupPaste = usePasteGuard((words) => track('try_answer_paste_refused', { field: 'followup', words: countBucket(words) }));
   useEffect(() => {
     if (state.phase !== 'protocol' || state.evaluation.status !== 'done' || !state.attempt) return;
     const attemptId = state.attempt.attemptId;
@@ -328,20 +332,6 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     setTryPeak(question.id);
     setSheetChange(sheetChangeOf(answer, tryEvents(store)));
   }, [question.id, state.phase, state.evaluation, state.attempt, state.followup]);
-
-  // ── The grade: the app's formula over the key-word statuses and the follow-up ──
-  const grade: GradeResult | null = useMemo(() => {
-    if (!rubric || state.evaluation.status !== 'done') return null;
-    const evaluated = new Map(state.evaluation.result.points.map((point) => [point.id, point.status]));
-    const f =
-      state.followup && state.followup.status
-        ? { point_id: state.followup.pointId, status: state.followup.status, judgedBy: state.followup.judgedBy }
-        : null;
-    return gradeAnswer(
-      rubric.points.map((point) => ({ id: point.id, essential: point.essential, status: evaluated.get(point.id) ?? 'unrated' })),
-      f,
-    );
-  }, [rubric, state.evaluation, state.followup]);
 
   // ── Leaving: an answer in progress is lost (nothing is saved), so ask first ──
   const inProgress = () => {
@@ -374,8 +364,12 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     if (speech.start()) dispatch({ type: state.phase === 'answering' ? 'mode' : 'start', mode: 'voice', now: Date.now() });
   };
 
-  /** «Вставить ответ примера»: the example's own answer in the text field, whatever the mode was. */
+  /**
+   * «Вставить ответ примера»: the example's own answer in the text field, whatever the mode was. A button,
+   * not a paste: «Чистый ответ» does not stop it, and a line about a refused paste goes away.
+   */
   const insertExample = () => {
+    answerPaste.clear();
     focusTextRef.current = true;
     if (state.phase === 'ready') {
       dispatch({ type: 'start', mode: 'text', now: Date.now() });
@@ -579,12 +573,13 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const createHref = user ? '/exams/new' : '/register';
 
   // ── The protocol ──
-  if (state.phase === 'protocol' && rubric && grade && state.evaluation.status === 'done') {
+  if (state.phase === 'protocol' && rubric && state.evaluation.status === 'done') {
     const followupForProtocol: ProtocolFollowup | null =
       followup && followup.status
         ? { pointId: followup.pointId, question: followup.question, answer: followup.answer, status: followup.status, judgedBy: followup.judgedBy }
         : null;
     const sheetHeading = glue(`${heading.strong} · ответ ${longDateTime(state.attempt?.startedAt ?? new Date())}`);
+    const protocolPoints = livePoints(rubric, state.evaluation.result, new Set(state.named));
     return (
       <>
         <TryBar where="Лист примера" back="/try" />
@@ -593,19 +588,18 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
             {`Протокол ответа, ${heading.strong}`}
           </h1>
           <section className="or-left" aria-label="Пункты ответа и ваш ответ">
-            {/* No stamp: «Засчитано» means counted towards readiness, and the example saves nothing. */}
+            {/* Under the heading: what the answer did to the example's sheet (kept in this tab, sheet spec 4.3). */}
             <ProtocolSheet
               heading={sheetHeading}
-              points={livePoints(rubric, state.evaluation.result, new Set(state.named))}
+              points={protocolPoints}
               followup={followupForProtocol}
-              stamp="none"
+              sheetNote={sheetNoteOf(sheetChange)}
               seed={`${seedBase}:${attempts}`}
               animate
             />
           </section>
-          <section className="or-side" aria-label="Оценка">
-            <ExampleGrade result={grade}>
-              {sheetChange ? <SheetChangeLine change={sheetChange} /> : null}
+          <section className="or-side" aria-label="Итог">
+            <ExampleGrade points={protocolPoints} followup={followupForProtocol}>
               {/* The example's story goes on on its sheet: the answer is played there (sheet spec 4.3). */}
               <div className="or-acts" data-wide="">
                 <Link className="sf-primary" to={TRY_SHEET_PATH}>
@@ -768,14 +762,21 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
                 {followup.notHeard && followup.stage === 'asking' ? <p className="or-hint">{`${NOT_HEARD_LINE}.`}</p> : null}
                 {state.notice ? <p className="or-hint">{state.notice}</p> : null}
                 {followup.stage === 'answering' && followup.mode === 'text' ? (
-                  <textarea
-                    className="or-text-field"
-                    aria-label="Ответ на вопрос экзаменатора"
-                    placeholder="Напишите ответ своими словами"
-                    value={followup.typed}
-                    onChange={(event) => dispatch({ type: 'followup_typed', text: event.target.value })}
-                    data-anchor=""
-                  />
+                  <>
+                    <textarea
+                      className="or-text-field"
+                      aria-label="Ответ на вопрос экзаменатора"
+                      placeholder="Напишите ответ своими словами"
+                      value={followup.typed}
+                      onChange={(event) => {
+                        followupPaste.clear();
+                        dispatch({ type: 'followup_typed', text: event.target.value });
+                      }}
+                      {...followupPaste.fieldProps}
+                      data-anchor=""
+                    />
+                    <PasteNotice guard={followupPaste} />
+                  </>
                 ) : null}
                 {followup.mode === 'voice' && (followup.stage === 'answering' || followup.stage === 'asking') ? (
                   <div className="or-examiner-listen" data-waiting={followup.stage === 'asking' ? '' : undefined} aria-hidden={followup.stage === 'asking' ? true : undefined}>
@@ -843,9 +844,14 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           className="or-text-field"
           placeholder="Напишите ответ своими словами"
           value={state.typed}
-          onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
+          onChange={(event) => {
+            answerPaste.clear();
+            dispatch({ type: 'typed', text: event.target.value });
+          }}
+          {...answerPaste.fieldProps}
           data-anchor=""
         />
+        <PasteNotice guard={answerPaste} />
         {/* The example's own answer to the question its sheet asks for (sheet spec 4.3). */}
         {question.id === EXAMPLE_ANSWER_QUESTION && !state.typed.trim() ? (
           <button type="button" className="sf-link tx-insert" onClick={insertExample}>

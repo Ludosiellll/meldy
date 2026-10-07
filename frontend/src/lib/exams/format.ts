@@ -54,13 +54,6 @@ const SHEET_WORDS: Record<ExamKind, string> = {
   colloquium: 'вопросы к коллоквиуму',
 };
 
-export const GRADE_WORDS: Record<number, string> = {
-  5: 'отлично',
-  4: 'хорошо',
-  3: 'удовлетворительно',
-  2: 'неудовлетворительно',
-};
-
 const DATE_KEY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** 'yyyy-MM-dd' → local midnight of that day, or null. */

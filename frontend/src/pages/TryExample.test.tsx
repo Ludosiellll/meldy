@@ -15,10 +15,11 @@ vi.mock('../contexts/ConfirmContext', () => ({ useConfirm: () => ({ confirm: moc
 
 import TryExample from './TryExample';
 import { EXAMPLE_NOTE } from '../components/example/ExampleSheet';
-import { EXAMPLE_GRADE_NOTE } from '../components/example/ExampleGrade';
+import { EXAMPLE_GRADE_NOTE, EXAMPLE_SCALE_NOTE } from '../components/example/ExampleGrade';
 import { CLOSING_PAUSE_MS, EXAMINER_PAUSE_MS, EXAMPLE_PRIVACY_LINE, FOLLOWUP_LISTEN_MS } from '../components/example/ExampleTicket';
 import { resetExampleDraws } from '../components/example/exampleFlow';
 import { EXAMPLE_ANSWER_Q5 } from '../components/example/trySheet';
+import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────────────
 
@@ -217,26 +218,32 @@ describe('«Попробовать на примере» (/try)', () => {
     fireEvent.change(answer, { target: { value: Q1_FOLLOWUP } });
     fireEvent.click(within(examiner).getByRole('button', { name: 'Готово' }));
 
-    // (d) The protocol: the points with the lecture quotes, the app's grade, the honest line, the way on.
+    // (d) The protocol: the points with the lecture quotes, what was named (no grade, Ф1), the honest lines, the way on.
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
-    expect(screen.getByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
+    // A partial reply to the question is no naming after it: only «сами».
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
     expect(plain(document.querySelector('.or-grade-why')?.textContent)).toBe('Раскрыто 2 пункта из 4, два не названы.');
     expect(screen.getByText(EXAMPLE_GRADE_NOTE)).toBeInTheDocument();
+    // The scale line in the example's words: its lectures are not the guest's own.
+    expect(screen.getByText(EXAMPLE_SCALE_NOTE)).toBeInTheDocument();
+    expect(EXAMPLE_SCALE_NOTE).toBe('Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из лекций.');
     expect(screen.getByRole('button', { name: 'Пункт 1 не назван — о нём спросил экзаменатор.' })).toBeInTheDocument();
     const protocol = screen.getByRole('list', { name: 'Пункты ответа' });
     const statuses = within(protocol).getAllByRole('listitem').map((row) => row.getAttribute('data-status'));
     expect(statuses).toEqual(['missing', 'covered', 'covered', 'missing']);
     expect(plain(within(protocol).getAllByRole('listitem')[0].textContent)).toContain(
-      `на вопрос экзаменатора — «${Q1_FOLLOWUP}», по ключевым словам засчитан частично`,
+      `на вопрос экзаменатора — «${Q1_FOLLOWUP}», по ключевым словам пункт упомянут`,
     );
     expect(plain(within(protocol).getAllByRole('listitem')[0].textContent)).toContain(
       '«Спрос — это зависимость между ценой товара и тем количеством, которое покупатели готовы и могут купить за определённый период.»',
     );
     expect(plain(within(protocol).getAllByRole('listitem')[1].textContent)).toContain('Вы:«Закон спроса такой: когда цена растёт, люди покупают меньше»');
-    // No «Засчитано»: the example saves nothing, so nothing is counted.
-    expect(document.querySelector('.or-stamp')).toBeNull();
+    // No grade and no «Засчитано» anywhere (Ф1).
+    expect(document.querySelector('.or-stamp, svg[data-mark="oval"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/[Зз]асчитан|Оценка|удовлетвор|отлично/);
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(plain(document.querySelector('.or-how-formula')?.textContent)).toBe('(0,5 + 2 + 1 + 0) / 6 = 58 из 100 → 3');
+    expect(document.querySelector('.or-how')?.textContent).toContain('строку шпаргалки такой пункт не стирает');
+    expect(document.querySelector('.or-how')?.textContent).not.toMatch(/из 100|→/);
     expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveAttribute('href', '/register');
     expectAccessibleScreen();
 
@@ -263,12 +270,12 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(screen.getByText('Хорошо, по существу всё.')).toBeInTheDocument();
     expect(screen.queryByText('Экзаменатор', { selector: '.or-examiner-who' })).toBeNull();
     await advance(CLOSING_PAUSE_MS + 100);
-    expect(screen.getByText('Оценка 5 · отлично')).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 4 из 4 главных');
     expect(plain(document.querySelector('.or-grade-why')?.textContent)).toBe('Раскрыто 5 пунктов из 5.');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('takes «Не знаю» on the follow-up as an answer and applies the cap for a main point', async () => {
+  it('takes «Не знаю» on the follow-up as an answer: the point is not named after the question', async () => {
     renderAt('/try/ticket?q=q1');
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     fireEvent.change(screen.getByLabelText(/^Ваш ответ/), {
@@ -278,10 +285,10 @@ describe('«Попробовать на примере» (/try)', () => {
     await toExaminer();
     expect(screen.getByText('«Как по закону спроса связаны цена и величина спроса?»')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
-    expect(await screen.findByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
     expect(plain(document.querySelector('.or-extra')?.textContent)).toBe('Дополнительный вопрос: «Как по закону спроса связаны цена и величина спроса?» — ответ: не знаю.');
-    fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(screen.getByText('Здесь оценку ограничил пункт 2: на вопрос экзаменатора о нём не было верного ответа.')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Оценк|ограничил/);
   });
 
   it('answers by voice: the points light up from the words recognised, the follow-up is listened to after it appears', async () => {
@@ -303,7 +310,8 @@ describe('«Попробовать на примере» (/try)', () => {
     act(() => recognition().say([[Q1_FOLLOWUP, true]]));
     expect(screen.getByText(Q1_FOLLOWUP)).toBeInTheDocument();
     fireEvent.click(within(document.querySelector('.or-examiner') as HTMLElement).getByRole('button', { name: 'Готово' }));
-    expect(await screen.findByText('Оценка 3 · удовлетворительно')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 1' })).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 1 из 2 главных');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -407,8 +415,26 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(plain(document.querySelector('.or-readonly-note')?.textContent)).toBe(
       'Ответ примера: считаем, что он дан вчера, 3 октября, 19:30. Строки названных в нём пунктов этот ответ стёр на шпаргалке наполовину.',
     );
-    expect(screen.getByText('Оценка 2 · неудовлетворительно')).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-sum')?.textContent)).toBe('Назвали сами 2 из 4 главных');
+    // A kept answer read later: no line about the sheet under the date (the note above says it).
+    expect(document.querySelector('.or-ph-sheet')).toBeNull();
     expect(screen.getByRole('link', { name: 'К шпаргалке' })).toHaveAttribute('href', '/try?view=sheet');
+  });
+
+  it('refuses a pasted ready text as a real ticket does; «Вставить ответ примера» is a button and still fills the answer (Н7)', async () => {
+    renderAt('/try/ticket?q=q5');
+    fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+    const field = screen.getByLabelText(/^Ваш ответ/) as HTMLTextAreaElement;
+    expect(fireEvent.paste(field, { clipboardData: { getData: () => EXAMPLE_ANSWER_Q5 } })).toBe(false);
+    expect(field.value).toBe('');
+    expect(screen.getByText(PASTE_REFUSED)).toBeInTheDocument();
+    expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 0 из 5');
+    // The button puts the example's own answer in, and the line about the refused paste goes away.
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить ответ примера' }));
+    expect((screen.getByLabelText(/^Ваш ответ/) as HTMLTextAreaElement).value).toBe(EXAMPLE_ANSWER_Q5);
+    expect(plain(document.querySelector('.or-count-line')?.textContent)).toBe('По ключевым словам: 4 из 5');
+    expect(screen.queryByText(PASTE_REFUSED)).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('answer 5 with the example’s answer: the protocol says what erased, and the sheet plays it', async () => {
@@ -423,7 +449,8 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Протокол ответа, Вопрос 5' })).toBeInTheDocument();
     // Named yesterday and again today, the three main points are erased; the sign of the elasticity is half.
     const line = document.querySelector('.or-sheet-change') as HTMLElement;
-    // «К шпаргалке», the filled pill right under the line, leads there: no second link in the line.
+    // Under the date of the protocol, where the «Засчитано» stamp was (Ф1); «К шпаргалке» on the desk leads there.
+    expect(line.closest('.or-ph')).not.toBeNull();
     expect(plain(line.textContent)).toBe('На шпаргалке: 3 строки стёрлись, 1 — наполовину');
     expect(within(line).queryByRole('link')).toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'К шпаргалке' }));

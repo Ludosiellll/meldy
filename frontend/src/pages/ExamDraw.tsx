@@ -20,6 +20,7 @@ import DrawModeMenu, { drawModeOf } from '../components/exams/DrawModeMenu';
 import { glue, numberOf } from '../components/exams/sheetModel';
 import { subjectOf } from '../lib/exams/format';
 import { track } from '../lib/telemetry';
+import { readSheetToday } from '../components/exams/sheet/sheetCount';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -71,6 +72,10 @@ export default function ExamDraw() {
   const [historyFailed, setHistoryFailed] = useState(false);
   const [drawn, setDrawn] = useState<Drawn | null>(null);
   const counter = useRef(0);
+  // «Ждут подтверждения» draws from the questions whose cheat-sheet lines an answer erases now — the ones
+  // «Сегодня» counts in «Можно стереть: N вопросов» (Сегодня-lite), by the sheet's own rules. Read when the
+  // mode is chosen; 'failed': the sheet could not be read, the readiness rule's «ждут» stands in.
+  const [sheetPool, setSheetPool] = useState<{ examId: string; ids: ReadonlySet<string> | 'failed' } | null>(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -102,6 +107,30 @@ export default function ExamDraw() {
 
   useEffect(() => whenIdle(preloadTicketScreen), []);
 
+  useEffect(() => {
+    // Read afresh each time the mode is chosen: a pool from an earlier visit would draw before the new one.
+    if (mode !== 'awaiting' || !bundle) {
+      setSheetPool(null);
+      return undefined;
+    }
+    let alive = true;
+    const owner = bundle.exam.id;
+    readSheetToday(owner, bundle.exam.exam_date).then(
+      (today) => {
+        if (alive) setSheetPool({ examId: owner, ids: new Set(today?.erasable.questions ?? []) });
+      },
+      () => {
+        if (alive) setSheetPool({ examId: owner, ids: 'failed' });
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [mode, bundle]);
+  const erasableIds = sheetPool && bundle && sheetPool.examId === bundle.exam.id ? sheetPool.ids : null;
+  // The draw waits for the sheet in «Ждут подтверждения» (it decides the pool).
+  const waiting = mode === 'awaiting' && erasableIds === null;
+
   const pool: DrawQuestion[] = useMemo(() => {
     if (!bundle) return [];
     return bundle.questions.map((question) => {
@@ -113,10 +142,10 @@ export default function ExamDraw() {
         readiness: state?.readiness ?? 'untested',
         attempts: state?.attempts ?? 0,
         stale: state?.stale ?? false,
-        awaiting: state?.awaiting ?? false,
+        awaiting: erasableIds !== null && erasableIds !== 'failed' ? erasableIds.has(question.id) : state?.awaiting ?? false,
       };
     });
-  }, [bundle, states]);
+  }, [bundle, states, erasableIds]);
 
   const drawLayout = useMemo(() => {
     const layout = bundle?.exam.ticket_layout ?? { mode: 'random' as const, per_ticket: 2 };
@@ -148,11 +177,11 @@ export default function ExamDraw() {
     setDrawn({ key: counter.current, result });
   }, [bundle, mode, pool, drawLayout]);
 
-  // Draw on arrival and whenever the mode changes.
+  // Draw on arrival and whenever the mode changes («Ждут подтверждения» once its sheet is read).
   useEffect(() => {
-    if (status === 'ready') draw();
+    if (status === 'ready' && !waiting) draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, mode]);
+  }, [status, mode, waiting]);
 
   const title = bundle ? subjectOf(bundle.exam.title) : '';
   const exitHref = `/exams/${examId}`;
@@ -238,14 +267,19 @@ export default function ExamDraw() {
         </section>
         <section aria-label="Что дальше">
         {/* What the card was drawn from, in every mode: a drawn question never looks picked by hand. */}
-        {card && pooled && <p className="dw-pool">{glue(pooled)}</p>}
-        {failure && <p className="dw-msg">{glue(failure.message)}</p>}
+        {card && pooled && !waiting && <p className="dw-pool">{glue(pooled)}</p>}
+        {failure && !waiting && <p className="dw-msg">{glue(failure.message)}</p>}
+        {waiting && (
+          <p className="dw-msg" role="status">
+            Смотрим, какие строки шпаргалки можно стереть…
+          </p>
+        )}
         {card && !answerHref && examMode && (
           <p className="dw-msg">{glue(card.questions.length === 1 && card.number === null ? NO_ANSWERABLE_QUESTION : NO_ANSWERABLE_TICKET)}</p>
         )}
 
         <div className="dw-acts">
-          {answerHref ? (
+          {waiting ? null : answerHref ? (
             <>
               <button
                 type="button"
@@ -297,6 +331,9 @@ export default function ExamDraw() {
           <p className="dw-note">{skippedNote(answerable.length, card.questions.filter((question) => question.none).map((question) => question.number))}</p>
         )}
         {historyFailed && <p className="dw-note">История ответов не загрузилась: тянем без неё.</p>}
+        {mode === 'awaiting' && erasableIds === 'failed' && (
+          <p className="dw-note">Шпаргалка не загрузилась: тянем вопросы, где раньше названо достаточно.</p>
+        )}
         </section>
         </div>
       </main>

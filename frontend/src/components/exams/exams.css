@@ -14,7 +14,7 @@
 .sf-page[data-frame='m'] { --sf-g: 32px; }
 .sf-page[data-frame='s'] { --sf-g: 16px; }
 
-/* Status colours (light): «есть» green, «частично» yellow, «нет» grey, «не засчитано» pink; the
+/* Status colours (light): «есть» green, «частично» yellow, «нет» grey, «названо недостаточно» pink; the
    blue-tinted panel; the soft fill of number circles and hovered rows. */
 .sf-page,
 .sf-room-bar {
@@ -386,7 +386,7 @@
 
 /* ---------------------------------------------------------------- the sheet: the department's list */
 /* A white card; each question a row: the number in a circle (its answers mark it: a ring for
-   подтверждено, a line under it for засчитано, a wave for не засчитано, the circle filled in the
+   подтверждено, a line under it for «названо достаточно», a wave for «названо недостаточно», the circle filled in the
    colours of «Сегодня»), the question, the status pill with its pencil mark, the lecture and its
    fragment under the question in Meldy's blue. The rows reflow by the sheet's own width. */
 .sf-page .ex-sheet {
@@ -456,8 +456,8 @@
 .sf-page .ex-rate { grid-column: 2 / -1; grid-row: 2; }
 .sf-page .ex-because { grid-column: 2 / -1; }
 
-/* The number: a circle; its readiness fills it (blue — подтверждено, yellow — засчитано, pink — не
-   засчитано, as the dots of «Сегодня») and the pencil marks it. */
+/* The number: a circle; its readiness fills it (blue — подтверждено, yellow — названо достаточно, pink —
+   названо недостаточно, as the dots of «Сегодня») and the pencil marks it. */
 .sf-page .ex-qn { display: flex; justify-content: center; padding-top: 0; }
 .sf-page .ex-qn-box {
   display: inline-grid;
@@ -942,7 +942,7 @@
 .sf-page .ex-why-go { margin-top: 26px; }
 .sf-page .ex-why-acts { display: flex; flex-direction: column; align-items: flex-start; margin-top: 12px; }
 .sf-page .ex-why-acts .sf-link { font-size: 16px; }
-/* «3 окт. · 4 · хорошо»: each answer a soft pill that opens its protocol (17 px: the stage step points at it). */
+/* «3 окт., 14:02 · названо достаточно»: each answer a soft pill that opens its protocol (17 px: the stage step points at it). */
 .sf-page .ex-attempts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
 .sf-page .ex-attempts a,
 .sf-page .ex-attempts span {

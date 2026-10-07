@@ -15,10 +15,10 @@ export const DRAW_CAPTIONS: Record<DrawMode, string> = {
 
 export const DRAW_HINTS: Record<DrawMode, string> = {
   exam: 'Случайные вопросы; известные билеты — целиком. Отметки пунктов во время ответа выключены.',
-  weak: 'Чаще не проверявшиеся и не засчитанные; вопросов без материала не будет.',
+  weak: 'Чаще не проверявшиеся и те, где названо недостаточно; вопросов без материала не будет.',
   answered: 'Только вопросы, на которые вы уже отвечали.',
-  // «в другой день» belongs to the rule too: an answer 20 hours later on the same day confirms nothing.
-  awaiting: 'Засчитаны раньше — в другой день и не меньше 20 часов назад: хороший ответ сейчас подтвердит вопрос.',
+  // The cheat sheet's rule (Сегодня-lite): «в другой день» belongs to it too — 20 hours later on the same day erases nothing.
+  awaiting: 'Вопросы, где ответ может стереть строку шпаргалки: пункт назван в другой день и не меньше 20 часов назад, или стёртую строку пора проверить.',
 };
 
 /** 'exam' is the default and stays out of the address: /draw, /draw?mode=weak|answered|awaiting. */

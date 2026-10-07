@@ -327,6 +327,11 @@
 .td-sheet-link .td-nowrap { white-space: nowrap; }
 .td-sheet-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 .td-ready > .td-answers:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+/* «Сегодня-lite»: «Можно стереть: 3 вопроса» with «Ответить» (a white pill: the card keeps one blue one),
+   right under the sheet's line; with nothing to erase now, a quiet line says when the next lines can be. */
+.td-erase { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 4px 0 0; }
+.td-erase-t { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; color: var(--sf-ink); }
+.td-erase-next { margin-top: 2px; }
 .td-answers .td-body { margin: 0; font-size: 16px; }
 
 /* ---------------------------------------------------------------- without an exam: the cards lead */

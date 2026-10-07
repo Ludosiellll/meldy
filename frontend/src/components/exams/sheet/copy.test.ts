@@ -8,8 +8,10 @@ import {
   counterDetails,
   protocolSheetLine,
   counterLabel,
+  erasableLine,
   erasableSentence,
   historyLine,
+  nextErasableLine,
   lineLabel,
   lineNote,
   lineSpeech,
@@ -20,6 +22,26 @@ import {
 
 const NBSP = ' ';
 const plain = (text: string | null) => (text ?? '').replace(/ /g, ' ');
+
+describe('«Сегодня-lite»: what an answer can erase now', () => {
+  it('counts the questions: «Можно стереть: 3 вопроса»', () => {
+    expect(plain(erasableLine(1))).toBe('Можно стереть: 1 вопрос');
+    expect(plain(erasableLine(3))).toBe('Можно стереть: 3 вопроса');
+    expect(plain(erasableLine(12))).toBe('Можно стереть: 12 вопросов');
+    // The number never parts from its word.
+    expect(erasableLine(3)).toContain(`3${NBSP}вопроса`);
+  });
+
+  it('says when the next lines can be erased, in the sheet’s words for such a moment', () => {
+    const now = new Date(2026, 9, 7, 12, 0).getTime();
+    expect(plain(nextErasableLine(new Date(2026, 9, 9, 15, 40).toISOString(), now))).toBe('Следующие строки можно стереть после 9 окт., 15:40.');
+    // A local midnight is a day boundary, not a time anyone picked.
+    expect(plain(nextErasableLine(new Date(2026, 9, 9, 0, 0).toISOString(), now))).toBe('Следующие строки можно стереть 9 окт. или позже.');
+    // Nothing waits, or the moment has passed: no line.
+    expect(nextErasableLine(null, now)).toBeNull();
+    expect(nextErasableLine(new Date(2026, 9, 7, 11, 0).toISOString(), now)).toBeNull();
+  });
+});
 
 function status(extra: Partial<LineStatus>): LineStatus {
   return {

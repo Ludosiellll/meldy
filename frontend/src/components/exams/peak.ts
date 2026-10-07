@@ -16,7 +16,7 @@
 import type { LearningEvent } from '../../api/learning';
 import { localDate } from '../../api/learning';
 import { compareEventTime, questionState, type QuestionState, type Readiness } from '../../lib/learning/readiness';
-import { formatDay, formatShortMoment, GRADE_WORDS } from '../../lib/exams/format';
+import { formatDay, formatShortMoment } from '../../lib/exams/format';
 import { pluralRu } from '../conversation/visuals';
 import { CONFIRMED_MEANING, daysAgo, pct } from './sheetModel';
 
@@ -122,12 +122,6 @@ export function peakChange(
   return { before, after, latest };
 }
 
-function gradeOf(event: LearningEvent): number | null {
-  const value = event.payload?.grade;
-  const grade = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
-  return Number.isInteger(grade) && grade >= 2 && grade <= 5 ? grade : null;
-}
-
 function dayWord(key: string, today: string, now: Date): string {
   return key === today ? 'сегодня' : formatDay(key, now);
 }
@@ -212,7 +206,8 @@ export function staleSentence(stale: number): string | null {
 /**
  * Words of every transition (Jury_Check item 4): untested → once, once → once, once → confirmed,
  * confirmed → confirmed, any → not_passed, confirmed → not_passed, not_passed → once and
- * not_passed → not_passed. A passed answer is «засчитан», never «зачёт».
+ * not_passed → not_passed. No grade and no «засчитано» (Ф1): a passed answer is one where «названо
+ * достаточно», a failed one where «названо недостаточно» — the protocol's «Как считается» says how much.
  */
 export function peakText(input: {
   change: PeakChange;
@@ -227,21 +222,19 @@ export function peakText(input: {
   const today = localDate(now);
   const latestDay = change.latest.local_date || today;
   const when = dayWord(latestDay, today, now);
-  const grade = gradeOf(change.latest);
-  const gradeWord = grade !== null ? `«${GRADE_WORDS[grade]}»` : 'ответ без оценки';
   const from = change.before.readiness;
   const to = change.after.readiness;
   const confirmedTickets = input.confirmedTicketsPct !== null ? ` Билетов, где подтверждены оба вопроса, — ${pct(input.confirmedTicketsPct)}.` : '';
   const meaning = `${CONFIRMED_MEANING}${confirmedTickets}`;
   const growth = peakGrowth(counts, now);
-  const passed = `Вопрос ${number}: ответ, который вы дали только что, засчитан.`;
-  const failed = `Вопрос ${number}: ответ, который вы дали только что, не засчитан.`;
+  const passed = `Вопрос ${number}: в ответе, который вы дали только что, названо достаточно пунктов.`;
+  const failed = `Вопрос ${number}: в ответе, который вы дали только что, названо недостаточно пунктов.`;
 
   if (to === 'confirmed' && from !== 'confirmed') {
     const start = change.after.seriesStartDate;
-    const head = start && start !== latestDay ? `${capitalize(formatDay(start, now))} — засчитано. ` : '';
+    const head = start && start !== latestDay ? `${capitalize(formatDay(start, now))} — названо достаточно. ` : '';
     return {
-      because: `${head}${capitalize(when)} снова ${gradeWord}: засчитано дважды, в разные дни, — вопрос подтверждён.`,
+      because: `${head}${capitalize(when)} снова названо достаточно: дважды, в разные дни, — вопрос подтверждён.`,
       title: 'Подтверждено ответами',
       before: Math.max(0, counts.confirmed - 1),
       after: counts.confirmed,
@@ -255,7 +248,7 @@ export function peakText(input: {
   if (to === 'not_passed' && from === 'confirmed') {
     const since = change.before.confirmedOn;
     return {
-      because: `Был подтверждён${since ? ` с ${formatDay(since, now)}` : ''}, ${when} — ${gradeWord}. Подтверждение снято, серия начнётся заново.`,
+      because: `Был подтверждён${since ? ` с ${formatDay(since, now)}` : ''}, ${when} названо недостаточно. Подтверждение снято, серия начнётся заново.`,
       title: 'Подтверждено ответами',
       before: counts.confirmed + 1,
       after: counts.confirmed,
@@ -268,8 +261,8 @@ export function peakText(input: {
   }
   if (to === 'not_passed') {
     return {
-      because: `${capitalize(when)} — ${gradeWord}, в готовность не засчитано. В режиме «Чаще слабые» вопрос будет выпадать чаще.`,
-      title: 'Не засчитано',
+      because: `${capitalize(when)} названо недостаточно пунктов. В режиме «Чаще слабые» вопрос будет выпадать чаще.`,
+      title: 'Названо недостаточно',
       before: from === 'not_passed' ? counts.notPassed : Math.max(0, counts.notPassed - 1),
       after: counts.notPassed,
       total: null,
@@ -282,10 +275,10 @@ export function peakText(input: {
   if (to === 'once' && from === 'once') {
     const at = formatShortMoment(change.after.confirmableFrom, now);
     return {
-      because: `Снова засчитано, но с первого засчитанного ответа прошло меньше 20 часов или это тот же день.${
-        at ? ` Подтвердит засчитанный ответ не раньше ${at}.` : ''
+      because: `Снова названо достаточно, но с первого такого ответа прошло меньше 20 часов или это тот же день.${
+        at ? ` Подтвердит такой же ответ не раньше ${at}.` : ''
       }`,
-      title: 'Засчитано, не подтверждено',
+      title: 'Названо достаточно, не подтверждено',
       before: null,
       after: counts.once,
       total: null,
@@ -299,9 +292,9 @@ export function peakText(input: {
     return {
       because:
         from === 'not_passed'
-          ? `Засчитано ${when}. После провала серия началась заново.`
-          : `Засчитано ${when}. Подтвердит засчитанный ответ на другой день, не раньше чем через 20 часов.`,
-      title: 'Засчитано, не подтверждено',
+          ? `${capitalize(when)} названо достаточно. После ответа, где названо недостаточно, серия началась заново.`
+          : `${capitalize(when)} названо достаточно. Подтвердит такой же ответ на другой день, не раньше чем через 20 часов.`,
+      title: 'Названо достаточно, не подтверждено',
       before: Math.max(0, counts.once - 1),
       after: counts.once,
       total: null,
@@ -311,9 +304,9 @@ export function peakText(input: {
       growth,
     };
   }
-  // Still confirmed: one more good answer.
+  // Still confirmed: one more answer that names enough.
   return {
-    because: `${capitalize(when)} снова ${gradeWord}: вопрос остаётся подтверждённым.`,
+    because: `${capitalize(when)} снова названо достаточно: вопрос остаётся подтверждённым.`,
     title: 'Подтверждено ответами',
     before: null,
     after: counts.confirmed,

@@ -395,7 +395,7 @@ function Exams() {
             <svg viewBox="0 0 400 160" aria-hidden="true">
               <path data-a="oval" pathLength={1} d="M200 12 C 320 10, 392 46, 386 84 C 380 128, 300 152, 196 148 C 84 146, 10 120, 14 78 C 18 36, 92 14, 214 16" />
             </svg>
-            Засчитано
+            Проверено
           </span>
         </div>
       </Beat>

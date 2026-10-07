@@ -315,6 +315,21 @@ export function protocolSheetLine(summary: ChangeSummary, quiet: QuietReason | n
   return `На шпаргалке строки не изменились${why}`;
 }
 
+/** «Сегодня» (Сегодня-lite): «Можно стереть: 3 вопроса» — the questions with a line an answer erases now. */
+export function erasableLine(count: number): string {
+  return `Можно стереть: ${count}${NBSP}${questionsWord(count)}`;
+}
+
+/**
+ * «Сегодня» when nothing can be erased now: «Следующие строки можно стереть после 9 окт., 15:40.», or
+ * «… 9 окт. или позже.» when the moment is a local midnight. Null when no line waits for such a moment
+ * (nothing named yet, or only missed lines) or the moment is already past.
+ */
+export function nextErasableLine(next: string | null, now: number = Date.now()): string | null {
+  const when = next ? erasableWhen(next, now) : null;
+  return when ? `Следующие строки можно стереть${when}.` : null;
+}
+
 /** The price under «Написать шпаргалку». */
 export function priceLine(toWrite: number, units: number, left: number | null): string {
   const base = `${toWrite}${NBSP}${questionsWord(toWrite)} — ${units}${NBSP}${unitsWord(units)} ИИ`;

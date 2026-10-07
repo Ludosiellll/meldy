@@ -100,10 +100,10 @@ describe('text marks', () => {
 
   it('gives the same oval for the same seed', () => {
     stubReducedMotion(false);
-    const first = render(<PencilOval seed={5}>Засчитано</PencilOval>);
+    const first = render(<PencilOval seed={5}>Проверено</PencilOval>);
     const d1 = first.container.querySelector('path')!.getAttribute('d');
     first.unmount();
-    const second = render(<PencilOval seed={5}>Засчитано</PencilOval>);
+    const second = render(<PencilOval seed={5}>Проверено</PencilOval>);
     expect(second.container.querySelector('path')!.getAttribute('d')).toBe(d1);
   });
 

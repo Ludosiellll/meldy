@@ -1,47 +1,23 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { MARK_DRAW_MS, MARK_STAGGER_MS, Mark, PencilOval, seedFrom, type MarkKind } from '../marks';
+import { Mark, seedFrom, type MarkKind } from '../marks';
 import { ZAVTRA } from '../landing/zavtraPath';
 import { UnderlinedText, quoteText } from './RubricSlots';
-import {
-  STATUS_WORDS,
-  countsSentence,
-  formulaLine,
-  gradeAnswer,
-  gradeWord,
-  type FollowupStatus,
-  type Grade,
-  type GradeFollowup,
-  type GradeResult,
-  type PointStatus,
-} from '../../lib/oral/oralGrade';
+import { STATUS_WORDS, countsSentence, type FollowupStatus, type PointStatus } from '../../lib/oral/oralGrade';
+import { answerSummary, summaryLine } from '../../lib/oral/answerSummary';
 import { fragmentsLabel, pointSource } from '../../lib/oral/oralPersistence';
 import type { Evaluation, Rubric } from '../../lib/oral/oralApi';
 import type { StoredProtocol } from '../../lib/oral/ticketData';
 import { glue } from '../../lib/oral/format';
 import { sharedGroups } from '../../lib/oral/rubricMatch';
 
-/** Redesign spec 5.12, word for word. */
-export const TRAINING_NOTE = 'Оценка тренировочная: по пунктам ответа из ваших лекций, а не по требованиям преподавателя.';
-
-/** The stamp of a 4 or a 5 (in the pencil oval) and of a 2 or a 3 (Jury_Check item 11: not «зачтено»). */
-export const STAMP_PASSED = 'Засчитано';
-export const STAMP_NOT_PASSED = 'В готовность не засчитано';
+/**
+ * The one small line of the result (Ф1, 2026-10-07): the department reads a «5 · отлично» as a foreign
+ * 5-point scale (Belarus grades on 10), so the screen shows no grade and says who grades.
+ */
+export const SCALE_NOTE = 'Отметку ставит преподаватель по 10-балльной шкале. Meldy проверяет только, назвали ли вы пункты из своих лекций.';
 
 /** The start of an essential point's status line: the weight-2 points are marked on the sheet. */
 export const MAIN_POINT = 'главный пункт';
-
-/** A saved answer graded before the cap for an unrecovered main point (formula v2). */
-export const OLD_RULE_NOTE =
-  'Этот ответ оценён по правилу, которое действовало в день ответа: без потолка за главный пункт, не восстановленный на вопросе экзаменатора.';
-/** A saved grade that today's formula does not explain: it is shown as it was saved. */
-export const SAVED_GRADE_NOTE = 'Оценка сохранена в день ответа.';
-
-/** The stamp of a grade: «Засчитано» for a 4 or a 5, «В готовность не засчитано» for a 2 or a 3, none without a grade. */
-export function stampFor(grade: number | null | undefined): 'passed' | 'not_passed' | 'none' {
-  if (grade === 4 || grade === 5) return 'passed';
-  if (grade === 2 || grade === 3) return 'not_passed';
-  return 'none';
-}
 
 /** The «Пункт 4 не назван…» line scrolls to the point this long (instantly under reduced motion). */
 export const ASKED_SCROLL_MS = 400;
@@ -122,14 +98,15 @@ export function storedPoints(protocol: StoredProtocol, anchors: Record<string, s
 
 const MARKS: Partial<Record<PointStatus, MarkKind>> = { covered: 'tick', partial: 'cup', missing: 'dash', wrong: 'cross' };
 
+/** What the reply to the examiner's question did for the point: the words of the point lines, no verdict on the answer. */
 const FOLLOWUP_WORDS: Record<FollowupStatus, string> = {
-  covered: 'засчитан',
-  partial: 'засчитан частично',
-  missing: 'не засчитан',
+  covered: 'пункт назван',
+  partial: 'пункт упомянут',
+  missing: 'пункт не назван',
   wrong: 'сказано неверно',
 };
 
-/** «засчитан частично», or «по ключевым словам засчитан частично» when the browser's rule decided. */
+/** «пункт упомянут», or «по ключевым словам пункт упомянут» when the browser's rule decided. */
 function followupVerdict(followup: ProtocolFollowup): string {
   const word = FOLLOWUP_WORDS[followup.status];
   return followup.judgedBy === 'keywords' ? `по ключевым словам ${word}` : word;
@@ -142,7 +119,7 @@ function askedLine(followup: ProtocolFollowup): string {
   return followup.judgedBy === 'keywords' ? `${said}, ${followupVerdict(followup)}` : said;
 }
 
-/** «ответ: не знаю.», «ответ: «…», засчитан частично.» or «ответа не прозвучало.» */
+/** «ответ: не знаю.», «ответ: «…», пункт упомянут.» or «ответа не прозвучало.» */
 function extraLine(followup: ProtocolFollowup): string {
   if (followup.answer === 'не знаю') return 'ответ: не знаю.';
   if (!followup.answer.trim()) return 'ответа не прозвучало.';
@@ -369,9 +346,13 @@ interface ProtocolSheetProps {
   heading: string;
   points: ProtocolPoint[];
   followup: ProtocolFollowup | null;
-  /** passed: «Засчитано» in a pencil oval; not_passed: «В готовность не засчитано»; none: no stamp (no grade). */
-  stamp: 'passed' | 'not_passed' | 'none';
-  /** Seed of the oval and the marks: the attempt or the session id, so a protocol always looks the same. */
+  /**
+   * What the answer did to the cheat sheet, under the heading where the «Засчитано» stamp used to be
+   * (Ф1): «На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась». Null when the protocol does not
+   * know it (not saved yet, a saved protocol read later, the journal not read): then nothing is there.
+   */
+  sheetNote?: ReactNode;
+  /** Seed of the marks: the attempt or the session id, so a protocol always looks the same. */
   seed: string;
   /** The evaluation failed: only the browser's key-word marks, labelled as such. */
   preliminary?: boolean;
@@ -384,12 +365,10 @@ interface ProtocolSheetProps {
  * title, its status in a word and a pencil mark, what the student said («Вы: «…»») and what the
  * lecture says, the same words underlined in both — so it is visible what a point was counted for.
  */
-export function ProtocolSheet({ heading, points, followup, stamp, seed, preliminary = false, animate = false }: ProtocolSheetProps) {
+export function ProtocolSheet({ heading, points, followup, sheetNote = null, seed, preliminary = false, animate = false }: ProtocolSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const mentions = lectureMentions(points);
   const asked = followup && !preliminary ? points.find((point) => point.id === followup.pointId) ?? null : null;
-  // The point marks are drawn in lecture order, 250 ms each, 60 ms apart; the oval after the last one.
-  const ovalDelay = animate ? Math.max(0, points.length - 1) * MARK_STAGGER_MS + MARK_DRAW_MS : 0;
   const showAsked = () => {
     if (!asked) return;
     const row = sheetRef.current?.querySelector<HTMLElement>(`[data-point="${asked.id}"]`);
@@ -399,18 +378,7 @@ export function ProtocolSheet({ heading, points, followup, stamp, seed, prelimin
     <div ref={sheetRef} className="sf-sheet or-psheet">
       <div className="or-ph">
         <span className="or-ph-date">{heading}</span>
-        {stamp === 'passed' ? (
-          <span className="or-stamp" data-passed="true">
-            {/* Wide enough that the line never cuts the word's corners (spec 3.8: word +10/+7), fitted to «Засчитано». */}
-            <PencilOval seed={seedFrom(seed, 'oval')} animate={animate} delayMs={ovalDelay} padX={16} padY={9}>
-              {STAMP_PASSED}
-            </PencilOval>
-          </span>
-        ) : stamp === 'not_passed' ? (
-          <span className="or-stamp" data-passed="false">
-            {STAMP_NOT_PASSED}
-          </span>
-        ) : null}
+        {sheetNote ? <p className="or-ph-sheet or-sheet-change">{sheetNote}</p> : null}
       </div>
       {/* Above the fold on the stage: which point the examiner asked about, one click from it. */}
       {asked ? (
@@ -443,81 +411,62 @@ export function ProtocolSheet({ heading, points, followup, stamp, seed, prelimin
   );
 }
 
-/** The sentence about the cap that set this grade, or about the cap left out (formula v2). */
-export function capSentence(result: GradeResult): string | null {
-  if (result.cap === 'essential_unrecovered') {
-    const which = result.capPoint ? `пункт ${result.capPoint.number}` : 'главный пункт';
-    return `Здесь оценку ограничил ${which}: на вопрос экзаменатора о нём не было верного ответа.`;
-  }
-  if (result.cap === 'essential_wrong') return 'Здесь оценку ограничила ошибка в главном пункте.';
-  if (result.cap === 'two_wrong') return 'Здесь оценку ограничили две ошибки.';
-  return null;
-}
-
-export const CAP_SKIPPED_SENTENCE = 'Ответ на вопрос экзаменатора проверен только по ключевым словам, поэтому этот потолок здесь не применён.';
-
-/** The formula v2 in words (redesign spec 5.12, «Как считается»): weights, credits, the three caps and which one applied. */
-export function HowGraded({ result }: { result: GradeResult }) {
-  const formula = formulaLine(result);
-  const applied = capSentence(result);
+/**
+ * «Как считается» (Ф1): what the words of the result mean, and when a question becomes «подтверждено» —
+ * in words, with no grade and no formula. The rule is the internal grade of oralGrade.ts (an answer
+ * counts from 65 of 100; two errors, or a main point the examiner asked about and got no answer on,
+ * keep it out), said as the student meets it.
+ */
+export function HowCounted() {
   return (
     <div className="or-how">
-      {formula ? <p className="or-how-formula">{formula}</p> : null}
       <p className="or-how-text">
-        Главный пункт весит 2, остальные — 1. Раскрытый пункт даёт 1, упомянутый — 0,5, не названный и ошибочный — 0. Ответ на
-        вопрос экзаменатора поднимает свой пункт до 0,5, частичный ответ — до 0,25. Пункты без оценки в счёт не входят.
+        Сами — пункт назван в ответе, до вопроса экзаменатора. После вопроса — пункт назван только в ответ на вопрос экзаменатора:
+        строку шпаргалки такой пункт не стирает. Ошибка — пункт назван неверно.
       </p>
       <p className="or-how-text">
-        Оценка 5 — от 85 из 100, 4 — от 65, 3 — от 45. Ошибка в главном пункте — не выше 4, две ошибки — не выше 3. Если экзаменатор
-        спросил о главном пункте, который не назван или назван неверно, а ответа на его вопрос нет или он неверный, — не выше 3. В
-        готовность засчитываются ответы на 4 и 5.
+        Вопрос подтверждается, когда дважды, в разные дни, в ответе названо достаточно: около двух третей пунктов, если главный
+        считать за два, а упомянутый и названный после вопроса — за половину. С двумя ошибками ответ вопрос не подтверждает. Если
+        экзаменатор спросил о главном пункте, на его вопрос нужно ответить хотя бы частично.
       </p>
-      {applied || result.capSkipped ? (
-        <p className="or-how-text or-how-cap">
-          {[applied, result.capSkipped === 'keywords' ? CAP_SKIPPED_SENTENCE : null].filter(Boolean).join(' ')}
-        </p>
-      ) : null}
     </div>
   );
 }
 
-interface ProtocolGradeProps {
-  result: GradeResult;
-  /** A saved answer: how its grade relates to today's formula (storedGrade), shown under the counts. */
-  note?: string | null;
+interface ProtocolResultProps {
+  /** The protocol's points (their statuses after the check) and the follow-up: the result is counted from them. */
+  points: ReadonlyArray<Pick<ProtocolPoint, 'id' | 'essential' | 'status'>>;
+  followup: Pick<ProtocolFollowup, 'pointId' | 'status'> | null;
   /**
    * A previous answer to the same question, on its own muted line under «Как считается»: «Прошлый
-   * ответ, 2 окт.: «хорошо».», the date being the link (redesign critique 4, round 2; a grade in words
-   * because «4 из 5» next to «Раскрыто 3 пункта из 5» read as points).
+   * ответ, 2 окт.», the date being the link to its protocol (redesign critique 4, round 2).
    */
   previous?: ReactNode;
+  /** The small lines at the end; SCALE_NOTE by default (the example says its own). */
+  fine?: ReactNode;
   children?: ReactNode;
 }
 
-/** The grade on the desk: «4 хорошо», the counts in a plain sentence, «Как считается», the note. */
-export function ProtocolGrade({ result, note = null, previous, children }: ProtocolGradeProps) {
+/**
+ * The result on the desk (Ф1, 2026-10-07): no grade, no «Засчитано» — «Назвали сами 3 из 4 главных ·
+ * после вопроса 1 · ошибок: 1», the counts in a plain sentence, «Как считается» and the line that the
+ * teacher grades on the 10-point scale.
+ */
+export function ProtocolResult({ points, followup, previous, fine, children }: ProtocolResultProps) {
   const [open, setOpen] = useState(false);
   const howId = useId();
-  const word = gradeWord(result.grade);
+  const summary = answerSummary(
+    points.map((point) => ({ id: point.id, essential: point.essential, status: point.status })),
+    followup ? { point_id: followup.pointId, status: followup.status } : null,
+  );
+  const line = summaryLine(summary);
   return (
     <div className="or-grade">
       <p className="or-grade-label" aria-hidden="true">
-        Оценка
+        Итог
       </p>
-      <p className="or-grade-g">
-        <span className="sr-only">{word ? `Оценка ${result.grade} · ${word}` : 'Оценки нет'}</span>
-        <span className="or-grade-digit" aria-hidden="true">
-          {result.grade ?? '—'}
-        </span>
-        {word ? (
-          // «удовлетворительно» is set smaller, so it stays on the digit's line (and the actions in a 720 px window).
-          <span className="or-grade-word" aria-hidden="true" data-long={word.length > 8 ? '' : undefined}>
-            {word}
-          </span>
-        ) : null}
-      </p>
-      <p className="or-grade-why">{glue(countsSentence(result.counts))}</p>
-      {note ? <p className="or-grade-note">{note}</p> : null}
+      <p className="or-sum">{line ? glue(line) : 'Ни один пункт не оценён.'}</p>
+      {line ? <p className="or-grade-why">{glue(countsSentence(summary.counts))}</p> : null}
       <p className="or-how-row">
         <button type="button" className="sf-link" aria-expanded={open} aria-controls={howId} onClick={() => setOpen((value) => !value)}>
           Как считается
@@ -526,55 +475,13 @@ export function ProtocolGrade({ result, note = null, previous, children }: Proto
       {previous ? <p className="or-previous or-prev-line">{previous}</p> : null}
       {open ? (
         <div id={howId}>
-          <HowGraded result={result} />
+          <HowCounted />
         </div>
       ) : null}
-      <p className="or-grade-fine">{TRAINING_NOTE}</p>
+      {fine ?? <p className="or-grade-fine">{SCALE_NOTE}</p>}
       {children}
     </div>
   );
-}
-
-export interface StoredGradeView {
-  result: GradeResult;
-  /** OLD_RULE_NOTE, SAVED_GRADE_NOTE or null (the saved grade is today's formula, a protocol like a fresh one). */
-  note: string | null;
-}
-
-function isGrade(value: number | null): value is Grade {
-  return value === 2 || value === 3 || value === 4 || value === 5;
-}
-
-/**
- * The grade of a saved protocol (?session=). The save keeps the follow-up's status but not how it was
- * judged, and the grade is written at answer time, so the saved grade is matched against both
- * readings: with the cap for an unrecovered main point (a trusted verdict) and without it (a key-word
- * verdict, or the rule before formula v2).
- * - the capped reading gives the saved grade → shown exactly like a fresh protocol;
- * - the plain reading does → shown with its formula (which leads to the saved grade) and a note: the
- *   old rule for an explicit «не знаю» or silence (those were never key-word verdicts), else neutral;
- * - neither → the saved grade as it is, with no formula line.
- */
-export function storedGrade(protocol: StoredProtocol): StoredGradeView {
-  const points = protocol.points.map((point) => ({ id: point.id, essential: point.essential, status: point.status }));
-  const saved = protocol.followup;
-  const followup = (judgedBy: GradeFollowup['judgedBy']): GradeFollowup | null =>
-    saved ? { point_id: saved.point_id, status: saved.status, judgedBy } : null;
-  const capped = gradeAnswer(points, followup(null));
-  if (!isGrade(protocol.grade)) return { result: capped, note: null };
-  const matches = (result: GradeResult) => result.grade === protocol.grade && (protocol.score === null || result.score === protocol.score);
-  if (matches(capped)) return { result: capped, note: null };
-  const plain = gradeAnswer(points, followup('keywords'));
-  if (matches(plain)) {
-    const answer = saved ? saved.student_quote.trim() : '';
-    const dontKnow = saved !== null && saved.status === 'missing' && (answer === 'не знаю' || answer === '');
-    return { result: { ...plain, capSkipped: null, capPoint: null }, note: dontKnow ? OLD_RULE_NOTE : SAVED_GRADE_NOTE };
-  }
-  const grade = protocol.grade;
-  return {
-    result: { ...capped, score: protocol.score, grade, word: gradeWord(grade), passed: grade >= 4, terms: [], cap: null, capSkipped: null, capPoint: null },
-    note: SAVED_GRADE_NOTE,
-  };
 }
 
 /** «завтра» in the landing's hand (zavtraPath.ts), 26 px high, on the index card of the follow-up. */

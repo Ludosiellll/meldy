@@ -251,14 +251,14 @@ describe('the readiness block', () => {
       'Подтверждено ответами — 7 из 40.',
       'С 1 октября: 0 → 7 за 3 дня.',
       'Пора проверить: 2 — подтверждены больше 14 дней назад.',
-      'Подтверждено — значит, засчитано дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 3 %.',
+      'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 3 %.',
       'Второй ответ после разбора: по 5 вопросам в первый раз раскрыто 48 % пунктов, во второй — 81 %.',
     ]);
     const legend = screen.getByRole('list', { name: 'Показать вопросы по ответам' });
     expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent).replace(/^12/, ''))).toEqual([
       'подтверждено 7',
-      'засчитано, не подтверждено 3',
-      'не засчитано 2',
+      'названо достаточно, не подтверждено 3',
+      'названо недостаточно 2',
       'не проверялось 28',
     ]);
   });
@@ -281,18 +281,18 @@ describe('peak 3 column', () => {
   });
 
   it('keeps the count of the transition when nothing is confirmed: never «0 → 0»', () => {
-    const view = { ...base, title: 'Засчитано, не подтверждено', before: 2, after: 3, total: null, growth: null };
+    const view = { ...base, title: 'Названо достаточно, не подтверждено', before: 2, after: 3, total: null, growth: null };
     const { container } = render(<PeakSummary peak={view} confidence={null} onClose={vi.fn()} />);
     expect(plain(container.querySelector('.ex-now')?.textContent)).toBe('3');
     expect(plain(container.querySelector('.ex-was')?.textContent)).toBe('было 2');
     expect(container.textContent).not.toContain('→');
-    expect(peakCountLine(view)).toBe('Засчитано, не подтверждено: 3, было 2.');
+    expect(peakCountLine(view)).toBe('Названо достаточно, не подтверждено: 3, было 2.');
   });
 
   it('after a 3 names the transition and still shows the growth, without «+1»', () => {
-    const view = { ...base, title: 'Не засчитано', before: 1, after: 2, total: null, growth: { to: 7, total: 40, days: 3, today: 0 } };
+    const view = { ...base, title: 'Названо недостаточно', before: 1, after: 2, total: null, growth: { to: 7, total: 40, days: 3, today: 0 } };
     const { container } = render(<PeakSummary peak={view} confidence={null} onClose={vi.fn()} />);
-    expect(screen.getByText('Не засчитано')).toBeInTheDocument();
+    expect(screen.getByText('Названо недостаточно')).toBeInTheDocument();
     expect(plain(container.querySelector('.ex-now')?.textContent)).toBe('0 → 7 из 40');
     expect(plain(container.querySelector('.ex-peak-growth')?.textContent)).toBe('подтвержденоза 3 дня');
     expect(container.querySelector('.ex-peak-growth b')).toBeNull();

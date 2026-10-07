@@ -516,9 +516,9 @@ describe('Progress sources', () => {
     expect(row.querySelectorAll('.sf-ledger-fig')).toHaveLength(1);
     expect(within(row).queryByText('билетов, где подтверждены оба вопроса')).toBeNull();
     expect((row.querySelector('.sf-ledger-foot')?.textContent ?? '').replace(/ /g, ' ')).toBe(
-      'Засчитано, не подтверждено — 0, не засчитано — 1. Билетов, где подтверждены оба вопроса, — 0 %. Самооценка против ответов: мало данных.',
+      'Названо достаточно, не подтверждено — 0, названо недостаточно — 1. Билетов, где подтверждены оба вопроса, — 0 %. Самооценка против ответов: мало данных.',
     );
-    expect(row.textContent).not.toMatch(/зачт[её]н|вслух/i);
+    expect(row.textContent).not.toMatch(/зачт[её]н|засчит|вслух/i);
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith([a, b, c]);
 
     const todo = screen.getByRole('heading', { name: 'Что подтянуть' }).closest('section') as HTMLElement;
@@ -526,17 +526,17 @@ describe('Progress sources', () => {
     expect(within(gap).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/e1');
   });
 
-  it('counts «подтверждено» by the rule: two days and 20 hours between the first and the last засчитанный answer', async () => {
+  it('counts «подтверждено» by the rule: two days and 20 hours between the first and the last passed answer', async () => {
     const [a, b, c] = ['a', 'b', 'c'].map((ch) => ch.repeat(32));
     setTable('exams', () => ({ data: [{ id: 'e1', title: 'Микроэкономика', kind: 'exam', exam_date: '2026-10-15', ticket_layout: { mode: 'random', per_ticket: 2 } }] }));
     setTable('exam_questions', () => ({
       data: [a, b, c].map((hash, index) => ({ id: `q${index}`, exam_id: 'e1', section: null, question_hash: hash, coverage: 'full' })),
     }));
     db.fetchQuestionEvents.mockResolvedValue([
-      // 23:59 and 0:01: two days, two minutes — засчитано, не подтверждено.
+      // 23:59 and 0:01: two days, two minutes — названо достаточно, не подтверждено.
       examAnswer(a, '2026-10-01', true, '1', '2026-10-01T20:59:00Z'),
       examAnswer(a, '2026-10-02', true, '2', '2026-10-01T21:01:00Z'),
-      // 1:00 and 21:00 of one day — засчитано, не подтверждено.
+      // 1:00 and 21:00 of one day — названо достаточно, не подтверждено.
       examAnswer(b, '2026-10-02', true, '3', '2026-10-01T22:00:00Z'),
       examAnswer(b, '2026-10-02', true, '4', '2026-10-02T18:00:00Z'),
       // 10:00, 18:00 and 8:00 the next day — подтверждено.
@@ -547,18 +547,18 @@ describe('Progress sources', () => {
     renderProgress();
     const row = (await screen.findByRole('link', { name: 'Микроэкономика' })).closest('li') as HTMLElement;
     expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
-    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Засчитано, не подтверждено — 2, не засчитано — 0\. /);
+    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Названо достаточно, не подтверждено — 2, названо недостаточно — 0\. /);
   });
 
-  it('words the ledger foot with «засчитано» and «ответили», and the confirmed tickets as a small line', () => {
+  it('words the ledger foot with «названо достаточно» and «ответили» (no «засчитано», Ф1), and the confirmed tickets as a small line', () => {
     const summary = { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 0 };
     const confidence = { ratedKnow: 18, ratedKnowAnswered: 10, ratedKnowPassed: 8, enoughData: true };
     expect(ledgerFoot({ summary, confidence, confirmedTickets: 3, perTicket: 2 }).replace(/ /g, ' ')).toBe(
-      'Засчитано, не подтверждено — 3, не засчитано — 2. Билетов, где подтверждены оба вопроса, — 3 %. Вы отметили «знаю» у 18 вопросов; из 10 таких, на которые вы ответили, засчитано 8.',
+      'Названо достаточно, не подтверждено — 3, названо недостаточно — 2. Билетов, где подтверждены оба вопроса, — 3 %. Вы отметили «знаю» у 18 вопросов; из 10 таких, на которые вы ответили, в 8 названо достаточно.',
     );
     expect(ledgerFoot({ summary: { ...summary, confirmed: 0 }, confidence, confirmedTickets: 0, perTicket: 2 })).not.toContain('Билетов');
     expect(ledgerFoot({ summary, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 1 })).toBe(
-      'Засчитано, не подтверждено — 3, не засчитано — 2. Самооценка против ответов: мало данных.',
+      'Названо достаточно, не подтверждено — 3, названо недостаточно — 2. Самооценка против ответов: мало данных.',
     );
     expect(ledgerFoot({ summary: { ...summary, confirmed: 0, once: 0, notPassed: 0 }, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 2 })).toBe(
       'Ответов по билетам ещё не было. Самооценка против ответов: мало данных.',

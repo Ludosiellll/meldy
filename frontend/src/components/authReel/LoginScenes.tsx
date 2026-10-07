@@ -213,7 +213,7 @@ function Recall() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 4 · «Отвечайте вслух.» — the ticket, the voice, the examiner's question, «Засчитано».
+// 4 · «Отвечайте вслух.» — the ticket, the voice, the examiner's question, «Проверено» (no «Засчитано» since Ф1).
 
 const BARS = Array.from({ length: 30 }, (_, index) => index);
 
@@ -256,7 +256,7 @@ function Ticket() {
             <svg viewBox="0 0 400 160" aria-hidden="true">
               <path data-a="oval" pathLength={1} d="M200 12 C 320 10, 392 46, 386 84 C 380 128, 300 152, 196 148 C 84 146, 10 120, 14 78 C 18 36, 92 14, 214 16" />
             </svg>
-            Засчитано
+            Проверено
           </span>
         </div>
         <div data-a="ask" className="fm-card ln-ask" style={{ opacity: 0 }}>

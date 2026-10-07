@@ -6,12 +6,14 @@
  * - «Как на экзамене» (exam): uniform. Known tickets are drawn whole by their question ids; one
  *   question per section when the layout says so; otherwise q distinct questions at random. The
  *   answer screen gets &mode=exam (no point marks while answering, no «Тянуть ещё»).
- * - «Чаще слабые» (weak): weights by readiness — not checked 3, not засчитан 3, засчитан but not
- *   confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
+ * - «Чаще слабые» (weak): weights by readiness — not checked 3, not passed («названо недостаточно») 3,
+ *   passed but not confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
  *   lectures (coverage none) never come out.
  * - «Из уже отвеченных» (answered): only questions with at least one answer, uniform.
- * - «Ждут подтверждения» (awaiting): questions засчитаны earlier, at least 20 hours and a day
- *   ago, so a good answer now confirms them; uniform.
+ * - «Ждут подтверждения» (awaiting): questions with a cheat-sheet line an answer erases now — a rubbed
+ *   line named on another day and at least 20 hours ago, or an erased line due for its check
+ *   (lib/exams/cheatSheet.erasableNow, the questions «Сегодня» counts in «Можно стереть»); uniform. The
+ *   page passes them as `awaiting`; without the sheet, the readiness rule's own QuestionState.awaiting.
  * Every mode says what it draws from (poolLine), so a drawn question never looks picked by hand.
  *
  * The last three tickets are not repeated (sessionStorage meldy_exam_last_tickets_<examId>).
@@ -53,9 +55,9 @@ export interface DrawQuestion {
   readiness: Readiness;
   /** Answers given to this question (exam_answer events, spoken or typed). */
   attempts: number;
-  /** Confirmed, but the last засчитанный answer is 14 or more days old. */
+  /** Confirmed, but the last passed answer is 14 or more days old. */
   stale?: boolean;
-  /** Засчитан once, and a good answer now would confirm it (QuestionState.awaiting). */
+  /** An answer now erases a line of its cheat sheet (cheatSheet.erasableNow); without the sheet, QuestionState.awaiting. */
   awaiting?: boolean;
 }
 

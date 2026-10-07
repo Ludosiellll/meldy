@@ -19,19 +19,10 @@ import RubricSlots from '../components/oral/RubricSlots';
 import LiveTranscript from '../components/oral/LiveTranscript';
 import ExaminerLine, { ExaminerThinking } from '../components/oral/ExaminerLine';
 import PrivacySheet from '../components/oral/PrivacySheet';
-import {
-  ProtocolGrade,
-  ProtocolSheet,
-  ReviewCard,
-  livePoints,
-  stampFor,
-  storedGrade,
-  storedPoints,
-  type ProtocolFollowup,
-} from '../components/oral/OralProtocol';
+import { ProtocolResult, ProtocolSheet, ReviewCard, livePoints, storedPoints, type ProtocolFollowup } from '../components/oral/OralProtocol';
 import { browserCandidate, decideFollowup, saysDontKnow } from '../lib/oral/followup';
 import { followupFallback, liveMarks, namedPoints, underlinedFinalWords, words } from '../lib/oral/rubricMatch';
-import { gradeAnswer, gradeWord, type GradeResult } from '../lib/oral/oralGrade';
+import { gradeAnswer, type GradeResult } from '../lib/oral/oralGrade';
 import { subjectOf } from '../lib/exams/format';
 import {
   CHECK_CONFIRM_TIMEOUT_MS,
@@ -90,7 +81,9 @@ import {
 } from '../lib/oral/ticketMachine';
 import { clockTime, draftTime, elapsedLabel, elapsedSpoken, glue, longDateTime, nextQuestionLabel, plural, shortDate, shortDateTime } from '../lib/oral/format';
 import { displayMaterialTitle } from '../utils/materialTitle';
-import { secondsBucket, track } from '../lib/telemetry';
+import { countBucket, secondsBucket, track } from '../lib/telemetry';
+import { usePasteGuard } from '../components/oral/usePasteGuard';
+import PasteNotice from '../components/oral/PasteNotice';
 import { useAnswerSheetChange } from '../components/exams/sheet/answerChange';
 import { protocolSheetLine } from '../components/exams/sheet/copy';
 
@@ -426,6 +419,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     sessionId: state.phase === 'protocol' && state.save.status === 'saved' ? state.save.result.sessionId : null,
     examDate: state.exam?.examDate ?? null,
   });
+  // «Чистый ответ» (Н7): a ready text pasted into the answer or into the reply to the examiner is refused,
+  // with the reason under the field — only the student's own words erase the sheet's lines.
+  const answerPaste = usePasteGuard((words) => track('answer_paste_refused', { field: 'answer', words: countBucket(words) }));
+  const followupPaste = usePasteGuard((words) => track('answer_paste_refused', { field: 'followup', words: countBucket(words) }));
   const voiceAnswer = state.mode === 'voice';
   const finalText = voiceAnswer ? speech.finalText : state.typed;
   const interimText = voiceAnswer ? speech.interimText : '';
@@ -1389,9 +1386,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
     const previous = state.history?.previous ?? null;
     // The previous answer may have been given in another exam with the same question: its protocol lives there.
     const previousPath = previous ? `/exams/${previous.examId ?? examId}/ticket?session=${encodeURIComponent(previous.sessionId)}` : '';
-    // «Прошлый ответ, 2 окт.: «хорошо».» on its own line, the date being the link to that protocol: a
-    // grade in words, not «4 из 5» next to «Раскрыто 3 пункта из 5» (redesign critique 4, round 2).
-    const previousWord = previous && previous.grade !== null ? gradeWord(previous.grade) : '';
+    // «Прошлый ответ, 2 окт.» on its own line, the date being the link to that protocol (redesign critique
+    // 4, round 2); no grade word (Ф1): what that answer named is in its protocol.
     const previousLink =
       previous && previous.sessionId !== (state.save.status === 'saved' ? state.save.result.sessionId : '') ? (
         <>
@@ -1399,7 +1395,6 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           <Link className="sf-ref" to={previousPath} aria-label={`Протокол прошлого ответа, ${shortDate(previous.localDate)}`}>
             {shortDate(previous.localDate)}
           </Link>
-          {previousWord ? `: «${previousWord}».` : '.'}
         </>
       ) : null;
     const hasNext = state.index + 1 < total;
@@ -1425,14 +1420,14 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           <main className="sf-page or-room" data-phase="protocol">
             {protocolTitle}
             <section className="or-left" aria-label="Предварительные отметки">
-              <ProtocolSheet heading={sheetHeading} points={livePoints(rubricResponse.rubric, null, new Set(state.named))} followup={null} stamp="none" seed={seed} preliminary />
+              <ProtocolSheet heading={sheetHeading} points={livePoints(rubricResponse.rubric, null, new Set(state.named))} followup={null} seed={seed} preliminary />
             </section>
             <section className="or-side" aria-label="Проверка ответа">
               <h2 className="or-state-title">Ответ не проверен</h2>
               <p className="or-message" role="alert">
                 {state.evaluation.status === 'failed' ? state.evaluation.message : EVALUATION_FAILED_MESSAGE}
               </p>
-              <p className="or-hint">Оценки нет, лимит не списан, в историю ничего не записано.</p>
+              <p className="or-hint">Лимит не списан, в историю ничего не записано.</p>
               {previous ? (
                 <p className="or-previous">
                   <Link className="sf-ref" to={previousPath}>
@@ -1457,10 +1452,24 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
       );
     }
 
-    const result = grade ?? gradeAnswer([], null);
     const saved = state.save.status === 'saved' ? state.save.result : null;
     const askedPoint = followupForProtocol ? rubricResponse.rubric.points.find((point) => point.id === followupForProtocol.pointId) : null;
     const askedStatus = askedPoint && state.evaluation.status === 'done' ? state.evaluation.result.points.find((point) => point.id === askedPoint.id)?.status : null;
+    const protocolPoints = livePoints(rubricResponse.rubric, state.evaluation.status === 'done' ? state.evaluation.result : null, new Set(state.named));
+    // Where the «Засчитано» stamp was (Ф1): what this answer did to the cheat sheet, once it is saved and
+    // the journal is read. The phone has no «К шпаргалке» under the result, so the line links there.
+    const sheetNote =
+      saved && sheetChange ? (
+        <>
+          {glue(protocolSheetLine(sheetChange.summary, sheetChange.quiet))}
+          <span className="or-narrow">
+            {' · '}
+            <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
+              посмотреть
+            </button>
+          </span>
+        </>
+      ) : null;
     const primary = hasNext ? (
       <button type="button" className="sf-primary" onClick={() => void goToQuestion(state.index + 1)}>
         {nextQuestionLabel(state.index + 1)}
@@ -1485,16 +1494,15 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           <section className="or-left" aria-label="Пункты ответа и ваш ответ">
             <ProtocolSheet
               heading={sheetHeading}
-              points={livePoints(rubricResponse.rubric, state.evaluation.status === 'done' ? state.evaluation.result : null, new Set(state.named))}
+              points={protocolPoints}
               followup={followupForProtocol}
-              // «Засчитано» means counted: the stamp lands only once the answer is saved (jury review).
-              stamp={state.save.status === 'saved' ? stampFor(result.grade) : 'none'}
+              sheetNote={sheetNote}
               seed={seed}
               animate={!state.attempt?.restored}
             />
           </section>
-          <section className="or-side" aria-label="Оценка">
-            <ProtocolGrade result={result} previous={previousLink}>
+          <section className="or-side" aria-label="Итог">
+            <ProtocolResult points={protocolPoints} followup={followupForProtocol} previous={previousLink}>
               <div className="or-back">
                 {saved?.cardAdded && followupForProtocol ? (
                   <>
@@ -1511,30 +1519,16 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                     Сохраняем…
                   </p>
                 ) : state.save.status === 'saved' ? (
-                  <>
-                    <p className="or-save-line" role="status">
-                      Сохранено в историю и{' '}
-                      <Link className="sf-ref" to="/mistakes">
-                        дневник ошибок
-                      </Link>
-                      .
-                    </p>
-                    {sheetChange ? (
-                      <p className="or-save-line or-sheet-change">
-                        {glue(protocolSheetLine(sheetChange.summary, sheetChange.quiet))}
-                        {/* «К шпаргалке» below says it on wide screens; the phone hides that button, so the line links. */}
-                        <span className="or-narrow">
-                          {' · '}
-                          <button type="button" className="sf-link" onClick={() => void leave(`/exams/${examId}?view=sheet`)}>
-                            посмотреть
-                          </button>
-                        </span>
-                      </p>
-                    ) : null}
-                  </>
+                  <p className="or-save-line" role="status">
+                    Сохранено в историю и{' '}
+                    <Link className="sf-ref" to="/mistakes">
+                      дневник ошибок
+                    </Link>
+                    .
+                  </p>
                 ) : state.save.status === 'no_grade' ? (
                   <p className="or-save-line" role="status">
-                    Оценки нет: ни один пункт не оценён. Ответ не сохранён, лимит не списан.
+                    Ни один пункт не оценён: ответ не сохранён, лимит не списан.
                   </p>
                 ) : (
                   <p className="or-save-line" data-state="failed" role="alert">
@@ -1554,7 +1548,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                   К шпаргалке
                 </button>
               </div>
-            </ProtocolGrade>
+            </ProtocolResult>
           </section>
         </main>
       </div>
@@ -1903,14 +1897,21 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                 {followup.notHeard && followup.stage === 'asking' ? <p className="or-hint">{`${NOT_HEARD_LINE}.`}</p> : null}
                 {state.notice ? <p className="or-hint">{state.notice}</p> : null}
                 {followup.stage === 'answering' && followup.mode === 'text' ? (
-                  <textarea
-                    className="or-text-field"
-                    aria-label="Ответ на вопрос экзаменатора"
-                    placeholder="Напишите ответ своими словами"
-                    value={followup.typed}
-                    onChange={(event) => dispatch({ type: 'followup_typed', text: event.target.value })}
-                    data-anchor=""
-                  />
+                  <>
+                    <textarea
+                      className="or-text-field"
+                      aria-label="Ответ на вопрос экзаменатора"
+                      placeholder="Напишите ответ своими словами"
+                      value={followup.typed}
+                      onChange={(event) => {
+                        followupPaste.clear();
+                        dispatch({ type: 'followup_typed', text: event.target.value });
+                      }}
+                      {...followupPaste.fieldProps}
+                      data-anchor=""
+                    />
+                    <PasteNotice guard={followupPaste} />
+                  </>
                 ) : null}
                 {/* One transcript from the question on: while the examiner asks it keeps its place unseen, so the
                     block does not move when the microphone opens (peak 2 on the stage). */}
@@ -1996,9 +1997,14 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           className="or-text-field"
           placeholder="Напишите ответ своими словами"
           value={state.typed}
-          onChange={(event) => dispatch({ type: 'typed', text: event.target.value })}
+          onChange={(event) => {
+            answerPaste.clear();
+            dispatch({ type: 'typed', text: event.target.value });
+          }}
+          {...answerPaste.fieldProps}
           data-anchor=""
         />
+        <PasteNotice guard={answerPaste} />
       </div>
     ) : (
       <LiveTranscript
@@ -2042,7 +2048,6 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
                   heading="Пункты ответа из лекций: сравните со своим ответом"
                   points={livePoints(rubricResponse.rubric, null, new Set(state.named))}
                   followup={null}
-                  stamp="none"
                   seed={state.attempt?.attemptId ?? seedBase}
                   preliminary
                 />
@@ -2177,9 +2182,13 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
 
   // The exam's title as it is now, or as it was when the answer was saved (exam_sessions.subject).
   const course = view.status === 'ready' ? subjectOf(view.exam?.title || view.protocol.subject || '') : '';
-  // The saved grade against today's formula: like a fresh protocol, or with the rule of that day.
-  const graded = view.status === 'ready' ? storedGrade(view.protocol) : { result: gradeAnswer([], null), note: null };
   const date = view.status === 'ready' ? view.protocol.completedAt : null;
+  // The saved points and follow-up: the sheet and the result are both counted from them.
+  const savedPoints = view.status === 'ready' ? storedPoints(view.protocol, view.anchors) : [];
+  const saved = view.status === 'ready' ? view.protocol.followup : null;
+  const savedFollowup: ProtocolFollowup | null = saved
+    ? { pointId: saved.point_id, question: saved.question, answer: saved.student_quote, status: saved.status }
+    : null;
   const sheetPath = `/exams/${view.status === 'ready' ? view.sheetExamId : examId}`;
   const sheetLink = (
     <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => navigate(sheetPath)}>
@@ -2203,33 +2212,24 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
           <h1 className="sr-only or-sr-title">
             {view.protocol.question ? `Протокол ответа на вопрос «${view.protocol.question}»` : 'Протокол ответа'}
           </h1>
+          {/* No sheet note here: a saved answer read later does not say what it did to the sheet then (Ф1). */}
           <section className="or-left" aria-label="Пункты ответа и ответ">
             <ProtocolSheet
               heading={`Ответ от ${shortDateTime(view.protocol.completedAt)}`}
-              points={storedPoints(view.protocol, view.anchors)}
-              followup={
-                view.protocol.followup
-                  ? {
-                      pointId: view.protocol.followup.point_id,
-                      question: view.protocol.followup.question,
-                      answer: view.protocol.followup.student_quote,
-                      status: view.protocol.followup.status,
-                    }
-                  : null
-              }
-              stamp={stampFor(view.protocol.grade)}
+              points={savedPoints}
+              followup={savedFollowup}
               seed={view.protocol.sessionId}
             />
           </section>
-          <section className="or-side" aria-label="Оценка">
+          <section className="or-side" aria-label="Итог">
             <p className="or-readonly-note">{`Ответ от ${shortDateTime(view.protocol.completedAt)}. Протокол только для чтения.`}</p>
-            <ProtocolGrade result={graded.result} note={graded.note}>
+            <ProtocolResult points={savedPoints} followup={savedFollowup}>
               <div className="or-acts" data-wide="">
                 <button type="button" className="sf-link" onClick={() => navigate(sheetPath)}>
                   Лист экзамена
                 </button>
               </div>
-            </ProtocolGrade>
+            </ProtocolResult>
           </section>
         </main>
       ) : (
