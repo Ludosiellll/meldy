@@ -3,11 +3,11 @@
  * follow index.css. On a phone the window is a sheet from the bottom. The window lives in document.body (a portal),
  * not inside .sf-page, so none of the exam page's rules reach it.
  *
- * Its parts sit in two wrappers: .ig-col-main (what the classmates get, the consent or the new link, the exam's
- * links) and .ig-col-side (the message for the group's chat, «Вопрос дня»). One column by default: the wrappers
- * step aside (display: contents) and `order` lays the parts out as one story — the link, its message, the links,
- * «Вопрос дня». From 960 px, when there is a text for the chat ([data-wide]), the wrappers are the two columns, so
- * the whole window fits a laptop (owner, 2026-10-07, 1532×734: «почему нельзя пошире сделать это окно»).
+ * Four parts, in the order of one column (and of the keyboard): .ig-main (what the classmates get, the consent or
+ * the new link), .ig-chat (its message), .ig-links (the exam's links), .ig-day («Вопрос дня»). From 960 px, when
+ * there is a text for the chat ([data-wide]), they stand two by two — the link and the links on the left, the texts
+ * for the chat on the right — so the whole window fits a laptop (owner, 2026-10-07, 1532×734: «почему нельзя пошире
+ * сделать это окно»). Without a new link «Вопрос дня» takes the whole right column.
  */
 .ig-layer {
   position: fixed;
@@ -39,13 +39,6 @@
 }
 .ig-box:focus-visible { box-shadow: 0 0 0 2px var(--sf-accent-fg), 0 30px 60px -30px rgba(16, 41, 90, .45); }
 
-/* One column: the parts of both wrappers in one flow. */
-.ig-col { display: contents; }
-.ig-col-main > * { order: 1; }
-.ig-col-side > .ig-chat { order: 2; }
-.ig-col-main > .ig-links { order: 3; }
-.ig-col-side > .ig-qd,
-.ig-col-side > .ig-wait { order: 4; }
 
 .ig-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .ig-h { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
@@ -153,20 +146,33 @@
 .ig-link .sf-link { font-size: 15px; }
 .ig-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; color: var(--sf-muted); }
 
-/* A computer, with a text for the chat: two columns, the texts on the right. */
+/* A computer, with a text for the chat: two columns, the texts for the chat on the right. */
 @media (min-width: 960px) {
   .ig-box[data-wide] {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* The last row takes what is left, so the parts above it keep their own height. */
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'head head'
+      'main day'
+      'links day';
     column-gap: 48px;
     align-items: start;
     width: min(1000px, 100%);
   }
-  .ig-box[data-wide] > .ig-head { grid-column: 1 / -1; }
-  .ig-box[data-wide] > .ig-col { display: block; min-width: 0; }
-  .ig-box[data-wide] > .ig-col-main { grid-column: 1; }
-  .ig-box[data-wide] > .ig-col-side { grid-column: 2; }
-  /* The right column starts level with the lede: its first part without the rule that separates it below. */
-  .ig-box[data-wide] .ig-col-side > :first-child { margin-top: 10px; padding-top: 0; border-top: 0; }
+  .ig-box[data-wide][data-made] {
+    grid-template-areas:
+      'head head'
+      'main chat'
+      'links day';
+  }
+  .ig-box[data-wide] > .ig-head { grid-area: head; }
+  .ig-box[data-wide] > .ig-main { grid-area: main; }
+  .ig-box[data-wide] > .ig-chat { grid-area: chat; margin-top: 10px; }
+  .ig-box[data-wide] > .ig-links { grid-area: links; }
+  .ig-box[data-wide] > .ig-day { grid-area: day; min-width: 0; }
+  /* «Вопрос дня» at the top of the right column starts level with the lede, without the rule above it. */
+  .ig-box[data-wide]:not([data-made]) > .ig-day > :first-child { margin-top: 10px; padding-top: 0; border-top: 0; }
 }
 
 @media (max-width: 639px) {

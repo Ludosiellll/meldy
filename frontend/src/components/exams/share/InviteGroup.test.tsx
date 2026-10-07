@@ -317,10 +317,12 @@ describe('«Пригласить группу»', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Создать ссылку' }));
     await within(dialog).findByLabelText('Текст для беседы группы');
     expect(dialog).toHaveAttribute('data-wide');
-    // The message sits in the right column; the link and the exam's links in the left one.
-    const side = dialog.querySelector('.ig-col-side')!;
-    expect(within(side as HTMLElement).getByLabelText('Текст для беседы группы')).toBeInTheDocument();
-    expect(within(dialog.querySelector('.ig-col-main') as HTMLElement).getByLabelText('Ссылка для группы')).toBeInTheDocument();
+    expect(dialog).toHaveAttribute('data-made');
+    // The parts in the order of one column (and of the keyboard): the link, its message, the exam's links.
+    const parts = Array.from(dialog.children).map((child) => child.className);
+    expect(parts.filter((name) => /^ig-(main|chat|links|day)$/.test(name))).toEqual(['ig-main', 'ig-chat', 'ig-links', 'ig-day']);
+    expect(within(dialog.querySelector('.ig-main') as HTMLElement).getByLabelText('Ссылка для группы')).toBeInTheDocument();
+    expect(within(dialog.querySelector('.ig-chat') as HTMLElement).getByLabelText('Текст для беседы группы')).toBeInTheDocument();
     cleanup();
 
     // An open link of this device: «Вопрос дня» on the right, the dialog wide before any new link.
@@ -330,8 +332,9 @@ describe('«Пригласить группу»', () => {
     renderInvite();
     dialog = await openDialog();
     const section = (await within(dialog).findByRole('heading', { name: 'Вопрос дня' })).closest('section')!;
-    expect(dialog.querySelector('.ig-col-side')?.contains(section)).toBe(true);
+    expect(dialog.querySelector('.ig-day')?.contains(section)).toBe(true);
     expect(dialog).toHaveAttribute('data-wide');
+    expect(dialog).not.toHaveAttribute('data-made');
     cleanup();
 
     // The links cannot be read: no «Вопрос дня», back to one column.
