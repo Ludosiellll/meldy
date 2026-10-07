@@ -7,9 +7,9 @@ rebuilt (только эталон из лекций этого экзамена
 списанием, одна оплата на двоих с /rubric, возвраты, 429/504 → busy и стоп, лимит на середине →
 ai_limit со счётом запуска, уход клиента, второй POST, сверка → 409, начатая сверка останавливает
 запись, не больше двух сборок на процесс со сдвигом стартов, keepalive, истёкший токен → auth,
-«Остановить», дневной потолок, несохранённый эталон. Короткие строки: проверка кодом, PATCH только
-sheet с created_at, пробованные пункты модели больше не отдаются, ответ без запрошенных ключей не
-помечает ничего, без единиц, пачки до 60, события refresh без счёта.
+«Остановить», дневной потолок → capped, несохранённый эталон. Короткие строки: проверка кодом (и
+при чтении), PATCH только sheet с created_at, пробованные пункты модели больше не отдаются, ответ без
+запрошенных ключей не помечает ничего, без единиц, пачки до 60, события refresh без счёта.
 
 Supabase — PostgREST в памяти из test_oral_api (здесь ещё JSON-пути в select, offset, колонка sheet,
 истекающий токен), модель — подменённый BaseAgent.run, дневной лимит — QuotaServer из test_quota.
@@ -719,6 +719,21 @@ def test_short_lines_are_read_only_for_their_own_rubric_version(sheet):
     assert read_sheet(sheet, exam_id)["questions"][0]["rubric"]["points"][0]["short"] == "цель — ценовая стабильность"
 
 
+def test_short_lines_written_under_a_looser_check_are_not_given_out(sheet):
+    """Строка, записанная при прежней, более мягкой проверке, проверяется снова при выдаче: не прошла —
+    short "", и лист пишет title. В базе она не меняется."""
+    fake = sheet.fake
+    exam_id, (question_id,), material_id = course(fake, QUESTIONS[:1])
+    created = "2026-10-04T10:00:00+00:00"
+    stored = {"v": 1, "for": created, "tried": {},
+              "short": {"p1": "цель — ценовая стабильность", "p2": "ключевая ставка = осн. инструмент"}}
+    assert oral_sheet.short_problem(stored["short"]["p2"], "Основной инструмент — ключевая ставка") == "order"
+    row = rubric_row(fake, question_id, material_id, created_at=created, sheet=stored)
+    points = read_sheet(sheet, exam_id)["questions"][0]["rubric"]["points"]
+    assert [point["short"] for point in points] == ["цель — ценовая стабильность", "", "", ""]
+    assert row["sheet"]["short"]["p2"] == "ключевая ставка = осн. инструмент"
+
+
 def test_rubrics_and_questions_are_read_page_by_page(sheet, monkeypatch):
     monkeypatch.setattr(oral_sheet, "PAGE_ROWS", 3)
     fake = sheet.fake
@@ -791,8 +806,8 @@ def test_write_streams_progress_questions_and_done_and_stores_short_lines_first(
     assert events[0] == {"type": "progress", "done": 0, "total": 3}
     assert sorted(statuses(events)) == sorted((question_id, "written") for question_id in ids)
     assert [event["done"] for event in events[1:4]] == [1, 2, 3] and all(event["total"] == 3 for event in events[1:4])
-    assert events[-1] == {"type": "done", "written": 3, "failed": 0, "busy": 0, "limit": False, "units": 0,
-                          "total": 3, "auth": 0, "stopped": 0}
+    assert events[-1] == {"type": "done", "written": 3, "failed": 0, "busy": 0, "capped": 0, "limit": False,
+                          "units": 0, "total": 3, "auth": 0, "stopped": 0}
     assert len(events) == 5
     for event in events[1:4]:
         rubric = event["rubric"]
@@ -911,8 +926,8 @@ def test_a_busy_provider_stops_the_run_and_the_rest_is_busy(paid, monkeypatch):
     assert len(paid.model.rubric_calls) == 1 and fake.rubrics() == []
     assert len(paid.server.rpc("consume_ai_units")) == 1 and len(paid.server.rpc("refund_ai_units")) == 1
     assert paid.server.used == 0
-    assert events[-1] == {"type": "done", "written": 0, "failed": 0, "busy": 3, "limit": False, "units": 0,
-                          "total": 3, "auth": 0, "stopped": 0}
+    assert events[-1] == {"type": "done", "written": 0, "failed": 0, "busy": 3, "capped": 0, "limit": False,
+                          "units": 0, "total": 3, "auth": 0, "stopped": 0}
 
 
 def test_the_ai_limit_mid_run_ends_with_ai_limit_and_charges_nothing_more(paid, monkeypatch):
@@ -927,7 +942,7 @@ def test_the_ai_limit_mid_run_ends_with_ai_limit_and_charges_nothing_more(paid, 
     # как у done: клиент пишет «Написано 2 из 4»; units — списано за запуск.
     assert last == {"type": "error", "code": "ai_limit", "message": quota.AI_LIMIT_DETAIL, "used": FREE_DAILY_UNITS,
                     "limit": FREE_DAILY_UNITS, "resets_at": "2026-10-05T00:00:00Z", "pro": False,
-                    "written": 2, "failed": 0, "busy": 0, "units": 2, "total": 4, "auth": 0, "stopped": 0}
+                    "written": 2, "failed": 0, "busy": 0, "capped": 0, "units": 2, "total": 4, "auth": 0, "stopped": 0}
     assert not any(event["type"] == "done" for event in events)
     consumed = paid.server.rpc("consume_ai_units")
     assert len(consumed) == 3 and paid.server.used == FREE_DAILY_UNITS  # третий отказ, четвёртого запроса нет
@@ -1010,8 +1025,8 @@ def test_follow_joins_a_running_job_and_never_starts_a_new_one(sheet):
     exam_id, _, _ = course(fake, QUESTIONS[:3])
     # Запись уже кончилась (или её не было): подключение не запускает новую и ничего не списывает.
     events = events_of(write(sheet, exam_id, follow=True))
-    assert events == [{"type": "done", "written": 0, "failed": 0, "busy": 0, "limit": False, "units": 0, "total": 0,
-                       "auth": 0, "stopped": 0, "joined": False}]
+    assert events == [{"type": "done", "written": 0, "failed": 0, "busy": 0, "capped": 0, "limit": False, "units": 0,
+                       "total": 0, "auth": 0, "stopped": 0, "joined": False}]
     assert sheet.model.calls == [] and fake.rubrics() == [] and oral_sheet._jobs == {}
     assert read_sheet(sheet, exam_id)["to_write"] == 3
 
@@ -1157,8 +1172,8 @@ def test_stop_finishes_started_questions_and_starts_no_more(sheet, monkeypatch):
     assert job["state"] == "stopping"
     events = events_of(streamed)
     assert statuses(events) == [(ids[0], "written")]
-    assert events[-1] == {"type": "done", "written": 1, "failed": 0, "busy": 0, "limit": False, "units": 0,
-                          "total": 4, "auth": 0, "stopped": 3}
+    assert events[-1] == {"type": "done", "written": 1, "failed": 0, "busy": 0, "capped": 0, "limit": False,
+                          "units": 0, "total": 4, "auth": 0, "stopped": 3}
     assert len(sheet.model.rubric_calls) == 1 and len(fake.rubrics()) == 1
     assert again.json() == {"stopped": False, "running": 0}
 
@@ -1203,21 +1218,24 @@ def test_a_mapping_run_stops_the_sheet_job_of_its_exam(sheet, monkeypatch):
     assert job["state"] == "stopping"
     events = events_of(streamed)
     assert statuses(events) == [(ids[0], "written")]
-    assert events[-1] == {"type": "done", "written": 1, "failed": 0, "busy": 0, "limit": False, "units": 0,
-                          "total": 4, "auth": 0, "stopped": 3}
+    assert events[-1] == {"type": "done", "written": 1, "failed": 0, "busy": 0, "capped": 0, "limit": False,
+                          "units": 0, "total": 4, "auth": 0, "stopped": 3}
     assert len(sheet.model.rubric_calls) == 1 and len(fake.rubrics()) == 1 and oral_sheet._jobs == {}
 
 
-def test_the_daily_build_cap_of_the_process_marks_the_rest_busy(sheet, monkeypatch):
+def test_the_daily_build_cap_of_the_process_marks_the_rest_capped(sheet, monkeypatch):
     monkeypatch.setenv("SHEET_DAILY_BUILDS", "1")
     monkeypatch.setattr(oral_sheet, "BUILD_SLOTS", 1)
     exam_id, ids, _ = course(sheet.fake, QUESTIONS[:3])
     events = events_of(write(sheet, exam_id))
-    assert statuses(events) == [(ids[0], "written"), (ids[1], "busy"), (ids[2], "busy")]
+    # Потолок процесса — не «ИИ был занят»: свой статус capped и свой счёт в done.
+    assert statuses(events) == [(ids[0], "written"), (ids[1], "capped"), (ids[2], "capped")]
+    assert events[-1] == {"type": "done", "written": 1, "failed": 0, "busy": 0, "capped": 2, "limit": False,
+                          "units": 0, "total": 3, "auth": 0, "stopped": 0}
     assert len(sheet.model.rubric_calls) == 1
     monkeypatch.setattr(oral_sheet, "_utc_today", lambda: date(2099, 1, 1))  # новые сутки UTC
     events = events_of(write(sheet, exam_id))
-    assert statuses(events) == [(ids[1], "written"), (ids[2], "busy")]
+    assert statuses(events) == [(ids[1], "written"), (ids[2], "capped")]
 
 
 def test_a_rubric_that_was_not_saved_is_failed_and_refunded(paid):
@@ -1325,6 +1343,55 @@ def test_a_crashing_job_ends_the_stream_with_an_error(sheet, monkeypatch):
         ("выручка-издержки фирмы", "Выручка и издержки фирмы за год", None),
         ("спрос / цена", "Спрос и цена товара на рынке", "arithmetic"),
         ("выручка = цена × количество", "Выручка — цена, умноженная на количество", None),
+        # Причина после первого слова title (при, за счёт, с ростом…): следствие названо раньше, стрелок нет.
+        ("цена ↑ → спрос ↑", "Цена растёт при росте спроса", "cause"),
+        ("спрос ↑ → цена ↑", "Цена растёт при росте спроса", "cause"),
+        ("цена ↑ при росте спроса", "Цена растёт при росте спроса", None),
+        ("спрос ↑ → цена ↑", "При росте спроса цена растёт", None),
+        ("прибыль ↑ → издержки ↓", "Прибыль растёт за счёт снижения издержек", "cause"),
+        ("издержки ↓ → прибыль ↑", "За счёт снижения издержек прибыль растёт", None),
+        ("инфляция ↓ → ставка ↑", "Инфляция снижается с ростом ключевой ставки", "cause"),
+        ("ставка ↑ → инфляция ↓", "С ростом ключевой ставки инфляция снижается", None),
+        ("курс ↓ → отток капитала", "Курс рубля падает под влиянием оттока капитала", "cause"),
+        ("спрос ↓ → цена ↑", "Величина спроса падает по мере роста цены", "cause"),
+        ("предложение ↑ → цена ↑", "Предложение растёт в ответ на рост цены", "cause"),
+        # Отрицание приставкой не-/без-/бес- не теряется; отрицание не переходит к другому слову слева.
+        ("спрос эластичен, если модуль меньше 1", "Спрос неэластичен, если модуль эластичности меньше 1", "negation"),
+        ("спрос неэласт., если модуль меньше 1", "Спрос неэластичен, если модуль эластичности меньше 1", None),
+        ("при соверш. конкуренции цена выше", "При несовершенной конкуренции цена выше, чем при совершенной", "negation"),
+        ("при несоверш. конкуренции цена выше", "При несовершенной конкуренции цена выше, чем при совершенной", None),
+        ("постоянные зависят от выпуска, перем. не зависят",
+         "Постоянные издержки не зависят от выпуска, а переменные зависят", "negation"),
+        ("постоянные не зависят от выпуска, перем. зависят",
+         "Постоянные издержки не зависят от выпуска, а переменные зависят", None),
+        # Стороны = − > на своих местах.
+        ("цена = выручка × количество", "Выручка — цена, умноженная на количество", "order"),
+        ("прибыль = издержки − выручка", "Прибыль — разница между выручкой и издержками", "order"),
+        ("спрос эластичный, если 1 > E", "Спрос эластичный, если эластичность E > 1", "order"),
+        # Длинные слова сверяются почти целиком, слово в 4 буквы — с другой гласной окончания.
+        ("монополия: один покупатель", "При монопсонии на рынке труда один покупатель", "new_word"),
+        ("монопсония: один покупатель", "При монопсонии на рынке труда один покупатель", None),
+        ("дефляция ↑", "Дефлятор ВВП показывает рост цен", "new_word"),
+        ("дефлятор ВВП: рост цен", "Дефлятор ВВП показывает рост цен", None),
+        ("цена ↑ → спрос ↓", "Рост цены снижает величину спроса", None),
+        ("доля ↑", "Государственный долг растёт", "new_word"),
+        # Слова роста и падения в прошедшем времени; стрелка после слова не из title — к слову за ней.
+        ("цены ↑", "Цены выросли", None),
+        ("инфляция ↓", "Инфляция снизилась", None),
+        ("безраб. ↓", "Безработица сократилась", None),
+        ("инфляция ↑", "При росте ставки инфляция снизилась", "direction"),
+        ("ЦБ ↓ ставку → кредиты дороже", "Центральный банк повышает ставку, и кредиты дорожают, а спрос снижается",
+         "direction"),
+        ("ЦБ ↑ ставку → кредиты дороже", "Центральный банк повышает ставку, и кредиты дорожают, а спрос снижается",
+         None),
+        # «При прочих равных» и «при этом» — не причина после следствия: стрелка от причины к следствию годится.
+        ("ставка ↑ → инфляция ↓", "Рост ставки при прочих равных снижает инфляцию", None),
+        ("инфляция ↓ → ставка ↑", "Рост ставки при прочих равных снижает инфляцию", "cause"),
+        ("спрос ↑ → цена ↑", "Спрос растёт, при этом цена растёт", None),
+        # «Убывает» — слово падения; «растение» и «возраст» (годы) — не слова роста.
+        ("пред. полезность ↓", "Предельная полезность убывает с каждой единицей", None),
+        ("растение ↑", "Растение поглощает углекислый газ", "direction"),
+        ("возраст ↑ → доход ↑", "Возраст работника влияет на его доход", "direction"),
     ],
 )
 def test_short_lines_are_checked_by_code(short, title, problem):
@@ -1375,8 +1442,8 @@ def test_tried_points_are_never_sent_to_the_model_again(sheet):
     calls = len(sheet.model.short_calls)
     second = events_of(write(sheet, exam_id))
     assert second == [{"type": "progress", "done": 0, "total": 0},
-                      {"type": "done", "written": 0, "failed": 0, "busy": 0, "limit": False, "units": 0,
-                       "total": 0, "auth": 0, "stopped": 0}]
+                      {"type": "done", "written": 0, "failed": 0, "busy": 0, "capped": 0, "limit": False,
+                       "units": 0, "total": 0, "auth": 0, "stopped": 0}]
     assert len(sheet.model.short_calls) == calls and sheet.model.rubric_calls[1:] == []
 
 

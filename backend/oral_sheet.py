@@ -23,16 +23,16 @@ follow: true — только подключение (страница увид�
 (single-flight) и её ключ, кэш перед списанием, answerPoints = 1, возврат единицы при любом сбое,
 в том числе rubric_unverifiable и несохранённом эталоне. Лекции и их фрагменты загружаются один раз
 на задачу. Общий предел процесса — не больше 2 сборок сразу, старты через 3 с, SHEET_DAILY_BUILDS
-сборок за сутки UTC (по умолчанию 400). Первый ai_busy или таймаут модели — новые вопросы не
-начинаются, остальные busy; кончился дневной лимит ИИ — остальные limit, затем завершающее событие
-AILimitExceeded.event() (вместо done: type, code, message и limit — дневной предел — как у него) со
-счётом запуска, как у done (written, failed, busy, units — списано за запуск, total, auth,
-stopped); истёк токен — остальные auth.
+сборок за сутки UTC (по умолчанию 400; кончились — новые вопросы не начинаются, остальные capped).
+Первый ai_busy или таймаут модели — новые вопросы не начинаются, остальные busy; кончился дневной
+лимит ИИ — остальные limit, затем завершающее событие AILimitExceeded.event() (вместо done: type,
+code, message и limit — дневной предел — как у него) со счётом запуска, как у done (written,
+failed, busy, capped, units — списано за запуск, total, auth, stopped); истёк токен — остальные auth.
 События: progress {done, total}; question {question_id, status, rubric, done, total}, status —
-written | cached | none | unverifiable | failed | busy | limit | auth; строки эталона, который был
-до запуска, — question {question_id, status: cached, rubric, refresh: true} без done и total (в
-счёт запуска не входит); done {written (с cached и none), failed (с unverifiable), busy, limit,
-units, total, auth, stopped}; сбой задачи — error.
+written | cached | none | unverifiable | failed | busy | capped | limit | auth; строки эталона,
+который был до запуска, — question {question_id, status: cached, rubric, refresh: true} без done и
+total (в счёт запуска не входит); done {written (с cached и none), failed (с unverifiable), busy,
+capped, limit, units, total, auth, stopped}; сбой задачи — error.
 
 POST /api/oral/sheet/stop {exam_id}: новые вопросы не начинаются, начатые дописываются (и
 списываются) — {"stopped": true, "running": <вопросов в работе>}. То же делает начатая сверка этого
@@ -47,7 +47,9 @@ tried, модели он больше не отдаётся. Пункт, кот�
 {"v":1,"for":created_at,"short":{…},"tried":{…}}: PATCH только её, с фильтром id и created_at, так
 что пересобранный тем временем эталон не
 затирается; sheet с другим for не читается. Строки нового вопроса пишутся до его события (на глазах
-не переписываются), эталоны, которые уже были, задача сокращает пачками.
+не переписываются), эталоны, которые уже были, задача сокращает пачками. Записанная строка
+проверяется и при выдаче: не прошла нынешнюю проверку (записана при прежней, мягче) — short "", и
+лист пишет title.
 """
 
 from __future__ import annotations
@@ -173,14 +175,22 @@ def _report_missing_column() -> None:
 # ── Проверка короткой строки (код, не модель) ───────────────────────────────────
 
 NEGATIONS = ("не", "нет", "без", "ни")
+NEGATION_PREFIXES = ("не", "без", "бес")  # отрицание в самом слове: «неэластичный», «безубыточный», «бесплатный»
 # Короткие служебные слова: с точкой после них это конец фразы, а не сокращение («рост до.» — не «доход»),
 # поэтому они годятся, только если стоят в title целиком.
 FUNCTION_WORDS = frozenset(
     ("а", "в", "во", "до", "же", "за", "и", "из", "или", "к", "ко", "на", "но", "о", "об", "от", "по", "при", "про", "с", "со",
      "то", "у", "для", "над", "под", "что", "как", "это", "ли", "бы")
 )
-RISING_STEMS = ("выше", "больше", "рост", "раст", "увелич", "повыш", "возраст")
-FALLING_STEMS = ("ниже", "меньше", "сниж", "паден", "пада", "уменьш", "сокращ")
+RISING_STEMS = (  # «дорожа», а не «дорож»: «дорожный» — про дороги; «растет», а не «раст»: «растение»; не «возраст» (годы)
+    "выше", "больше", "рост", "растет", "растут", "растущ", "вырос", "выраст", "возрастае", "возрастан", "возрастающ",
+    "возрос", "увелич", "повыш", "повыс", "дорожа", "дороже", "подорожа",
+)
+FALLING_STEMS = (
+    "ниже", "меньше", "сниж", "сниз", "пониж", "пониз", "паден", "пада", "упал", "упад", "уменьш", "сокращ", "сократ",
+    "дешев", "подешев", "убыв",
+)
+VOWELS = frozenset("аеиоуыэюя")  # ё уже стала е (_word)
 ALLOWED_ARROWS = frozenset("↑↓→←⇒")  # их рисует лист; остальные стрелки не проверить
 CAUSAL_ARROWS = "→⇒←"
 # title называет условие или причину или ставит следствие первым: по порядку слов не понять, что из чего.
@@ -189,6 +199,9 @@ CAUSE_STEMS = (
     "следстви", "результат",
 )
 CAUSE_PAIRS = (("так", "как"), ("из", "за"), ("т", "к"))  # «так как», «из-за», «т. к.»
+# С этих пар слов (не первым словом title) начинается причина: следствие названо раньше неё («Прибыль растёт
+# за счёт снижения издержек»). Так же — «при» и «с/со» перед словом роста или падения (_effect_first).
+EFFECT_FIRST_PAIRS = (("за", "счет"), ("по", "мер"), ("под", "влиян"), ("в", "ответ"), ("вслед", "за"), ("в", "связ"))
 COMPARISON_SIGNS = "<>≤≥≠"
 # Знак действия — только если title говорит то же самое: этим знаком или словом.
 ARITHMETIC_SIGNS = (
@@ -198,10 +211,12 @@ ARITHMETIC_SIGNS = (
 )
 MINUS_STEMS = ("разниц", "минус", "вычит", "вычет")
 _WORD_RE = re.compile(r"[^\W\d_]+")
+_TOKEN_RE = re.compile(r"[^\W_]+")  # слово или число
 _DIGITS_RE = re.compile(r"\d+")
 _NUMBER_RE = re.compile(r"\d{1,3}(?: \d{3})+(?!\d)(?:[.,]\d+)*|\d+(?:[.,]\d+)*")  # «16», «2,5», «1 000»
 _ARROW_RE = re.compile(r"[←-⇿⟰-⟿⤀-⥿⬀-⯿]")
 _MINUS_RE = re.compile(r"−|(?<= )-(?= )")  # «-» без пробелов — дефис; «—» и «–» — тире, не знак
+_ORDERED_SIGN_RE = re.compile(rf"[=<>≤≥/÷]|{_MINUS_RE.pattern}")  # знаки, у которых важно, что слева, а что справа
 
 
 def clean_short(value: Any) -> str:
@@ -218,9 +233,15 @@ def _words(text: str) -> list[str]:
 
 
 def _same_stem(word: str, other: str) -> bool:
-    """Одно слово для проверки: совпадают первые 4–5 букв (у слова из 4 букв — все четыре)."""
-    size = min(5, len(word), len(other))
-    return size >= 4 and word[:size] == other[:size]
+    """Одно слово для проверки: совпадают первые 5 букв, а если оба слова длиннее 7 букв — все буквы
+    более короткого, кроме двух последних («монопсонии» — не «монополия», «дефлятор» — не «дефляция»).
+    У слова из 4 букв — все четыре; два слова из 4 букв могут различаться только последней гласной
+    («цена» — «цены», но «долг» — не «доля»)."""
+    if len(word) == len(other) == 4 and word[:3] == other[:3] and word[3] in VOWELS and other[3] in VOWELS:
+        return True
+    shorter = min(len(word), len(other))
+    size = min(shorter, max(5, shorter - 2))
+    return shorter >= 4 and word[:size] == other[:size]
 
 
 def _matches(word: str, other: str) -> bool:
@@ -242,13 +263,16 @@ def _direction(word: str) -> str | None:
     return None
 
 
-def _arrow_word(text: str, position: int) -> str | None:
-    """Слово, к которому относится стрелка: прямо перед ней (точку сокращения пропускаем), иначе прямо после."""
+def _arrow_word(text: str, position: int, title_words: list[str]) -> str | None:
+    """Слово, к которому относится стрелка: прямо перед ней (точку сокращения пропускаем), а если его
+    нет в title («ЦБ ↑ ставку») — прямо после; None — ни того, ни другого в title нет."""
     before = re.search(r"([^\W\d_]+)\.?\s*$", text[:position])
-    if before:
-        return _word(before.group(1))
     after = re.match(r"\s*([^\W\d_]+)", text[position + 1:])
-    return _word(after.group(1)) if after else None
+    for match in (before, after):
+        word = _word(match.group(1)) if match else None
+        if word is not None and any(_matches(word, other) for other in title_words):
+            return word
+    return None
 
 
 def _arrow_contradicts(arrow: str, word: str, title_words: list[str]) -> bool:
@@ -308,7 +332,8 @@ def _same_word(word: str | None, abbreviated: bool, other: str | None) -> bool:
 
 
 def _negation_problem(text: str, title_words: list[str]) -> bool:
-    """Отрицание выпало, добавлено или стоит не при том слове, что в title."""
+    """Отрицание выпало, добавлено или стоит не при том слове, что в title (справа или слева от него),
+    или слово title потеряло приставку отрицания."""
     words = _short_words(text)
     for negation in NEGATIONS:
         if sum(1 for word, _ in words if word == negation) != title_words.count(negation):
@@ -326,6 +351,53 @@ def _negation_problem(text: str, title_words: list[str]) -> bool:
             following, abbreviated = words[index + 1] if index + 1 < len(words) else (None, False)
             if not any(_same_word(following, abbreviated, option) for option in after[word]):
                 return True
+    return _negation_moved(words, title_words) or _prefix_dropped(words, title_words)
+
+
+def _title_places(word: str, abbreviated: bool, title_words: list[str]) -> list[int]:
+    """Места в title слова строки (то же слово, что в проверке слов); у служебного слова, отрицания и
+    стрелки мест нет."""
+    if word in FUNCTION_WORDS or word in NEGATIONS or word in ("↑", "↓"):
+        return []
+    return [index for index, other in enumerate(title_words) if _same_word(word, abbreviated, other)]
+
+
+def _negation_moved(words: list[tuple[str, bool]], title_words: list[str]) -> bool:
+    """Отрицание перешло к другому слову слева: в title нет того же отрицания после ближайшего слева от
+    него слова строки из title («постоянные не зависят…, а переменные зависят» — не «постоянные
+    зависят…, перем. не зависят»). Каждое отрицание title — одному отрицанию строки, по порядку."""
+    taken: set[int] = set()
+    for index, (word, _) in enumerate(words):
+        if word not in NEGATIONS:
+            continue
+        nearest = (_title_places(*item, title_words) for item in reversed(words[:index]))
+        left = next((places for places in nearest if places), None)
+        if left is None:
+            continue
+        free = [place for place, other in enumerate(title_words) if other == word and place not in taken]
+        spot = next((place for place in free if place > min(left)), None)
+        if spot is None:
+            return True
+        taken.add(spot)
+    return False
+
+
+def _without_negation(word: str) -> str | None:
+    """Слово без приставки не-/без-/бес-, если после неё не меньше 4 букв («неэластичен» → «эластичен»)."""
+    prefix = next((prefix for prefix in NEGATION_PREFIXES if word.startswith(prefix)), None)
+    return word[len(prefix):] if prefix is not None and len(word) - len(prefix) >= 4 else None
+
+
+def _prefix_dropped(words: list[tuple[str, bool]], title_words: list[str]) -> bool:
+    """Слово title с приставкой отрицания есть в строке только без неё: «эластичен» при «неэластичен»,
+    «соверш.» при «несовершенной» (даже если «совершенной» в title тоже есть)."""
+    long_words = [word for word, _ in words if len(word) >= 4]
+    for title_word in title_words:
+        rest = _without_negation(title_word)
+        if rest is None or any(_same_stem(word, title_word) for word in long_words):
+            continue
+        if any(_same_stem(word, rest) for word in long_words):
+            return True
     return False
 
 
@@ -352,8 +424,55 @@ def _arithmetic_problem(text: str, source: str, title_words: list[str]) -> bool:
     )
 
 
+def _swapped(places: list[tuple[int, list[int]]], position: int, backward: bool = False) -> bool:
+    """Слова по обе стороны от знака в position переставлены: places — (начало в строке, места в title)
+    найденных в title слов строки; ближайшее слева стоит в title не раньше ближайшего справа (backward,
+    у ←, — не позже). Нет такого слова с одной из сторон — порядок не проверить."""
+    left = next((found for start, found in reversed(places) if start < position), None)
+    right = next((found for start, found in places if start > position), None)
+    if left is None or right is None:
+        return False
+    return max(left) <= min(right) if backward else min(left) >= max(right)
+
+
+def _operand_problem(text: str, source: str) -> bool:
+    """Знак = − / ÷ < > ≤ ≥ меняет стороны местами: как у →, ближайшее к знаку слово или число из
+    title слева стоит в title раньше ближайшего справа («прибыль = выручка − издержки», но не
+    «… издержки − выручка»)."""
+    signs = list(_ORDERED_SIGN_RE.finditer(text))
+    if not signs:
+        return False
+    title_tokens = [_word(token) for token in _TOKEN_RE.findall(source)]
+    places = []
+    for match in _TOKEN_RE.finditer(text):
+        token = _word(match.group())
+        found = [
+            index for index, other in enumerate(title_tokens)
+            if (_same_stem(token, other) if len(token) >= 4 and not token.isdigit() else token == other)
+        ]
+        if found:
+            places.append((match.start(), found))
+    return any(_swapped(places, sign.start()) for sign in signs)
+
+
+def _effect_first(title_words: list[str]) -> bool:
+    """Причина стоит в title после первого слова: «при», «за счёт», «по мере», «под влиянием», «в ответ
+    на», «вслед за», «в связи с», «с/со» перед словом роста или падения («с ростом ставки»). «При
+    прочих равных» и «при этом» — не причина: «Рост ставки при прочих равных снижает инфляцию» —
+    «ставка ↑ → инфляция ↓»."""
+    for word, following in zip(title_words[1:], title_words[2:] + [""]):
+        if word == "при" and not following.startswith(("проч", "этом")):
+            return True
+        if word in ("с", "со") and _direction(following) is not None:
+            return True
+        if any(word == first and following.startswith(second) for first, second in EFFECT_FIRST_PAIRS):
+            return True
+    return False
+
+
 def _cause_problem(text: str, title_words: list[str]) -> bool:
-    """Стрелка → ⇒ ← переставляет причину и следствие — или title называет условие (тогда стрелок нет).
+    """Стрелка → ⇒ ← переставляет причину и следствие — или title называет условие или ставит
+    следствие раньше причины (тогда стрелок нет).
 
     Слева и справа от стрелки берётся ближайшее слово строки, совпавшее со словом title по основе:
     у → и ⇒ левое стоит в title раньше правого, у ← — позже. Нет такого слова с одной из сторон —
@@ -364,7 +483,7 @@ def _cause_problem(text: str, title_words: list[str]) -> bool:
         return False
     if any(word.startswith(CAUSE_STEMS) for word in title_words) or any(
         pair in CAUSE_PAIRS for pair in zip(title_words, title_words[1:])
-    ):
+    ) or _effect_first(title_words):
         return True
     places = []
     for match in _WORD_RE.finditer(text):
@@ -372,17 +491,7 @@ def _cause_problem(text: str, title_words: list[str]) -> bool:
         found = [index for index, other in enumerate(title_words) if _same_stem(word, other)] if len(word) >= 4 else []
         if found:
             places.append((match.start(), found))
-    for arrow in arrows:
-        left = next((found for start, found in reversed(places) if start < arrow.start()), None)
-        right = next((found for start, found in places if start > arrow.start()), None)
-        if left is None or right is None:
-            continue
-        if arrow.group() == "←":
-            if max(left) <= min(right):
-                return True
-        elif min(left) >= max(right):
-            return True
-    return False
+    return any(_swapped(places, arrow.start(), backward=arrow.group() == "←") for arrow in arrows)
 
 
 def short_problem(short: Any, title: Any) -> str | None:
@@ -390,27 +499,42 @@ def short_problem(short: Any, title: Any) -> str | None:
 
     Строка — то же утверждение, что title, только короче, и ни одного слова или знака сверх него:
     - слова (new_word, acronym, short_word): слово от 4 букв совпадает с каким-то словом title по
-      первым 4–5 буквам (ё = е, регистр не важен); аббревиатура заглавными — слово title или первые
-      буквы его слов подряд; сокращение в 1–3 буквы с точкой («др.», «вел.») — начало слова title,
-      но служебное слово с точкой («до.», «от.») — конец фразы, а не сокращение; другое слово в 1–3
-      буквы («и», «от», «до», «ввп») — слово title целиком;
+      первым 5 буквам, а если оба длиннее 7 букв — по всем буквам более короткого, кроме двух
+      последних («монополия» — не «монопсонии»); слово из 4 букв — по всем четырём, а со словом из 4
+      букв может различаться последней гласной («цена» — «цены») (ё = е, регистр не важен);
+      аббревиатура заглавными — слово title или первые буквы его слов подряд; сокращение в 1–3
+      буквы с точкой («др.», «вел.») — начало слова title, но служебное слово с точкой («до.»,
+      «от.») — конец фразы, а не сокращение; другое слово в 1–3 буквы («и», «от», «до», «ввп») —
+      слово title целиком;
     - отрицания «не/нет/без/ни» (negation): каждое столько же раз, сколько в title, и при том же
       слове, что в title («не является полезной» можно сократить до «не полезна», «не растёт» — до
-      «не ↑»);
+      «не ↑»); ближайшее слева от отрицания слово строки из title (не служебное) стоит в title до
+      этого отрицания («постоянные не зависят…, а переменные зависят» — не «постоянные зависят…,
+      перем. не зависят»); слово title с приставкой не-/без-/бес- (после неё от 4 букв) не теряет её:
+      «эластичен» без «неэластичен», «соверш.» без «несоверш.» — нельзя;
     - стрелки: других, кроме ↑ ↓ → ← ⇒, нет (arrow); на каждую ↑ в title есть своё слово роста
-      (выше, больше, рост, раст…, увелич…, повыш…, возраст…), на каждую ↓ — слово падения (ниже,
-      меньше, сниж…, паден…, пада…, уменьш…, сокращ…), и рядом со словом стрелки в title не
-      обратное направление (direction);
+      (выше, больше, рост, растет, растут, растущ…, вырос…, выраст…, возрастае…, возрастан…,
+      возрастающ…, возрос…, увелич…, повыш…, повыс…, дорожа…, дороже, подорожа…), на каждую ↓ —
+      слово падения (ниже, меньше, сниж…, сниз…, пониж…, пониз…, паден…, пада…, упал…, упад…,
+      уменьш…, сокращ…, сократ…, дешев…, подешев…, убыв…),
+      и рядом со словом стрелки в title не обратное направление (direction); слово стрелки — прямо
+      перед ней, а если его нет в title («ЦБ ↑ ставку»), — прямо после;
     - числа: только из title (digits), целиком и в том же порядке (numbers);
     - знаки < > ≤ ≥ ≠ — только если тот же знак есть в title (comparison); = можно;
     - знаки действий (arithmetic): + — если в title «+» или сумм…, плюс, слож…, прибав…; × * · —
       если в title один из них или произвед…, умнож…; / ÷ — если в title один из них или отношени…,
       делен…; минус (− или «-» между пробелами) — если в title минус или разниц…, минус, вычит…,
       вычет…; тире «—» и «–» — не знак;
+    - стороны знаков = − / ÷ < > ≤ ≥ (order): как у →, ближайшее к знаку слово или число из title
+      слева стоит в title раньше ближайшего справа («выручка = цена × количество», но не «цена =
+      выручка × количество»);
     - → ⇒ ← (cause): если title называет условие или причину или ставит следствие первым (когда,
       если, потому, поскольк…, так как, т. к., из-за, вследстви…, благодаря, вызван…, обусловлен…,
-      завис…, определя…, следстви…, результат…), их нет; иначе ближайшее к стрелке слово из title
-      слева стоит в title раньше ближайшего справа (у ← — позже);
+      завис…, определя…, следстви…, результат…; не первым словом — при (кроме «при прочих равных»
+      и «при этом»), за счёт, по мере, под
+      влиянием, в ответ на, вслед за, в связи с, с/со перед словом роста или падения), их нет;
+      иначе ближайшее к стрелке слово из title слева стоит в title раньше ближайшего справа (у ← —
+      позже);
     - длина 1–56, короче title и не он сам (empty, too_long, not_shorter, same).
     """
     text = clean_short(short)
@@ -436,7 +560,7 @@ def short_problem(short: Any, title: Any) -> str | None:
         if text.count(arrow) > sum(1 for word in title_words if _direction(word) == arrow):
             return "direction"
     for match in re.finditer("[↑↓]", text):
-        word = _arrow_word(text, match.start())
+        word = _arrow_word(text, match.start(), title_words)
         if word is not None and _arrow_contradicts(match.group(), word, title_words):
             return "direction"
     if not set(_DIGITS_RE.findall(text)) <= set(_DIGITS_RE.findall(source)):
@@ -447,6 +571,8 @@ def short_problem(short: Any, title: Any) -> str | None:
         return "comparison"
     if _arithmetic_problem(text, source, title_words):
         return "arithmetic"
+    if _operand_problem(text, source):
+        return "order"
     if _cause_problem(text, title_words):
         return "cause"
     return None
@@ -459,8 +585,8 @@ SHORT_PROMPT = """Ты пишешь шпаргалку к экзамену: дл
 - Каждое отрицание («не», «нет», «без», «ни») оставь столько раз, сколько оно в пункте, и при том же слове: «не всегда вредна» не превращай во «всегда не вредна».
 - Каждое число пункта оставь как есть и в том же порядке; новых чисел нет.
 - ↑ — только к тому, что в пункте растёт («выше», «больше», «рост», «увеличение», «повышение»), ↓ — к тому, что падает («ниже», «меньше», «снижение», «падение», «уменьшение»). Стрелку ставь сразу после этого слова.
-- → и ⇒ — от того, что в пункте названо раньше, к тому, что названо позже: «Рост ставки снижает инфляцию» — «ставка ↑ → инфляция ↓». Если в пункте есть «когда», «если», «потому что», «поскольку», «так как», «из-за», «благодаря», «зависит», «определяет», «в результате», стрелок → ⇒ ← не ставь.
-- Знаки > < ≤ ≥ ≠ — только если такой знак есть в пункте, иначе пиши словом («больше», «ниже»). = можно.
+- → и ⇒ — от того, что в пункте названо раньше, к тому, что названо позже: «Рост ставки снижает инфляцию» — «ставка ↑ → инфляция ↓». Если в пункте есть «когда», «если», «потому что», «поскольку», «так как», «из-за», «благодаря», «зависит», «определяет», «в результате», стрелок → ⇒ ← не ставь. Если «при», «за счёт», «с ростом», «по мере», «под влиянием», «в ответ на» стоят не в начале пункта (следствие названо раньше причины), стрелок → ⇒ ← не ставь.
+- Знаки > < ≤ ≥ ≠ — только если такой знак есть в пункте, иначе пиши словом («больше», «ниже»). = можно. Части по обе стороны знака — в том же порядке, что в пункте: «Выручка — цена, умноженная на количество» — «выручка = цена × количество».
 - + − × / — только когда это говорит пункт: + — сумма или «плюс», − — разность или «минус», × — произведение или «умноженная на», / — отношение или деление. Тире пиши «—».
 - Желательно до 36 символов, никогда не больше 56. Строчными буквами, кроме имён, названий и обозначений.
 - Если короче не получается, верни "".
@@ -745,8 +871,15 @@ async def _load_state(db: SupabaseRest, exam_id: str, user_id: str | None, *, wi
     return _State(exam, questions, material_ids, keys, current, rebuilt, has_sheet)
 
 
+def _checked_short(short: str, title: str) -> str:
+    """Записанная строка пункта, если её принимает нынешняя проверка; записанная при прежней, мягче, —
+    "" (лист пишет title)."""
+    return short if short_problem(short, title) is None else ""
+
+
 def _rubric_payload(rubric_id: str, created_at: Any, source: dict, sheet: dict | None) -> dict:
-    """Эталон вопроса на листе: без якорей и переспросов, short — из записи строк этой версии."""
+    """Эталон вопроса на листе: без якорей и переспросов, short — из записи строк этой версии (только
+    строка, которая проходит short_problem)."""
     shorts = sheet.get("short", {}) if isinstance(sheet, dict) else {}
     coverage, note = source.get("coverage"), source.get("coverage_note")
     return {
@@ -759,7 +892,7 @@ def _rubric_payload(rubric_id: str, created_at: Any, source: dict, sheet: dict |
             {
                 "id": point["id"],
                 "title": point["title"],
-                "short": shorts.get(point["id"], ""),
+                "short": _checked_short(shorts.get(point["id"], ""), point["title"]),
                 "essential": point["essential"],
                 "source_quote": point["source_quote"],
                 "source_ids": point["source_ids"],
@@ -956,7 +1089,7 @@ class SheetJob:
         self.running = 0
         self.units = 0
         self.counts: Counter = Counter()
-        self.halt: str | None = None  # busy | limit | auth | stopped
+        self.halt: str | None = None  # busy | capped | limit | auth | stopped
         self.limit_error: AILimitExceeded | None = None
         self.started_at = _iso_now()
         self.subscribers: set[asyncio.Queue] = set()
@@ -1027,6 +1160,7 @@ class SheetJob:
             "written": counts["written"] + counts["cached"] + counts["none"],
             "failed": counts["failed"] + counts["unverifiable"],
             "busy": counts["busy"],
+            "capped": counts["capped"],
             "limit": counts["limit"] > 0,
             "units": self.units,
             "total": self.total,
@@ -1037,8 +1171,8 @@ class SheetJob:
     def _limit_event(self) -> dict:
         """Лимит ИИ кончился на середине: событие AILimitExceeded.event() (type error, code ai_limit,
         message, used, limit — дневной предел, resets_at, pro) и счёт запуска, как у done: written,
-        failed, busy, units, total, auth, stopped — «Написано 20 из 31». units здесь, как у done, —
-        списано за запуск (цена отклонённого вопроса всегда answerPoints)."""
+        failed, busy, capped, units, total, auth, stopped — «Написано 20 из 31». units здесь, как у
+        done, — списано за запуск (цена отклонённого вопроса всегда answerPoints)."""
         counts = {key: value for key, value in self._done_event().items() if key not in ("type", "limit")}
         return {**self.limit_error.event(), **counts}
 
@@ -1082,7 +1216,7 @@ class SheetJob:
             if allowed is None:
                 break
             if not allowed:
-                self._halt("busy")  # дневной потолок сборок процесса
+                self._halt("capped")  # дневной потолок сборок процесса
                 break
             if self.halt is not None:
                 _gate.give_back()
@@ -1094,7 +1228,7 @@ class SheetJob:
             task.add_done_callback(running.discard)
         if running:
             await asyncio.gather(*list(running), return_exceptions=True)
-        status = {"busy": "busy", "limit": "limit", "auth": "auth"}.get(self.halt or "")
+        status = {"busy": "busy", "capped": "capped", "limit": "limit", "auth": "auth"}.get(self.halt or "")
         for group in pending:
             if status:
                 self._emit(group, status, None)
@@ -1392,8 +1526,8 @@ def _job_key(request: Request, token: str, exam_id: str) -> tuple[str, str]:
 
 def _not_joined_event() -> dict:
     """follow без идущей записи: та уже кончилась, а новая без нажатия не начинается."""
-    return {"type": "done", "written": 0, "failed": 0, "busy": 0, "limit": False, "units": 0, "total": 0,
-            "auth": 0, "stopped": 0, "joined": False}
+    return {"type": "done", "written": 0, "failed": 0, "busy": 0, "capped": 0, "limit": False, "units": 0,
+            "total": 0, "auth": 0, "stopped": 0, "joined": False}
 
 
 async def _one_frame(event: dict) -> AsyncIterator[str]:
