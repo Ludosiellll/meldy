@@ -185,10 +185,45 @@ describe('verdict words', () => {
     });
     const [item] = report.items;
     expect(item.evidence).toEqual([
-      { materialId: 'm1', lecture: 'Денежный рынок', fragment: 14, removed: false, heading: null, body: 'Денежный мультипликатор показывает, во сколько раз денежная масса больше базы.' },
+      {
+        materialId: 'm1',
+        lecture: 'Денежный рынок',
+        fragment: 14,
+        removed: false,
+        heading: null,
+        body: 'Денежный мультипликатор показывает, во сколько раз денежная масса больше базы.',
+        headingFocus: null,
+        bodyFocus: null,
+      },
     ]);
     expect(JSON.stringify(item)).not.toContain('Модель пишет');
     expect(evidenceCaption(item.evidence[0])).toBe('Лекция «Денежный рынок», фрагмент 14');
+  });
+
+  it('prints the whole fragment and knows where the verified quote is in it (evidence focus)', () => {
+    const excerpt =
+      'Связь M:N распадается на две связи 1:N. 7. Ограничения целостности Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени. СУБД проверяет их сама.';
+    const quote = 'Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени';
+    const start = excerpt.indexOf(quote);
+    const report = buildTeacherReport({
+      bundle: bundle([
+        question(1, 'full', {
+          evidence: [{ material_id: 'm1', material_title: 'Реляционная модель', source_id: 'S15', excerpt, focus: [start, start + quote.length] }],
+        }),
+        question(2, 'full', {
+          evidence: [{ material_id: 'm1', material_title: 'Реляционная модель', source_id: 'S16', excerpt: 'Уровень изоляции | Фантомное чтение\nSERIALIZABLE | нет' }],
+        }),
+      ]),
+      sheet: READY_SHEET,
+      now: NOW,
+    });
+    const [first, second] = report.items.map((item) => item.evidence[0]);
+    expect(first.body).toBe(excerpt);
+    expect(first.bodyFocus && first.body.slice(first.bodyFocus[0], first.bodyFocus[1])).toBe(quote);
+    // A table row reads «ячейка — ячейка; …», in print and in the CSV; a row mapped before the place was stored has none.
+    expect(second.body).toBe('Уровень изоляции — Фантомное чтение; SERIALIZABLE — нет');
+    expect(second.bodyFocus).toBeNull();
+    expect(reportRows(report)[2][5]).toBe('Уровень изоляции — Фантомное чтение; SERIALIZABLE — нет');
   });
 
   it('keeps the lecture’s own heading on its line and labels a lecture taken out of the exam', () => {

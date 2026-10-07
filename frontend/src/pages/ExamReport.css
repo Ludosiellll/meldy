@@ -308,6 +308,10 @@
   line-height: 1.45;
 }
 .rp-doc .rp-quote-head { display: block; font-weight: 600; }
+/* The place of the answer (evidence focus): the pencil underline of «Почему», in the paper's pencil in both
+   themes (the dark desk's light blue would fade on this light sheet). Its strokes are measured on the screen
+   layout, so print draws the same place as a plain black underline that follows the printed lines. */
+.rp-doc { --ph-pencil-desk: #1f5bc6; }
 
 /* No quote: a dashed slot where it would be, with the reason. */
 .rp-doc .rp-gap {
@@ -476,4 +480,12 @@
   .rp-doc .rp-sign { break-inside: avoid; page-break-inside: avoid; }
   /* A question longer than a page breaks between its parts, never inside a line of a quote's caption. */
   .rp-doc .rp-quote figcaption { break-after: avoid; page-break-after: avoid; }
+  .rp-doc .ex-focus .sf-under-ink { display: none; }
+  .rp-doc .ex-focus > span:first-child {
+    text-decoration-line: underline;
+    text-decoration-color: #000000;
+    text-decoration-thickness: .9pt;
+    text-underline-offset: .2em;
+    text-decoration-skip-ink: none;
+  }
 }

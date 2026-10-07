@@ -14,7 +14,7 @@ import { ru } from 'date-fns/locale';
 import type { ExamBundle, ExamQuestion, NearestItem } from '../../api/exams';
 import { blockKind, cleanMissing, type SheetQuestion } from './cheatSheet';
 import { fragmentNumber, KIND_LABELS, subjectOf } from './format';
-import { splitFragmentHeading } from '../../utils/fragmentText';
+import { fragmentView, type Span } from '../../utils/fragmentText';
 import { pluralRu } from '../../components/conversation/visuals';
 import { genitiveOf, numberOf } from '../../components/exams/sheetModel';
 
@@ -77,8 +77,14 @@ export interface ReportEvidence {
   removed: boolean;
   /** The lecture's own heading line of the fragment, if it starts with one (utils/fragmentText). */
   heading: string | null;
-  /** The fragment's text, its lines joined as the app joins them. */
+  /** The fragment's text, its lines joined as the app joins them; a table row reads «ячейка — ячейка; …». */
   body: string;
+  /**
+   * Where the quote the mapping verified is (evidence focus), in heading and in body: the report prints the
+   * whole fragment and underlines this place. Null when it is not there (rows mapped before it was stored).
+   */
+  headingFocus: Span | null;
+  bodyFocus: Span | null;
 }
 
 export interface ReportPoint {
@@ -318,7 +324,7 @@ export function buildTeacherReport(input: ReportInput): TeacherReport {
     const evidence: ReportEvidence[] =
       verdict === 'full' || verdict === 'partial'
         ? question.evidence.map((item) => {
-            const parts = splitFragmentHeading(item.excerpt);
+            const parts = fragmentView(item.excerpt, item.focus);
             const removed = item.material_id !== '' && !current.has(item.material_id);
             if (item.material_id) {
               const quoting = cited.get(item.material_id) ?? new Set<string>();
@@ -333,6 +339,8 @@ export function buildTeacherReport(input: ReportInput): TeacherReport {
               removed,
               heading: parts.heading,
               body: parts.body,
+              headingFocus: parts.headingFocus,
+              bodyFocus: parts.bodyFocus,
             };
           })
         : [];
