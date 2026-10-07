@@ -1,0 +1,96 @@
+name: Rotate VAPID keys
+
+# A new Web Push key pair for the Space, made on the runner and stored straight in the Space's settings:
+# VAPID_PRIVATE_KEY as a secret, VAPID_PUBLIC_KEY as a variable. The private key is never printed, committed or
+# sent anywhere else; the job prints only the public key, which is public by design.
+# Runs when deploy/vapid-rotation.md changes on the working branch (one dated line per rotation). The Space restarts
+# with the new pair, and the job waits until GET /api/push/key serves the new public key with configured: true.
+# A browser subscribed with the old key subscribes again when notifications are turned on in «Профиль»
+# (frontend/src/utils/push.ts drops a subscription made with another key).
+on:
+  push:
+    branches: [claude/relaxed-hypatia-1tpmq5]
+    paths: [deploy/vapid-rotation.md]
+
+concurrency:
+  group: hf-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SPACE: Ludosiel/StudyForge
+  SPACE_HOST: ludosiel-studyforge.hf.space
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Check the token secret
+        run: test -n "$HF_TOKEN" || { echo "::error::Repository secret HF_TOKEN is not set"; exit 1; }
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: python -m pip install --quiet --disable-pip-version-check "huggingface_hub>=0.24" "cryptography>=42"
+
+      - name: A new key pair into the Space
+        run: |
+          python - <<'PY'
+          import base64
+          import os
+
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric import ec
+          from huggingface_hub import HfApi
+
+
+          def b64url(raw: bytes) -> str:
+              return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+          key = ec.generate_private_key(ec.SECP256R1())
+          # The formats push_router.py signs with (pywebpush): the raw 32-byte private number and the uncompressed
+          # 65-byte public point, both base64url without padding.
+          private = b64url(key.private_numbers().private_value.to_bytes(32, "big"))
+          public = b64url(key.public_key().public_bytes(serialization.Encoding.X962,
+                                                       serialization.PublicFormat.UncompressedPoint))
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          space = os.environ["SPACE"]
+          api.add_space_secret(space, "VAPID_PRIVATE_KEY", private,
+                               description="Web Push signing key, set by .github/workflows/rotate-vapid.yml")
+          api.add_space_variable(space, "VAPID_PUBLIC_KEY", public,
+                                 description="Web Push public key, the pair of VAPID_PRIVATE_KEY")
+          stored = api.get_space_variables(space).get("VAPID_PUBLIC_KEY")
+          if getattr(stored, "value", None) != public:
+              raise SystemExit("::error::the Space does not hold the new VAPID_PUBLIC_KEY")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"NEW_PUBLIC_KEY={public}\n")
+          print(f"New VAPID_PUBLIC_KEY: {public}")
+          api.restart_space(space)
+          print("Restart requested")
+          PY
+
+      - name: Wait until the site serves the new key
+        run: |
+          set -u
+          sleep 30
+          for i in $(seq 1 60); do
+            body=$(curl -s --max-time 20 "https://${SPACE_HOST}/api/push/key" || true)
+            key=$(printf '%s' "$body" | jq -r '.public_key // empty' 2>/dev/null || true)
+            configured=$(printf '%s' "$body" | jq -r '.configured // empty' 2>/dev/null || true)
+            echo "[$i] configured=${configured:-?} new_key=$([ "$key" = "$NEW_PUBLIC_KEY" ] && echo yes || echo no)"
+            if [ "$key" = "$NEW_PUBLIC_KEY" ] && [ "$configured" = "true" ]; then
+              curl -fsS --max-time 20 "https://${SPACE_HOST}/api/health" | jq .
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::https://${SPACE_HOST}/api/push/key did not serve the new key with configured: true in 15 minutes"
+          exit 1
