@@ -203,6 +203,9 @@ describe('phones and tablets (spec 4.2)', () => {
   it('recognises room, detail and parent paths', () => {
     expect(isRoomPath('/exams/abc/draw')).toBe(true);
     expect(isRoomPath('/exams/abc/ticket')).toBe(true);
+    expect(isRoomPath('/exams/abc/report')).toBe(true);
+    expect(isRoomPath('/exams/abc/report/')).toBe(true);
+    expect(isRoomPath('/exams/report')).toBe(false);
     expect(isRoomPath('/library/abc/talk')).toBe(true);
     expect(isRoomPath('/library/abc/talk/')).toBe(true);
     expect(isRoomPath('/library/abc')).toBe(false);

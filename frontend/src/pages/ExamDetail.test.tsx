@@ -1735,6 +1735,19 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
   });
 });
 
+describe('ExamDetail: «Отчёт для преподавателя»', () => {
+  it('is a quiet link with the exam’s links to the printable report of this exam', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    const link = screen.getByRole('link', { name: 'Отчёт для преподавателя' });
+    expect(link).toHaveAttribute('href', '/exams/exam-1/report');
+    expect(link.closest('.ex-links')).not.toBeNull();
+    expect(link).toHaveClass('sf-link');
+    expect(link).not.toHaveClass('sf-primary');
+  });
+});
+
 describe('ExamDetail: «Пригласить группу»', () => {
   it('stands with the exam’s links and opens the invitation of this exam, asking nothing before the click', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));

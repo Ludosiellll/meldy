@@ -21,6 +21,7 @@ vi.mock('./pages/ExamEditor', () => ({ default: () => <h1>Редактор эк�
 vi.mock('./pages/ExamDetail', () => ({ default: () => <h1>Лист экзамена</h1> }));
 vi.mock('./pages/ExamDraw', () => ({ default: () => <h1>Тянуть билет</h1> }));
 vi.mock('./pages/ExamTicket.tsx', () => ({ default: () => <h1>Экран ответа</h1> }));
+vi.mock('./pages/ExamReport', () => ({ default: () => <h1>Отчёт для преподавателя</h1> }));
 vi.mock('./pages/MistakeDiary', () => ({ default: () => <h1>Дневник ошибок</h1> }));
 vi.mock('./pages/LectureTalk', () => ({ default: () => <h1>Разговор о лекции</h1> }));
 vi.mock('./pages/Landing', () => ({ default: () => <h1>Главная</h1> }));
@@ -63,6 +64,7 @@ describe('exam routes', () => {
     ['/exams/exam-1', 'Лист экзамена'],
     ['/exams/exam-1/edit', 'Редактор экзамена'],
     ['/exams/exam-1/draw', 'Тянуть билет'],
+    ['/exams/exam-1/report', 'Отчёт для преподавателя'],
   ])('%s renders inside the layout', async (path, heading) => {
     openAt(path);
     const page = await screen.findByRole('heading', { name: heading });
@@ -213,6 +215,15 @@ describe('signing in and coming back (lib/returnTo)', () => {
     expect(await screen.findByRole('heading', { name: 'Продолжить подготовку' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/login');
     expect(new URLSearchParams(window.location.search).get('next')).toBe('/exams/exam-1?view=sheet');
+  });
+
+  it('the report for the teacher is signed-in only: a signed-out visitor signs in and comes back to it', async () => {
+    auth.value = { user: null, loading: false };
+    openAt('/exams/exam-1/report');
+    expect(await screen.findByRole('heading', { name: 'Продолжить подготовку' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+    expect(new URLSearchParams(window.location.search).get('next')).toBe('/exams/exam-1/report');
+    expect(screen.queryByRole('heading', { name: 'Отчёт для преподавателя' })).toBeNull();
   });
 
   it('«Сегодня» signed out leads to the plain sign-in page, as before', async () => {

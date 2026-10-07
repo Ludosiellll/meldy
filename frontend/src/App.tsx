@@ -41,6 +41,7 @@ const ExamEditor = lazy(() => import('./pages/ExamEditor'));
 const ExamDetail = lazy(() => import('./pages/ExamDetail'));
 const ExamDraw = lazy(() => import('./pages/ExamDraw'));
 const ExamTicket = lazy(loadExamTicket);
+const ExamReport = lazy(() => import('./pages/ExamReport'));
 const TryExample = lazy(() => import('./pages/TryExample'));
 const Check = lazy(() => import('./pages/Check'));
 const JoinGroup = lazy(() => import('./pages/JoinGroup'));
@@ -158,6 +159,8 @@ export default function App() {
           <Route path="exams/:id/edit" element={<ExamEditor />} />
           <Route path="exams/:id/draw" element={<ExamDraw />} />
           <Route path="exams/:id/ticket" element={<ExamTicket />} />
+          {/* «Отчёт для преподавателя»: a room to print (pages/ExamReport.tsx); the exam's owner only (row-level security). */}
+          <Route path="exams/:id/report" element={<ExamReport />} />
           <Route path="mistakes" element={<MistakeDiary />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="knowledge-map" element={<KnowledgeMap />} />

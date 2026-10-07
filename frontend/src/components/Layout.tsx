@@ -59,11 +59,11 @@ export function sectionOf(pathname: string): NavItem | null {
 }
 
 /**
- * «Тянуть билет», the answer screen and «Поговорить о лекции» are rooms: the page draws its own top
- * line, no menu and no tab bar (spec 4.3).
+ * «Тянуть билет», the answer screen, «Поговорить о лекции» and the report for the teacher are rooms: the
+ * page draws its own top line, no menu and no tab bar (spec 4.3); the report prints without any of it.
  */
 export function isRoomPath(pathname: string): boolean {
-  return /^\/exams\/[^/]+\/(draw|ticket)\/?$/.test(pathname) || /^\/library\/[^/]+\/talk\/?$/.test(pathname);
+  return /^\/exams\/[^/]+\/(draw|ticket|report)\/?$/.test(pathname) || /^\/library\/[^/]+\/talk\/?$/.test(pathname);
 }
 
 /** Detail pages keep their one action at the bottom of the screen on phones, so the tab bar steps aside (spec 4.2). */

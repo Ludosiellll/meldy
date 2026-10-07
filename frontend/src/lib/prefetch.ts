@@ -47,6 +47,7 @@ const SIGNED_IN_PAGES: ReadonlyArray<readonly [RegExp, Loader]> = [
   [/^\/analytics\/?$/, SECTIONS[4]],
   [/^\/exams\/new\/?$|^\/exams\/[^/]+\/edit\/?$/, () => import('../pages/ExamEditor')],
   [/^\/exams\/[^/]+\/draw\/?$/, () => import('../pages/ExamDraw')],
+  [/^\/exams\/[^/]+\/report\/?$/, () => import('../pages/ExamReport')],
   [/^\/exams\/[^/]+\/?$/, () => import('../pages/ExamDetail')],
   [/^\/library\/[^/]+\/?$/, () => import('../pages/MaterialDetail')],
   [/^\/library\/[^/]+\/talk\/?$/, () => import('../pages/LectureTalk')],
