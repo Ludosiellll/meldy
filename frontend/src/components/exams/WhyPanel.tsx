@@ -179,7 +179,7 @@ export function FocusedText({ text, focus, seed }: { text: string; focus: Span |
 
 const covers = (span: Span | null, length: number) => span !== null && span[0] === 0 && span[1] === length;
 
-function Excerpt({ item, matched = [], seedKey }: { item: EvidenceItem; matched?: string[]; seedKey: string }) {
+function Excerpt({ item, matched = [], seedKey, actions = null }: { item: EvidenceItem; matched?: string[]; seedKey: string; actions?: ReactNode }) {
   const [whole, setWhole] = useState(false);
   // The lecture's own heading keeps its line (jury memo 12), the text runs below it; a table row reads
   // «ячейка — ячейка; …»; focus — where the verified quote is (absent in rows mapped before it was stored).
@@ -219,10 +219,16 @@ function Excerpt({ item, matched = [], seedKey }: { item: EvidenceItem; matched?
         {bodyFocus ? <FocusedText text={body} focus={bodyFocus} seed={seed} /> : <MarkedExcerpt text={body} matched={matched} seedKey={seedKey} />}
         {after}
       </blockquote>
-      {long && (
-        <button type="button" className="sf-link" data-muted="" onClick={() => setWhole((value) => !value)}>
-          {whole ? 'Свернуть фрагмент' : 'Показать фрагмент целиком'}
-        </button>
+      {/* One row of the fragment's actions: «Показать фрагмент целиком» and «Открыть материал» ran together. */}
+      {(long || actions) && (
+        <div className="ex-slip-acts">
+          {long && (
+            <button type="button" className="sf-link" data-muted="" onClick={() => setWhole((value) => !value)}>
+              {whole ? 'Свернуть фрагмент' : 'Показать фрагмент целиком'}
+            </button>
+          )}
+          {actions}
+        </div>
       )}
     </>
   );
@@ -364,12 +370,17 @@ export default function WhyPanel(props: WhyPanelProps) {
             Лекция «{item.material_title || 'без названия'}», {fragmentLabel(item)}
             {removed ? ' — лекция убрана из экзамена' : ''}
           </p>
-          <Excerpt item={item} seedKey={`${seedKey}:${index}`} />
-          {item.material_id && (
-            <Link className="sf-link" data-muted="" to={`/library/${item.material_id}`}>
-              Открыть материал
-            </Link>
-          )}
+          <Excerpt
+            item={item}
+            seedKey={`${seedKey}:${index}`}
+            actions={
+              item.material_id ? (
+                <Link className="sf-link" data-muted="" to={`/library/${item.material_id}`}>
+                  Открыть материал
+                </Link>
+              ) : null
+            }
+          />
         </div>
       );
     });

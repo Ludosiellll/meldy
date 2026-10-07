@@ -951,6 +951,8 @@
   line-height: 26px;
 }
 .sf-page .ex-slip-cap { margin: 20px 0 8px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--sf-muted); }
+/* Under a fragment: «Показать фрагмент целиком» and «Открыть материал» side by side, apart. */
+.sf-page .ex-slip-acts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 20px; }
 .sf-page .ex-why-go { margin-top: 26px; }
 .sf-page .ex-why-acts { display: flex; flex-direction: column; align-items: flex-start; margin-top: 12px; }
 .sf-page .ex-why-acts .sf-link { font-size: 16px; }
