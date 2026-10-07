@@ -4,6 +4,27 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — Release 29.1: a quick check that survives a slow Gemini, a report for the department, fixes from the second live run (from the commit of this entry)
+
+- **Quick check:** Gemini gets `ORAL_CHECK_GEMINI_SECONDS` (2.5 s) of the 4.5 s budget while Groq can answer, then
+  `GROQ_FAST_MODEL`; only then 504. In the live run of release 28, 17 of 18 checks in a slow-Gemini window failed at
+  4.5 s while Groq answered health checks in 0.38 s. Same validation for both; one `ai_calls` row per check.
+- **Report for the teacher:** `/exams/:id/report` — the exam's mapping as an A4 document (question → verdict → the
+  lecture's own fragment → answer points, boxes «верно / неполно / ошибка», signature lines), print and CSV.
+- **Sign-in inside Telegram or Viber:** `/login` and `/register` say to open Chrome or Safari and drop the Google
+  button there (Google refuses it in those browsers); e-mail sign-in stays.
+- **Group link:** the author on their own closed or expired link sees that it is closed and where to make a new one.
+- **Sign-up:** an empty form is stopped on the page (it reached Supabase as an anonymous sign-up).
+- **Sheet:** questions whose points failed the quote check twice no longer count as «to write» (they are shown as
+  gaps with the reason); a group copy re-checks against lectures without asking for units it would not spend.
+- **Smaller:** «Разобрать лекцию» for the 20-unit analysis, «Добавить лекцию» stays for the free step; «10-балльной»
+  never breaks; the list editor shows exactly the lines the server skipped; the profile switch; the paste hint
+  scrolls into view; `aria-controls` only when the panel exists; «добавлена 1 лекция»; the past answer shows its time;
+  the date on `/join` keeps «21 октября» together.
+
+No migrations. Verified before release: pytest 1422, tsc -b, Vitest 2430/2430, production build (no «Засчитано»,
+«удовлетворительно» or «оценки по пунктам» in the bundle).
+
 ## 2026-10-07 — Release 29: a check the jury can try, a mapping that cannot borrow a quote, one face before sign-in (from the commit of this entry)
 
 Plan v2, week 2 items brought forward, and what the browser QA and the second live run of release 28 found.
