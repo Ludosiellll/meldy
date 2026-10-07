@@ -213,6 +213,78 @@ describe('WhyPanel: a question that is in the lectures', () => {
   });
 });
 
+/** The live run of 07.10, Q6 «Ограничения целостности»: 849 characters, the answer near the end. */
+const Q6_EXCERPT =
+  'составлен из этих внешних ключей. Связь M:N тем самым распадается на две связи 1:N: «студент — его оценки» и «дисциплина — оценки по ней». В связующее отношение естественно помещаются атрибуты самой связи: дата экзамена, оценка. Кроме вида, у связи есть обязательность. Если каждый студент обязан состоять в группе, связь со стороны студента обязательная, и внешний ключ объявляют NOT NULL. Если у дисциплины может не быть закреплённого преподавателя, связь необязательная, и внешний ключ допускает NULL. 7. Ограничения целостности Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени. СУБД проверяет их сама при каждой вставке, изменении и удалении и отклоняет операцию, которая их нарушает. Различают: 1. Целостность сущностей — у каждого отношения есть первичный ключ, его значения уникальны и не содержат';
+const Q6_QUOTE = 'Ограничения целостности — правила, которым должны удовлетворять данные в любой момент времени';
+
+describe('WhyPanel: why a question is in the lectures', () => {
+  const q6 = (focus?: [number, number]) => [
+    {
+      material_id: 'm1',
+      material_title: 'Реляционная модель данных: ключи и связи',
+      source_id: 'S15',
+      excerpt: Q6_EXCERPT,
+      ...(focus ? { focus } : {}),
+    },
+  ];
+  const blockquote = () => document.querySelector('blockquote') as HTMLElement;
+
+  it('says nothing under «Есть в ваших лекциях» when the reason is a general verdict', () => {
+    for (const reason of ['Вопрос полностью раскрыт в приложенных фрагментах.', 'Ответ есть во фрагментах лекций', 'Материалы содержат исчерпывающий ответ на вопрос.']) {
+      renderPanel({ question: question({ coverage: 'full', coverage_reason: reason, evidence: q6(), nearest: [] }) }, 'full');
+      expect(screen.queryByText(reason)).toBeNull();
+      expect(document.querySelectorAll('.ex-why > .ex-stmt')).toHaveLength(0);
+      cleanup();
+    }
+    renderPanel(
+      { question: question({ coverage: 'partial', coverage_reason: 'Во фрагментах лекций есть часть ответа', missing_note: 'примеров', evidence: q6(), nearest: [] }) },
+      'partial',
+    );
+    expect(screen.queryByText('Во фрагментах лекций есть часть ответа')).toBeNull();
+    expect(screen.getByText('Не хватает: примеров')).toBeInTheDocument();
+    cleanup();
+    renderPanel({ question: question({ coverage: 'full', coverage_reason: 'Свойства ACID полностью описаны в тексте', evidence: q6(), nearest: [] }) }, 'full');
+    expect(screen.getByText('Свойства ACID полностью описаны в тексте')).toBeInTheDocument();
+  });
+
+  it('opens a long fragment around the verified quote and underlines it, not at the start', () => {
+    renderPanel({ question: question({ coverage: 'full', coverage_reason: '', evidence: q6([532, 625]), nearest: [] }) }, 'full');
+    const quote = blockquote();
+    expect(quote.textContent).toMatch(/^…Если каждый студент обязан/);
+    expect(quote.textContent).toContain('7. Ограничения целостности');
+    expect(quote.textContent).not.toContain('составлен из этих внешних ключей');
+    // The words of the quote are underlined in pencil (a mark, not a highlighter); screen readers hear what it is.
+    const underlined = quote.querySelector('.sf-under.ex-focus') as HTMLElement;
+    expect(underlined.textContent).toBe(Q6_QUOTE);
+    expect(quote.querySelector('.ex-sr')).toHaveTextContent('Место ответа:');
+    expect(quote.querySelector('mark')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Показать фрагмент целиком' }));
+    expect(blockquote().textContent).toMatch(/^составлен из этих внешних ключей/);
+    expect((blockquote().querySelector('.sf-under.ex-focus') as HTMLElement).textContent).toBe(Q6_QUOTE);
+    fireEvent.click(screen.getByRole('button', { name: 'Свернуть фрагмент' }));
+    expect(blockquote().textContent).toMatch(/^…Если/);
+  });
+
+  it('shows a row mapped before the place was stored as before: from the start, cut at 600 characters', () => {
+    renderPanel({ question: question({ coverage: 'full', coverage_reason: '', evidence: q6(), nearest: [] }) }, 'full');
+    const quote = blockquote();
+    expect(quote.textContent).toMatch(/^составлен из этих внешних ключей/);
+    expect(quote.textContent?.endsWith('…')).toBe(true);
+    expect(quote.querySelector('.ex-focus')).toBeNull();
+  });
+
+  it('marks nothing when the quote is the whole fragment, and reads a table row with dashes', () => {
+    const excerpt = 'READ COMMITTED | нет | возможно | возможно';
+    renderPanel(
+      { question: question({ coverage: 'full', evidence: [{ material_id: 'm1', material_title: 'Транзакции', source_id: 'S20', excerpt, focus: [0, excerpt.length] }], nearest: [] }) },
+      'full',
+    );
+    expect(blockquote()).toHaveTextContent('READ COMMITTED — нет — возможно — возможно');
+    expect(blockquote().querySelector('.ex-focus')).toBeNull();
+  });
+});
+
 describe('WhyPanel: answers', () => {
   /** An answer at 10:00 local time (the label shows the local moment). */
   const local = (id: string, day: string, grade: number, session: string | null): LearningEvent => {

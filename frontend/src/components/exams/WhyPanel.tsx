@@ -12,8 +12,9 @@ import type { EvidenceItem, ExamQuestion, NearestItem } from '../../api/exams';
 import type { LearningEvent } from '../../api/learning';
 import { compareEventTime, questionState, type QuestionState } from '../../lib/learning/readiness';
 import { formatShortDay, formatShortMoment, fragmentNumber } from '../../lib/exams/format';
+import { isGenericReason } from '../../lib/exams/genericReason';
 import { normalizeForMatch } from '../conversation/visuals';
-import { splitFragmentHeading } from '../../utils/fragmentText';
+import { focusWindow, fragmentView, type Span } from '../../utils/fragmentText';
 import { PencilUnder, seedFrom } from '../marks';
 import type { SheetCoverage } from './marks';
 import { confirmedAgeSentence, glue, lecturesGenitive, NBSP } from './sheetModel';
@@ -24,7 +25,10 @@ const REASON_NO_SUPPORT = 'Нет подтверждающего фрагмен�
 // A question the model did not judge: the server says why after this prefix (exams_map.py, REASON_NO_ANSWER,
 // REASON_NO_QUOTE and the reasons of a failed batch: «сервис ИИ был занят», «…не ответил вовремя»).
 const UNVERIFIED_PREFIX = 'Проверено только по словам:';
-const EXCERPT_LIMIT = 600;
+/** A longer fragment is cut: to its start, or to this many characters around the place of the answer. */
+export const EXCERPT_LIMIT = 600;
+/** The place of the answer is underlined lighter than the readiness marks (2.2): a pointer, not a verdict. */
+const FOCUS_WEIGHT = 1.6;
 
 export interface WhyPanelProps {
   examId: string;
@@ -69,6 +73,15 @@ export function unverifiedLead(reason: string | null | undefined): string {
   return `${sentence}, поэтому вопрос сопоставлен с лекциями только по совпадению слов.`;
 }
 
+/**
+ * The judge's reason when it says what the fragments hold; a general verdict («Вопрос полностью раскрыт в
+ * приложенных фрагментах», the server's old «Ответ есть во фрагментах лекций») tells nothing under «Есть в
+ * ваших лекциях» and is not shown (rows mapped before the server dropped them).
+ */
+function reasonLead(reason: string | null | undefined): string[] {
+  return reason && !isGenericReason(reason) ? [reason] : [];
+}
+
 function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount: number): Verdict {
   // «В лекции» for the only one: «ни в одной из 1 лекции» is not Russian.
   const lectures =
@@ -84,9 +97,9 @@ function verdictOf(question: ExamQuestion, coverage: SheetCoverage, lectureCount
       if (question.coverage_method === 'manual') {
         return { title: 'Отмечено вами', lead: ['Meldy этого не проверял: вы отметили, что ответ есть в лекции.'] };
       }
-      return { title: 'Есть в ваших лекциях', lead: question.coverage_reason ? [question.coverage_reason] : [] };
+      return { title: 'Есть в ваших лекциях', lead: reasonLead(question.coverage_reason) };
     case 'partial': {
-      const lead = question.coverage_reason ? [question.coverage_reason] : [];
+      const lead = reasonLead(question.coverage_reason);
       if (question.missing_note) lead.push(`Не хватает: ${question.missing_note}`);
       return { title: 'Есть частично', lead };
     }
@@ -146,21 +159,65 @@ function MarkedExcerpt({ text, matched, seedKey }: { text: string; matched: stri
   );
 }
 
+/**
+ * The place of the answer in the fragment (the words of the quote the mapping verified, evidence focus)
+ * underlined lightly in pencil — never a highlighter. The mark is aria-hidden: screen readers hear its meaning.
+ */
+export function FocusedText({ text, focus, seed }: { text: string; focus: Span | null; seed: number }) {
+  if (!focus) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, focus[0])}
+      <span className="ex-sr">Место ответа: </span>
+      <PencilUnder seed={seed} weight={FOCUS_WEIGHT} className="ex-focus">
+        {text.slice(focus[0], focus[1])}
+      </PencilUnder>
+      {text.slice(focus[1])}
+    </>
+  );
+}
+
+const covers = (span: Span | null, length: number) => span !== null && span[0] === 0 && span[1] === length;
+
 function Excerpt({ item, matched = [], seedKey }: { item: EvidenceItem; matched?: string[]; seedKey: string }) {
   const [whole, setWhole] = useState(false);
-  // The lecture's own heading keeps its line (jury memo 12), the text runs below it.
-  const parts = splitFragmentHeading(item.excerpt);
-  const long = parts.body.length > EXCERPT_LIMIT;
-  const text = long && !whole ? `${parts.body.slice(0, EXCERPT_LIMIT).replace(/\s+\S*$/, '')}…` : parts.body;
+  // The lecture's own heading keeps its line (jury memo 12), the text runs below it; a table row reads
+  // «ячейка — ячейка; …»; focus — where the verified quote is (absent in rows mapped before it was stored).
+  const view = fragmentView(item.excerpt, item.focus);
+  const long = view.body.length > EXCERPT_LIMIT;
+  let body = view.body;
+  let focus = view.bodyFocus;
+  let before = '';
+  let after = '';
+  if (long && !whole) {
+    if (focus) {
+      // A long fragment opens around the place of the answer, not at its start (Q6 of the live run 07.10).
+      const [start, end] = focusWindow(view.body, focus, EXCERPT_LIMIT);
+      body = view.body.slice(start, end);
+      focus = [focus[0] - start, focus[1] - start];
+      before = start > 0 ? '…' : '';
+      after = end < view.body.length ? '…' : '';
+    } else {
+      body = view.body.slice(0, EXCERPT_LIMIT).replace(/\s+\S*$/, '');
+      after = '…';
+    }
+  }
+  // A quote that is the whole fragment points at nothing in particular: no mark then.
+  const quotesAll = covers(view.bodyFocus, view.body.length) && (view.heading === null || covers(view.headingFocus, view.heading.length));
+  const bodyFocus = quotesAll ? null : focus;
+  const headingFocus = quotesAll ? null : view.headingFocus;
+  const seed = seedFrom(seedKey, 97);
   return (
     <>
       <blockquote className="sf-slip" style={{ margin: 0 }}>
-        {parts.heading && (
+        {view.heading && (
           <span className="ex-slip-head" data-fragment-heading="">
-            {parts.heading}
+            <FocusedText text={view.heading} focus={headingFocus} seed={seed + 3} />
           </span>
         )}
-        <MarkedExcerpt text={text} matched={matched} seedKey={seedKey} />
+        {before}
+        {bodyFocus ? <FocusedText text={body} focus={bodyFocus} seed={seed} /> : <MarkedExcerpt text={body} matched={matched} seedKey={seedKey} />}
+        {after}
       </blockquote>
       {long && (
         <button type="button" className="sf-link" data-muted="" onClick={() => setWhole((value) => !value)}>

@@ -692,4 +692,17 @@ describe('pure helpers', () => {
       nearest: [{ excerpt: 'ставка', matched: ['ставка'] }],
     });
   });
+
+  it('keeps the place of the verified quote of an evidence item, and only a usable one', () => {
+    const item = (focus: unknown) => ({ material_id: 'm', material_title: 'Лекция', source_id: 'S15', excerpt: 'Текст фрагмента лекции.', focus });
+    const parsed = normalizeCoverageItem({
+      question_id: 'q',
+      coverage: 'full',
+      method: 'llm',
+      evidence: [item([6, 15]), item(undefined), item([4, 4]), item(['0', '5']), item([1.5, 3]), item([0, 3, 5])],
+    });
+    expect(parsed?.evidence.map((evidence) => evidence.focus)).toEqual([[6, 15], undefined, undefined, undefined, undefined, undefined]);
+    // A row mapped before the key existed: no focus at all.
+    expect('focus' in (parsed?.evidence[1] ?? {})).toBe(false);
+  });
 });

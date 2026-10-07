@@ -57,6 +57,12 @@ export interface EvidenceItem {
   material_title: string;
   source_id: string;
   excerpt: string;
+  /**
+   * Where the quote the mapping verified is in excerpt: [start, end) in Unicode code points of the text as
+   * stored (backend exams_map; utils/fragmentText codePointSpan reads it). Absent in rows mapped before it was
+   * stored, and in nearest fragments.
+   */
+  focus?: [number, number];
 }
 
 export interface NearestItem extends EvidenceItem {
@@ -302,16 +308,28 @@ async function pool<T>(items: T[], limit: number, task: (item: T) => Promise<voi
 // ---------------------------------------------------------------------------------------------
 // Row normalisation (jsonb columns are parsed defensively: older or partial rows never crash a page)
 
+/** evidence[].focus when it is two whole numbers, start before end (the excerpt's length is checked when shown). */
+function focusOf(value: unknown): [number, number] | undefined {
+  if (!Array.isArray(value) || value.length !== 2) return undefined;
+  const [start, end] = value;
+  return Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end > start ? [start, end] : undefined;
+}
+
 function normalizeEvidence(value: unknown): EvidenceItem[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter(isRecord)
-    .map((item) => ({
-      material_id: str(item.material_id),
-      material_title: displayMaterialTitle(str(item.material_title), ''),
-      source_id: str(item.source_id),
-      excerpt: str(item.excerpt),
-    }))
+    .map((item) => {
+      const evidence: EvidenceItem = {
+        material_id: str(item.material_id),
+        material_title: displayMaterialTitle(str(item.material_title), ''),
+        source_id: str(item.source_id),
+        excerpt: str(item.excerpt),
+      };
+      const focus = focusOf(item.focus);
+      if (focus) evidence.focus = focus;
+      return evidence;
+    })
     .filter((item) => item.excerpt.trim() !== '' || item.source_id !== '');
 }
 
