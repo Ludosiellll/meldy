@@ -74,9 +74,6 @@ import { useSheetView } from '../components/exams/sheet/useSheetPage';
 import { useCheatSheet } from '../components/exams/sheet/useCheatSheet';
 import { useUnitsLeft } from '../components/exams/sheet/SheetColumn';
 import { nextErasableLine } from '../components/exams/sheet/copy';
-import TipCard from '../components/tips/TipCard';
-import { TIPS } from '../components/tips/tips';
-import { useFirstUseTip } from '../components/tips/useFirstUseTip';
 import { loadSheetFont } from '../components/exams/sheet/sheetFont';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup from '../components/exams/share/InviteGroup';
@@ -692,18 +689,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
     },
     sheetData,
   );
-  // The first time the sheet shows lines, one tip under its tab says what erases them (sheet spec 8):
-  // not over a replay or the history, not while a line's details are open.
-  const sheetTabRef = useRef<HTMLButtonElement>(null);
-  const sheetTip = useFirstUseTip('sheet', {
-    enabled:
-      view === 'sheet' &&
-      status === 'ready' &&
-      sheetPage.data.status === 'ready' &&
-      sheetPage.data.sheet.counts.total > 0 &&
-      !sheetPage.lineOpen &&
-      !sheetPage.playing,
-  });
   // Once something is written, the page opens on the sheet from the next visit (unless the student chose).
   const sheetWritten = sheetPage.data.status === 'ready' && sheetPage.data.written > 0;
   useEffect(() => {
@@ -1072,9 +1057,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
 
   const onSheet = view === 'sheet';
-  // The column offers its own filled pill («Ответить на этот вопрос»), or the sheet's first-use tip does
-  // («Тянуть билет» in the card): the status's action steps down to the white pill.
-  const drawSteps = whyAnswers || (onSheet && (sheetPage.primaryInColumn || sheetTip.show));
+  // The column offers its own filled pill («Ответить на этот вопрос»): the status's action steps down to the white pill.
+  const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
   // Nothing found and nothing written: the sheet's column would hold only its name.
   const sheetColumnQuiet = pageStatus.quietGaps && sheetPage.data.written === 0 && !sheetPage.lineOpen;
   const sideColumn = onSheet ? (selectedRow ? whyPanel('column') : sheetColumnQuiet ? null : sheetPage.column) : column;
@@ -1183,7 +1167,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
         {(['sheet', 'questions'] as const).map((item) => (
           <button
             key={item}
-            ref={item === 'sheet' ? sheetTabRef : undefined}
             type="button"
             role="tab"
             id={`ex-view-${item}`}
@@ -1205,10 +1188,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
           </button>
         ))}
       </div>
-      {/* After the tabs, so Tab goes from «Шпаргалка» to its tip; the card lies over the page. */}
-      {onSheet && sheetTip.show ? (
-        <TipCard tip={TIPS.sheet} anchor={sheetTabRef} to={drawHref} onAction={sheetTip.done} onDismiss={sheetTip.dismiss} />
-      ) : null}
     </>
   );
 

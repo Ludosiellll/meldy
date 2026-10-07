@@ -1934,54 +1934,18 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Ответить на этот вопрос' })).toBeNull());
     expect(statusPill()).toHaveClass('sf-primary');
   });
-  it('the first time the sheet shows lines, a tip under «Шпаргалка» says what erases them, once', async () => {
+  it('no first-use card over the sheet: the status says what erases the lines and holds the one next step', async () => {
     window.localStorage.setItem(VIEW_KEY, 'sheet');
     mocks.getProfile.mockResolvedValue({ onboarding_status: { guide: true } });
     mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
-    const first = renderDetail();
-    await opened();
-    const text = await screen.findByText(named('Назвали пункт в ответе — строка стирается наполовину. Назвали снова в другой день — стирается совсем. От чтения ничего не стирается.'), {}, { timeout: 3000 });
-    const tip = text.closest('section') as HTMLElement;
-    // The action says what it does: the sheet's tip leads to a ticket, as the column's pill.
-    expect(within(tip).getByRole('link', { name: 'Тянуть билет' })).toHaveAttribute('href', '/exams/exam-1/draw');
-    fireEvent.click(within(tip).getByRole('button', { name: 'Не сейчас' }));
-    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
-    expect(window.localStorage.getItem('meldy_tip_sheet')).toBe('1');
-    await waitFor(() => expect(mocks.markOnboardingTourSeen).toHaveBeenCalledWith('user-1', 'tip_sheet'));
-    first.unmount();
-    // Gone for good on this device.
     renderDetail();
     await opened();
     await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
+    await statusSays('Шпаргалка написана не полностью');
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
-  });
-
-  it('no tip on an empty sheet, on «Вопросы», or before the guide was seen', async () => {
-    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), []));
-    mocks.getProfile.mockResolvedValue({ onboarding_status: { guide: true } });
-    window.localStorage.setItem(VIEW_KEY, 'sheet');
-    renderDetail();
-    await opened();
-    await screen.findByRole('button', { name: 'Написать шпаргалку' });
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
-    cleanup();
-    mocks.fetchSheet.mockResolvedValue(sheetOf(forty(), [1]));
-    window.localStorage.setItem(VIEW_KEY, 'questions');
-    renderDetail();
-    await opened();
-    await waitFor(() => expect(mocks.fetchSheet).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
-    cleanup();
-    mocks.getProfile.mockResolvedValue({ onboarding_status: {} });
-    window.localStorage.setItem(VIEW_KEY, 'sheet');
-    renderDetail();
-    await opened();
-    await screen.findByRole('tabpanel', { name: 'Шпаргалка' });
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    expect(screen.queryByText(/Назвали пункт в ответе/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Не сейчас' })).toBeNull();
+    expect(document.querySelectorAll('.sf-page .sf-primary')).toHaveLength(1);
   });
 
   it('back from an answer, the sheet plays what the answer changed instead of «Вопросы» (one show)', async () => {
