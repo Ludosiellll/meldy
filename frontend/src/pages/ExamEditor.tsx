@@ -24,7 +24,8 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { KIND_WORDS, subjectOf } from '../lib/exams/format';
 import { pluralRu } from '../components/conversation/visuals';
 import QuestionPreview from '../components/exams/QuestionPreview';
-import MaterialPicker, { type ImportStatus } from '../components/exams/MaterialPicker';
+import MaterialPicker, { type ImportStatus, type PickerFit } from '../components/exams/MaterialPicker';
+import { FIT_TICK_HINT, fitQuestions, fitView, useLectureFit } from '../components/exams/lectureFit';
 import PaperSelect from '../components/ui/PaperSelect';
 import PaperSuggestInput from '../components/ui/PaperSuggestInput';
 import { startMapping, useMapJob } from '../components/exams/mapJobs';
@@ -73,7 +74,7 @@ function mapNext(lectures: number): string {
   const chosen = lectures % 10 === 1 && lectures % 100 !== 11 ? 'выбранной лекцией' : 'выбранными лекциями';
   return `Meldy сверит каждый вопрос с ${lectures} ${chosen} — пометки появятся на листе экзамена.`;
 }
-/** Why the lectures are ticked as they are, until the student changes them. */
+/** Why the title ticked the lectures as it did, until the student changes them (the questions' ticks: FIT_TICK_HINT). */
 const TICK_HINTS = {
   'no-title': 'Пока отмечены все: когда вы назовёте экзамен, Meldy оставит лекции этого предмета.',
   'by-title': 'Отмечены лекции, подходящие к названию экзамена. Лишние снимите, нужные отметьте.',
@@ -224,11 +225,21 @@ export default function ExamEditor() {
     void loadExam();
   }, [loadExam]);
 
-  // Lectures ticked in advance by word stems of the title (all of them when none matches).
+  // «Какие лекции подходят к вопросам»: asked once the list has questions, again when they or the lectures change.
+  const fitAsked = useMemo(() => fitQuestions(preview), [preview]);
+  const usableIds = useMemo(() => materials.filter((material) => material.textLength > 0).map((material) => material.id), [materials]);
+  const fit = useLectureFit(fitAsked, usableIds, materialsState === 'ready');
+  const fits = useMemo(() => (fit.snapshot ? fitView(fit.snapshot, usableIds) : null), [fit.snapshot, usableIds]);
+  // A new exam ticks by the questions once a lecture fits two of them or more; until then, by the title.
+  const tickByFit = Boolean(fits?.strong);
+  const fittingKey = fits ? fits.fitting.join(',') : '';
+
+  // Lectures ticked in advance while the student has not touched the ticks: the ones that fit the
+  // questions, else by word stems of the title (all of them when none matches).
   useEffect(() => {
     if (editing || selectionTouched || materialsState !== 'ready') return;
-    setSelected(new Set(suggestedMaterialIds(materials, title)));
-  }, [editing, selectionTouched, materialsState, materials, title]);
+    setSelected(new Set(tickByFit && fittingKey ? fittingKey.split(',') : suggestedMaterialIds(materials, title)));
+  }, [editing, selectionTouched, materialsState, materials, title, tickByFit, fittingKey]);
 
   useEffect(() => {
     if (location.hash !== '#lectures' || loadState === 'loading') return;
@@ -307,6 +318,18 @@ export default function ExamEditor() {
         if (on) next.add(id);
         else next.delete(id);
       }
+      return next;
+    });
+  };
+
+  /** «Отметить подходящие»: exactly the lectures that fit the questions; lectures without text keep their place. */
+  const pickFitting = () => {
+    if (!fits) return;
+    setSelectionTouched(true);
+    setSelected((current) => {
+      const usable = new Set(usableIds);
+      const next = new Set(Array.from(current).filter((id) => !usable.has(id)));
+      for (const id of fits.fitting) next.add(id);
       return next;
     });
   };
@@ -417,6 +440,19 @@ export default function ExamEditor() {
     [materials],
   );
 
+  const autoTicks = !editing && !selectionTouched;
+  const pickerFit: PickerFit | null =
+    total > 0 && fit.status !== 'idle'
+      ? {
+          status: fit.status,
+          view: fits,
+          ticked: autoTicks && tickByFit,
+          picked: fits !== null && fits.fitting.length === usableSelected.length && fits.fitting.every((id) => selected.has(id)),
+          onPick: pickFitting,
+          onRetry: fit.retry,
+        }
+      : null;
+
   // ------------------------------------------------------------------ render
   if (editing && (loadState === 'loading' || loadState === 'missing' || loadState === 'error')) {
     return (
@@ -500,7 +536,7 @@ export default function ExamEditor() {
     materialsState !== 'ready'
       ? 'Какие лекции брать, выберете на следующем шаге.'
       : libraryLectures > 0
-        ? `В библиотеке ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy заранее отметит лекции по предмету экзамена.`
+        ? `В библиотеке ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy подскажет, какие подходят к вопросам.`
         : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита (кроме распознавания сканов).';
   // Step 1 is the list alone: one card, its button right under the field. The button always answers:
   // with text it recognises it; on an empty field it puts the cursor there and says what to do.
@@ -769,7 +805,7 @@ export default function ExamEditor() {
               </p>
             </div>
 
-            {/* Right after the title: the marks depend on these lectures, and the title ticks them. */}
+            {/* Right after the title: the marks depend on these lectures, and the questions (else the title) tick them. */}
             <div className="nx-grp">
               <p className="nx-lbl">Лекции</p>
               <MaterialPicker
@@ -777,7 +813,8 @@ export default function ExamEditor() {
                 selected={selected}
                 onToggle={toggleMaterial}
                 onSetMany={setManyMaterials}
-                hint={!editing && !selectionTouched ? TICK_HINTS[suggestionReason(materials, title)] : null}
+                hint={autoTicks ? (tickByFit ? FIT_TICK_HINT : TICK_HINTS[suggestionReason(materials, title)]) : null}
+                fit={pickerFit}
                 onImport={(files) => void importFiles(files)}
                 imports={imports}
                 loading={materialsState === 'loading'}

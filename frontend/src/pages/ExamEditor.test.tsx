@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { ExamBundle, ExamDraft, ExamQuestion, ParseResult, PickerMaterial } from '../api/exams';
+import type { ExamBundle, ExamDraft, ExamQuestion, LectureFit, ParseResult, PickerMaterial } from '../api/exams';
 
 const mocks = vi.hoisted(() => ({
   parseQuestionList: vi.fn(),
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   loadExamBundle: vi.fn(),
   importTextOnlyMaterial: vi.fn(),
   deleteExam: vi.fn(),
+  fetchLectureFit: vi.fn(),
   startMapping: vi.fn(),
   verifyEnergy: vi.fn(),
   confirm: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../api/exams', async (importOriginal) => {
     loadExamBundle: mocks.loadExamBundle,
     importTextOnlyMaterial: mocks.importTextOnlyMaterial,
     deleteExam: mocks.deleteExam,
+    fetchLectureFit: mocks.fetchLectureFit,
   };
 });
 vi.mock('../components/exams/mapJobs', async (importOriginal) => {
@@ -135,6 +137,18 @@ function renderEditor(path = '/exams/new') {
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/ /g, ' ');
 
+/** A /api/exams/lecture-fit answer: per question, the lectures that fit it. */
+function fits(questions: string[][]): LectureFit {
+  const lectures = new Map<string, number[]>();
+  questions.forEach((ids, index) => {
+    for (const id of ids) lectures.set(id, [...(lectures.get(id) ?? []), index]);
+  });
+  return { questions, lectures, unmatched: questions.flatMap((ids, index) => (ids.length === 0 ? [index] : [])), skipped: [] };
+}
+
+/** The hint waits for the list to stop changing (700 ms) before it asks. */
+const asked = (times = 1) => waitFor(() => expect(mocks.fetchLectureFit).toHaveBeenCalledTimes(times), { timeout: 3000 });
+
 async function pasteAndParse() {
   renderEditor();
   fireEvent.change(screen.getByRole('textbox', { name: 'Список вопросов' }), { target: { value: PARSE.source_text } });
@@ -151,6 +165,8 @@ beforeEach(() => {
   mocks.verifyEnergy.mockResolvedValue(true);
   mocks.confirm.mockResolvedValue(true);
   mocks.startMapping.mockResolvedValue('started');
+  // By default no lecture fits any question: the title ticks the lectures, as before the hint.
+  mocks.fetchLectureFit.mockImplementation(async (input: { questions: string[] }) => fits(input.questions.map(() => [])));
 });
 
 afterEach(() => {
@@ -673,5 +689,112 @@ describe('ExamEditor: editing a saved exam', () => {
     mocks.loadExamBundle.mockResolvedValue(savedBundle());
     renderEditor('/exams/exam-1/edit#lectures');
     expect(await screen.findByRole('list', { name: 'Лекции для экзамена' })).toBeInTheDocument();
+  });
+});
+
+describe('ExamEditor: which lectures fit the questions', () => {
+  const lectureRow = (name: RegExp) => within(screen.getByRole('list', { name: 'Лекции для экзамена' })).getByRole('checkbox', { name });
+  const rowText = (name: RegExp) => plain(lectureRow(name).closest('label')?.textContent);
+
+  it('asks once the list is recognised, about its questions and the lectures with text, and writes the counts', async () => {
+    // Questions 1 and 2 fit «Денежный рынок», question 3 — «Механика» too (shared words), question 4 — nothing.
+    mocks.fetchLectureFit.mockResolvedValue(fits([['m1'], ['m1'], ['m1', 'm4'], []]));
+    await pasteAndParse();
+    await asked();
+    expect(mocks.fetchLectureFit.mock.calls[0][0]).toEqual({
+      questions: ['Предмет и метод макроэкономики.', 'Система национальных счетов.', 'Инфляция: виды и причины.', 'Рынок труда и безработица.'],
+      materialIds: ['m1', 'm2', 'm4'],
+    });
+    await waitFor(() => expect(rowText(/Денежный рынок/)).toContain('подходит к 3 вопросам'));
+    expect(rowText(/Механика/)).toContain('подходит к 1 вопросу');
+    expect(rowText(/Лекция 3/)).not.toContain('подходит');
+    expect(plain(document.querySelector('.nx-pick-unmatched')?.textContent)).toBe(
+      'Без подходящей лекции: вопрос 4. Если лекция по нему есть, добавьте её — иначе сверка отметит, что его нет в лекциях.',
+    );
+    expect(screen.getByText(/по совпадению слов в вопросах и лекциях, без ИИ/)).toBeInTheDocument();
+    // A new exam whose ticks nobody touched: a lecture fits two questions or more, so the questions tick the lectures.
+    expect(lectureRow(/Денежный рынок/)).toBeChecked();
+    expect(lectureRow(/Механика/)).toBeChecked();
+    expect(lectureRow(/Лекция 3/)).not.toBeChecked();
+    expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('Отмечены лекции, которые подходят к вопросам списка. Лишние снимите, нужные отметьте.');
+    expect(document.querySelector('.nx-pick-fitsum')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Отметить подходящие (2)' })).toBeDisabled();
+  });
+
+  it('keeps the ticks by the title while no lecture fits two questions', async () => {
+    mocks.fetchLectureFit.mockResolvedValue(fits([['m4'], [], [], []]));
+    await pasteAndParse();
+    await asked();
+    await waitFor(() => expect(rowText(/Механика/)).toContain('подходит к 1 вопросу'));
+    expect(lectureRow(/Денежный рынок/)).toBeChecked();
+    expect(lectureRow(/Лекция 3/)).toBeChecked();
+    expect(lectureRow(/Механика/)).not.toBeChecked();
+    expect(plain(document.querySelector('.nx-pick-hint')?.textContent)).toBe('Отмечены лекции, подходящие к названию экзамена. Лишние снимите, нужные отметьте.');
+    expect(plain(document.querySelector('.nx-pick-fitsum')?.textContent)).toBe('К вопросам списка подходит 1 лекция.');
+    expect(plain(document.querySelector('.nx-pick-unmatched')?.textContent)).toContain('Без подходящей лекции: вопросы 2, 3 и 4.');
+  });
+
+  it('«Отметить подходящие» ticks exactly the fitting lectures in one click; «Снять все» undoes it', async () => {
+    mocks.fetchLectureFit.mockResolvedValue(fits([['m4'], [], ['m2'], []]));
+    await pasteAndParse();
+    await asked();
+    const action = await screen.findByRole('button', { name: 'Отметить подходящие (2)' });
+    expect(lectureRow(/Денежный рынок/)).toBeChecked();
+    fireEvent.click(action);
+    expect(lectureRow(/Денежный рынок/)).not.toBeChecked();
+    expect(lectureRow(/Лекция 3/)).toBeChecked();
+    expect(lectureRow(/Механика/)).toBeChecked();
+    expect(action).toBeDisabled();
+    // The student's ticks now: no explanation of the ticks any more.
+    expect(document.querySelector('.nx-pick-hint')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Снять все' }));
+    expect(lectureRow(/Лекция 3/)).not.toBeChecked();
+    expect(lectureRow(/Механика/)).not.toBeChecked();
+    expect(action).toBeEnabled();
+  });
+
+  it('asks again when a question changes, and the newer answer replaces the counts', async () => {
+    mocks.fetchLectureFit.mockResolvedValueOnce(fits([['m1'], ['m1'], [], []]));
+    await pasteAndParse();
+    await asked();
+    await waitFor(() => expect(rowText(/Денежный рынок/)).toContain('подходит к 2 вопросам'));
+    mocks.fetchLectureFit.mockResolvedValueOnce(fits([['m1'], ['m1'], ['m1'], []]));
+    fireEvent.click(screen.getByRole('button', { name: /Изменить вопрос 3:/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Текст вопроса' }), { target: { value: 'Инфляция и денежный рынок.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    await asked(2);
+    expect((mocks.fetchLectureFit.mock.calls[1][0] as { questions: string[] }).questions[2]).toBe('Инфляция и денежный рынок.');
+    await waitFor(() => expect(rowText(/Денежный рынок/)).toContain('подходит к 3 вопросам'));
+  });
+
+  it('a failed hint says so quietly and never stands in the way of saving', async () => {
+    const { ExamApiError } = await import('../api/exams');
+    mocks.fetchLectureFit.mockRejectedValue(new ExamApiError('Слишком много запросов. Подождите минуту и повторите.'));
+    await pasteAndParse();
+    await asked();
+    expect(await screen.findByText(/Не удалось подобрать лекции к вопросам/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    // The title still ticked the lectures; the main button works as without the hint.
+    expect(lectureRow(/Денежный рынок/)).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Сверить с лекциями' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+    expect((mocks.createExam.mock.calls[0] as [string, ExamDraft])[1].materialIds).toEqual(['m1', 'm2']);
+  });
+
+  it('editing a saved exam: counts and the action, the saved ticks stay as they are', async () => {
+    mocks.loadExamBundle.mockResolvedValue(savedBundle());
+    mocks.fetchLectureFit.mockResolvedValue(fits([['m4'], ['m4'], []]));
+    renderEditor('/exams/exam-1/edit');
+    await screen.findByText(/В списке 3 вопроса/);
+    await asked();
+    expect(mocks.fetchLectureFit.mock.calls[0][0]).toEqual({ questions: ['Предмет и метод.', 'Инфляция.', 'Рынок труда.'], materialIds: ['m1', 'm2', 'm4'] });
+    await waitFor(() => expect(rowText(/Механика/)).toContain('подходит к 2 вопросам'));
+    expect(lectureRow(/Денежный рынок/)).toBeChecked();
+    expect(lectureRow(/Механика/)).not.toBeChecked();
+    expect(plain(document.querySelector('.nx-pick-fitsum')?.textContent)).toBe('К вопросам списка подходит 1 лекция.');
+    fireEvent.click(screen.getByRole('button', { name: 'Отметить подходящие (1)' }));
+    expect(lectureRow(/Механика/)).toBeChecked();
+    expect(lectureRow(/Денежный рынок/)).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Сохранить и сверить' })).toBeEnabled();
   });
 });

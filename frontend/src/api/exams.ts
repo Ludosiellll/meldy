@@ -1133,6 +1133,90 @@ export async function extractText(file: File, signal?: AbortSignal): Promise<Ext
   };
 }
 
+/** «Какие лекции подходят к вопросам» (backend/lecture_fit.py): the server's caps on one request. */
+export const FIT_MAX_QUESTIONS = 300;
+export const FIT_QUESTION_CHARS = 600;
+export const FIT_MAX_LECTURES = 500;
+
+export type FitSkipReason = 'no_text' | 'limit' | 'missing';
+
+/** Which of the student's lectures fit which questions of a list, by shared words (no AI, nothing saved). */
+export interface LectureFit {
+  /** Per question of the request, in its order: the lectures that fit it. */
+  questions: string[][];
+  /** Every lecture that was checked → the request indexes of the questions it fits (empty when none). */
+  lectures: Map<string, number[]>;
+  /** Request indexes of the questions no lecture fits. */
+  unmatched: number[];
+  /** Lectures that were not checked: no text, past the server's text limit (the oldest), or not readable. */
+  skipped: Array<{ id: string; reason: FitSkipReason }>;
+}
+
+const FIT_SKIP_REASONS = new Set<FitSkipReason>(['no_text', 'limit', 'missing']);
+
+export function normalizeLectureFit(raw: unknown, questionCount: number): LectureFit {
+  if (!isRecord(raw) || !Array.isArray(raw.questions) || !Array.isArray(raw.lectures)) {
+    throw new ExamApiError(EXAM_MESSAGES.badResponse, 'bad_shape');
+  }
+  const ids = (value: unknown): string[] => (Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && id !== '') : []);
+  const answered: unknown[] = raw.questions;
+  const questions = Array.from({ length: questionCount }, (_, index) => {
+    const item = answered[index];
+    return isRecord(item) ? ids(item.lectures) : [];
+  });
+  const lectures = new Map<string, number[]>();
+  for (const item of raw.lectures) {
+    if (!isRecord(item) || typeof item.id !== 'string' || !item.id) continue;
+    const indexes = Array.isArray(item.questions)
+      ? item.questions.map(int).filter((index): index is number => index !== null && index >= 0 && index < questionCount)
+      : [];
+    lectures.set(item.id, indexes);
+  }
+  const skipped = Array.isArray(raw.skipped)
+    ? raw.skipped
+        .filter(isRecord)
+        .filter((item): item is { id: string; reason: FitSkipReason } => typeof item.id === 'string' && FIT_SKIP_REASONS.has(item.reason as FitSkipReason))
+        .map((item) => ({ id: item.id, reason: item.reason }))
+    : [];
+  return {
+    questions,
+    lectures,
+    unmatched: questions.map((list, index) => (list.length === 0 ? index : -1)).filter((index) => index >= 0),
+    skipped,
+  };
+}
+
+/**
+ * POST /api/exams/lecture-fit: which lectures fit the questions, by shared words. Free (no AI, no daily-limit
+ * units, nothing saved). Questions are cut to 600 characters, at most 300 questions and 500 lectures.
+ */
+export async function fetchLectureFit(input: { questions: string[]; materialIds: string[] }, signal?: AbortSignal): Promise<LectureFit> {
+  const questions = input.questions.slice(0, FIT_MAX_QUESTIONS).map((text) => text.slice(0, FIT_QUESTION_CHARS));
+  let response: Response;
+  try {
+    response = await fetch('/api/exams/lecture-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questions, material_ids: input.materialIds.slice(0, FIT_MAX_LECTURES) }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new ExamApiError('Запрос остановлен.', 'aborted');
+    throw new ExamApiError(EXAM_MESSAGES.network, 'network');
+  }
+  if (!response.ok) {
+    const failure = await httpErrorFromResponse(response);
+    throw new ExamApiError(failure.message, failure.code ?? null, response.status);
+  }
+  let raw: unknown;
+  try {
+    raw = await response.json();
+  } catch {
+    throw new ExamApiError(EXAM_MESSAGES.badResponse, 'bad_json', response.status);
+  }
+  return normalizeLectureFit(raw, questions.length);
+}
+
 function fileTitle(name: string): string {
   return name.replace(/\.[^./\\]+$/, '').replace(/[_]+/g, ' ').trim();
 }
