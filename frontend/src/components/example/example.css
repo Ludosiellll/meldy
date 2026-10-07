@@ -144,7 +144,7 @@
 .sf-page[data-frame='s'] .tx-lectures { margin-top: 44px; }
 .sf-page .tx-h2 { margin: 0; font-size: clamp(30px, 3vw, 40px); line-height: 1.08; font-weight: 500; letter-spacing: -.03em; }
 .sf-page .tx-sub { margin: 10px 0 0; max-width: 36em; font-size: 17px; line-height: 25px; color: var(--sf-muted); text-wrap: pretty; }
-.sf-page .tx-lecture-list { display: grid; gap: 14px; margin-top: 22px; }
+.sf-page .tx-lecture-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 22px; }
 .sf-page .tx-lecture { border-radius: 32px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
 .sf-page .tx-lecture > summary {
   display: flex;
@@ -183,6 +183,14 @@
   .sf-page .tx-lecture-t { font-size: 18px; line-height: 24px; }
   .sf-page .tx-frags { padding: 2px 10px 14px; }
   .sf-page .tx-frag { padding: 12px 14px 14px; }
+}
+/* A small phone (320 px): the count of fragments goes under the title, so a long title word and the
+   count never push the card wider than the screen. */
+@media (max-width: 379px) {
+  .sf-page .tx-lecture > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; }
+  .sf-page .tx-lecture > summary::after { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .sf-page .tx-lecture-t { grid-column: 1; overflow-wrap: anywhere; }
+  .sf-page .tx-lecture-m { grid-column: 1; }
 }
 
 /* ---------------------------------------------------------------- draw and answer */

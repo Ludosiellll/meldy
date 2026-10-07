@@ -173,6 +173,12 @@ def _report_missing_column() -> None:
 # ── Проверка короткой строки (код, не модель) ───────────────────────────────────
 
 NEGATIONS = ("не", "нет", "без", "ни")
+# Короткие служебные слова: с точкой после них это конец фразы, а не сокращение («рост до.» — не «доход»),
+# поэтому они годятся, только если стоят в title целиком.
+FUNCTION_WORDS = frozenset(
+    ("а", "в", "во", "до", "же", "за", "и", "из", "или", "к", "ко", "на", "но", "о", "об", "от", "по", "при", "про", "с", "со",
+     "то", "у", "для", "над", "под", "что", "как", "это", "ли", "бы")
+)
 RISING_STEMS = ("выше", "больше", "рост", "раст", "увелич", "повыш", "возраст")
 FALLING_STEMS = ("ниже", "меньше", "сниж", "паден", "пада", "уменьш", "сокращ")
 ALLOWED_ARROWS = frozenset("↑↓→←⇒")  # их рисует лист; остальные стрелки не проверить
@@ -280,7 +286,7 @@ def _word_problem(token: str, abbreviated: bool, title_words: list[str]) -> str 
         return None if any(_same_stem(word, other) for other in title_words) else "new_word"
     if word in NEGATIONS:
         return None  # отрицания сверяет _negation_problem
-    if abbreviated:
+    if abbreviated and word not in FUNCTION_WORDS:
         return None if any(other.startswith(word) for other in title_words) else "short_word"
     return None if word in title_words else "short_word"
 
@@ -298,7 +304,7 @@ def _same_word(word: str | None, abbreviated: bool, other: str | None) -> bool:
         return _direction(other) == word
     if len(word) >= 4:
         return _same_stem(word, other)
-    return other.startswith(word) if abbreviated else word == other
+    return other.startswith(word) if abbreviated and word not in FUNCTION_WORDS else word == other
 
 
 def _negation_problem(text: str, title_words: list[str]) -> bool:
@@ -385,8 +391,9 @@ def short_problem(short: Any, title: Any) -> str | None:
     Строка — то же утверждение, что title, только короче, и ни одного слова или знака сверх него:
     - слова (new_word, acronym, short_word): слово от 4 букв совпадает с каким-то словом title по
       первым 4–5 буквам (ё = е, регистр не важен); аббревиатура заглавными — слово title или первые
-      буквы его слов подряд; сокращение в 1–3 буквы с точкой («др.», «вел.») — начало слова title;
-      другое слово в 1–3 буквы («и», «от», «до», «ввп») — слово title целиком;
+      буквы его слов подряд; сокращение в 1–3 буквы с точкой («др.», «вел.») — начало слова title,
+      но служебное слово с точкой («до.», «от.») — конец фразы, а не сокращение; другое слово в 1–3
+      буквы («и», «от», «до», «ввп») — слово title целиком;
     - отрицания «не/нет/без/ни» (negation): каждое столько же раз, сколько в title, и при том же
       слове, что в title («не является полезной» можно сократить до «не полезна», «не растёт» — до
       «не ↑»);
