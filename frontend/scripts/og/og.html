@@ -1,0 +1,392 @@
+<!doctype html>
+<!--
+  The link preview of https://ludosiel-studyforge.hf.space/ (og:image, 1200 × 630). Rendered to
+  public/og-image.png by render.mjs; open this file in a browser to see it. Fonts come from the
+  app's own packages (Onest, and Caveat for the handwriting of the cheat sheet).
+  The sheet is the example exam of /try («Микроэкономика», questions 6 and 7, their short lines word
+  for word): question 6 learned (its main lines erased, a pencil tick), question 7 with one line
+  erased, one rubbed half away and one back after a missed answer — the states of the in-app sheet
+  (components/exams/sheet/sheet.css), drawn the same way.
+-->
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>Meldy — превью ссылки</title>
+    <link rel="stylesheet" href="../../node_modules/@fontsource-variable/onest/wght.css" />
+    <link rel="stylesheet" href="../../node_modules/@fontsource-variable/caveat/wght.css" />
+    <style>
+      :root {
+        --canvas: #f3f3f0;
+        --ink: #0b121c;
+        --muted: #4b515b;
+        --blue: #2869dd;
+        --blue-deep: #1c4db1;
+        --yellow: #f4c45b;
+        --paper: #fffefa;
+        --grid: rgba(31, 61, 148, 0.13);
+        --hand: #1f3d94;
+        --graphite: #50565f;
+        --margin: #e3a2b8;
+        /* One grid row and the handwriting on it: the app's 24/22 px sheet at 1.2. */
+        --row: 26px;
+        --base: 20px;
+        /* Two eraser passes of one period (sheet.css): islands of ink where both left some. */
+        --pass-a: repeating-linear-gradient(97deg, #000 0 10px, rgba(0, 0, 0, 0.04) 10px 24px);
+        --pass-b: repeating-linear-gradient(83deg, #000 0 11px, rgba(0, 0, 0, 0.06) 11px 24px);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--canvas);
+      }
+      .og {
+        position: relative;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: 'Onest Variable', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ------------------------------------------------------------ words */
+      .copy {
+        position: absolute;
+        left: 64px;
+        top: 60px;
+        bottom: 62px;
+        width: 520px;
+        display: flex;
+        flex-direction: column;
+      }
+      .logo {
+        display: inline-flex;
+        align-items: baseline;
+        font-size: 44px;
+        line-height: 1;
+        font-weight: 600;
+        letter-spacing: -0.045em;
+      }
+      .logo::after {
+        content: '';
+        display: inline-block;
+        width: 0.3em;
+        height: 0.3em;
+        margin-left: 0.08em;
+        border-radius: 50%;
+        background: var(--yellow);
+      }
+      h1 {
+        margin: 56px 0 0;
+        font-size: 54px;
+        line-height: 1.04;
+        font-weight: 500;
+        letter-spacing: -0.035em;
+      }
+      .sub {
+        margin: 22px 0 0;
+        font-size: 27px;
+        line-height: 1.3;
+        color: var(--muted);
+        letter-spacing: -0.01em;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 16px;
+        align-self: flex-start;
+        margin-top: auto;
+        height: 66px;
+        padding: 0 10px 0 30px;
+        border-radius: 999px;
+        background: var(--blue);
+        color: #fff;
+        font-size: 24px;
+        font-weight: 500;
+      }
+      .pill i {
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: var(--blue-deep);
+      }
+      .pill svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      /* ------------------------------------------------------------ the sheet */
+      .panel {
+        position: absolute;
+        left: 604px;
+        top: 34px;
+        width: 568px;
+        height: 562px;
+        overflow: hidden;
+        border-radius: 52px;
+        background: linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
+      }
+      .panel::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.22;
+        background-image: radial-gradient(#fff 1.6px, transparent 1.9px);
+        background-size: 10px 10px;
+        -webkit-mask-image: linear-gradient(200deg, #000, transparent 72%);
+        mask-image: linear-gradient(200deg, #000, transparent 72%);
+      }
+      .card {
+        position: absolute;
+        left: 632px;
+        top: 66px;
+        width: 512px;
+        height: 498px;
+        padding: 22px 22px 0;
+        overflow: hidden;
+        border-radius: 40px;
+        background: #fff;
+        box-shadow: 0 30px 60px -30px rgba(5, 12, 30, 0.55);
+      }
+      .card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        height: 36px;
+      }
+      .flag {
+        display: inline-flex;
+        align-items: center;
+        height: 34px;
+        padding: 0 26px 0 14px;
+        background: #f3a9c4;
+        color: var(--ink);
+        font-size: 17px;
+        font-weight: 500;
+        clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%);
+      }
+      .meta {
+        font-size: 16px;
+        color: var(--muted);
+      }
+      .paper {
+        position: relative;
+        margin-top: 16px;
+        height: 446px;
+        padding: var(--row) 38px 0 28px;
+        border-radius: 4px 4px 0 0;
+        background-color: var(--paper);
+        background-image:
+          linear-gradient(to bottom, transparent var(--base), var(--grid) var(--base), var(--grid) calc(var(--base) + 1px), transparent calc(var(--base) + 1px)),
+          linear-gradient(to right, var(--grid) 1px, transparent 1px);
+        background-size: 100% var(--row), var(--row) 100%;
+        box-shadow: 0 0 0 1px rgba(16, 41, 90, 0.1);
+      }
+      .paper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 24px;
+        width: 2px;
+        background: var(--margin);
+      }
+      .q {
+        position: relative;
+        top: 2px;
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 0.4em;
+        font-size: 17px;
+        line-height: var(--row);
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .q + ul {
+        margin-bottom: var(--row);
+      }
+      /* A learned question: every main line erased, a graphite tick in the margin by its number. */
+      .q .tick {
+        position: absolute;
+        left: -25px;
+        top: 4px;
+        width: 20px;
+        height: 16px;
+        fill: none;
+        stroke: var(--graphite);
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      li {
+        position: relative;
+        display: grid;
+        grid-template-columns: var(--row) 1fr;
+        font-family: 'Caveat Variable', cursive;
+        font-size: 23px;
+        line-height: var(--row);
+        font-weight: 500;
+        color: var(--hand);
+      }
+      li > i {
+        font-style: normal;
+        text-align: center;
+      }
+      .ink {
+        position: relative;
+        justify-self: start;
+        isolation: isolate;
+      }
+      .ink svg {
+        display: inline;
+        height: auto;
+        overflow: visible;
+        vertical-align: baseline;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .ink .to {
+        width: 0.85em;
+        margin: 0 0.06em;
+      }
+      .ink .up {
+        width: 0.5em;
+        margin: 0 0.04em;
+      }
+      /* The eraser's track: dull paper under a rubbed or erased line, the grid half seen through it. */
+      .patch {
+        position: absolute;
+        inset: 1px -10px;
+        z-index: -1;
+        background: color-mix(in srgb, var(--paper) 50%, transparent);
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+        mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+      }
+      .rubbed .words {
+        -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)), var(--pass-a), var(--pass-b);
+        mask-image: linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)), var(--pass-a), var(--pass-b);
+        -webkit-mask-composite: source-in, source-in;
+        mask-composite: intersect, intersect;
+      }
+      .erased .words {
+        -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0.09)), var(--pass-a), var(--pass-b);
+        mask-image: linear-gradient(rgba(0, 0, 0, 0.09), rgba(0, 0, 0, 0.09)), var(--pass-a), var(--pass-b);
+        -webkit-mask-composite: source-in, source-in;
+        mask-composite: intersect, intersect;
+      }
+      .rubbed > i {
+        opacity: 0.3;
+      }
+      .erased > i {
+        opacity: 0.12;
+      }
+      /* A line back after a missed answer: a graphite wave under the words. */
+      .wave {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(var(--base) + 3px);
+        height: 7px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='7' viewBox='0 0 14 7'%3E%3Cpath d='M0 3.5 Q 3.5 0.6 7 3.5 T 14 3.5' fill='none' stroke='%2350565f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x 0 0 / 14px 7px;
+        opacity: 0.85;
+      }
+      li.note {
+        position: relative;
+        top: 2px;
+        font-family: 'Onest Variable', system-ui, sans-serif;
+        font-size: 15px;
+        line-height: var(--row);
+        font-weight: 500;
+        color: var(--graphite);
+      }
+      .paper .fade {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 70px;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff 92%);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="og">
+      <section class="copy">
+        <div class="logo">Meldy</div>
+        <h1>Тренажёр<br />устного экзамена<br />по&nbsp;билетам кафедры</h1>
+        <p class="sub">ИИ не&nbsp;отвечает за&nbsp;студента&nbsp;—<br />он&nbsp;его спрашивает</p>
+        <div class="pill">
+          Попробовать на&nbsp;примере
+          <i>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </i>
+        </div>
+      </section>
+
+      <div class="panel"></div>
+      <div class="card">
+        <div class="card-top">
+          <span class="flag">Шпаргалка</span>
+          <span class="meta">Микроэкономика · пример</span>
+        </div>
+        <div class="paper">
+          <p class="q">
+            <svg class="tick" viewBox="0 0 22 18"><path d="M2.5 9.8 C 4.6 11.4, 6.2 13.2, 7.6 15.4 C 10.6 9.6, 14.4 5.2, 19.8 2.4" /></svg>
+            <span>6.</span><span>Факторы ценовой эластичности спроса.</span>
+          </p>
+          <ul>
+            <li class="erased">
+              <i>•</i>
+              <span class="ink"><span class="patch"></span><span class="words">заменителей<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg> <svg class="to" viewBox="0 0 20 14"><path d="M2 7.7 C 7 7.4, 12.4 7.5, 18 7.2" /><path d="M13.3 3.1 L 18 7.2 L 13.5 11.4" /></svg>спрос эластичнее</span></span>
+            </li>
+            <li class="erased">
+              <i>•</i>
+              <span class="ink"><span class="patch"></span><span class="words">доля в бюджете<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg> <svg class="to" viewBox="0 0 20 14"><path d="M2 7.7 C 7 7.4, 12.4 7.5, 18 7.2" /><path d="M13.3 3.1 L 18 7.2 L 13.5 11.4" /></svg>эластичность<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg></span></span>
+            </li>
+            <li class="erased">
+              <i>•</i>
+              <span class="ink"><span class="patch"></span><span class="words">необходимость — неэластичный, роскошь — эластичный</span></span>
+            </li>
+            <li>
+              <i>–</i>
+              <span class="ink"><span class="words">со временем спрос эластичнее</span></span>
+            </li>
+          </ul>
+          <p class="q"><span>7.</span><span>Эластичность спроса и выручка продавца.</span></p>
+          <ul>
+            <li class="erased">
+              <i>•</i>
+              <span class="ink"><span class="patch"></span><span class="words">выручка = цена × количество</span></span>
+            </li>
+            <li class="rubbed">
+              <i>•</i>
+              <span class="ink"><span class="patch"></span><span class="words">эластичный: снижение цены <svg class="to" viewBox="0 0 20 14"><path d="M2 7.7 C 7 7.4, 12.4 7.5, 18 7.2" /><path d="M13.3 3.1 L 18 7.2 L 13.5 11.4" /></svg>выручка<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg></span></span>
+            </li>
+            <li class="returned">
+              <i>•</i>
+              <span class="ink"><span class="patch"></span><span class="words">неэластичный: выручка<svg class="up" viewBox="0 0 12 18"><path d="M6 17 C 6.1 12, 6.2 7.2, 6.3 2.3" /><path d="M2.3 6.3 L 6.3 2.3 L 10.1 6.4" /></svg> при повышении цены</span><span class="wave"></span></span>
+            </li>
+            <li class="note"><span></span><span>была стёрта · пункт не назван</span></li>
+          </ul>
+          <div class="fade"></div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

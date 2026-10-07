@@ -140,10 +140,10 @@ export default function SharedMaterial() {
 
         {/* CTA */}
         <section className="shm-final" aria-labelledby="shm-final-title">
-          <h2 id="shm-final-title">Подготовьте свой материал</h2>
-          <p>Загрузите лекцию или учебник, чтобы получить конспект, карточки и тест со ссылками на источник.</p>
+          <h2 id="shm-final-title">{'Готовитесь к\u00a0устному экзамену?'}</h2>
+          <p>{'Вставьте список вопросов кафедры и\u00a0загрузите свои лекции. Meldy спросит билет вслух и\u00a0переспросит о\u00a0том, что вы пропустили.'}</p>
           <button type="button" onClick={() => navigate('/register')} className="shm-white-pill">
-            Создать материал
+            Начать со своего списка
             <span className="shm-dot" aria-hidden="true">
               <ArrowRight strokeWidth={2} />
             </span>

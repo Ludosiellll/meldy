@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import Landing, { HEADLINE, PRIMARY_LABEL, TRY_LABEL } from './Landing';
+import Landing, { EYEBROW, HEADLINE, LEAD, RESULT_NOTE, RESULT_TITLE, START_LABEL, STEPS, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
+import { SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: null }),
@@ -69,61 +70,91 @@ describe('Landing page', () => {
     vi.restoreAllMocks();
   });
 
-  it('opens on the session: the headline with its hand-drawn line, what Meldy does, two actions and the formats', () => {
+  it('opens on the promise: what Meldy is, the headline with its hand-drawn line, the lead', () => {
     renderLanding();
+    expect(plain(document.querySelector('.hm-eyebrow')?.textContent)).toBe(EYEBROW);
+    expect(EYEBROW).toBe('Тренажёр устного экзамена по билетам кафедры');
     const h1 = screen.getByRole('heading', { level: 1 });
     expect(plain(h1.textContent)).toBe(HEADLINE);
+    expect(HEADLINE).toBe('ИИ не отвечает за вас — он вас спрашивает');
+    expect(plain(h1.querySelector('.hm-mark')?.textContent)).toBe('спрашивает');
     expect(h1.querySelector('.hm-mark svg path')).not.toBeNull();
-    const lead = plain(document.querySelector('.hm-lead')?.textContent);
-    expect(lead).toContain('Вставьте вопросы к экзамену и загрузите лекции.');
-    expect(lead).toContain('экзаменатор спросит о том, что вы пропустили');
-    expect(screen.getAllByRole('button', { name: new RegExp(PRIMARY_LABEL) })[0]).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Как проходит ответ/ })).toBeInTheDocument();
-    expect(Array.from(document.querySelectorAll('.hm-formats b')).map((b) => b.textContent)).toEqual(['PDF', 'DOCX', 'TXT', 'MD', 'Аудио']);
+    expect(plain(document.querySelector('.hm-hero .hm-lead')?.textContent)).toBe(LEAD);
+    expect(LEAD).toContain('список вопросов кафедры');
+    expect(LEAD).toContain('спросит билет вслух и переспросит');
   });
 
-  it('says what the questions are for: exam, credit or colloquium', () => {
+  it('shows the vanishing cheat sheet on the first screen, with its rule in words', () => {
     renderLanding();
-    const group = screen.getByRole('group', { name: 'К чему готовитесь' });
-    expect(within(group).getByRole('button', { name: 'экзамену' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(within(group).getByRole('button', { name: 'зачёту' }));
-    expect(within(group).getByRole('button', { name: 'зачёту' })).toHaveAttribute('aria-pressed', 'true');
-    expect(plain(document.querySelector('.hm-lead')?.textContent)).toContain('Вставьте вопросы к зачёту');
+    const hero = document.querySelector('.hm-hero') as HTMLElement;
+    const sheet = within(hero).getByRole('figure', { name: SHEET_TITLE });
+    expect(SHEET_TITLE).toBe('Шпаргалка, которая исчезает');
+    expect(sheet.querySelector('.hs-paper')).toHaveAttribute('aria-hidden', 'true');
+    expect(sheet.querySelectorAll('.hs-line').length).toBeGreaterThanOrEqual(4);
+    expect(plain(sheet.textContent)).toContain('Микроэкономика · пример');
+    expect(plain(sheet.querySelector('figcaption')?.textContent)).toContain('Строки стирают только ответы');
   });
 
-  it('names the navbar «Ролик · Как это работает · Подход», and every anchor it points to exists', () => {
+  it('offers the example first, then the own list, and says the example needs no account', () => {
+    renderLanding();
+    const actions = document.querySelector('.hm-hero .hm-acts') as HTMLElement;
+    const buttons = within(actions).getAllByRole('button');
+    expect(buttons.map((button) => plain(button.textContent))).toEqual([TRY_LABEL, START_LABEL]);
+    expect(buttons[0]).toHaveClass('hm-pill--blue');
+    expect(buttons[1]).toHaveClass('hm-pill--white');
+    expect(plain(document.querySelector('.hm-hero .hm-also')?.textContent)).toBe('Пример открывается без регистрации.');
+    fireEvent.click(buttons[0]);
+    expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
+  });
+
+  it('names the navbar «Как это работает · Ролик · Подход», and every anchor it points to exists', () => {
     const { container } = renderLanding();
     const nav = screen.getByRole('navigation', { name: 'Главное меню' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((a) => a.textContent)).toEqual(['Ролик', 'Как это работает', 'Подход']);
+    expect(links.map((a) => a.textContent)).toEqual(['Как это работает', 'Ролик', 'Подход']);
     for (const href of links.map((a) => a.getAttribute('href'))) expect(container.querySelector(href!)).not.toBeNull();
     expect(within(nav).getByRole('button', { name: 'Войти' })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: 'Начать' })).toBeInTheDocument();
   });
 
-  it('orders the sections: first screen, the reel, the questions, how it works, the method, the final call', () => {
+  it('orders the sections: first screen, how it works, the result and the group, the reel, the questions, the method, the final call', () => {
     const { container } = renderLanding();
     expect(sectionNames(container)).toEqual([
       HEADLINE,
+      'Как это работает',
+      'Итог и группа',
       'Meldy за 35 секунд',
       'Примеры вопросов',
-      'От списка вопросов — до ответа вслух',
       'Вспоминать полезнее, чем перечитывать',
       'Начните со списка вопросов',
     ]);
-    expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'reel', '', 'how', 'method', 'start']);
+    expect(Array.from(container.querySelectorAll('main > section')).map((s) => s.id)).toEqual(['', 'how', '', 'reel', '', 'method', 'start']);
   });
 
-  it('shows four parts of the work, each with its flag; three of them open in the reel', () => {
+  it('tells how it works in the four steps of the promise, in their order and numbered', () => {
     renderLanding();
     const how = document.getElementById('how')!;
-    expect(Array.from(how.querySelectorAll('.hm-flag')).map((f) => f.textContent)).toEqual(['Билеты', 'Ответ вслух', 'Повторение', 'Разговор']);
-    expect(within(how).getAllByRole('heading', { level: 3 }).map((h) => plain(h.textContent))).toEqual([
-      'Где в лекциях ответ на каждый вопрос',
-      'Тяните билет и отвечайте вслух',
-      'Что пропустили — вернётся завтра',
-      'Лекция голосами двух ведущих',
+    const steps = within(how).getAllByRole('listitem').filter((item) => item.classList.contains('hm-step'));
+    expect(steps).toHaveLength(4);
+    expect(Array.from(how.querySelectorAll('.hm-flag')).map((flag) => plain(flag.textContent))).toEqual([
+      '1Список кафедры',
+      '2Ваши лекции',
+      '3Ответ вслух',
+      '4Шпаргалка',
     ]);
+    expect(within(how).getAllByRole('heading', { level: 3 }).map((h) => plain(h.textContent))).toEqual(STEPS.map((step) => step.title));
+    expect(STEPS.map((step) => step.title)).toEqual([
+      'Вопросы — из списка вашей кафедры',
+      'Ответы — цитатами из ваших лекций',
+      'Билет — вслух, с переспросом',
+      'Строки стирают только ответы в разные дни',
+    ]);
+    expect(plain(how.textContent)).toContain('Кнопки «знаю» нет.');
+  });
+
+  it('opens the reel at the list and at the answer, the example from the lectures step, and replays the sheet from its step', () => {
+    renderLanding();
+    const how = document.getElementById('how')!;
     const asked: string[] = [];
     const listener = (event: Event) => asked.push((event as CustomEvent<{ chapter: string }>).detail.chapter);
     window.addEventListener(REEL_EVENT, listener);
@@ -131,7 +162,39 @@ describe('Landing page', () => {
       .getAllByRole('button', { name: /Смотреть в ролике/ })
       .forEach((button) => fireEvent.click(button));
     window.removeEventListener(REEL_EVENT, listener);
-    expect(asked).toEqual(['tickets', 'oral', 'review']);
+    expect(asked).toEqual(['tickets', 'oral']);
+
+    const replays: Event[] = [];
+    const onReplay = (event: Event) => replays.push(event);
+    window.addEventListener(SHEET_REPLAY_EVENT, onReplay);
+    fireEvent.click(within(how).getByRole('button', { name: /Показать на шпаргалке/ }));
+    window.removeEventListener(SHEET_REPLAY_EVENT, onReplay);
+    expect(replays).toHaveLength(1);
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+
+    fireEvent.click(within(how).getByRole('button', { name: /Открыть пример/ }));
+    expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
+  });
+
+  it('says that the teacher gives the mark and that a group shares one exam by link', () => {
+    renderLanding();
+    expect(screen.getByRole('heading', { level: 2, name: RESULT_TITLE })).toBeInTheDocument();
+    expect(RESULT_TITLE).toBe('Отметку ставит преподаватель');
+    expect(RESULT_NOTE).toBe('Meldy проверяет только, назвали ли вы пункты из своих лекций.');
+    expect(plain(document.body.textContent)).toContain(RESULT_NOTE);
+    const group = screen.getByRole('heading', { level: 2, name: 'Одна ссылка на всю группу' }).closest('article')!;
+    expect(plain(group.textContent)).toContain('У каждого будет своя копия');
+    expect(plain(group.textContent)).toContain('Ответы каждого видит только он сам.');
+  });
+
+  it('keeps no promise the product dropped: no grades, no «засчитано», no podcast hosts, no old tagline', () => {
+    renderLanding();
+    const text = plain(document.body.textContent);
+    expect(text).toMatch(/шпаргалк/i);
+    expect(text).not.toMatch(/засчит/i);
+    expect(text).not.toMatch(/отлично|удовлетвор|оценка [2-5]|[2-5] · /i);
+    expect(text).not.toMatch(/двух ведущих|Макс и Софья|подкаст/i);
+    expect(text).not.toMatch(/Конспекты, карточки и тесты|помощник для учёбы/i);
   });
 
   it('keeps the ticker readable once: the second copy of the loop is hidden from screen readers', () => {
@@ -147,46 +210,34 @@ describe('Landing page', () => {
     expect(document.querySelectorAll('.hm-track li')).toHaveLength(8);
   });
 
-  it('starts with the list of questions from the first screen and from the final call', () => {
+  it('starts with the own list from the first screen and from the final call', () => {
     renderLanding();
-    const [first, last] = screen.getAllByRole('button', { name: new RegExp(PRIMARY_LABEL) });
-    expect(first).toBeDefined();
-    expect(last).toBeDefined();
-    fireEvent.click(last);
+    const starts = screen.getAllByRole('button', { name: new RegExp(START_LABEL) });
+    expect(starts).toHaveLength(2);
+    fireEvent.click(starts[1]);
     expect(screen.getByText('Страница регистрации')).toBeInTheDocument();
   });
 
-  it('offers the example exam next to the main action, with no account needed', () => {
+  it('offers the example again in the final call', () => {
     renderLanding();
-    const actions = document.querySelector('.hm-hero .hm-acts') as HTMLElement;
-    const buttons = within(actions).getAllByRole('button');
-    expect(buttons.map((button) => plain(button.textContent))).toEqual([PRIMARY_LABEL, TRY_LABEL]);
-    expect(buttons[1]).toHaveClass('hm-pill--white');
+    const final = document.getElementById('start')!;
+    const buttons = within(final).getAllByRole('button');
+    expect(buttons.map((button) => plain(button.textContent))).toEqual([START_LABEL, TRY_LABEL]);
     fireEvent.click(buttons[1]);
     expect(screen.getByText('Пример экзамена')).toBeInTheDocument();
   });
 
-  it('signs in from the navbar on every width', () => {
+  it('signs in from the navbar', () => {
     renderLanding();
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
     expect(screen.getByText('Страница входа')).toBeInTheDocument();
   });
 
-  it('asks the reel for the oral chapter from «Как проходит ответ»', () => {
-    renderLanding();
-    const asked: string[] = [];
-    const listener = (event: Event) => asked.push((event as CustomEvent<{ chapter: string }>).detail.chapter);
-    window.addEventListener(REEL_EVENT, listener);
-    fireEvent.click(screen.getByRole('button', { name: /Как проходит ответ/ }));
-    window.removeEventListener(REEL_EVENT, listener);
-    expect(asked).toEqual(['oral']);
-    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
-  });
-
-  it('tells the method in three cards, without numbers it cannot back', () => {
+  it('tells the method in three cards, without percentages it cannot back', () => {
     renderLanding();
     const method = document.getElementById('method')!;
-    expect(Array.from(method.querySelectorAll('.hm-tint-k')).map((k) => k.textContent)).toEqual(['Сначала вопрос', 'Потом — реже', 'Готовность']);
+    expect(Array.from(method.querySelectorAll('.hm-tint-k')).map((k) => k.textContent)).toEqual(['Сначала вопрос', 'Потом — реже', 'Разные дни']);
     expect(method.textContent).not.toMatch(/\d+\s?%/);
+    expect(plain(method.textContent)).toContain('Через 5 дней');
   });
 });

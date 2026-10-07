@@ -76,7 +76,7 @@ export default function Login() {
         <section className="au-card au-rise" aria-labelledby="login-title">
           <div className="au-in">
             <h1 id="login-title" className="au-h1">Продолжить подготовку</h1>
-            <p className="au-lede">Ваши материалы, карточки и результаты сохранены в одном месте.</p>
+            <p className="au-lede">Ваши экзамены, лекции и шпаргалки сохранены в одном месте.</p>
 
             {error && (
               <div role="alert" className="au-alert">

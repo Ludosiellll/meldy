@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '@fontsource-variable/onest/wght.css';
 import { useAuth } from '../hooks/useAuth';
-import HeroMosaic from '../components/home/HeroMosaic';
+import HeroSheet, { SHEET_REPLAY_EVENT } from '../components/home/HeroSheet';
+import { SheetText } from '../components/exams/sheet/SheetText';
 import { jumpToReel, type ReelChapter } from '../components/home/reelJump';
 import { usePrefersReducedMotion } from '../components/landing/usePrefersReducedMotion';
 import { ty } from '../components/landing/typo';
@@ -17,22 +18,56 @@ import { TELEMETRY_NOTE } from '../lib/telemetry';
  */
 const meldyReelPart = lazyPart(() => import('../components/reel/MeldyReel').then((module) => module.default));
 
-/** The one primary action of the landing; the final call repeats it. */
-export const PRIMARY_LABEL = 'Начать со списка вопросов';
-export const HEADLINE = 'Сессия начинается со списка вопросов';
-/** The second action of the first screen: the example exam (/try), no account needed. */
+/**
+ * One face on every entry (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07): the same
+ * promise as the page title, the link preview, the manifest and the README — «Meldy — тренажёр
+ * устного экзамена по билетам кафедры. ИИ не отвечает за студента — он его спрашивает».
+ */
+export const EYEBROW = 'Тренажёр устного экзамена по билетам кафедры';
+export const HEADLINE = 'ИИ не отвечает за вас — он вас спрашивает';
+export const LEAD =
+  'Вставьте список вопросов кафедры и загрузите свои лекции. Meldy сверит с ними каждый вопрос, спросит билет вслух и переспросит о том, что вы пропустили.';
+/** The first action of the page: the example exam (/try), no account needed. */
 export const TRY_LABEL = 'Попробовать на примере';
+/** Sign-up, to start with one's own list of questions; the final call repeats it. */
+export const START_LABEL = 'Начать со своего списка';
+/** The honest result (Ф1): Meldy gives no mark, in the words of the answer's protocol. */
+export const RESULT_TITLE = 'Отметку ставит преподаватель';
+export const RESULT_NOTE = 'Meldy проверяет только, назвали ли вы пункты из своих лекций.';
 
-const KINDS = [
-  { id: 'exam', label: 'экзамену' },
-  { id: 'credit', label: 'зачёту' },
-  { id: 'colloquium', label: 'коллоквиуму' },
-] as const;
-type Kind = (typeof KINDS)[number]['id'];
+/** «Как это работает», in the order of the promise: the list, the lectures, the ticket aloud, the sheet. */
+export const STEPS: ReadonlyArray<{ flag: string; title: string; text: string; panel: 'blue' | 'warm' | 'sky' | 'rose'; color: 'sky' | 'yellow' | 'green' | 'pink' }> = [
+  {
+    flag: 'Список кафедры',
+    title: 'Вопросы — из списка вашей кафедры',
+    text: 'Вставьте список как есть — текстом или файлом: DOCX, PDF, TXT, MD, сканы тоже. Meldy найдёт вопросы, разделы и билеты.',
+    panel: 'blue',
+    color: 'sky',
+  },
+  {
+    flag: 'Ваши лекции',
+    title: 'Ответы — цитатами из ваших лекций',
+    text: 'Каждый вопрос Meldy сверяет с лекциями и показывает цитату с ответом. Чего в лекциях нет, так и помечено.',
+    panel: 'warm',
+    color: 'yellow',
+  },
+  {
+    flag: 'Ответ вслух',
+    title: 'Билет — вслух, с переспросом',
+    text: 'Тяните билет и отвечайте голосом или текстом — готовый текст не вставить. Экзаменатор переспросит о пункте, который вы пропустили.',
+    panel: 'sky',
+    color: 'green',
+  },
+  {
+    flag: 'Шпаргалка',
+    title: 'Строки стирают только ответы в разные дни',
+    text: 'Кнопки «знаю» нет. Назвали пункт — строка стёрлась наполовину, назвали снова в другой день — совсем, не назвали потом — вернулась.',
+    panel: 'rose',
+    color: 'pink',
+  },
+];
 
-const FORMATS = ['PDF', 'DOCX', 'TXT', 'MD', 'Аудио'];
-
-/** Questions from the sample course; the tone gives each number a colour. */
+/** Questions from sample courses; the tone gives each number a colour. */
 const QUESTIONS: Array<{ n: number; text: string; tone?: 'y' | 'g' | 'p' }> = [
   { n: 1, text: 'Что такое нейронная сеть и из каких слоёв она состоит?' },
   { n: 12, text: 'Как обучается нейронная сеть?', tone: 'y' },
@@ -50,11 +85,15 @@ const METHOD = [
     big: 'Каждая попытка вспомнить закрепляет ответ',
     p: 'Даже неудачная — если потом свериться с ответом. Психологи называют это эффектом тестирования.',
   },
-  { k: 'Потом — реже', big: 'Карточка возвращается всё реже', p: 'Помните — она придёт позже, забыли — снова завтра.' },
   {
-    k: 'Готовность',
-    big: 'Стёрто: названо в два разных дня',
-    p: 'Строка шпаргалки стирается, когда вы назвали её пункт в ответе в два разных дня.',
+    k: 'Потом — реже',
+    big: 'Стёртая строка проступает всё реже',
+    p: 'Через 5\u00a0дней она проступает: пора проверить. Назвали — следующая проверка через 12\u00a0дней, потом через 25 и\u00a050.',
+  },
+  {
+    k: 'Разные дни',
+    big: 'Одного удачного ответа мало',
+    p: 'Поэтому строка стирается, только когда вы назвали пункт в два разных дня, не раньше чем через 20\u00a0часов.',
   },
 ];
 
@@ -66,7 +105,7 @@ function Arrow() {
   );
 }
 
-function Pill({ tone, small, onClick, children }: { tone: 'blue' | 'white'; small?: boolean; onClick: () => void; children: ReactNode }) {
+function Pill({ tone, small, onClick, children }: { tone: 'blue' | 'white' | 'ghost'; small?: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" className={`hm-pill hm-pill--${tone}${small ? ' hm-pill--sm' : ''}`} onClick={onClick}>
       {children}
@@ -104,9 +143,10 @@ export default function Landing() {
       <Navbar />
       <main>
         <Hero />
+        <HowSection />
+        <ResultAndGroup />
         <ReelSection />
         <Ticker />
-        <HowSection />
         <MethodSection />
         <FinalCall />
       </main>
@@ -124,8 +164,8 @@ function Navbar() {
           Meldy
         </button>
         <div className="hm-links">
-          <a href="#reel">Ролик</a>
           <a href="#how">Как это работает</a>
+          <a href="#reel">Ролик</a>
           <a href="#method">Подход</a>
         </div>
         <div className="hm-end">
@@ -143,63 +183,228 @@ function Navbar() {
 
 function Hero() {
   const navigate = useNavigate();
-  const reduce = usePrefersReducedMotion();
-  const [kind, setKind] = useState<Kind>('exam');
-  const word = KINDS.find((item) => item.id === kind)?.label ?? 'экзамену';
+  // The hand-drawn line goes under «спрашивает»; ty() keeps a short word off a line's end («за | вас»).
+  const [before, after] = HEADLINE.split('спрашивает');
   return (
     <section className="hm-wrap hm-hero" aria-labelledby="hm-hero-h">
-      <div>
-        <div className="hm-seg hm-rise" role="group" aria-label="К чему готовитесь">
-          <span className="hm-seg-l">Готовлюсь к…</span>
-          {KINDS.map((item) => (
-            <button key={item.id} type="button" aria-pressed={kind === item.id} onClick={() => setKind(item.id)}>
-              {item.label}
-            </button>
-          ))}
-        </div>
+      <div className="hm-hero-text">
+        <p className="hm-eyebrow hm-rise">{ty(EYEBROW)}</p>
         <h1 id="hm-hero-h" className="hm-h1 hm-rise hm-d1">
-          Сессия начинается со <Mark>списка вопросов</Mark>
+          {ty(before)}
+          <Mark path="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9">спрашивает</Mark>
+          {after}
         </h1>
-        <p className="hm-lead hm-rise hm-d2">
-          {ty(
-            `Вставьте вопросы к ${word} и загрузите лекции. Meldy покажет, где в лекциях ответ на каждый вопрос и какую долю билетов они закрывают. Потом тяните билет и отвечайте вслух — экзаменатор спросит о том, что вы пропустили.`,
-          )}
-        </p>
+        <p className="hm-lead hm-rise hm-d2">{ty(LEAD)}</p>
         <div className="hm-acts hm-rise hm-d3">
-          <Pill tone="blue" onClick={() => navigate('/register')}>
-            {PRIMARY_LABEL}
-          </Pill>
           {/* A ready example exam, no account needed (/try): the jury's QR code leads there too. */}
-          <Pill tone="white" onClick={() => navigate('/try')}>
+          <Pill tone="blue" onClick={() => navigate('/try')}>
             {TRY_LABEL}
           </Pill>
+          <Pill tone="white" onClick={() => navigate('/register')}>
+            {START_LABEL}
+          </Pill>
         </div>
-        <p className="hm-also hm-rise hm-d3">
-          <button type="button" className="hm-more" onClick={() => jumpToReel('oral', !reduce)}>
-            Как проходит ответ
-            <Arrow />
-          </button>
-        </p>
-        <div className="hm-formats hm-rise hm-d4">
-          <span>Лекции</span>
-          {FORMATS.map((format) => (
-            <b key={format}>{format}</b>
-          ))}
-        </div>
+        <p className="hm-also hm-rise hm-d3">Пример открывается без регистрации.</p>
       </div>
-      <HeroMosaic />
+      <div className="hm-hero-sheet hm-rise hm-d2">
+        <HeroSheet />
+      </div>
     </section>
   );
 }
 
-/** «Meldy за 35 секунд»: the motion reel right under the first screen (loaded after it). */
+function More({ chapter, children }: { chapter: ReelChapter; children?: ReactNode }) {
+  const reduce = usePrefersReducedMotion();
+  return (
+    <button type="button" className="hm-more" onClick={() => jumpToReel(chapter, !reduce)}>
+      {children ?? 'Смотреть в ролике'}
+      <Arrow />
+    </button>
+  );
+}
+
+/** The pictures of the four steps: things of the app, always light (they are pictures of it). */
+function StepArt({ index }: { index: number }) {
+  switch (index) {
+    case 0:
+      return (
+        <div className="hm-doc">
+          <p className="hm-doc-h">Вопросы к экзамену по микроэкономике</p>
+          {[
+            'Спрос. Закон спроса и кривая спроса.',
+            'Неценовые факторы спроса. Движение вдоль кривой спроса и её сдвиг.',
+            'Предложение. Закон предложения и факторы предложения.',
+            'Рыночное равновесие. Дефицит и излишек.',
+          ].map((text, n) => (
+            <p key={text} className="hm-doc-r">
+              <b>{n + 1}.</b> {text}
+            </p>
+          ))}
+        </div>
+      );
+    case 1:
+      return (
+        <div className="hm-quote">
+          <p className="hm-quote-q">
+            <span>7. Эластичность спроса и выручка продавца</span>
+            <span className="hm-st hm-st--ok">
+              <i />
+              есть в лекциях
+            </span>
+          </p>
+          <blockquote>«Если спрос эластичный, снижение цены увеличивает выручку»</blockquote>
+          <p className="hm-quote-src">Лекция «Эластичность спроса» · фрагмент 5</p>
+        </div>
+      );
+    case 2:
+      return (
+        <>
+          <div className="hm-ticket">
+            <b>Билет</b>
+            <p>7. Эластичность спроса и выручка продавца.</p>
+          </div>
+          <div className="hm-ask">
+            <b>Экзаменатор</b>А если спрос неэластичный, как продавцу увеличить выручку?
+          </div>
+          <div className="hm-mic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+            </svg>
+          </div>
+        </>
+      );
+    default:
+      return (
+        <div className="hm-mini">
+          {(
+            [
+              ['цена ниже равновесной → дефицит', 'erased', '•'],
+              ['цена выше равновесной → излишек', 'rubbed', '•'],
+              ['цена сама → равновесие', 'fresh', '–'],
+            ] as const
+          ).map(([text, state, bullet]) => (
+            <p key={text} className="hm-mini-l" data-state={state}>
+              <span className="hm-mini-b">{bullet}</span>
+              <span className="hm-mini-t">
+                <SheetText text={text} seedBase={`landing:step:${text}`} />
+              </span>
+            </p>
+          ))}
+          <span className="hm-eraser" />
+        </div>
+      );
+  }
+}
+
+/** Back to the first screen's sheet, and the answer plays on it again. */
+function ShowOnSheet() {
+  const reduce = usePrefersReducedMotion();
+  const show = () => {
+    document.querySelector('.hs')?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    window.dispatchEvent(new CustomEvent(SHEET_REPLAY_EVENT));
+  };
+  return (
+    <button type="button" className="hm-more" onClick={show}>
+      Показать на шпаргалке
+      <Arrow />
+    </button>
+  );
+}
+
+function HowSection() {
+  const navigate = useNavigate();
+  return (
+    <section id="how" className="hm-wrap hm-sec" aria-labelledby="how-h">
+      <h2 id="how-h" className="hm-h2 hm-reveal">
+        Как это работает
+      </h2>
+      <p className="hm-sub hm-reveal">{ty('Цель — пустая шпаргалка: на листе остаются только вопросы кафедры.')}</p>
+      <ol className="hm-steps">
+        {STEPS.map((step, index) => (
+          <li key={step.flag} className="hm-step hm-reveal">
+            <div className={`hm-panel hm-panel--${step.panel}`} aria-hidden="true">
+              <div className="hm-dots" />
+              <StepArt index={index} />
+            </div>
+            <div className="hm-card-body">
+              <span className={`hm-flag hm-flag--${step.color}`}>
+                <b>{index + 1}</b>
+                {step.flag}
+              </span>
+              <h3 className="hm-h3">{ty(step.title)}</h3>
+              <p className="hm-p">{ty(step.text)}</p>
+              {index === 0 && <More chapter="tickets" />}
+              {index === 1 && (
+                <button type="button" className="hm-more" onClick={() => navigate('/try')}>
+                  Открыть пример
+                  <Arrow />
+                </button>
+              )}
+              {index === 2 && <More chapter="oral" />}
+              {index === 3 && <ShowOnSheet />}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** The honest result and the group link: two things a newcomer asks about next. */
+function ResultAndGroup() {
+  return (
+    <section className="hm-wrap hm-duo" aria-label="Итог и группа">
+      <article className="hm-card hm-reveal" aria-labelledby="result-h">
+        <div className="hm-panel hm-panel--green" aria-hidden="true">
+          <div className="hm-dots" />
+          <div className="hm-proto">
+            <span className="hm-proto-tag">Пример</span>
+            <p className="hm-proto-l">Назвали сами 3 из 4 главных · после вопроса 1</p>
+            <p className="hm-proto-s">На шпаргалке: 1 строка стёрлась, 2 — наполовину</p>
+          </div>
+        </div>
+        <div className="hm-card-body">
+          <span className="hm-flag hm-flag--green">Итог ответа</span>
+          <h2 id="result-h" className="hm-h3">
+            {RESULT_TITLE}
+          </h2>
+          <p className="hm-p">{ty(`${RESULT_NOTE} Итог ответа — сколько главных пунктов вы назвали сами и сколько после вопроса экзаменатора.`)}</p>
+        </div>
+      </article>
+      <article className="hm-card hm-reveal" aria-labelledby="group-h">
+        <div className="hm-panel hm-panel--blue" aria-hidden="true">
+          <div className="hm-dots" />
+          <div className="hm-chat">
+            <p>
+              Готовимся к экзамену «Микроэкономика» в Meldy. По ссылке у каждого будет своя копия: вопросы, лекции и шпаргалка с пунктами
+              ответа.
+            </p>
+            <span className="hm-chat-link">…/join/…</span>
+          </div>
+        </div>
+        <div className="hm-card-body">
+          <span className="hm-flag hm-flag--sky">Группа</span>
+          <h2 id="group-h" className="hm-h3">
+            Одна ссылка на всю группу
+          </h2>
+          <p className="hm-p">
+            {ty('Соберите экзамен один раз и отправьте ссылку в беседу группы. У каждого будет своя копия: вопросы, лекции и шпаргалка. Ответы каждого видит только он сам.')}
+          </p>
+        </div>
+      </article>
+    </section>
+  );
+}
+
+/** «Meldy за 35 секунд»: the motion reel (loaded after the first screen). */
 function ReelSection() {
   const navigate = useNavigate();
   const MeldyReel = useLazyPart(meldyReelPart, true, {
     onError: (error) => console.error('Ролик не загрузился:', error),
   });
   return (
-    <section id="reel" className="hm-wrap hm-sec" aria-labelledby="reel-heading" style={{ paddingTop: 40 }}>
+    <section id="reel" className="hm-wrap hm-sec" aria-labelledby="reel-heading">
       <div className="hm-reel-head">
         <h2 id="reel-heading" className="hm-h2">
           Meldy за 35 секунд
@@ -227,141 +432,6 @@ function Ticker() {
             </li>
           ))}
         </ul>
-      </div>
-    </section>
-  );
-}
-
-function More({ chapter, children }: { chapter: ReelChapter; children?: ReactNode }) {
-  const reduce = usePrefersReducedMotion();
-  return (
-    <button type="button" className="hm-more" onClick={() => jumpToReel(chapter, !reduce)}>
-      {children ?? 'Смотреть в ролике'}
-      <Arrow />
-    </button>
-  );
-}
-
-function HowSection() {
-  const navigate = useNavigate();
-  return (
-    <section id="how" className="hm-wrap hm-sec" aria-labelledby="how-h">
-      <h2 id="how-h" className="hm-h2 hm-reveal">
-        От списка вопросов —{' '}
-        <br />
-        до ответа вслух
-      </h2>
-      <p className="hm-sub hm-reveal">{ty('Всё по вашим лекциям: Meldy не придумывает ответы, а показывает, где они у вас уже есть.')}</p>
-      <div className="hm-grid2">
-        <article className="hm-card hm-reveal">
-          <div className="hm-panel" aria-hidden="true">
-            <div className="hm-dots" />
-            <div className="hm-win">
-              <div className="hm-win-h">
-                <span>Цифровая экономика · 40 вопросов</span>
-                <span>сверка с лекциями</span>
-              </div>
-              {[
-                [1, 'Что такое нейронная сеть и из каких слоёв она состоит?', 'ok', 'есть в лекциях'],
-                [3, 'Глубина сети и неглубокие сети', 'half', 'частично'],
-                [5, 'Метод опорных векторов: ядра и зазор', 'no', 'нет в лекциях'],
-                [12, 'Как обучается нейронная сеть?', 'ok', 'есть в лекциях'],
-              ].map(([n, text, kind, label]) => (
-                <div key={n} className="hm-row">
-                  <span className="hm-n">{n}</span>
-                  <span className="hm-t">{text}</span>
-                  <span className={`hm-st hm-st--${kind}`}>
-                    <i />
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="hm-card-body">
-            <span className="hm-flag hm-flag--g">Билеты</span>
-            <h3 className="hm-h3">Где в лекциях ответ на каждый вопрос</h3>
-            <p className="hm-p">{ty('Meldy сверяет список кафедры с вашими лекциями: что в них есть, чего нет и какую долю билетов они закрывают.')}</p>
-            <More chapter="tickets" />
-          </div>
-        </article>
-
-        <article className="hm-card hm-reveal">
-          <div className="hm-panel hm-panel--warm" aria-hidden="true">
-            <div className="hm-dots" />
-            <div className="hm-ticket">
-              <b>Билет № 12</b>
-              <p>
-                <i>12</i>Как обучается нейронная сеть?
-              </p>
-              <p>
-                <i>36</i>Кривая Филлипса.
-              </p>
-            </div>
-            <div className="hm-said">…ошибка распространяется назад, и веса сдвигаются…</div>
-            <div className="hm-mic">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="3" width="6" height="11" rx="3" />
-                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-              </svg>
-            </div>
-          </div>
-          <div className="hm-card-body">
-            <span className="hm-flag hm-flag--y">Ответ вслух</span>
-            <h3 className="hm-h3">Тяните билет и отвечайте вслух</h3>
-            <p className="hm-p">{ty('Экзаменатор переспросит о пункте, который вы пропустили. Протокол покажет, что вы назвали сами.')}</p>
-            <More chapter="oral" />
-          </div>
-        </article>
-
-        <article className="hm-card hm-reveal">
-          <div className="hm-panel hm-panel--sky" aria-hidden="true">
-            <div className="hm-dots" />
-            <div className="hm-stack">
-              <div className="hm-fc hm-fc--1" />
-              <div className="hm-fc hm-fc--2" />
-              <div className="hm-fc hm-fc--3">
-                Что делает функция активации?
-                <small>Пропущено в ответе на билет № 12</small>
-                <span className="hm-when">Вернётся завтра</span>
-              </div>
-            </div>
-          </div>
-          <div className="hm-card-body">
-            <span className="hm-flag hm-flag--b">Повторение</span>
-            <h3 className="hm-h3">Что пропустили — вернётся завтра</h3>
-            <p className="hm-p">{ty('Пункт, который вы не назвали, становится карточкой. Помните — она придёт позже, забыли — снова завтра.')}</p>
-            <More chapter="review" />
-          </div>
-        </article>
-
-        <article className="hm-card hm-reveal">
-          <div className="hm-panel hm-panel--rose" aria-hidden="true">
-            <div className="hm-dots" />
-            <div className="hm-talk">
-              <div className="hm-bub">
-                <b>Макс</b>Значит, сеть просто подбирает веса?
-              </div>
-              <div className="hm-bub hm-bub--r">
-                <b>Софья</b>Да: ошибка идёт назад от выходного слоя, и каждый вес чуть сдвигается.
-              </div>
-            </div>
-            <div className="hm-wave">
-              {Array.from({ length: 30 }, (_, index) => (
-                <i key={index} style={{ animationDelay: `${((index * 0.09) % 1.6).toFixed(2)}s` }} />
-              ))}
-            </div>
-          </div>
-          <div className="hm-card-body">
-            <span className="hm-flag hm-flag--p">Разговор</span>
-            <h3 className="hm-h3">Лекция голосами двух ведущих</h3>
-            <p className="hm-p">{ty('Макс и Софья обсуждают лекцию, а на схеме появляются понятия и связи между ними.')}</p>
-            <button type="button" className="hm-more" onClick={() => navigate('/register')}>
-              Попробовать
-              <Arrow />
-            </button>
-          </div>
-        </article>
       </div>
     </section>
   );
@@ -415,11 +485,14 @@ function FinalCall() {
           Начните со списка вопросов
         </h2>
         <p className="hm-lead">
-          {ty('Список вопросов кафедры — текстом или файлом. Лекции — PDF, DOCX, PPTX, TXT, MD или аудио, сканы тоже. Списка пока нет — начните с лекции: карточки и тест Meldy сделает и по ней.')}
+          {ty('Список кафедры — текстом или файлом, лекции — файлами или текстом. Хотите сначала посмотреть — откройте готовый пример, без регистрации.')}
         </p>
         <div className="hm-acts">
           <Pill tone="white" onClick={() => navigate('/register')}>
-            {PRIMARY_LABEL}
+            {START_LABEL}
+          </Pill>
+          <Pill tone="ghost" onClick={() => navigate('/try')}>
+            {TRY_LABEL}
           </Pill>
         </div>
       </div>
@@ -433,7 +506,7 @@ function Footer() {
       <a className="hm-logo" href="#" aria-label="Meldy, наверх">
         Meldy
       </a>
-      <span>Подготовка к экзаменам по вашим лекциям · © {new Date().getFullYear()}</span>
+      <span>Тренажёр устного экзамена по билетам кафедры · © {new Date().getFullYear()}</span>
       <a href="#">Наверх</a>
       <p className="hm-foot-note">{ty(TELEMETRY_NOTE)}</p>
     </footer>
