@@ -1,5 +1,5 @@
 -- oral_answer_texts
--- Repo file: supabase/migrations/20261007095841_oral_answer_texts.sql (the orchestrator applies it).
+-- Repo file: supabase/migrations/20261007103621_oral_answer_texts.sql (the orchestrator applies it).
 --
 -- «Текст ответа с согласия» (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07). The blind check of
 -- Meldy's accuracy needs the whole text of an answer; the server kept only student_quote of at most 160
@@ -21,7 +21,7 @@
 -- attempt's exam_sessions row or the account deletes them.
 -- Additive and re-runnable: two new tables, one trigger function, policies created only when missing; every
 -- REVOKE / GRANT names a new table. No existing object, grant, policy or row is touched.
--- Rollback: supabase/rollback/20261007095841_oral_answer_texts_down.sql. Contract check after the apply:
+-- Rollback: supabase/rollback/20261007103621_oral_answer_texts_down.sql. Contract check after the apply:
 -- supabase/tests/oral_answer_texts.sql. Local behaviour test: supabase/tests/local/oral_answer_texts_behaviour.sql
 -- (after supabase/tests/local/baseline.sql and 20261003083154_hackathon_journal_exams_oral.sql).
 

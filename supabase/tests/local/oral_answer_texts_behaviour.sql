@@ -1,6 +1,6 @@
 -- LOCAL ONLY; NEVER RUN AGAINST THE LIVE PROJECT. Behaviour test of *_oral_answer_texts.sql on the local baseline:
 -- supabase/tests/local/baseline.sql, then 20261003083154_hackathon_journal_exams_oral.sql, then
--- 20261007095841_oral_answer_texts.sql (twice, to prove it is re-runnable), then this file, then
+-- 20261007103621_oral_answer_texts.sql (twice, to prove it is re-runnable), then this file, then
 -- supabase/tests/oral_answer_texts.sql (contract_ok must be true). Users A and B come from the baseline. Runs as
 -- role authenticated with request.jwt.claim.sub switching between them, and finally as anon. Everything happens in
 -- one transaction that rolls back; a failure raises an exception, success prints ORAL ANSWER TEXTS PASSED.

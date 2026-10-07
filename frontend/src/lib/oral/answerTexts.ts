@@ -1,6 +1,6 @@
 /**
  * The full text of an answer, kept with the student's consent (plan 2026-10-07, «Текст ответа с согласия»;
- * migration 20261007095841_oral_answer_texts.sql).
+ * migration 20261007103621_oral_answer_texts.sql).
  *
  * The blind check of Meldy's accuracy needs whole answers, and the server keeps only quotes of up to 160
  * characters per point (record_oral_attempt). After an answer is saved, its text goes to
