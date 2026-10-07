@@ -125,6 +125,7 @@ def test_routes_are_declared_with_full_paths_and_mounted():
     assert declared == {
         ("/api/exams/parse", frozenset({"POST"})),
         ("/api/extract", frozenset({"POST"})),
+        ("/api/exams/lecture-fit", frozenset({"POST"})),
         ("/api/exams/{exam_id}/map", frozenset({"POST"})),
     }
     assert main.exams_router is exams_api.router
@@ -142,6 +143,7 @@ def test_every_endpoint_is_401_without_a_session(monkeypatch):
         client.post("/api/exams/parse", data={"text": LIST_TEXT}),
         client.post("/api/extract", files={"file": ("lecture.txt", "Лекция".encode(), "text/plain")}),
         client.post(f"/api/exams/{exam_id}/map", json={"question_ids": None, "force": False}),
+        client.post("/api/exams/lecture-fit", json={"questions": ["Инфляция: виды и причины."]}),
     ]
     for response in responses:
         assert_plain_russian(response, 401, "Требуется войти в аккаунт")
@@ -158,6 +160,7 @@ def test_limits_are_counted_per_user_with_user_or_ip_key(api, monkeypatch):
         "parse_exam_questions": [("10 per 1 minute", user_or_ip_key)],
         "extract_lecture_text": [("10 per 1 minute", user_or_ip_key)],
         "map_exam": [("3 per 1 minute", user_or_ip_key)],
+        "fit_lectures": [("20 per 1 minute", user_or_ip_key)],
     }
 
     monkeypatch.setattr(api.main.limiter, "enabled", True)
