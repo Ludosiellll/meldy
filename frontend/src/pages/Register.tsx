@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -8,11 +8,14 @@ import { SIGN_UP_MESSAGES, signUpErrorMessage } from '../lib/signUpErrors';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
 import { afterSignIn, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
+import { detectInAppBrowser } from '../lib/inAppBrowser';
+import InAppNote from '../components/InAppNote';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
  * с коротким роликом «Материал становится планом подготовки» (AuthReel). Пароль и его повтор стоят
- * рядом, чтобы форма помещалась на экране ноутбука.
+ * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном браузере мессенджера — как на входе:
+ * просьба открыть ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся.
  */
 export default function Register() {
   const [name, setName] = useState('');
@@ -30,9 +33,11 @@ export default function Register() {
   const [resendMessage, setResendMessage] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
+  const location = useLocation();
   // The page the visitor signs up for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo). The
   // confirmation letter carries it in its address: the letter is often opened in another browser.
-  const returnTo = returnToFromSearch(useLocation().search);
+  const returnTo = returnToFromSearch(location.search);
+  const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
 
   useEffect(() => {
     if (user) navigate(afterSignIn(returnTo));
@@ -133,6 +138,14 @@ export default function Register() {
           <div className="au-in">
             <h1 id="register-title" className="au-h1">Создать аккаунт</h1>
             <p className="au-lede">Сохраните материалы и продолжайте подготовку с любого устройства.</p>
+
+            {browser.app && !success && (
+              <InAppNote
+                browser={browser}
+                url={`${window.location.origin}${location.pathname}${location.search}`}
+                extra={<p className="ia-hint">Зарегистрироваться по почте можно и здесь.</p>}
+              />
+            )}
 
             {error && (
               <div role="alert" className="au-alert">
@@ -268,12 +281,17 @@ export default function Register() {
                   </button>
                 </form>
 
-                <div className="au-or">или войти через</div>
+                {/* Inside a messenger's browser Google refuses to sign in: no button that cannot work. */}
+                {!browser.app && (
+                  <>
+                    <div className="au-or">или войти через</div>
 
-                <button type="button" onClick={handleGoogleLogin} className="au-oauth">
-                  <GoogleMark />
-                  Войти через Google
-                </button>
+                    <button type="button" onClick={handleGoogleLogin} className="au-oauth">
+                      <GoogleMark />
+                      Войти через Google
+                    </button>
+                  </>
+                )}
               </>
             )}
 

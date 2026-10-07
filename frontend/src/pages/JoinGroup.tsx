@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { joinShare, previewShare, ShareApiError, type SharePreview } from '../api/examShares';
-import { chromeIntentUrl, detectInAppBrowser, inAppName } from '../lib/inAppBrowser';
+import { detectInAppBrowser } from '../lib/inAppBrowser';
+import InAppNote from '../components/InAppNote';
 import {
   forgetPendingJoin,
   joinPath,
@@ -69,18 +70,6 @@ function statusMessage(status: SharePreview['status']): string | null {
   }
 }
 
-async function copyLink(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // falls through
-  }
-  return false;
-}
-
 export default function JoinGroup() {
   const params = useParams();
   const code = normalizeJoinCode(params.code);
@@ -89,7 +78,6 @@ export default function JoinGroup() {
   const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
   const [preview, setPreview] = useState<PreviewState>({ state: 'loading' });
   const [join, setJoin] = useState<JoinState>({ state: 'idle' });
-  const [copied, setCopied] = useState<boolean | null>(null);
   const started = useRef<string | null>(null);
   const pageUrl = code ? `${window.location.origin}${joinPath(code)}` : window.location.href;
 
@@ -163,10 +151,6 @@ export default function JoinGroup() {
     });
   };
 
-  const copy = async () => {
-    setCopied(await copyLink(pageUrl));
-  };
-
   const back = code ? joinPath(code) : null;
   const value = preview.state === 'ready' ? preview.value : null;
   const live = value && (value.status === 'active' || value.status === 'joined');
@@ -177,8 +161,6 @@ export default function JoinGroup() {
       : value
         ? statusMessage(value.status)
         : null;
-  const appName = inAppName(browser.app);
-  const intent = browser.os === 'android' ? chromeIntentUrl(pageUrl) : null;
   const meta = value && live
     ? [
         value.questions > 0 ? `${value.questions} ${plural(value.questions, 'вопрос', 'вопроса', 'вопросов')}` : null,
@@ -237,34 +219,7 @@ export default function JoinGroup() {
               </div>
             )}
 
-            {browser.app && code && !problem && (
-              <section className="jg-inapp" aria-labelledby="join-inapp">
-                <h2 id="join-inapp" className="jg-h2">
-                  Откройте ссылку в Chrome или Safari
-                </h2>
-                <p>
-                  {appName ? `Во встроенном браузере ${appName}` : 'Во встроенном браузере приложения'} Google не даёт войти,
-                  а микрофон для ответов вслух часто не работает.
-                </p>
-                <div className="jg-inapp-do">
-                  <button type="button" className="sf-primary jg-copy" onClick={() => void copy()}>
-                    {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
-                  </button>
-                  {intent && (
-                    <a className="au-link" href={intent}>
-                      Открыть в Chrome
-                    </a>
-                  )}
-                </div>
-                {copied === false && (
-                  <p className="jg-hint">
-                    Не получилось скопировать. Нажмите на ссылку и удерживайте: <span className="jg-url">{pageUrl}</span>
-                  </p>
-                )}
-                {browser.os === 'ios' && <p className="jg-hint">Или нажмите «⋯» или «Поделиться» → «Открыть в Safari».</p>}
-                {browser.os === 'other' && <p className="jg-hint">Вставьте ссылку в адресную строку Chrome или Safari.</p>}
-              </section>
-            )}
+            {browser.app && code && !problem && <InAppNote browser={browser} url={pageUrl} />}
 
             {live && !user && !loading && back && (
               <div className="jg-signin">

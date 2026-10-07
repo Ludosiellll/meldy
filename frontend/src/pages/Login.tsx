@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
@@ -7,13 +7,17 @@ import { validateEmail } from '../utils/validators';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
 import { afterSignIn, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
+import { detectInAppBrowser } from '../lib/inAppBrowser';
+import InAppNote from '../components/InAppNote';
 
 /**
  * Вход (Meldy 2026-10-04): форма в белой карточке, рядом цветная панель с полутоновыми точками —
  * как плитки первого экрана лендинга; под заголовком панели по кругу идёт короткий ролик «Как
  * работает Meldy» (AuthReel, на движке ролика лендинга). Отступы следуют высоте экрана, чтобы форма
  * целиком помещалась на ноутбуке. На телефоне панель сжимается до строки над карточкой, без ролика.
- * Стили — .au-* в styles/legacy.css.
+ * Во встроенном браузере Telegram, Viber, Instagram или Facebook Google не даёт войти (403
+ * disallowed_useragent): вместо кнопки Google — та же просьба открыть ссылку в Chrome или Safari, что на
+ * /join (components/InAppNote), а вход по почте остаётся. Стили — .au-* в styles/legacy.css.
  */
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -24,8 +28,10 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const location = useLocation();
   // The page the visitor signs in for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo).
-  const returnTo = returnToFromSearch(useLocation().search);
+  const returnTo = returnToFromSearch(location.search);
+  const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
 
   useEffect(() => {
     if (user) navigate(afterSignIn(returnTo));
@@ -77,6 +83,14 @@ export default function Login() {
           <div className="au-in">
             <h1 id="login-title" className="au-h1">Продолжить подготовку</h1>
             <p className="au-lede">Ваши материалы, карточки и результаты сохранены в одном месте.</p>
+
+            {browser.app && (
+              <InAppNote
+                browser={browser}
+                url={`${window.location.origin}${location.pathname}${location.search}`}
+                extra={<p className="ia-hint">Войти по почте можно и здесь.</p>}
+              />
+            )}
 
             {error && (
               <div role="alert" className="au-alert">
@@ -140,12 +154,17 @@ export default function Login() {
               </button>
             </form>
 
-            <div className="au-or">или</div>
+            {/* Inside a messenger's browser Google refuses to sign in: no button that cannot work. */}
+            {!browser.app && (
+              <>
+                <div className="au-or">или</div>
 
-            <button type="button" onClick={handleGoogleLogin} className="au-oauth">
-              <GoogleMark />
-              Войти через Google
-            </button>
+                <button type="button" onClick={handleGoogleLogin} className="au-oauth">
+                  <GoogleMark />
+                  Войти через Google
+                </button>
+              </>
+            )}
 
             <p className="au-foot">
               Нет аккаунта?{' '}
