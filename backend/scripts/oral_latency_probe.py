@@ -4,7 +4,7 @@
 и ничего не пишет в базу. Делает 20 запросов POST /api/oral/check и 10 запросов
 POST /api/oral/evaluate подряд на постоянном синтетическом эталоне (демо-лекция о том,
 как обучается нейронная сеть) и печатает p50/p95 против порогов: быстрая проверка —
-1,5 с (столько ждёт браузер перед переспросом), протокол — 8 с.
+4,5 с (бюджет сервера; браузер ждёт её 5,5 с перед переспросом), протокол — 8 с.
 
     MELDY_TOKEN=<access token> python backend/scripts/oral_latency_probe.py https://<адрес-сайта> [--json]
 
@@ -34,7 +34,7 @@ import sys
 import time
 from typing import Any, Callable, Iterable
 
-CHECK_TARGET_SECONDS = 1.5
+CHECK_TARGET_SECONDS = 4.5
 EVALUATE_TARGET_SECONDS = 8.0
 CHECK_RUNS = 20
 EVALUATE_RUNS = 10

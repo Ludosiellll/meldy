@@ -26,11 +26,11 @@ import { gradeAnswer, type GradeResult } from '../lib/oral/oralGrade';
 import { subjectOf } from '../lib/exams/format';
 import {
   CHECK_CONFIRM_TIMEOUT_MS,
-  CHECK_FOLLOWUP_TIMEOUT_MS,
   AI_UNAVAILABLE_MESSAGE,
   checkAnswer,
   evaluateAnswer,
   fetchRubric,
+  followupCheckTimeout,
   isOralApiError,
   type Rubric,
   type RubricPoint,
@@ -1233,7 +1233,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode }: TicketRoomPr
           only: f.pointId,
           followupQuestion: f.question,
         },
-        { signal: controllerRef.current?.signal, timeoutMs: CHECK_FOLLOWUP_TIMEOUT_MS },
+        // One long wait per answer: after the check at «Готово» did not answer, this one waits 2.5 s.
+        { signal: controllerRef.current?.signal, timeoutMs: followupCheckTimeout(f.chosenBy) },
       );
       status = result.statuses[f.pointId] ?? 'missing';
     } catch {

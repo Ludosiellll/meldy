@@ -73,4 +73,11 @@ describe('saysDontKnow', () => {
       expect(saysDontKnow(text), text).toBe(false);
     }
   });
+
+  it('agrees with the server on the shared examples (backend oral.says_dont_know)', async () => {
+    const { saysDontKnow } = await import('./followup');
+    const cases = vectors.dont_know as Array<{ text: string; is: boolean }>;
+    expect(cases.length).toBeGreaterThanOrEqual(10);
+    for (const { text, is } of cases) expect(saysDontKnow(text), text).toBe(is);
+  });
 });

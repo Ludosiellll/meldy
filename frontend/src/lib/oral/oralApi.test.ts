@@ -2,14 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AI_LIMIT_MESSAGE,
   AI_UNAVAILABLE_MESSAGE,
+  CHECK_AFTER_FAILED_CHECK_MS,
   CHECK_CONFIRM_TIMEOUT_MS,
   CHECK_FOLLOWUP_TIMEOUT_MS,
+  DONT_KNOW_VERDICT,
   NETWORK_MESSAGE,
   OralApiError,
   RATE_LIMITED_MESSAGE,
   checkAnswer,
   evaluateAnswer,
   fetchRubric,
+  followupCheckTimeout,
   parseRubricResponse,
 } from './oralApi';
 
@@ -131,7 +134,9 @@ describe('oral API', () => {
       init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
     });
 
-  it('gives the «Готово» check 1.5 s and the follow-up check 2.5 s', async () => {
+  it('gives the quick checks 5.5 s — past the server’s 4.5 s — and only one long wait per answer', async () => {
+    // Live run of 07.10: the client gave up at 1.5 s, the server at 2.5 s, and the model needed about 2.5 s.
+    expect([CHECK_CONFIRM_TIMEOUT_MS, CHECK_FOLLOWUP_TIMEOUT_MS, CHECK_AFTER_FAILED_CHECK_MS]).toEqual([5_500, 5_500, 2_500]);
     vi.useFakeTimers();
     fetchMock.mockImplementation(hang);
     const points = [{ id: 'p1', title: 'Пункт', essential: true }];
@@ -141,14 +146,49 @@ describe('oral API', () => {
     await vi.advanceTimersByTimeAsync(20);
     expect(await quick).toMatchObject({ kind: 'timeout', message: AI_UNAVAILABLE_MESSAGE });
 
-    const followup = checkAnswer({ question: 'Вопрос', points, transcript: 'ответ', only: 'p1', followupQuestion: 'А почему?' }).catch(
-      (error) => error,
-    );
-    await vi.advanceTimersByTimeAsync(CHECK_CONFIRM_TIMEOUT_MS + 100);
+    // The check at «Готово» answered (chosen_by check): the follow-up's check waits in full.
+    const askedOnTime = { question: 'Вопрос', points, transcript: 'ответ', only: 'p1', followupQuestion: 'А почему?' };
+    const full = checkAnswer(askedOnTime, { timeoutMs: followupCheckTimeout('check') }).catch((error) => error);
+    await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS - 10);
     expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(false);
-    await vi.advanceTimersByTimeAsync(CHECK_FOLLOWUP_TIMEOUT_MS - CHECK_CONFIRM_TIMEOUT_MS);
-    expect(await followup).toMatchObject({ kind: 'timeout' });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await full).toMatchObject({ kind: 'timeout' });
     expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toMatchObject({ only: 'p1', followup_question: 'А почему?' });
+
+    // It did not (chosen_by client): no second long wait in the same answer.
+    const short = checkAnswer(askedOnTime, { timeoutMs: followupCheckTimeout('client') }).catch((error) => error);
+    await vi.advanceTimersByTimeAsync(CHECK_AFTER_FAILED_CHECK_MS - 10);
+    expect(fetchMock.mock.calls[2][1].signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await short).toMatchObject({ kind: 'timeout' });
+  });
+
+  it('takes «не знаю» as the button: every point missing, no request, no model, no units', async () => {
+    const points = [
+      { id: 'p1', title: 'А', essential: false },
+      { id: 'p2', title: 'Б', essential: true },
+      { id: 'p3', title: 'В', essential: true },
+    ];
+    expect(await checkAnswer({ question: 'Вопрос', points, transcript: 'Ну, не знаю…' })).toEqual({
+      statuses: { p1: 'missing', p2: 'missing', p3: 'missing' },
+      ask: 'p2', // the rule: the first essential point not named
+    });
+    expect(await checkAnswer({ question: 'Вопрос', points, transcript: 'не помню', only: 'p3' })).toEqual({ statuses: { p3: 'missing' }, ask: null });
+    const evaluation = await evaluateAnswer({
+      question: 'Вопрос',
+      points: points.map((point) => ({ ...point, source_quote: 'цитата' })),
+      transcript: 'Я не знаю.',
+    });
+    expect(evaluation).toEqual({
+      points: ['p1', 'p2', 'p3'].map((id) => ({ id, status: 'missing', student_quote: '', comment: '' })),
+      errors: [],
+      verdict: DONT_KNOW_VERDICT,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    // An answer that only starts with «не знаю» is an answer: it goes to the check.
+    fetchMock.mockResolvedValueOnce(json(200, { statuses: { p1: 'partial' }, ask: null }));
+    await checkAnswer({ question: 'Вопрос', points, transcript: 'Не знаю точно, но это про ключи' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('reads statuses and ask of the quick check', async () => {

@@ -1037,9 +1037,11 @@ export function firstStepViews(steps: FirstSteps): StepView[] {
     {
       key: 'lecture',
       title: 'Добавьте лекцию',
-      text: 'Файл, текст или запись пары. Meldy сделает конспект и карточки, а потом сверит с лекцией вопросы экзамена.',
+      text: 'Файл лекции с текстом: PDF, DOCX, PPTX, TXT или MD. Meldy возьмёт текст без расхода лимита и сверит с ним вопросы экзамена.',
       done: steps.lecture,
-      action: { to: '/analyze', label: 'Добавить лекцию' },
+      // Free and straight to the core: «Новый экзамен» with its text-only import of lectures, not the
+      // analysis (/analyze: 20 units a lecture, live run of 07.10 — three answers left on FREE after it).
+      action: { to: '/exams/new#lectures', label: 'Добавить лекцию' },
     },
     {
       key: 'list',

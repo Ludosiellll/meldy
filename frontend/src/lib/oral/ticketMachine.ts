@@ -2,7 +2,7 @@
  * The answer screen as one state machine (contracts §7.2; oral spec 3.2):
  *
  *   loading → ready (the rubric loads) → answering (voice: listening | paused, or text) →
- *   finalizing (stop ≤ 800 ms) → examiner (the quick check, ≤ 1.5 s) → followup (asking |
+ *   finalizing (stop ≤ 800 ms) → examiner (the quick check, ≤ 5.5 s) → followup (asking |
  *   answering | checking) → evaluating → protocol (saved | save_error | eval_error)
  *
  * With nothing to ask: examiner → evaluating, with the closing line of closingLine(). Nothing to

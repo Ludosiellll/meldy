@@ -730,6 +730,19 @@ def test_evaluate_costs_an_answer_and_a_failed_protocol_costs_nothing(oral):
     assert len(oral.server.rpc("consume_ai_units")) == 2
 
 
+@pytest.mark.parametrize("answer", ["не знаю", "Ну, не помню."])
+def test_dont_know_costs_nothing_and_asks_no_model(oral, answer):
+    # Живой прогон 07.10: «не знаю» списывало 4 единицы и звало модель. Это ответ кнопки «Не знаю».
+    from test_oral_api import check_body, evaluate_body
+
+    for path, body in (("/api/oral/check", check_body(transcript=answer)), ("/api/oral/evaluate", evaluate_body(transcript=answer))):
+        response = oral.post(path, json=body)
+        assert response.status_code == 200, response.text
+    assert [p["status"] for p in response.json()["points"]] == ["missing"] * 4
+    assert oral.server.rpc("consume_ai_units") == [] and oral.server.used == 0
+    assert oral.model.calls == []
+
+
 def test_quick_checks_are_free(oral):
     from test_oral_api import check_body
 

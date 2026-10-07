@@ -29,6 +29,9 @@ from agents.base import AIError, BaseAgent  # noqa: E402
 from ratelimit import RATE_LIMIT_DETAIL  # noqa: E402
 from test_oral import BUDGET, DEMO, ECON, ECON_QUESTION, econ_points  # noqa: E402
 
+# Настоящий BaseAgent.run: фикстура api подменяет его, тест порядка моделей возвращает.
+REAL_RUN = BaseAgent.run
+
 URL = "https://oral-test.supabase.invalid"
 ANON = "anon-test-key"
 TOKENS = {"token-a": "user-a", "token-b": "user-b"}
@@ -183,7 +186,7 @@ class FakeModel:
         self.answers = list(answers)
 
     async def run(self, agent, system_prompt, user_text, **kwargs):
-        self.calls.append({"system": system_prompt, "text": user_text, **kwargs})
+        self.calls.append({"system": system_prompt, "text": user_text, "agent_model": getattr(agent, "model", None), **kwargs})
         if self.delay:
             await asyncio.sleep(self.delay)
         if not self.answers:
@@ -729,8 +732,10 @@ def test_check_statuses_are_cleaned_and_ask_follows_the_rule(api):
     assert response.status_code == 200
     assert response.json() == {"statuses": {"p1": "covered", "p2": "missing", "p3": "wrong", "p4": "missing"}, "ask": "p2"}
     (call,) = api.model.calls
-    assert call["fast"] is True and call["temperature"] == 0 and call["max_tokens"] == 200
-    assert call["json_mode"] is True and call["timeout"] == 2.5
+    # Быстрый вызов без размышлений, но Gemini по основному списку (3.5 Flash-Lite первой), запасной Groq — быстрая модель.
+    assert "fast" not in call and call["thinking"] == "off" and call["agent_model"] == "openai/gpt-oss-20b"
+    assert call["temperature"] == 0 and call["max_tokens"] == 200
+    assert call["json_mode"] is True and call["timeout"] == 4.5
 
 
 def test_check_ask_is_null_when_everything_is_covered(api):
@@ -793,6 +798,72 @@ def test_check_provider_busy_is_429(api):
     assert_plain_russian(api.post("/api/oral/check", json=check_body()), 429, code="ai_busy")
 
 
+def test_check_asks_gemini_3_5_flash_lite_first_then_3_1_and_keeps_the_server_deadline(api, monkeypatch):
+    # Настоящий BaseAgent, подменены только клиенты Gemini и Groq. 07.10 на живом сайте 3.1 Flash-Lite
+    # (первая в быстром списке) не уложилась в бюджет в 12 проверках из 14, а 3.5 отвечала за 1,2–2,1 с.
+    from collections import OrderedDict
+
+    from agents import base
+    from test_base_agent import gemini_error, install_gemini, install_groq
+
+    monkeypatch.setattr(BaseAgent, "run", REAL_RUN)
+    for name in ("GEMINI_MODELS", "GEMINI_FAST_MODELS", "GROQ_MODEL", "GROQ_FAST_MODEL", "AI_CACHE_DISABLED"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("_GENAI_CLIENTS", "_GROQ_CLIENTS", "_MODEL_SKIP"):
+        monkeypatch.setattr(base, name, {})
+    monkeypatch.setattr(BaseAgent, "_run_cache", OrderedDict())
+    monkeypatch.setattr(BaseAgent, "_cache_info", {})
+    statuses = json.dumps({"statuses": {"p1": "covered", "p2": "missing", "p3": "missing", "p4": "missing"}})
+    first = {"failing": True}
+
+    def gemini(model, config, contents):
+        if model == "gemini-3.5-flash-lite" and first["failing"]:
+            return gemini_error(503, "UNAVAILABLE")
+        return (statuses, "STOP")
+
+    calls, _ = install_gemini(monkeypatch, gemini)
+    response = api.post("/api/oral/check", json=check_body())
+    assert response.status_code == 200, response.text
+    assert response.json()["statuses"]["p1"] == "covered"
+    assert [call["model"] for call in calls] == ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+    for call in calls:
+        assert call["config"].thinking_config.thinking_level.name == "MINIMAL"  # без размышлений, как быстрый вызов
+        # 4,5 с — только таймаут asyncio: Gemini не принимает deadline меньше 10 с (INVALID_ARGUMENT).
+        assert call["config"].http_options.timeout == 10_000
+
+    first["failing"] = False
+    api.post("/api/oral/check", json=check_body(transcript="Цель — стабильность цен"))
+    assert calls[-1]["model"] == "gemini-3.5-flash-lite"
+    # Другие быстрые вызовы (fast=True) по-прежнему начинают с 3.1 Flash-Lite.
+    assert base.gemini_models(fast=True) == ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
+
+    # Gemini не ответила — запасной Groq берёт быструю модель.
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    install_gemini(monkeypatch, lambda model, config, contents: gemini_error(503, "UNAVAILABLE"))
+    groq_calls, _ = install_groq(monkeypatch, lambda kwargs: (statuses, "stop"))
+    assert api.post("/api/oral/check", json=check_body(transcript="Ставка и цели")).status_code == 200
+    assert [call["model"] for call in groq_calls] == ["openai/gpt-oss-20b"]
+
+
+@pytest.mark.parametrize("answer", ["не знаю", "Ну, я не знаю…", "Затрудняюсь ответить"])
+def test_dont_know_is_all_missing_without_the_model(api, answer):
+    # «Не знаю» сказано вместо кнопки: тот же ответ, что кнопка, — без модели (и без списания, см. test_quota).
+    assert api.post("/api/oral/check", json=check_body(transcript=answer)).json() == {
+        "statuses": {"p1": "missing", "p2": "missing", "p3": "missing", "p4": "missing"}, "ask": "p1"}
+    assert api.post("/api/oral/check", json=check_body(transcript=answer, only="p4")).json() == {
+        "statuses": {"p4": "missing"}, "ask": None}
+    body = api.post("/api/oral/evaluate", json=evaluate_body(transcript=answer)).json()
+    assert [(p["status"], p["student_quote"]) for p in body["points"]] == [("missing", "")] * 4
+    assert body["errors"] == [] and body["verdict"] == oral_api.DONT_KNOW_VERDICT
+    assert api.model.calls == []
+
+
+def test_an_answer_that_only_starts_with_dont_know_goes_to_the_model(api):
+    api.model.answer({"statuses": {"p1": "partial"}})
+    api.post("/api/oral/check", json=check_body(transcript="Не знаю точно, но цель — стабильность цен"))
+    assert len(api.model.calls) == 1
+
+
 def test_check_empty_answer_is_all_missing_without_a_model_call(api):
     response = api.post("/api/oral/check", json=check_body(transcript="  …  "))
     assert response.json() == {"statuses": {"p1": "missing", "p2": "missing", "p3": "missing", "p4": "missing"}, "ask": "p1"}
@@ -851,7 +922,7 @@ def test_evaluate_checks_quotes_drops_unknown_errors_and_rates_every_point(api):
     assert set(body) == {"points", "errors", "verdict"}
     assert [(p["id"], p["status"], p["student_quote"]) for p in body["points"]] == [
         ("p1", "covered", "Цель ЦБ — ценовая стабильность"),  # текст самой расшифровки
-        ("p2", "partial", ""),
+        ("p2", "wrong", "Ставку повышают, когда цены растут"),  # пункт ошибки — wrong, отрывок — сама ошибка
         ("p3", "unrated", ""),
         ("p4", "missing", ""),
     ]

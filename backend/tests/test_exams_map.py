@@ -692,6 +692,74 @@ def test_mapping_stores_the_heading_with_the_evidence_and_the_nearest_fragment(f
     assert_honest_rows(fake)
 
 
+# Две лекции с одинаковыми номерами фрагментов (S01–S04 в каждой), как в живом прогоне 07.10:
+# там у Q6 «Ограничения целостности» доказательством встал S05 чужой лекции.
+RELATIONAL = (
+    "Реляционная модель данных\n\n"
+    "Реляционная модель представляет данные набором отношений. Отношение — множество кортежей с атомарными значениями, "
+    "у каждого отношения есть первичный ключ. Модель состоит из структурной, целостной и манипуляционной частей; "
+    "СУБД отвечает за то, чтобы данные всегда подчинялись правилам модели, и проверяет их при каждой операции. "
+    "Пользователь описывает, какие данные ему нужны, а способ поиска выбирает сама система управления базами данных.\n\n"
+    "Ограничения целостности — правила, которым данные удовлетворяют в любой момент. Различают ограничения "
+    "целостности сущностей (первичный ключ уникален и не содержит NULL), ссылочную целостность (внешний ключ "
+    "ссылается на существующую строку), доменные ограничения (тип, NOT NULL, DEFAULT, CHECK), ограничения кортежа "
+    "и отношения и бизнес-правила предметной области, которые проверяют триггеры или прикладная программа.\n\n"
+    "Связи между сущностями бывают один к одному, один ко многим и многие ко многим. Связь один ко многим "
+    "реализуется внешним ключом на стороне многих, связь многие ко многим — связующим отношением с составным "
+    "ключом из двух внешних ключей. В связующее отношение помещают и атрибуты самой связи, например дату и оценку."
+)
+NORMAL_FORMS = (
+    "Нормализация отношений\n\n"
+    "Нормализация устраняет избыточность и аномалии вставки, обновления и удаления. Функциональная зависимость "
+    "связывает атрибуты отношения: значение одного набора атрибутов однозначно определяет значение другого. "
+    "Транзакция переводит базу из одного согласованного состояния в другое: после неё выполняются все ограничения "
+    "целостности, иначе СУБД её не зафиксирует.\n\n"
+    "Первая нормальная форма требует, чтобы значения всех атрибутов были атомарны: в каждой ячейке одно значение, "
+    "нет списков и повторяющихся групп. Таблица со столбцами Дисциплина1, Дисциплина2 в первой нормальной форме не "
+    "находится; повторяющиеся значения раскладывают по строкам или выносят в отдельное отношение.\n\n"
+    "Вторая нормальная форма требует, чтобы каждый неключевой атрибут полностью зависел от каждого потенциального "
+    "ключа. Третья нормальная форма запрещает транзитивные зависимости неключевых атрибутов от ключа: для этого "
+    "отношение раскладывают на проекции без потери данных."
+)
+Q_INTEGRITY = "Ограничения целостности в реляционной модели данных."
+Q_FIRST_NF = "Первая нормальная форма."
+
+
+def test_evidence_comes_from_the_lecture_of_the_chosen_candidate_when_fragment_numbers_repeat():
+    passages = material_passages("m-rel", "Реляционная модель", RELATIONAL) + material_passages("m-nf", "Нормализация", NORMAL_FORMS)
+    assert [p.source_id for p in passages] == ["S01", "S02", "S03", "S04"] * 2  # номера в двух лекциях одни и те же
+    hits = BM25Index(passages).search(Q_INTEGRITY, top_k=6, per_material_cap=3)
+    assert [(hit.passage.material_id, hit.passage.source_id) for hit in hits] == [
+        ("m-rel", "S02"), ("m-rel", "S03"), ("m-nf", "S02"), ("m-nf", "S04"),
+    ]
+    texts = {(p.material_id, p.source_id): p.text for p in passages}
+    for index, wanted in ((1, ("m-rel", "S03")), (2, ("m-nf", "S02"))):
+        item = coverage_from_verdict("q", hits, Verdict("full", (index,), "", "Есть"), "t", passage_index(passages))
+        assert [(e["material_id"], e["source_id"], e["excerpt"]) for e in item["evidence"]] == [(*wanted, texts[wanted])]
+        assert item["evidence"][0]["material_title"] == ("Реляционная модель" if wanted[0] == "m-rel" else "Нормализация")
+
+
+def test_one_batch_two_lectures_same_fragment_numbers_each_question_gets_its_own_lectures_fragment(fake, judge):
+    exam_id, (q_integrity, q_first_nf), (relational, normal_forms) = course(
+        fake, [Q_INTEGRITY, Q_FIRST_NF], materials=(("Реляционная модель", RELATIONAL), ("Нормализация", NORMAL_FORMS))
+    )
+    judge.script = honest({"ограничения целостности": ("full", "Различают ограничения"), "первая нормальная": ("full", "Первая нормальная форма требует")})
+    marks = items(run_map(fake, exam_id))
+    # Один вызов судьи на оба вопроса: метки [C1]… у каждого вопроса свои и повторяются.
+    (call,) = judge.calls
+    assert [[c["label"] for c in q["candidates"]] for q in call["questions"]] == [["C1", "C2", "C3", "C4"], ["C1", "C2"]]
+    texts = {row["id"]: row["original_text"] for row in fake.tables["materials"]}
+    fragments = fragments_of(*texts.items())
+    # У обоих доказательств номер S03, но каждое — из своей лекции и с её текстом.
+    assert [(e["material_id"], e["source_id"]) for e in marks[q_integrity]["evidence"]] == [(relational, "S03")]
+    assert [(e["material_id"], e["source_id"]) for e in marks[q_first_nf]["evidence"]] == [(normal_forms, "S03")]
+    assert marks[q_integrity]["evidence"][0]["excerpt"] == fragments[(relational, "S03")]
+    assert "Различают ограничения" in marks[q_integrity]["evidence"][0]["excerpt"]
+    assert marks[q_first_nf]["evidence"][0]["excerpt"] == fragments[(normal_forms, "S03")]
+    assert fake.row("exam_questions", q_integrity)["evidence"] == marks[q_integrity]["evidence"]
+    assert_honest_rows(fake)
+
+
 def test_judge_notes_name_lecture_fragments_instead_of_candidate_labels():
     hits = _demo_hits(Q_BACKPROP)
     first, second = (str(int(hit.passage.source_id[1:])) for hit in hits[:2])
