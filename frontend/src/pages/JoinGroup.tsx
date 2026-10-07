@@ -30,6 +30,8 @@ import './JoinGroup.css';
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: SharePreview } | { state: 'error'; message: string };
 type JoinState = { state: 'idle' } | { state: 'joining' } | { state: 'failed'; message: string; retry: boolean };
 
+const NBSP = '\u00a0';
+
 // Refusals that another try does not change: the link itself says no.
 const FINAL_CODES = new Set(['link_not_found', 'link_revoked', 'link_expired', 'link_full', 'own_link']);
 
@@ -183,12 +185,17 @@ export default function JoinGroup() {
       : value
         ? statusMessage(value.status)
         : null;
+  // «20 вопросов · 3 лекции · экзамен 21 октября»: each part holds together, a row breaks only after a dot (on a
+  // phone «экзамен 21 / октября» split the date, live run of 2026-10-07).
   const meta = value && live
     ? [
         value.questions > 0 ? `${value.questions} ${plural(value.questions, 'вопрос', 'вопроса', 'вопросов')}` : null,
         value.lectures > 0 ? `${value.lectures} ${plural(value.lectures, 'лекция', 'лекции', 'лекций')}` : null,
         dayOf(value.examDate) ? `${value.kind === 'credit' ? 'зачёт' : value.kind === 'colloquium' ? 'коллоквиум' : 'экзамен'} ${dayOf(value.examDate)}` : null,
-      ].filter(Boolean).join(' · ')
+      ]
+        .filter((part): part is string => Boolean(part))
+        .map((part) => part.replace(/\s/g, NBSP))
+        .join(`${NBSP}· `)
     : '';
 
   return (

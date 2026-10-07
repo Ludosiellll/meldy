@@ -111,6 +111,8 @@ describe('/join/<код> signed out', () => {
     const heading = await screen.findByRole('heading', { level: 1, name: /Вас пригласили/ });
     expect(plain(heading.textContent)).toBe('Вас пригласили готовиться к экзамену «Макроэкономика» в Meldy');
     expect(plain(document.querySelector('.jg-meta')?.textContent)).toBe('40 вопросов · 3 лекции · экзамен 10 ноября');
+    // Each part holds together (a phone broke «экзамен 10 / ноября»); a row breaks only after a dot.
+    expect(document.querySelector('.jg-meta')?.textContent).toBe('40\u00a0вопросов\u00a0· 3\u00a0лекции\u00a0· экзамен\u00a010\u00a0ноября');
     const google = screen.getByRole('button', { name: 'Войти через Google' });
     const mail = screen.getByRole('link', { name: 'Войти по почте' });
     expect(google.compareDocumentPosition(mail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
