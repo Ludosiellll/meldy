@@ -4,6 +4,42 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-07 — Release 30: the exam page says what happened and what to do, lectures that fit the questions, no surprise reloads (from the commit of this entry)
+
+What the owner found on 07.10 in his own use and on a classmate's copy, and the rest of plan v2's week 2.
+
+- **No surprise reloads after a release.** A release used to reload every open page a second after the new worker
+  was found (the owner: «через секунду у меня обновляется сайт как будто нажали f5»): `sw.js` skipped waiting on
+  install and the plugin's auto mode reloaded on activation. Now the new worker waits. A page of the older release
+  shows «Есть новая версия Meldy · Обновить» and moves to the new one only while hidden (never on a ticket, the draw,
+  a talk, an analysis or the list editor, and never with typed text) or on «Обновить». The new worker takes over when
+  every open window agrees (`SKIP_WAITING` → `MAY_ACTIVATE`). Tabs still on release 29.1 keep working and are not
+  reloaded; they get release 30 when reopened.
+- **The exam page says what happened and what to do.** One status block above the tabs: what Meldy did, what it
+  found, one action (18 states, a classmate's copy included). When the lectures answer (almost) nothing — 70 % of the
+  questions or more «нет» — it says «В лекции «…» нет ответов на эти вопросы», hides the shares that say nothing,
+  and names the student's other lectures that fit the questions, or says that none do. «Сегодня» offers the same
+  next step. The sheet's first-use card is gone: it repeated the status and pointed elsewhere.
+- **Which lectures fit the questions.** `POST /api/exams/lecture-fit` — shared words over each lecture's three best
+  fragments, no AI, no units, nothing saved, 20 a minute. The editor shows «подходит к N вопросам», «Отметить
+  подходящие (N)» and the questions no lecture fits; a new exam ticks lectures by its questions.
+- **Group link.** No new link for an exam whose lectures answer nothing (409 `nothing_found`); a warning when less
+  than half is found. The invite dialog fits a laptop screen in two columns; «Вопрос дня» gives the group chat a
+  question a day (the link stays on the device that made it; the server keeps only its hash). Release 29.1's
+  «Google refuses it in those browsers» was too broad: Telegram opens links in Chrome Custom Tabs or Safari, where
+  Google works. The note and the hidden Google button now come only in a real WebView, and the chat text makes no
+  claim about Google.
+- **Daily reminder.** «Напоминать каждый день» on «Сегодня» and in «Профиль»: a calendar file, 20:00 by default
+  (`TZID` Europe/Minsk for Belarus).
+- **Reels.** Sign-in, sign-up and the landing's chapters 03–04 tell the new story: the department's list → answers
+  from the lectures → a ticket aloud → the sheet that only answers erase. New headings over them.
+- **Smaller:** the lecture page's export menu stays on a phone screen; the profile's reminder window is narrow;
+  darker dimming behind dialogs in the dark theme.
+
+No migrations. Verified before release: pytest 1490, tsc -b, Vitest 2697/2697 (168 files), production build (no
+«Засчитано», «удовлетворительно» or «оценки по пунктам» in the bundle); the built `sw.js` calls `skipWaiting` only
+on `SKIP_WAITING` after every open window agrees.
+
 ## 2026-10-07 — Release 29.1: a quick check that survives a slow Gemini, a report for the department, fixes from the second live run (from the commit of this entry)
 
 - **Quick check:** Gemini gets `ORAL_CHECK_GEMINI_SECONDS` (2.5 s) of the 4.5 s budget while Groq can answer, then
