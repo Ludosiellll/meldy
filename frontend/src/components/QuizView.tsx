@@ -161,11 +161,12 @@ function score(questions: NormalizedQuestion[], answers: Record<number, number>)
   return { correct, scored, unscored: questions.length - scored };
 }
 
-function gradeLabel(pct: number): string {
-  if (pct >= 90) return 'Отлично';
-  if (pct >= 70) return 'Хорошо';
-  if (pct >= 50) return 'Удовлетворительно';
-  return 'Нужно подтянуть';
+/**
+ * «2 из 3 верно», «0 из 1 верно — нужно подтянуть». No words of the 5-point scale («Отлично»,
+ * «Удовлетворительно»): the department grades on 10 points, Meldy only counts the right answers (Ф1).
+ */
+function scoreLine(correct: number, scored: number, pct: number): string {
+  return `${correct} из ${scored} верно${pct < 50 ? ' — нужно подтянуть' : ''}`;
 }
 
 function attemptAnswers(questions: NormalizedQuestion[], answers: Record<number, number>): QuizAttemptAnswer[] {
@@ -500,9 +501,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
             <div className="qz-result-main">
               {scored > 0 ? (
                 <>
-                  <p className="qz-score">
-                    {correct} из {scored} — {gradeLabel(pct)}
-                  </p>
+                  <p className="qz-score">{scoreLine(correct, scored, pct)}</p>
                   <p className="qz-pct">{pct}% правильных ответов</p>
                 </>
               ) : (

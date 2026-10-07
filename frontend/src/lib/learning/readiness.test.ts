@@ -67,11 +67,12 @@ describe('labels', () => {
     expect(READINESS_LABELS).toEqual({
       untested: 'не проверялось',
       // Under the 20-hour rule 23:59 and 0:01 are two days and still not a confirmation, so the
-      // label never names a day; a passed answer is «засчитан» (Jury_Check 11).
-      once: 'засчитано, не подтверждено',
+      // label never names a day. No «засчитано» on screen since Ф1: it read as a credit from an AI.
+      once: 'названо достаточно, не подтверждено',
       confirmed: 'подтверждено',
-      not_passed: 'не засчитано',
+      not_passed: 'названо недостаточно',
     });
+    for (const label of Object.values(READINESS_LABELS)) expect(label).not.toMatch(/засчит|зачт/);
     expect(SELF_RATING_LABELS).toEqual({ know: 'знаю', unsure: 'плаваю', dont_know: 'не знаю' });
     expect(SELF_RATING_CONFIDENCE).toEqual({ dont_know: 1, unsure: 2, know: 3 });
   });
@@ -257,7 +258,7 @@ describe('the rule «подтверждено» (Jury_Check item 3)', () => {
   it('does not confirm 23:59 and 0:01: two days, but two minutes apart', () => {
     const state = questionState([pass(HASH_A, '2026-10-07', 23, 59), pass(HASH_A, '2026-10-08', 0, 1)], []);
     expect(state.readiness).toBe('once');
-    expect(READINESS_LABELS[state.readiness]).toBe('засчитано, не подтверждено');
+    expect(READINESS_LABELS[state.readiness]).toBe('названо достаточно, не подтверждено');
   });
 
   it('does not confirm 1:00 and 21:00 of one day: 20 hours, but one day', () => {

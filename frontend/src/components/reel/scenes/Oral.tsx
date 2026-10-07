@@ -40,7 +40,7 @@ export const ORAL_CURSOR = [
 /**
  * 6 · Chapter 02, «Ответ вслух». The student answers the ticket aloud: words appear as they are
  * said, the points of the answer sheet are ticked, the examiner asks about the missed one, and the
- * answer is stamped «Засчитано».
+ * answer is stamped «Проверено» (no «Засчитано» since Ф1: the screen gives no credit).
  */
 export default function Oral() {
   const root = useRef<HTMLDivElement>(null);
@@ -221,7 +221,7 @@ export default function Oral() {
         </div>
 
         <div data-a="stamp" className="mr-stamp" style={{ left: 790, top: 588 }}>
-          Засчитано
+          Проверено
         </div>
         <ParticleCanvas draw={draw} />
         <Cursor keys={ORAL_CURSOR} clicks={[DONE]} from={2250} to={3250} />

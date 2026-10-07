@@ -95,7 +95,7 @@ describe('KnowledgeMap zoom', () => {
     expect(screen.getByRole('heading', { name: 'Инфляция' })).toBeInTheDocument();
     expect(zoomValue()).toBe('120 %');
 
-    await user.click(within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /не засчитано/ }));
+    await user.click(within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /названо недостаточно/ }));
     expect(zoomValue()).toBe('120 %');
 
     await user.type(screen.getByRole('searchbox', { name: 'Найти лекцию или понятие' }), 'денеж');
@@ -115,7 +115,7 @@ describe('what the map shows', () => {
     expect(lectureCards()).toHaveLength(9);
     // File names become titles; the readiness of each question is said in words.
     const money = card(/^Лекция 3: Деньги и денежный рынок/);
-    expect(money).toHaveAccessibleName(/Вопросы экзамена: 6, 7 — подтверждено, 8 — не засчитано, 9/);
+    expect(money).toHaveAccessibleName(/Вопросы экзамена: 6, 7 — подтверждено, 8 — названо недостаточно, 9/);
     expect(money).toHaveAccessibleName(/1\sоткрытая ошибка, 5\sкарточек к повторению/);
     expect(card(/^Лекция 1: Предмет макроэкономики и ВВП/)).toBeInTheDocument();
     expect(money.querySelector('[data-mark="ring"]')).not.toBeNull();
@@ -158,7 +158,7 @@ describe('what the map shows', () => {
   it('lights the lectures a legend filter is about and fades the others', async () => {
     const user = userEvent.setup();
     await renderMap();
-    const button = within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /не засчитано 3/ });
+    const button = within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /названо недостаточно 3/ });
     await user.click(button);
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(card(/^Лекция 3:/)).toHaveAttribute('data-state', 'lit');
@@ -177,7 +177,7 @@ describe('the panel', () => {
 
     const panel = screen.getByRole('region', { name: 'Деньги и денежный рынок' });
     expect(within(panel).getByText('Денежный мультипликатор и денежная база.')).toBeInTheDocument();
-    expect(within(panel).getByText(/не засчитано/)).toBeInTheDocument();
+    expect(within(panel).getByText(/названо недостаточно/)).toBeInTheDocument();
     expect(within(panel).getAllByRole('link', { name: /фрагмент/ })[0]).toHaveAttribute('href', '/library/macro-3');
     expect(within(panel).getByRole('button', { name: 'Центральный банк' })).toBeInTheDocument();
     expect(within(panel).getByText(/Почему рост норм обязательных резервов/)).toBeInTheDocument();

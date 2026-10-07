@@ -324,10 +324,10 @@ describe('ExamDetail: the sheet', () => {
 
     await waitFor(() => expect(row('q1')).toHaveAttribute('data-readiness', 'confirmed'));
     expect(row('q1').querySelector('.ex-qn [data-mark="ring"]')).not.toBeNull();
-    // The screen reader hears the age of the confirmation, counted from the last засчитанный answer.
+    // The screen reader hears the age of the confirmation, counted from the last passed answer.
     expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, подтверждено вчера');
-    expect(plain(row('q2').querySelector('.ex-qn')?.textContent)).toBe('2, засчитано, не подтверждено');
-    expect(plain(row('q4').querySelector('.ex-qn')?.textContent)).toBe('4, не засчитано');
+    expect(plain(row('q2').querySelector('.ex-qn')?.textContent)).toBe('2, названо достаточно, не подтверждено');
+    expect(plain(row('q4').querySelector('.ex-qn')?.textContent)).toBe('4, названо недостаточно');
     expect(row('q2')).toHaveAttribute('data-readiness', 'once');
     expect(row('q2').querySelector('.ex-qn [data-mark="under"]')).not.toBeNull();
     expect(row('q4')).toHaveAttribute('data-readiness', 'not_passed');
@@ -454,7 +454,7 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     await waitFor(() => expect(document.querySelectorAll('.ex-q')).toHaveLength(1));
     const legend = await within(column()).findByRole('list', { name: 'Показать вопросы по ответам' });
-    expect(within(legend).getByRole('button', { name: 'не засчитано 1' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(legend).getByRole('button', { name: 'названо недостаточно 1' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('counts confirmed questions from the journal, with no date after the number', async () => {
@@ -468,15 +468,15 @@ describe('ExamDetail: the sheet', () => {
     const statement = await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
     expect(plain(statement.textContent)).toBe('Подтверждено ответами — 6 из 40.');
     expect(plain(column().textContent)).not.toContain(since);
-    expect(within(column()).getByText(named('Подтверждено — значит, засчитано дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 2 %.'))).toBeInTheDocument();
+    expect(within(column()).getByText(named('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 2 %.'))).toBeInTheDocument();
     // The growth from history, once the history spans more than a day.
     expect(within(column()).getByText(named(`С ${formatDay(dayKey(-9))}: 0 → 6 за 9 дней.`))).toBeInTheDocument();
 
     const legend = within(column()).getByRole('list', { name: 'Показать вопросы по ответам' });
     expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent).replace(/^12/, ''))).toEqual([
       'подтверждено 6',
-      'засчитано, не подтверждено 0',
-      'не засчитано 0',
+      'названо достаточно, не подтверждено 0',
+      'названо недостаточно 0',
       'не проверялось 34',
     ]);
     fireEvent.click(within(legend).getByRole('button', { name: 'подтверждено 6' }));
@@ -827,14 +827,14 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     );
     expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('за 3 дня+1 сегодня');
     expect(plain(side.querySelector('.ex-peak .ex-peak-stmt')?.textContent)).toBe('Вопрос 1 подтверждён ответом, который вы дали только что.');
-    expect(within(side).getByText(named('Подтверждено — значит, засчитано дважды, в разные дни. Билетов, где подтверждены оба вопроса, — 0 %.'))).toBeInTheDocument();
+    expect(within(side).getByText(named('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 0 %.'))).toBeInTheDocument();
     // Not enough «знаю» answers to compare confidence with results: no such line.
     expect(screen.queryByText(/Вы отметили «знаю»/)).toBeNull();
     expect(within(side).queryByText(/Сравнить уверенность с ответами пока нельзя/)).toBeNull();
 
     expect(row('q1')).toHaveAttribute('data-peak');
     expect(plain(row('q1').querySelector('.ex-because')?.textContent)).toBe(
-      `${formatDay(dayKey(-3))} — засчитано. Сегодня снова «хорошо»: засчитано дважды, в разные дни, — вопрос подтверждён.`,
+      `${formatDay(dayKey(-3))} — названо достаточно. Сегодня снова названо достаточно: дважды, в разные дни, — вопрос подтверждён.`,
     );
     expect(screen.getByRole('article', { name: 'Список вопросов кафедры с пометками' })).toHaveAttribute('data-dim');
     // The old mark first, then the new one is drawn.
@@ -875,10 +875,10 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     ]);
     renderDetail();
     await opened();
-    expect(await within(column()).findByText('Вы отметили «знаю» у 3 вопросов. Из 3 таких, на которые вы ответили, засчитано 3.')).toBeInTheDocument();
+    expect(await within(column()).findByText('Вы отметили «знаю» у 3 вопросов. Из 3 таких, на которые вы ответили, в 3 названо достаточно.')).toBeInTheDocument();
   });
 
-  it('after a 3 shows the wavy line, «Не засчитано», the growth from history and no «+1»', async () => {
+  it('after a failed answer shows the wavy line, «Названо недостаточно», the growth from history and no «+1»', async () => {
     window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(9), before: 'untested' }));
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue([
@@ -890,13 +890,13 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText('Не засчитано')).toBeInTheDocument();
+    expect(await within(side).findByText('Названо недостаточно')).toBeInTheDocument();
     expect(plain(side.querySelector('.ex-peak-big .ex-now')?.textContent)).toBe('0 → 2 из 40');
     expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('подтвержденоза 6 дней');
     expect(side.querySelector('.ex-peak-growth b')).toBeNull();
-    expect(plain(side.querySelector('.ex-peak-stmt')?.textContent)).toBe('Вопрос 9: ответ, который вы дали только что, не засчитан.');
+    expect(plain(side.querySelector('.ex-peak-stmt')?.textContent)).toBe('Вопрос 9: в ответе, который вы дали только что, названо недостаточно пунктов.');
     expect(plain(row('q9').querySelector('.ex-because')?.textContent)).toBe(
-      'Сегодня — «удовлетворительно», в готовность не засчитано. В режиме «Чаще слабые» вопрос будет выпадать чаще.',
+      'Сегодня названо недостаточно пунктов. В режиме «Чаще слабые» вопрос будет выпадать чаще.',
     );
     await waitFor(() => expect(row('q9').querySelector('.ex-qn [data-mark="wave"]')).not.toBeNull(), { timeout: 2000 });
   });
@@ -927,13 +927,13 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText('Засчитано, не подтверждено')).toBeInTheDocument();
+    expect(await within(side).findByText('Названо достаточно, не подтверждено')).toBeInTheDocument();
     const big = side.querySelector('.ex-peak-big') as HTMLElement;
     expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('1');
     expect(plain(big.querySelector('.ex-was')?.textContent)).toBe('было 0');
     expect(plain(side.textContent)).not.toContain('0 → 0');
     expect(plain(row('q4').querySelector('.ex-because')?.textContent)).toBe(
-      'Засчитано сегодня. Подтвердит засчитанный ответ на другой день, не раньше чем через 20 часов.',
+      'Сегодня названо достаточно. Подтвердит такой же ответ на другой день, не раньше чем через 20 часов.',
     );
   });
 
@@ -956,9 +956,10 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText(named('Второй ответ после разбора: по 1 вопросу в первый раз раскрыто 25 % пунктов, во второй — 75 %.'))).toBeInTheDocument();
+    const second = await within(side).findByText(named('Второй ответ после разбора: по 1 вопросу в первый раз раскрыто 25 % пунктов, во второй — 75 %.'));
     expect(mocks.fetchSessionPoints).toHaveBeenCalledWith(expect.arrayContaining(sessions));
-    expect(side.textContent).not.toContain('названо');
+    // The line counts what the check judged «раскрыт» — the protocol's word, not «названо».
+    expect(second.textContent).not.toContain('названо');
   });
 
   it('hides «Второй ответ после разбора» when the points cannot be read', async () => {

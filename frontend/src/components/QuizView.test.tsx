@@ -123,7 +123,7 @@ describe('QuizView scoring', () => {
     choose(2, 'Да');
     fireEvent.click(screen.getByRole('button', { name: 'Проверить ответы' }));
 
-    expect(screen.getByText('0 из 1 — Нужно подтянуть')).toBeInTheDocument();
+    expect(screen.getByText('0 из 1 верно — нужно подтянуть')).toBeInTheDocument();
     expect(screen.getByText('Правильный ответ не указан, вопрос не учитывается.')).toBeInTheDocument();
     expect(screen.getByText(/Без правильного ответа: 1 вопрос/)).toBeInTheDocument();
     // Without the materialId prop nothing goes to the journal.
@@ -145,7 +145,9 @@ describe('QuizView journal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Проверить ответы' }));
 
     expect(await screen.findByText('Результат сохранён')).toBeInTheDocument();
-    expect(screen.getByText('2 из 3 — Удовлетворительно')).toBeInTheDocument();
+    // No words of the 5-point scale (Ф1): the count and the share only.
+    expect(screen.getByText('2 из 3 верно')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Отлично|Хорошо|Удовлетворительно/);
     expect(screen.getByText('67% правильных ответов')).toBeInTheDocument();
     expect(journal.record).toHaveBeenCalledTimes(1);
     const input = journal.record.mock.calls[0][0];

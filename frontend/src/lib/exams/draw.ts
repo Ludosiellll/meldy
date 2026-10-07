@@ -6,8 +6,8 @@
  * - «Как на экзамене» (exam): uniform. Known tickets are drawn whole by their question ids; one
  *   question per section when the layout says so; otherwise q distinct questions at random. The
  *   answer screen gets &mode=exam (no point marks while answering, no «Тянуть ещё»).
- * - «Чаще слабые» (weak): weights by readiness — not checked 3, not засчитан 3, засчитан but not
- *   confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
+ * - «Чаще слабые» (weak): weights by readiness — not checked 3, not passed («названо недостаточно») 3,
+ *   passed but not confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
  *   lectures (coverage none) never come out.
  * - «Из уже отвеченных» (answered): only questions with at least one answer, uniform.
  * - «Ждут подтверждения» (awaiting): questions засчитаны earlier, at least 20 hours and a day
@@ -53,7 +53,7 @@ export interface DrawQuestion {
   readiness: Readiness;
   /** Answers given to this question (exam_answer events, spoken or typed). */
   attempts: number;
-  /** Confirmed, but the last засчитанный answer is 14 or more days old. */
+  /** Confirmed, but the last passed answer is 14 or more days old. */
   stale?: boolean;
   /** Засчитан once, and a good answer now would confirm it (QuestionState.awaiting). */
   awaiting?: boolean;

@@ -8,7 +8,7 @@ import { countDueCards, getDueCards, syncFlashcards, type DueCard } from '../api
 import { fetchQuestionEvents, type LearningEvent } from '../api/learning';
 import { normalizeExam, type ExamKind, type ExamRow, type TicketLayout } from '../api/exams';
 import { compareEventTime, examSummary, statesByHash } from '../lib/learning/readiness';
-import { GRADE_WORDS, KIND_WORDS, daysUntil, formatDay, sheetHeader, subjectOf } from '../lib/exams/format';
+import { KIND_WORDS, daysUntil, formatDay, sheetHeader, subjectOf } from '../lib/exams/format';
 import { allQuestionsWord, coverageShares, glue, layoutPhrase, numberOf, perTicketOf, shareText } from '../components/exams/sheetModel';
 import { COVERAGE_MARK, markSeed, type CoverageMarkKind, type SheetCoverage } from '../components/exams/marks';
 import { Mark } from '../components/marks';
@@ -575,12 +575,6 @@ export function answersSentence(questions: TodayQuestion[], events: LearningEven
   return `Подтверждено ответами — ${summary.confirmed} ${pluralRu(summary.confirmed, QUESTION_FORMS)} из ${questions.length}.`;
 }
 
-function gradeOf(event: LearningEvent): number | null {
-  const raw = isRecord(event.payload) ? event.payload.grade : null;
-  const grade = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
-  return Number.isInteger(grade) && GRADE_WORDS[grade] ? grade : null;
-}
-
 function joinNumbers(numbers: string[]): string {
   if (numbers.length <= 1) return numbers.join('');
   return `${numbers.slice(0, -1).join(', ')} и ${numbers[numbers.length - 1]}`;
@@ -588,7 +582,7 @@ function joinNumbers(numbers: string[]): string {
 
 /**
  * The dated note about the last two days (today and yesterday, local dates): the latest answer by
- * its question number and grade word, and the questions that became confirmed in these two days —
+ * its question number (no grade word since Ф1), and the questions that became confirmed in these two days —
  * confirmed by all the answers now, not confirmed by the answers before yesterday. Question numbers
  * only: a ticket number exists only for the department's tickets and is never made up. Null when
  * nothing was answered in these two days.
@@ -607,8 +601,7 @@ export function recentNote(questions: TodayQuestion[], events: LearningEvent[] |
   if (!answered) return null;
 
   const day = latest.local_date >= today ? 'Сегодня' : 'Вчера';
-  const grade = gradeOf(latest);
-  const head = grade ? `${day}: вопрос ${numberOf(answered)} — «${GRADE_WORDS[grade]}».` : `${day}: ответ на вопрос ${numberOf(answered)}.`;
+  const head = `${day}: ответ на вопрос ${numberOf(answered)}.`;
 
   const before = statesByHash(events.filter((event) => typeof event.local_date === 'string' && event.local_date < from));
   const now = statesByHash(events);

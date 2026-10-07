@@ -7,6 +7,7 @@ import { conceptNode, lectureNode, type MapConcept, type MapLecture, type MapVie
 import { NumberMark } from './NumberMark';
 import { seedFrom } from '../marks';
 import { formatDay } from '../../lib/exams/format';
+import { READINESS_LABELS } from '../../lib/learning/readiness';
 import { fragmentsPhrase } from '../exams/sheetModel';
 
 /**
@@ -351,7 +352,7 @@ export function MapGuide({ view, onSelect }: { view: MapView; onSelect: (node: N
                 <span className="km-quiet-inline">
                   {' — '}
                   {[
-                    failed.length ? `не засчитано: ${failed.map((question) => question.number).join(', ')}` : '',
+                    failed.length ? `${READINESS_LABELS.not_passed}: ${failed.map((question) => question.number).join(', ')}` : '',
                     mistakes ? count(mistakes, ['открытая ошибка', 'открытые ошибки', 'открытых ошибок']) : '',
                   ]
                     .filter(Boolean)

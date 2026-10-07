@@ -6,7 +6,7 @@
  * as rows with number circles, the words said under them); right: the examiner's desk — the count,
  * the examiner's question in a blue-tinted card, the grade. One blue pill per state. Pencil marks
  * come from components/marks: a provisional dot while answering, the status marks in coloured
- * badges and «Засчитано» in its oval after the check. Every class is scoped under the paper kit's
+ * badges after the check, and under the date what the answer did to the cheat sheet (no grade, Ф1). Every class is scoped under the paper kit's
  * roots (.sf-page, .sf-room-bar), so nothing leaks. */
 
 .sf-page,
@@ -19,7 +19,6 @@
   --or-no-fg: #50565f;
   --or-pink-bg: #fbe3ec;
   --or-pink-fg: #96365d;
-  --or-stamp: #2b7f48;
   --or-hover: #f6f6f2;
   --or-num: #f1f1ec;
   --or-bar: #e9e9e3;
@@ -32,7 +31,6 @@
   --or-no-fg: #bcc1ca;
   --or-pink-bg: rgba(243, 169, 196, .16);
   --or-pink-fg: #f6bfd3;
-  --or-stamp: #8acb97;
   --or-hover: rgba(243, 243, 240, .05);
   --or-num: rgba(243, 243, 240, .09);
   --or-bar: rgba(243, 243, 240, .1);
@@ -548,29 +546,18 @@
 .sf-page .or-psheet { padding: 24px 22px 24px; border-radius: 40px; }
 .sf-page .or-ph { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 0 10px 14px 12px; }
 .sf-page .or-ph-date { font-family: var(--ph-sans); font-size: 15px; line-height: 22px; font-weight: 500; color: var(--ph-paper-muted); }
-/* «Засчитано»: a green stamp, the word in capitals inside the pencil oval, a little askew (the reel). */
-.sf-page .or-stamp { flex: none; margin: 6px 14px 6px 0; font-family: var(--ph-sans); font-size: 20px; line-height: 24px; font-weight: 700; color: var(--ph-paper-ink); }
-.sf-page .or-stamp[data-passed='true'] {
-  --ph-pencil-desk: var(--or-stamp);
-  /* The oval runs 16 px past the word on each side: the stamp keeps that room inside the card. */
-  margin: 10px 20px 10px 18px;
-  color: var(--or-stamp);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  transform: rotate(-5deg);
+/* Where the «Засчитано» stamp was (Ф1): what the answer did to the cheat sheet, a line of its own under the date. */
+.sf-page .or-ph-sheet {
+  flex: 1 1 100%;
+  margin: 0;
+  font-family: var(--ph-sans);
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ph-paper-ink);
+  text-wrap: pretty;
 }
-.sf-page .or-stamp[data-passed='true'] .sf-ink { opacity: 1; }
-.sf-page .or-stamp[data-passed='false'] {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--or-no-bg);
-  color: var(--or-no-fg);
-  font-size: 15px;
-  font-weight: 500;
-}
+.sf-page .or-ph-sheet .sf-link { font-size: inherit; font-weight: 500; vertical-align: baseline; }
 .sf-page .or-prelim { padding: 0 12px 8px; font-size: 15px; line-height: 22px; color: var(--ph-paper-muted); }
 /* Why the examiner asked, under the sheet's header: above the fold on the stage (18 px), and one click
    brings the asked point into view (Jury_Check item 9). Pencil blue: Meldy's note on the paper. */
@@ -664,9 +651,9 @@
 }
 .sf-page .or-extra-label { font-family: var(--ph-sans); font-size: 15px; font-weight: 600; color: var(--sf-accent-fg); }
 
-/* ---------------------------------------------------------------- protocol: the grade */
-/* The grade in a white card: «Оценка» as a flag, the digit very large with its word, the counts in a
-   sentence, «Как считается»; the follow-up's review card and the way on under a hairline. */
+/* ---------------------------------------------------------------- protocol: the result */
+/* The result in a white card (Ф1, no grade): «Итог» as a flag, «Назвали сами 3 из 4 главных · …» large,
+   the counts in a sentence, «Как считается»; the follow-up's review card and the way on under a hairline. */
 .sf-page .or-grade { padding: 28px 32px 30px; border-radius: 40px; background: var(--sf-surface); box-shadow: var(--or-card); }
 .sf-page .or-grade-label {
   display: inline-flex;
@@ -681,19 +668,12 @@
   font-weight: 500;
   clip-path: polygon(0 0, 100% 0, calc(100% - 11px) 50%, 100% 100%, 0 100%);
 }
-.sf-page .or-grade-g { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 14px 0 0; }
-.sf-page .or-grade-digit { font-size: 112px; line-height: .86; font-weight: 500; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
-.sf-page .or-grade-word { font-size: 40px; line-height: 1; font-weight: 500; letter-spacing: -.03em; }
-/* «удовлетворительно», «неудовлетворительно»: on the digit's line, not under it. */
-.sf-page .or-grade-word[data-long] { font-size: 30px; letter-spacing: -.025em; }
-.sf-page .or-grade-why { margin: 18px 0 0; max-width: 24em; font-size: 20px; line-height: 28px; text-wrap: pretty; }
+.sf-page .or-sum { margin: 14px 0 0; max-width: 18em; font-size: 32px; line-height: 1.15; font-weight: 500; letter-spacing: -.025em; text-wrap: balance; }
+.sf-page .or-grade-why { margin: 14px 0 0; max-width: 26em; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .or-grade-fine { margin: 10px 0 0; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
-/* A saved answer: how its grade relates to today's formula. */
-.sf-page .or-grade-note { margin: 8px 0 0; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .or-how { margin-top: 10px; padding: 14px 18px 12px; border-radius: 22px; background: var(--sf-surface-soft); }
-.sf-page .or-how-formula { margin: 0; font-family: var(--ph-sans); font-size: 21px; line-height: 30px; font-weight: 500; font-variant-numeric: tabular-nums lining-nums; overflow-wrap: anywhere; }
 .sf-page .or-how-text { margin: 6px 0 0; max-width: 32em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
-.sf-page .or-how-cap { color: var(--sf-ink); }
+.sf-page .or-how-text:first-child { margin-top: 0; }
 .sf-page .or-back { position: relative; z-index: 0; margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--sf-line); }
 /* The follow-up became a review card: the card «вернётся завтра», with two more under it (as on «Сегодня»). */
 .sf-page .or-rcard {
@@ -731,7 +711,7 @@
 .sf-page .or-save-line[data-state='failed'] { color: var(--sf-ink); }
 .sf-page .or-how-row { margin: 8px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .or-how-row .sf-link { font-size: 15px; vertical-align: baseline; }
-/* «Прошлый ответ, 3 окт.: «хорошо».» — its own muted line, the date is the link. */
+/* «Прошлый ответ, 3 окт.» — its own muted line, the date is the link. */
 .sf-page .or-prev-line { margin: 2px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 .sf-page .or-grade > .or-acts { margin-top: 26px; }
 @media (min-width: 1024px) and (pointer: fine) {
@@ -756,7 +736,7 @@
   .sf-page .or-examiner::before { left: 20px; top: 14px; }
   .sf-page .or-examiner-q { margin-top: 6px; }
   .sf-page .or-grade { padding: 20px 26px 22px; }
-  .sf-page .or-grade-digit { font-size: 88px; }
+  .sf-page .or-sum { margin-top: 10px; font-size: 28px; }
   .sf-page .or-grade-why { margin-top: 10px; }
   .sf-page .or-back { margin-top: 16px; padding-top: 16px; }
   .sf-page .or-rcard { width: 280px; min-height: 168px; padding: 42px 20px 18px; }
@@ -872,17 +852,15 @@
   .sf-page .or-ppt-t { font-size: 17px; line-height: 24px; }
   .sf-page .or-q2, .sf-page .or-pslip { font-size: 16px; line-height: 25px; }
   .sf-page .or-grade { padding: 22px 22px 24px; border-radius: 32px; }
-  .sf-page .or-grade-digit { font-size: 80px; }
-  .sf-page .or-grade-word { font-size: 32px; }
-  .sf-page .or-grade-word[data-long] { font-size: 25px; }
-  .sf-page .or-grade-why { font-size: 18px; line-height: 26px; }
+  .sf-page .or-sum { font-size: 26px; }
+  .sf-page .or-grade-why { font-size: 16px; line-height: 24px; }
   .sf-page .or-rcard { width: 100%; max-width: 330px; }
   .sf-page .or-state { padding: 22px 20px 24px; border-radius: 28px; }
 }
 
 @media (max-width: 639px) {
   .sf-page .or-ph { gap: 6px 12px; }
-  .sf-page .or-stamp[data-passed='true'] { font-size: 17px; }
+  .sf-page .or-ph-sheet { font-size: 16px; line-height: 23px; }
 }
 
 /* Voice recognised on the server: the microphone level and what is happening with the words. */

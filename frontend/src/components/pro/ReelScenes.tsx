@@ -386,7 +386,7 @@ function Pro() {
     put(one('strip'), 'transform', `translate3d(${x.toFixed(1)}px,0,0)`);
     blur(one('strip'), Math.min(18, Math.abs(x - stripAt(l - 16)) * 0.45));
 
-    // Ticket after ticket: stamped «Засчитано», then off to the left; the next one comes forward.
+    // Ticket after ticket: stamped «Проверено», then off to the left; the next one comes forward.
     let gone = 0;
     for (let index = 0; index < PRO_TICKETS - 1; index += 1) gone += ease.inOut(seg(l, STAMP_AT(index) + 200, 320));
     all('pcard').forEach((card, index) => {
@@ -440,7 +440,7 @@ function Pro() {
                     <svg viewBox="0 0 400 160" aria-hidden="true">
                       <path data-a="oval" pathLength={1} d="M200 12 C 320 10, 392 46, 386 84 C 380 128, 300 152, 196 148 C 84 146, 10 120, 14 78 C 18 36, 92 14, 214 16" />
                     </svg>
-                    Засчитано
+                    Проверено
                   </span>
                 </div>
               ))}

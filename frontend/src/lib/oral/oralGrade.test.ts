@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import vectors from '../../test/fixtures/oral_match_vectors.json';
-import { countsSentence, formulaLine, gradeAnswer, gradeLine, ruNumber, type GradedPoint, type PointStatus } from './oralGrade';
+import { countsSentence, gradeAnswer, type GradedPoint, type PointStatus } from './oralGrade';
 
 function pointsOf(statuses: Record<string, string>, essential: string[]): GradedPoint[] {
   return Object.keys(statuses)
@@ -61,11 +61,12 @@ describe('grade v2 (contracts §7.6 + Jury_Check item 3, shared vectors)', () =>
     );
   });
 
-  it('passes only with 4 or 5', () => {
+  it('passes only with 4 or 5, and carries no word for the screen (Ф1: the grade stays internal)', () => {
     const four = gradeAnswer(pointsOf({ p1: 'covered', p2: 'covered', p3: 'covered', p4: 'missing', p5: 'covered' }, ['p1', 'p2', 'p3', 'p4']), null);
-    expect(four).toMatchObject({ grade: 4, word: 'хорошо', passed: true });
+    expect(four).toMatchObject({ grade: 4, passed: true });
     const three = gradeAnswer(pointsOf({ p1: 'covered', p2: 'missing', p3: 'missing' }, ['p1', 'p2', 'p3']), null);
-    expect(three).toMatchObject({ grade: 2, word: 'неудовлетворительно', passed: false });
+    expect(three).toMatchObject({ grade: 2, passed: false });
+    expect(four).not.toHaveProperty('word');
   });
 
   it('records the credit of every point after the follow-up, null for unrated', () => {
@@ -93,9 +94,10 @@ describe('the cap for a main point not recovered on the follow-up (v2)', () => {
     // «Не знаю» (the button) and silence after «Не расслышал ответ» come without a judge.
     for (const judgedBy of [undefined, null] as const) {
       const result = gradeAnswer(stage, { point_id: 'p4', status: 'missing', judgedBy });
-      expect(result).toMatchObject({ score: 67, grade: 3, word: 'удовлетворительно', passed: false, cap: 'essential_unrecovered', capSkipped: null });
+      expect(result).toMatchObject({ score: 67, grade: 3, passed: false, cap: 'essential_unrecovered', capSkipped: null });
       expect(result.capPoint).toEqual({ id: 'p4', number: 4 });
-      expect(formulaLine(result)).toBe('(2 + 2 + 1 + 0 + 1) / 9 = 67 из 100 → 3');
+      // (2 + 2 + 1 + 0 + 1) / 9 = 67 of 100.
+      expect(result).toMatchObject({ sumWeighted: 6, sumWeights: 9 });
     }
   });
 
@@ -106,8 +108,9 @@ describe('the cap for a main point not recovered on the follow-up (v2)', () => {
 
   it('lifts the cap with a partial or covered answer to the follow-up', () => {
     const partial = gradeAnswer(stage, { point_id: 'p4', status: 'partial', judgedBy: 'check' });
-    expect(partial).toMatchObject({ score: 72, grade: 4, word: 'хорошо', passed: true, cap: null, capSkipped: null, capPoint: null });
-    expect(formulaLine(partial)).toBe('(2 + 2 + 1 + 0,5 + 1) / 9 = 72 из 100 → 4');
+    expect(partial).toMatchObject({ score: 72, grade: 4, passed: true, cap: null, capSkipped: null, capPoint: null });
+    // (2 + 2 + 1 + 0,5 + 1) / 9 = 72 of 100.
+    expect(partial).toMatchObject({ sumWeighted: 6.5, sumWeights: 9 });
     expect(gradeAnswer(stage, { point_id: 'p4', status: 'covered', judgedBy: 'check' })).toMatchObject({ score: 78, grade: 4, cap: null });
   });
 
@@ -171,20 +174,17 @@ describe('protocol words', () => {
     expect(countsSentence({ covered: 5, partial: 0, missing: 0, wrong: 0, unrated: 0, total: 5 })).toBe('Раскрыто 5 пунктов из 5.');
   });
 
-  it('writes the formula with this answer’s numbers', () => {
+  it('keeps the score and the grade for the save: record_oral_attempt requires them', () => {
     const result = gradeAnswer(
       pointsOf({ p1: 'covered', p2: 'covered', p3: 'covered', p4: 'missing', p5: 'covered' }, ['p1', 'p2', 'p3', 'p4']),
       { point_id: 'p4', status: 'missing' },
     );
-    expect(formulaLine(result)).toBe('(2 + 2 + 2 + 0 + 1) / 9 = 78 из 100 → 3');
-    expect(gradeLine(result.grade)).toBe('3 · удовлетворительно');
-    expect(ruNumber(0.25)).toBe('0,25');
+    // (2 + 2 + 2 + 0 + 1) / 9 = 78 of 100, capped at 3 by the unrecovered main point.
+    expect(result).toMatchObject({ score: 78, grade: 3, passed: false, sumWeighted: 7, sumWeights: 9 });
+    expect(result.terms.map((term) => term.weight * term.credit)).toEqual([2, 2, 2, 0, 1]);
   });
 
-  it('has no formula without a grade or without terms (never «() / 9 = …»)', () => {
-    expect(formulaLine(gradeAnswer(pointsOf({ p1: 'unrated' }, ['p1']), null))).toBeNull();
-    expect(gradeLine(null)).toBeNull();
-    const result = gradeAnswer(pointsOf({ p1: 'covered', p2: 'missing' }, ['p1']), null);
-    expect(formulaLine({ ...result, terms: [] })).toBeNull();
+  it('has no score and no grade when no point was rated', () => {
+    expect(gradeAnswer(pointsOf({ p1: 'unrated' }, ['p1']), null)).toMatchObject({ score: null, grade: null, passed: false, terms: [] });
   });
 });

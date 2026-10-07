@@ -3,6 +3,11 @@
  * Client only: no endpoint ever returns a score or a grade, so nothing can stand in for a missing
  * evaluation.
  *
+ * Internal since Ф1 (2026-10-07): record_oral_attempt requires the score and the grade, and a grade of
+ * 4 or 5 is the answer that counts towards «подтверждено» (lib/learning/readiness.ts), but the screen
+ * never shows a grade, its word or «Засчитано» — the department grades on the 10-point scale. The
+ * protocol shows what was named instead (answerSummary.ts).
+ *
  * w = 2 for an essential point, 1 otherwise; c: covered 1, partial 0.5, missing 0, wrong 0;
  * unrated points are left out. The follow-up point gets c = max(c, 0.5) when the follow-up answer
  * is covered and max(c, 0.25) when it is partial. score = floor(100·Σw·c / Σw + 0.5), null when
@@ -22,13 +27,6 @@
 export type PointStatus = 'covered' | 'partial' | 'missing' | 'wrong' | 'unrated';
 export type FollowupStatus = 'covered' | 'partial' | 'missing' | 'wrong';
 export type Grade = 2 | 3 | 4 | 5;
-
-export const GRADE_WORDS: Record<Grade, string> = {
-  5: 'отлично',
-  4: 'хорошо',
-  3: 'удовлетворительно',
-  2: 'неудовлетворительно',
-};
 
 /** Status words of the protocol (point lines) and of the counts. */
 export const STATUS_WORDS: Record<PointStatus, string> = {
@@ -78,8 +76,7 @@ export type GradeCap = 'essential_unrecovered' | 'essential_wrong' | 'two_wrong'
 export interface GradeResult {
   score: number | null;
   grade: Grade | null;
-  word: string | null;
-  /** «Засчитано» (counts towards readiness): grade 4 or 5. */
+  /** Counts towards «подтверждено» (readiness.ts): grade 4 or 5. Internal: never said on screen. */
   passed: boolean;
   /** One term per rated point, rubric order. */
   terms: GradeTerm[];
@@ -101,10 +98,6 @@ export interface GradeResult {
 
 function isStatus(value: unknown): value is PointStatus {
   return value === 'covered' || value === 'partial' || value === 'missing' || value === 'wrong' || value === 'unrated';
-}
-
-export function gradeWord(grade: number | null | undefined): string | null {
-  return grade === 2 || grade === 3 || grade === 4 || grade === 5 ? GRADE_WORDS[grade] : null;
 }
 
 export function gradeFromScore(score: number): Grade {
@@ -162,7 +155,7 @@ export function gradeAnswer(points: readonly GradedPoint[], followup: GradeFollo
   }
 
   const empty = { terms, credits, sumWeights, sumWeighted, counts, capSkipped: null, capPoint: null };
-  if (sumWeights === 0) return { score: null, grade: null, word: null, passed: false, cap: null, ...empty };
+  if (sumWeights === 0) return { score: null, grade: null, passed: false, cap: null, ...empty };
 
   const score = Math.floor((100 * sumWeighted) / sumWeights + 0.5);
   const base = gradeFromScore(score);
@@ -182,7 +175,6 @@ export function gradeAnswer(points: readonly GradedPoint[], followup: GradeFollo
   return {
     score,
     grade,
-    word: GRADE_WORDS[grade],
     passed: grade >= 4,
     terms,
     credits,
@@ -193,12 +185,6 @@ export function gradeAnswer(points: readonly GradedPoint[], followup: GradeFollo
     capSkipped,
     capPoint,
   };
-}
-
-/** «0,5» — a Russian decimal comma, no trailing zeros. */
-export function ruNumber(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  return String(rounded).replace('.', ',');
 }
 
 function plural(n: number, one: string, few: string, many: string): string {
@@ -222,7 +208,7 @@ function counted(n: number, singular: string, pluralForm: string): string {
 }
 
 /**
- * The plain sentence under the grade (redesign spec 5.12):
+ * The plain sentence under the result (redesign spec 5.12):
  * «Раскрыто 3 пункта из 5, один упомянут, один не назван.»; with an error
  * «Раскрыто 2 пункта из 5, в одном ошибка, один упомянут, один не назван.»
  */
@@ -235,20 +221,4 @@ export function countsSentence(counts: GradeCounts): string {
   if (counts.missing > 0) parts.push(counted(counts.missing, 'не назван', 'не названы'));
   if (counts.unrated > 0) parts.push(counted(counts.unrated, 'не оценён', 'не оценены'));
   return `${parts.join(', ')}.`;
-}
-
-/** The compact line of the plan and the attempt rows: «4 · хорошо». */
-export function gradeLine(grade: number | null | undefined): string | null {
-  const word = gradeWord(grade);
-  return word ? `${grade} · ${word}` : null;
-}
-
-/**
- * «(2 + 2 + 2 + 0 + 1) / 9 = 78 из 100 → 4» — the formula with this answer's numbers; null without
- * a grade or without terms (a saved grade the formula no longer gives has none: never «() / 9»).
- */
-export function formulaLine(result: GradeResult): string | null {
-  if (result.score === null || result.grade === null || result.terms.length === 0) return null;
-  const terms = result.terms.map((term) => ruNumber(term.weight * term.credit));
-  return `(${terms.join(' + ')}) / ${ruNumber(result.sumWeights)} = ${result.score} из 100 → ${result.grade}`;
 }

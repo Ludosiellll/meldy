@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { answerQuote, drawExampleQuestion, exampleFollowup, judgeFollowupAnswer, keywordEvaluation, resetExampleDraws, STUDENT_QUOTE_CHARS } from './exampleFlow';
 import { exampleQuestion, exampleRubric } from '../../data/example';
 import { liveMarks } from '../../lib/oral/rubricMatch';
-import { formulaLine, gradeAnswer } from '../../lib/oral/oralGrade';
+import { gradeAnswer } from '../../lib/oral/oralGrade';
 
 const rubricOf = (id: string) => exampleRubric(exampleQuestion(id)!)!;
 
@@ -119,8 +119,8 @@ describe('judgeFollowupAnswer: the answer to the examiner', () => {
 describe('the grade: the app’s formula over the example’s check', () => {
   it('scores a partial answer with a partial answer to the follow-up: (0,5 + 2 + 1 + 0) / 6 = 58 → 3', () => {
     const result = grade('q1', Q1_PARTIAL, { status: 'partial', judgedBy: 'keywords' });
-    expect(result.grade).toBe(3);
-    expect(formulaLine(result)).toBe('(0,5 + 2 + 1 + 0) / 6 = 58 из 100 → 3');
+    expect(result).toMatchObject({ score: 58, grade: 3, sumWeighted: 3.5, sumWeights: 6 });
+    expect(result.terms.map((term) => term.weight * term.credit)).toEqual([0.5, 2, 1, 0]);
   });
 
   it('applies the cap for a main point the examiner asked about and «не знаю» (a trusted verdict)', () => {

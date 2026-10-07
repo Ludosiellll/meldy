@@ -3,7 +3,7 @@ import { shape, type MarkKind } from './geometry';
 import { PencilSvg, type PencilHand } from './PencilSvg';
 
 /**
- * Marks that sit on a piece of text: the readiness marks of a number, the oval of «Засчитано» and
+ * Marks that sit on a piece of text: the readiness marks of a number, a pencil oval around a word and
  * the strike across a figure that is replaced by another one («60 %» of peak 1).
  */
 export type TextMarkKind = 'ring' | 'under' | 'wave' | 'oval' | 'strike';
@@ -78,8 +78,8 @@ const DEFAULT_PAD: Record<TextMarkKind, { x: number; y: number }> = {
 
 /**
  * A one-line piece of text with a pencil mark on it: a ring around a question number
- * (подтверждено), a line under it (засчитано, не подтверждено), a wavy line (не засчитано), an oval
- * around a word («Засчитано»), a strike across a figure. The text keeps its place in the line; the
+ * (подтверждено), a line under it (названо достаточно, не подтверждено), a wavy line (названо
+ * недостаточно), an oval around a word, a strike across a figure. The text keeps its place in the line; the
  * mark is aria-hidden, so say its meaning next to it in words.
  */
 export function TextMark({
@@ -129,7 +129,7 @@ export function TextMark({
 }
 
 /**
- * «Засчитано» in a pencil oval (protocol). `delayMs` lets the protocol draw it after its last point mark;
+ * A word in a pencil oval (the protocol's stamp until Ф1, 2026-10-07; the protocol has none now). `delayMs` draws it after other marks;
  * padX / padY widen the oval around the word (spec 3.8: word +10/+7).
  */
 export function PencilOval({

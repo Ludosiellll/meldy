@@ -18,6 +18,7 @@ import {
   closePartialLine,
   confidenceSentence,
   confirmedSentence,
+  knowPassedSentence,
   noneFigureName,
   noneLabel,
   noneTicketsLine,
@@ -497,7 +498,7 @@ export function RateSummary({ counts, confidence, answers, answersError, filter,
           <p className="ex-stmt" style={{ marginTop: 14 }}>
             {glue(
               confidence.enoughData
-                ? `Из ${confidence.ratedKnowAnswered} ${pluralRu(confidence.ratedKnowAnswered, ['вопроса', 'вопросов', 'вопросов'])} с отметкой «знаю», на которые вы ответили, засчитано ${confidence.ratedKnowPassed}.`
+                ? knowPassedSentence(confidence, true)
                 : confidenceSentence(confidence),
             )}
           </p>
@@ -556,7 +557,7 @@ export function peakGrowthSpoken(growth: PeakGrowth): string {
  * bad answer still shows the way so far; never «0 → 0»: with nothing confirmed the column keeps the
  * count of the transition, «3», and beside it «было 2» (a struck-out 0 read as «ø», redesign
  * critique 2). Then the statement about the answer just given and «Второй ответ после разбора» at
- * 18 px, and «Подтверждено — значит, засчитано дважды, в разные дни.» with the share of tickets.
+ * 18 px, and «Подтверждено — значит, дважды, в разные дни, …» (CONFIRMED_MEANING) with the share of tickets.
  */
 export function PeakSummary({ peak, confidence, onClose }: { peak: PeakView; confidence: string | null; onClose: () => void }) {
   const was = peak.before !== null && peak.before !== peak.after ? peak.before : null;

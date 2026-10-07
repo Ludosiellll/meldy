@@ -105,7 +105,7 @@ describe('WhyPanel: a question that is not in the lectures', () => {
   it('explains a «yes» without a valid fragment', () => {
     renderPanel({ question: question({ coverage_reason: 'Нет подтверждающего фрагмента' }) });
     expect(screen.getByRole('heading', { name: named('Нет фрагмента, который подтверждает ответ') })).toBeInTheDocument();
-    expect(screen.getByText(/без ссылки на конкретный фрагмент засчитать нельзя/)).toBeInTheDocument();
+    expect(screen.getByText(/без ссылки на конкретный фрагмент вопрос не считается найденным/)).toBeInTheDocument();
   });
 
   it('says «В лекции» when there is only one («ни в одной из 1 лекции» is not Russian)', () => {
@@ -182,18 +182,29 @@ describe('WhyPanel: a question that is in the lectures', () => {
 });
 
 describe('WhyPanel: answers', () => {
-  it('lists every attempt with its date and grade, newest first, each opening its protocol', () => {
+  /** An answer at 10:00 local time (the label shows the local moment). */
+  const local = (id: string, day: string, grade: number, session: string | null): LearningEvent => {
+    const [y, m, d] = day.split('-').map(Number);
+    return { ...answer(id, day, grade, session), created_at: new Date(y, m - 1, d, 10, 0).toISOString() };
+  };
+
+  it('lists every attempt with its moment and whether it named enough, newest first, each opening its protocol (no grade, Ф1)', () => {
     renderPanel({
       question: question({ coverage: 'full', evidence: [], nearest: [] }),
       coverage: 'full',
-      answers: [answer('e1', '2026-09-29', 4, 'session-1'), answer('e2', '2026-10-07', 3, 'session-2'), answer('e3', '2026-10-08', 5, null)],
+      answers: [local('e1', '2026-09-29', 4, 'session-1'), local('e2', '2026-10-07', 3, 'session-2'), local('e3', '2026-10-08', 5, null)],
     });
     const list = screen.getByRole('list');
     const items = within(list).getAllByRole('listitem');
-    expect(items.map((item) => item.textContent)).toEqual(['8 окт. · 5 · отлично', '7 окт. · 3 · удовлетворительно', '29 сент. · 4 · хорошо']);
-    expect(within(list).getByRole('link', { name: '7 окт. · 3 · удовлетворительно' })).toHaveAttribute('href', '/exams/exam-1/ticket?session=session-2');
-    expect(within(list).getByRole('link', { name: '29 сент. · 4 · хорошо' })).toHaveAttribute('href', '/exams/exam-1/ticket?session=session-1');
-    expect(within(list).queryByRole('link', { name: '8 окт. · 5 · отлично' })).toBeNull();
+    expect(items.map((item) => item.textContent)).toEqual([
+      '8 окт., 10:00 · названо достаточно',
+      '7 окт., 10:00 · названо недостаточно',
+      '29 сент., 10:00 · названо достаточно',
+    ]);
+    expect(within(list).getByRole('link', { name: '7 окт., 10:00 · названо недостаточно' })).toHaveAttribute('href', '/exams/exam-1/ticket?session=session-2');
+    expect(within(list).getByRole('link', { name: '29 сент., 10:00 · названо достаточно' })).toHaveAttribute('href', '/exams/exam-1/ticket?session=session-1');
+    expect(within(list).queryByRole('link', { name: '8 окт., 10:00 · названо достаточно' })).toBeNull();
+    expect(list.textContent).not.toMatch(/отлично|хорошо|удовлетвор|[2-5] ·|засчит/);
   });
 
   it('says when the history could not be read', () => {
@@ -201,8 +212,9 @@ describe('WhyPanel: answers', () => {
     expect(screen.getByText('Не удалось загрузить историю ответов. Повторите попытку.')).toBeInTheDocument();
   });
 
-  it('formats an attempt without a grade honestly', () => {
-    expect(attemptLabel({ ...answer('e9', '2026-10-07', 4, 's'), payload: {} })).toBe('7 окт. · без оценки');
+  it('formats an attempt without a verdict honestly: its moment only, or its day', () => {
+    expect(attemptLabel({ ...local('e9', '2026-10-07', 4, 's'), correct: null, payload: {} })).toBe('7 окт., 10:00');
+    expect(attemptLabel({ ...answer('e9', '2026-10-07', 4, 's'), created_at: 'not a date', correct: null })).toBe('7 окт.');
   });
 });
 
@@ -216,14 +228,14 @@ describe('WhyPanel: where the question stands by the rule «подтвержде
   const plain = (text: string | null) => (text ?? '').replace(/[\u00a0\u202f]/g, ' ');
   const line = (answers: LearningEvent[], now = NOW) => plain(readinessLine(questionState(answers, [], now), answers, now));
 
-  it('dates a confirmation by the last засчитанный answer, the moment the 14-day rule counts from', () => {
+  it('dates a confirmation by the last passed answer, the moment the 14-day rule counts from', () => {
     const answers = [at('2026-09-29', 14, 2, 4), at('2026-10-01', 9, 0, 5), at('2026-10-03', 10, 0, 4)];
     expect(line(answers)).toBe('Подтверждено 3 октября — 2 дня назад.');
     expect(line(answers, new Date(2026, 9, 3, 18, 0))).toBe('Подтверждено сегодня.');
     expect(line(answers, new Date(2026, 9, 4, 18, 0))).toBe('Подтверждено вчера.');
   });
 
-  it('says «пора проверить» 14 days after the last засчитанный answer', () => {
+  it('says «пора проверить» 14 days after the last passed answer', () => {
     const answers = [at('2026-09-17', 10, 0, 4), at('2026-09-19', 10, 0, 5)];
     expect(line(answers)).toBe('Подтверждено 16 дней назад — пора проверить.');
   });
@@ -231,16 +243,16 @@ describe('WhyPanel: where the question stands by the rule «подтвержде
   it('names the earliest moment a question passed once can be confirmed', () => {
     const answers = [at('2026-10-03', 14, 2, 4)];
     expect(line(answers, new Date(2026, 9, 3, 18, 0))).toBe(
-      'Засчитано 3 окт., 14:02. Подтвердит засчитанный ответ на другой день, не раньше 4 окт., 10:02.',
+      'Ответ 3 окт., 14:02 — названо достаточно. Подтвердит такой же ответ на другой день, не раньше 4 окт., 10:02.',
     );
-    // That moment has come: a good answer now confirms it.
-    expect(line(answers, new Date(2026, 9, 4, 11, 0))).toBe('Засчитано 3 окт., 14:02. Засчитанный ответ сейчас подтвердит вопрос.');
+    // That moment has come: such an answer now confirms it.
+    expect(line(answers, new Date(2026, 9, 4, 11, 0))).toBe('Ответ 3 окт., 14:02 — названо достаточно. Такой же ответ сейчас подтвердит вопрос.');
   });
 
-  it('says a failed answer is not засчитан and the series starts over', () => {
+  it('says a failed answer named too little and the series starts over, with no grade word', () => {
     const answers = [at('2026-10-01', 10, 0, 4), at('2026-10-03', 10, 0, 3)];
     expect(line(answers)).toBe(
-      'Последний ответ 3 окт. — «удовлетворительно», не засчитано. Серия начнётся заново со следующего засчитанного ответа.',
+      'Последний ответ 3 окт. — названо недостаточно. Серия начнётся заново со следующего ответа, где названо достаточно.',
     );
     expect(readinessLine(questionState([], []), [], NOW)).toBeNull();
   });

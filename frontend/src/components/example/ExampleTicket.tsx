@@ -11,7 +11,6 @@ import ExaminerLine, { ExaminerThinking } from '../oral/ExaminerLine';
 import PrivacySheet from '../oral/PrivacySheet';
 import { ProtocolSheet, livePoints, type ProtocolFollowup } from '../oral/OralProtocol';
 import { liveMarks, namedPoints, underlinedFinalWords, words } from '../../lib/oral/rubricMatch';
-import { gradeAnswer, type GradeResult } from '../../lib/oral/oralGrade';
 import { answerTime, closingLine, initialTicketState, ticketReducer, type AnswerMode, type TicketState } from '../../lib/oral/ticketMachine';
 import type { AnswerInput } from '../../lib/oral/oralPersistence';
 import { elapsedLabel, glue, longDateTime, plural } from '../../lib/oral/format';
@@ -101,14 +100,17 @@ function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0
   return sheetQuestion ? answerChange(sheetQuestion, events, answer.session, Date.now()) : null;
 }
 
-/** «На шпаргалке: 3 строки стёрлись, 1 — наполовину»; «К шпаргалке» right under it leads there. */
-function SheetChangeLine({ change }: { change: AnswerChange }) {
-  return <p className="or-save-line or-sheet-change">{glue(protocolSheetLine(change.summary, change.quiet))}</p>;
+/**
+ * «На шпаргалке: 3 строки стёрлись, 1 — наполовину» — in the protocol's header, where the real protocol
+ * says what the answer did to the sheet (Ф1); «К шпаргалке» on the desk leads there.
+ */
+function sheetNoteOf(change: AnswerChange | null): string | null {
+  return change ? glue(protocolSheetLine(change.summary, change.quiet)) : null;
 }
 
 /**
  * The protocol of an answer kept in this tab: yesterday's answers of the example, or the guest's own.
- * The same paper as after an answer, read only: the points as they were named, the grade, the way
+ * The same paper as after an answer, read only: the points as they were named, the result, the way
  * back to the sheet and to answering again.
  */
 function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer: TryAnswer }) {
@@ -123,10 +125,8 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
     verdict: '',
   };
   const named = new Set(rubric.points.filter((point) => answer.statuses[point.id] === 'covered').map((point) => point.id));
-  const grade = gradeAnswer(
-    rubric.points.map((point) => ({ id: point.id, essential: point.essential, status: answer.statuses[point.id] ?? 'unrated' })),
-    answer.followup ? { point_id: answer.followup.pointId, status: answer.followup.status, judgedBy: answer.followup.judgedBy } : null,
-  );
+  const points = livePoints(rubric, evaluation, named);
+  const followup = answer.followup ? { ...answer.followup } : null;
   const heading = ticketHeading(null, 0, 1, String(question.number));
   const seeded = isSeededSession(answer.session);
   const when = longDateTime(new Date(answer.at));
@@ -140,14 +140,13 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
         <section className="or-left" aria-label="Пункты ответа и ваш ответ">
           <ProtocolSheet
             heading={glue(`${heading.strong} · ответ ${when}`)}
-            points={livePoints(rubric, evaluation, named)}
-            followup={answer.followup ? { ...answer.followup } : null}
-            stamp="none"
+            points={points}
+            followup={followup}
             seed={`example:${question.id}:${answer.session}`}
             animate={false}
           />
         </section>
-        <section className="or-side" aria-label="Оценка">
+        <section className="or-side" aria-label="Итог">
           <p className="or-readonly-note">
             {glue(
               seeded
@@ -156,7 +155,7 @@ function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer:
             )}
           </p>
           {seeded ? <p className="or-readonly-note tx-kept-said">{`«${answer.transcript}»`}</p> : null}
-          <ExampleGrade result={grade}>
+          <ExampleGrade points={points} followup={followup}>
             <div className="or-acts" data-wide="">
               <Link className="sf-primary" to={`/try/ticket?q=${encodeURIComponent(question.id)}`}>
                 Ответить на этот вопрос
@@ -198,7 +197,7 @@ function TicketMissing({ question }: { question: ExampleQuestion | null }) {
  * The live room of the example: the same machine and paper as a real ticket (lib/oral/ticketMachine,
  * components/oral) — the ticket card, the answer sheet whose points open as their key words are said
  * or typed, «Готово», the examiner's follow-up on a point that was not named, the protocol with the
- * lecture quotes and the app's grade. Only the checking differs: the key words on this device stand in
+ * lecture quotes and the result. Only the checking differs: the key words on this device stand in
  * for the AI (exampleFlow.ts). No /api call, nothing saved.
  */
 function ExampleRoom({ question }: { question: ExampleQuestion }) {
@@ -328,20 +327,6 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     setTryPeak(question.id);
     setSheetChange(sheetChangeOf(answer, tryEvents(store)));
   }, [question.id, state.phase, state.evaluation, state.attempt, state.followup]);
-
-  // ── The grade: the app's formula over the key-word statuses and the follow-up ──
-  const grade: GradeResult | null = useMemo(() => {
-    if (!rubric || state.evaluation.status !== 'done') return null;
-    const evaluated = new Map(state.evaluation.result.points.map((point) => [point.id, point.status]));
-    const f =
-      state.followup && state.followup.status
-        ? { point_id: state.followup.pointId, status: state.followup.status, judgedBy: state.followup.judgedBy }
-        : null;
-    return gradeAnswer(
-      rubric.points.map((point) => ({ id: point.id, essential: point.essential, status: evaluated.get(point.id) ?? 'unrated' })),
-      f,
-    );
-  }, [rubric, state.evaluation, state.followup]);
 
   // ── Leaving: an answer in progress is lost (nothing is saved), so ask first ──
   const inProgress = () => {
@@ -579,12 +564,13 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const createHref = user ? '/exams/new' : '/register';
 
   // ── The protocol ──
-  if (state.phase === 'protocol' && rubric && grade && state.evaluation.status === 'done') {
+  if (state.phase === 'protocol' && rubric && state.evaluation.status === 'done') {
     const followupForProtocol: ProtocolFollowup | null =
       followup && followup.status
         ? { pointId: followup.pointId, question: followup.question, answer: followup.answer, status: followup.status, judgedBy: followup.judgedBy }
         : null;
     const sheetHeading = glue(`${heading.strong} · ответ ${longDateTime(state.attempt?.startedAt ?? new Date())}`);
+    const protocolPoints = livePoints(rubric, state.evaluation.result, new Set(state.named));
     return (
       <>
         <TryBar where="Лист примера" back="/try" />
@@ -593,19 +579,18 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
             {`Протокол ответа, ${heading.strong}`}
           </h1>
           <section className="or-left" aria-label="Пункты ответа и ваш ответ">
-            {/* No stamp: «Засчитано» means counted towards readiness, and the example saves nothing. */}
+            {/* Under the heading: what the answer did to the example's sheet (kept in this tab, sheet spec 4.3). */}
             <ProtocolSheet
               heading={sheetHeading}
-              points={livePoints(rubric, state.evaluation.result, new Set(state.named))}
+              points={protocolPoints}
               followup={followupForProtocol}
-              stamp="none"
+              sheetNote={sheetNoteOf(sheetChange)}
               seed={`${seedBase}:${attempts}`}
               animate
             />
           </section>
-          <section className="or-side" aria-label="Оценка">
-            <ExampleGrade result={grade}>
-              {sheetChange ? <SheetChangeLine change={sheetChange} /> : null}
+          <section className="or-side" aria-label="Итог">
+            <ExampleGrade points={protocolPoints} followup={followupForProtocol}>
               {/* The example's story goes on on its sheet: the answer is played there (sheet spec 4.3). */}
               <div className="or-acts" data-wide="">
                 <Link className="sf-primary" to={TRY_SHEET_PATH}>

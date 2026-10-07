@@ -304,7 +304,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     const legend = within(block).getByText(byText('24 есть в лекциях, 7 частично, 9 нет ни в одной'));
     const share = within(block).getByText(byText('35 % билетов, где оба вопроса есть в ваших лекциях'));
     const answers = within(block).getByText(byText('Подтверждено ответами — 2 вопроса из 40.'));
-    const note = within(block).getByText(byText('Вчера: вопрос 7 — «хорошо». Вопрос 23 подтверждён.'));
+    const note = within(block).getByText(byText('Вчера: ответ на вопрос 7. Вопрос 23 подтверждён.'));
     const draw = within(block).getByRole('link', { name: named('Тянуть билет') });
     const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw');
@@ -558,21 +558,21 @@ describe('«Сегодня»: the sentences, unit by unit', () => {
     expect(answersSentence(list, null)).toBe('История ответов не загрузилась.');
   });
 
-  it('dates the note by question numbers and says «подтверждён» only for a question confirmed in these two days', () => {
+  it('dates the note by question numbers and says «подтверждён» only for a question confirmed in these two days, with no grade word (Ф1)', () => {
     const list = [q(7, 'full'), q(23, 'full'), q(31, 'full')];
-    expect(recentNote(list, HISTORY, TODAY)).toBe('Вчера: вопрос 7 — «хорошо». Вопрос 23 подтверждён.');
+    expect(recentNote(list, HISTORY, TODAY)).toBe('Вчера: ответ на вопрос 7. Вопрос 23 подтверждён.');
     // Question 31 was confirmed before yesterday: answering it again yesterday is not news.
-    expect(recentNote(list, [...HISTORY.slice(0, 2), answer(31, 2, 18, 5, 'b1')], TODAY)).toBe('Вчера: вопрос 31 — «отлично».');
+    expect(recentNote(list, [...HISTORY.slice(0, 2), answer(31, 2, 18, 5, 'b1')], TODAY)).toBe('Вчера: ответ на вопрос 31.');
     // Two passes on different days but 11 hours apart: not confirmed (the 20-hour rule).
-    expect(recentNote(list, [answer(23, 1, 22, 4, 'c1'), answer(23, 2, 9, 5, 'c2')], TODAY)).toBe('Вчера: вопрос 23 — «отлично».');
+    expect(recentNote(list, [answer(23, 1, 22, 4, 'c1'), answer(23, 2, 9, 5, 'c2')], TODAY)).toBe('Вчера: ответ на вопрос 23.');
     // Today's answer leads; a failed one is said as it is.
     expect(recentNote(list, [...HISTORY, answer(7, 3, 9, 3, 'd1')], TODAY)).toBe(
-      'Сегодня: вопрос 7 — «удовлетворительно». Вопрос 23 подтверждён.',
+      'Сегодня: ответ на вопрос 7. Вопрос 23 подтверждён.',
     );
     // Two confirmations in the window.
     expect(
       recentNote(list, [answer(7, 1, 9, 4, 'e1'), answer(7, 2, 10, 5, 'e2'), answer(23, 1, 10, 4, 'e3'), answer(23, 2, 11, 4, 'e4')], TODAY),
-    ).toBe('Вчера: вопрос 23 — «хорошо». Вопросы 7 и 23 подтверждены.');
+    ).toBe('Вчера: ответ на вопрос 23. Вопросы 7 и 23 подтверждены.');
     // Nothing answered yesterday or today: no note.
     expect(recentNote(list, HISTORY.slice(0, 3), TODAY)).toBeNull();
     expect(recentNote(list, null, TODAY)).toBeNull();

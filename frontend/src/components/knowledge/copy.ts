@@ -46,7 +46,7 @@ export function cardNoteWords(lecture: Pick<MapLecture, 'openMistakes' | 'dueCar
   return parts.join(', ');
 }
 
-/** «подтверждено вчера», «не засчитано», «не проверялось». */
+/** «подтверждено вчера», «названо недостаточно», «не проверялось». */
 export function readinessPhrase(question: Pick<QuestionView, 'readiness' | 'state'>, now: Date = new Date()): string {
   if (question.state) return readinessWords(question.state, now) || READINESS_LABELS[question.readiness];
   return READINESS_LABELS[question.readiness];

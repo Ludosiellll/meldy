@@ -179,8 +179,8 @@ export const FILTER_NAMES: Record<SheetFilter, string> = {
   'cov:unverified': 'найдено только по словам',
   'cov:unmapped': 'ещё не сверено',
   'rd:confirmed': 'подтверждено',
-  'rd:once': 'засчитано, не подтверждено',
-  'rd:not_passed': 'не засчитано',
+  'rd:once': READINESS_LABELS.once,
+  'rd:not_passed': READINESS_LABELS.not_passed,
   'rd:untested': 'не проверялось',
   'sr:know': '«знаю»',
   'sr:unsure': '«плаваю»',
@@ -462,16 +462,28 @@ export function confirmedSentence(summary: AnswerSummary): string | null {
 }
 
 export const NO_ANSWERS_SENTENCE = 'Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.';
-/** A passed answer is «засчитан» («зачёт» is a kind of exam), and a typed answer counts as a spoken one. */
-export const CONFIRMED_MEANING = 'Подтверждено — значит, засчитано дважды, в разные дни.';
+/**
+ * A typed answer counts as a spoken one. No «засчитано» since Ф1: «названо достаточно» is the
+ * protocol's words for an answer that counts (its «Как считается» says how much is enough).
+ */
+export const CONFIRMED_MEANING = 'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.';
 export const NOT_ENOUGH_CONFIDENCE =
   'Сравнить уверенность с ответами пока нельзя: нужно хотя бы три ответа на вопросы с отметкой «знаю».';
 
-/** «Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили, засчитано 8.» — only with enough data. */
+/**
+ * «Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили, в 8 названо достаточно.» —
+ * only with enough data.
+ */
 export function confidenceSentence(value: { ratedKnow: number; ratedKnowAnswered: number; ratedKnowPassed: number; enoughData: boolean }): string {
   if (!value.enoughData) return NOT_ENOUGH_CONFIDENCE;
   const genitive = genitiveOf(value.ratedKnow, 'вопроса', 'вопросов');
-  return `Вы отметили «знаю» у ${value.ratedKnow} ${genitive}. Из ${value.ratedKnowAnswered} таких, на которые вы ответили, засчитано ${value.ratedKnowPassed}.`;
+  return `Вы отметили «знаю» у ${value.ratedKnow} ${genitive}. ${knowPassedSentence(value)}`;
+}
+
+/** «Из 10 вопросов с отметкой «знаю», на которые вы ответили, в 8 названо достаточно.» (the self-rating column). */
+export function knowPassedSentence(value: { ratedKnowAnswered: number; ratedKnowPassed: number }, withMark = false): string {
+  const which = withMark ? ` ${genitiveOf(value.ratedKnowAnswered, 'вопроса', 'вопросов')} с отметкой «знаю»,` : ' таких,';
+  return `Из ${value.ratedKnowAnswered}${which} на которые вы ответили, в ${value.ratedKnowPassed} названо достаточно.`;
 }
 
 /** Calendar days from a local day to today (0 for today), or null. */
@@ -481,7 +493,7 @@ export function daysAgo(key: string | null | undefined, now: Date = new Date()):
 }
 
 /**
- * The age of a confirmation, counted from the last засчитанный answer (the moment the 14-day rule
+ * The age of a confirmation, counted from the last passed answer (the moment the 14-day rule
  * uses): «Подтверждено сегодня.», «Подтверждено вчера.», «Подтверждено 3 октября — 2 дня назад.»,
  * and when it is stale «Подтверждено 16 дней назад — пора проверить.» Null unless confirmed.
  */
@@ -497,7 +509,7 @@ export function confirmedAgeSentence(state: Pick<QuestionState, 'readiness' | 'l
 
 /**
  * What a screen reader hears after a question's number: «подтверждено 2 дня назад», «подтверждено 16
- * дней назад, пора проверить», «засчитано, не подтверждено»; '' for a question never answered.
+ * дней назад, пора проверить», «названо достаточно, не подтверждено»; '' for a question never answered.
  */
 export function readinessWords(state: Pick<QuestionState, 'readiness' | 'lastPassDate' | 'stale'>, now: Date = new Date()): string {
   if (state.readiness === 'untested') return '';

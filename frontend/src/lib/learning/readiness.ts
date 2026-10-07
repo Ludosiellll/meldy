@@ -38,18 +38,22 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
 /**
- * 'once' is «засчитано, не подтверждено» and never names a day: under the 20-hour rule answers at
- * 23:59 and 0:01 are on two days and still not a confirmation (Jury_Check, critique of the plan).
- * A passed answer is «засчитан» on screen; «зачёт» is a kind of exam.
+ * 'once' never names a day: under the 20-hour rule answers at 23:59 and 0:01 are on two days and
+ * still not a confirmation (Jury_Check, critique of the plan).
+ *
+ * Since Ф1 (2026-10-07) the screen never says «засчитано»: it read as a credit from an AI. A passed
+ * answer (grade 4 or 5 inside, oralGrade.ts) is one where «названо достаточно» — enough of the points,
+ * what «Как считается» of the protocol says in words; a failed one — «названо недостаточно». The code
+ * keeps its own words (passed, not_passed) for the same rule.
  */
 export const READINESS_LABELS: Record<Readiness, string> = {
   untested: 'не проверялось',
-  once: 'засчитано, не подтверждено',
+  once: 'названо достаточно, не подтверждено',
   confirmed: 'подтверждено',
-  not_passed: 'не засчитано',
+  not_passed: 'названо недостаточно',
 };
 
-/** «Плаваю» is only a self-rating word; the readiness mark for a failed answer reads «не засчитано». */
+/** «Плаваю» is only a self-rating word; the readiness mark for a failed answer reads «названо недостаточно». */
 export const SELF_RATING_LABELS: Record<SelfRating, string> = {
   know: 'знаю',
   unsure: 'плаваю',
@@ -328,8 +332,8 @@ export function examSummary(
  *   the latest graded answer (`ratingAtLastAnswer`). A rating changed after seeing the result
  *   neither hides a failed «знаю» answer nor turns an earlier pass into a confident one, so this
  *   is not a subset of `ratedKnow`.
- * - `ratedKnowPassed`: of those, the questions whose latest answer was засчитан (readiness once or
- *   confirmed).
+ * - `ratedKnowPassed`: of those, the questions whose latest answer passed — «названо достаточно»
+ *   (readiness once or confirmed).
  * Enough data means at least three such answered questions.
  */
 export function confidenceVsConfirmed(
