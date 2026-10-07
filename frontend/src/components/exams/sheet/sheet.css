@@ -61,13 +61,13 @@
   color: var(--cs-ink);
   transform-origin: 50% 0;
 }
-/* The pink margin line on the right. */
+/* The pink margin line on the right, on a line of the grid (--cs-margin-x, from the paper's width). */
 .cs-paper::after {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  right: calc(var(--cs-pad-r) - 24px);
+  left: var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 24px));
   width: 1.5px;
   background: var(--cs-margin);
   pointer-events: none;
@@ -89,7 +89,7 @@
   --cs-pad-r: 36px;
   background-position: 0 0, var(--cs-pad-l) 0;
 }
-.cs-paper[data-narrow]::after { right: calc(var(--cs-pad-r) - 14px); }
+.cs-paper[data-narrow]::after { left: var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 14px)); }
 
 /* Two columns from 760 px of paper, each a whole number of grid cells (layout.paperGeometry); «Весь
    лист» may set more (the template is then inline). */
@@ -105,8 +105,11 @@
    question in one column (a phone) or the other. */
 .cs-date {
   position: absolute;
-  top: 0;
-  right: calc(var(--cs-pad-r) - 24px + 10px);
+  /* Its baseline on the grid line, as the handwriting's (Caveat at 1.15 sits 1 px lower in the row). */
+  top: -1px;
+  /* 10 px left of the margin line, wherever the grid puts it. */
+  left: calc(var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 24px)) - 10px);
+  transform: translateX(-100%);
   z-index: 1;
   margin: 0;
   font-family: 'Meldy Hand', var(--ph-sans);
@@ -118,7 +121,7 @@
   pointer-events: none;
   animation: cs-fade 150ms ease-out both;
 }
-.cs-paper[data-narrow] .cs-date { right: calc(var(--cs-pad-r) - 14px + 8px); }
+.cs-paper[data-narrow] .cs-date { left: calc(var(--cs-margin-x, calc(100% - var(--cs-pad-r) + 14px)) - 8px); }
 
 /* ---------------------------------------------------------------- a question */
 .cs-q {
@@ -703,7 +706,8 @@ html:has(.sf-page:is([data-frame='s'], [data-frame='m']) .cs-paper) { scroll-pad
 .sf-page .cs-sum[data-variant='top'] .cs-count-l { font-size: 16px; line-height: 22px; }
 .sf-page .cs-sum[data-variant='top'] .cs-sub { margin-top: 2px; font-size: 14px; line-height: 20px; }
 .sf-page .cs-sum[data-variant='top'] .cs-toggles { margin-top: 6px; }
-.sf-page .cs-sum[data-variant='after'] .cs-share { margin-top: 0; padding-top: 0; border-top: 0; }
+.sf-page .cs-sum[data-variant='after'] > .cs-share:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.sf-page .cs-sum[data-variant='after'] > .cs-sub:first-child { margin-top: 0; }
 .sf-page .cs-sum[data-variant='after'] .cs-toggles { margin-top: 10px; }
 .sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write { padding: 18px 20px; border-radius: 24px; }
 .sf-page:is([data-frame='s'], [data-frame='m']) .ex-col > .cs-write .cs-write-go { margin: 12px 0 6px; }

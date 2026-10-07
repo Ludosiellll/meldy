@@ -1100,7 +1100,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
           <h1 className="ex-h1" title={exam.title}>
             {subjectOf(exam.title)}
           </h1>
-          <p className="ex-meta">{glue(metaParts.join(' · '))}</p>
+          {/* A phone's sheet: the day of the exam only, so the paper's lines are on the first screen («Вопросы» says the rest). */}
+          <p className="ex-meta">{glue((onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '))}</p>
           {/* A phone's sheet: the paper's lines on the first screen; these links go under it. */}
           {!(onSheet && !frame.side) && examLinks}
         </div>

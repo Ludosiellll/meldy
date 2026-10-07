@@ -17,7 +17,7 @@ import { MarginStroke, Mark, PencilUnder, seedFrom } from '../../marks';
 import { usePrefersReducedMotion } from '../../landing/usePrefersReducedMotion';
 import { glue, NBSP } from '../sheetModel';
 import { blockNote, lineNote, lineSpeech } from './copy';
-import { blockRows, estimateRows, paperGeometry, rowMetrics, splitColumns, splitMany, zoomPlan } from './layout';
+import { blockRows, estimateRows, PAPER_PAD, PAPER_PAD_NARROW, paperGeometry, rowMetrics, splitColumns, splitMany, zoomPlan } from './layout';
 import { SheetText } from './SheetText';
 import { isSheetFontSettled, loadSheetFont } from './sheetFont';
 import './sheet.css';
@@ -1072,8 +1072,15 @@ export default function CheatSheet({
 
   const zoomed = mode.zoom && zoom.columns > 0;
   const columnCount = laid.length;
+  // The pink margin line stands on a line of the grid, not 5 px beside one (a misprint to the eye).
+  const paperWidth = zoomed ? zoom.width : width;
+  const pad = geometry.narrow ? PAPER_PAD_NARROW : PAPER_PAD;
+  const gridFrom = geometry.narrow ? pad.left : 0;
+  const marginAt = paperWidth - (pad.right - (geometry.narrow ? 14 : 24));
+  const marginX = paperWidth > 0 ? gridFrom + Math.round((marginAt - gridFrom) / geometry.row) * geometry.row : null;
   const paperStyle = {
     '--cs-col': `${geometry.column}px`,
+    ...(marginX !== null ? { '--cs-margin-x': `${marginX}px` } : null),
     ...(columnCount > 2 ? { gridTemplateColumns: `repeat(${columnCount}, var(--cs-col))` } : null),
     // Scaled down, the grid's lines and the focus ring stay one device pixel and two px wide.
     ...(zoomed ? { width: zoom.width, transform: `translateX(${zoom.offset}px) scale(${zoom.scale})`, transformOrigin: '0 0', '--cs-zoom': String(zoom.scale) } : null),

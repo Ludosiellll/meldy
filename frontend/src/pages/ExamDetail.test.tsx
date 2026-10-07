@@ -1665,6 +1665,9 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     const paper = screen.getByRole('tabpanel', { name: 'Шпаргалка' });
     expect(paper.querySelector('[data-key="r1:p1"]')).toHaveAttribute('data-state', 'erased');
     expect(paper.querySelector('[data-key="r1:p2"]')).toHaveAttribute('data-state', 'rubbed');
+    // A screen reader hears it once, from the page's one status line: what changed and what is left.
+    const status = document.querySelector('p.sr-only[role="status"]');
+    expect(plain(status?.textContent)).toBe('После ответа: 1 строка стёрлась, 1 — наполовину. 1 строка осталась из 2.');
   });
   it('on a phone, where the count is above the paper, the end of the show says the change in a chip', async () => {
     setWidth(390);
@@ -1678,6 +1681,8 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
     await waitFor(() => expect(document.querySelector('.cs-chip')).not.toBeNull(), { timeout: 6000 });
     const chip = document.querySelector('.cs-chip') as HTMLElement;
     expect(plain(chip.querySelector('.cs-chip-t')?.textContent)).toBe('После ответа: 1 строка стёрлась, 1 — наполовину.');
+    // For the eye only: the status line says it to a screen reader.
+    expect(chip).toHaveAttribute('aria-hidden', 'true');
     // Rubbed lines are still there: one of the two is left.
     expect(plain(chip.querySelector('.cs-chip-n')?.textContent)).toBe('1 строка осталась из 2');
     fireEvent.click(chip);

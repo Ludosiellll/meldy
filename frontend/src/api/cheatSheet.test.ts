@@ -172,6 +172,22 @@ describe('startSheetWrite', () => {
     expect(mocks.notifyAIUsageChanged).toHaveBeenCalledTimes(1);
   });
 
+  it('counts the questions the server’s own daily cap left unwritten apart from a busy AI', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          ev({ type: 'question', question_id: Q1, status: 'written', rubric: rubric(), done: 1, total: 2 }),
+          ev({ type: 'question', question_id: Q2, status: 'capped', rubric: null, done: 2, total: 2 }),
+          ev({ type: 'done', written: 1, failed: 0, busy: 0, capped: 1, limit: false, units: 1, total: 2, auth: 0, stopped: 0 }),
+        ]),
+      ),
+    );
+    await startSheetWrite(EXAM);
+    expect(getSheetWrite(EXAM)).toMatchObject({ phase: 'done', written: 1, busy: 0, capped: 1 });
+    expect(getSheetWrite(EXAM).results[Q2].status).toBe('capped');
+  });
+
   it('is the same object until something changes (an external store for React)', async () => {
     expect(getSheetWrite(EXAM)).toBe(getSheetWrite(EXAM));
     vi.stubGlobal('fetch', vi.fn(async () => sseResponse([ev({ type: 'done', written: 0, failed: 0, busy: 0, limit: false, units: 0, total: 0, auth: 0, stopped: 0 })])));

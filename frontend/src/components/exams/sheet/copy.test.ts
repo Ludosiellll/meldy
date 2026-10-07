@@ -70,6 +70,7 @@ describe('cheat sheet words', () => {
 
   it('promises nothing the sheet does not do when a question was not written', () => {
     expect(writeStatusNote('busy')).toBe('ИИ был занят — вопрос не написан. Допишите его позже.');
+    expect(writeStatusNote('capped', '3:00')).toBe('Сервер на сегодня исчерпал запись шпаргалок — допишите после 3:00.');
     expect(writeStatusNote('limit', '3:00')).toBe('Дневной лимит ИИ кончился. Дописать можно после 3:00.');
     expect(writeStatusNote('limit')).toBe('Дневной лимит ИИ кончился. Дописать можно после его обновления.');
   });

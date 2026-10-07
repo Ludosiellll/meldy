@@ -270,7 +270,7 @@ export default function ExampleSheet() {
   const touched = sheetData.events.some((event) => event.kind === 'sheet_peek' || (event.session_id !== null && !isSeededSession(event.session_id)));
   const sheetCaption = (
     <p className="tx-sheet-cap">
-      {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. ')}
+      {glue('Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — подчёркнуто волной. ')}
       <Link className="sf-ref" to={`/try/ticket?q=${EXAMPLE_ANSWER_QUESTION}`}>
         Ответьте на вопрос 5
       </Link>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildSheet } from '../../lib/exams/cheatSheet';
+import { buildSheet, localDayOf } from '../../lib/exams/cheatSheet';
 import { namedPoints } from '../../lib/oral/rubricMatch';
 import { EXAMPLE_QUESTIONS, exampleQuestion, exampleRubric } from '../../data/example';
 import {
@@ -15,6 +15,7 @@ import {
   takeTryPeak,
   tryEvents,
   trySheetQuestions,
+  yesterdaySameTime,
   type TryAnswer,
 } from './trySheet';
 
@@ -79,6 +80,18 @@ describe('the example’s cheat sheet', () => {
     const forged = readTryStore(NOW);
     expect(forged.answers).toHaveLength(0);
     expect(forged.peeks).toHaveLength(0);
+  });
+
+  it('«вчера в это же время» by the wall clock: always yesterday, 23 to 25 hours ago, on the days the clock changes too', () => {
+    const start = new Date(2026, 0, 1, 0, 30).getTime();
+    for (let at = start; at < start + 400 * 86_400_000; at += 7 * 3_600_000 + 13 * 60_000) {
+      const seeded = yesterdaySameTime(at);
+      const day = new Date(at);
+      const expected = new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1);
+      expect(localDayOf(seeded)).toBe(localDayOf(expected.getTime()));
+      expect(at - seeded).toBeGreaterThanOrEqual(23 * 3_600_000);
+      expect(at - seeded).toBeLessThanOrEqual(25 * 3_600_000);
+    }
   });
 
   it('a tab kept to another day starts the example again, so «вчера» stays true; a visit across midnight does not', () => {

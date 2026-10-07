@@ -717,7 +717,8 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
               : historyResult(historyView.first, historyView.frame, historyView.lowest)}
           </span>
           {historyView.running ? (
-            <button type="button" className="cs-chip-act" onClick={stopHistory}>
+            // The keyboard comes here from «История шпаргалки» (gone under the paper while it plays).
+            <button type="button" className="cs-chip-act" onClick={stopHistory} autoFocus>
               Остановить
             </button>
           ) : null}

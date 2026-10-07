@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LearningEvent } from '../../../api/learning';
 import { buildSheet, localDayOf, sheetChanges, sheetWithout, type SheetBlock, type SheetLine, type SheetQuestion } from '../../../lib/exams/cheatSheet';
-import CheatSheet, { animFor, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
+import CheatSheet, { animFor, changeGroups, writeMs, type CheatSheetProps, type SheetReplay } from './CheatSheet';
 
 const NOW = new Date(2026, 9, 5, 12, 0).getTime();
 const RUBRIC_A = '00000000-0000-4000-8000-00000000000a';
@@ -107,6 +107,10 @@ describe('the cheat sheet', () => {
     expect(animFor('rubbed', 'returned')).toBe('return');
     expect(animFor('fresh', 'missed')).toBe('miss');
     expect(animFor('rubbed', 'rubbed')).toBeNull();
+    // A due line reads as rubbed (with its ring): it becomes due by a rub, passes its check by an erase.
+    expect(animFor('fresh', 'due')).toBe('rub');
+    expect(animFor('rubbed', 'due')).toBeNull();
+    expect(animFor('due', 'erased')).toBe('erase');
     expect(writeMs('закон')).toBe(280);
     expect(writeMs('x'.repeat(30))).toBe(780);
     expect(writeMs('x'.repeat(80))).toBe(1000);
@@ -258,12 +262,15 @@ describe('the cheat sheet', () => {
     // Before anything moves, the lines stand as they were before the answer.
     expect(lines().map((line) => line.dataset.state)).toEqual(['rubbed', 'fresh', 'fresh']);
     expect(container.querySelector('.cs-qm')?.hasAttribute('data-marker')).toBe(false);
+    // The missed line's note will appear: its row is there already, empty, so nothing below moves.
+    expect(lines()[2].querySelector('.cs-note')?.hasAttribute('data-reserve')).toBe(true);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
     });
     expect(container.querySelector('.cs-qm')?.getAttribute('data-marker')).toBe('draw');
     expect(lines().map((line) => line.dataset.state)).toEqual(['erased', 'rubbed', 'missed']);
     expect(lines().map((line) => line.dataset.anim)).toEqual(['erase', 'rub', 'miss']);
+    expect(lines()[2].querySelector('.cs-note')?.hasAttribute('data-reserve')).toBe(false);
     expect(p.onReplayEnd).not.toHaveBeenCalled();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000);
@@ -271,6 +278,75 @@ describe('the cheat sheet', () => {
     expect(p.onReplayEnd).toHaveBeenCalledWith(7);
     expect(lines().map((line) => line.dataset.anim)).toEqual([undefined, undefined, undefined]);
     expect(container.querySelector('.cs-qm')?.getAttribute('data-marker')).toBe('still');
+  });
+
+  it('orders the changes by question: the questions answered first, each in the sheet’s order', () => {
+    const change = (key: string, questionId: string) => ({ key, questionId, from: 'fresh' as const, to: 'rubbed' as const });
+    const groups = changeGroups([change('a', 'q1'), change('b', 'q2'), change('c', 'q1'), change('d', 'q3')], ['q2', 'q3']);
+    expect(groups.map((group) => [group.questionId, group.changes.map((item) => item.key)])).toEqual([
+      ['q2', ['b']],
+      ['q3', ['d']],
+      ['q1', ['a', 'c']],
+    ]);
+  });
+
+  it('plays both questions of a ticket in turn, each marked, the second one still as it was while the first plays', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const q2 = question(2);
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'ticket'), named(q2, 'p1', NOW - 60_000, true, 'ticket')];
+    const after = buildSheet([q1, q2], answer, NOW);
+    const changes = sheetChanges(sheetWithout([q1, q2], answer, 'ticket', NOW), after);
+    const p = props(after.blocks, { replay: { token: 9, changes, focusQuestionIds: ['q1', 'q2'], slow: false, waitForClick: false } });
+    const { container } = renderSheet(p);
+    const first = () => container.querySelector<HTMLElement>('#cs-q-q1 .cs-line')!;
+    const second = () => container.querySelector<HTMLElement>('#cs-q-q2 .cs-line')!;
+    const marker = (id: string) => container.querySelector(`#cs-q-${id} .cs-qm`)?.getAttribute('data-marker') ?? null;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700 + 250 + 450 + 10);
+    });
+    expect([first().dataset.state, first().dataset.anim]).toEqual(['rubbed', 'rub']);
+    expect(second().dataset.state).toBe('fresh');
+    expect([marker('q1'), marker('q2')]).toEqual(['draw', null]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600 + 120 + 700 + 300 + 450 + 10);
+    });
+    expect([second().dataset.state, second().dataset.anim]).toEqual(['rubbed', 'rub']);
+    expect([marker('q1'), marker('q2')]).toEqual(['still', 'draw']);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(9);
+  });
+
+  it('on the projector, the page shows «Показать» where the eye is; the show waits for it', async () => {
+    vi.useFakeTimers();
+    const q1 = question(1);
+    const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
+    const after = buildSheet([q1], answer, NOW);
+    const changes = sheetChanges(sheetWithout([q1], answer, 'last', NOW), after);
+    const shows: Array<(() => void) | null> = [];
+    const p = props(after.blocks, { replay: { token: 3, changes, focusQuestionIds: ['q1'], slow: true, waitForClick: true }, onWaiting: (show) => shows.push(show) });
+    const { container } = renderSheet(p);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    // The paper's own button is not drawn: the page has one.
+    expect(container.querySelector('.cs-show')).toBeNull();
+    const show = shows[shows.length - 1];
+    expect(typeof show).toBe('function');
+    expect(container.querySelector('.cs-line')?.getAttribute('data-state')).toBe('fresh');
+    act(() => show?.());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(shows[shows.length - 1]).toBeNull();
+    // The keyboard stands on the question shown.
+    expect(document.activeElement).toBe(container.querySelector('#cs-q-q1 .cs-qbtn'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(p.onReplayEnd).toHaveBeenCalledWith(3);
   });
 
   it('under «Только то, что осталось» a line the answer erased stays in view until the switch is turned', async () => {

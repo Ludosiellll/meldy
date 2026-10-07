@@ -174,8 +174,9 @@ export function SheetSummaryCard(props: SheetSummaryProps) {
       </button>
     </div>
   ) : (
+    // A phone's card above the paper has no links: the history's «Остановить» rides over the bottom bar.
     (props.onReplay || props.onHistory || history) &&
-    (variant !== 'top' || playing) && (
+    variant !== 'top' && (
       <div className="cs-acts">
         {playing ? (
           <button type="button" className="sf-link" ref={stopRef} onClick={props.onHistoryStop}>

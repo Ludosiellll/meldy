@@ -110,6 +110,17 @@ describe('SheetSummaryCard', () => {
     expect(screen.getByRole('button', { name: 'История шпаргалки' })).toBeTruthy();
   });
 
+  it('on the projector, «Показать, что изменилось» stands where the links are, as the column’s filled pill', () => {
+    const onShow = vi.fn();
+    summary({ onShow });
+    expect(screen.queryByRole('button', { name: 'Показать последний ответ' })).toBeNull();
+    const show = screen.getByRole('button', { name: 'Показать, что изменилось' });
+    expect(show).toHaveClass('sf-primary');
+    expect(document.activeElement).toBe(show);
+    fireEvent.click(show);
+    expect(onShow).toHaveBeenCalledTimes(1);
+  });
+
   it('no links without an answer or a history, and no switches on an empty sheet', () => {
     summary({ onReplay: null, onHistory: null, counts: { ...COUNTS, total: 0, left: 0 } });
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
@@ -166,6 +177,9 @@ describe('historyResult', () => {
     expect(plain(historyResult(at('2026-10-01', 47), at('2026-10-02', 45)))).toBe('47 → 45 строк за 1 день');
     expect(plain(historyResult(at('2026-10-01', 47), at('2026-10-04', 42)))).toBe('47 → 42 строки за 3 дня');
     expect(plain(historyResult(at('2026-09-20', 47), at('2026-10-01', 21)))).toBe('47 → 21 строка за 11 дней');
+    // Lines that went and came back are not «nothing erased»: the lowest count is said too.
+    expect(plain(historyResult(at('2026-10-01', 1), at('2026-10-06', 1), 0))).toBe('1 → 0 → 1 строка за 5 дней');
+    expect(plain(historyResult(at('2026-10-01', 5), at('2026-10-06', 5), 5))).toBe('За 5 дней ни одна строка не стёрлась совсем');
     expect(plain(historyResult(at('2026-09-01', 180), at('2026-10-06', 61)))).toBe('180 → 61 строка за 5 недель');
     expect(plain(historyResult(at('2026-09-01', 180), at('2026-09-22', 100)))).toBe('180 → 100 строк за 3 недели');
   });
@@ -262,6 +276,8 @@ describe('outcomeLine', () => {
     expect(plain(outcomeLine(idle({ phase: 'done', written: 4, total: 6, limit: true }), 2))).toBe('Написано 4 из 6: дневной лимит ИИ кончился');
     expect(plain(outcomeLine(idle({ phase: 'done', written: 4, failed: 1, busy: 1, total: 6 }), 2))).toBe('2 вопроса не удалось написать — можно попробовать ещё раз');
     expect(outcomeLine(idle({ phase: 'interrupted', message: 'Связь прервалась.' }), 2)).toBe('Связь прервалась.');
+    // The server's own daily cap, not the AI: said as such, with when it lifts.
+    expect(plain(outcomeLine(idle({ phase: 'done', written: 4, capped: 2, total: 6 }), 2))).toMatch(/^Написано 4 из 6: сервер на сегодня исчерпал запись шпаргалок — остальное можно дописать после \d{1,2}:\d\d$/);
     expect(outcomeLine(idle({ phase: 'done', written: 3, total: 3 }), 2)).toBeNull();
     expect(outcomeLine(idle(), 2)).toBeNull();
   });
