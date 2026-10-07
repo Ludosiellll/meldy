@@ -1,7 +1,8 @@
 /*
  * The landing in the new Meldy language (prototype «Лендинг», approved 2026-10-04; notes:
  * 10_Project/Design_Language_2026-10-04). Colours come from the global tokens, so the page follows
- * the theme; the coloured panels and the hero tiles keep their colours in both themes.
+ * the theme; the coloured panels and the pictures of the app keep their colours in both themes.
+ * The first screen shows the vanishing cheat sheet (HeroSheet.tsx) the way the exam page draws it.
  */
 
 .hm {
@@ -166,6 +167,23 @@
   color: var(--sf-canvas);
 }
 
+/* On the blue final panel: the second action, an outline. */
+.hm-pill--ghost {
+  background: transparent;
+  color: #fff;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.72);
+}
+
+.hm-pill--ghost .hm-dot {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.hm-pill--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1.5px #fff;
+}
+
 .hm-pill--sm {
   min-height: 44px;
   padding: 6px 20px;
@@ -175,8 +193,8 @@
 .hm-pill:focus-visible,
 .hm-links a:focus-visible,
 .hm-logo:focus-visible,
-.hm-seg button:focus-visible,
-.hm-more:focus-visible {
+.hm-more:focus-visible,
+.hs-replay:focus-visible {
   outline: 3px solid var(--m-yellow);
   outline-offset: 3px;
 }
@@ -185,48 +203,25 @@
 
 .hm-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
-  gap: 52px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 556px);
+  gap: 56px;
   align-items: center;
-  padding-top: 28px;
-  padding-bottom: 72px;
+  padding-top: 18px;
+  padding-bottom: 64px;
 }
 
-.hm-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px;
-  border-radius: 999px;
-  background: var(--sf-surface);
-  box-shadow: 0 1px 2px rgba(11, 18, 28, 0.06), 0 0 0 1px var(--sf-line);
-}
-
-.hm-seg-l {
-  padding: 0 12px 0 14px;
-  font-size: 15px;
-  color: var(--sf-muted);
-}
-
-.hm-seg button {
-  padding: 12px 18px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--sf-ink);
-  font: 500 16px/1 var(--ph-sans);
-  cursor: pointer;
-  transition: background-color 0.5s var(--m-ease), color 0.5s var(--m-ease);
-}
-
-.hm-seg button[aria-pressed='true'] {
-  background: var(--sf-ink);
-  color: var(--sf-canvas);
+.hm-eyebrow {
+  margin: 0;
+  font-size: clamp(16px, 1.3vw, 19px);
+  line-height: 1.35;
+  font-weight: 500;
+  color: var(--sf-accent-fg);
+  text-wrap: balance;
 }
 
 .hm-h1 {
-  margin: 34px 0 0;
-  font-size: clamp(44px, 4.9vw, 72px);
+  margin: 16px 0 0;
+  font-size: clamp(40px, 4.3vw, 66px);
   line-height: 1.04;
   font-weight: 500;
   letter-spacing: -0.035em;
@@ -262,9 +257,9 @@
 
 .hm-lead {
   max-width: 600px;
-  margin: 30px 0 0;
-  font-size: clamp(19px, 1.7vw, 24px);
-  line-height: 1.42;
+  margin: 26px 0 0;
+  font-size: clamp(18px, 1.5vw, 22px);
+  line-height: 1.45;
   color: var(--sf-muted);
 }
 
@@ -272,105 +267,380 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 38px;
-}
-
-.hm-formats {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   margin-top: 34px;
-  padding: 8px 10px 8px 18px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--sf-surface) 70%, transparent);
-  box-shadow: 0 0 0 1px var(--sf-line);
 }
 
-.hm-formats span {
-  margin-right: 4px;
+.hm-also {
+  margin: 14px 0 0 4px;
   font-size: 15px;
+  line-height: 1.4;
   color: var(--sf-muted);
 }
 
-.hm-formats b {
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: var(--sf-surface);
-  box-shadow: 0 0 0 1px var(--sf-line);
-  font-size: 14px;
-  font-weight: 500;
+.hm-hero-text,
+.hm-hero-sheet {
+  min-width: 0;
 }
 
-.hm-mosaic {
+/* ---------------------------------------------------------------- the vanishing sheet (HeroSheet) */
+
+.hs {
+  position: relative;
+  margin: 0;
+  padding: 18px 18px 20px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), 0 40px 80px -50px rgba(16, 41, 90, 0.4);
+}
+
+.dark .hs {
+  box-shadow: 0 0 0 1px var(--sf-line), 0 30px 60px -40px rgba(0, 0, 0, 0.7);
+}
+
+.hs-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+}
+
+.hs-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 26px 0 14px;
+  background: var(--m-pink);
+  color: #0b121c;
+  font-size: 15px;
+  font-weight: 500;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%);
+}
+
+.hs-meta {
+  padding-right: 6px;
+  font-size: 14px;
+  color: var(--sf-muted);
+}
+
+/* The paper: the exam page's sheet (components/exams/sheet/sheet.css) in small. Squared school paper,
+   the department's questions printed in Onest, the answer points by hand («Meldy Hand», Caveat with the
+   fixed metrics of sheetFont.ts) on the grid's lines, a pink margin line. Light paper in both themes;
+   at night it is a dimmed light paper, as on the exam page. */
+.hs-paper {
+  --hs-paper: #fffefa;
+  --hs-grid: rgba(31, 61, 148, 0.13);
+  --hs-margin: #e3a2b8;
+  --hs-ink: #1f3d94;
+  --hs-graphite: #50565f;
+  --hs-print: #0b121c;
+  /* One grid row and the handwriting's baseline in it: Caveat 23 px on 26 px rows. */
+  --hs-row: 26px;
+  --hs-base: 20px;
+  --hs-hand: 23px;
+  --hs-print-size: 15px;
+  --hs-pad-l: 26px;
+  --hs-pad-r: 46px;
+  /* A rubbed line keeps islands of ink where both passes of the eraser left some; an erased one, a
+     ghost of 7 %. The passes are in em: they keep the exam page's proportions at any hand size. */
+  --hs-rub: 0.8;
+  --hs-erased: 0.07;
+  --hs-pass-a: repeating-linear-gradient(97deg, #000 0 0.41em, rgba(0, 0, 0, 0.04) 0.41em 1em);
+  --hs-pass-b: repeating-linear-gradient(83deg, #000 0 0.45em, rgba(0, 0, 0, 0.06) 0.45em 1em);
+  --ph-pencil-desk: #1f5bc6;
+  --ph-graphite-desk: var(--hs-graphite);
+  color-scheme: light;
+  position: relative;
+  padding: var(--hs-row) var(--hs-pad-r) var(--hs-row) var(--hs-pad-l);
+  border-radius: 3px;
+  background-color: var(--hs-paper);
+  background-image:
+    linear-gradient(to bottom, transparent var(--hs-base), var(--hs-grid) var(--hs-base), var(--hs-grid) calc(var(--hs-base) + 1px), transparent calc(var(--hs-base) + 1px)),
+    linear-gradient(to right, var(--hs-grid) 1px, transparent 1px);
+  background-size: 100% var(--hs-row), var(--hs-row) 100%;
+  box-shadow: 0 0 0 1px rgba(16, 41, 90, 0.1), 0 1px 1px rgba(11, 18, 28, 0.05), 0 14px 32px -16px rgba(16, 41, 90, 0.22);
+  color: var(--hs-ink);
+}
+
+.hs-paper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--hs-pad-r) - 22px);
+  width: 1.5px;
+  background: var(--hs-margin);
+  pointer-events: none;
+}
+
+.dark .hs-paper {
+  --hs-paper: #dedbd1;
+  --hs-margin: #c98a9f;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+}
+
+.hs-q {
+  position: relative;
+}
+
+.hs-q + .hs-q {
+  margin-top: var(--hs-row);
+}
+
+.hs-qh {
+  position: relative;
+  top: 2px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.35em;
+  margin: 0;
+  font-size: var(--hs-print-size);
+  line-height: var(--hs-row);
+  font-weight: 600;
+  color: var(--hs-print);
+  text-wrap: pretty;
+}
+
+.hs-qn {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A learned question: every main line erased, a graphite tick in the margin by its number. */
+.hs-tick {
+  position: absolute;
+  left: calc(-1 * var(--hs-pad-l) + 3px);
+  top: 6px;
+  width: 20px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.hs-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hs-line {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  height: 640px;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 7%, #000 93%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, #000 7%, #000 93%, transparent 100%);
-}
-
-.hm-col {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.hm-col--a {
-  animation: hm-float-a 9s ease-in-out infinite;
-}
-
-.hm-col--b {
-  padding-top: 90px;
-  animation: hm-float-b 11s ease-in-out infinite;
-}
-
-.hm-tile {
-  position: relative;
-  overflow: hidden;
-  border-radius: 52px;
-  box-shadow: 0 30px 60px -40px rgba(16, 41, 90, 0.55);
-  transition: transform 1s var(--m-ease);
-}
-
-.hm-tile:hover {
-  transform: scale(1.025) rotate(-0.6deg);
-}
-
-.hm-tile svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.hm-tile--1 {
-  height: 400px;
-}
-
-.hm-tile--2 {
-  height: 260px;
-}
-
-.hm-tile--3 {
-  height: 270px;
-}
-
-.hm-tile--4 {
-  height: 400px;
-}
-
-.hm-cap {
-  position: absolute;
-  left: 18px;
-  bottom: 18px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #0b121c;
-  font-size: 14px;
+  grid-template-columns: var(--hs-row) minmax(0, 1fr);
+  font-family: 'Meldy Hand', var(--ph-sans);
+  font-size: var(--hs-hand);
+  line-height: var(--hs-row);
   font-weight: 500;
+  color: var(--hs-ink);
+}
+
+.hs-bullet {
+  text-align: center;
+  transition: opacity 180ms linear var(--hs-delay, 0ms);
+}
+
+.hs-body {
+  position: relative;
+  isolation: isolate;
+  justify-self: start;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.hs-ink {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* An arrow drawn in ink (SheetText) holds on to its word. */
+.hs-paper .cs-arrow,
+.hs-paper .cs-glue {
+  white-space: nowrap;
+}
+
+.hs-paper .cs-arrow-ink {
+  display: inline;
+  height: auto;
+  margin: 0 0.05em;
+  overflow: visible;
+  fill: currentColor;
+  vertical-align: baseline;
+}
+
+/* The eraser's track: dull paper under a line an answer has touched. */
+.hs-patch {
+  position: absolute;
+  inset: 1px -8px;
+  z-index: -1;
+  background: linear-gradient(rgba(90, 96, 105, 0.03), rgba(90, 96, 105, 0.03)), color-mix(in srgb, var(--hs-paper) 45%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  pointer-events: none;
+}
+
+.hs-line[data-state='rubbed']:not([data-anim]) .hs-ink {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+}
+
+.hs-line[data-state='erased']:not([data-anim]) .hs-ink {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+}
+
+.hs-line[data-state='rubbed'] .hs-bullet {
+  opacity: 0.3;
+}
+
+.hs-line[data-state='erased'] .hs-bullet {
+  opacity: 0.12;
+}
+
+/* The wave under a line that came back: graphite, a little lighter than the ink. */
+.hs-line .sf-under-ink {
+  opacity: 0.8;
+}
+
+.hs-note {
+  position: relative;
+  top: 2px;
+  grid-column: 2;
+  font-family: var(--ph-sans);
+  font-size: 13.5px;
+  line-height: var(--hs-row);
+  font-weight: 500;
+  color: var(--hs-graphite);
+}
+
+/* The handwriting waits for its font (at most 1.5 s), so no line jumps under the reader. */
+.hs-paper[data-font='waiting'] .hs-lines {
+  visibility: hidden;
+}
+
+.hs-paper[data-font='ready'] .hs-lines {
+  animation: hs-fade 200ms ease-out both;
+}
+
+/* One answer: the eraser passes → over a line named for the first time (rubbed) and ← over the line
+   named again on another day (erased). The same masks as the exam page: they end as the line stands. */
+.hs-line[data-anim='rub'] .hs-ink {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, #000 54%), linear-gradient(90deg, transparent 46%, #000 54%), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, #000 54%), linear-gradient(90deg, transparent 46%, #000 54%), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-size: 225% 100%, 225% 100%, auto, auto;
+  mask-size: 225% 100%, 225% 100%, auto, auto;
+  -webkit-mask-repeat: no-repeat, no-repeat, repeat, repeat;
+  mask-repeat: no-repeat, no-repeat, repeat, repeat;
+  -webkit-mask-composite: source-in, source-over, source-in;
+  mask-composite: intersect, add, intersect;
+  animation: hs-sweep-right var(--hs-ms) cubic-bezier(0.4, 0, 0.2, 1) var(--hs-delay) both;
+}
+
+.hs-line[data-anim='rub'] .hs-patch {
+  animation: hs-fade var(--hs-ms) ease-out var(--hs-delay) both;
+}
+
+.hs-line[data-anim='erase'] .hs-ink {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, rgba(0, 0, 0, var(--hs-erased)) 54%), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, var(--hs-rub)) 46%, rgba(0, 0, 0, var(--hs-erased)) 54%), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-size: 225% 100%, auto, auto;
+  mask-size: 225% 100%, auto, auto;
+  -webkit-mask-repeat: no-repeat, repeat, repeat;
+  mask-repeat: no-repeat, repeat, repeat;
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+  animation: hs-erase-left var(--hs-ms) cubic-bezier(0.4, 0, 0.2, 1) var(--hs-delay) both;
+}
+
+@keyframes hs-sweep-right {
+  from {
+    -webkit-mask-position: 100% 0, 100% 0, 0 0, 0 0;
+    mask-position: 100% 0, 100% 0, 0 0, 0 0;
+  }
+
+  to {
+    -webkit-mask-position: 0 0, 0 0, 0 0, 0 0;
+    mask-position: 0 0, 0 0, 0 0, 0 0;
+  }
+}
+
+@keyframes hs-erase-left {
+  from {
+    -webkit-mask-position: 0 0, 0 0, 0 0;
+    mask-position: 0 0, 0 0, 0 0;
+  }
+
+  to {
+    -webkit-mask-position: 100% 0, 0 0, 0 0;
+    mask-position: 100% 0, 0 0, 0 0;
+  }
+}
+
+@keyframes hs-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.hs-cap {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 0 6px;
+}
+
+.hs-cap-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.hs-change {
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--sf-ink);
+  opacity: 0;
+  transition: opacity 0.5s var(--m-ease);
+}
+
+.hs-change[data-shown] {
+  opacity: 1;
+}
+
+.hs-replay {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--sf-accent-fg);
+  font: 500 14px/1.4 var(--ph-sans);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.5s var(--m-ease);
+}
+
+.hs-replay[data-shown] {
+  opacity: 1;
+}
+
+.hs-replay:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hs-replay:disabled {
+  cursor: default;
+}
+
+.hs-rule {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--sf-muted);
 }
 
 /* ---------------------------------------------------------------- sections */
@@ -504,14 +774,7 @@
   color: #f3a9c4;
 }
 
-/* ---------------------------------------------------------------- how it works */
-
-.hm-grid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 26px;
-  margin-top: 64px;
-}
+/* ---------------------------------------------------------------- cards, panels, flags */
 
 .hm-card {
   padding: 16px 16px 42px;
@@ -521,7 +784,8 @@
   transition: transform 0.9s var(--m-ease), box-shadow 0.9s var(--m-ease);
 }
 
-.hm-card:hover {
+.hm-card:hover,
+.hm-step:hover {
   transform: translateY(-6px);
   box-shadow: 0 0 0 1px var(--sf-line), 0 36px 70px -44px rgba(16, 41, 90, 0.45);
 }
@@ -538,6 +802,7 @@
   background: linear-gradient(160deg, #2f66de 0%, #1e46a8 62%, #10295a 100%);
 }
 
+/* --blue is the panel's own gradient above. */
 .hm-panel--warm {
   background: linear-gradient(160deg, #f3a25b 0%, #ef8fa8 70%, #c9607f 100%);
 }
@@ -548,6 +813,10 @@
 
 .hm-panel--rose {
   background: linear-gradient(160deg, #f7c9d9 0%, #e98fb0 100%);
+}
+
+.hm-panel--green {
+  background: linear-gradient(160deg, #cbe9d2 0%, #8acb97 62%, #5f9e6e 100%);
 }
 
 .hm-dots {
@@ -563,6 +832,7 @@
 .hm-flag {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   height: 34px;
   padding: 0 26px 0 14px;
   color: #0b121c;
@@ -571,19 +841,25 @@
   clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%);
 }
 
-.hm-flag--g {
-  background: var(--m-green);
+/* The step's number: the order of the steps is the order of the work. */
+.hm-flag b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.hm-flag--y {
-  background: var(--m-yellow);
-}
-
-.hm-flag--b {
+.hm-flag--sky {
   background: var(--m-sky);
 }
 
-.hm-flag--p {
+.hm-flag--yellow {
+  background: var(--m-yellow);
+}
+
+.hm-flag--green {
+  background: var(--m-green);
+}
+
+.hm-flag--pink {
   background: var(--m-pink);
 }
 
@@ -626,66 +902,144 @@
   transform: translateX(4px);
 }
 
-/* Windows and objects inside the panels (always light: they are pictures of the app). */
-.hm-win {
+/* ---------------------------------------------------------------- how it works: four steps */
+
+.hm-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  margin: 60px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hm-step {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px 30px;
+  border-radius: 44px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  transition: transform 0.9s var(--m-ease), box-shadow 0.9s var(--m-ease);
+}
+
+.hm-step .hm-panel {
+  flex: none;
+  height: 220px;
+  border-radius: 34px;
+}
+
+.hm-step .hm-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px 14px 0;
+}
+
+.hm-step .hm-h3 {
+  margin-top: 18px;
+  font-size: 24px;
+  line-height: 1.16;
+}
+
+.hm-step .hm-p {
+  font-size: 17px;
+}
+
+.hm-step .hm-more {
+  margin-top: auto;
+  padding-top: 20px;
+  font-size: 17px;
+}
+
+/* Pictures inside the panels: things of the app, always light. */
+.hm-doc,
+.hm-quote,
+.hm-proto,
+.hm-chat {
   position: absolute;
-  left: 44px;
-  right: 44px;
-  top: 44px;
-  bottom: -30px;
-  padding: 22px 24px;
-  border-radius: 24px;
-  background: #fff;
   color: #0b121c;
+  background: #fff;
   box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.45);
 }
 
-.hm-win-h {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-  font-size: 14px;
+.hm-doc {
+  left: 20px;
+  right: 20px;
+  top: 24px;
+  bottom: -24px;
+  padding: 16px 18px;
+  border-radius: 20px;
+}
+
+.hm-doc-h {
+  margin: 0 0 6px;
+  font-size: 12.5px;
   color: #4b515b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.hm-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+.hm-doc-r {
+  margin: 0;
+  padding: 7px 0;
   border-top: 1px solid #efefea;
-  font-size: 15px;
+  font-size: 13.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.hm-row .hm-n {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #f1f1ec;
-  font-size: 13px;
+.hm-doc-r b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hm-quote {
+  left: 16px;
+  right: 16px;
+  top: 18px;
+  padding: 13px 15px 14px;
+  border-radius: 20px;
+}
+
+.hm-quote-q {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.3;
   font-weight: 600;
 }
 
-.hm-row .hm-t {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.hm-quote blockquote {
+  margin: 10px 0 0;
+  padding-left: 11px;
+  border-left: 3px solid #f4c45b;
+  font-size: 14px;
+  line-height: 1.38;
+  font-weight: 500;
+}
+
+.hm-quote-src {
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: #4b515b;
 }
 
 .hm-st {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -702,23 +1056,13 @@
   color: #2c6b3a;
 }
 
-.hm-st--half {
-  background: #fcefc9;
-  color: #7a5a12;
-}
-
-.hm-st--no {
-  background: #efefea;
-  color: #5c626b;
-}
-
 .hm-ticket {
   position: absolute;
-  left: 50px;
-  top: 40px;
-  width: 62%;
-  padding: 22px 24px;
-  border-radius: 22px;
+  left: 18px;
+  top: 18px;
+  right: 92px;
+  padding: 12px 15px;
+  border-radius: 18px;
   background: #fff8ee;
   color: #3b3f46;
   box-shadow: 0 22px 50px -24px rgba(0, 0, 0, 0.5);
@@ -727,173 +1071,220 @@
 
 .hm-ticket b {
   display: block;
-  font-size: 22px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #10295a;
 }
 
 .hm-ticket p {
-  margin: 12px 0 0;
-  font-size: 15px;
-  line-height: 1.4;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.32;
 }
 
-.hm-ticket p i {
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: #10295a;
-  color: #fff;
-  font-size: 12px;
-  font-style: normal;
+.hm-ask {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  padding: 10px 13px;
+  border-radius: 16px 16px 16px 4px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0b121c;
+  font-size: 13.5px;
+  line-height: 1.35;
+  box-shadow: 0 14px 30px -20px rgba(0, 0, 0, 0.4);
+}
+
+.hm-ask b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1c4db1;
 }
 
 .hm-mic {
   position: absolute;
-  right: 46px;
-  bottom: 46px;
+  right: 22px;
+  top: 26px;
   display: grid;
   place-items: center;
-  width: 96px;
-  height: 96px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 0 0 14px rgba(255, 255, 255, 0.22), 0 0 0 30px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 9px rgba(255, 255, 255, 0.22), 0 0 0 18px rgba(255, 255, 255, 0.1);
   animation: hm-pulse 2.4s var(--m-ease) infinite;
 }
 
 .hm-mic svg {
-  width: 38px;
-  height: 38px;
+  width: 24px;
+  height: 24px;
   color: #2869dd;
 }
 
-.hm-said {
+/* Step 4: a strip of the sheet and a school eraser. Erased, rubbed and written lines as on the paper. */
+.hm-mini {
+  --hs-paper: #fffefa;
+  --hs-rub: 0.8;
+  --hs-erased: 0.07;
+  --hs-pass-a: repeating-linear-gradient(97deg, #000 0 0.41em, rgba(0, 0, 0, 0.04) 0.41em 1em);
+  --hs-pass-b: repeating-linear-gradient(83deg, #000 0 0.45em, rgba(0, 0, 0, 0.06) 0.45em 1em);
   position: absolute;
-  right: 160px;
-  bottom: 58px;
-  max-width: 46%;
-  padding: 12px 16px;
-  border-radius: 18px 18px 4px 18px;
-  background: rgba(255, 255, 255, 0.95);
-  color: #0b121c;
-  font-size: 14px;
-  line-height: 1.35;
+  left: 16px;
+  right: 16px;
+  top: 22px;
+  bottom: -14px;
+  padding: 44px 10px 0 4px;
+  border-radius: 4px;
+  background-color: var(--hs-paper);
+  background-image:
+    linear-gradient(to bottom, transparent 16px, rgba(31, 61, 148, 0.13) 16px, rgba(31, 61, 148, 0.13) 17px, transparent 17px),
+    linear-gradient(to right, rgba(31, 61, 148, 0.13) 1px, transparent 1px);
+  background-size: 100% 22px, 22px 100%;
+  box-shadow: 0 20px 44px -22px rgba(0, 0, 0, 0.45);
+  color: #1f3d94;
 }
 
-.hm-stack {
-  position: absolute;
-  left: 50%;
-  top: 52%;
-  width: 58%;
-  height: 62%;
-  transform: translate(-50%, -50%);
+.hm-mini-l {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  margin: 0;
+  font: 500 17px/22px 'Meldy Hand', var(--ph-sans);
+  white-space: nowrap;
 }
 
-.hm-fc {
+.hm-mini-b {
+  text-align: center;
+}
+
+.hm-mini-t {
+  justify-self: start;
+  min-width: 0;
+}
+
+.hm-mini .cs-arrow,
+.hm-mini .cs-glue {
+  white-space: nowrap;
+}
+
+.hm-mini .cs-arrow-ink {
+  display: inline;
+  height: auto;
+  margin: 0 0.05em;
+  overflow: visible;
+  fill: currentColor;
+  vertical-align: baseline;
+}
+
+.hm-mini-l[data-state='rubbed'] .hm-mini-t {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-rub)), rgba(0, 0, 0, var(--hs-rub))), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+}
+
+.hm-mini-l[data-state='erased'] .hm-mini-t {
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--hs-erased)), rgba(0, 0, 0, var(--hs-erased))), var(--hs-pass-a), var(--hs-pass-b);
+  -webkit-mask-composite: source-in, source-in;
+  mask-composite: intersect, intersect;
+}
+
+.hm-mini-l[data-state='rubbed'] .hm-mini-b {
+  opacity: 0.3;
+}
+
+.hm-mini-l[data-state='erased'] .hm-mini-b {
+  opacity: 0.12;
+}
+
+/* A two-colour school eraser, resting by the line it has just rubbed. */
+.hm-eraser {
   position: absolute;
-  inset: 0;
-  padding: 22px;
+  right: 22px;
+  bottom: 38px;
+  width: 66px;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #f08aa8 0 58%, #6f9be8 58% 100%);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.12), 0 12px 18px -8px rgba(16, 41, 90, 0.45);
+  transform: rotate(-14deg);
+}
+
+/* ---------------------------------------------------------------- the result and the group */
+
+.hm-duo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  padding-top: 24px;
+}
+
+.hm-duo .hm-panel {
+  height: 230px;
+}
+
+.hm-duo .hm-h3 {
+  font-size: 30px;
+}
+
+.hm-proto {
+  left: 32px;
+  right: 32px;
+  top: 50%;
+  padding: 18px 22px 20px;
   border-radius: 24px;
-  background: #fff;
-  color: #0b121c;
-  box-shadow: 0 20px 40px -22px rgba(0, 0, 0, 0.45);
-  font-size: 18px;
-  line-height: 1.35;
-  font-weight: 500;
+  transform: translateY(-50%);
 }
 
-.hm-fc--1 {
-  background: #eaf1fd;
-  transform: rotate(-9deg) translate(-26px, 8px);
-}
-
-.hm-fc--2 {
-  background: #fdf3d8;
-  transform: rotate(6deg) translate(24px, 6px);
-}
-
-.hm-fc--3 {
-  transform: rotate(-1deg);
-}
-
-.hm-fc small {
-  display: block;
-  margin-top: 14px;
-  font-size: 13px;
-  font-weight: 400;
+.hm-proto-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f1ec;
+  font-size: 12px;
   color: #4b515b;
 }
 
-.hm-when {
-  display: inline-block;
-  margin-top: 16px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #e8effc;
-  color: #1c4db1;
-  font-size: 13px;
+.hm-proto-l {
+  margin: 12px 0 0;
+  font-size: 19px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.hm-talk {
-  position: absolute;
-  left: 40px;
-  right: 40px;
-  top: 44px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.hm-bub {
-  max-width: 78%;
-  padding: 12px 16px;
-  border-radius: 20px;
-  background: #fff;
-  color: #0b121c;
-  font-size: 15px;
+.hm-proto-s {
+  margin: 8px 0 0;
+  font-size: 14.5px;
   line-height: 1.4;
-  box-shadow: 0 14px 30px -20px rgba(0, 0, 0, 0.4);
+  color: #4b515b;
 }
 
-.hm-bub b {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
+.hm-chat {
+  left: 32px;
+  right: 64px;
+  top: 50%;
+  padding: 14px 16px 12px;
+  border-radius: 22px 22px 22px 6px;
+  font-size: 15px;
+  line-height: 1.42;
+  transform: translateY(-50%);
+}
+
+.hm-chat p {
+  margin: 0;
+}
+
+.hm-chat-link {
+  display: inline-block;
+  margin-top: 8px;
   color: #1c4db1;
-}
-
-.hm-bub--r {
-  align-self: flex-end;
-  background: #fff8ee;
-}
-
-.hm-bub--r b {
-  color: #a8406a;
-}
-
-.hm-wave {
-  position: absolute;
-  left: 40px;
-  right: 40px;
-  bottom: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 50px;
-}
-
-.hm-wave i {
-  flex: none;
-  width: 6px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.9);
-  animation: hm-bars 1.6s ease-in-out infinite;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------------------------------------------------------------- method */
@@ -951,7 +1342,7 @@
 
 .hm-final .hm-lead {
   position: relative;
-  max-width: 560px;
+  max-width: 580px;
   color: rgba(255, 255, 255, 0.85);
 }
 
@@ -1027,10 +1418,6 @@
   animation-delay: 0.22s;
 }
 
-.hm-d4 {
-  animation-delay: 0.3s;
-}
-
 @keyframes hm-rise {
   from {
     opacity: 0;
@@ -1050,32 +1437,9 @@
   }
 }
 
-@keyframes hm-float-a {
-  50% {
-    transform: translateY(-14px);
-  }
-}
-
-@keyframes hm-float-b {
-  50% {
-    transform: translateY(12px);
-  }
-}
-
 @keyframes hm-pulse {
   50% {
-    box-shadow: 0 0 0 20px rgba(255, 255, 255, 0.18), 0 0 0 40px rgba(255, 255, 255, 0.06);
-  }
-}
-
-@keyframes hm-bars {
-  0%,
-  100% {
-    height: 18%;
-  }
-
-  50% {
-    height: 100%;
+    box-shadow: 0 0 0 13px rgba(255, 255, 255, 0.18), 0 0 0 26px rgba(255, 255, 255, 0.06);
   }
 }
 
@@ -1087,11 +1451,35 @@
   }
 }
 
-/* ---------------------------------------------------------------- narrow screens */
+/* ---------------------------------------------------------------- narrower screens */
+
+@media (max-width: 1240px) {
+  .hm-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 @media (max-width: 1100px) {
   .hm-links {
     display: none;
+  }
+
+  .hm-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 470px);
+    gap: 40px;
+  }
+
+  .hs-paper {
+    --hs-row: 24px;
+    --hs-base: 18px;
+    --hs-hand: 21px;
+    --hs-print-size: 14px;
+    --hs-pad-l: 24px;
+    --hs-pad-r: 40px;
+  }
+
+  .hs-note {
+    font-size: 13px;
   }
 }
 
@@ -1105,21 +1493,11 @@
     gap: 40px;
   }
 
-  .hm-mosaic {
-    height: 460px;
+  .hm-hero-sheet {
+    max-width: 600px;
   }
 
-  .hm-tile--1,
-  .hm-tile--4 {
-    height: 300px;
-  }
-
-  .hm-tile--2,
-  .hm-tile--3 {
-    height: 200px;
-  }
-
-  .hm-grid2,
+  .hm-duo,
   .hm-grid3 {
     grid-template-columns: 1fr;
   }
@@ -1142,6 +1520,12 @@
   }
 }
 
+@media (max-width: 640px) {
+  .hm-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 560px) {
   .hm-nav-in {
     height: 64px;
@@ -1149,15 +1533,6 @@
 
   .hm-end .hm-pill--white {
     display: none;
-  }
-
-  .hm-seg-l {
-    display: none;
-  }
-
-  .hm-seg button {
-    padding: 11px 14px;
-    font-size: 15px;
   }
 
   .hm-card {
@@ -1168,7 +1543,8 @@
     padding: 24px 14px 0;
   }
 
-  .hm-h3 {
+  .hm-h3,
+  .hm-duo .hm-h3 {
     font-size: 26px;
   }
 
@@ -1177,26 +1553,47 @@
     font-size: 17px;
   }
 
-  .hm-win {
-    left: 18px;
-    right: 18px;
-    top: 24px;
+  .hs {
+    padding: 14px 12px 16px;
+    border-radius: 32px;
   }
 
-  .hm-ticket {
-    left: 22px;
-    width: 76%;
+  .hs-paper {
+    --hs-row: 24px;
+    --hs-base: 18px;
+    --hs-hand: 20px;
+    --hs-print-size: 14px;
+    --hs-pad-l: 22px;
+    --hs-pad-r: 30px;
   }
 
-  .hm-said {
+  .hs-paper::after {
+    right: calc(var(--hs-pad-r) - 16px);
+  }
+
+  .hs-tick {
+    left: -20px;
+    transform: scale(0.65);
+    transform-origin: 0 50%;
+  }
+
+  /* A phone shows question 7 alone: it has every state of a line. */
+  .hs-q[data-learned] {
     display: none;
   }
 
-  .hm-mic {
-    right: 24px;
-    bottom: 24px;
-    width: 72px;
-    height: 72px;
+  .hs-q[data-learned] + .hs-q {
+    margin-top: 0;
+  }
+
+  .hs-rule {
+    font-size: 14.5px;
+  }
+
+  .hm-proto,
+  .hm-chat {
+    left: 18px;
+    right: 18px;
   }
 }
 
