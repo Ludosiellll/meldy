@@ -50,7 +50,7 @@ def rpc_error(code, status=400):
 class ShareSupabase(SheetSupabase):
     """PostgREST в памяти: ещё таблицы ссылок, мест и отказов, политика вставки ссылки и функции миграции."""
 
-    TABLES = SheetSupabase.TABLES + ("exam_shares", "exam_share_members", "oral_rubric_failures", "learning_events")
+    TABLES = SheetSupabase.TABLES + ("exam_shares", "exam_share_members", "learning_events")
 
     def __init__(self):
         super().__init__()
@@ -799,3 +799,75 @@ def test_points_that_fail_the_quote_check_twice_leave_a_failure_row(share, monke
         (question["question_hash"], oral.rubric_key(question, [material_id]), "user-a")
     ]
     assert share.fake.tables["oral_rubrics"] == []
+
+
+# ── Автор на своей ссылке ───────────────────────────────────────────────────────
+
+
+def test_the_author_on_their_own_link_sees_whether_it_is_open_closed_or_expired(share):
+    # Живой прогон 07.10: на закрытой ссылке автор читал «Однокурсники, которые по ней войдут…» — «own» в
+    # exam_share_preview решается раньше отзыва. Своя строка ссылки читается токеном автора, без миграции.
+    exam = author_exam(share.fake)
+    link = make_link(share, exam["exam"])
+    own = share.post("/api/exam-shares/preview", json={"code": CODE}).json()
+    assert own["status"] == "own" and own["link"] == "active" and own["exam_id"] == exam["exam"]
+
+    assert share.post(f"/api/exam-shares/{link['id']}/revoke").status_code == 200
+    closed = share.post("/api/exam-shares/preview", json={"code": CODE}).json()
+    assert closed["status"] == "own" and closed["link"] == "revoked" and closed["exam_id"] == exam["exam"]
+    # Гостю и однокурснику — как раньше: ссылка закрыта, без названия экзамена и без поля link.
+    assert share.post("/api/exam-shares/preview", json={"code": CODE}, headers={"Authorization": ""}).json() == {"status": "revoked"}
+    assert share.post("/api/exam-shares/preview", json={"code": CODE}, headers=as_user("token-c")).json() == {"status": "revoked"}
+
+    other = "pqrstvwxyz23"
+    make_link(share, exam["exam"], code=other, expires_at="2026-01-05T09:00:00+00:00")
+    expired = share.post("/api/exam-shares/preview", json={"code": other}).json()
+    assert expired["status"] == "own" and expired["link"] == "expired"
+
+
+def test_an_unreadable_own_link_row_leaves_the_state_unsaid(share):
+    exam = author_exam(share.fake)
+    make_link(share, exam["exam"])
+    share.fake.fail[("GET", "exam_shares")] = 500
+    own = share.post("/api/exam-shares/preview", json={"code": CODE})
+    assert own.status_code == 200
+    assert own.json()["status"] == "own" and "link" not in own.json()
+
+
+# ── Шпаргалка автора: вопросы, которые записать нельзя ─────────────────────────
+
+
+def test_the_authors_sheet_counts_only_what_can_still_be_written_and_names_the_rest(share):
+    # Живой прогон 07.10: два вопроса, чьи пункты дважды не прошли проверку цитат, держали на листе автора
+    # «2 вопроса — 2 единицы» навсегда, хотя ссылка группы уже считала их готовыми.
+    from test_oral_sheet import events_of
+
+    exam = author_exam(share.fake, failed=True)
+    sheet = share.get(f"/api/oral/sheet?exam_id={exam['exam']}").json()
+    assert (sheet["to_write"], sheet["units"], sheet["unwritable"]) == (0, 0, 1)
+    fourth = next(q for q in sheet["questions"] if q["position"] == 4)
+    assert fourth["unwritable"] is True and fourth["rubric"] is None and fourth["rebuilt"] is False
+    assert [q["unwritable"] for q in sheet["questions"] if q["position"] != 4] == [False, False, False]
+    # Ссылка группы читает ту же строку отказа и тоже считает вопрос готовым.
+    assert share.get(f"/api/exam-shares?exam_id={exam['exam']}").json()["ready"] is True
+
+    # Запуск записи его не пробует: ни эталона, ни списания (короткие строки готовых — без единиц).
+    share.model.answer({})
+    events = events_of(share.post("/api/oral/sheet/write", json={"exam_id": exam["exam"]}))
+    done = events[-1]
+    assert done["type"] == "done" and done["total"] == 0 and done["units"] == 0
+    assert not [event for event in events if event["type"] == "question" and not event.get("refresh")]
+    assert share.reserved == []
+
+    # Без строки отказа (или с новыми лекциями — новым ключом) вопрос снова можно записать.
+    share.fake.tables["oral_rubric_failures"].clear()
+    again = share.get(f"/api/oral/sheet?exam_id={exam['exam']}").json()
+    assert (again["to_write"], again["units"], again["unwritable"]) == (1, 1, 0)
+
+
+def test_an_unreadable_failure_table_leaves_the_sheet_as_before(share):
+    exam = author_exam(share.fake, failed=True)
+    share.fake.fail[("GET", "oral_rubric_failures")] = 404
+    sheet = share.get(f"/api/oral/sheet?exam_id={exam['exam']}")
+    assert sheet.status_code == 200
+    assert (sheet.json()["to_write"], sheet.json()["unwritable"]) == (1, 0)

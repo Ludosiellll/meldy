@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { joinShare, previewShare, ShareApiError, type SharePreview } from '../api/examShares';
-import { chromeIntentUrl, detectInAppBrowser, inAppName } from '../lib/inAppBrowser';
+import { detectInAppBrowser } from '../lib/inAppBrowser';
+import InAppNote from '../components/InAppNote';
 import {
   forgetPendingJoin,
   joinPath,
@@ -28,6 +29,8 @@ import './JoinGroup.css';
 
 type PreviewState = { state: 'loading' } | { state: 'ready'; value: SharePreview } | { state: 'error'; message: string };
 type JoinState = { state: 'idle' } | { state: 'joining' } | { state: 'failed'; message: string; retry: boolean };
+
+const NBSP = '\u00a0';
 
 // Refusals that another try does not change: the link itself says no.
 const FINAL_CODES = new Set(['link_not_found', 'link_revoked', 'link_expired', 'link_full', 'own_link']);
@@ -54,6 +57,28 @@ function dayOf(iso: string | null): string | null {
   return moment.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
+// The author on their own link (2026-10-07 live run: a closed link still read «Однокурсники, которые по ней войдут…»).
+const OWN_HEADINGS: Record<NonNullable<SharePreview['link']> | 'unknown', string> = {
+  active: 'Это ваша ссылка',
+  revoked: 'Вы закрыли эту ссылку',
+  expired: 'Срок вашей ссылки закончился',
+  unknown: 'Это ваша ссылка',
+};
+
+const NEW_LINK = 'Новую ссылку можно сделать на странице экзамена — кнопка «Пригласить группу».';
+
+function ownLede(value: SharePreview): string {
+  switch (value.link) {
+    case 'active':
+      return `Однокурсники, которые по ней войдут, получат свою копию экзамена «${value.title}». Ваши ответы они не увидят.`;
+    case 'revoked':
+    case 'expired':
+      return `По ней больше никто не войдёт. Кто уже вошёл, остался со своей копией экзамена «${value.title}». ${NEW_LINK}`;
+    default:
+      return `Однокурсники входят по ней в свою копию экзамена «${value.title}», пока ссылка открыта. Закрыть её или сделать новую можно на странице экзамена — кнопка «Пригласить группу».`;
+  }
+}
+
 function statusMessage(status: SharePreview['status']): string | null {
   switch (status) {
     case 'not_found':
@@ -69,18 +94,6 @@ function statusMessage(status: SharePreview['status']): string | null {
   }
 }
 
-async function copyLink(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // falls through
-  }
-  return false;
-}
-
 export default function JoinGroup() {
   const params = useParams();
   const code = normalizeJoinCode(params.code);
@@ -89,7 +102,6 @@ export default function JoinGroup() {
   const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
   const [preview, setPreview] = useState<PreviewState>({ state: 'loading' });
   const [join, setJoin] = useState<JoinState>({ state: 'idle' });
-  const [copied, setCopied] = useState<boolean | null>(null);
   const started = useRef<string | null>(null);
   const pageUrl = code ? `${window.location.origin}${joinPath(code)}` : window.location.href;
 
@@ -163,10 +175,6 @@ export default function JoinGroup() {
     });
   };
 
-  const copy = async () => {
-    setCopied(await copyLink(pageUrl));
-  };
-
   const back = code ? joinPath(code) : null;
   const value = preview.state === 'ready' ? preview.value : null;
   const live = value && (value.status === 'active' || value.status === 'joined');
@@ -177,14 +185,17 @@ export default function JoinGroup() {
       : value
         ? statusMessage(value.status)
         : null;
-  const appName = inAppName(browser.app);
-  const intent = browser.os === 'android' ? chromeIntentUrl(pageUrl) : null;
+  // «20 вопросов · 3 лекции · экзамен 21 октября»: each part holds together, a row breaks only after a dot (on a
+  // phone «экзамен 21 / октября» split the date, live run of 2026-10-07).
   const meta = value && live
     ? [
         value.questions > 0 ? `${value.questions} ${plural(value.questions, 'вопрос', 'вопроса', 'вопросов')}` : null,
         value.lectures > 0 ? `${value.lectures} ${plural(value.lectures, 'лекция', 'лекции', 'лекций')}` : null,
         dayOf(value.examDate) ? `${value.kind === 'credit' ? 'зачёт' : value.kind === 'colloquium' ? 'коллоквиум' : 'экзамен'} ${dayOf(value.examDate)}` : null,
-      ].filter(Boolean).join(' · ')
+      ]
+        .filter((part): part is string => Boolean(part))
+        .map((part) => part.replace(/\s/g, NBSP))
+        .join(`${NBSP}· `)
     : '';
 
   return (
@@ -211,12 +222,9 @@ export default function JoinGroup() {
             ) : value && value.status === 'own' ? (
               <>
                 <h1 id="join-title" className="au-h1 jg-h1">
-                  Это ваша ссылка
+                  {OWN_HEADINGS[value.link ?? 'unknown']}
                 </h1>
-                <p className="au-lede">
-                  Однокурсники, которые по ней войдут, получат свою копию экзамена «{value.title}». Ваши ответы они не
-                  увидят.
-                </p>
+                <p className="au-lede">{ownLede(value)}</p>
                 {value.examId && (
                   <p className="jg-actions">
                     <Link className="sf-primary" to={`/exams/${value.examId}`}>
@@ -237,34 +245,7 @@ export default function JoinGroup() {
               </div>
             )}
 
-            {browser.app && code && !problem && (
-              <section className="jg-inapp" aria-labelledby="join-inapp">
-                <h2 id="join-inapp" className="jg-h2">
-                  Откройте ссылку в Chrome или Safari
-                </h2>
-                <p>
-                  {appName ? `Во встроенном браузере ${appName}` : 'Во встроенном браузере приложения'} Google не даёт войти,
-                  а микрофон для ответов вслух часто не работает.
-                </p>
-                <div className="jg-inapp-do">
-                  <button type="button" className="sf-primary jg-copy" onClick={() => void copy()}>
-                    {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
-                  </button>
-                  {intent && (
-                    <a className="au-link" href={intent}>
-                      Открыть в Chrome
-                    </a>
-                  )}
-                </div>
-                {copied === false && (
-                  <p className="jg-hint">
-                    Не получилось скопировать. Нажмите на ссылку и удерживайте: <span className="jg-url">{pageUrl}</span>
-                  </p>
-                )}
-                {browser.os === 'ios' && <p className="jg-hint">Или нажмите «⋯» или «Поделиться» → «Открыть в Safari».</p>}
-                {browser.os === 'other' && <p className="jg-hint">Вставьте ссылку в адресную строку Chrome или Safari.</p>}
-              </section>
-            )}
+            {browser.app && code && !problem && <InAppNote browser={browser} url={pageUrl} />}
 
             {live && !user && !loading && back && (
               <div className="jg-signin">

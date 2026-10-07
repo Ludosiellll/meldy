@@ -685,7 +685,7 @@ function ProgressBody({ sources, reload, userId }: { sources: Sources; reload: (
           <Quiet>
             Лекций пока нет.{' '}
             <Link to="/analyze" className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
-              Добавить лекцию
+              Разобрать лекцию
             </Link>
           </Quiet>
         ) : (
@@ -805,7 +805,7 @@ function KnowledgeTile({ cards, states, onRetry }: { cards: Source<CardRow[]>; s
         <>
           <p className="pg-note">Карточек в повторении пока нет. Они появляются после разбора лекции.</p>
           <Link className="sf-link pg-tile-link" to="/analyze">
-            Добавить лекцию
+            Разобрать лекцию
           </Link>
         </>
       ) : (

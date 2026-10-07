@@ -58,7 +58,7 @@ POINT_KEYS = ["id", "title", "short", "essential", "source_quote", "source_ids"]
 RUBRIC_KEYS = ["rubric_id", "built_at", "coverage", "coverage_note", "materials", "points"]
 QUESTION_KEYS = {
     "question_id", "position", "label", "section", "text", "question_hash", "coverage", "coverage_method",
-    "coverage_reason", "missing_note", "rubric", "rebuilt",
+    "coverage_reason", "missing_note", "rubric", "rebuilt", "unwritable",
 }
 _KEY_LINE_RE = re.compile(r"^(q\d+p\d): (.*)$", re.M)
 
@@ -71,7 +71,10 @@ def _sort_key(value):
 
 class SheetSupabase(FakeSupabase):
     """PostgREST в памяти: ещё JSON-пути в select (с псевдонимом и без), offset, числовой порядок,
-    колонка sheet (или её отсутствие до миграции) и токен, который истекает после N вставок эталона."""
+    колонка sheet (или её отсутствие до миграции), токен, который истекает после N вставок эталона, и
+    отказы проверки цитат (oral_rubric_failures: вопросы, которые записать нельзя)."""
+
+    TABLES = FakeSupabase.TABLES + ("oral_rubric_failures",)
 
     def __init__(self):
         super().__init__()
@@ -570,7 +573,8 @@ def test_an_exam_without_questions(sheet):
     exam_id = sheet.fake.exam()
     sheet.fake.requests.clear()
     assert read_sheet(sheet, exam_id) == {
-        "exam_id": exam_id, "mapping_state": "none", "questions": [], "to_write": 0, "units": 0, "job": None,
+        "exam_id": exam_id, "mapping_state": "none", "questions": [], "to_write": 0, "units": 0, "unwritable": 0,
+        "job": None,
     }
     assert sheet.fake.paths() == ["exams", "exam_questions"]  # без вопросов эталоны не читаются
 

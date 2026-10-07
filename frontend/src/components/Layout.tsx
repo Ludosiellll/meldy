@@ -20,7 +20,8 @@ import './layout.css';
 
 /**
  * The shell of the interior: one line on top like the landing's navbar — the wordmark, the five
- * sections as pills, «Добавить лекцию», the daily AI limit (QuotaMeter) and the account button; on
+ * sections as pills, «Разобрать лекцию» (the analysis, /analyze: 20 units — named apart from the free «Добавить
+ * лекцию» of «Сегодня», which leads to the exam's lectures as text), the daily AI limit (QuotaMeter) and the account button; on
  * phones a short line with «+» and the limit's ring, and five tabs at the bottom, an icon over a word.
  * The menu is the core of Meldy: «Сегодня», «Экзамены», «Лекции», «Повторение» (with the mistakes
  * diary) and «Прогресс» (with the knowledge map). The window scrolls (not <main>), so a page opens at
@@ -321,7 +322,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   }
 
   // The guide lights up the section it talks about: its pill in the top line, its tab on a phone, or
-  // «Добавить лекцию».
+  // «Разобрать лекцию».
   const spot = guide?.open ? GUIDE_CHAPTERS[guide.index] : null;
   const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route === to ? '' : undefined);
 
@@ -429,7 +430,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
             {/* On a phone the same link is a round «+» (the words stay for screen readers). */}
             <Link className="sf-nav-cta" to="/analyze" aria-current={onAnalyze ? 'page' : undefined} data-guide-spot={spot?.spot === 'cta' ? '' : undefined}>
               <span className="sf-cta-plus" aria-hidden="true" />
-              <span className="sf-cta-t">Добавить лекцию</span>
+              <span className="sf-cta-t">Разобрать лекцию</span>
             </Link>
             <QuotaMeter
               remaining={remainingUnits}

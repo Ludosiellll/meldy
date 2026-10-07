@@ -1,5 +1,5 @@
 /**
- * The guide's chapters: one per item of the menu, in the order of the menu, with «Добавить лекцию»
+ * The guide's chapters: one per item of the menu, in the order of the menu, with «Разобрать лекцию»
  * after «Сегодня» (that is where a new student starts), and «Лимит ИИ» last: the meter in the top line
  * that every AI action spends. Each has a short clip (scenes/), a title and a line or two of text in
  * the words the screens use. The mistakes diary is told inside «Повторение» and the knowledge map inside
@@ -26,7 +26,7 @@ export interface GuideChapter {
   text: string;
   /** Where the section is on a phone, when that is not obvious from the tabs. */
   phone?: string;
-  /** What lights up: the section's item in the menu, the «Добавить лекцию» button, or the limit meter. */
+  /** What lights up: the section's item in the menu, the «Разобрать лекцию» button, or the limit meter. */
   spot: 'link' | 'cta' | 'meter';
 }
 
@@ -57,10 +57,10 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
   },
   {
     id: 'add',
-    tab: 'Добавить лекцию',
+    tab: 'Разобрать лекцию',
     route: '/analyze',
     match: /^\/analyze\/?$/,
-    title: 'Добавить лекцию',
+    title: 'Разобрать лекцию',
     text: 'Файл, текст, ссылка или запись пары. Отметьте, что подготовить — конспект, карточки, тест, выжимку или разговор, — и нажмите «Запустить анализ».',
     phone: 'На телефоне — кнопка «+» вверху экрана.',
     spot: 'cta',

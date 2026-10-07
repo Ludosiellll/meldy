@@ -82,7 +82,7 @@ describe('the guide chapters', () => {
   it('follow the menu, in its words: the map is told in «Прогресс», the mistakes diary in «Повторение»; the limit comes last', () => {
     expect(GUIDE_CHAPTERS.map((chapter) => chapter.tab)).toEqual([
       'Сегодня',
-      'Добавить лекцию',
+      'Разобрать лекцию',
       'Лекции',
       'Экзамены',
       'Повторение',
@@ -184,7 +184,7 @@ describe('the first run', () => {
     expect(document.querySelector('.sf-tablink[href="/dashboard"]')).toHaveAttribute('data-guide-spot');
     next();
     expect(where()).toBe('/analyze');
-    expect(within(panel()!).getByRole('heading', { name: 'Добавить лекцию' })).toBeInTheDocument();
+    expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
     expect(document.querySelector('.sf-nav-cta')).toHaveAttribute('data-guide-spot');
     next();
     expect(where()).toBe('/library');

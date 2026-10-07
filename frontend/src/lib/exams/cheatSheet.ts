@@ -323,6 +323,11 @@ export interface SheetQuestion {
   rubric: SheetRubric | null;
   /** No rubric for the current lectures, but there was one for earlier ones: the points were rebuilt. */
   rebuilt?: boolean;
+  /**
+   * In the lectures, but its points failed the quote check twice for these lectures (oral_rubric_failures): there is
+   * nothing to write, the server does not count it in to_write — the same as a group link's copy, a gap.
+   */
+  unwritable?: boolean;
 }
 
 /**
@@ -433,6 +438,7 @@ export function blockKind(question: SheetQuestion): BlockKind {
   if (question.rubric) return question.rubric.coverage === 'none' || question.rubric.points.length === 0 ? 'gap' : 'lines';
   if (question.coverage === null) return 'unmapped';
   if (question.coverage === 'unverified') return 'unverified';
+  if (question.unwritable) return 'gap';
   return question.rebuilt ? 'rebuilt' : 'unwritten';
 }
 

@@ -550,3 +550,95 @@ def test_ai_error_shapes_used_by_other_modules():
     assert (AIError.failed().status_code, AIError.failed().code) == (502, "ai_failed")
     assert (AIError.timeout().status_code, AIError.timeout().code) == (504, "ai_timeout")
     assert (AIError.unconfigured().status_code, AIError.unconfigured().code) == (503, "ai_unconfigured")
+
+
+# --- Gemini's share of the budget (gemini_timeout) ----------------------------------------------
+# The live run of 2026-10-07: in a slow-Gemini window 17 quick checks of 18 failed at exactly 4.5 s,
+# while Groq answered in 0.4 s — the whole budget went to Gemini and the fallback never ran.
+
+
+def slow_gemini(seconds, text="ответ gemini"):
+    async def answer():
+        await asyncio.sleep(seconds)
+        return text, "STOP"
+
+    return lambda model, config, contents: answer()
+
+
+def test_a_slow_gemini_leaves_the_rest_of_the_budget_to_groq(monkeypatch):
+    gemini_calls, _ = install_gemini(monkeypatch, slow_gemini(5))
+    groq_calls, _ = install_groq(monkeypatch, lambda kwargs: ("ответ groq", "stop"))
+    meta = {}
+
+    async def go():
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        text = await BaseAgent(api_key="groq-key").run(PROMPT, "текст", timeout=1.0, gemini_timeout=0.3, meta=meta)
+        return text, loop.time() - start
+
+    answer, elapsed = asyncio.run(go())
+    assert answer == "ответ groq" and meta["provider"] == "groq" and meta["model"] == base.groq_model()
+    assert 0.3 <= elapsed < 0.8
+    # Gemini's share is spent on its first model: the second one gets no time, Groq gets the rest.
+    assert [call["model"] for call in gemini_calls] == base.gemini_models()[:1]
+    (groq_call,) = groq_calls
+    assert 0.6 <= groq_call["timeout"] <= 0.7
+
+
+def test_slow_gemini_and_slow_groq_are_ai_timeout_within_the_budget(monkeypatch):
+    install_gemini(monkeypatch, slow_gemini(5))
+
+    async def slow_groq():
+        await asyncio.sleep(5)
+        return "поздно", "stop"
+
+    groq_calls, _ = install_groq(monkeypatch, lambda kwargs: slow_groq())
+    error, elapsed = asyncio.run(_timed(BaseAgent(api_key="groq-key"), timeout=0.6, gemini_timeout=0.2))
+    assert isinstance(error, AIError) and error.status_code == 504 and error.code == "ai_timeout"
+    assert 0.55 <= elapsed < 0.9
+    assert len(groq_calls) == 1
+
+
+def test_a_fast_gemini_never_asks_groq(monkeypatch):
+    install_gemini(monkeypatch, lambda model, config, contents: ("ответ gemini", "STOP"))
+    groq_calls, _ = install_groq(monkeypatch, lambda kwargs: ("ответ groq", "stop"))
+    meta = {}
+    assert run(BaseAgent(api_key="groq-key"), PROMPT, "текст", timeout=1.0, gemini_timeout=0.3, meta=meta) == "ответ gemini"
+    assert meta["provider"] == "gemini" and groq_calls == []
+
+
+def test_a_failing_first_gemini_model_leaves_the_second_one_the_rest_of_the_share(monkeypatch):
+    def behaviour(model, config, contents):
+        if model == base.gemini_models()[0]:
+            return gemini_error(503, "UNAVAILABLE")
+        return "ответ второй модели", "STOP"
+
+    gemini_calls, _ = install_gemini(monkeypatch, behaviour)
+    groq_calls, _ = install_groq(monkeypatch, lambda kwargs: ("ответ groq", "stop"))
+    assert run(BaseAgent(api_key="groq-key"), PROMPT, "текст", timeout=1.0, gemini_timeout=0.3) == "ответ второй модели"
+    assert [call["model"] for call in gemini_calls] == base.gemini_models()[:2]
+    assert groq_calls == []
+
+
+def test_without_a_groq_key_gemini_keeps_the_whole_budget(monkeypatch):
+    install_gemini(monkeypatch, slow_gemini(0.4))
+    assert run(BaseAgent(), PROMPT, "текст", timeout=1.5, gemini_timeout=0.1) == "ответ gemini"
+
+
+def test_with_the_groq_pair_resting_after_a_429_gemini_keeps_the_whole_budget(monkeypatch):
+    install_gemini(monkeypatch, slow_gemini(0.4))
+    groq_calls, _ = install_groq(monkeypatch, lambda kwargs: ("ответ groq", "stop"))
+    base.rest_pair("groq", "groq-key", base.groq_model(), 60)
+    assert run(BaseAgent(api_key="groq-key"), PROMPT, "текст", timeout=1.5, gemini_timeout=0.1) == "ответ gemini"
+    assert groq_calls == []
+
+
+def test_a_call_groq_rescued_is_one_logged_call_with_the_time_of_the_whole_call(monkeypatch):
+    records = []
+    monkeypatch.setattr(base, "_CALL_OBSERVERS", [records.append])
+    install_gemini(monkeypatch, slow_gemini(5))
+    install_groq(monkeypatch, lambda kwargs: ("ответ groq", "stop"))
+    run(BaseAgent(api_key="groq-key"), PROMPT, "текст", timeout=1.0, gemini_timeout=0.3)
+    (record,) = records
+    assert (record["provider"], record["model"], record["ok"]) == ("groq", base.groq_model(), True)
+    assert record["ms"] >= 300  # Gemini's share is in it: the call log names the model that answered

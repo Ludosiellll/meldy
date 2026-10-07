@@ -28,7 +28,7 @@ import { Mark } from '../components/marks';
 import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exams/ExamSheet';
 import WhyPanel from '../components/exams/WhyPanel';
 import { CoverageSummary, PeakSummary, peakCountLine, RateSummary, ReadinessBlock, type PeakView } from '../components/exams/SheetSummary';
-import { checkedCount, getMapJob, interruptedMessage, MAPPING_COST, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
+import { checkedCount, getMapJob, interruptedMessage, MAPPING_COST, mappingNeedsModel, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
   growthSentence,
@@ -681,9 +681,14 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const startRun = useCallback(
     (questionIds: string[] | null = null) => {
       if (!userId || limit || getMapJob(examId).starting) return;
-      void startMapping({ examId, userId, questionIds, verifyEnergy: verifyMappingLimit });
+      // The units are checked only when questions will go to the model: a group link's copy, all checked already,
+      // was held back by «10 единиц» for a run the server did for free (live run of 2026-10-07).
+      const needsModel = bundle
+        ? mappingNeedsModel({ questions: bundle.questions, materialIds: bundle.materialIds, mappedMaterialIds: bundle.exam.mapped_material_ids }, questionIds)
+        : true;
+      void startMapping({ examId, userId, questionIds, verifyEnergy: verifyMappingLimit, cost: needsModel ? MAPPING_COST : 0 });
     },
-    [examId, userId, limit, verifyMappingLimit],
+    [examId, userId, limit, verifyMappingLimit, bundle],
   );
 
   const unverifiedIds = useMemo(() => allRows.filter((row) => row.coverage === 'unverified').map((row) => row.question.id), [allRows]);

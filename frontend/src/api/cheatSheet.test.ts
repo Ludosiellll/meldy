@@ -113,6 +113,19 @@ describe('parseSheetResponse', () => {
     expect(response.job).toBeNull();
   });
 
+  it('reads the questions that cannot be written (their points failed the quote check twice) apart from to_write', () => {
+    const response = parseSheetResponse({
+      questions: [question(Q1, { unwritable: true }), question(Q2)],
+      to_write: 1,
+      units: 1,
+      unwritable: 1,
+    });
+    expect(response).toMatchObject({ toWrite: 1, units: 1, unwritable: 1 });
+    expect(response.questions.map((item) => item.unwritable)).toEqual([true, false]);
+    // An older server says nothing: nothing is unwritable.
+    expect(parseSheetResponse({ questions: [question(Q1)] }).unwritable).toBe(0);
+  });
+
   it('refuses a body without questions with the plain message', () => {
     expect(() => parseSheetResponse({ detail: 'oops' })).toThrow(SHEET_LOAD_MESSAGE);
   });
@@ -186,6 +199,21 @@ describe('startSheetWrite', () => {
     await startSheetWrite(EXAM);
     expect(getSheetWrite(EXAM)).toMatchObject({ phase: 'done', written: 1, busy: 0, capped: 1 });
     expect(getSheetWrite(EXAM).results[Q2].status).toBe('capped');
+  });
+
+  it('tells the questions whose points failed the quote check (unverifiable) apart within the failed count', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          ev({ type: 'question', question_id: Q1, status: 'unverifiable', rubric: null, done: 1, total: 2 }),
+          ev({ type: 'question', question_id: Q2, status: 'failed', rubric: null, done: 2, total: 2 }),
+          ev({ type: 'done', written: 0, failed: 2, busy: 0, capped: 0, limit: false, units: 0, total: 2, auth: 0, stopped: 0 }),
+        ]),
+      ),
+    );
+    await startSheetWrite(EXAM);
+    expect(getSheetWrite(EXAM)).toMatchObject({ phase: 'done', failed: 2, unverifiable: 1 });
   });
 
   it('is the same object until something changes (an external store for React)', async () => {

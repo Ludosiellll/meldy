@@ -135,14 +135,15 @@ describe('the menu: five sections around the core', () => {
     expect(within(deskNav()).getByRole('link', { name: 'Повторение' }).textContent).toBe('Повторение');
   });
 
-  it('keeps «Добавить лекцию» as the button of the line, a round «+» with the same name on a phone', async () => {
+  it('keeps «Разобрать лекцию» as the button of the line, a round «+» with the same name on a phone', async () => {
+    // The analysis (/analyze, 20 units) is named apart from the free «Добавить лекцию» of «Сегодня» (live run of 2026-10-07).
     renderAt('/analyze');
-    const cta = within(bar()).getByRole('link', { name: 'Добавить лекцию' });
+    const cta = within(bar()).getByRole('link', { name: 'Разобрать лекцию' });
     expect(cta).toHaveAttribute('href', '/analyze');
     expect(cta).toHaveClass('sf-nav-cta');
     expect(cta).toHaveAttribute('aria-current', 'page');
     expect(cta.querySelector('.sf-cta-plus')).toHaveAttribute('aria-hidden', 'true');
-    expect(cta.querySelector('.sf-cta-t')).toHaveTextContent('Добавить лекцию');
+    expect(cta.querySelector('.sf-cta-t')).toHaveTextContent('Разобрать лекцию');
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 });
@@ -293,7 +294,7 @@ describe('account menu', () => {
     renderAt('/dashboard');
     openMenu();
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
-    expect(within(menu).queryByRole('link', { name: /Карта знаний|Дневник ошибок|Прогресс|Добавить лекцию/ })).toBeNull();
+    expect(within(menu).queryByRole('link', { name: /Карта знаний|Дневник ошибок|Прогресс|Разобрать лекцию/ })).toBeNull();
     expect(within(menu).getByRole('button', { name: 'Как пользоваться Meldy' })).toBeInTheDocument();
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
@@ -319,10 +320,10 @@ describe('the daily limit meter in the top line', () => {
   const arc = () => meter().querySelector('.sf-quota-arc')?.getAttribute('stroke-dasharray');
   const free = (count: number, extra: Record<string, unknown> = {}) => ({ allowed: count < 100, isPro: false, count, ok: true, limit: 100, ...extra });
 
-  it('sits between «Добавить лекцию» and «?»: a ring and the units left, the sentence as its name', async () => {
+  it('sits between «Разобрать лекцию» and «?»: a ring and the units left, the sentence as its name', async () => {
     renderAt('/dashboard');
     await waitFor(() => expect(number()).toBe('70'));
-    const cta = within(bar()).getByRole('link', { name: 'Добавить лекцию' });
+    const cta = within(bar()).getByRole('link', { name: 'Разобрать лекцию' });
     const help = within(bar()).getByRole('button', { name: 'Как пользоваться Meldy' });
     expect(cta.compareDocumentPosition(meter()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(meter().compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -65,7 +65,7 @@ function Source() {
             <span>Лекции</span>
             <span>Повторение</span>
           </span>
-          <span className="fm-bar-cta">Добавить лекцию</span>
+          <span className="fm-bar-cta">Разобрать лекцию</span>
           <span className="fm-bar-me">А</span>
         </div>
         <div data-a="zone" className="ln-zone">

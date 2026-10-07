@@ -652,7 +652,7 @@ export default function Library() {
             </h1>
             <p className="lib-empty-p">Загрузите первую — Meldy сделает конспект, карточки и тест и сошлётся на её фрагменты.</p>
             <Link className="sf-primary" to="/analyze">
-              Добавить лекцию
+              Разобрать лекцию
             </Link>
           </div>
           {/* A lecture on a blue panel: the cards behind it and the window of its summary (no words, no numbers). */}

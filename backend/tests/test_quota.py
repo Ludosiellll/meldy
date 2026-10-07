@@ -686,7 +686,7 @@ def oral(monkeypatch, quota_on):
 
     monkeypatch.setattr(main, "require_authenticated_user", fake_user)
     monkeypatch.setattr(main.limiter, "enabled", False)
-    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "ORAL_CHECK_TIMEOUT_SECONDS"):
+    for name in ("GEMINI_API_KEY", "GROQ_API_KEY", "ORAL_CHECK_TIMEOUT_SECONDS", "ORAL_CHECK_GEMINI_SECONDS"):
         monkeypatch.delenv(name, raising=False)
     fake = OralSupabase()
     server = QuotaServer(inner=fake.handler)

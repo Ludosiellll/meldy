@@ -9,7 +9,10 @@ GET /api/oral/sheet?exam_id= (30/мин). Без модели и без един
 1000; из rubric — только coverage, coverage_note, points, materials, из пунктов отдаются id, title,
 short, essential, source_quote, source_ids. to_write — вопросы «есть»/«частично» без годного эталона
 (испорченная строка — тоже не годна), units — цена их записи: вопросы с одним текстом и одним
-ключом делят эталон и единицу. rebuilt — годного эталона по нынешнему ключу нет, а с пунктами по
+ключом делят эталон и единицу. unwritable — такие вопросы, у которых пункты по нынешнему ключу дважды
+не прошли проверку цитат (строка oral_rubric_failures): их записать нельзя, в to_write и units они не
+входят (у вопроса — "unwritable": true), запуск записи их не пробует; ссылка группы считает их готовыми
+так же (exam_shares.plan_copy). Новые лекции — новый ключ, и вопрос снова можно записать. rebuilt — годного эталона по нынешнему ключу нет, а с пунктами по
 другому ключу есть и собран он только из лекций этого экзамена (лекции или сверка поменялись);
 эталон того же текста из других лекций (другой экзамен) — не rebuilt. job — идёт ли запись.
 
@@ -798,6 +801,44 @@ async def _read_rubrics(db: SupabaseRest, user_id: str | None, hashes: list[str]
     return [row for part in parts for row in part], has_sheet
 
 
+_REPORTED_FAILURE_READS: set[str] = set()
+
+
+async def _read_failures(db: SupabaseRest, user_id: str | None, hashes: list[str]) -> set[tuple[str, str]]:
+    """(хеш, ключ) нынешней версии, по которым пункты дважды не прошли проверку цитат (oral_rubric_failures).
+
+    Не прочитать (таблицы ещё нет, сбой) — отказов не знаем: лист считает их, как раньше, в to_write.
+    """
+    unique = sorted({value for value in hashes if oral_api._HASH_RE.match(value)})
+    chunks = [unique[start:start + HASH_CHUNK] for start in range(0, len(unique), HASH_CHUNK)]
+
+    def read(chunk: list[str]):
+        params = {
+            "select": "question_hash,source_key",
+            "question_hash": f"in.({','.join(chunk)})",
+            "rubric_version": f"eq.{oral_api.RUBRIC_VERSION}",
+            "order": "question_hash.asc,source_key.asc",
+        }
+        if user_id:
+            params["user_id"] = f"eq.{user_id}"
+        return _select_pages(db, "oral_rubric_failures", params)
+
+    try:
+        parts = await _all(*(read(chunk) for chunk in chunks))
+    except SupabaseRestError as exc:
+        kind = f"{exc.status} {exc.code or ''}".strip()
+        if kind not in _REPORTED_FAILURE_READS:
+            _REPORTED_FAILURE_READS.add(kind)
+            print(f"Cheat sheet: rubric failures unreadable ({kind}); they count as to write")
+        return set()
+    return {
+        (row["question_hash"], row["source_key"])
+        for part in parts
+        for row in part
+        if isinstance(row.get("question_hash"), str) and isinstance(row.get("source_key"), str)
+    }
+
+
 def _usable(row: dict | None) -> bool:
     return (
         isinstance(row, dict)
@@ -822,9 +863,21 @@ class _State:
     current: dict[str, dict]  # id вопроса → строка oral_rubrics его ключа (годная или нет)
     rebuilt: set[str]  # хеши вопросов без годного эталона, у которых он с пунктами есть по другому ключу из лекций экзамена
     has_sheet: bool
+    # (хеш, ключ) без годного эталона, по которым пункты дважды не прошли проверку цитат: записать их нельзя
+    failed: set[tuple[str, str]] = field(default_factory=set)
 
     def usable(self, question: dict) -> bool:
         return _usable(self.current.get(str(question["id"])))
+
+    def unwritable(self, question: dict) -> bool:
+        """«Есть»/«частично» без годного эталона, но пункты по нынешнему ключу дважды не прошли проверку цитат
+        (строка oral_rubric_failures): дописывать нечего — как у ссылки группы (exam_shares.plan_copy)."""
+        question_hash = str(question.get("question_hash") or "")
+        return (
+            question.get("coverage") in WRITABLE_COVERAGE
+            and not self.usable(question)
+            and (question_hash, self.keys[str(question["id"])]) in self.failed
+        )
 
 
 def _built_from(row: dict, lectures: set[str]) -> bool:
@@ -850,7 +903,8 @@ async def _load_state(db: SupabaseRest, exam_id: str, user_id: str | None, *, wi
         if with_material_ids or not all(_fingerprint(question) for question in questions):
             material_ids = await oral_api._exam_material_ids(db, exam_id)
         keys = {str(question["id"]): oral.rubric_key(question, material_ids or []) for question in questions}
-        rows, has_sheet = await _read_rubrics(db, user_id, [str(question.get("question_hash") or "") for question in questions])
+        hashes = [str(question.get("question_hash") or "") for question in questions]
+        (rows, has_sheet), failed = await _all(_read_rubrics(db, user_id, hashes), _read_failures(db, user_id, hashes))
     except SupabaseRestError as exc:
         raise _read_error(exc) from None
     by_key: dict[tuple[str, str], dict] = {}
@@ -885,7 +939,7 @@ async def _load_state(db: SupabaseRest, exam_id: str, user_id: str | None, *, wi
                 raise _read_error(exc) from None
         lectures = {material_id.lower() for material_id in material_ids}
         rebuilt = {value for value in candidates if any(_built_from(row, lectures) for row in with_points[value])}
-    return _State(exam, questions, material_ids, keys, current, rebuilt, has_sheet)
+    return _State(exam, questions, material_ids, keys, current, rebuilt, has_sheet, failed)
 
 
 def _checked_short(short: str, title: str) -> str:
@@ -926,13 +980,17 @@ def _row_payload(row: dict) -> dict:
 def _sheet_response(exam_id: str, state: _State, job: SheetJob | None) -> dict:
     questions: list[dict] = []
     to_write = 0
+    unwritable = 0
     rubrics_to_write: set[tuple[str, str]] = set()
     for question in state.questions:
         question_id = str(question["id"])
         question_hash = str(question.get("question_hash") or "")
         usable = state.usable(question)
+        failed = state.unwritable(question)
         coverage, method = question.get("coverage"), question.get("coverage_method")
-        if coverage in WRITABLE_COVERAGE and not usable and oral_api._HASH_RE.match(question_hash):
+        if failed:
+            unwritable += 1
+        elif coverage in WRITABLE_COVERAGE and not usable and oral_api._HASH_RE.match(question_hash):
             to_write += 1
             rubrics_to_write.add((question_hash, state.keys[question_id]))
         questions.append(
@@ -948,7 +1006,8 @@ def _sheet_response(exam_id: str, state: _State, job: SheetJob | None) -> dict:
                 "coverage_reason": str(question.get("coverage_reason") or ""),
                 "missing_note": str(question.get("missing_note") or ""),
                 "rubric": _row_payload(state.current[question_id]) if usable else None,
-                "rebuilt": not usable and question_hash in state.rebuilt,
+                "rebuilt": not usable and not failed and question_hash in state.rebuilt,
+                "unwritable": failed,
             }
         )
     return {
@@ -957,6 +1016,7 @@ def _sheet_response(exam_id: str, state: _State, job: SheetJob | None) -> dict:
         "questions": questions,
         "to_write": to_write,
         "units": len(rubrics_to_write) * AI_COSTS["answerPoints"],
+        "unwritable": unwritable,
         "job": job.public() if job is not None else None,
     }
 
@@ -1482,6 +1542,8 @@ def _plan(state: _State, question_ids: list[str] | None) -> tuple[list[_Group], 
                     )
                 entry.questions.append(question)
             continue
+        if state.unwritable(question):
+            continue  # пункты по этому ключу дважды не прошли проверку цитат: запуск их не пробует и не списывает
         if (wanted is not None and question_id not in wanted) or taken >= MAX_RUN_QUESTIONS:
             continue
         taken += 1

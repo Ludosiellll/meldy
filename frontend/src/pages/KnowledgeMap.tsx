@@ -261,7 +261,7 @@ export default function KnowledgeMap() {
               Загрузите лекции — Meldy найдёт понятия, которые их связывают, и покажет, в какой лекции какие вопросы экзамена.
             </p>
             <Link className="sf-primary km-state-act" to="/analyze">
-              Добавить лекцию
+              Разобрать лекцию
             </Link>
           </div>
         </div>

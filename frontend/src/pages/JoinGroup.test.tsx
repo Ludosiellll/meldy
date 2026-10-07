@@ -111,6 +111,8 @@ describe('/join/<код> signed out', () => {
     const heading = await screen.findByRole('heading', { level: 1, name: /Вас пригласили/ });
     expect(plain(heading.textContent)).toBe('Вас пригласили готовиться к экзамену «Макроэкономика» в Meldy');
     expect(plain(document.querySelector('.jg-meta')?.textContent)).toBe('40 вопросов · 3 лекции · экзамен 10 ноября');
+    // Each part holds together (a phone broke «экзамен 10 / ноября»); a row breaks only after a dot.
+    expect(document.querySelector('.jg-meta')?.textContent).toBe('40\u00a0вопросов\u00a0· 3\u00a0лекции\u00a0· экзамен\u00a010\u00a0ноября');
     const google = screen.getByRole('button', { name: 'Войти через Google' });
     const mail = screen.getByRole('link', { name: 'Войти по почте' });
     expect(google.compareDocumentPosition(mail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -234,6 +236,27 @@ describe('/join/<код> signed in', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Это ваша ссылка' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Открыть экзамен' })).toHaveAttribute('href', `/exams/${COPY}`);
     expect(calls).not.toContain('POST /api/exam-shares/join');
+  });
+
+  it('the author on their own closed or expired link sees that it is closed and where to make a new one', async () => {
+    // Live run of 2026-10-07: a revoked link still told its author «Однокурсники, которые по ней войдут…».
+    for (const [link, heading, words] of [
+      ['active', 'Это ваша ссылка', 'Однокурсники, которые по ней войдут, получат свою копию экзамена «Макроэкономика».'],
+      ['revoked', 'Вы закрыли эту ссылку', 'По ней больше никто не войдёт. Кто уже вошёл, остался со своей копией экзамена «Макроэкономика». Новую ссылку можно сделать на странице экзамена — кнопка «Пригласить группу».'],
+      ['expired', 'Срок вашей ссылки закончился', 'По ней больше никто не войдёт. Кто уже вошёл, остался со своей копией экзамена «Макроэкономика». Новую ссылку можно сделать на странице экзамена — кнопка «Пригласить группу».'],
+      [undefined, 'Это ваша ссылка', 'пока ссылка открыта. Закрыть её или сделать новую можно на странице экзамена — кнопка «Пригласить группу».'],
+    ] as const) {
+      auth.state = { user: { id: 'author-1' }, loading: false };
+      const { calls } = server({ preview: { ...ACTIVE, status: 'own', exam_id: COPY, ...(link ? { link } : {}) } });
+      renderAt(`/join/${CODE}`);
+      expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
+      expect(plain(document.querySelector('.au-lede')?.textContent)).toContain(words);
+      if (link !== 'active') expect(plain(document.body.textContent)).not.toContain('которые по ней войдут');
+      expect(screen.getByRole('link', { name: 'Открыть экзамен' })).toHaveAttribute('href', `/exams/${COPY}`);
+      expect(calls).not.toContain('POST /api/exam-shares/join');
+      cleanup();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('a closed link or the own one lets the waiting code go: «Сегодня» does not send the visitor back here', async () => {

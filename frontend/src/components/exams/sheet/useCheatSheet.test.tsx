@@ -93,7 +93,7 @@ function question(id: string, position: number, extra: Partial<SheetQuestion> = 
 
 function response(questions: SheetQuestion[], extra: Partial<SheetResponse> = {}): SheetResponse {
   const toWrite = questions.filter((item) => !item.rubric).length;
-  return { examId: EXAM, mappingState: 'done', questions, toWrite, units: toWrite, job: null, ...extra };
+  return { examId: EXAM, mappingState: 'done', questions, toWrite, units: toWrite, unwritable: 0, job: null, ...extra };
 }
 
 beforeEach(() => {

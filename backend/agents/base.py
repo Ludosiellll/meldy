@@ -1388,6 +1388,7 @@ class BaseAgent:
         thinking: Optional[ThinkingMode] = None,
         use_cache: bool = True,
         meta: Optional[dict] = None,
+        gemini_timeout: Optional[float] = None,
     ) -> str:
         """Model text for the prompt, or AIError (429 busy, 502 failed, 503 unconfigured, 504 timeout).
 
@@ -1396,6 +1397,11 @@ class BaseAgent:
         whole call across models and providers (AI_CALL_TIMEOUT_SECONDS by default). A pair that
         answered 429 is skipped while it rests (AI_COOLDOWN); with every pair resting the call is
         429 ai_busy at once.
+
+        ``gemini_timeout`` — the part of ``timeout`` Gemini may spend when the Groq fallback can
+        still run (a key, its model neither skipped nor resting): a slow Gemini then leaves the rest
+        to Groq instead of using up the whole budget. Without a usable fallback Gemini keeps the
+        whole budget.
         """
         keys = self._gemini_keys()
         max_chars = 300000 if keys else 80000
@@ -1405,7 +1411,7 @@ class BaseAgent:
         return await self._generate(
             system_prompt, truncated, keys=keys, images=None, mime_type=None,
             temperature=temperature, max_tokens=max_tokens, json_mode=json_mode, timeout=timeout,
-            fast=fast, thinking=thinking, use_cache=use_cache, meta=meta,
+            fast=fast, thinking=thinking, use_cache=use_cache, meta=meta, gemini_timeout=gemini_timeout,
         )
 
     async def run_with_images(
@@ -1445,6 +1451,7 @@ class BaseAgent:
         thinking: Optional[str],
         use_cache: bool,
         meta: Optional[dict],
+        gemini_timeout: Optional[float] = None,
     ) -> str:
         loop = asyncio.get_running_loop()
         started = loop.time()
@@ -1480,8 +1487,30 @@ class BaseAgent:
         outcome = _Outcome()
         secrets = list(keys) + ([self.groq_api_key] if self.groq_api_key else [])
 
+        if images is not None:
+            groq_model_name = groq_vision_model()
+        elif fast:
+            groq_model_name = groq_fast_model()
+        else:
+            groq_model_name = self.model or groq_model()
+
+        # Gemini's share of the budget: only when Groq can take over (a key, its pair neither skipped nor
+        # resting) does a slow Gemini stop at gemini_timeout and leave the rest to Groq.
+        gemini_deadline = deadline
+        if (
+            gemini_timeout is not None
+            and keys
+            and self.groq_api_key
+            and not model_skipped("groq", self.groq_api_key, groq_model_name)
+            and not pair_resting("groq", self.groq_api_key, groq_model_name)
+        ):
+            gemini_deadline = min(deadline, started + max(0.0, float(gemini_timeout)))
+
         def remaining() -> float:
             return deadline - loop.time()
+
+        def gemini_remaining() -> float:
+            return gemini_deadline - loop.time()
 
         result: Optional[tuple[str, str, str, str, Optional[str]]] = None  # text, provider, model, thinking, finish
 
@@ -1510,25 +1539,22 @@ class BaseAgent:
                     if pair_resting("gemini", key, model):
                         outcome.note("rate_limited")  # every pair resting: ai_busy at once
                         continue
-                    if remaining() <= MIN_ATTEMPT_SECONDS:
+                    if gemini_remaining() <= MIN_ATTEMPT_SECONDS:
                         outcome.note("timeout")
                         break
                     found = await self._gemini_model_attempts(
-                        key, key_index, model, contents, temp, limit, json_flag, mode, remaining, outcome, secrets,
+                        key, key_index, model, contents, temp, limit, json_flag, mode, gemini_remaining, outcome, secrets,
                     )
                     if found is not None:
                         result = (found[0], "gemini", model, found[2], found[1])
                         break
-                if result is not None or remaining() <= MIN_ATTEMPT_SECONDS:
+                if result is not None or gemini_remaining() <= MIN_ATTEMPT_SECONDS:
                     break
+            if result is None and gemini_deadline < deadline and gemini_remaining() <= MIN_ATTEMPT_SECONDS:
+                print(f"AI gemini share of the budget spent after {elapsed_ms()} ms: the rest goes to groq")
 
         if result is None and self.groq_api_key:
-            if images is not None:
-                model = groq_vision_model()
-            elif fast:
-                model = groq_fast_model()
-            else:
-                model = self.model or groq_model()
+            model = groq_model_name
             if model_skipped("groq", self.groq_api_key, model):
                 pass
             elif pair_resting("groq", self.groq_api_key, model):

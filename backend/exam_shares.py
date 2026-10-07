@@ -26,7 +26,8 @@ unverifiable: {...}} — лист пишет «В лекциях не нашло
 
 Маршруты (полные пути, main.py подключает router без префикса):
 - POST /api/exam-shares/preview {code} — без входа (main.PUBLIC_API_PATHS): что за ссылка, для /join (код в теле,
-  не в адресе: адреса запросов пишет журнал сервера);
+  не в адресе: адреса запросов пишет журнал сервера); автору на его ссылке — ещё link: active | revoked | expired
+  (своя строка ссылки его токеном);
 - GET  /api/exam-shares?exam_id=       — автор: готовность экзамена и его ссылки;
 - POST /api/exam-shares                — автор: {exam_id, consent: true} → код один раз;
 - POST /api/exam-shares/{id}/revoke    — автор: отозвать (копии остаются у однокурсников);
@@ -1055,7 +1056,28 @@ async def preview_share(request: Request):
             answer["lectures"] = _int(result.get("lectures")) or 0
         if status in ("own", "joined") and _uuid(result.get("exam_id")):
             answer["exam_id"] = _uuid(result.get("exam_id"))
+    if status == "own" and token:
+        state = await _own_link_state(token, code)
+        if state is not None:
+            answer["link"] = state
     return answer
+
+
+async def _own_link_state(token: str, code: str) -> str | None:
+    """Ссылка автора на его же странице приглашения: active | revoked | expired; None — строку не прочитать.
+
+    exam_share_preview отвечает «own» раньше, чем смотрит на отзыв и срок, поэтому автор на своей закрытой ссылке
+    читал «Однокурсники, которые по ней войдут…». Свою строку ссылки автор читает своим токеном (RLS «read own»):
+    миграция не нужна."""
+    try:
+        async with SupabaseRest(token) as db:
+            row = await db.select_one("exam_shares", {"select": "id,revoked_at,expires_at", "code_hash": f"eq.{code_hash(code)}"})
+    except SupabaseRestError as exc:
+        print(f"Exam share: own link unreadable ({exc.status} {exc.code or ''})".rstrip())
+        return None
+    if not isinstance(row, dict):
+        return None
+    return _public_share(row, _now())["state"]
 
 
 @router.post("/api/exam-shares/join")

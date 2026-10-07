@@ -532,7 +532,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   const writable = useMemo(
     () =>
       data.questions
-        .filter((question) => !question.rubric && (question.coverage === 'full' || question.coverage === 'partial'))
+        .filter((question) => !question.rubric && !question.unwritable && (question.coverage === 'full' || question.coverage === 'partial'))
         .sort((a, b) => a.position - b.position)
         .map((question) => question.question_id),
     [data.questions],
@@ -553,7 +553,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
   // While an answer is shown the counter (and its details) are the sheet's before the answer.
   const shownCounts = replay && replayLive ? replay.beforeCounts : counts;
   const writing = data.write.phase === 'running';
-  const showWrite = writing || data.toWrite > 0 || data.write.phase !== 'idle';
+  const showWrite = writing || data.toWrite > 0 || data.unwritable > 0 || data.write.phase !== 'idle';
   const firstWrite = data.written === 0 && data.toWrite > 0 && !input.mappingRunning;
   const lineOpen = Boolean(selected);
   const primaryInColumn = active && (lineOpen || (firstWrite && !writing));
@@ -592,6 +592,7 @@ export function useSheetView(input: SheetPageInput, data: CheatSheetData): Sheet
         written={data.written}
         toWrite={data.toWrite}
         units={data.units}
+        unwritable={data.unwritable}
         unitsLeft={unitsLeft}
         write={data.write}
         onWrite={onWrite}

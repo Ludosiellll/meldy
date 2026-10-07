@@ -488,6 +488,17 @@ describe('buildSheet', () => {
   it('knows the block kind of a question on its own', () => {
     expect(blockKind(question(1, { coverage: 'none', rubric: rubric('r', TWO) }))).toBe('gap');
     expect(blockKind(question(1, { coverage: 'partial' }))).toBe('unwritten');
+    // Points that failed the quote check twice: nothing to write — a gap, as in a group link's copy.
+    expect(blockKind(question(1, { coverage: 'full', unwritable: true }))).toBe('gap');
+    expect(blockKind(question(1, { coverage: 'full', unwritable: true, rebuilt: true }))).toBe('gap');
+  });
+
+  it('counts a question that cannot be written among the questions without points, not among the unwritten', () => {
+    const sheet = buildSheet([question(1, { rubric: rubric('r1', TWO) }), question(2, { question_hash: 'b'.repeat(32), unwritable: true })], [], NOW);
+    expect(sheet.counts).toMatchObject({ gaps: 1, unwritten: 0, withoutLines: 1 });
+    // The block a copy of a group link shows for the same question (components/exams/sheet/copy.blockNote: «В лекциях
+    // не нашлось пунктов ответа»): a gap of a question the lectures have.
+    expect(sheet.blocks[1]).toMatchObject({ kind: 'gap', coverage: 'full' });
   });
 
   it('builds 300 questions of 6 lines quickly', () => {

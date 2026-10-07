@@ -1209,6 +1209,46 @@ describe('ExamDetail: mapping by lectures', () => {
     stream.close();
   });
 
+  it('a run with nothing for the model (a group copy) is not held back by the units; one that needs it is', async () => {
+    // Live run of 2026-10-07: «Сверить» on a copy asked for 10 free units, though the server answered to_check 0
+    // and used_ai false. Every question here is checked against the lectures the exam has now.
+    const stream = liveStream();
+    const fetchMock = vi.fn(async () => stream.response);
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
+    const old = new Date(Date.now() - 10 * 60_000).toISOString();
+    mocks.loadExamBundle.mockResolvedValue(
+      bundle([question(1, 'full'), question(2, 'partial'), question(3, 'none')], { mapping_state: 'running', mapping_started_at: old }),
+    );
+    renderDetail();
+    await opened();
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(mocks.checkAILimit).not.toHaveBeenCalled();
+    expect(notes().join(' ')).not.toMatch(/лимит/);
+    stream.send({ type: 'start', questions: 3, to_check: 0, materials: [], skipped: [] });
+    stream.send({ type: 'done', state: 'done', counts: { full: 1, partial: 1, none: 1 }, reused: 0, used_ai: false });
+    stream.close();
+    await waitFor(() => expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2));
+    expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
+    cleanup();
+    vi.unstubAllGlobals();
+    resetMapJobsForTests({ pollIntervalMs: 5, pollLimitMs: 2000 });
+
+    // A question not checked yet goes to the model: the units are checked first, as before.
+    const refused = vi.fn();
+    vi.stubGlobal('fetch', refused);
+    mocks.loadExamBundle.mockResolvedValue(
+      bundle([question(1, 'full'), question(2, null)], { mapping_state: 'running', mapping_started_at: old }),
+    );
+    renderDetail();
+    await opened();
+    fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalledWith('user-1', 10));
+    await waitFor(() => expect(notes()[0]).toMatch(/^Дневной лимит исчерпан/));
+    expect(refused).not.toHaveBeenCalled();
+  });
+
   it('checks again only the questions found by words', async () => {
     const stream = liveStream();
     const fetchMock = vi.fn(async () => stream.response);
@@ -1474,7 +1514,7 @@ describe('ExamDetail: «Шпаргалка» and «Вопросы»', () => {
       rebuilt: false,
     }));
     const toWrite = out.filter((item) => !item.rubric && (item.coverage === 'full' || item.coverage === 'partial')).length;
-    return { examId: 'exam-1', mappingState: 'done', questions: out, toWrite, units: toWrite, job: null };
+    return { examId: 'exam-1', mappingState: 'done', questions: out, toWrite, units: toWrite, unwritable: 0, job: null };
   }
 
   function pointEvent(n: number, point: 'p1' | 'p2', day: string, session: string, at = '10:00:00'): LearningEvent {

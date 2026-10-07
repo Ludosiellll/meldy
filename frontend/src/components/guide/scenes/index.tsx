@@ -49,7 +49,7 @@ function Strip({ items, on, cta, children }: { items: readonly string[]; on?: st
           {item}
         </span>
       ))}
-      {cta ? <span className="gs-strip-cta">Добавить лекцию</span> : null}
+      {cta ? <span className="gs-strip-cta">Разобрать лекцию</span> : null}
       {children}
     </div>
   );
@@ -108,7 +108,7 @@ function Today() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// «Добавить лекцию»
+// «Разобрать лекцию»
 
 const MODULES = ['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Разговор'];
 

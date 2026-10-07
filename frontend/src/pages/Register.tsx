@@ -1,18 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, BookOpen, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { validateName, validateEmail, validatePassword, getPasswordStrength } from '../utils/validators';
-import { SIGN_UP_MESSAGES, signUpErrorMessage } from '../lib/signUpErrors';
+import { SIGN_UP_MESSAGES, emptySignUpFields, signUpErrorMessage } from '../lib/signUpErrors';
 import AuthReel from '../components/authReel/AuthReel';
 import { track } from '../lib/telemetry';
 import { afterSignIn, emailRedirectTo, oauthRedirectTo, returnToFromSearch, withReturn } from '../lib/returnTo';
+import { detectInAppBrowser } from '../lib/inAppBrowser';
+import InAppNote from '../components/InAppNote';
 
 /**
  * Регистрация (Meldy 2026-10-04): та же раскладка, что у входа, — карточка с формой и цветная панель
  * с коротким роликом «Материал становится планом подготовки» (AuthReel). Пароль и его повтор стоят
- * рядом, чтобы форма помещалась на экране ноутбука.
+ * рядом, чтобы форма помещалась на экране ноутбука. Во встроенном браузере мессенджера — как на входе:
+ * просьба открыть ссылку в Chrome или Safari вместо кнопки Google, регистрация по почте остаётся.
  */
 export default function Register() {
   const [name, setName] = useState('');
@@ -30,9 +33,11 @@ export default function Register() {
   const [resendMessage, setResendMessage] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
+  const location = useLocation();
   // The page the visitor signs up for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo). The
   // confirmation letter carries it in its address: the letter is often opened in another browser.
-  const returnTo = returnToFromSearch(useLocation().search);
+  const returnTo = returnToFromSearch(location.search);
+  const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
 
   useEffect(() => {
     if (user) navigate(afterSignIn(returnTo));
@@ -46,13 +51,18 @@ export default function Register() {
     setError('');
     setSuccess('');
 
-    const ne = validateName(name);
-    const ee = validateEmail(email);
-    const pe = validatePassword(password);
+    // An empty field never goes to Supabase: it would take the form for an anonymous sign-up (422).
+    const empty = emptySignUpFields({ name, email, password });
+    const ne = empty.name || validateName(name);
+    const ee = empty.email || validateEmail(email);
+    const pe = empty.password || validatePassword(password);
 
     if (ne || ee || pe) {
       setNameError(ne); setEmailError(ee); setPasswordError(pe);
       setLoading(false);
+      // The first field to fix gets the focus (its message is read out: role="alert").
+      const first = ne ? 'register-name' : ee ? 'register-email' : 'register-password';
+      document.getElementById(first)?.focus();
       return;
     }
 
@@ -134,6 +144,14 @@ export default function Register() {
             <h1 id="register-title" className="au-h1">Создать аккаунт</h1>
             <p className="au-lede">Сохраните материалы и продолжайте подготовку с любого устройства.</p>
 
+            {browser.app && !success && (
+              <InAppNote
+                browser={browser}
+                url={`${window.location.origin}${location.pathname}${location.search}`}
+                extra={<p className="ia-hint">Зарегистрироваться по почте можно и здесь.</p>}
+              />
+            )}
+
             {error && (
               <div role="alert" className="au-alert">
                 {error}
@@ -160,7 +178,7 @@ export default function Register() {
 
             {!success && (
               <>
-                <form onSubmit={handleRegister} className="au-form">
+                <form onSubmit={handleRegister} className="au-form" noValidate>
                   <div className="au-field">
                     <label htmlFor="register-name" className="au-label">Имя</label>
                     <input
@@ -177,6 +195,7 @@ export default function Register() {
                       aria-describedby={nameError ? 'register-name-error' : undefined}
                       className="au-input"
                       placeholder="Ваше имя"
+                      required
                     />
                     {nameError && <p id="register-name-error" role="alert" className="au-hint au-hint--error">{nameError}</p>}
                   </div>
@@ -197,6 +216,7 @@ export default function Register() {
                       aria-describedby={emailError ? 'register-email-error' : undefined}
                       className="au-input"
                       placeholder="you@example.com"
+                      required
                     />
                     {emailError && <p id="register-email-error" role="alert" className="au-hint au-hint--error">{emailError}</p>}
                   </div>
@@ -219,6 +239,7 @@ export default function Register() {
                         aria-describedby={passwordError ? 'register-password-error' : undefined}
                         className="au-input au-input--eye"
                         placeholder="••••••••"
+                        required
                       />
                       <button
                         type="button"
@@ -268,12 +289,17 @@ export default function Register() {
                   </button>
                 </form>
 
-                <div className="au-or">или войти через</div>
+                {/* Inside a messenger's browser Google refuses to sign in: no button that cannot work. */}
+                {!browser.app && (
+                  <>
+                    <div className="au-or">или войти через</div>
 
-                <button type="button" onClick={handleGoogleLogin} className="au-oauth">
-                  <GoogleMark />
-                  Войти через Google
-                </button>
+                    <button type="button" onClick={handleGoogleLogin} className="au-oauth">
+                      <GoogleMark />
+                      Войти через Google
+                    </button>
+                  </>
+                )}
               </>
             )}
 
